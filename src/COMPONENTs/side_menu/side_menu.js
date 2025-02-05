@@ -16,6 +16,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
   const {
     chatRoomID,
     setChatRoomID,
+    generateUniqueID,
     historicalMessages,
     setHistoricalMessages,
   } = useContext(RootDataContexts);
@@ -57,7 +58,10 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       );
       return newHistoricalMessages;
     });
-  }, [chat_room_id, historicalMessages]);
+    if (chatRoomID === chat_room_id) {
+      setChatRoomID(generateUniqueID());
+    }
+  }, [chat_room_id, chatRoomID, historicalMessages]);
 
   return (
     <div
@@ -182,7 +186,7 @@ const Chat_Room_List = ({}) => {
         style={{
           position: "absolute",
           top: 4,
-          right: 18,
+          right: 19,
 
           width: 16,
           height: 16,
@@ -312,7 +316,7 @@ const Side_Menu = ({}) => {
           style={{
             userSelect: "none",
             height: 20,
-            opacity: isExpanded ? 0.64 : 0.32,
+            opacity: isExpanded ? 0.5 : 0.32,
           }}
           onClick={() => {
             setIsExpanded(!isExpanded);

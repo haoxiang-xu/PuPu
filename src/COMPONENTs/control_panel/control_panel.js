@@ -58,6 +58,7 @@ const Control_Panel = ({}) => {
       value={{
         chatRoomID,
         setChatRoomID,
+        generateUniqueID,
         messages,
         setMessages,
         historicalMessages,
