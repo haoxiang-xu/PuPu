@@ -160,13 +160,13 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
-        border: "1px solid rgba(255, 255, 255, 0.32)",
+        border: "1px solid rgba(255, 255, 255, 0.16)",
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
-        border: "1px solid rgba(255, 255, 255, 0.32)",
+        border: "1px solid rgba(255, 255, 255, 0.16)",
       });
     } else {
       setStyle({

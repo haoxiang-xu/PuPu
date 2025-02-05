@@ -4,6 +4,7 @@ import React, {
   useRef,
   useCallback,
   useContext,
+  use,
 } from "react";
 import { RootDataContexts } from "../root_data_contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -16,7 +17,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
   const {
     chatRoomID,
     setChatRoomID,
-    generateUniqueID,
+    generate_unique_room_ID,
     historicalMessages,
     setHistoricalMessages,
   } = useContext(RootDataContexts);
@@ -24,6 +25,8 @@ const Chat_Room_Record = ({ chat_room_id }) => {
   const [onDelete, setOnDelete] = useState(false);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`,
+    boxShadow: "none",
+    border: "1px solid rgba(255, 255, 255, 0)",
   });
 
   useEffect(() => {
@@ -31,6 +34,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       setStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.84)`,
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
+        border: "1px solid rgba(255, 255, 255, 0.16)",
       });
       return;
     } else {
@@ -40,11 +44,13 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       setStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.4)`,
         boxShadow: "none",
+        border: "1px solid rgba(255, 255, 255, 0)",
       });
     } else {
       setStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
         boxShadow: "none",
+        border: "1px solid rgba(255, 255, 255, 0)",
       });
     }
   }, [onHover, chatRoomID, chat_room_id]);
@@ -59,7 +65,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       return newHistoricalMessages;
     });
     if (chatRoomID === chat_room_id) {
-      setChatRoomID(generateUniqueID());
+      setChatRoomID(generate_unique_room_ID());
     }
   }, [chat_room_id, chatRoomID, historicalMessages]);
 
@@ -68,11 +74,12 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       style={{
         transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
-        width: "calc(100% - 18px)",
+        width: "calc(100% - 24px)",
         height: 28,
-        margin: "6px 12px 0 6px",
+        margin: "6px 12px 0 12px",
 
         borderRadius: 5,
+        border: style.border,
         backgroundColor: style.backgroundColor,
         boxShadow: style.boxShadow,
         overflow: "hidden",
@@ -85,6 +92,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       }}
       onClick={() => {
         setChatRoomID(chat_room_id);
+        setOnDelete(false);
       }}
     >
       <span
@@ -113,6 +121,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       <Icon
         src="circle"
         style={{
+          userSelect: "none",
           transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(-50%, -50%)",
@@ -130,6 +139,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       <Icon
         src="add"
         style={{
+          userSelect: "none",
           transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(-50%, -50%) rotate(45deg)",
@@ -155,6 +165,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
             right: onDelete && chatRoomID === chat_room_id ? 32 : -2,
             width: 17,
             height: 17,
+            userSelect: "none",
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -166,7 +177,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
   );
 };
 const Chat_Room_List = ({}) => {
-  const { historicalMessages } = useContext(RootDataContexts);
+  const { historicalMessages, start_new_section } = useContext(RootDataContexts);
 
   return (
     <div
@@ -182,8 +193,10 @@ const Chat_Room_List = ({}) => {
       }}
     >
       <Icon
+        className="add_chat_section_button"
         src="add"
         style={{
+          userSelect: "none",
           position: "absolute",
           top: 4,
           right: 19,
@@ -192,6 +205,9 @@ const Chat_Room_List = ({}) => {
           height: 16,
 
           opacity: 0.64,
+        }}
+        onClick={() => {
+          start_new_section();
         }}
       ></Icon>
       <span

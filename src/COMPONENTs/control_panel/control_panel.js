@@ -14,7 +14,7 @@ const Control_Panel = ({}) => {
   const [historicalMessages, setHistoricalMessages] = useState({});
   const [sectionStarted, setSectionStarted] = useState(true);
 
-  const generateUniqueID = () => {
+  const generate_unique_room_ID = () => {
     let id = "";
     while (true) {
       id =
@@ -26,15 +26,19 @@ const Control_Panel = ({}) => {
     }
     return id;
   };
-  useEffect(() => {
+  const start_new_section = () => {
+    setChatRoomID(generate_unique_room_ID());
+    setSectionStarted(false);
+  };
+  /* { load from storage if avaliable else open new section } */
+  useEffect(() => { 
     const historical_messages = JSON.parse(
       localStorage.getItem("AI_lounge_historical_messages") || "{}"
     );
     let chat_room_id = "";
     setHistoricalMessages(historical_messages);
     if (Object.keys(historical_messages).length === 0) {
-      setChatRoomID(generateUniqueID());
-      setSectionStarted(false);
+      start_new_section();
     } else {
       setChatRoomID(Object.keys(historical_messages)[0]);
       chat_room_id = Object.keys(historical_messages)[0];
@@ -58,13 +62,14 @@ const Control_Panel = ({}) => {
       value={{
         chatRoomID,
         setChatRoomID,
-        generateUniqueID,
+        generate_unique_room_ID,
         messages,
         setMessages,
         historicalMessages,
         setHistoricalMessages,
         sectionStarted,
         setSectionStarted,
+        start_new_section,
       }}
     >
       <div
