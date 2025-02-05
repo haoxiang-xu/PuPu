@@ -151,8 +151,8 @@ const CodeSection = ({ language, children }) => {
         wrapLines={false}
         codeBlock
         customStyle={{
-          fontSize: `${default_font_size + 2}px`,
-          fontFamily: "'Courier New', Courier, monospace",
+          fontSize: `${default_font_size + 1}px`,
+          fontFamily: "'Fira Code', 'JetBrains Mono', 'Source Code Pro', monospace",
           backgroundColor: `rgb(${R - 8}, ${G - 8}, ${B - 8})`,
           paddingTop: 36,
           borderRadius: default_border_radius,

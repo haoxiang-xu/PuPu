@@ -2,9 +2,8 @@
   background-color: #424242;
   color: #bdbdbd;
   padding: 2px 8px;
-  margin: 2px;
+  margin: 2px;  
   border-radius: 4px;
-  font-family: monospace;
 
 }
 .markdown-section a {
@@ -22,13 +21,13 @@
 }
 .code-section ::-webkit-scrollbar {
   width: 10px;
-  height: 12px;
+  height: 14px;
 }
 .code-section ::-webkit-scrollbar-thumb {
   transition: background-color 0.64s cubic-bezier(0.32, 1, 0.32, 1);
   background-color: rgba(32, 32, 32, 1);
   border-radius: 10px;
-  border: 3px solid rgba(22, 22, 22, 1);
+  border: 4px solid rgba(22, 22, 22, 1);
 }
 .code-section ::-webkit-scrollbar-thumb:hover {
   transition: background-color 0.64s cubic-bezier(0.32, 1, 0.32, 1);
