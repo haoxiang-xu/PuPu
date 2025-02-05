@@ -11,6 +11,7 @@ const Side_Menu = ({}) => {
   });
   const [menuStyle, setMenuStyle] = useState({
     width: 0,
+    borderRight: "0px solid rgba(255, 255, 255, 0)",
   });
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -28,11 +29,18 @@ const Side_Menu = ({}) => {
   useEffect(() => {
     if (isExpanded) {
       window.innerWidth * 0.25 > 256
-        ? setMenuStyle({ width: window.innerWidth * 0.25 })
-        : setMenuStyle({ width: 256 });
+        ? setMenuStyle({ 
+          width: window.innerWidth * 0.25,
+          borderRight: "1px solid rgba(255, 255, 255, 0.12)",
+         })
+        : setMenuStyle({ 
+          width: 256,
+          borderRight: "1px solid rgba(255, 255, 255, 0.12)",
+        });
     } else {
       setMenuStyle({
         width: 0,
+        borderRight: "0px solid rgba(255, 255, 255, 0)",
       });
     }
   }, [isExpanded, windowWidth]);

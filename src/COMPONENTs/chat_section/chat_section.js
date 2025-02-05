@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useContext,
+} from "react";
+import { RootDataContexts } from "../root_data_contexts";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import send_icon from "./send.svg";
@@ -13,7 +20,7 @@ const default_forground_color_offset = 12;
 const default_font_color_offset = 128;
 const default_border_radius = 10;
 
-const MessageSection = ({ role, message, is_last_index }) => {
+const Message_Section = ({ role, message, is_last_index }) => {
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
   });
@@ -53,7 +60,7 @@ const MessageSection = ({ role, message, is_last_index }) => {
     </div>
   );
 };
-const ScrollingSection = ({ messages }) => {
+const Scrolling_Section = ({ messages }) => {
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -118,7 +125,7 @@ const ScrollingSection = ({ messages }) => {
     >
       {messages
         ? messages.map((msg, index) => (
-            <MessageSection
+            <Message_Section
               key={index}
               role={msg.role}
               message={msg.message}
@@ -136,7 +143,7 @@ const ScrollingSection = ({ messages }) => {
     </div>
   );
 };
-const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
+const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const [style, setStyle] = useState({
     colorOffset: 0,
     opacity: 0,
@@ -252,8 +259,17 @@ const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
   );
 };
 
-const Chat_Section = ({ messages, setMessages }) => {
+const Chat_Section = () => {
   const [inputValue, setInputValue] = useState("");
+  const [responseInComing, setResponseInComing] = useState(false);
+  const {
+    chatRoomID,
+    setChatRoomID,
+    messages,
+    setMessages,
+    historicalMessages,
+    setHistoricalMessages,
+  } = useContext(RootDataContexts);
 
   const on_input_submit = useCallback(() => {
     if (inputValue !== "") {
@@ -264,7 +280,6 @@ const Chat_Section = ({ messages, setMessages }) => {
       setInputValue("");
     }
   }, [inputValue, messages]);
-
   const single_chat_mode = async (messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages = [];
@@ -328,21 +343,42 @@ const Chat_Section = ({ messages, setMessages }) => {
           console.error("Error parsing stream chunk:", error);
         }
       }
-      return accumulatedResponse;
+      return {
+        role: "assistant",
+        message: accumulatedResponse,
+        content: accumulatedResponse
+      };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
     }
   };
+  const save_historical_messages = useCallback((latest_message) => {
+    const pervious_h_msgs = historicalMessages;
+    let new_h_msgs = pervious_h_msgs;
+    new_h_msgs[chatRoomID] = [...messages, latest_message];
+
+    setHistoricalMessages(new_h_msgs);
+    localStorage.setItem(
+      "AI_lounge_historical_messages",
+      JSON.stringify(new_h_msgs)
+    );
+  }, [messages, chatRoomID, historicalMessages]);
+
   useEffect(() => {
-    if (messages.length > 0 && messages[messages.length - 1].role === "user") {
-      single_chat_mode(messages).then((response) => {
-        setMessages([
-          ...messages,
-          { role: "assistant", message: response, content: response },
-        ]);
-      });
+    if (!responseInComing) {
+      if (
+        messages.length > 0 &&
+        messages[messages.length - 1].role === "user"
+      ) {
+        setResponseInComing(true);
+        single_chat_mode(messages)
+          .then((response) => {
+            setResponseInComing(false);
+            save_historical_messages(response);
+          })
+      }
     }
-  }, [messages]);
+  }, [messages, responseInComing]);
 
   return (
     <div
@@ -355,8 +391,8 @@ const Chat_Section = ({ messages, setMessages }) => {
         height: "100%",
       }}
     >
-      <ScrollingSection messages={messages} />
-      <InputSection
+      <Scrolling_Section messages={messages} />
+      <Input_Section
         inputValue={inputValue}
         setInputValue={setInputValue}
         on_input_submit={on_input_submit}
