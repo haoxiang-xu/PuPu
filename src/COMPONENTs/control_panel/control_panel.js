@@ -13,9 +13,6 @@ const Control_Panel = ({}) => {
   const [messages, setMessages] = useState([]);
   const [historicalMessages, setHistoricalMessages] = useState({});
   const [sectionStarted, setSectionStarted] = useState(true);
-  const [style, setStyle] = useState({
-    chat_section_opacity: 0,
-  });
 
   useEffect(() => {
     const historical_messages = JSON.parse(
@@ -32,17 +29,6 @@ const Control_Panel = ({}) => {
       setSectionStarted(false);
     }
   }, []);
-  useEffect(() => {
-    if (sectionStarted) {
-      setStyle({
-        chat_section_opacity: 1,
-      });
-    } else {
-      setStyle({
-        chat_section_opacity: 0,
-      });
-    }
-  }, [sectionStarted]);
   useEffect(() => {
     if (messages.length > 0) {
       setSectionStarted(true);
@@ -124,7 +110,6 @@ const Control_Panel = ({}) => {
 
             width: "50%",
             minWidth: 512,
-            opacity: style.chat_section_opacity,
           }}
         >
           <Chat_Section />

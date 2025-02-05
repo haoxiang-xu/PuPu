@@ -13,8 +13,9 @@ const G = 30;
 const B = 30;
 
 const Chat_Room_Record = ({ chat_room_id }) => {
-  const { chatRoomID, setChatRoomID } = useContext(RootDataContexts);
+  const { chatRoomID, setChatRoomID, historicalMessages, setHistoricalMessages } = useContext(RootDataContexts);
   const [onHover, setOnHover] = useState(false);
+  const [onDelete, setOnDelete] = useState(false);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`,
   });
@@ -25,7 +26,11 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.84)`,
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
       });
-    } else if (onHover) {
+      return;
+    }else{
+      setOnDelete(false);
+    }
+    if (onHover) {
       setStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.4)`,
         boxShadow: "none",
@@ -37,6 +42,18 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       });
     }
   }, [onHover, chatRoomID, chat_room_id]);
+  const messages_on_deleted = useCallback(() => {
+    const pervious_h_msgs = historicalMessages;
+    let new_h_msgs = pervious_h_msgs;
+    delete new_h_msgs[chat_room_id];
+
+    setHistoricalMessages(new_h_msgs);
+    localStorage.setItem(
+      "AI_lounge_historical_messages",
+      JSON.stringify(new_h_msgs)
+    );
+  }, [chat_room_id, historicalMessages]);
+
 
   return (
     <div
@@ -44,7 +61,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
         width: "calc(100% - 18px)",
-        height: 32,
+        height: 28,
         margin: "6px 12px 0 6px",
 
         borderRadius: 5,
@@ -72,14 +89,71 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           left: 11,
           width: "calc(100% - 36px)",
 
+          fontSize: 14,
+
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           overflow: "hidden",
           color: `rgba(225, 225, 225, 0.64)`,
+
+          userSelect: "none",
+          pointerEvents: "none",
         }}
       >
         {chat_room_id}
       </span>
+      <Icon
+        src="circle"
+        style={{
+          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          top: "50%",
+          right: -2,
+          width: 17,
+          height: 17,
+          opacity: onDelete && chatRoomID === chat_room_id ? 0.64 : 0,
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          messages_on_deleted();
+        }}
+      />
+      <Icon
+        src="add"
+        style={{
+          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(-50%, -50%) rotate(45deg)",
+          top: "50%",
+          right: onDelete && chatRoomID === chat_room_id ? 14 : -2,
+          width: 17,
+          height: 17,
+          opacity: onDelete && chatRoomID === chat_room_id ? 0.64 : 0,
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setOnDelete(!onDelete);
+        }}
+      />
+      {chatRoomID === chat_room_id ? (
+        <Icon
+          src="delete"
+          style={{
+            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            right: onDelete && chatRoomID === chat_room_id ? 32 : -2,
+            width: 17,
+            height: 17,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOnDelete(!onDelete);
+          }}
+        />
+      ) : null}
     </div>
   );
 };
@@ -99,12 +173,25 @@ const Chat_Room_List = ({}) => {
         overflowX: "hidden",
       }}
     >
+      <Icon
+        src="add"
+        style={{
+          position: "absolute",
+          top: 4,
+          right: 16,
+
+          width: 16,
+          height: 16,
+
+          opacity: 0.64,
+        }}
+      ></Icon>
       <span
         style={{
           position: "relative",
           top: 0,
           left: 12,
-          
+
           fontSize: 14,
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -113,7 +200,9 @@ const Chat_Room_List = ({}) => {
           userSelect: "none",
           pointerEvents: "none",
         }}
-      >Chat Rooms</span>
+      >
+        Chat Rooms
+      </span>
       {Object.keys(historicalMessages).map((chat_room_id, index) => (
         <Chat_Room_Record key={index} chat_room_id={chat_room_id} />
       ))}

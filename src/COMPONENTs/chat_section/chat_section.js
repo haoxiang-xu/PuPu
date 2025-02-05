@@ -61,6 +61,7 @@ const Message_Section = ({ role, message, is_last_index }) => {
   );
 };
 const Scrolling_Section = ({ messages }) => {
+  const { sectionStarted } = useContext(RootDataContexts);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -121,6 +122,8 @@ const Scrolling_Section = ({ messages }) => {
         overflowY: "overlay",
         boxSizing: "border-box",
         scrollBehavior: "smooth",
+
+        opacity: sectionStarted ? 1 : 0,
       }}
     >
       {messages

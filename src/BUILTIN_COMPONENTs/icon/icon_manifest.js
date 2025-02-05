@@ -23,6 +23,8 @@ export const iconManifest = {
   delete: () => import("./SVGs/UI/delete.svg"),
   wrench_screwdriver: () => import("./SVGs/UI/wrench_screwdriver.svg"),
   menu: () => import("./SVGs/UI/menu.svg"),
+  add: () => import("./SVGs/UI/add.svg"),
+  circle: () => import("./SVGs/UI/circle.svg"),
 
   /* {win32} */
   win32_maximize: () => import("./SVGs/UI/win32/maximize.svg"),
