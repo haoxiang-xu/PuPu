@@ -48,6 +48,9 @@ const Control_Panel = ({}) => {
       setSectionStarted(true);
     }
   }, [messages]);
+  useEffect(() => {
+    setMessages(historicalMessages[chatRoomID] || []);
+  }, [chatRoomID]);
 
   return (
     <RootDataContexts.Provider
