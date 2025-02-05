@@ -12,8 +12,9 @@ const Control_Panel = ({}) => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   const [chatRoomID, setChatRoomID] = useState("");
-
+  const [modelSelected, setModelSelected] = useState("deepseek-r1:14b");
   const [messages, setMessages] = useState([]);
+
   const [historicalMessages, setHistoricalMessages] = useState({});
 
   const [sectionStarted, setSectionStarted] = useState(true);
@@ -39,7 +40,10 @@ const Control_Panel = ({}) => {
       setHistoricalMessages((prev) => {
         let newHistoricalMessages = { ...prev };
         let messages_to_save = [...messages, latest_message];
-        newHistoricalMessages[chatRoomID] = { messages: messages_to_save };
+        newHistoricalMessages[chatRoomID] = {
+          ...newHistoricalMessages[chatRoomID],
+          messages: messages_to_save,
+        };
         localStorage.setItem(
           "AI_lounge_historical_messages",
           JSON.stringify(newHistoricalMessages)
@@ -48,6 +52,23 @@ const Control_Panel = ({}) => {
       });
     },
     [chatRoomID, messages, historicalMessages]
+  );
+  const save_after_new_title = useCallback(
+    (title) => {
+      setHistoricalMessages((prev) => {
+        let newHistoricalMessages = { ...prev };
+        newHistoricalMessages[chatRoomID] = {
+          ...newHistoricalMessages[chatRoomID],
+          title: title,
+        };
+        localStorage.setItem(
+          "AI_lounge_historical_messages",
+          JSON.stringify(newHistoricalMessages)
+        );
+        return newHistoricalMessages;
+      });
+    },
+    [chatRoomID, historicalMessages]
   );
   const save_after_deleted = useCallback(
     (chat_room_id) => {
@@ -66,6 +87,139 @@ const Control_Panel = ({}) => {
     },
     [chatRoomID, historicalMessages]
   );
+
+  /* { Ollama APIs } --------------------------------------------------------------------------------- */
+  const chat_generation = async (messages) => {
+    const preprocess_messages = (messages, memory_length) => {
+      let processed_messages = [];
+
+      for (let i = 0; i < messages.length; i++) {
+        if (messages[i].role === "system") {
+          processed_messages.push({
+            role: messages[i].role,
+            content: messages[i].content,
+          });
+        } else if (messages.length - i <= memory_length) {
+          processed_messages.push({
+            role: messages[i].role,
+            content: messages[i].content,
+          });
+        }
+      }
+      return processed_messages;
+    };
+    const processed_messages = preprocess_messages(messages, 8);
+
+    try {
+      const request = {
+        model: modelSelected,
+        messages: processed_messages,
+      };
+      const response = await fetch(`http://localhost:11434/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+      if (!response.body) {
+        console.error("No response body received from Ollama.");
+        return;
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let accumulatedResponse = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        try {
+          const jsonChunk = JSON.parse(chunk);
+          if (jsonChunk.message && jsonChunk.message.content) {
+            accumulatedResponse += jsonChunk.message.content;
+            setMessages([
+              ...messages,
+              {
+                role: "assistant",
+                message: accumulatedResponse,
+                content: accumulatedResponse,
+              },
+            ]);
+          }
+          if (jsonChunk.done) break;
+        } catch (error) {
+          console.error("Error parsing stream chunk:", error);
+        }
+      }
+      return {
+        role: "assistant",
+        message: accumulatedResponse,
+        content: accumulatedResponse,
+      };
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+    }
+  };
+  const chat_room_title_generation = async (messages) => {
+    const preprocess_messages = (messages, memory_length) => {
+      let processed_messages =
+        "Analyze the following conversation between the user and assistant, and generate a concise, descriptive title for the chat room in no more than 10 words.\n\n\n";
+
+      for (let i = 0; i < messages.length; i++) {
+        if (messages[i].role === "user") {
+          processed_messages +=
+            messages[i].role + ": " + messages[i].content + "\n\n\n";
+        }
+      }
+      return processed_messages;
+    };
+    const extract_title = (response) => {
+      const end_think_tag = "</think>";
+
+      const content_after_thinking = response.split(end_think_tag)[1];
+      let title = content_after_thinking.replace(/(\r\n|\n|\r|\t)/gm, "");
+      title = title.replace(/[^a-zA-Z0-9 ]/g, "");
+      return title;
+    };
+    const instruction = {
+      role: "system",
+      content:
+        "Your task is to analyze a set of conversations between a user and an AI, then generate a concise and descriptive chat room title summarizing the overall topic or purpose of the conversation. The title must be clear, relevant, and contain fewer than 10 words.",
+    };
+    let processed_messages = preprocess_messages(messages, 7);
+    processed_messages = [
+      instruction,
+      {
+        role: "user",
+        content: processed_messages,
+      },
+    ];
+
+    try {
+      const request = {
+        model: modelSelected,
+        messages: processed_messages,
+        stream: false,
+      };
+      const response = await fetch(`http://localhost:11434/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+      if (!response.body) {
+        console.error("No response body received from Ollama.");
+        return;
+      }
+      const stringifiedResponse = await response.json();
+      return extract_title(stringifiedResponse.message.content);
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+    }
+  };
+  /* { Ollama APIs } --------------------------------------------------------------------------------- */
 
   /* { load from storage if avaliable else open new section } */
   useEffect(() => {
@@ -102,8 +256,15 @@ const Control_Panel = ({}) => {
     }
   }, [messages]);
   useEffect(() => {
-    setMessages(historicalMessages[chatRoomID] || []);
-  }, [chatRoomID]);
+    if (
+      historicalMessages[chatRoomID] &&
+      historicalMessages[chatRoomID]["messages"]
+    ) {
+      setMessages(historicalMessages[chatRoomID]["messages"]);
+    } else {
+      setMessages([]);
+    }
+  }, [chatRoomID, historicalMessages]);
 
   return (
     <RootDataContexts.Provider
@@ -118,10 +279,14 @@ const Control_Panel = ({}) => {
         historicalMessages,
         setHistoricalMessages,
         save_after_new_message,
+        save_after_new_title,
         save_after_deleted,
         sectionStarted,
         setSectionStarted,
         start_new_section,
+
+        chat_generation,
+        chat_room_title_generation,
       }}
     >
       <div

@@ -14,8 +14,6 @@ const R = 30;
 const G = 30;
 const B = 30;
 
-const MODEL = "deepseek-r1:14b";
-
 const default_forground_color_offset = 12;
 const default_font_color_offset = 128;
 const default_border_radius = 10;
@@ -109,6 +107,7 @@ const Scrolling_Section = ({ messages }) => {
       ref={scrollRef}
       className="scrolling-space"
       style={{
+        transition: "opacity 0.64s cubic-bezier(0.32, 0, 0.32, 1)",
         position: "absolute",
 
         top: 0,
@@ -126,7 +125,7 @@ const Scrolling_Section = ({ messages }) => {
         opacity: sectionStarted ? 1 : 0,
       }}
     >
-      {messages
+      {messages && messages.length > 0
         ? messages.map((msg, index) => (
             <Message_Section
               key={index}
@@ -263,7 +262,12 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 };
 
 const Chat_Section = () => {
-  const { save_after_new_message } = useContext(RootDataContexts);
+  const {
+    save_after_new_message,
+    save_after_new_title,
+    chat_generation,
+    chat_room_title_generation,
+  } = useContext(RootDataContexts);
   const [inputValue, setInputValue] = useState("");
   const [responseInComing, setResponseInComing] = useState(false);
   const {
@@ -284,78 +288,6 @@ const Chat_Section = () => {
       setInputValue("");
     }
   }, [inputValue, messages]);
-  const single_chat_mode = async (messages) => {
-    const preprocess_messages = (messages, memory_length) => {
-      let processed_messages = [];
-
-      for (let i = 0; i < messages.length; i++) {
-        if (messages[i].role === "system") {
-          processed_messages.push({
-            role: messages[i].role,
-            content: messages[i].content,
-          });
-        } else if (messages.length - i <= memory_length) {
-          processed_messages.push({
-            role: messages[i].role,
-            content: messages[i].content,
-          });
-        }
-      }
-      return processed_messages;
-    };
-    const processed_messages = preprocess_messages(messages, 8);
-
-    try {
-      const request = {
-        model: MODEL,
-        messages: processed_messages,
-      };
-      const response = await fetch(`http://localhost:11434/api/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request),
-      });
-      if (!response.body) {
-        console.error("No response body received from Ollama.");
-        return;
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let accumulatedResponse = "";
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        try {
-          const jsonChunk = JSON.parse(chunk);
-          if (jsonChunk.message && jsonChunk.message.content) {
-            accumulatedResponse += jsonChunk.message.content;
-            setMessages([
-              ...messages,
-              {
-                role: "assistant",
-                message: accumulatedResponse,
-                content: accumulatedResponse,
-              },
-            ]);
-          }
-          if (jsonChunk.done) break;
-        } catch (error) {
-          console.error("Error parsing stream chunk:", error);
-        }
-      }
-      return {
-        role: "assistant",
-        message: accumulatedResponse,
-        content: accumulatedResponse,
-      };
-    } catch (error) {
-      console.error("Error communicating with Ollama:", error);
-    }
-  };
 
   useEffect(() => {
     if (!responseInComing) {
@@ -364,10 +296,16 @@ const Chat_Section = () => {
         messages[messages.length - 1].role === "user"
       ) {
         setResponseInComing(true);
-        single_chat_mode(messages).then((response) => {
-          setResponseInComing(false);
-          save_after_new_message(response);
-        });
+        chat_generation(messages)
+          .then((response) => {
+            setResponseInComing(false);
+            save_after_new_message(response);
+          })
+          .finally(() => {
+            chat_room_title_generation(messages).then((response) => {
+              save_after_new_title(response);
+            });
+          });
       }
     }
   }, [messages, responseInComing]);

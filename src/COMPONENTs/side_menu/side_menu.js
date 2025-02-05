@@ -84,13 +84,14 @@ const Chat_Room_Record = ({ chat_room_id }) => {
     >
       <span
         style={{
+          transition: "all 0.2s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           display: "block",
 
           transform: "translateY(-50%)",
           top: "50%",
           left: 11,
-          width: "calc(100% - 36px)",
+          width: onDelete? "calc(100% - 64px)" : "calc(100% - 36px)",
 
           fontSize: 14,
 
@@ -103,7 +104,9 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           pointerEvents: "none",
         }}
       >
-        {chat_room_id}
+        {historicalMessages[chat_room_id]["title"]
+          ? historicalMessages[chat_room_id]["title"]
+          : chat_room_id}
       </span>
       <Icon
         src="circle"
@@ -265,9 +268,11 @@ const Chat_Room_List = ({}) => {
       >
         Chat Rooms
       </span>
-      {Object.keys(historicalMessages).map((chat_room_id, index) => (
-        <Chat_Room_Record key={index} chat_room_id={chat_room_id} />
-      ))}
+      {historicalMessages
+        ? Object.keys(historicalMessages).map((chat_room_id, index) => (
+            <Chat_Room_Record key={index} chat_room_id={chat_room_id} />
+          ))
+        : null}
     </div>
   );
 };
