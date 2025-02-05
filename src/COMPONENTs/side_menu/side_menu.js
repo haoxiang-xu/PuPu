@@ -32,7 +32,7 @@ const Side_Menu = ({}) => {
         className="scrolling-space"
         style={{
           transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
+          position: "fixed",
 
           top: 0,
           left: 0,
@@ -52,7 +52,7 @@ const Side_Menu = ({}) => {
         className="icon-container"
         style={{
           transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
+          position: "fixed",
           top: 8,
           left: 8,
         }}

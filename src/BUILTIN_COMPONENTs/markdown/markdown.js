@@ -698,7 +698,7 @@ const Markdown = ({ children, style }) => {
 
         /* { style } --------------------------------------------------------------------- */
         padding: `${default_font_size}px`,
-        borderRadius: `${default_border_radius + 4}px`,
+        borderRadius: `${default_border_radius + 2}px`,
         backgroundColor:
           style && style.backgroundColor
             ? style.backgroundColor

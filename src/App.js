@@ -1,11 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 import Control_Panel from "./COMPONENTs/control_panel/control_panel";
 
 const App = () => {
-  const [RGB, setRGB] = React.useState({ R: 30, G: 30, B: 30 });
-  const [fontFamily, setFontFamily] = React.useState("Jost");
+  const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });
+  const [fontFamily, setFontFamily] = useState("Jost");
+
+  useEffect(() => {
+    document.body.style.backgroundColor = `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`;
+    return () => {
+      document.body.style.backgroundColor = "";
+    };
+  }, []);
 
   return (
     <div

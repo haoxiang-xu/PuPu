@@ -21,11 +21,10 @@ const Control_Panel = ({}) => {
     <div
       style={{
         position: "absolute",
-        top: "0",
-        left: "0",
-
-        width: "100%",
-        height: "100%",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
 
         overflow: "hidden",
         backgroundColor: `rgb(${R}, ${G}, ${B})`,
@@ -67,11 +66,11 @@ const Control_Panel = ({}) => {
         className="chat-section-wrapper"
         style={{
           position: "absolute",
-          transform: "translate(-50%, -50%)",
-          top: "calc(50% + 2px)",
+          transform: "translate(-50%, 0%)",
+          top: 6,
           left: "50%",
-
-          height: "100%",
+          bottom: 6,
+          
           width: "45%",
           minWidth: 512,
         }}
