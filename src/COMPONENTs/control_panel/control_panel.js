@@ -9,6 +9,8 @@ const G = 30;
 const B = 30;
 
 const Control_Panel = ({}) => {
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+
   const [chatRoomID, setChatRoomID] = useState("");
 
   const [messages, setMessages] = useState([]);
@@ -36,10 +38,8 @@ const Control_Panel = ({}) => {
     (latest_message) => {
       setHistoricalMessages((prev) => {
         let newHistoricalMessages = { ...prev };
-        newHistoricalMessages[chatRoomID]["messages"] = [
-          ...messages,
-          latest_message,
-        ];
+        let messages_to_save = [...messages, latest_message];
+        newHistoricalMessages[chatRoomID] = { messages: messages_to_save };
         localStorage.setItem(
           "AI_lounge_historical_messages",
           JSON.stringify(newHistoricalMessages)
@@ -48,6 +48,23 @@ const Control_Panel = ({}) => {
       });
     },
     [chatRoomID, messages, historicalMessages]
+  );
+  const save_after_deleted = useCallback(
+    (chat_room_id) => {
+      setHistoricalMessages((prev) => {
+        const newHistoricalMessages = { ...prev };
+        delete newHistoricalMessages[chat_room_id];
+        localStorage.setItem(
+          "AI_lounge_historical_messages",
+          JSON.stringify(newHistoricalMessages)
+        );
+        return newHistoricalMessages;
+      });
+      if (chatRoomID === chat_room_id) {
+        setChatRoomID(generate_unique_room_ID());
+      }
+    },
+    [chatRoomID, historicalMessages]
   );
 
   /* { load from storage if avaliable else open new section } */
@@ -66,6 +83,17 @@ const Control_Panel = ({}) => {
       setSectionStarted(true);
     }
   }, []);
+  /* { assign window size listener } */
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
   useEffect(() => {
     if (messages.length > 0) {
       setSectionStarted(true);
@@ -80,6 +108,8 @@ const Control_Panel = ({}) => {
   return (
     <RootDataContexts.Provider
       value={{
+        windowWidth,
+        setWindowWidth,
         chatRoomID,
         setChatRoomID,
         generate_unique_room_ID,
@@ -88,6 +118,7 @@ const Control_Panel = ({}) => {
         historicalMessages,
         setHistoricalMessages,
         save_after_new_message,
+        save_after_deleted,
         sectionStarted,
         setSectionStarted,
         start_new_section,
@@ -150,8 +181,7 @@ const Control_Panel = ({}) => {
             left: "50%",
             bottom: 6,
 
-            width: "50%",
-            minWidth: 512,
+            width: windowWidth <= 612 ? "calc(100% - 12px)" : 600,
           }}
         >
           <Chat_Section />

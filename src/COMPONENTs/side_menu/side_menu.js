@@ -20,6 +20,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
     generate_unique_room_ID,
     historicalMessages,
     setHistoricalMessages,
+    save_after_deleted,
   } = useContext(RootDataContexts);
   const [onHover, setOnHover] = useState(false);
   const [onDelete, setOnDelete] = useState(false);
@@ -54,20 +55,6 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       });
     }
   }, [onHover, chatRoomID, chat_room_id]);
-  const messages_on_deleted = useCallback(() => {
-    setHistoricalMessages((prev) => {
-      const newHistoricalMessages = { ...prev };
-      delete newHistoricalMessages[chat_room_id];
-      localStorage.setItem(
-        "AI_lounge_historical_messages",
-        JSON.stringify(newHistoricalMessages)
-      );
-      return newHistoricalMessages;
-    });
-    if (chatRoomID === chat_room_id) {
-      setChatRoomID(generate_unique_room_ID());
-    }
-  }, [chat_room_id, chatRoomID, historicalMessages]);
 
   return (
     <div
@@ -133,7 +120,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         }}
         onClick={(e) => {
           e.stopPropagation();
-          messages_on_deleted();
+          save_after_deleted(chat_room_id);
         }}
       />
       <Icon
@@ -158,7 +145,8 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       <Icon
         src="delete"
         style={{
-          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition:
+            "right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(-50%, -50%)",
           top: "50%",
@@ -285,6 +273,7 @@ const Chat_Room_List = ({}) => {
 };
 
 const Side_Menu = ({}) => {
+  const { windowWidth } = useContext(RootDataContexts);
   const [iconStyle, setIconStyle] = useState({
     left: 12,
   });
@@ -292,19 +281,8 @@ const Side_Menu = ({}) => {
     width: 0,
     borderRight: "0px solid rgba(255, 255, 255, 0)",
   });
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [isExpanded, setIsExpanded] = useState(false);
 
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-    window.addEventListener("resize", handleResize);
-    handleResize();
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
   useEffect(() => {
     if (isExpanded) {
       if (window.innerWidth * 0.25 > 256) {
