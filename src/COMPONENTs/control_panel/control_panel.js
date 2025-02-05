@@ -9,29 +9,44 @@ const G = 30;
 const B = 30;
 
 const Control_Panel = ({}) => {
-  const [chatRoomID, setChatRoomID] = useState("NEW");
+  const [chatRoomID, setChatRoomID] = useState("");
   const [messages, setMessages] = useState([]);
   const [historicalMessages, setHistoricalMessages] = useState({});
   const [sectionStarted, setSectionStarted] = useState(true);
 
+  const generateUniqueID = () => {
+    let id = "";
+    while (true) {
+      id =
+        Math.random().toString(36).substring(2) +
+        new Date().getTime().toString(36);
+      if (!historicalMessages[id]) {
+        break;
+      }
+    }
+    return id;
+  };
   useEffect(() => {
     const historical_messages = JSON.parse(
       localStorage.getItem("AI_lounge_historical_messages") || "{}"
     );
+    let chat_room_id = "";
     setHistoricalMessages(historical_messages);
-    setMessages(historical_messages[chatRoomID] || []);
-    if (
-      historical_messages[chatRoomID] &&
-      historical_messages[chatRoomID].length > 0
-    ) {
-      setSectionStarted(true);
-    } else {
+    if (Object.keys(historical_messages).length === 0) {
+      setChatRoomID(generateUniqueID());
       setSectionStarted(false);
+    } else {
+      setChatRoomID(Object.keys(historical_messages)[0]);
+      chat_room_id = Object.keys(historical_messages)[0];
+      setMessages(historical_messages[chat_room_id] || []);
+      setSectionStarted(true);
     }
   }, []);
   useEffect(() => {
     if (messages.length > 0) {
       setSectionStarted(true);
+    } else {
+      setSectionStarted(false);
     }
   }, [messages]);
   useEffect(() => {

@@ -13,7 +13,12 @@ const G = 30;
 const B = 30;
 
 const Chat_Room_Record = ({ chat_room_id }) => {
-  const { chatRoomID, setChatRoomID, historicalMessages, setHistoricalMessages } = useContext(RootDataContexts);
+  const {
+    chatRoomID,
+    setChatRoomID,
+    historicalMessages,
+    setHistoricalMessages,
+  } = useContext(RootDataContexts);
   const [onHover, setOnHover] = useState(false);
   const [onDelete, setOnDelete] = useState(false);
   const [style, setStyle] = useState({
@@ -27,7 +32,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
       });
       return;
-    }else{
+    } else {
       setOnDelete(false);
     }
     if (onHover) {
@@ -43,17 +48,16 @@ const Chat_Room_Record = ({ chat_room_id }) => {
     }
   }, [onHover, chatRoomID, chat_room_id]);
   const messages_on_deleted = useCallback(() => {
-    const pervious_h_msgs = historicalMessages;
-    let new_h_msgs = pervious_h_msgs;
-    delete new_h_msgs[chat_room_id];
-
-    setHistoricalMessages(new_h_msgs);
-    localStorage.setItem(
-      "AI_lounge_historical_messages",
-      JSON.stringify(new_h_msgs)
-    );
+    setHistoricalMessages((prev) => {
+      const newHistoricalMessages = { ...prev };
+      delete newHistoricalMessages[chat_room_id];
+      localStorage.setItem(
+        "AI_lounge_historical_messages",
+        JSON.stringify(newHistoricalMessages)
+      );
+      return newHistoricalMessages;
+    });
   }, [chat_room_id, historicalMessages]);
-
 
   return (
     <div
@@ -178,7 +182,7 @@ const Chat_Room_List = ({}) => {
         style={{
           position: "absolute",
           top: 4,
-          right: 16,
+          right: 18,
 
           width: 16,
           height: 16,
@@ -306,6 +310,7 @@ const Side_Menu = ({}) => {
         <Icon
           src="arrow"
           style={{
+            userSelect: "none",
             height: 20,
             opacity: isExpanded ? 0.64 : 0.32,
           }}

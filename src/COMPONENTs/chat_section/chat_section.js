@@ -356,15 +356,15 @@ const Chat_Section = () => {
     }
   };
   const save_historical_messages = useCallback((latest_message) => {
-    const pervious_h_msgs = historicalMessages;
-    let new_h_msgs = pervious_h_msgs;
-    new_h_msgs[chatRoomID] = [...messages, latest_message];
-
-    setHistoricalMessages(new_h_msgs);
-    localStorage.setItem(
-      "AI_lounge_historical_messages",
-      JSON.stringify(new_h_msgs)
-    );
+    setHistoricalMessages((prev) => {
+      let newHistoricalMessages = { ...prev };
+      newHistoricalMessages[chatRoomID] = [...messages, latest_message];
+      localStorage.setItem(
+        "AI_lounge_historical_messages",
+        JSON.stringify(newHistoricalMessages)
+      );
+      return newHistoricalMessages;
+    });
   }, [messages, chatRoomID, historicalMessages]);
 
   useEffect(() => {
