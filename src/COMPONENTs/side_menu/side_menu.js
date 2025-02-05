@@ -7,7 +7,7 @@ const B = 30;
 
 const Side_Menu = ({}) => {
   const [iconStyle, setIconStyle] = useState({
-    src: "menu",
+    left: 12,
   });
   const [menuStyle, setMenuStyle] = useState({
     width: 0,
@@ -28,19 +28,36 @@ const Side_Menu = ({}) => {
   }, []);
   useEffect(() => {
     if (isExpanded) {
-      window.innerWidth * 0.25 > 256
-        ? setMenuStyle({ 
+      if (window.innerWidth * 0.25 > 256) {
+        setMenuStyle({
           width: window.innerWidth * 0.25,
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
-         })
-        : setMenuStyle({ 
+        });
+        setIconStyle({
+          top: "50%",
+          left: window.innerWidth * 0.25 - 16,
+          transform: "translate(-50%, -50%) rotate(180deg)",
+        });
+      } else {
+        setMenuStyle({
           width: 256,
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
         });
+        setIconStyle({
+          top: "50%",
+          left: 256 - 16,
+          transform: "translate(-50%, -50%) rotate(180deg)",
+        });
+      }
     } else {
       setMenuStyle({
         width: 0,
         borderRight: "0px solid rgba(255, 255, 255, 0)",
+      });
+      setIconStyle({
+        top: "calc(50% - 8px)",
+        left: 12,
+        transform: "translate(-50%, -50%)",
       });
     }
   }, [isExpanded, windowWidth]);
@@ -63,24 +80,26 @@ const Side_Menu = ({}) => {
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
           scrollBehavior: "smooth",
 
-          backgroundColor: `rgba(${R + 60}, ${G + 60}, ${B + 60}, 0.16)`,
-          backdropFilter: "blur(24px)",
+          backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.16)`,
+          backdropFilter: "blur(36px)",
         }}
       ></div>
       <div
         className="icon-container"
         style={{
-          transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), transform 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",
-          top: 8,
-          left: 8,
+          transform: iconStyle.transform,
+
+          top: "50%",
+          left: iconStyle.left,
         }}
       >
         <Icon
-          src="menu"
+          src="arrow"
           style={{
             height: 20,
-            opacity: 0.32,
+            opacity: isExpanded ? 0.64 : 0.32,
           }}
           onClick={() => {
             setIsExpanded(!isExpanded);
