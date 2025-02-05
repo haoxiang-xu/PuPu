@@ -139,6 +139,7 @@ const ScrollingSection = ({ messages }) => {
 const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
   const [style, setStyle] = useState({
     colorOffset: 0,
+    opacity: 0,
   });
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
@@ -147,14 +148,17 @@ const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
     if (onClicked) {
       setStyle({
         colorOffset: 64,
+        opacity: 1,
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
+        opacity: 1,
       });
     } else {
       setStyle({
         colorOffset: 0,
+        opacity: 0,
       });
     }
   }, [onHover, onClicked]);
@@ -183,7 +187,8 @@ const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
           bottom: 24,
           left: 16,
           right: 16,
-          padding: "8px 64px 8px 8px",
+          padding: 0,
+          margin: 0,
 
           fontSize: 16,
           color: `rgba(255, 255, 255, 0.64)`,
@@ -194,48 +199,50 @@ const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
           }, ${B + default_forground_color_offset}, 0.64)`,
           backdropFilter: "blur(24px)",
           boxShadow: `0px 4px 32px rgba(0, 0, 0, 0.64)`,
+          border: "1px solid rgba(255, 255, 255, 0.16)",
         }}
-      />
-      <img
-        src={send_icon}
-        alt="send"
-        style={{
-          transition: "all 0.12s cubic-bezier(0.32, 0, 0.32, 1)",
+      >
+        <img
+          src={send_icon}
+          alt="send"
+          style={{
+            transition: "background-color 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), bottom 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
 
-          position: "fixed",
-          transform: "translate(-50%, -50%)",
+            userSelect: "none",
+            draggable: "false",
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
 
-          bottom: 17,
-          right: 9,
-          width: 16,
-          height: 16,
-          cursor: "pointer",
+            bottom: onClicked? -9 : -7,
+            right: -7,
+            width: 16,
+            height: 16,
+            cursor: "pointer",
 
-          opacity: onClicked ? 1 : 0.64,
-
-          padding: 8,
-          borderRadius: default_border_radius - 4,
-          backgroundColor: `rgba(${
-            R + default_forground_color_offset + style.colorOffset
-          }, ${G + default_forground_color_offset + style.colorOffset}, ${
-            B + default_forground_color_offset + style.colorOffset
-          }, 1)`,
-        }}
-        onMouseEnter={() => {
-          setOnHover(true);
-        }}
-        onMouseLeave={() => {
-          setOnHover(false);
-          setOnClicked(false);
-        }}
-        onMouseDown={() => {
-          setOnClicked(true);
-        }}
-        onMouseUp={() => {
-          setOnClicked(false);
-        }}
-        onClick={on_input_submit}
-      />
+            padding: 8,
+            borderRadius: default_border_radius - 4,
+            backgroundColor: `rgba(${
+              R + default_forground_color_offset + style.colorOffset
+            }, ${G + default_forground_color_offset + style.colorOffset}, ${
+              B + default_forground_color_offset + style.colorOffset
+            }, ${style.opacity})`,
+          }}
+          onMouseEnter={() => {
+            setOnHover(true);
+          }}
+          onMouseLeave={() => {
+            setOnHover(false);
+            setOnClicked(false);
+          }}
+          onMouseDown={() => {
+            setOnClicked(true);
+          }}
+          onMouseUp={() => {
+            setOnClicked(false);
+          }}
+          onClick={on_input_submit}
+        />
+      </Input>
     </>
   );
 };

@@ -27,6 +27,7 @@ const Control_Panel = ({}) => {
         width: "100%",
         height: "100%",
 
+        overflow: "hidden",
         backgroundColor: `rgb(${R}, ${G}, ${B})`,
       }}
     >
@@ -51,7 +52,7 @@ const Control_Panel = ({}) => {
       <span
         style={{
           transition: "all 0.5s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
+          position: "fixed",
           transform: "translate(-50%, -50%)",
 
           top: "calc(50% - 2px)",

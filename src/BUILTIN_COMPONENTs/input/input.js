@@ -7,12 +7,41 @@ const default_padding = default_font_size;
 const R = 30;
 const G = 30;
 const B = 30;
+const default_forground_color_offset = 12;
 
 const default_max_rows = 16;
 
 const Input = ({ value, setValue, onSubmit, ...props }) => {
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    const styleElement = document.createElement("style");
+    styleElement.innerHTML = `
+        .scrolling-space::-webkit-scrollbar {
+          width: 8px; /* Custom width for the vertical scrollbar */
+        }
+        .scrolling-space::-webkit-scrollbar-track {
+          background-color: rgb(225, 225, 225, 0); /* Scrollbar track color */
+        }
+        .scrolling-space::-webkit-scrollbar-thumb {
+          background-color: rgb(225, 225, 225, 0.02);
+          border-radius: 6px;
+          border: 1px solid rgb(225, 225, 225, 0.16);
+        }
+        .scrolling-space::-webkit-scrollbar-thumb:hover {
+        }
+        .scrolling-space::-webkit-scrollbar:horizontal {
+          display: none;
+        }
+      `;
+    document.head.appendChild(styleElement);
+
+    // Cleanup style when the component unmounts
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
 
   useEffect(() => {
     if (inputRef.current) {
@@ -25,11 +54,13 @@ const Input = ({ value, setValue, onSubmit, ...props }) => {
       style={{
         ...props.style,
         height: height,
+        minHeight: default_font_size * 3.5,
         overflow: "hidden",
       }}
     >
       <TextareaAutosize
         ref={inputRef}
+        className="scrolling-space"
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => {
@@ -45,7 +76,7 @@ const Input = ({ value, setValue, onSubmit, ...props }) => {
 
           top: "50%",
           left: default_padding,
-          right: default_padding,
+          right: 5,
 
           transform: "translateY(-50%)",
 
@@ -55,8 +86,11 @@ const Input = ({ value, setValue, onSubmit, ...props }) => {
               : `#FFFFFF`,
           textAlign: "left",
           backgroundColor: `rgba(0, 0, 0, 0)`,
-          padding: 0,
-          fontSize: props && props.style && props.style.fontSize ? props.style.fontSize : default_font_size,
+          padding: "0px 36px 0px 0px",
+          fontSize:
+            props && props.style && props.style.fontSize
+              ? props.style.fontSize
+              : default_font_size,
           fontFamily: "inherit",
           borderRadius: 0,
           opacity: "1",
@@ -65,6 +99,7 @@ const Input = ({ value, setValue, onSubmit, ...props }) => {
           resize: "none",
         }}
       />
+      {props.children}
     </div>
   );
 };
