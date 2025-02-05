@@ -71,7 +71,7 @@ const Control_Panel = ({}) => {
           left: "50%",
           bottom: 6,
           
-          width: "45%",
+          width: "50%",
           minWidth: 512,
         }}
       >

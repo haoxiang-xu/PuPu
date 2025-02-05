@@ -12,19 +12,30 @@ const Side_Menu = ({}) => {
   const [menuStyle, setMenuStyle] = useState({
     width: 0,
   });
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+  useEffect(() => {
     if (isExpanded) {
-      setMenuStyle({
-        width: 256,
-      });
+      window.innerWidth * 0.25 > 256
+        ? setMenuStyle({ width: window.innerWidth * 0.25 })
+        : setMenuStyle({ width: 256 });
     } else {
       setMenuStyle({
         width: 0,
       });
     }
-  }, [isExpanded]);
+  }, [isExpanded, windowWidth]);
 
   return (
     <div>

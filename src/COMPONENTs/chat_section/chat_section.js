@@ -140,6 +140,7 @@ const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
   const [style, setStyle] = useState({
     colorOffset: 0,
     opacity: 0,
+    border: "1px solid rgba(255, 255, 255, 0)",
   });
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
@@ -149,16 +150,19 @@ const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
+        border: "1px solid rgba(255, 255, 255, 0.32)",
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
+        border: "1px solid rgba(255, 255, 255, 0.32)",
       });
     } else {
       setStyle({
         colorOffset: 0,
         opacity: 0,
+        border: "1px solid rgba(255, 255, 255, 0)",
       });
     }
   }, [onHover, onClicked]);
@@ -201,48 +205,49 @@ const InputSection = ({ inputValue, setInputValue, on_input_submit }) => {
           boxShadow: `0px 4px 32px rgba(0, 0, 0, 0.64)`,
           border: "1px solid rgba(255, 255, 255, 0.16)",
         }}
-      >
-        <img
-          src={send_icon}
-          alt="send"
-          style={{
-            transition: "background-color 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), bottom 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+      ></Input>
+      <img
+        src={send_icon}
+        alt="send"
+        style={{
+          transition:
+            "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), bottom 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
 
-            userSelect: "none",
-            draggable: "false",
-            position: "absolute",
-            transform: "translate(-50%, -50%)",
+          userSelect: "none",
+          draggable: "false",
+          position: "fixed",
+          transform: "translate(-50%, -50%)",
 
-            bottom: onClicked? -9 : -7,
-            right: -7,
-            width: 16,
-            height: 16,
-            cursor: "pointer",
+          bottom: onClicked ? 14 : 16,
+          right: 7,
+          width: 16,
+          height: 16,
+          cursor: "pointer",
 
-            padding: 8,
-            borderRadius: default_border_radius - 4,
-            backgroundColor: `rgba(${
-              R + default_forground_color_offset + style.colorOffset
-            }, ${G + default_forground_color_offset + style.colorOffset}, ${
-              B + default_forground_color_offset + style.colorOffset
-            }, ${style.opacity})`,
-          }}
-          onMouseEnter={() => {
-            setOnHover(true);
-          }}
-          onMouseLeave={() => {
-            setOnHover(false);
-            setOnClicked(false);
-          }}
-          onMouseDown={() => {
-            setOnClicked(true);
-          }}
-          onMouseUp={() => {
-            setOnClicked(false);
-          }}
-          onClick={on_input_submit}
-        />
-      </Input>
+          padding: 8,
+          borderRadius: default_border_radius - 4,
+          backgroundColor: `rgba(${
+            R + default_forground_color_offset + style.colorOffset
+          }, ${G + default_forground_color_offset + style.colorOffset}, ${
+            B + default_forground_color_offset + style.colorOffset
+          }, ${style.opacity})`,
+          border: style.border,
+        }}
+        onMouseEnter={() => {
+          setOnHover(true);
+        }}
+        onMouseLeave={() => {
+          setOnHover(false);
+          setOnClicked(false);
+        }}
+        onMouseDown={() => {
+          setOnClicked(true);
+        }}
+        onMouseUp={() => {
+          setOnClicked(false);
+        }}
+        onClick={on_input_submit}
+      />
     </>
   );
 };
