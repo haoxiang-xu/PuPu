@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext } from "react";
+import React, { useEffect, useState, useContext, useCallback } from "react";
 import { RootDataContexts } from "../root_data_contexts";
 import ollama from "./ollama.png";
 import Chat_Section from "../chat_section/chat_section";
@@ -10,8 +10,10 @@ const B = 30;
 
 const Control_Panel = ({}) => {
   const [chatRoomID, setChatRoomID] = useState("");
+
   const [messages, setMessages] = useState([]);
   const [historicalMessages, setHistoricalMessages] = useState({});
+
   const [sectionStarted, setSectionStarted] = useState(true);
 
   const generate_unique_room_ID = () => {
@@ -30,8 +32,26 @@ const Control_Panel = ({}) => {
     setChatRoomID(generate_unique_room_ID());
     setSectionStarted(false);
   };
+  const save_after_new_message = useCallback(
+    (latest_message) => {
+      setHistoricalMessages((prev) => {
+        let newHistoricalMessages = { ...prev };
+        newHistoricalMessages[chatRoomID]["messages"] = [
+          ...messages,
+          latest_message,
+        ];
+        localStorage.setItem(
+          "AI_lounge_historical_messages",
+          JSON.stringify(newHistoricalMessages)
+        );
+        return newHistoricalMessages;
+      });
+    },
+    [chatRoomID, messages, historicalMessages]
+  );
+
   /* { load from storage if avaliable else open new section } */
-  useEffect(() => { 
+  useEffect(() => {
     const historical_messages = JSON.parse(
       localStorage.getItem("AI_lounge_historical_messages") || "{}"
     );
@@ -42,7 +62,7 @@ const Control_Panel = ({}) => {
     } else {
       setChatRoomID(Object.keys(historical_messages)[0]);
       chat_room_id = Object.keys(historical_messages)[0];
-      setMessages(historical_messages[chat_room_id] || []);
+      setMessages(historical_messages[chat_room_id]["messages"] || []);
       setSectionStarted(true);
     }
   }, []);
@@ -67,6 +87,7 @@ const Control_Panel = ({}) => {
         setMessages,
         historicalMessages,
         setHistoricalMessages,
+        save_after_new_message,
         sectionStarted,
         setSectionStarted,
         start_new_section,

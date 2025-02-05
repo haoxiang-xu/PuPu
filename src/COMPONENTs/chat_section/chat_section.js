@@ -263,6 +263,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 };
 
 const Chat_Section = () => {
+  const { save_after_new_message } = useContext(RootDataContexts);
   const [inputValue, setInputValue] = useState("");
   const [responseInComing, setResponseInComing] = useState(false);
   const {
@@ -349,23 +350,12 @@ const Chat_Section = () => {
       return {
         role: "assistant",
         message: accumulatedResponse,
-        content: accumulatedResponse
+        content: accumulatedResponse,
       };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
     }
   };
-  const save_historical_messages = useCallback((latest_message) => {
-    setHistoricalMessages((prev) => {
-      let newHistoricalMessages = { ...prev };
-      newHistoricalMessages[chatRoomID] = [...messages, latest_message];
-      localStorage.setItem(
-        "AI_lounge_historical_messages",
-        JSON.stringify(newHistoricalMessages)
-      );
-      return newHistoricalMessages;
-    });
-  }, [messages, chatRoomID, historicalMessages]);
 
   useEffect(() => {
     if (!responseInComing) {
@@ -374,11 +364,10 @@ const Chat_Section = () => {
         messages[messages.length - 1].role === "user"
       ) {
         setResponseInComing(true);
-        single_chat_mode(messages)
-          .then((response) => {
-            setResponseInComing(false);
-            save_historical_messages(response);
-          })
+        single_chat_mode(messages).then((response) => {
+          setResponseInComing(false);
+          save_after_new_message(response);
+        });
       }
     }
   }, [messages, responseInComing]);

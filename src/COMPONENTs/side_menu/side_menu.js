@@ -44,7 +44,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       setStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.4)`,
         boxShadow: "none",
-        border: "1px solid rgba(255, 255, 255, 0)",
+        border: "1px solid rgba(255, 255, 255, 0.08)",
       });
     } else {
       setStyle({
@@ -72,7 +72,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
   return (
     <div
       style={{
-        transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
         width: "calc(100% - 24px)",
         height: 28,
@@ -154,30 +154,59 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           setOnDelete(!onDelete);
         }}
       />
-      {chatRoomID === chat_room_id ? (
-        <Icon
-          src="delete"
-          style={{
-            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            transform: "translate(-50%, -50%)",
-            top: "50%",
-            right: onDelete && chatRoomID === chat_room_id ? 32 : -2,
-            width: 17,
-            height: 17,
-            userSelect: "none",
-          }}
-          onClick={(e) => {
+
+      <Icon
+        src="delete"
+        style={{
+          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          top: "50%",
+          right: onDelete && chatRoomID === chat_room_id ? 32 : -2,
+          opacity: chatRoomID === chat_room_id ? 1 : 0,
+          width: 17,
+          height: 17,
+          userSelect: "none",
+        }}
+        onClick={(e) => {
+          if (chatRoomID === chat_room_id) {
             e.stopPropagation();
-            setOnDelete(!onDelete);
-          }}
-        />
-      ) : null}
+          }
+          setOnDelete(!onDelete);
+        }}
+      />
     </div>
   );
 };
 const Chat_Room_List = ({}) => {
-  const { historicalMessages, start_new_section } = useContext(RootDataContexts);
+  const { historicalMessages, start_new_section } =
+    useContext(RootDataContexts);
+
+  const [addButtonOnHover, setAddButtonOnHover] = useState(false);
+  const [addButtonOnClick, setAddButtonOnClick] = useState(false);
+  const [addButtonStyle, setAddButtonStyle] = useState({
+    backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+    border: "1px solid rgba(255, 255, 255, 0)",
+  });
+
+  useEffect(() => {
+    if (addButtonOnClick) {
+      setAddButtonStyle({
+        backgroundColor: `rgba(${R + 60}, ${G + 60}, ${B + 60}, 0.84)`,
+        border: "1px solid rgba(255, 255, 255, 1)",
+      });
+    } else if (addButtonOnHover) {
+      setAddButtonStyle({
+        backgroundColor: `rgba(${R + 60}, ${G + 60}, ${B + 60}, 0.64)`,
+        border: "1px solid rgba(255, 255, 255, 0.64)",
+      });
+    } else {
+      setAddButtonStyle({
+        backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+        border: "1px solid rgba(255, 255, 255, 0)",
+      });
+    }
+  }, [addButtonOnHover, addButtonOnClick]);
 
   return (
     <div
@@ -188,23 +217,44 @@ const Chat_Room_List = ({}) => {
         left: 0,
         right: 0,
         bottom: 0,
+        paddingTop: 32,
 
         overflowX: "hidden",
+        overflowY: "auto",
       }}
     >
       <Icon
         className="add_chat_section_button"
         src="add"
         style={{
+          transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           userSelect: "none",
           position: "absolute",
-          top: 4,
-          right: 19,
+          top: 0,
+          right: 13,
 
           width: 16,
           height: 16,
+          padding: 4,
+
+          borderRadius: 4,
+          backgroundColor: addButtonStyle.backgroundColor,
+          border: addButtonStyle.border,
 
           opacity: 0.64,
+        }}
+        onMouseEnter={() => {
+          setAddButtonOnHover(true);
+        }}
+        onMouseLeave={() => {
+          setAddButtonOnHover(false);
+          setAddButtonOnClick(false);
+        }}
+        onMouseDown={() => {
+          setAddButtonOnClick(true);
+        }}
+        onMouseUp={() => {
+          setAddButtonOnClick(false);
         }}
         onClick={() => {
           start_new_section();
@@ -212,8 +262,8 @@ const Chat_Room_List = ({}) => {
       ></Icon>
       <span
         style={{
-          position: "relative",
-          top: 0,
+          position: "absolute",
+          top: 3,
           left: 12,
 
           fontSize: 14,
