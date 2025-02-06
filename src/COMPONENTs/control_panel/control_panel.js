@@ -11,8 +11,8 @@ const B = 30;
 const Control_Panel = ({}) => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-  const [chatRoomID, setChatRoomID] = useState("");
-  const [modelSelected, setModelSelected] = useState("deepseek-r1:14b");
+  const [selectedChatRoomID, setSelectedChatRoomID] = useState("");
+  const [selectedModel, setSelectedModel] = useState("deepseek-r1:14b");
   const [messages, setMessages] = useState([]);
 
   const [historicalMessages, setHistoricalMessages] = useState({});
@@ -32,7 +32,7 @@ const Control_Panel = ({}) => {
     return id;
   };
   const start_new_section = () => {
-    setChatRoomID(generate_unique_room_ID());
+    setSelectedChatRoomID(generate_unique_room_ID());
     setSectionStarted(false);
   };
   const save_after_new_message = useCallback(
@@ -40,8 +40,8 @@ const Control_Panel = ({}) => {
       setHistoricalMessages((prev) => {
         let newHistoricalMessages = { ...prev };
         let messages_to_save = [...messages, latest_message];
-        newHistoricalMessages[chatRoomID] = {
-          ...newHistoricalMessages[chatRoomID],
+        newHistoricalMessages[selectedChatRoomID] = {
+          ...newHistoricalMessages[selectedChatRoomID],
           messages: messages_to_save,
         };
         localStorage.setItem(
@@ -51,14 +51,14 @@ const Control_Panel = ({}) => {
         return newHistoricalMessages;
       });
     },
-    [chatRoomID, messages, historicalMessages]
+    [selectedChatRoomID, messages, historicalMessages]
   );
   const save_after_new_title = useCallback(
     (title) => {
       setHistoricalMessages((prev) => {
         let newHistoricalMessages = { ...prev };
-        newHistoricalMessages[chatRoomID] = {
-          ...newHistoricalMessages[chatRoomID],
+        newHistoricalMessages[selectedChatRoomID] = {
+          ...newHistoricalMessages[selectedChatRoomID],
           title: title,
         };
         localStorage.setItem(
@@ -68,7 +68,7 @@ const Control_Panel = ({}) => {
         return newHistoricalMessages;
       });
     },
-    [chatRoomID, historicalMessages]
+    [selectedChatRoomID, historicalMessages]
   );
   const save_after_deleted = useCallback(
     (chat_room_id) => {
@@ -81,11 +81,11 @@ const Control_Panel = ({}) => {
         );
         return newHistoricalMessages;
       });
-      if (chatRoomID === chat_room_id) {
-        setChatRoomID(generate_unique_room_ID());
+      if (selectedChatRoomID === chat_room_id) {
+        setSelectedChatRoomID(generate_unique_room_ID());
       }
     },
-    [chatRoomID, historicalMessages]
+    [selectedChatRoomID, historicalMessages]
   );
 
   /* { Ollama APIs } --------------------------------------------------------------------------------- */
@@ -112,7 +112,7 @@ const Control_Panel = ({}) => {
 
     try {
       const request = {
-        model: modelSelected,
+        model: selectedModel,
         messages: processed_messages,
       };
       const response = await fetch(`http://localhost:11434/api/chat`, {
@@ -198,7 +198,7 @@ const Control_Panel = ({}) => {
 
     try {
       const request = {
-        model: modelSelected,
+        model: selectedModel,
         messages: processed_messages,
         stream: false,
       };
@@ -231,7 +231,7 @@ const Control_Panel = ({}) => {
     if (Object.keys(historical_messages).length === 0) {
       start_new_section();
     } else {
-      setChatRoomID(Object.keys(historical_messages)[0]);
+      setSelectedChatRoomID(Object.keys(historical_messages)[0]);
       chat_room_id = Object.keys(historical_messages)[0];
       setMessages(historical_messages[chat_room_id]["messages"] || []);
       setSectionStarted(true);
@@ -257,32 +257,39 @@ const Control_Panel = ({}) => {
   }, [messages]);
   useEffect(() => {
     if (
-      historicalMessages[chatRoomID] &&
-      historicalMessages[chatRoomID]["messages"]
+      historicalMessages[selectedChatRoomID] &&
+      historicalMessages[selectedChatRoomID]["messages"]
     ) {
-      setMessages(historicalMessages[chatRoomID]["messages"]);
+      setMessages(historicalMessages[selectedChatRoomID]["messages"]);
     } else {
       setMessages([]);
     }
-  }, [chatRoomID, historicalMessages]);
+  }, [selectedChatRoomID, historicalMessages]);
 
   return (
     <RootDataContexts.Provider
       value={{
         windowWidth,
         setWindowWidth,
-        chatRoomID,
-        setChatRoomID,
+
+        selectedChatRoomID,
+        setSelectedChatRoomID,
+
         generate_unique_room_ID,
+
         messages,
         setMessages,
+
         historicalMessages,
         setHistoricalMessages,
+
         save_after_new_message,
         save_after_new_title,
         save_after_deleted,
+
         sectionStarted,
         setSectionStarted,
+
         start_new_section,
 
         chat_generation,
@@ -346,7 +353,8 @@ const Control_Panel = ({}) => {
             left: "50%",
             bottom: 2,
 
-            width: windowWidth <= 612 ? "calc(100% - 12px)" : 600,
+            width: windowWidth <= 712 ? "calc(100% - 12px)" : 700,
+            maxWidth: 700,
           }}
         >
           <Chat_Section />

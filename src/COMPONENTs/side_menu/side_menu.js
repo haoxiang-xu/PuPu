@@ -15,8 +15,8 @@ const B = 30;
 
 const Chat_Room_Record = ({ chat_room_id }) => {
   const {
-    chatRoomID,
-    setChatRoomID,
+    selectedChatRoomID,
+    setSelectedChatRoomID,
     generate_unique_room_ID,
     historicalMessages,
     setHistoricalMessages,
@@ -31,7 +31,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
   });
 
   useEffect(() => {
-    if (chat_room_id === chatRoomID) {
+    if (chat_room_id === selectedChatRoomID) {
       setStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.84)`,
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
@@ -54,7 +54,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         border: "1px solid rgba(255, 255, 255, 0)",
       });
     }
-  }, [onHover, chatRoomID, chat_room_id]);
+  }, [onHover, selectedChatRoomID, chat_room_id]);
 
   return (
     <div
@@ -78,7 +78,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         setOnHover(false);
       }}
       onClick={() => {
-        setChatRoomID(chat_room_id);
+        setSelectedChatRoomID(chat_room_id);
         setOnDelete(false);
       }}
     >
@@ -119,7 +119,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           right: -2,
           width: 17,
           height: 17,
-          opacity: onDelete && chatRoomID === chat_room_id ? 0.64 : 0,
+          opacity: onDelete && selectedChatRoomID === chat_room_id ? 0.64 : 0,
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -134,10 +134,10 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           position: "absolute",
           transform: "translate(-50%, -50%) rotate(45deg)",
           top: "50%",
-          right: onDelete && chatRoomID === chat_room_id ? 14 : -2,
+          right: onDelete && selectedChatRoomID === chat_room_id ? 14 : -2,
           width: 17,
           height: 17,
-          opacity: onDelete && chatRoomID === chat_room_id ? 0.64 : 0,
+          opacity: onDelete && selectedChatRoomID === chat_room_id ? 0.64 : 0,
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -153,14 +153,14 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           position: "absolute",
           transform: "translate(-50%, -50%)",
           top: "50%",
-          right: onDelete && chatRoomID === chat_room_id ? 32 : -2,
-          opacity: chatRoomID === chat_room_id ? 1 : 0,
+          right: onDelete && selectedChatRoomID === chat_room_id ? 32 : -2,
+          opacity: selectedChatRoomID === chat_room_id ? 1 : 0,
           width: 17,
           height: 17,
           userSelect: "none",
         }}
         onClick={(e) => {
-          if (chatRoomID === chat_room_id) {
+          if (selectedChatRoomID === chat_room_id) {
             e.stopPropagation();
           }
           setOnDelete(!onDelete);
@@ -342,7 +342,7 @@ const Side_Menu = ({}) => {
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
           scrollBehavior: "smooth",
 
-          backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.16)`,
+          backgroundColor: `rgba(${R}, ${G}, ${B}, 0.64)`,
           backdropFilter: "blur(36px)",
         }}
       >

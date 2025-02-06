@@ -329,7 +329,7 @@ const ThinkingSection = ({ children }) => {
       <Icon
         src="arrow"
         style={{
-          transition: "all 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
+          transition: "backgroundColor 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
           position: "absolute",
           top: "28px",
           left: "28px",
