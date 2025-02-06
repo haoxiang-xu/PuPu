@@ -342,9 +342,9 @@ const Control_Panel = ({}) => {
             transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "absolute",
             transform: "translate(-50%, 0%)",
-            top: 6,
+            top: 4,
             left: "50%",
-            bottom: 6,
+            bottom: 2,
 
             width: windowWidth <= 612 ? "calc(100% - 12px)" : 600,
           }}

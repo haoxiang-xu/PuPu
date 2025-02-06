@@ -91,7 +91,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           transform: "translateY(-50%)",
           top: "50%",
           left: 11,
-          width: onDelete? "calc(100% - 64px)" : "calc(100% - 36px)",
+          width: onDelete? "calc(100% - 72px)" : "calc(100% - 36px)",
 
           fontSize: 14,
 
