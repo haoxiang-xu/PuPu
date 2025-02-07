@@ -6,12 +6,15 @@ import React, {
   useContext,
   use,
 } from "react";
-import { RootDataContexts } from "../root_data_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const R = 30;
 const G = 30;
 const B = 30;
+
+const component_name = "side_menu";
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 const Chat_Room_Item = ({ address }) => {
@@ -63,7 +66,7 @@ const Chat_Room_Item = ({ address }) => {
     if (onDelete) {
       setDeleteButtonStyle({
         src: "gray_delete",
-        opacity: 1,
+        opacity: 0.5,
       });
     } else {
       setDeleteButtonStyle({
@@ -94,7 +97,8 @@ const Chat_Room_Item = ({ address }) => {
       onMouseLeave={() => {
         setOnHover(false);
       }}
-      onClick={() => {
+      onClick={(e) => {
+        e.stopPropagation();
         load_section_data(address);
         setOnDelete(false);
       }}
@@ -155,7 +159,7 @@ const Chat_Room_Item = ({ address }) => {
             right: onDelete && sectionData.address === address ? 14 : -2,
             width: 17,
             height: 17,
-            opacity: onDelete && sectionData.address === address ? 1 : 0,
+            opacity: onDelete && sectionData.address === address ? 0.5 : 0,
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -241,6 +245,9 @@ const Chat_Room_List = ({}) => {
         overflowX: "hidden",
         overflowY: "auto",
       }}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
     >
       <Icon
         className="add_chat_section_button"
@@ -283,7 +290,7 @@ const Chat_Room_List = ({}) => {
         style={{
           position: "absolute",
           top: 3,
-          left: 12,
+          left: 14,
 
           fontSize: 14,
           textOverflow: "ellipsis",
@@ -303,18 +310,16 @@ const Chat_Room_List = ({}) => {
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
-  const { windowWidth } = useContext(RootDataContexts);
-  const [iconStyle, setIconStyle] = useState({
-    left: 12,
-  });
+  const { windowWidth, componentOnFocus, setComponentOnFocus } =
+    useContext(RootStatusContexts);
+  const [iconStyle, setIconStyle] = useState({});
   const [menuStyle, setMenuStyle] = useState({
     width: 0,
     borderRight: "0px solid rgba(255, 255, 255, 0)",
   });
-  const [isExpanded, setIsExpanded] = useState(false);
 
   useEffect(() => {
-    if (isExpanded) {
+    if (componentOnFocus === component_name) {
       if (window.innerWidth * 0.25 > 256) {
         setMenuStyle({
           width: window.innerWidth * 0.25,
@@ -323,7 +328,7 @@ const Side_Menu = ({}) => {
         setIconStyle({
           src: "arrow",
           top: 16,
-          left: window.innerWidth * 0.25 - 16,
+          left: window.innerWidth * 0.25 - 26,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       } else {
@@ -334,7 +339,7 @@ const Side_Menu = ({}) => {
         setIconStyle({
           src: "arrow",
           top: 16,
-          left: 256 - 16,
+          left: 256 - 26,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       }
@@ -350,7 +355,7 @@ const Side_Menu = ({}) => {
         transform: "translate(-50%, -50%)",
       });
     }
-  }, [isExpanded, windowWidth]);
+  }, [windowWidth, componentOnFocus]);
 
   return (
     <div>
@@ -395,8 +400,13 @@ const Side_Menu = ({}) => {
             height: 20,
             opacity: 0.5,
           }}
-          onClick={() => {
-            setIsExpanded(!isExpanded);
+          onClick={(e) => {
+            e.stopPropagation();
+            if (componentOnFocus === component_name) {
+              setComponentOnFocus("");
+            } else {
+              setComponentOnFocus(component_name);
+            }
           }}
         />
       </div>

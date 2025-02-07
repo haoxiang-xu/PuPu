@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
-import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
-import { RootDataContexts } from "../root_data_contexts";
+import { UNIQUE_KEY, RETITLE_TURNS } from "../../DATA_MANAGERs/root_consts";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import ollama from "./ollama.png";
 import Chat_Section from "../chat_section/chat_section";
 import Side_Menu from "../side_menu/side_menu";
@@ -10,7 +11,7 @@ const G = 30;
 const B = 30;
 
 const Control_Panel = ({}) => {
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const { windowWidth } = useContext(RootStatusContexts);
 
   const [selectedModel, setSelectedModel] = useState("deepseek-r1:14b");
 
@@ -299,26 +300,9 @@ const Control_Panel = ({}) => {
   };
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
-  /* { window size listener } */
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-    window.addEventListener("resize", handleResize);
-    handleResize();
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
-
   return (
     <RootDataContexts.Provider
       value={{
-        /* { UI } --------------------------------- */
-        windowWidth,
-        setWindowWidth,
-        /* { UI } --------------------------------- */
-
         /* { Section Data & Methods } ------------- */
         sectionData,
         setSectionData,

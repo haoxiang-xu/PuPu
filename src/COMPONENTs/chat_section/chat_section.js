@@ -5,11 +5,11 @@ import React, {
   useCallback,
   useContext,
 } from "react";
-import { RootDataContexts } from "../root_data_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import send_icon from "./send.svg";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
 const R = 30;
@@ -19,6 +19,8 @@ const B = 30;
 const default_forground_color_offset = 12;
 const default_font_color_offset = 128;
 const default_border_radius = 10;
+
+const component_name = "chat_section";
 
 const Message_Section = ({ role, message, is_last_index }) => {
   const [style, setStyle] = useState({
@@ -62,7 +64,7 @@ const Message_Section = ({ role, message, is_last_index }) => {
 };
 const Scrolling_Section = () => {
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
-
+  const { setComponentOnFocus } = useContext(RootStatusContexts);
   /* { Scrolling } ----------------------------------------------------------- */
   const scrollRef = useRef(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -154,6 +156,10 @@ const Scrolling_Section = () => {
 
         opacity: sectionStarted ? 1 : 0,
       }}
+      onClick={(e) => {
+        e.stopPropagation();
+        setComponentOnFocus(component_name);
+      }}
     >
       {sectionData && sectionData.messages
         ? sectionData.messages.map((msg, index) => (
@@ -183,8 +189,10 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
     opacity: 0,
     border: "1px solid rgba(255, 255, 255, 0)",
   });
+  const { componentOnFocus } = useContext(RootStatusContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
+  const [onFocus, setOnFocus] = useState(false);
 
   useEffect(() => {
     if (onClicked) {
@@ -207,6 +215,11 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
       });
     }
   }, [onHover, onClicked]);
+  useEffect(() => {
+    if (componentOnFocus === component_name) {
+      setOnFocus(true);
+    }
+  }, [componentOnFocus]);
 
   return (
     <>
@@ -225,6 +238,8 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         value={inputValue}
         setValue={setInputValue}
         onSubmit={on_input_submit}
+        onFocus={onFocus}
+        setOnFocus={setOnFocus}
         style={{
           transition: "height 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",

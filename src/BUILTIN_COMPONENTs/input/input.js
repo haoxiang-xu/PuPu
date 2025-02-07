@@ -11,7 +11,7 @@ const default_forground_color_offset = 12;
 
 const default_max_rows = 16;
 
-const Input = ({ value, setValue, onSubmit, ...props }) => {
+const Input = ({ value, setValue, onSubmit, onFocus, setOnFocus, ...props }) => {
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
@@ -42,7 +42,12 @@ const Input = ({ value, setValue, onSubmit, ...props }) => {
       document.head.removeChild(styleElement);
     };
   }, []);
-
+  useEffect(() => {
+    if (onFocus) {
+      inputRef.current.focus();
+      setOnFocus(false);
+    }
+  }, [onFocus]);
   useEffect(() => {
     if (inputRef.current) {
       setHeight(inputRef.current.clientHeight + 12);
