@@ -153,14 +153,14 @@ const Control_Panel = ({}) => {
       return newAddressBook;
     });
   }, [sectionData, addressBook]);
-  const delete_address_in_local_storage = (address) => {
-    localStorage.removeItem(UNIQUE_KEY + address);
+  const delete_address_in_local_storage = (target_address) => {
+    localStorage.removeItem(UNIQUE_KEY + target_address);
     setAddressBook((prev) => {
       let newAddressBook = { ...prev };
-      delete newAddressBook[address];
+      delete newAddressBook[target_address];
       let avaliable_addresses = newAddressBook.avaliable_addresses || [];
       newAddressBook.avaliable_addresses = avaliable_addresses.filter(
-        (address) => address !== address
+        (address) => address !== target_address
       );
       localStorage.setItem(
         UNIQUE_KEY + "address_book",
@@ -175,7 +175,6 @@ const Control_Panel = ({}) => {
       ...prev,
       n_turns_to_regenerate_title: RETITLE_TURNS,
     }));
-    console.log("reset_regenerate_title_count_down");
   }, []);
   useEffect(() => {
     save_to_local_storage();
