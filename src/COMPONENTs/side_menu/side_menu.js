@@ -121,7 +121,9 @@ const Chat_Room_Item = ({ address }) => {
           pointerEvents: "none",
         }}
       >
-        {addressBook[address]? addressBook[address].chat_title || address : address}
+        {addressBook[address]
+          ? addressBook[address].chat_title || address
+          : address}
       </span>
       <>
         <Icon
@@ -319,7 +321,8 @@ const Side_Menu = ({}) => {
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
         });
         setIconStyle({
-          top: "50%",
+          src: "arrow",
+          top: 16,
           left: window.innerWidth * 0.25 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -329,7 +332,8 @@ const Side_Menu = ({}) => {
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
         });
         setIconStyle({
-          top: "50%",
+          src: "arrow",
+          top: 16,
           left: 256 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -340,8 +344,9 @@ const Side_Menu = ({}) => {
         borderRight: "0px solid rgba(255, 255, 255, 0)",
       });
       setIconStyle({
-        top: "calc(50% - 8px)",
-        left: 12,
+        src: "side_menu",
+        top: 20,
+        left: 18,
         transform: "translate(-50%, -50%)",
       });
     }
@@ -375,20 +380,20 @@ const Side_Menu = ({}) => {
         className="icon-container"
         style={{
           transition:
-            "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), transform 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",
           transform: iconStyle.transform,
 
-          top: "50%",
+          top: iconStyle.top,
           left: iconStyle.left,
         }}
       >
         <Icon
-          src="arrow"
+          src={iconStyle.src}
           style={{
             userSelect: "none",
             height: 20,
-            opacity: isExpanded ? 0.5 : 0.32,
+            opacity: 0.5,
           }}
           onClick={() => {
             setIsExpanded(!isExpanded);
