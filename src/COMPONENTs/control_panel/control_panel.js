@@ -24,10 +24,6 @@ const Control_Panel = ({}) => {
   useEffect(() => {
     load_from_local_storage();
   }, []);
-  useEffect(() => {
-    console.log(sectionData);
-    console.log(addressBook);
-  }, [addressBook, sectionData]);
   const check_if_address_existed = (address) => {
     return address in addressBook;
   };

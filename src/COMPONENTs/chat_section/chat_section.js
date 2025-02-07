@@ -60,7 +60,40 @@ const Message_Section = ({ role, message, is_last_index }) => {
 };
 const Scrolling_Section = () => {
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
+
+  /* { Scrolling } ----------------------------------------------------------- */
   const scrollRef = useRef(null);
+  const [isUserScrolling, setIsUserScrolling] = useState(false);
+  const scrollTimeoutRef = useRef(null);
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsUserScrolling(true);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+      scrollTimeoutRef.current = setTimeout(() => {
+        setIsUserScrolling(false);
+      }, 3000);
+    };
+    const scrollElement = scrollRef.current;
+    if (scrollElement) {
+      scrollElement.addEventListener("scroll", handleScroll);
+    }
+    return () => {
+      if (scrollElement) {
+        scrollElement.removeEventListener("scroll", handleScroll);
+      }
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, []);
+  useEffect(() => {
+    if (!isUserScrolling && scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [sectionData]);
+  /* { Scrolling } ----------------------------------------------------------- */
 
   useEffect(() => {
     const styleElement = document.createElement("style");
@@ -96,11 +129,6 @@ const Scrolling_Section = () => {
       document.head.removeChild(styleElement);
     };
   }, []);
-  useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-    }
-  }, [sectionData]);
 
   return (
     <div
@@ -287,7 +315,7 @@ const Chat_Section = () => {
 
   useEffect(() => {
     const messages = sectionData.messages || [];
-    const address = sectionData.address || '';
+    const address = sectionData.address || "";
     if (address.length === 0) {
       return;
     }
@@ -307,7 +335,9 @@ const Chat_Section = () => {
           })
           .finally(() => {
             if (sectionData.n_turns_to_regenerate_title === 0) {
-              chat_room_title_generation(address, messages).then((response) => {});
+              chat_room_title_generation(address, messages).then(
+                (response) => {}
+              );
               reset_regenerate_title_count_down();
             }
           });
