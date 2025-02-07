@@ -1,5 +1,7 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
-import { RootDataContexts } from "../root_data_contexts";
+import { UNIQUE_KEY, RETITLE_TURNS } from "../../DATA_MANAGERs/root_consts";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import ollama from "./ollama.png";
 import Chat_Section from "../chat_section/chat_section";
 import Side_Menu from "../side_menu/side_menu";
@@ -9,87 +11,166 @@ const G = 30;
 const B = 30;
 
 const Control_Panel = ({}) => {
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const { windowWidth } = useContext(RootStatusContexts);
 
-  const [selectedChatRoomID, setSelectedChatRoomID] = useState("");
   const [selectedModel, setSelectedModel] = useState("deepseek-r1:14b");
-  const [messages, setMessages] = useState([]);
 
-  const [historicalMessages, setHistoricalMessages] = useState({});
+  const [addressBook, setAddressBook] = useState({ avaliable_addresses: [] });
+  const [sectionData, setSectionData] = useState({});
 
-  const [sectionStarted, setSectionStarted] = useState(true);
+  const [sectionStarted, setSectionStarted] = useState(false);
 
-  const generate_unique_room_ID = () => {
-    let id = "";
-    while (true) {
-      id =
+  /* { Local Storage } -------------------------------------------------------------------------------- */
+  /* { load from local storage } */
+  useEffect(() => {
+    load_from_local_storage();
+  }, []);
+  const check_if_address_existed = (address) => {
+    return address in addressBook;
+  };
+  const generate_new_address = () => {
+    let generated_address =
+      Math.random().toString(36).substring(2) +
+      new Date().getTime().toString(36);
+    while (check_if_address_existed(generated_address)) {
+      generated_address =
         Math.random().toString(36).substring(2) +
         new Date().getTime().toString(36);
-      if (!historicalMessages[id]) {
-        break;
-      }
     }
-    return id;
+    return generated_address;
   };
+  const load_from_local_storage = () => {
+    const address_book = JSON.parse(
+      localStorage.getItem(UNIQUE_KEY + "address_book") || "{}"
+    );
+    if (
+      address_book &&
+      address_book.avaliable_addresses &&
+      address_book.avaliable_addresses[0]
+    ) {
+      const section_data = JSON.parse(
+        localStorage.getItem(UNIQUE_KEY + address_book.avaliable_addresses[0])
+      );
+      if (section_data) {
+        setSectionData(section_data);
+        setSectionStarted(true);
+      } else {
+        start_new_section();
+      }
+      setAddressBook(address_book);
+    } else {
+      start_new_section();
+      setAddressBook({ avaliable_addresses: [] });
+    }
+  };
+  const save_to_local_storage = () => {
+    setSectionData((prev) => {
+      localStorage.setItem(UNIQUE_KEY + prev.address, JSON.stringify(prev));
+      return prev;
+    });
+    setAddressBook((prev) => {
+      localStorage.setItem(UNIQUE_KEY + "address_book", JSON.stringify(prev));
+      return prev;
+    });
+  };
+  /* { Local Storage } -------------------------------------------------------------------------------- */
+
+  /* { Section Data } --------------------------------------------------------------------------------- */
   const start_new_section = () => {
-    setSelectedChatRoomID(generate_unique_room_ID());
+    const generated_address = generate_new_address();
+    setSectionData({
+      address: generated_address,
+      n_turns_to_regenerate_title: 0,
+      last_edit_date: new Date().getTime(),
+      messages: [],
+    });
     setSectionStarted(false);
   };
-  const save_after_new_message = useCallback(
-    (latest_message) => {
-      setHistoricalMessages((prev) => {
-        let newHistoricalMessages = { ...prev };
-        let messages_to_save = [...messages, latest_message];
-        newHistoricalMessages[selectedChatRoomID] = {
-          ...newHistoricalMessages[selectedChatRoomID],
-          messages: messages_to_save,
-        };
-        localStorage.setItem(
-          "AI_lounge_historical_messages",
-          JSON.stringify(newHistoricalMessages)
+  const load_section_data = (address) => {
+    const section_data = JSON.parse(localStorage.getItem(UNIQUE_KEY + address));
+    if (section_data) {
+      setSectionData(section_data);
+      setSectionStarted(true);
+    }
+  };
+  const append_message = (message) => {
+    setSectionData((prev) => ({
+      ...prev,
+      messages: [...prev.messages, message],
+      n_turns_to_regenerate_title: Math.max(
+        prev.n_turns_to_regenerate_title - 1,
+        0
+      ),
+    }));
+    update_address_book();
+    setSectionStarted(true);
+  };
+  const update_latest_message = (message) => {
+    setSectionData((prev) => {
+      let updated_messages = [...prev.messages];
+      updated_messages[updated_messages.length - 1] = message;
+      return {
+        ...prev,
+        messages: updated_messages,
+      };
+    });
+  };
+  const update_title = (address, title) => {
+    setAddressBook((prev) => {
+      let newAddressBook = { ...prev };
+      newAddressBook[address] = {
+        chat_title: title,
+      };
+      return newAddressBook;
+    });
+  };
+  const update_address_book = useCallback(() => {
+    setAddressBook((prev) => {
+      let newAddressBook = { ...prev };
+      let avaliable_addresses = newAddressBook.avaliable_addresses || [];
+      if (!avaliable_addresses.includes(sectionData.address)) {
+        avaliable_addresses.push(sectionData.address);
+      } else {
+        avaliable_addresses = avaliable_addresses.filter(
+          (address) => address !== sectionData.address
         );
-        return newHistoricalMessages;
-      });
-    },
-    [selectedChatRoomID, messages, historicalMessages]
-  );
-  const save_after_new_title = useCallback(
-    (title) => {
-      setHistoricalMessages((prev) => {
-        let newHistoricalMessages = { ...prev };
-        newHistoricalMessages[selectedChatRoomID] = {
-          ...newHistoricalMessages[selectedChatRoomID],
-          title: title,
-        };
-        localStorage.setItem(
-          "AI_lounge_historical_messages",
-          JSON.stringify(newHistoricalMessages)
-        );
-        return newHistoricalMessages;
-      });
-    },
-    [selectedChatRoomID, historicalMessages]
-  );
-  const save_after_deleted = useCallback(
-    (chat_room_id) => {
-      setHistoricalMessages((prev) => {
-        const newHistoricalMessages = { ...prev };
-        delete newHistoricalMessages[chat_room_id];
-        localStorage.setItem(
-          "AI_lounge_historical_messages",
-          JSON.stringify(newHistoricalMessages)
-        );
-        return newHistoricalMessages;
-      });
-      if (selectedChatRoomID === chat_room_id) {
-        setSelectedChatRoomID(generate_unique_room_ID());
+        avaliable_addresses.unshift(sectionData.address);
       }
-    },
-    [selectedChatRoomID, historicalMessages]
-  );
+      newAddressBook.avaliable_addresses = avaliable_addresses;
+      return newAddressBook;
+    });
+  }, [sectionData, addressBook]);
+  const delete_address_in_local_storage = (address) => {
+    localStorage.removeItem(UNIQUE_KEY + address);
+    setAddressBook((prev) => {
+      let newAddressBook = { ...prev };
+      delete newAddressBook[address];
+      let avaliable_addresses = newAddressBook.avaliable_addresses || [];
+      newAddressBook.avaliable_addresses = avaliable_addresses.filter(
+        (address) => address !== address
+      );
+      localStorage.setItem(
+        UNIQUE_KEY + "address_book",
+        JSON.stringify(newAddressBook)
+      );
+      return newAddressBook;
+    });
+    start_new_section();
+  };
+  const reset_regenerate_title_count_down = useCallback(() => {
+    setSectionData((prev) => ({
+      ...prev,
+      n_turns_to_regenerate_title: RETITLE_TURNS,
+    }));
+    console.log("reset_regenerate_title_count_down");
+  }, []);
+  useEffect(() => {
+    save_to_local_storage();
+  }, [sectionData, addressBook]);
+  /* { Section Data } --------------------------------------------------------------------------------- */
 
-  /* { Ollama APIs } --------------------------------------------------------------------------------- */
-  const chat_generation = async (messages) => {
+  /* { Ollama APIs } ---------------------------------------------------------------------------------- */
+  const chat_generation = async (address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages = [];
 
@@ -138,14 +219,11 @@ const Control_Panel = ({}) => {
           const jsonChunk = JSON.parse(chunk);
           if (jsonChunk.message && jsonChunk.message.content) {
             accumulatedResponse += jsonChunk.message.content;
-            setMessages([
-              ...messages,
-              {
-                role: "assistant",
-                message: accumulatedResponse,
-                content: accumulatedResponse,
-              },
-            ]);
+            update_latest_message({
+              role: "assistant",
+              message: accumulatedResponse,
+              content: accumulatedResponse,
+            });
           }
           if (jsonChunk.done) break;
         } catch (error) {
@@ -161,7 +239,7 @@ const Control_Panel = ({}) => {
       console.error("Error communicating with Ollama:", error);
     }
   };
-  const chat_room_title_generation = async (messages) => {
+  const chat_room_title_generation = async (address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages =
         "Analyze the following conversation between the user and assistant, and generate a concise, descriptive title for the chat room in no more than 10 words.\n\n\n";
@@ -214,86 +292,38 @@ const Control_Panel = ({}) => {
         return;
       }
       const stringifiedResponse = await response.json();
+      update_title(address, extract_title(stringifiedResponse.message.content));
       return extract_title(stringifiedResponse.message.content);
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
     }
   };
-  /* { Ollama APIs } --------------------------------------------------------------------------------- */
-
-  /* { load from storage if avaliable else open new section } */
-  useEffect(() => {
-    const historical_messages = JSON.parse(
-      localStorage.getItem("AI_lounge_historical_messages") || "{}"
-    );
-    let chat_room_id = "";
-    setHistoricalMessages(historical_messages);
-    if (Object.keys(historical_messages).length === 0) {
-      start_new_section();
-    } else {
-      setSelectedChatRoomID(Object.keys(historical_messages)[0]);
-      chat_room_id = Object.keys(historical_messages)[0];
-      setMessages(historical_messages[chat_room_id]["messages"] || []);
-      setSectionStarted(true);
-    }
-  }, []);
-  /* { assign window size listener } */
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-    window.addEventListener("resize", handleResize);
-    handleResize();
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
-  useEffect(() => {
-    if (messages.length > 0) {
-      setSectionStarted(true);
-    } else {
-      setSectionStarted(false);
-    }
-  }, [messages]);
-  useEffect(() => {
-    if (
-      historicalMessages[selectedChatRoomID] &&
-      historicalMessages[selectedChatRoomID]["messages"]
-    ) {
-      setMessages(historicalMessages[selectedChatRoomID]["messages"]);
-    } else {
-      setMessages([]);
-    }
-  }, [selectedChatRoomID, historicalMessages]);
+  /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   return (
     <RootDataContexts.Provider
       value={{
-        windowWidth,
-        setWindowWidth,
-
-        selectedChatRoomID,
-        setSelectedChatRoomID,
-
-        generate_unique_room_ID,
-
-        messages,
-        setMessages,
-
-        historicalMessages,
-        setHistoricalMessages,
-
-        save_after_new_message,
-        save_after_new_title,
-        save_after_deleted,
+        /* { Section Data & Methods } ------------- */
+        sectionData,
+        setSectionData,
+        addressBook,
+        setAddressBook,
 
         sectionStarted,
         setSectionStarted,
 
+        append_message,
         start_new_section,
+        load_section_data,
 
+        reset_regenerate_title_count_down,
+        delete_address_in_local_storage,
+        /* { Section Data & Methods } ------------- */
+
+        /* { Ollama APIs } ------------------------ */
         chat_generation,
         chat_room_title_generation,
+        /* { Ollama APIs } ------------------------ */
       }}
     >
       <div

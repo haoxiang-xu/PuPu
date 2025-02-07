@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
-import Control_Panel from "./COMPONENTs/control_panel/control_panel";
+import RootEventListeners from "./DATA_MANAGERs/root_event_listeners";
 
 const App = () => {
   const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });
@@ -26,7 +26,7 @@ const App = () => {
       ></link>
       <Router>
         <Routes>
-          <Route path="/" element={<Control_Panel />} />
+          <Route path="/" element={<RootEventListeners />} />
         </Routes>
       </Router>
     </div>
