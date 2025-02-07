@@ -30,6 +30,7 @@ export const iconManifest = {
   gray_delete: () => import("./SVGs/UI/gray_delete.svg"),
   red_circle: () => import("./SVGs/UI/red_circle.svg"),
   side_menu: () => import("./SVGs/UI/side_menu.svg"),
+  model: () => import("./SVGs/UI/model.svg"),
 
   /* {win32} */
   win32_maximize: () => import("./SVGs/UI/win32/maximize.svg"),
