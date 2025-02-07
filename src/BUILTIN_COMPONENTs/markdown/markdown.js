@@ -33,14 +33,17 @@ const CodeSection = ({ language, children }) => {
     if (onClicked) {
       setStyle({
         backgroundColor: `rgba(225, 225, 225, 0.16)`,
+        border: `1px solid rgba(225, 225, 225, 0.32)`,
       });
     } else if (onHover) {
       setStyle({
         backgroundColor: `rgba(225, 225, 225, 0.08)`,
+        border: `1px solid rgba(225, 225, 225, 0.16)`,
       });
     } else {
       setStyle({
         backgroundColor: `rgba(225, 225, 225, 0)`,
+        border: `1px solid rgba(225, 225, 225, 0)`,
       });
     }
   }, [onHover, onClicked]);
@@ -89,16 +92,14 @@ const CodeSection = ({ language, children }) => {
         </span>
         <div
           style={{
-            transition: "all 0.16s cubic-bezier(0.32, 1, 0.32, 1)",
+            transition: "border 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
             position: "absolute",
             top: 5,
             right: 5,
 
             width: 36,
             padding: `${default_font_size}px ${default_font_size}px ${default_font_size}px ${default_font_size}px`,
-            border: `1px solid rgba(${R + default_forground_color_offset}, ${
-              G + default_forground_color_offset
-            }, ${B + default_forground_color_offset} , 0)`,
+            border: style.border,
             borderRadius: `${default_border_radius - 5}px`,
             backgroundColor: style.backgroundColor,
           }}
