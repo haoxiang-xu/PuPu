@@ -322,9 +322,18 @@ const Chat_Section = () => {
   const [inputValue, setInputValue] = useState("");
   const [responseInComing, setResponseInComing] = useState(false);
 
+  /* { Target Address } ------------------------------------------------------------------------------ */
+  const [targetAddress, setTargetAddress] = useState(sectionData.address || "");
+  useEffect(() => {
+    if (!responseInComing) {
+      setTargetAddress(sectionData.address || "");
+    }
+  }, [sectionData, responseInComing]);
+  /* { Target Address } ------------------------------------------------------------------------------ */
+
   const on_input_submit = useCallback(() => {
     if (inputValue.length > 0) {
-      append_message({
+      append_message(targetAddress, {
         role: "user",
         message: inputValue,
         content: inputValue,
@@ -332,10 +341,9 @@ const Chat_Section = () => {
       setInputValue("");
     }
   }, [inputValue]);
-
   useEffect(() => {
     const messages = sectionData.messages || [];
-    const address = sectionData.address || "";
+    const address = targetAddress || "";
     if (address.length === 0) {
       return;
     }
@@ -345,7 +353,7 @@ const Chat_Section = () => {
         messages[messages.length - 1].role === "user"
       ) {
         setResponseInComing(true);
-        append_message({
+        append_message(address, {
           role: "assistant",
           message: LOADING_TAG,
           content: "",
@@ -365,7 +373,7 @@ const Chat_Section = () => {
           });
       }
     }
-  }, [sectionData, responseInComing]);
+  }, [sectionData, targetAddress, responseInComing]);
 
   return (
     <div

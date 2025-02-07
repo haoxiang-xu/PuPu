@@ -86,14 +86,16 @@ const Control_Panel = ({}) => {
     });
     setSectionStarted(false);
   };
-  const load_section_data = (address) => {
-    const section_data = JSON.parse(localStorage.getItem(UNIQUE_KEY + address));
+  const load_section_data = (target_address) => {
+    const section_data = JSON.parse(
+      localStorage.getItem(UNIQUE_KEY + target_address)
+    );
     if (section_data) {
       setSectionData(section_data);
       setSectionStarted(true);
     }
   };
-  const append_message = (message) => {
+  const append_message = (target_address, message) => {
     setSectionData((prev) => ({
       ...prev,
       messages: [...prev.messages, message],
@@ -105,8 +107,11 @@ const Control_Panel = ({}) => {
     update_address_book();
     setSectionStarted(true);
   };
-  const update_latest_message = (message) => {
+  const update_latest_message = (target_address, message) => {
     setSectionData((prev) => {
+      if (target_address !== prev.address) {
+        return prev;
+      }
       let updated_messages = [...prev.messages];
       updated_messages[updated_messages.length - 1] = message;
       return {
@@ -115,10 +120,10 @@ const Control_Panel = ({}) => {
       };
     });
   };
-  const update_title = (address, title) => {
+  const update_title = (target_address, title) => {
     setAddressBook((prev) => {
       let newAddressBook = { ...prev };
-      newAddressBook[address] = {
+      newAddressBook[target_address] = {
         chat_title: title,
       };
       return newAddressBook;
@@ -182,7 +187,7 @@ const Control_Panel = ({}) => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-  const chat_generation = async (address, messages) => {
+  const chat_generation = async (target_address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages = [];
 
@@ -231,7 +236,7 @@ const Control_Panel = ({}) => {
           const jsonChunk = JSON.parse(chunk);
           if (jsonChunk.message && jsonChunk.message.content) {
             accumulatedResponse += jsonChunk.message.content;
-            update_latest_message({
+            update_latest_message(target_address, {
               role: "assistant",
               message: accumulatedResponse,
               content: accumulatedResponse,
