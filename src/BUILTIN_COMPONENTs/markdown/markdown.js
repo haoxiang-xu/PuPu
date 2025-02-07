@@ -304,37 +304,45 @@ const ThinkingSection = ({ index, children }) => {
           width: "100%",
           height: "64px",
         }}
-      >
-        <span
-          style={{
-            position: "absolute",
-            top: "17px",
-            left: "44px",
-
-            opacity: 0.64,
-          }}
-        >
-          Thought process
-        </span>
-      </div>
+      ></div>
       <div
         className="markdown-section"
         style={{
           transition: "all 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
 
           display: "inline-block",
-          backgroundColor: `rgba(${R + default_forground_color_offset}, ${
-            G + default_forground_color_offset
-          }, ${B + default_forground_color_offset}, 0.72)`,
+          backgroundColor: `rgba(${R + default_forground_color_offset/2}, ${
+            G + default_forground_color_offset/2
+          }, ${B + default_forground_color_offset/2}, 0.64)`,
           borderRadius: `${default_border_radius}px`,
           padding: `${default_font_size}px`,
           maxHeight: isExpanded ? "none" : "8px",
           overflowY: "hidden",
-          opacity: isExpanded ? 0.32 : 0,
+          opacity: isExpanded ? 1 : 0,
         }}
       >
-        <ReactShowdown markdown={children} />
+        <ReactShowdown
+          markdown={children}
+          style={{
+            color: `rgb(${R + default_font_color_offset / 2}, ${
+              G + default_font_color_offset / 2
+            }, ${B + default_font_color_offset / 2})`,
+          }}
+        />
       </div>
+      <span
+        style={{
+          position: "absolute",
+          top: "17px",
+          left: "44px",
+
+          color: `rgb(${R + default_font_color_offset / 2}, ${
+            G + default_font_color_offset / 2
+          }, ${B + default_font_color_offset / 2})`,
+        }}
+      >
+        Thought process
+      </span>
       <Icon
         src="arrow"
         style={{
