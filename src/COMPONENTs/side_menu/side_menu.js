@@ -13,26 +13,29 @@ const R = 30;
 const G = 30;
 const B = 30;
 
-const Chat_Room_Record = ({ chat_room_id }) => {
+/* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
+const Chat_Room_Item = ({ address }) => {
   const {
-    selectedChatRoomID,
-    setSelectedChatRoomID,
-    generate_unique_room_ID,
-    historicalMessages,
-    setHistoricalMessages,
-    save_after_deleted,
+    addressBook,
+    sectionData,
+    load_section_data,
+    delete_address_in_local_storage,
   } = useContext(RootDataContexts);
   const [onHover, setOnHover] = useState(false);
   const [onDelete, setOnDelete] = useState(false);
-  const [style, setStyle] = useState({
+  const [containerStyle, setContainerStyle] = useState({
     backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`,
     boxShadow: "none",
     border: "1px solid rgba(255, 255, 255, 0)",
   });
+  const [deleteButtonStyle, setDeleteButtonStyle] = useState({
+    src: "delete",
+    opacity: 0,
+  });
 
   useEffect(() => {
-    if (chat_room_id === selectedChatRoomID) {
-      setStyle({
+    if (address === sectionData.address) {
+      setContainerStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.84)`,
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
         border: "1px solid rgba(255, 255, 255, 0.16)",
@@ -42,19 +45,33 @@ const Chat_Room_Record = ({ chat_room_id }) => {
       setOnDelete(false);
     }
     if (onHover) {
-      setStyle({
+      setContainerStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.4)`,
         boxShadow: "none",
         border: "1px solid rgba(255, 255, 255, 0.08)",
       });
     } else {
-      setStyle({
+      setContainerStyle({
         backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
         boxShadow: "none",
         border: "1px solid rgba(255, 255, 255, 0)",
       });
     }
-  }, [onHover, selectedChatRoomID, chat_room_id]);
+  }, [onHover, address, sectionData]);
+  /* { update delete icon styling when on delete or not on delete } */
+  useEffect(() => {
+    if (onDelete) {
+      setDeleteButtonStyle({
+        src: "gray_delete",
+        opacity: 1,
+      });
+    } else {
+      setDeleteButtonStyle({
+        src: "delete",
+        opacity: 1,
+      });
+    }
+  }, [onDelete]);
 
   return (
     <div
@@ -66,9 +83,9 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         margin: "6px 12px 0 12px",
 
         borderRadius: 5,
-        border: style.border,
-        backgroundColor: style.backgroundColor,
-        boxShadow: style.boxShadow,
+        border: containerStyle.border,
+        backgroundColor: containerStyle.backgroundColor,
+        boxShadow: containerStyle.boxShadow,
         overflow: "hidden",
       }}
       onMouseEnter={() => {
@@ -78,7 +95,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
         setOnHover(false);
       }}
       onClick={() => {
-        setSelectedChatRoomID(chat_room_id);
+        load_section_data(address);
         setOnDelete(false);
       }}
     >
@@ -91,7 +108,7 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           transform: "translateY(-50%)",
           top: "50%",
           left: 11,
-          width: onDelete? "calc(100% - 72px)" : "calc(100% - 36px)",
+          width: onDelete ? "calc(100% - 72px)" : "calc(100% - 36px)",
 
           fontSize: 14,
 
@@ -104,74 +121,75 @@ const Chat_Room_Record = ({ chat_room_id }) => {
           pointerEvents: "none",
         }}
       >
-        {historicalMessages[chat_room_id]["title"]
-          ? historicalMessages[chat_room_id]["title"]
-          : chat_room_id}
+        {addressBook[address].chat_title || address}
       </span>
-      <Icon
-        src="circle"
-        style={{
-          userSelect: "none",
-          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          transform: "translate(-50%, -50%)",
-          top: "50%",
-          right: -2,
-          width: 17,
-          height: 17,
-          opacity: onDelete && selectedChatRoomID === chat_room_id ? 0.64 : 0,
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          save_after_deleted(chat_room_id);
-        }}
-      />
-      <Icon
-        src="add"
-        style={{
-          userSelect: "none",
-          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          transform: "translate(-50%, -50%) rotate(45deg)",
-          top: "50%",
-          right: onDelete && selectedChatRoomID === chat_room_id ? 14 : -2,
-          width: 17,
-          height: 17,
-          opacity: onDelete && selectedChatRoomID === chat_room_id ? 0.64 : 0,
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-          setOnDelete(!onDelete);
-        }}
-      />
-
-      <Icon
-        src="delete"
-        style={{
-          transition:
-            "right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          transform: "translate(-50%, -50%)",
-          top: "50%",
-          right: onDelete && selectedChatRoomID === chat_room_id ? 32 : -2,
-          opacity: selectedChatRoomID === chat_room_id ? 1 : 0,
-          width: 17,
-          height: 17,
-          userSelect: "none",
-        }}
-        onClick={(e) => {
-          if (selectedChatRoomID === chat_room_id) {
+      <>
+        <Icon
+          src="red_circle"
+          style={{
+            userSelect: "none",
+            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            right: -2,
+            width: 17,
+            height: 17,
+            opacity: onDelete && sectionData.address === address ? 1 : 0,
+          }}
+          onClick={(e) => {
             e.stopPropagation();
-          }
-          setOnDelete(!onDelete);
-        }}
-      />
+            delete_address_in_local_storage(address);
+          }}
+        />
+        <Icon
+          src="add"
+          style={{
+            userSelect: "none",
+            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            transform: "translate(-50%, -50%) rotate(45deg)",
+            top: "50%",
+            right: onDelete && sectionData.address === address ? 14 : -2,
+            width: 17,
+            height: 17,
+            opacity: onDelete && sectionData.address === address ? 1 : 0,
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            setOnDelete(!onDelete);
+          }}
+        />
+        <Icon
+          src={deleteButtonStyle.src}
+          style={{
+            transition:
+              "right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            right: onDelete && sectionData.address === address ? 32 : -2,
+            opacity:
+              sectionData.address === address ? deleteButtonStyle.opacity : 0,
+            width: 17,
+            height: 17,
+            userSelect: "none",
+          }}
+          onClick={(e) => {
+            if (sectionData.address === address) {
+              e.stopPropagation();
+            }
+            setOnDelete(!onDelete);
+          }}
+        />
+      </>
     </div>
   );
 };
 const Chat_Room_List = ({}) => {
-  const { historicalMessages, start_new_section } =
-    useContext(RootDataContexts);
+  const { start_new_section, addressBook } = useContext(RootDataContexts);
+
+  const [chatRoomItems, setChatRoomItems] = useState([]);
 
   const [addButtonOnHover, setAddButtonOnHover] = useState(false);
   const [addButtonOnClick, setAddButtonOnClick] = useState(false);
@@ -198,7 +216,15 @@ const Chat_Room_List = ({}) => {
       });
     }
   }, [addButtonOnHover, addButtonOnClick]);
-
+  useEffect(() => {
+    if (addressBook && Array.isArray(addressBook.avaliable_addresses)) {
+      setChatRoomItems(
+        addressBook.avaliable_addresses.map((address, index) => (
+          <Chat_Room_Item key={index} address={address} />
+        ))
+      );
+    }
+  }, [addressBook]);
   return (
     <div
       style={{
@@ -268,14 +294,11 @@ const Chat_Room_List = ({}) => {
       >
         Chat Rooms
       </span>
-      {historicalMessages
-        ? Object.keys(historicalMessages).map((chat_room_id, index) => (
-            <Chat_Room_Record key={index} chat_room_id={chat_room_id} />
-          ))
-        : null}
+      {chatRoomItems}
     </div>
   );
 };
+/* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
   const { windowWidth } = useContext(RootDataContexts);

@@ -58,8 +58,8 @@ const Message_Section = ({ role, message, is_last_index }) => {
     </div>
   );
 };
-const Scrolling_Section = ({ messages }) => {
-  const { sectionStarted } = useContext(RootDataContexts);
+const Scrolling_Section = () => {
+  const { sectionData, sectionStarted } = useContext(RootDataContexts);
   const scrollRef = useRef(null);
 
   useEffect(() => {
@@ -100,7 +100,7 @@ const Scrolling_Section = ({ messages }) => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [sectionData]);
 
   return (
     <div
@@ -125,13 +125,15 @@ const Scrolling_Section = ({ messages }) => {
         opacity: sectionStarted ? 1 : 0,
       }}
     >
-      {messages && messages.length > 0
-        ? messages.map((msg, index) => (
+      {sectionData && sectionData.messages
+        ? sectionData.messages.map((msg, index) => (
             <Message_Section
               key={index}
               role={msg.role}
               message={msg.message}
-              is_last_index={index === messages.length - 1 ? true : false}
+              is_last_index={
+                index === sectionData.messages.length - 1 ? true : false
+              }
             />
           ))
         : null}
@@ -263,52 +265,52 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 
 const Chat_Section = () => {
   const {
-    save_after_new_message,
-    save_after_new_title,
+    sectionData,
+    append_message,
     chat_generation,
     chat_room_title_generation,
+    reset_regenerate_title_count_down,
   } = useContext(RootDataContexts);
   const [inputValue, setInputValue] = useState("");
   const [responseInComing, setResponseInComing] = useState(false);
-  const {
-    chatRoomID,
-    setChatRoomID,
-    messages,
-    setMessages,
-    historicalMessages,
-    setHistoricalMessages,
-  } = useContext(RootDataContexts);
 
   const on_input_submit = useCallback(() => {
-    if (inputValue !== "") {
-      setMessages([
-        ...messages,
-        { role: "user", message: inputValue, content: inputValue },
-      ]);
+    if (inputValue.length > 0) {
+      append_message({
+        role: "user",
+        message: inputValue,
+        content: inputValue,
+      });
       setInputValue("");
     }
-  }, [inputValue, messages]);
+  }, [inputValue]);
 
   useEffect(() => {
+    const messages = sectionData.messages || [];
+
     if (!responseInComing) {
       if (
         messages.length > 0 &&
         messages[messages.length - 1].role === "user"
       ) {
         setResponseInComing(true);
+        append_message({
+          role: "assistant",
+          message: "Thinking...",
+        });
         chat_generation(messages)
           .then((response) => {
             setResponseInComing(false);
-            save_after_new_message(response);
           })
           .finally(() => {
-            chat_room_title_generation(messages).then((response) => {
-              save_after_new_title(response);
-            });
+            if (sectionData.n_turns_to_regenerate_title === 0) {
+              chat_room_title_generation(messages).then((response) => {});
+              reset_regenerate_title_count_down();
+            }
           });
       }
     }
-  }, [messages, responseInComing]);
+  }, [sectionData, responseInComing]);
 
   return (
     <div
@@ -321,7 +323,7 @@ const Chat_Section = () => {
         height: "100%",
       }}
     >
-      <Scrolling_Section messages={messages} />
+      <Scrolling_Section />
       <Input_Section
         inputValue={inputValue}
         setInputValue={setInputValue}

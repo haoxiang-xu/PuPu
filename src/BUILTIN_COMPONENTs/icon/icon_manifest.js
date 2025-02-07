@@ -25,6 +25,8 @@ export const iconManifest = {
   menu: () => import("./SVGs/UI/menu.svg"),
   add: () => import("./SVGs/UI/add.svg"),
   circle: () => import("./SVGs/UI/circle.svg"),
+  gray_delete: () => import("./SVGs/UI/gray_delete.svg"),
+  red_circle: () => import("./SVGs/UI/red_circle.svg"),
 
   /* {win32} */
   win32_maximize: () => import("./SVGs/UI/win32/maximize.svg"),
