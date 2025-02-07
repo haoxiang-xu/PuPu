@@ -64,7 +64,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
     </div>
   );
 };
-const Scrolling_Section = () => {
+const Scrolling_Section = ({ responseInComing }) => {
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
   const { setComponentOnFocus } = useContext(RootStatusContexts);
   /* { Scrolling } ----------------------------------------------------------- */
@@ -95,10 +95,10 @@ const Scrolling_Section = () => {
     };
   }, []);
   useEffect(() => {
-    if (!isUserScrolling && scrollRef.current) {
+    if (!isUserScrolling && scrollRef.current && responseInComing) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [sectionData]);
+  }, [sectionData, responseInComing]);
   /* { Scrolling } ----------------------------------------------------------- */
 
   useEffect(() => {
@@ -378,7 +378,7 @@ const Chat_Section = () => {
         height: "100%",
       }}
     >
-      <Scrolling_Section />
+      <Scrolling_Section responseInComing={responseInComing} />
       <Input_Section
         inputValue={inputValue}
         setInputValue={setInputValue}
