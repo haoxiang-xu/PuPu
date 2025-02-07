@@ -8,7 +8,9 @@ import React, {
 import { RootDataContexts } from "../root_data_contexts";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import send_icon from "./send.svg";
+import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
 const R = 30;
 const G = 30;
@@ -245,8 +247,8 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           border: "1px solid rgba(255, 255, 255, 0.16)",
         }}
       ></Input>
-      <img
-        src={send_icon}
+      <Icon
+        src="send"
         alt="send"
         style={{
           transition:
@@ -327,7 +329,7 @@ const Chat_Section = () => {
         setResponseInComing(true);
         append_message({
           role: "assistant",
-          message: "Thinking...",
+          message: LOADING_TAG,
         });
         chat_generation(address, messages)
           .then((response) => {

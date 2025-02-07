@@ -6,6 +6,8 @@ import Tag from "../tag/tag";
 import { CodeBlock, dracula } from "react-code-blocks";
 import ReactShowdown from "react-showdown";
 import Icon from "../icon/icon";
+import SyncLoader from "react-spinners/SyncLoader";
+import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
 import "./markdown.css";
 
@@ -152,7 +154,8 @@ const CodeSection = ({ language, children }) => {
         codeBlock
         customStyle={{
           fontSize: `${default_font_size + 1}px`,
-          fontFamily: "'Fira Code', 'JetBrains Mono', 'Source Code Pro', monospace",
+          fontFamily:
+            "'Fira Code', 'JetBrains Mono', 'Source Code Pro', monospace",
           backgroundColor: `rgb(${R - 8}, ${G - 8}, ${B - 8})`,
           paddingTop: 36,
           borderRadius: default_border_radius,
@@ -351,6 +354,30 @@ const ThinkingSection = ({ children }) => {
       />
     </div>
   );
+};
+const CustomizedTagSection = ({ tag }) => {
+  const [component, setComponent] = useState(null);
+
+  useEffect(() => {
+    if (tag === LOADING_TAG) {
+      setComponent(
+        <SyncLoader
+          color={`rgb(${R + default_forground_color_offset}, ${
+            G + default_forground_color_offset
+          }, ${B + default_forground_color_offset})`}
+          size={default_font_size - 2}
+        />
+      );
+    } else {
+      setComponent(<TagSection>{tag}</TagSection>);
+    }
+
+    return () => {
+      setComponent(null);
+    };
+  }, [tag]);
+
+  return component;
 };
 
 const Markdown = ({ children, style }) => {
@@ -585,6 +612,52 @@ const Markdown = ({ children, style }) => {
       }
       return processed_content;
     };
+    const extract_customize_tag = (raw_content) => {
+      const find_first_tag = (raw_content) => {
+        const start_tag = "<<<";
+        const end_tag = ">>>";
+        const start_tag_index = raw_content.indexOf(start_tag);
+
+        const sliced_content = raw_content.slice(start_tag_index + 1);
+
+        const end_tag_index =
+          sliced_content.indexOf(end_tag) + start_tag_index + 1;
+        if (start_tag_index === -1) return null;
+        if (end_tag_index === -1) return null;
+        if (end_tag_index < start_tag_index) return null;
+
+        return raw_content.slice(
+          start_tag_index,
+          end_tag_index + end_tag.length
+        );
+      };
+
+      let unprocessed_content = raw_content;
+      let processed_content = [];
+
+      while (find_first_tag(unprocessed_content) !== null) {
+        const tag = find_first_tag(unprocessed_content);
+        const start_index = unprocessed_content.indexOf(tag);
+        const end_index = start_index + tag.length;
+
+        const pre_content = unprocessed_content.slice(0, start_index);
+        const post_content = unprocessed_content.slice(end_index);
+        const tag_content = unprocessed_content.slice(start_index, end_index);
+
+        if (pre_content.length > 0) {
+          processed_content.push({ type: "RAW", content: pre_content });
+        }
+        processed_content.push({
+          type: "CUSTOMIZED_TAG",
+          content: tag_content,
+        });
+        unprocessed_content = post_content;
+      }
+      if (unprocessed_content.length > 0) {
+        processed_content.push({ type: "RAW", content: unprocessed_content });
+      }
+      return processed_content;
+    };
 
     const process_content = (raw_content) => {
       const extract_and_merge = (raw_content) => {
@@ -606,7 +679,12 @@ const Markdown = ({ children, style }) => {
           return processing_content;
         };
         let processed_content = [];
+
         processed_content = extract_code(raw_content);
+        processed_content = apply_extract_function(
+          processed_content,
+          extract_customize_tag
+        );
         processed_content = apply_extract_function(
           processed_content,
           extract_think
@@ -672,6 +750,12 @@ const Markdown = ({ children, style }) => {
           processed_content[i].component = (
             <div key={i} style={{ display: "inline" }}>
               <ThinkingSection>{processed_content[i].content}</ThinkingSection>
+            </div>
+          );
+        } else if (processed_content[i].type === "CUSTOMIZED_TAG") {
+          processed_content[i].component = (
+            <div key={i} style={{ display: "inline" }}>
+              <CustomizedTagSection tag={processed_content[i].content} />
             </div>
           );
         } else {
