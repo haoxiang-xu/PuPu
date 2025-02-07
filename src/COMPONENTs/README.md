@@ -5,7 +5,7 @@
 ```js
 {
     avaliable_addresses: [`list_of_addresses`],
-    #: {
+    @: {
         chat_title: `string_that_describes_conversation`,
     }
 }
@@ -15,10 +15,9 @@
 
 ```js
 [
-    #: {
+    @: {
         address: `address`,
-        chat_title: `string_that_describes_conversation`,
-        n_turns_to_regenerate_title: int,
+        n_turns_to_regenerate_title: #,
         last_edit_date: `date_of_last_edit`,
         messages: [`list_of_messages`],
     },
@@ -33,6 +32,7 @@
     role: `role_of_sender`,
     content: `message_content`,
     message: `message_content`,
+    think_section_expanded: false,
   },
 ];
 ```

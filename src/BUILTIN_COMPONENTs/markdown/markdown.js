@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext } from "react";
 /* { import external render libraries } ------------------------------------------------- */
 import Latex from "react-latex-next";
 import "katex/dist/katex.min.css";
@@ -9,6 +9,7 @@ import Icon from "../icon/icon";
 import SyncLoader from "react-spinners/SyncLoader";
 import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
 import "./markdown.css";
 
 const R = 30;
@@ -76,7 +77,7 @@ const CodeSection = ({ language, children }) => {
           style={{
             userSelect: "none",
             position: "absolute",
-            top: "45%",
+            top: "50%",
 
             transform: "translateY(-50%)",
             left: 12,
@@ -258,8 +259,12 @@ const TextSection = ({ children }) => {
 const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
-const ThinkingSection = ({ children }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
+const ThinkingSection = ({ index, children }) => {
+  const { set_expand_section_message, sectionData } =
+    useContext(RootDataContexts);
+  const [isExpanded, setIsExpanded] = useState(
+    sectionData.messages[index].expanded
+  );
   const [onClick, setOnClick] = useState(false);
   const [onHover, setOnHover] = useState(false);
 
@@ -351,7 +356,10 @@ const ThinkingSection = ({ children }) => {
         }}
         onMouseDown={() => setOnClick(true)}
         onMouseUp={() => setOnClick(false)}
-        onClick={() => setIsExpanded(!isExpanded)}
+        onClick={() => {
+          set_expand_section_message(index, !isExpanded);
+          setIsExpanded(!isExpanded);
+        }}
       />
     </div>
   );
@@ -381,7 +389,7 @@ const CustomizedTagSection = ({ tag }) => {
   return component;
 };
 
-const Markdown = ({ children, style }) => {
+const Markdown = ({ children, index, style }) => {
   const [processedContent, setProcessedContent] = useState(children);
 
   useEffect(() => {
@@ -750,7 +758,9 @@ const Markdown = ({ children, style }) => {
         } else if (processed_content[i].type === "THINK") {
           processed_content[i].component = (
             <div key={i} style={{ display: "inline" }}>
-              <ThinkingSection>{processed_content[i].content}</ThinkingSection>
+              <ThinkingSection index={index}>
+                {processed_content[i].content}
+              </ThinkingSection>
             </div>
           );
         } else if (processed_content[i].type === "CUSTOMIZED_TAG") {
@@ -770,7 +780,7 @@ const Markdown = ({ children, style }) => {
       return processed_content.map((content) => content.component);
     };
     setProcessedContent(process_content(children));
-  }, [children, style]);
+  }, [children, index, style]);
 
   return (
     <div

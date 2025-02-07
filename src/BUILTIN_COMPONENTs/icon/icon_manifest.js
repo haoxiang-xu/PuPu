@@ -3,6 +3,7 @@ import Side_Menu from "../../COMPONENTs/side_menu/side_menu";
 export const iconManifest = {
   /* { System UI Icons } ------------------------------------------------------------------------------------------------------------- */
   arrow: () => import("./SVGs/UI/arrow.svg"),
+  narrowed_arrow: () => import("./SVGs/UI/narrowed_arrow.svg"),
 
   /* { context menu } */
   close: () => import("./SVGs/UI/close.svg"),

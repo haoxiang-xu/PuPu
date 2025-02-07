@@ -124,6 +124,19 @@ const Control_Panel = ({}) => {
       return newAddressBook;
     });
   };
+  const set_expand_section_message = (message_index, isExpanded) => {
+    setSectionData((prev) => {
+      let updated_messages = [...prev.messages];
+      updated_messages[message_index] = {
+        ...updated_messages[message_index],
+        expanded: isExpanded,
+      };
+      return {
+        ...prev,
+        messages: updated_messages,
+      };
+    });
+  };
   const update_address_book = useCallback(() => {
     setAddressBook((prev) => {
       let newAddressBook = { ...prev };
@@ -318,6 +331,7 @@ const Control_Panel = ({}) => {
 
         reset_regenerate_title_count_down,
         delete_address_in_local_storage,
+        set_expand_section_message,
         /* { Section Data & Methods } ------------- */
 
         /* { Ollama APIs } ------------------------ */

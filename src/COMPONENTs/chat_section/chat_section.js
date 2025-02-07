@@ -22,7 +22,7 @@ const default_border_radius = 10;
 
 const component_name = "chat_section";
 
-const Message_Section = ({ role, message, is_last_index }) => {
+const Message_Section = ({ index, role, message, is_last_index }) => {
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
   });
@@ -58,7 +58,9 @@ const Message_Section = ({ role, message, is_last_index }) => {
           role === "user" ? `0px 4px 16px rgba(0, 0, 0, 0.16)` : "none",
       }}
     >
-      <Markdown style={style}>{message}</Markdown>
+      <Markdown index={index} style={style}>
+        {message}
+      </Markdown>
     </div>
   );
 };
@@ -165,6 +167,7 @@ const Scrolling_Section = () => {
         ? sectionData.messages.map((msg, index) => (
             <Message_Section
               key={index}
+              index={index}
               role={msg.role}
               message={msg.message}
               is_last_index={
@@ -345,6 +348,8 @@ const Chat_Section = () => {
         append_message({
           role: "assistant",
           message: LOADING_TAG,
+          content: "",
+          think_section_expanded: true,
         });
         chat_generation(address, messages)
           .then((response) => {

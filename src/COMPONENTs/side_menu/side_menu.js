@@ -1,9 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useContext,
-  use,
-} from "react";
+import React, { useState, useEffect, useContext, use } from "react";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -375,6 +370,9 @@ const Side_Menu = ({}) => {
 
           backgroundColor: `rgba(${R}, ${G}, ${B}, 0.64)`,
           backdropFilter: "blur(36px)",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
         }}
       >
         <Chat_Room_List />
