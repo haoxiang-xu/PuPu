@@ -121,7 +121,7 @@ const Chat_Room_Item = ({ address }) => {
           pointerEvents: "none",
         }}
       >
-        {addressBook[address].chat_title || address}
+        {addressBook[address]? addressBook[address].chat_title || address : address}
       </span>
       <>
         <Icon

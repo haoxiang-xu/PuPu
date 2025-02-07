@@ -83,7 +83,6 @@ const Control_Panel = ({}) => {
     const generated_address = generate_new_address();
     setSectionData({
       address: generated_address,
-      chat_title: generated_address,
       n_turns_to_regenerate_title: 0,
       last_edit_date: new Date().getTime(),
       messages: [],
@@ -101,7 +100,10 @@ const Control_Panel = ({}) => {
     setSectionData((prev) => ({
       ...prev,
       messages: [...prev.messages, message],
-      n_turns_to_regenerate_title: prev.n_turns_to_regenerate_title - 1,
+      n_turns_to_regenerate_title: Math.max(
+        prev.n_turns_to_regenerate_title - 1,
+        0
+      ),
     }));
     update_address_book();
     setSectionStarted(true);
@@ -116,18 +118,18 @@ const Control_Panel = ({}) => {
       };
     });
   };
-  const update_title = (title) => {
-    setSectionData((prev) => ({
-      ...prev,
-      chat_title: title,
-    }));
+  const update_title = (address, title) => {
+    setAddressBook((prev) => {
+      let newAddressBook = { ...prev };
+      newAddressBook[address] = {
+        chat_title: title,
+      };
+      return newAddressBook;
+    });
   };
   const update_address_book = useCallback(() => {
     setAddressBook((prev) => {
       let newAddressBook = { ...prev };
-      newAddressBook[sectionData.address] = {
-        chat_title: sectionData.chat_title,
-      };
       let avaliable_addresses = newAddressBook.avaliable_addresses || [];
       if (!avaliable_addresses.includes(sectionData.address)) {
         avaliable_addresses.push(sectionData.address);
@@ -171,7 +173,7 @@ const Control_Panel = ({}) => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-  const chat_generation = async (messages) => {
+  const chat_generation = async (address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages = [];
 
@@ -240,7 +242,7 @@ const Control_Panel = ({}) => {
       console.error("Error communicating with Ollama:", error);
     }
   };
-  const chat_room_title_generation = async (messages) => {
+  const chat_room_title_generation = async (address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages =
         "Analyze the following conversation between the user and assistant, and generate a concise, descriptive title for the chat room in no more than 10 words.\n\n\n";
@@ -293,7 +295,7 @@ const Control_Panel = ({}) => {
         return;
       }
       const stringifiedResponse = await response.json();
-      update_title(extract_title(stringifiedResponse.message.content));
+      update_title(address, extract_title(stringifiedResponse.message.content));
       return extract_title(stringifiedResponse.message.content);
     } catch (error) {
       console.error("Error communicating with Ollama:", error);

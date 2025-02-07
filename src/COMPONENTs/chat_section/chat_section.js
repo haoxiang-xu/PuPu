@@ -287,7 +287,10 @@ const Chat_Section = () => {
 
   useEffect(() => {
     const messages = sectionData.messages || [];
-
+    const address = sectionData.address || '';
+    if (address.length === 0) {
+      return;
+    }
     if (!responseInComing) {
       if (
         messages.length > 0 &&
@@ -298,13 +301,13 @@ const Chat_Section = () => {
           role: "assistant",
           message: "Thinking...",
         });
-        chat_generation(messages)
+        chat_generation(address, messages)
           .then((response) => {
             setResponseInComing(false);
           })
           .finally(() => {
             if (sectionData.n_turns_to_regenerate_title === 0) {
-              chat_room_title_generation(messages).then((response) => {});
+              chat_room_title_generation(address, messages).then((response) => {});
               reset_regenerate_title_count_down();
             }
           });
