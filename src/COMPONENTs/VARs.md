@@ -32,7 +32,7 @@
     role: `role_of_sender`,
     content: `message_content`,
     message: `message_content`,
-    think_section_expanded: false,
+    expanded: false,
   },
 ];
 ```

@@ -113,7 +113,9 @@ const Control_Panel = ({}) => {
         return prev;
       }
       let updated_messages = [...prev.messages];
-      updated_messages[updated_messages.length - 1] = message;
+      let message_to_append = message;
+      message_to_append.expanded = updated_messages[updated_messages.length - 1].expanded || true;
+      updated_messages[updated_messages.length - 1] = message_to_append;
       return {
         ...prev,
         messages: updated_messages,
