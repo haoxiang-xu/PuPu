@@ -11,7 +11,16 @@ const default_forground_color_offset = 12;
 
 const default_max_rows = 16;
 
-const Input = ({ value, setValue, onSubmit, onFocus, setOnFocus, ...props }) => {
+const placeholder = "Ask Ollama";
+
+const Input = ({
+  value,
+  setValue,
+  onSubmit,
+  onFocus,
+  setOnFocus,
+  ...props
+}) => {
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
@@ -105,6 +114,23 @@ const Input = ({ value, setValue, onSubmit, onFocus, setOnFocus, ...props }) => 
         }}
       />
       {props.children}
+      <span
+        style={{
+          transition: "left 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          top: 13,
+          left: value.length !== 0 ? default_padding * 2 : default_padding,
+
+          fontSize: default_font_size + 2,
+          fontFamily: "inherit",
+          fontWeight: 100,
+
+          opacity: value.length !== 0 ? 0 : 0.32,
+          pointerEvents: "none",
+        }}
+      >
+        {placeholder}
+      </span>
     </div>
   );
 };
