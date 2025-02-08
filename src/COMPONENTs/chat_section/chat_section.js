@@ -12,7 +12,7 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
-import HashLoader from "react-spinners/HashLoader";
+import PulseLoader from "react-spinners/PulseLoader";
 
 const R = 30;
 const G = 30;
@@ -315,14 +315,14 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           onClick={on_input_submit}
         />
       ) : (
-        <HashLoader
+        <PulseLoader
           style={{
             position: "fixed",
-            bottom: 50,
-            right: 40,
+            bottom: 38,
+            right: 30,
             opacity: 0.32,
           }}
-          size={24}
+          size={7}
           color={"#cccccc"}
           speedMultiplier={0.8}
         />

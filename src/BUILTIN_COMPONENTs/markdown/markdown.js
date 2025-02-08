@@ -6,7 +6,7 @@ import Tag from "../tag/tag";
 import { CodeBlock, dracula } from "react-code-blocks";
 import ReactShowdown from "react-showdown";
 import Icon from "../icon/icon";
-import HashLoader from "react-spinners/HashLoader";
+import PulseLoader from "react-spinners/PulseLoader";
 import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
@@ -311,9 +311,9 @@ const ThinkingSection = ({ index, children }) => {
           transition: "all 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
 
           display: "inline-block",
-          backgroundColor: `rgba(${R + default_forground_color_offset/2}, ${
-            G + default_forground_color_offset/2
-          }, ${B + default_forground_color_offset/2}, 0.64)`,
+          backgroundColor: `rgba(${R + default_forground_color_offset / 2}, ${
+            G + default_forground_color_offset / 2
+          }, ${B + default_forground_color_offset / 2}, 0.64)`,
           borderRadius: `${default_border_radius}px`,
           padding: `${default_font_size}px`,
           maxHeight: isExpanded ? "none" : "8px",
@@ -378,11 +378,13 @@ const CustomizedTagSection = ({ tag }) => {
   useEffect(() => {
     if (tag === LOADING_TAG) {
       setComponent(
-        <HashLoader
-          color={`rgb(${R + default_forground_color_offset}, ${
-            G + default_forground_color_offset
-          }, ${B + default_forground_color_offset})`}
-          size={default_font_size - 4}
+        <PulseLoader
+          style={{
+            opacity: 0.32,
+          }}
+          color={"#cccccc"}
+          size={7}
+          speedMultiplier={0.8}
         />
       );
     } else {
