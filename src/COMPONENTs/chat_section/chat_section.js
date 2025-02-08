@@ -53,9 +53,10 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
         transition: "margin-left 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
         transition: "width 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
         position: "relative",
+        width: role === "user" ? "none" : "100%",
         maxWidth: role === "user" ? 328 : "100%",
 
-        left: role === "user" ? "calc(100% - 328px)" : 0,
+        float: role === "user" ? "right" : "left",
         marginBottom: is_last_index ? 64 : 16,
         borderRadius: default_border_radius,
         boxShadow:
