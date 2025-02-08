@@ -6,7 +6,7 @@ import Tag from "../tag/tag";
 import { CodeBlock, dracula } from "react-code-blocks";
 import ReactShowdown from "react-showdown";
 import Icon from "../icon/icon";
-import SyncLoader from "react-spinners/SyncLoader";
+import HashLoader from "react-spinners/HashLoader";
 import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
@@ -378,7 +378,7 @@ const CustomizedTagSection = ({ tag }) => {
   useEffect(() => {
     if (tag === LOADING_TAG) {
       setComponent(
-        <SyncLoader
+        <HashLoader
           color={`rgb(${R + default_forground_color_offset}, ${
             G + default_forground_color_offset
           }, ${B + default_forground_color_offset})`}
