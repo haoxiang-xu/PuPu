@@ -94,12 +94,16 @@ const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
   }
 };
 const Message_Section = ({ index, role, message, is_last_index }) => {
+  const { sectionData } = useContext(RootDataContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
   });
   const [onHover, setOnHover] = useState(false);
   const [plainTextMode, setPlainTextMode] = useState(false);
 
+  useEffect(() => {
+    setPlainTextMode(false);
+  }, [sectionData]);
   useEffect(() => {
     if (role === "assistant") {
       setStyle({
