@@ -182,6 +182,8 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
 const Scrolling_Section = ({ responseInComing }) => {
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
   const { setComponentOnFocus } = useContext(RootStatusContexts);
+  const { preLoadingCompleted, arrivedAtPosition, setArrivedAtPosition } =
+    useContext(ChatSectionContexts);
   /* { Scrolling } ----------------------------------------------------------- */
   const scrollRef = useRef(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -214,6 +216,12 @@ const Scrolling_Section = ({ responseInComing }) => {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [sectionData, responseInComing]);
+  useEffect(() => {
+    if (!preLoadingCompleted && !arrivedAtPosition) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      setArrivedAtPosition(true);
+    }
+  }, [preLoadingCompleted, arrivedAtPosition]);
   /* { Scrolling } ----------------------------------------------------------- */
 
   useEffect(() => {
@@ -269,9 +277,9 @@ const Scrolling_Section = ({ responseInComing }) => {
         overflowX: "hidden",
         overflowY: "overlay",
         boxSizing: "border-box",
-        scrollBehavior: "smooth",
+        scrollBehavior: preLoadingCompleted ? "smooth" : "auto",
 
-        opacity: sectionStarted ? 1 : 0,
+        opacity: sectionStarted && preLoadingCompleted ? 1 : 0,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -461,6 +469,22 @@ const Chat_Section = () => {
   }, [sectionData, responseInComing]);
   /* { Target Address } ------------------------------------------------------------------------------ */
 
+  /* { PreLoading } ================================================================================== */
+  const [arrivedAtPosition, setArrivedAtPosition] = useState(false);
+  const [preLoadingCompleted, setPreLoadingCompleted] = useState(false);
+  useEffect(() => {
+    if (sectionData.address !== targetAddress) {
+      setPreLoadingCompleted(false);
+      setArrivedAtPosition(false);
+    }
+  }, [sectionData, targetAddress]);
+  useEffect(() => {
+    if (arrivedAtPosition) {
+      setPreLoadingCompleted(true);
+    }
+  }, [arrivedAtPosition]);
+  /* { PreLoading } ================================================================================== */
+
   const on_input_submit = useCallback(() => {
     if (inputValue.length > 0 && !responseInComing) {
       append_message(targetAddress, {
@@ -509,6 +533,10 @@ const Chat_Section = () => {
     <ChatSectionContexts.Provider
       value={{
         responseInComing,
+        arrivedAtPosition,
+        setArrivedAtPosition,
+        preLoadingCompleted,
+        setPreLoadingCompleted,
       }}
     >
       <div
