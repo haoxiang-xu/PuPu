@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   createContext,
+  use,
 } from "react";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
@@ -219,7 +220,12 @@ const Scrolling_Section = ({ responseInComing }) => {
   useEffect(() => {
     if (!preLoadingCompleted && !arrivedAtPosition) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-      setArrivedAtPosition(true);
+      setTimeout(() => {
+        scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+      }, 16);
+      setTimeout(() => {
+        setArrivedAtPosition(true);
+      }, 32);
     }
   }, [preLoadingCompleted, arrivedAtPosition]);
   /* { Scrolling } ----------------------------------------------------------- */
@@ -264,7 +270,9 @@ const Scrolling_Section = ({ responseInComing }) => {
       ref={scrollRef}
       className="scrolling-space"
       style={{
-        transition: "opacity 0.64s cubic-bezier(0.32, 0, 0.32, 1)",
+        transition: preLoadingCompleted
+          ? "opacity 0.64s cubic-bezier(0.32, 0, 0.32, 1)"
+          : "none",
         position: "absolute",
 
         top: 0,
@@ -473,16 +481,16 @@ const Chat_Section = () => {
   const [arrivedAtPosition, setArrivedAtPosition] = useState(false);
   const [preLoadingCompleted, setPreLoadingCompleted] = useState(false);
   useEffect(() => {
-    if (sectionData.address !== targetAddress) {
-      setPreLoadingCompleted(false);
-      setArrivedAtPosition(false);
-    }
-  }, [sectionData, targetAddress]);
-  useEffect(() => {
     if (arrivedAtPosition) {
       setPreLoadingCompleted(true);
     }
   }, [arrivedAtPosition]);
+  useEffect(() => {
+    if (targetAddress !== sectionData.address) {
+      setPreLoadingCompleted(false);
+      setArrivedAtPosition(false);
+    }
+  }, [targetAddress, sectionData]);
   /* { PreLoading } ================================================================================== */
 
   const on_input_submit = useCallback(() => {

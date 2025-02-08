@@ -7,6 +7,7 @@ import Control_Panel from "../COMPONENTs/control_panel/control_panel";
 
 const RootEventListeners = () => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
+  const [modelOnTask, setModelOnTask] = useState("");
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   /* { Event Listener } ------------------------------------------------------------------------------- */
