@@ -24,7 +24,12 @@ const Control_Panel = ({}) => {
   /* { Local Storage } -------------------------------------------------------------------------------- */
   /* { load from local storage } */
   useEffect(() => {
-    load_from_local_storage();
+    try {
+      load_from_local_storage();
+    } catch (error) {
+      console.error("Error loading from local storage:", error);
+      localStorage.clear();
+    }
   }, []);
   const check_if_address_existed = (address) => {
     return address in addressBook;
@@ -308,7 +313,7 @@ const Control_Panel = ({}) => {
         console.error("API request failed:", response.statusText);
         return;
       }
-    
+
       const data = await response.json();
       if (!data || !data.response) {
         console.error("Invalid API response:", data);

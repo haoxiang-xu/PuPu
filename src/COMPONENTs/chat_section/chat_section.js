@@ -96,6 +96,7 @@ const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
 };
 const Message_Section = ({ index, role, message, is_last_index }) => {
   const { sectionData } = useContext(RootDataContexts);
+  const { targetAddress } = useContext(RootStatusContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
   });
@@ -103,8 +104,10 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
   const [plainTextMode, setPlainTextMode] = useState(false);
 
   useEffect(() => {
-    setPlainTextMode(false);
-  }, [sectionData]);
+    if (sectionData.address !== targetAddress) {
+      setPlainTextMode(false);
+    }
+  }, [sectionData, targetAddress]);
   useEffect(() => {
     if (role === "assistant") {
       setStyle({
