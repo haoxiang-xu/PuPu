@@ -26,6 +26,7 @@ const component_name = "chat_section";
 
 const ChatSectionContexts = createContext("");
 
+const Message_Bottom_Panel = ({ role }) => {};
 const Message_Section = ({ index, role, message, is_last_index }) => {
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
@@ -48,25 +49,36 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
   }, [role]);
 
   return (
-    <div
-      style={{
-        transition: "margin-left 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
-        transition: "width 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
-        position: "relative",
-        width: role === "user" ? "none" : "100%",
-        maxWidth: role === "user" ? 328 : "100%",
+    <>
+      <div
+        style={{
+          transition: "margin-left 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
+          transition: "width 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "relative",
+          width: role === "user" ? "none" : "100%",
+          maxWidth: role === "user" ? 328 : "100%",
 
-        float: role === "user" ? "right" : "left",
-        marginBottom: is_last_index ? 64 : 16,
-        borderRadius: default_border_radius,
-        boxShadow:
-          role === "user" ? `0px 4px 16px rgba(0, 0, 0, 0.16)` : "none",
-      }}
-    >
-      <Markdown index={index} style={style}>
-        {message}
-      </Markdown>
-    </div>
+          float: role === "user" ? "right" : "left",
+          marginTop: index === 0 ? 32 : 0,
+          marginBottom: is_last_index ? 128 : 36,
+          borderRadius: default_border_radius,
+          boxShadow:
+            role === "user" ? `0px 4px 16px rgba(0, 0, 0, 0.16)` : "none",
+        }}
+      >
+        <Markdown index={index} style={style}>
+          {message}
+        </Markdown>
+        <div
+          className="message-bottom-panel"
+          style={{
+            position: "absolute",
+            width: "100%",
+            height: 32,
+          }}
+        ></div>
+      </div>
+    </>
   );
 };
 const Scrolling_Section = ({ responseInComing }) => {
