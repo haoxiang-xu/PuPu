@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, use } from "react";
+import React, { useState, useEffect, useContext, createContext } from "react";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -8,6 +8,8 @@ const G = 30;
 const B = 30;
 
 const component_name = "side_menu";
+
+const Side_Menu_Contexts = createContext();
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 const Chat_Room_Item = ({ address }) => {
@@ -187,6 +189,7 @@ const Chat_Room_Item = ({ address }) => {
 };
 const Chat_Room_List = ({}) => {
   const { start_new_section, addressBook } = useContext(RootDataContexts);
+  const { componentOnFocus } = useContext(RootStatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
 
@@ -226,14 +229,16 @@ const Chat_Room_List = ({}) => {
   }, [addressBook]);
   return (
     <div
+      className="scrolling-space"
       style={{
         position: "absolute",
 
-        top: 50,
+        top: 72,
         left: 0,
         right: 0,
         bottom: 0,
-        paddingTop: 32,
+        marginRight: 3,
+        marginBottom: 3,
 
         overflowX: "hidden",
         overflowY: "auto",
@@ -242,15 +247,16 @@ const Chat_Room_List = ({}) => {
         e.stopPropagation();
       }}
     >
+      {chatRoomItems}
       <Icon
         className="add_chat_section_button"
         src="add"
         style={{
           transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           userSelect: "none",
-          position: "absolute",
-          top: 0,
-          right: 13,
+          position: "fixed",
+          top: 46,
+          right: 16,
 
           width: 16,
           height: 16,
@@ -281,9 +287,10 @@ const Chat_Room_List = ({}) => {
       ></Icon>
       <span
         style={{
-          position: "absolute",
-          top: 3,
-          left: 14,
+          transition: "left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "fixed",
+          top: 49,
+          left: componentOnFocus === component_name ? 14 : -100,
 
           fontSize: 14,
           textOverflow: "ellipsis",
@@ -296,7 +303,6 @@ const Chat_Room_List = ({}) => {
       >
         Chat Rooms
       </span>
-      {chatRoomItems}
     </div>
   );
 };
@@ -320,8 +326,8 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top: 16,
-          left: window.innerWidth * 0.25 - 26,
+          top: 14,
+          left: window.innerWidth * 0.25 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       } else {
@@ -331,8 +337,8 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top: 16,
-          left: 256 - 26,
+          top: 14,
+          left: 256 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       }
@@ -351,62 +357,64 @@ const Side_Menu = ({}) => {
   }, [windowWidth, componentOnFocus]);
 
   return (
-    <div>
-      <div
-        className="scrolling-space"
-        style={{
-          transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "fixed",
-
-          top: 0,
-          left: 0,
-          bottom: 0,
-
-          width: menuStyle.width,
-
-          boxSizing: "border-box",
-          borderRight: "1px solid rgba(255, 255, 255, 0.12)",
-          scrollBehavior: "smooth",
-
-          backgroundColor: `rgba(${R}, ${G}, ${B}, 0.64)`,
-          backdropFilter: "blur(36px)",
-        }}
-        onClick={(e) => {
-          e.stopPropagation();
-        }}
-      >
-        <Chat_Room_List />
-      </div>
-      <div
-        className="icon-container"
-        style={{
-          transition:
-            "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "fixed",
-          transform: iconStyle.transform,
-
-          top: iconStyle.top,
-          left: iconStyle.left,
-        }}
-      >
-        <Icon
-          src={iconStyle.src}
+    <Side_Menu_Contexts.Provider value={{}}>
+      <div>
+        <div
+          className="scrolling-space"
           style={{
-            userSelect: "none",
-            height: 20,
-            opacity: 0.5,
+            transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "fixed",
+
+            top: 0,
+            left: 0,
+            bottom: 0,
+
+            width: menuStyle.width,
+
+            boxSizing: "border-box",
+            borderRight: "1px solid rgba(255, 255, 255, 0.12)",
+            scrollBehavior: "smooth",
+
+            backgroundColor: `rgba(${R}, ${G}, ${B}, 0.64)`,
+            backdropFilter: "blur(36px)",
           }}
           onClick={(e) => {
             e.stopPropagation();
-            if (componentOnFocus === component_name) {
-              setComponentOnFocus("");
-            } else {
-              setComponentOnFocus(component_name);
-            }
           }}
-        />
+        >
+          <Chat_Room_List />
+        </div>
+        <div
+          className="icon-container"
+          style={{
+            transition:
+              "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "fixed",
+            transform: iconStyle.transform,
+
+            top: iconStyle.top,
+            left: iconStyle.left,
+          }}
+        >
+          <Icon
+            src={iconStyle.src}
+            style={{
+              userSelect: "none",
+              height: 20,
+              opacity: 0.5,
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (componentOnFocus === component_name) {
+                setComponentOnFocus("");
+              } else {
+                setComponentOnFocus(component_name);
+              }
+            }}
+          />
+        </div>
       </div>
-    </div>
+    </Side_Menu_Contexts.Provider>
   );
 };
 
