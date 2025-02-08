@@ -36,3 +36,9 @@
   },
 ];
 ```
+
+`modelOnTask`
+
+- `null`
+- `"generating"`
+- `"naming the chat room"`

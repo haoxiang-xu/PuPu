@@ -12,6 +12,7 @@ const B = 30;
 
 const Control_Panel = ({}) => {
   const { windowWidth } = useContext(RootStatusContexts);
+  const { setModelOnTask } = useContext(RootStatusContexts);
 
   const [selectedModel, setSelectedModel] = useState("deepseek-r1:14b");
 
@@ -210,7 +211,7 @@ const Control_Panel = ({}) => {
       return processed_messages;
     };
     const processed_messages = preprocess_messages(messages, 8);
-
+    setModelOnTask("generating");
     try {
       const request = {
         model: selectedModel,
@@ -250,6 +251,7 @@ const Control_Panel = ({}) => {
           console.error("Error parsing stream chunk:", error);
         }
       }
+      setModelOnTask(null);
       return {
         role: "assistant",
         message: accumulatedResponse,
@@ -257,6 +259,7 @@ const Control_Panel = ({}) => {
       };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
+      setModelOnTask(null);
     }
   };
   const chat_room_title_generation = async (address, messages) => {
@@ -278,7 +281,7 @@ const Control_Panel = ({}) => {
       return processed_messages;
     };
     let prompt = preprocess_messages(messages, 7);
-
+    setModelOnTask("naming the chat room");
     try {
       const request = {
         model: selectedModel,
@@ -313,9 +316,11 @@ const Control_Panel = ({}) => {
       }
       const title = JSON.parse(data.response).title;
       update_title(address, title);
+      setModelOnTask(null);
       return title;
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
+      setModelOnTask(null);
     }
   };
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */

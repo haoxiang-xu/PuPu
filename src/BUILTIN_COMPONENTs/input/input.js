@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useContext } from "react";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import TextareaAutosize from "react-textarea-autosize";
 
 const default_font_size = 14;
@@ -11,8 +12,6 @@ const default_forground_color_offset = 12;
 
 const default_max_rows = 16;
 
-const placeholder = "Ask Ollama";
-
 const Input = ({
   value,
   setValue,
@@ -21,6 +20,7 @@ const Input = ({
   setOnFocus,
   ...props
 }) => {
+  const { modelOnTask } = useContext(RootStatusContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
@@ -51,6 +51,18 @@ const Input = ({
       document.head.removeChild(styleElement);
     };
   }, []);
+  /* { Placeholder } --------------------------------------------------------- */
+  const [placeholder, setPlaceholder] = useState("Ask Ollama");
+  useEffect(() => {
+    if (modelOnTask === "generating") {
+      setPlaceholder("Generating");
+    } else if (modelOnTask === "naming the chat room") {
+      setPlaceholder("Naming the chat room"); 
+    } else {
+      setPlaceholder("Ask Ollama");
+    } 
+  }, [modelOnTask]);
+  /* { Placeholder } --------------------------------------------------------- */
   useEffect(() => {
     if (onFocus) {
       inputRef.current.focus();
