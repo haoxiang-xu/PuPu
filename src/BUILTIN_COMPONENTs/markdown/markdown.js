@@ -382,7 +382,7 @@ const CustomizedTagSection = ({ tag }) => {
           color={`rgb(${R + default_forground_color_offset}, ${
             G + default_forground_color_offset
           }, ${B + default_forground_color_offset})`}
-          size={default_font_size - 2}
+          size={default_font_size - 4}
         />
       );
     } else {

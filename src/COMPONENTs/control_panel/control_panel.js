@@ -114,7 +114,8 @@ const Control_Panel = ({}) => {
       }
       let updated_messages = [...prev.messages];
       let message_to_append = message;
-      message_to_append.expanded = updated_messages[updated_messages.length - 1].expanded || true;
+      message_to_append.expanded =
+        updated_messages[updated_messages.length - 1].expanded || true;
       updated_messages[updated_messages.length - 1] = message_to_append;
       return {
         ...prev,
@@ -261,7 +262,12 @@ const Control_Panel = ({}) => {
   const chat_room_title_generation = async (address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages =
-        "Analyze the following conversation between the user and assistant, and generate a concise, descriptive title for the chat room in no more than 10 words.\n\n\n";
+        "Your task is to analyze a set of conversations between a user and an AI, " +
+        "here are the messages only from the user, " +
+        "then generate a concise and descriptive chat room title summarizing the overall topic or purpose of the conversation. " +
+        "The title must be clear, relevant, and contain fewer than 4 words. " +
+        "AND REMEMBER ONLY GIVE THE TITLE ITSELF!" +
+        "\n\n\n";
 
       for (let i = 0; i < messages.length; i++) {
         if (messages[i].role === "user") {
@@ -271,48 +277,43 @@ const Control_Panel = ({}) => {
       }
       return processed_messages;
     };
-    const extract_title = (response) => {
-      const end_think_tag = "</think>";
-
-      const content_after_thinking = response.split(end_think_tag)[1];
-      let title = content_after_thinking.replace(/(\r\n|\n|\r|\t)/gm, "");
-      title = title.replace(/[^a-zA-Z0-9 ]/g, "");
-      return title;
-    };
-    const instruction = {
-      role: "system",
-      content:
-        "Your task is to analyze a set of conversations between a user and an AI, then generate a concise and descriptive chat room title summarizing the overall topic or purpose of the conversation. The title must be clear, relevant, and contain fewer than 10 words.",
-    };
-    let processed_messages = preprocess_messages(messages, 7);
-    processed_messages = [
-      instruction,
-      {
-        role: "user",
-        content: processed_messages,
-      },
-    ];
+    let prompt = preprocess_messages(messages, 7);
 
     try {
       const request = {
         model: selectedModel,
-        messages: processed_messages,
+        prompt: prompt,
         stream: false,
+        format: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+            },
+          },
+          required: ["title"],
+        },
       };
-      const response = await fetch(`http://localhost:11434/api/chat`, {
+      const response = await fetch(`http://localhost:11434/api/generate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(request),
       });
-      if (!response.body) {
-        console.error("No response body received from Ollama.");
+      if (!response.ok) {
+        console.error("API request failed:", response.statusText);
         return;
       }
-      const stringifiedResponse = await response.json();
-      update_title(address, extract_title(stringifiedResponse.message.content));
-      return extract_title(stringifiedResponse.message.content);
+    
+      const data = await response.json();
+      if (!data || !data.response) {
+        console.error("Invalid API response:", data);
+        return;
+      }
+      const title = JSON.parse(data.response).title;
+      update_title(address, title);
+      return title;
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
     }

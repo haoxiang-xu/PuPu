@@ -4,6 +4,7 @@ import React, {
   useRef,
   useCallback,
   useContext,
+  createContext,
 } from "react";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
@@ -11,6 +12,7 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
+import HashLoader from "react-spinners/HashLoader";
 
 const R = 30;
 const G = 30;
@@ -21,6 +23,8 @@ const default_font_color_offset = 128;
 const default_border_radius = 10;
 
 const component_name = "chat_section";
+
+const ChatSectionContexts = createContext("");
 
 const Message_Section = ({ index, role, message, is_last_index }) => {
   const [style, setStyle] = useState({
@@ -193,6 +197,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
     border: "1px solid rgba(255, 255, 255, 0)",
   });
   const { componentOnFocus } = useContext(RootStatusContexts);
+  const { responseInComing } = useContext(ChatSectionContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
   const [onFocus, setOnFocus] = useState(false);
@@ -265,48 +270,62 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           border: "1px solid rgba(255, 255, 255, 0.16)",
         }}
       ></Input>
-      <Icon
-        src="send"
-        alt="send"
-        style={{
-          transition:
-            "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), bottom 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+      {!responseInComing ? (
+        <Icon
+          src="send"
+          alt="send"
+          style={{
+            transition:
+              "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), bottom 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
 
-          userSelect: "none",
-          draggable: "false",
-          position: "fixed",
-          transform: "translate(-50%, -50%)",
+            userSelect: "none",
+            draggable: "false",
+            position: "fixed",
+            transform: "translate(-50%, -50%)",
 
-          bottom: onClicked ? 14 : 16,
-          right: 7,
-          width: 16,
-          height: 16,
-          cursor: "pointer",
+            bottom: onClicked ? 14 : 16,
+            right: 7,
+            width: 16,
+            height: 16,
+            cursor: "pointer",
 
-          padding: 8,
-          borderRadius: default_border_radius - 4,
-          backgroundColor: `rgba(${
-            R + default_forground_color_offset + style.colorOffset
-          }, ${G + default_forground_color_offset + style.colorOffset}, ${
-            B + default_forground_color_offset + style.colorOffset
-          }, ${style.opacity})`,
-          border: style.border,
-        }}
-        onMouseEnter={() => {
-          setOnHover(true);
-        }}
-        onMouseLeave={() => {
-          setOnHover(false);
-          setOnClicked(false);
-        }}
-        onMouseDown={() => {
-          setOnClicked(true);
-        }}
-        onMouseUp={() => {
-          setOnClicked(false);
-        }}
-        onClick={on_input_submit}
-      />
+            padding: 8,
+            borderRadius: default_border_radius - 4,
+            backgroundColor: `rgba(${
+              R + default_forground_color_offset + style.colorOffset
+            }, ${G + default_forground_color_offset + style.colorOffset}, ${
+              B + default_forground_color_offset + style.colorOffset
+            }, ${style.opacity})`,
+            border: style.border,
+          }}
+          onMouseEnter={() => {
+            setOnHover(true);
+          }}
+          onMouseLeave={() => {
+            setOnHover(false);
+            setOnClicked(false);
+          }}
+          onMouseDown={() => {
+            setOnClicked(true);
+          }}
+          onMouseUp={() => {
+            setOnClicked(false);
+          }}
+          onClick={on_input_submit}
+        />
+      ) : (
+        <HashLoader
+          style={{
+            position: "fixed",
+            bottom: 50,
+            right: 40,
+            opacity: 0.32,
+          }}
+          size={24}
+          color={"#cccccc"}
+          speedMultiplier={0.8}
+        />
+      )}
     </>
   );
 };
@@ -332,7 +351,7 @@ const Chat_Section = () => {
   /* { Target Address } ------------------------------------------------------------------------------ */
 
   const on_input_submit = useCallback(() => {
-    if (inputValue.length > 0) {
+    if (inputValue.length > 0 && !responseInComing) {
       append_message(targetAddress, {
         role: "user",
         message: inputValue,
@@ -376,23 +395,29 @@ const Chat_Section = () => {
   }, [sectionData, targetAddress, responseInComing]);
 
   return (
-    <div
-      style={{
-        position: "absolute",
-        top: "0",
-        left: "0",
-
-        width: "100%",
-        height: "100%",
+    <ChatSectionContexts.Provider
+      value={{
+        responseInComing,
       }}
     >
-      <Scrolling_Section responseInComing={responseInComing} />
-      <Input_Section
-        inputValue={inputValue}
-        setInputValue={setInputValue}
-        on_input_submit={on_input_submit}
-      />
-    </div>
+      <div
+        style={{
+          position: "absolute",
+          top: "0",
+          left: "0",
+
+          width: "100%",
+          height: "100%",
+        }}
+      >
+        <Scrolling_Section responseInComing={responseInComing} />
+        <Input_Section
+          inputValue={inputValue}
+          setInputValue={setInputValue}
+          on_input_submit={on_input_submit}
+        />
+      </div>
+    </ChatSectionContexts.Provider>
   );
 };
 
