@@ -26,11 +26,79 @@ const component_name = "chat_section";
 
 const ChatSectionContexts = createContext("");
 
-const Message_Bottom_Panel = ({ role }) => {};
+const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
+  const [onHover, setOnHover] = useState(null);
+  const [onClick, setOnClick] = useState(null);
+
+  if (role === "assistant") {
+    return (
+      <div
+        style={{
+          transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 32,
+          backgroundColor: `rgba(${R}, ${G}, ${B}, 0.16)`,
+          opacity: active ? 1 : 0,
+          pointerEvents: active ? "auto" : "none",
+        }}
+      >
+        <Icon
+          src="txt"
+          style={{
+            transition: "border 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
+            position: "absolute",
+            transform: "translate(0%, -50%)",
+            top: "50%",
+            width: 24,
+            padding: 2,
+            marginLeft: 1,
+            opacity: onClick === "plainTextMode" ? 0.72 : 0.5,
+            backgroundColor:
+              onClick === "plainTextMode"
+                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
+                : onHover === "plainTextMode"
+                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
+                : `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+            borderRadius: default_border_radius - 1,
+            border:
+              onClick === "plainTextMode"
+                ? "1px solid rgba(255, 255, 255, 0.64)"
+                : onHover === "plainTextMode"
+                ? "1px solid rgba(255, 255, 255, 0.32)"
+                : "1px solid rgba(255, 255, 255, 0)",
+          }}
+          onMouseEnter={() => {
+            setOnHover("plainTextMode");
+          }}
+          onMouseLeave={() => {
+            setOnHover(null);
+            setOnClick(null);
+          }}
+          onMouseDown={() => {
+            setOnClick("plainTextMode");
+          }}
+          onMouseUp={() => {
+            setOnClick(null);
+          }}
+          onClick={() => {
+            setPlainTextMode((prev) => !prev);
+          }}
+        />
+      </div>
+    );
+  } else {
+    return null;
+  }
+};
 const Message_Section = ({ index, role, message, is_last_index }) => {
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
   });
+  const [onHover, setOnHover] = useState(false);
+  const [plainTextMode, setPlainTextMode] = useState(false);
 
   useEffect(() => {
     if (role === "assistant") {
@@ -65,18 +133,44 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
           boxShadow:
             role === "user" ? `0px 4px 16px rgba(0, 0, 0, 0.16)` : "none",
         }}
+        onMouseEnter={(e) => {
+          setOnHover(true);
+        }}
+        onMouseLeave={(e) => {
+          setOnHover(false);
+        }}
       >
-        <Markdown index={index} style={style}>
-          {message}
-        </Markdown>
+        {!plainTextMode ? (
+          <Markdown index={index} style={style}>
+            {message}
+          </Markdown>
+        ) : (
+          <span
+            style={{
+              color: `rgba(${R + default_font_color_offset}, ${
+                G + default_font_color_offset
+              }, ${B + default_font_color_offset}, 1)`,
+            }}
+          >
+            {message}
+          </span>
+        )}
+
         <div
           className="message-bottom-panel"
           style={{
+            transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
             position: "absolute",
             width: "100%",
             height: 32,
           }}
-        ></div>
+        >
+          <Message_Bottom_Panel
+            active={onHover}
+            role={role}
+            setPlainTextMode={setPlainTextMode}
+          />
+        </div>
       </div>
     </>
   );
