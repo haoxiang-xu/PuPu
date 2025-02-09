@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../../DATA_MANAGERs/root_consts";
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
 import ollama from "./ollama.png";
 import Chat_Section from "../chat_section/chat_section";

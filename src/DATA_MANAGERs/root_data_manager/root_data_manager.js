@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { RootStatusContexts } from "./root_status_contexts";
-import Control_Panel from "../COMPONENTs/control_panel/control_panel";
+import { RootStatusContexts } from "../root_status_contexts";
+import RootRequestManager from "../root_request_manager/root_request_manager";
+import Control_Panel from "../../COMPONENTs/control_panel/control_panel";
 
-const RootEventListeners = () => {
+const RootDataManager = () => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
   const [modelOnTask, setModelOnTask] = useState(null);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -43,10 +44,12 @@ const RootEventListeners = () => {
           setComponentOnFocus("");
         }}
       >
-        <Control_Panel />
+        <RootRequestManager>
+          <Control_Panel />
+        </RootRequestManager>
       </div>
     </RootStatusContexts.Provider>
   );
 };
 
-export default RootEventListeners;
+export default RootDataManager;

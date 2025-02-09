@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
-import RootEventListeners from "./DATA_MANAGERs/root_event_listeners";
+import RootDataManager from "./DATA_MANAGERs/root_data_manager/root_data_manager";
 
 const App = () => {
   const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });
@@ -26,7 +26,7 @@ const App = () => {
       ></link>
       <Router>
         <Routes>
-          <Route path="/" element={<RootEventListeners />} />
+          <Route path="/" element={<RootDataManager />} />
         </Routes>
       </Router>
     </div>

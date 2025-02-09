@@ -9,7 +9,7 @@ import Icon from "../icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
 import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import "./markdown.css";
 
 const R = 30;
