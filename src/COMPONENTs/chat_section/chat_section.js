@@ -49,7 +49,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
         <Icon
           src="txt"
           style={{
-            transition: "border 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
+            transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
             position: "absolute",
             transform: "translate(0%, -50%)",
             top: "50%",
@@ -91,11 +91,11 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
         <Icon
           src="update"
           style={{
-            transition: "border 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
+            transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
             position: "absolute",
             transform: "translate(0%, -50%)",
             top: "50%",
-            left: 32,
+            left: 24,
             width: 18,
             padding: 5,
             marginLeft: 1,
