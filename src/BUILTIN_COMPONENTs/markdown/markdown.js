@@ -514,10 +514,11 @@ const Markdown = ({ children, index, style }) => {
 
         const sliced_content = raw_content.slice(start_code_block_index + 3);
 
-        const end_code_block_index =
+        let end_code_block_index =
           sliced_content.indexOf(end_code_block) + start_code_block_index + 3;
         if (start_code_block_index === -1) return null;
-        if (end_code_block_index === -1) return null;
+        if (end_code_block_index === -1 + start_code_block_index + 3)
+          end_code_block_index = raw_content.length;
         if (end_code_block_index < start_code_block_index) return null;
 
         return raw_content.slice(
