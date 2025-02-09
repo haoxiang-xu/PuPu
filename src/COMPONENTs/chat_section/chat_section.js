@@ -532,9 +532,6 @@ const Chat_Section = () => {
   } = useContext(RootDataContexts);
   const [inputValue, setInputValue] = useState("");
   const [awaitResponse, setAwaitResponse] = useState(null);
-  useEffect(() => {
-    console.log(awaitResponse);
-  }, [awaitResponse]);
 
   /* { Target Address } ------------------------------------------------------------------------------ */
   const [targetAddress, setTargetAddress] = useState(sectionData.address || "");
