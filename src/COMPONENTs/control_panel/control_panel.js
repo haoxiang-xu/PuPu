@@ -17,7 +17,6 @@ const Control_Panel = ({}) => {
     "🧠 Ask me anything!",
     "🚀 Your AI assistant is ready!",
     "🌎 Exploring knowledge with AI",
-    "`ollama run deepseek-r1:1.5b`",
     "🛸 Chatting with the future!",
     "Powered by Ollama",
     "Thinking… 🤔",
