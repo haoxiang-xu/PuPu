@@ -503,7 +503,6 @@ const RootDataManager = () => {
             <Control_Panel />
           </div>
         )}
-        <WarningScreen display={isOllamaRunning === false} />
         {isOllamaRunning === null ? (
           <div
             style={{
@@ -514,13 +513,10 @@ const RootDataManager = () => {
               opacity: 0.32,
             }}
           >
-            <ScaleLoader
-              color={"#cccccc"}
-              size={12}
-              margin={1}
-            />
+            <ScaleLoader color={"#cccccc"} size={12} margin={1} />
           </div>
         ) : null}
+        <WarningScreen display={isOllamaRunning === false} />
       </RootStatusContexts.Provider>
     </RootDataContexts.Provider>
   );
