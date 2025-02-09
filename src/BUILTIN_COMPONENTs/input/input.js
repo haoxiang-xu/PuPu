@@ -21,7 +21,6 @@ const Input = ({
   setOnFocus,
   ...props
 }) => {
-  const { selectedModel } = useContext(RootDataContexts);
   const { modelOnTask } = useContext(RootStatusContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
@@ -53,6 +52,7 @@ const Input = ({
       document.head.removeChild(styleElement);
     };
   }, []);
+
   /* { Placeholder } --------------------------------------------------------- */
   const [placeholder, setPlaceholder] = useState("Ask Ollama");
   useEffect(() => {
@@ -61,10 +61,14 @@ const Input = ({
     } else if (modelOnTask === "naming the chat room") {
       setPlaceholder("Naming the chat room...");
     } else {
-      setPlaceholder("Ask " + selectedModel);
+      setPlaceholder("Ask ");
     }
   }, [modelOnTask]);
   /* { Placeholder } --------------------------------------------------------- */
+
+  /* { Model Menu } ========================================================== */
+  /* { Model Menu } ========================================================== */
+
   useEffect(() => {
     if (onFocus) {
       inputRef.current.focus();

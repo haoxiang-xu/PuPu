@@ -18,6 +18,8 @@ import PulseLoader from "react-spinners/PulseLoader";
 const default_forground_color_offset = 12;
 const default_font_color_offset = 128;
 const default_border_radius = 10;
+const default_font_size = 14;
+const default_padding = default_font_size;
 
 const component_name = "chat_section";
 
@@ -275,7 +277,7 @@ const Scrolling_Section = () => {
       !isUserScrolling &&
       scrollRef.current &&
       awaitResponse !== null &&
-      awaitResponse === - 1
+      awaitResponse === -1
     ) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -379,6 +381,169 @@ const Scrolling_Section = () => {
           height: 64,
         }}
       ></div>
+    </div>
+  );
+};
+const Model_list_Item = ({ model, setModelOnTask }) => {
+  const { RGB } = useContext(RootConfigContexts);
+  const { selectedModel, setSelectedModel } = useContext(RootDataContexts);
+  const { setComponentOnFocus } = useContext(RootStatusContexts);
+  const [onHover, setOnHover] = useState(false);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        top: 0,
+
+        width: 128,
+        margin: 6,
+        padding: "2px 6px",
+
+        color: `rgba(225, 225, 225, 0.64)`,
+
+        border:
+          selectedModel === model
+            ? "1px solid rgba(255, 255, 255, 0.16)"
+            : onHover
+            ? "1px solid rgba(255, 255, 255, 0.08)"
+            : "1px solid rgba(255, 255, 255, 0)",
+        borderRadius: 4,
+        backgroundColor:
+          selectedModel === model
+            ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.84)`
+            : onHover
+            ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.4)`
+            : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+        boxShadow:
+          selectedModel === model ? "0px 4px 16px rgba(0, 0, 0, 0.16)" : "none",
+      }}
+      onMouseEnter={(e) => {
+        setOnHover(true);
+      }}
+      onMouseLeave={(e) => {
+        setOnHover(false);
+      }}
+      onMouseDown={(e) => {
+        setSelectedModel(model);
+      }}
+      onClick={(e) => {
+        setComponentOnFocus(component_name);
+      }}
+    >
+      {model}
+    </div>
+  );
+};
+const Model_Menu = ({ value }) => {
+  const sub_component_name = component_name + "model_menu";
+
+  const { RGB } = useContext(RootConfigContexts);
+  const { selectedModel, avaliableModels, list_all_ollama_local_models } =
+    useContext(RootDataContexts);
+  const { modelOnTask, componentOnFocus, setComponentOnFocus } =
+    useContext(RootStatusContexts);
+
+  const [onHover, setOnHover] = useState(false);
+  useEffect(() => {
+    if (componentOnFocus !== sub_component_name) {
+      list_all_ollama_local_models();
+    }
+  }, [componentOnFocus]);
+
+  return (
+    <div
+      style={{
+        userSelect: "none",
+        transition:
+          "left 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " border 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " padding 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        position: "absolute",
+        bottom: 35,
+        left:
+          value.length !== 0 || modelOnTask !== null
+            ? 60 + default_padding
+            : 60,
+
+        fontSize: default_font_size + 2,
+        fontFamily: "inherit",
+        fontWeight: 500,
+
+        opacity:
+          value.length !== 0 || modelOnTask !== null
+            ? 0
+            : componentOnFocus === sub_component_name
+            ? 1
+            : onHover
+            ? 0.5
+            : 0.32,
+        padding: componentOnFocus === sub_component_name ? "5px" : "2px 6px",
+
+        borderRadius: componentOnFocus === sub_component_name ? 8 : 4,
+        color:
+          componentOnFocus === sub_component_name
+            ? `rgba(225, 225, 225, 0.32)`
+            : `rgba(225, 225, 225, 0.72)`,
+        border:
+          componentOnFocus === sub_component_name
+            ? `1px solid rgba(255, 255, 255, 0.12)`
+            : onHover
+            ? `1px solid rgba(225, 225, 225, 0.64)`
+            : `1px solid rgba(225, 225, 225, 0.5)`,
+        backgroundColor:
+          componentOnFocus === sub_component_name
+            ? `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`
+            : onHover
+            ? `rgba(225, 225, 225, 0.08)`
+            : `rgba(225, 225, 225, 0)`,
+        boxShadow:
+          onHover || componentOnFocus === sub_component_name
+            ? `0px 4px 16px rgba(0, 0, 0, 0.32)`
+            : "none",
+        cursor: "pointer",
+        backdropFilter:
+          componentOnFocus === sub_component_name ? "blur(16px)" : "none",
+        pointerEvents: value.length !== 0 ? "none" : "auto",
+      }}
+      onMouseEnter={(e) => {
+        setOnHover(true);
+      }}
+      onMouseLeave={(e) => {
+        setOnHover(false);
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        setComponentOnFocus(sub_component_name);
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
+    >
+      <div
+        className="scrolling-space"
+        style={{
+          maxHeight: 150,
+          overflowX: "hidden",
+          overflowY: "auto",
+        }}
+      >
+        {componentOnFocus === sub_component_name ? (
+          avaliableModels.map((model, index) => (
+            <Model_list_Item key={index} model={model} />
+          ))
+        ) : (
+          <div
+            style={{
+              position: "relative",
+              top: 0,
+            }}
+          >
+            {selectedModel}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -519,13 +684,14 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           speedMultiplier={0.8}
         />
       )}
+      <Model_Menu value={inputValue} />
     </>
   );
 };
 
 const Chat_Section = () => {
   const {
-    modelOnTask,
+    selectedModel,
     sectionData,
     append_message,
     chat_room_title_generation,
@@ -574,20 +740,20 @@ const Chat_Section = () => {
   const update_message_on_index = useCallback(
     (address, messages, index) => {
       setAwaitResponse(index);
-      generate_llm_message_on_index(address, messages, index)
+      generate_llm_message_on_index(selectedModel, address, messages, index)
         .then((response) => {
           setAwaitResponse(null);
         })
         .finally(() => {
           if (sectionData.n_turns_to_regenerate_title === 0) {
-            chat_room_title_generation(address, messages).then(
+            chat_room_title_generation(selectedModel, address, messages).then(
               (response) => {}
             );
             reset_regenerate_title_count_down();
           }
         });
     },
-    [inputValue]
+    [inputValue, selectedModel]
   );
   useEffect(() => {
     const messages = sectionData.messages || [];

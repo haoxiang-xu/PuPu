@@ -16,7 +16,8 @@ const RootDataManager = () => {
 
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [modelOnTask, setModelOnTask] = useState(null);
-  const [selectedModel, setSelectedModel] = useState("deepseek-r1:14b");
+  const [selectedModel, setSelectedModel] = useState(null);
+  const [avaliableModels, setAvaliableModels] = useState([]);
   /* { Model Related } ------------------------------------------------------------------------------- */
 
   /* { Local Storage } ------------------------------------------------------------------------------- */
@@ -25,6 +26,7 @@ const RootDataManager = () => {
   /* { load from local storage } */
   useEffect(() => {
     try {
+      load_models();
       load_from_local_storage();
     } catch (error) {
       console.error("Error loading from local storage:", error);
@@ -69,6 +71,18 @@ const RootDataManager = () => {
       setAddressBook({ avaliable_addresses: [] });
     }
   };
+  const load_models = () => {
+    const selected_model = JSON.parse(
+      localStorage.getItem(UNIQUE_KEY + "selected_model")
+    );
+    list_all_ollama_local_models().then((response) => {
+      if (response.includes(selected_model)) {
+        setSelectedModel(selected_model);
+      } else {
+        setSelectedModel(response[0]);
+      }
+    });
+  };
   const save_to_local_storage = () => {
     setSectionData((prev) => {
       localStorage.setItem(UNIQUE_KEY + prev.address, JSON.stringify(prev));
@@ -76,6 +90,10 @@ const RootDataManager = () => {
     });
     setAddressBook((prev) => {
       localStorage.setItem(UNIQUE_KEY + "address_book", JSON.stringify(prev));
+      return prev;
+    });
+    setSelectedModel((prev) => {
+      localStorage.setItem(UNIQUE_KEY + "selected_model", JSON.stringify(prev));
       return prev;
     });
   };
@@ -198,11 +216,12 @@ const RootDataManager = () => {
   }, []);
   useEffect(() => {
     save_to_local_storage();
-  }, [sectionData, addressBook]);
+  }, [sectionData, addressBook, selectedModel]);
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
   const generate_llm_message_on_index = async (
+    model,
     target_address,
     messages,
     index
@@ -242,7 +261,7 @@ const RootDataManager = () => {
     setModelOnTask("generating");
     try {
       const request = {
-        model: selectedModel,
+        model: model,
         messages: processed_messages,
       };
       const response = await fetch(`http://localhost:11434/api/chat`, {
@@ -290,7 +309,7 @@ const RootDataManager = () => {
       setModelOnTask(null);
     }
   };
-  const chat_room_title_generation = async (address, messages) => {
+  const chat_room_title_generation = async (model, address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages = instructions.chat_room_title_generation_prompt;
 
@@ -306,7 +325,7 @@ const RootDataManager = () => {
     setModelOnTask("naming the chat room");
     try {
       const request = {
-        model: selectedModel,
+        model: model,
         prompt: prompt,
         stream: false,
         format: {
@@ -345,6 +364,28 @@ const RootDataManager = () => {
       setModelOnTask(null);
     }
   };
+  const list_all_ollama_local_models = async () => {
+    try {
+      const response = await fetch(`http://localhost:11434/api/tags`);
+      if (!response.ok) {
+        console.error("API request failed:", response.statusText);
+        return;
+      }
+      const data = await response.json();
+      if (!data || !data.models) {
+        console.error("Invalid API response:", data);
+        return;
+      }
+      let avaliableModels = [];
+      for (let model of data.models) {
+        avaliableModels.push(model.name);
+      }
+      setAvaliableModels(avaliableModels);
+      return avaliableModels;
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+    }
+  };
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   /* { Event Listener } ------------------------------------------------------------------------------- */
@@ -368,6 +409,8 @@ const RootDataManager = () => {
         sectionData,
         sectionStarted,
         selectedModel,
+        avaliableModels,
+        setAvaliableModels,
 
         append_message,
         chat_room_title_generation,
@@ -381,6 +424,7 @@ const RootDataManager = () => {
 
         /* { Ollama APIs } ----------------------- */
         generate_llm_message_on_index,
+        list_all_ollama_local_models,
         /* { Ollama APIs } ----------------------- */
       }}
     >

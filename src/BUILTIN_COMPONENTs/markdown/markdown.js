@@ -256,11 +256,6 @@ const MarkDownSection = ({ children }) => {
     <div className="markdown-section" style={{ display: "inline-block" }}>
       <ReactShowdown
         markdown={children}
-        customStyle={{
-          code: {
-            backgroundColor: "#b66767",
-          },
-        }}
       />
     </div>
   );
