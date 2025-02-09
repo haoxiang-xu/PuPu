@@ -386,7 +386,7 @@ const Scrolling_Section = () => {
 };
 const Model_list_Item = ({ model, setModelOnTask }) => {
   const { RGB } = useContext(RootConfigContexts);
-  const { selectedModel, setSelectedModel } = useContext(RootDataContexts);
+  const { selectedModel, setSelectedModel, list_all_ollama_local_models } = useContext(RootDataContexts);
   const { setComponentOnFocus } = useContext(RootStatusContexts);
   const [onHover, setOnHover] = useState(false);
 
@@ -429,6 +429,7 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
       }}
       onClick={(e) => {
         setComponentOnFocus(component_name);
+        list_all_ollama_local_models();
       }}
     >
       {model}
@@ -447,7 +448,7 @@ const Model_Menu = ({ value }) => {
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
     if (componentOnFocus !== sub_component_name) {
-      list_all_ollama_local_models();
+      setOnHover(false);
     }
   }, [componentOnFocus]);
 
