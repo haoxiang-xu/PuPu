@@ -7,6 +7,8 @@ import { RootStatusContexts } from "./root_status_contexts";
 import { RootConfigContexts } from "../root_config_manager/root_config_contexts";
 
 import Control_Panel from "../../COMPONENTs/control_panel/control_panel";
+import WarningScreen from "../../COMPONENTs/warning_screen/warning_screen";
+import ScaleLoader from "react-spinners/ScaleLoader";
 
 const RootDataManager = () => {
   const { instructions } = useContext(RootConfigContexts);
@@ -15,6 +17,7 @@ const RootDataManager = () => {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
+  const [isOllamaRunning, setIsOllamaRunning] = useState(null);
   const [modelOnTask, setModelOnTask] = useState(null);
   const [selectedModel, setSelectedModel] = useState(null);
   const [avaliableModels, setAvaliableModels] = useState([]);
@@ -25,14 +28,26 @@ const RootDataManager = () => {
   const [sectionData, setSectionData] = useState({});
   /* { load from local storage } */
   useEffect(() => {
+    app_initialization();
+  }, []);
+  const app_initialization = () => {
     try {
-      load_models();
       load_from_local_storage();
+      get_ollama_version().then((version) => {
+        if (!version) {
+          setIsOllamaRunning(false);
+          return false;
+        } else {
+          setIsOllamaRunning(true);
+          load_models();
+          return true;
+        }
+      });
     } catch (error) {
       console.error("Error loading from local storage:", error);
       localStorage.clear();
     }
-  }, []);
+  };
   const check_if_address_existed = (address) => {
     return address in addressBook;
   };
@@ -220,6 +235,23 @@ const RootDataManager = () => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
+  const get_ollama_version = async () => {
+    try {
+      const response = await fetch(`http://localhost:11434/api/version`);
+      if (!response.ok) {
+        console.error("API request failed:", response.statusText);
+        return;
+      }
+      const data = await response.json();
+      if (!data || !data.version) {
+        console.error("Invalid API response:", data);
+        return;
+      }
+      return data.version;
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+    }
+  };
   const generate_llm_message_on_index = async (
     model,
     target_address,
@@ -412,6 +444,8 @@ const RootDataManager = () => {
   return (
     <RootDataContexts.Provider
       value={{
+        isOllamaRunning,
+        setIsOllamaRunning,
         addressBook,
         sectionData,
         sectionStarted,
@@ -419,6 +453,7 @@ const RootDataManager = () => {
         avaliableModels,
         setAvaliableModels,
 
+        app_initialization,
         append_message,
         chat_room_title_generation,
         delete_address_in_local_storage,
@@ -452,20 +487,40 @@ const RootDataManager = () => {
           /* { Model Related Status } ========================================================================== */
         }}
       >
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-          }}
-          onClick={() => {
-            setComponentOnFocus("");
-          }}
-        >
-          <Control_Panel />
-        </div>
+        {!isOllamaRunning ? null : (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+            }}
+            onClick={() => {
+              setComponentOnFocus("");
+            }}
+          >
+            <Control_Panel />
+          </div>
+        )}
+        <WarningScreen display={isOllamaRunning === false} />
+        {isOllamaRunning === null ? (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              opacity: 0.32,
+            }}
+          >
+            <ScaleLoader
+              color={"#cccccc"}
+              size={12}
+              margin={1}
+            />
+          </div>
+        ) : null}
       </RootStatusContexts.Provider>
     </RootDataContexts.Provider>
   );
