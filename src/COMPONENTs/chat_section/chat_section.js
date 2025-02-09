@@ -131,14 +131,11 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             setOnClick(null);
           }}
           onClick={() => {
-            setAwaitResponse(index);
             update_message_on_index(
               sectionData.address,
               sectionData.messages,
               index
-            ).then(() => {
-              setAwaitResponse(null);
-            });
+            );
           }}
         />
       </div>
@@ -535,6 +532,9 @@ const Chat_Section = () => {
   } = useContext(RootDataContexts);
   const [inputValue, setInputValue] = useState("");
   const [awaitResponse, setAwaitResponse] = useState(null);
+  useEffect(() => {
+    console.log(awaitResponse);
+  }, [awaitResponse]);
 
   /* { Target Address } ------------------------------------------------------------------------------ */
   const [targetAddress, setTargetAddress] = useState(sectionData.address || "");
@@ -573,7 +573,7 @@ const Chat_Section = () => {
     }
   }, [inputValue, awaitResponse]);
   const update_message_on_index = useCallback(
-    async (address, messages, index) => {
+    (address, messages, index) => {
       setAwaitResponse(index);
       generate_llm_message_on_index(address, messages, index)
         .then((response) => {
