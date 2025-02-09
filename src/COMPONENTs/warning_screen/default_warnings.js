@@ -27,7 +27,7 @@ Runing the following command in your terminal:
 curl -sSL https://ollama.ai/install.sh | bash
 \`\`\`
 For Windows: <br><br>
-👉 Go to [Ollama's official website](#https://ollama.com/) and download the Windows installer (.exe file).
+👉 Go to [Ollama's official website](https://ollama.com/) and download the Windows installer (.exe file).
 
 ### 🔥 Step2. Verify Installation
 \`\`\`shell
@@ -54,7 +54,7 @@ You now have Ollama running on your machine. Click the <br>\` I am ready! \`<br>
 ## Start Ollama
 
 ---
-Open Terminal and run the following command:
+Open Terminal 🖥️ and run the following command:
 \`\`\`shell
 ollama server
 \`\`\`

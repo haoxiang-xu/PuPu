@@ -96,7 +96,7 @@ const AwaitOllamaSetup = ({}) => {
             app_initialization();
           }}
         >
-          I am ready!
+          I am ready! ✔️
         </span>
       </div>
     </div>
