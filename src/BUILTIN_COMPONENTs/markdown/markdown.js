@@ -3,7 +3,16 @@ import React, { useState, useEffect, useRef, useContext } from "react";
 import Latex from "react-latex-next";
 import "katex/dist/katex.min.css";
 import Tag from "../tag/tag";
-import { CodeBlock, dracula } from "react-code-blocks";
+import {
+  CodeBlock,
+  dracula,
+  nord,
+  a11yDark,
+  tomorrowNight,
+  vs2015,
+  github,
+  codepen,
+} from "react-code-blocks";
 import ReactShowdown from "react-showdown";
 import Icon from "../icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
@@ -157,11 +166,12 @@ const CodeSection = ({ language, children }) => {
         wrapLines={false}
         codeBlock
         customStyle={{
-          fontSize: `${default_font_size + 1}px`,
+          fontSize: `${default_font_size + 2}px`,
           fontFamily:
             "'Fira Code', 'JetBrains Mono', 'Source Code Pro', monospace",
           backgroundColor: `rgb(${R - 8}, ${G - 8}, ${B - 8})`,
           paddingTop: 36,
+          paddingLeft: 6,
           borderRadius: default_border_radius,
           overflowX: "auto",
           overflowY: "hidden",
@@ -209,7 +219,7 @@ const MarkDownSection = ({ children }) => {
         RGB.G + default_font_color_offset
       }, ${RGB.B + default_font_color_offset})`};
       padding: 1px 3px;
-      margin: 3px;  
+      margin: 3px;
       border-radius: 4px;
     }
     .markdown-section a {
