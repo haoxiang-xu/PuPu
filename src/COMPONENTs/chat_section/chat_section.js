@@ -140,6 +140,7 @@ const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
 const Message_Section = ({ index, role, message, is_last_index }) => {
   const { sectionData } = useContext(RootDataContexts);
   const { targetAddress } = useContext(RootStatusContexts);
+  const { responseInComing } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
   });
@@ -217,7 +218,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
           }}
         >
           <Message_Bottom_Panel
-            active={onHover}
+            active={onHover && !responseInComing}
             role={role}
             setPlainTextMode={setPlainTextMode}
           />
