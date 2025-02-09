@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useContext } from "react";
-import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_contexts";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_data_manager/root_status_contexts";
 import TextareaAutosize from "react-textarea-autosize";
 
 const default_font_size = 14;
@@ -57,10 +57,10 @@ const Input = ({
     if (modelOnTask === "generating") {
       setPlaceholder("Generating");
     } else if (modelOnTask === "naming the chat room") {
-      setPlaceholder("Naming the chat room"); 
+      setPlaceholder("Naming the chat room");
     } else {
       setPlaceholder("Ask Ollama");
-    } 
+    }
   }, [modelOnTask]);
   /* { Placeholder } --------------------------------------------------------- */
   useEffect(() => {
