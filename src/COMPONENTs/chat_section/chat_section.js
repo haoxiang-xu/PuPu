@@ -507,9 +507,9 @@ const Chat_Section = () => {
   const {
     sectionData,
     append_message,
-    chat_generation,
     chat_room_title_generation,
     reset_regenerate_title_count_down,
+    generate_llm_message_on_index,
   } = useContext(RootDataContexts);
   const [inputValue, setInputValue] = useState("");
   const [responseInComing, setResponseInComing] = useState(false);
@@ -539,6 +539,7 @@ const Chat_Section = () => {
   }, [targetAddress, sectionData]);
   /* { PreLoading } ================================================================================== */
 
+  /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
     if (inputValue.length > 0 && !responseInComing) {
       append_message(targetAddress, {
@@ -549,6 +550,23 @@ const Chat_Section = () => {
       setInputValue("");
     }
   }, [inputValue]);
+  const send_request = useCallback(
+    (address, messages) => {
+      generate_llm_message_on_index(address, messages, -1)
+        .then((response) => {
+          setResponseInComing(false);
+        })
+        .finally(() => {
+          if (sectionData.n_turns_to_regenerate_title === 0) {
+            chat_room_title_generation(address, messages).then(
+              (response) => {}
+            );
+            reset_regenerate_title_count_down();
+          }
+        });
+    },
+    [inputValue]
+  );
   useEffect(() => {
     const messages = sectionData.messages || [];
     const address = targetAddress || "";
@@ -561,27 +579,11 @@ const Chat_Section = () => {
         messages[messages.length - 1].role === "user"
       ) {
         setResponseInComing(true);
-        append_message(address, {
-          role: "assistant",
-          message: LOADING_TAG,
-          content: "",
-          think_section_expanded: true,
-        });
-        chat_generation(address, messages)
-          .then((response) => {
-            setResponseInComing(false);
-          })
-          .finally(() => {
-            if (sectionData.n_turns_to_regenerate_title === 0) {
-              chat_room_title_generation(address, messages).then(
-                (response) => {}
-              );
-              reset_regenerate_title_count_down();
-            }
-          });
+        send_request(address, messages);
       }
     }
   }, [sectionData, targetAddress, responseInComing]);
+  /* { Input Section } ------------------------------------------------------------------------------- */
 
   return (
     <ChatSectionContexts.Provider

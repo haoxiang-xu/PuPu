@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useContext, useCallback } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../../DATA_MANAGERs/root_consts";
+import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
 import { RootDataContexts } from "./root_data_contexts";
 import { RootStatusContexts } from "./root_status_contexts";
@@ -193,7 +194,11 @@ const RootDataManager = () => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-  const chat_generation = async (target_address, messages) => {
+  const generate_llm_message_on_index = async (
+    target_address,
+    messages,
+    index
+  ) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages = [];
 
@@ -212,6 +217,16 @@ const RootDataManager = () => {
       }
       return processed_messages;
     };
+    if (index === -1) {
+      append_message(target_address, {
+        role: "assistant",
+        message: LOADING_TAG,
+        content: "",
+        think_section_expanded: true,
+      });
+    } else if (index < 0 || index >= messages.length) {
+      return;
+    }
     const processed_messages = preprocess_messages(messages, 8);
     setModelOnTask("generating");
     try {
@@ -350,7 +365,6 @@ const RootDataManager = () => {
         selectedModel,
 
         append_message,
-        chat_generation,
         chat_room_title_generation,
         delete_address_in_local_storage,
         load_section_data,
@@ -359,6 +373,10 @@ const RootDataManager = () => {
         setSelectedModel,
         start_new_section,
         update_title,
+
+        /* { Ollama APIs } ----------------------- */
+        generate_llm_message_on_index,
+        /* { Ollama APIs } ----------------------- */
       }}
     >
       <RootStatusContexts.Provider
