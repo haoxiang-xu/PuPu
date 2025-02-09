@@ -26,7 +26,11 @@ const component_name = "chat_section";
 
 const ChatSectionContexts = createContext("");
 
-const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
+const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
+  const { sectionData } = useContext(RootDataContexts);
+  const { update_message_on_index, setAwaitResponse } =
+    useContext(ChatSectionContexts);
+
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
 
@@ -127,7 +131,14 @@ const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
             setOnClick(null);
           }}
           onClick={() => {
-            setPlainTextMode((prev) => !prev);
+            setAwaitResponse(index);
+            update_message_on_index(
+              sectionData.address,
+              sectionData.messages,
+              index
+            ).then(() => {
+              setAwaitResponse(null);
+            });
           }}
         />
       </div>
@@ -139,7 +150,7 @@ const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
 const Message_Section = ({ index, role, message, is_last_index }) => {
   const { sectionData } = useContext(RootDataContexts);
   const { targetAddress } = useContext(RootStatusContexts);
-  const { responseInComing } = useContext(ChatSectionContexts);
+  const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
   });
@@ -217,7 +228,8 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
           }}
         >
           <Message_Bottom_Panel
-            active={onHover && !responseInComing}
+            index={index}
+            active={onHover && awaitResponse === null}
             role={role}
             setPlainTextMode={setPlainTextMode}
           />
@@ -226,11 +238,15 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
     </>
   );
 };
-const Scrolling_Section = ({ responseInComing }) => {
+const Scrolling_Section = () => {
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
   const { setComponentOnFocus } = useContext(RootStatusContexts);
-  const { preLoadingCompleted, arrivedAtPosition, setArrivedAtPosition } =
-    useContext(ChatSectionContexts);
+  const {
+    awaitResponse,
+    preLoadingCompleted,
+    arrivedAtPosition,
+    setArrivedAtPosition,
+  } = useContext(ChatSectionContexts);
   /* { Scrolling } ----------------------------------------------------------- */
   const scrollRef = useRef(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -259,10 +275,15 @@ const Scrolling_Section = ({ responseInComing }) => {
     };
   }, []);
   useEffect(() => {
-    if (!isUserScrolling && scrollRef.current && responseInComing) {
+    if (
+      !isUserScrolling &&
+      scrollRef.current &&
+      awaitResponse !== null &&
+      awaitResponse === sectionData.messages.length - 1
+    ) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [sectionData, responseInComing]);
+  }, [sectionData, awaitResponse, awaitResponse]);
   useEffect(() => {
     if (!preLoadingCompleted && !arrivedAtPosition) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -370,7 +391,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
     border: "1px solid rgba(255, 255, 255, 0)",
   });
   const { componentOnFocus } = useContext(RootStatusContexts);
-  const { responseInComing } = useContext(ChatSectionContexts);
+  const { awaitResponse } = useContext(ChatSectionContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
   const [onFocus, setOnFocus] = useState(false);
@@ -443,7 +464,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           border: "1px solid rgba(255, 255, 255, 0.16)",
         }}
       ></Input>
-      {!responseInComing ? (
+      {awaitResponse === null ? (
         <Icon
           src="send"
           alt="send"
@@ -513,15 +534,15 @@ const Chat_Section = () => {
     generate_llm_message_on_index,
   } = useContext(RootDataContexts);
   const [inputValue, setInputValue] = useState("");
-  const [responseInComing, setResponseInComing] = useState(false);
+  const [awaitResponse, setAwaitResponse] = useState(null);
 
   /* { Target Address } ------------------------------------------------------------------------------ */
   const [targetAddress, setTargetAddress] = useState(sectionData.address || "");
   useEffect(() => {
-    if (!responseInComing) {
+    if (awaitResponse === null) {
       setTargetAddress(sectionData.address || "");
     }
-  }, [sectionData, responseInComing]);
+  }, [sectionData, awaitResponse]);
   /* { Target Address } ------------------------------------------------------------------------------ */
 
   /* { PreLoading } ================================================================================== */
@@ -542,7 +563,7 @@ const Chat_Section = () => {
 
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
-    if (inputValue.length > 0 && !responseInComing) {
+    if (inputValue.length > 0 && awaitResponse === null) {
       append_message(targetAddress, {
         role: "user",
         message: inputValue,
@@ -550,12 +571,13 @@ const Chat_Section = () => {
       });
       setInputValue("");
     }
-  }, [inputValue]);
-  const send_request = useCallback(
-    (address, messages) => {
-      generate_llm_message_on_index(address, messages, -1)
+  }, [inputValue, awaitResponse]);
+  const update_message_on_index = useCallback(
+    async (address, messages, index) => {
+      setAwaitResponse(index);
+      generate_llm_message_on_index(address, messages, index)
         .then((response) => {
-          setResponseInComing(false);
+          setAwaitResponse(null);
         })
         .finally(() => {
           if (sectionData.n_turns_to_regenerate_title === 0) {
@@ -574,26 +596,27 @@ const Chat_Section = () => {
     if (address.length === 0) {
       return;
     }
-    if (!responseInComing) {
-      if (
-        messages.length > 0 &&
-        messages[messages.length - 1].role === "user"
-      ) {
-        setResponseInComing(true);
-        send_request(address, messages);
-      }
+    if (
+      awaitResponse === null &&
+      messages.length > 0 &&
+      messages[messages.length - 1].role === "user"
+    ) {
+      update_message_on_index(address, messages, -1);
     }
-  }, [sectionData, targetAddress, responseInComing]);
+  }, [sectionData, targetAddress, awaitResponse]);
   /* { Input Section } ------------------------------------------------------------------------------- */
 
   return (
     <ChatSectionContexts.Provider
       value={{
-        responseInComing,
+        awaitResponse,
+        setAwaitResponse,
         arrivedAtPosition,
         setArrivedAtPosition,
         preLoadingCompleted,
         setPreLoadingCompleted,
+
+        update_message_on_index,
       }}
     >
       <div
@@ -606,7 +629,7 @@ const Chat_Section = () => {
           height: "100%",
         }}
       >
-        <Scrolling_Section responseInComing={responseInComing} />
+        <Scrolling_Section />
         <Input_Section
           inputValue={inputValue}
           setInputValue={setInputValue}

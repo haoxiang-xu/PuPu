@@ -114,16 +114,21 @@ const RootDataManager = () => {
     update_address_book();
     setSectionStarted(true);
   };
-  const update_latest_message = (target_address, message) => {
+  const update_message_on_index = (target_address, message_index, message) => {
     setSectionData((prev) => {
+      let index = message_index;
+      if (index === -1) {
+        index = prev.messages.length - 1;
+      } else if (index < 0 || index >= prev.messages.length) {
+        return prev;
+      }
+      let message_to_append = message;
+      message_to_append.expanded = prev.messages[index].expanded || true;
       if (target_address !== prev.address) {
         return prev;
       }
       let updated_messages = [...prev.messages];
-      let message_to_append = message;
-      message_to_append.expanded =
-        updated_messages[updated_messages.length - 1].expanded || true;
-      updated_messages[updated_messages.length - 1] = message_to_append;
+      updated_messages[index] = message_to_append;
       return {
         ...prev,
         messages: updated_messages,
@@ -202,16 +207,19 @@ const RootDataManager = () => {
     messages,
     index
   ) => {
-    const preprocess_messages = (messages, memory_length) => {
+    const preprocess_messages = (messages, memory_length, index) => {
+      let range = index;
+      if (index === -1) range = messages.length;
+
       let processed_messages = [];
 
-      for (let i = 0; i < messages.length; i++) {
+      for (let i = 0; i < range; i++) {
         if (messages[i].role === "system") {
           processed_messages.push({
             role: messages[i].role,
             content: messages[i].content,
           });
-        } else if (messages.length - i <= memory_length) {
+        } else if (range - i <= memory_length) {
           processed_messages.push({
             role: messages[i].role,
             content: messages[i].content,
@@ -230,7 +238,7 @@ const RootDataManager = () => {
     } else if (index < 0 || index >= messages.length) {
       return;
     }
-    const processed_messages = preprocess_messages(messages, 8);
+    const processed_messages = preprocess_messages(messages, 8, index);
     setModelOnTask("generating");
     try {
       const request = {
@@ -260,7 +268,7 @@ const RootDataManager = () => {
           const jsonChunk = JSON.parse(chunk);
           if (jsonChunk.message && jsonChunk.message.content) {
             accumulatedResponse += jsonChunk.message.content;
-            update_latest_message(target_address, {
+            update_message_on_index(target_address, index, {
               role: "assistant",
               message: accumulatedResponse,
               content: accumulatedResponse,
