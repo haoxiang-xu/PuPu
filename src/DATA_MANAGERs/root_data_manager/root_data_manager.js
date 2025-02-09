@@ -1,13 +1,16 @@
-import React, { useEffect, useState, useContext, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useContext } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../../DATA_MANAGERs/root_consts";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
 import { RootDataContexts } from "./root_data_contexts";
 import { RootStatusContexts } from "./root_status_contexts";
+import { RootConfigContexts } from "../root_config_manager/root_config_contexts";
 
 import Control_Panel from "../../COMPONENTs/control_panel/control_panel";
 
 const RootDataManager = () => {
+  const { instructions } = useContext(RootConfigContexts);
+
   const [componentOnFocus, setComponentOnFocus] = useState("");
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
@@ -281,13 +284,7 @@ const RootDataManager = () => {
   };
   const chat_room_title_generation = async (address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
-      let processed_messages =
-        "Your task is to analyze a set of conversations between a user and an AI, " +
-        "here are the messages only from the user, " +
-        "then generate a concise and descriptive chat room title summarizing the overall topic or purpose of the conversation. " +
-        "The title must be clear, relevant, and contain fewer than 4 words. " +
-        "AND REMEMBER ONLY GIVE THE TITLE ITSELF!" +
-        "\n\n\n";
+      let processed_messages = instructions.chat_room_title_generation_prompt;
 
       for (let i = 0; i < messages.length; i++) {
         if (messages[i].role === "user") {

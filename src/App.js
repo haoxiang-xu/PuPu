@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
+import RootConfigManager from "./DATA_MANAGERs/root_config_manager/root_config_manager";
 import RootDataManager from "./DATA_MANAGERs/root_data_manager/root_data_manager";
 
 const App = () => {
@@ -26,7 +27,14 @@ const App = () => {
       ></link>
       <Router>
         <Routes>
-          <Route path="/" element={<RootDataManager />} />
+          <Route
+            path="/"
+            element={
+              <RootConfigManager>
+                <RootDataManager />
+              </RootConfigManager>
+            }
+          />
         </Routes>
       </Router>
     </div>
