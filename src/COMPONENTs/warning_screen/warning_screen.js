@@ -64,10 +64,10 @@ const AwaitOllamaSetup = ({}) => {
               : onHover
               ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
                   RGB.G + colorOffset.middle_ground
-                }, ${RGB.B + colorOffset.middle_ground}, 0.32)`
+                }, ${RGB.B + colorOffset.middle_ground}, 0.64)`
               : `rgba(${RGB.R + colorOffset.middle_ground}, ${
                   RGB.G + colorOffset.middle_ground
-                }, ${RGB.B + colorOffset.middle_ground}, 0)`,
+                }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
 
             border: onClick
               ? `1px solid rgba(225, 225, 225, 0.32)`
