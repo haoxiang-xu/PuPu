@@ -12,7 +12,6 @@ import { RootStatusContexts } from "../../DATA_MANAGERs/root_data_manager/root_s
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import PulseLoader from "react-spinners/PulseLoader";
 
 const R = 30;
@@ -506,6 +505,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 
 const Chat_Section = () => {
   const {
+    modelOnTask,
     sectionData,
     append_message,
     chat_room_title_generation,
