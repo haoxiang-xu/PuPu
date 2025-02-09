@@ -88,6 +88,49 @@ const Message_Bottom_Panel = ({ active, role, setPlainTextMode }) => {
             setPlainTextMode((prev) => !prev);
           }}
         />
+        <Icon
+          src="update"
+          style={{
+            transition: "border 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
+            position: "absolute",
+            transform: "translate(0%, -50%)",
+            top: "50%",
+            left: 32,
+            width: 18,
+            padding: 5,
+            marginLeft: 1,
+            opacity: onClick === "regenerate" ? 0.72 : 0.5,
+            backgroundColor:
+              onClick === "regenerate"
+                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
+                : onHover === "regenerate"
+                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
+                : `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+            borderRadius: default_border_radius - 1,
+            border:
+              onClick === "regenerate"
+                ? "1px solid rgba(255, 255, 255, 0.64)"
+                : onHover === "regenerate"
+                ? "1px solid rgba(255, 255, 255, 0.32)"
+                : "1px solid rgba(255, 255, 255, 0)",
+          }}
+          onMouseEnter={() => {
+            setOnHover("regenerate");
+          }}
+          onMouseLeave={() => {
+            setOnHover(null);
+            setOnClick(null);
+          }}
+          onMouseDown={() => {
+            setOnClick("regenerate");
+          }}
+          onMouseUp={() => {
+            setOnClick(null);
+          }}
+          onClick={() => {
+            setPlainTextMode((prev) => !prev);
+          }}
+        />
       </div>
     );
   } else {
