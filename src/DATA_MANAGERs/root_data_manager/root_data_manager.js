@@ -256,6 +256,13 @@ const RootDataManager = () => {
       });
     } else if (index < 0 || index >= messages.length) {
       return;
+    } else {
+      update_message_on_index(target_address, index, {
+        role: "assistant",
+        message: LOADING_TAG,
+        content: "",
+        think_section_expanded: true,
+      });
     }
     const processed_messages = preprocess_messages(messages, 8, index);
     setModelOnTask("generating");
