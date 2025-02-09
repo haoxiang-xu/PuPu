@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useContext } from "react";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_data_manager/root_status_contexts";
 import TextareaAutosize from "react-textarea-autosize";
 
@@ -20,6 +21,7 @@ const Input = ({
   setOnFocus,
   ...props
 }) => {
+  const { selectedModel } = useContext(RootDataContexts);
   const { modelOnTask } = useContext(RootStatusContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
@@ -59,7 +61,7 @@ const Input = ({
     } else if (modelOnTask === "naming the chat room") {
       setPlaceholder("Naming the chat room...");
     } else {
-      setPlaceholder("Ask Ollama");
+      setPlaceholder("Ask " + selectedModel);
     }
   }, [modelOnTask]);
   /* { Placeholder } --------------------------------------------------------- */
