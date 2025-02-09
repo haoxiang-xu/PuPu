@@ -7,16 +7,13 @@ import React, {
   createContext,
   use,
 } from "react";
+import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_data_manager/root_status_contexts";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
-
-const R = 30;
-const G = 30;
-const B = 30;
 
 const default_forground_color_offset = 12;
 const default_font_color_offset = 128;
@@ -27,9 +24,9 @@ const component_name = "chat_section";
 const ChatSectionContexts = createContext("");
 
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
+  const { RGB } = useContext(RootConfigContexts);
   const { sectionData } = useContext(RootDataContexts);
-  const { update_message_on_index, setAwaitResponse } =
-    useContext(ChatSectionContexts);
+  const { update_message_on_index } = useContext(ChatSectionContexts);
 
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
@@ -44,7 +41,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
           left: 0,
           right: 0,
           height: 32,
-          backgroundColor: `rgba(${R}, ${G}, ${B}, 0.16)`,
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.16)`,
           opacity: active ? 1 : 0,
           pointerEvents: active ? "auto" : "none",
         }}
@@ -62,10 +59,10 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "plainTextMode" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "plainTextMode"
-                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
+                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
                 : onHover === "plainTextMode"
-                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
-                : `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
+                : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "plainTextMode"
@@ -105,10 +102,10 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "regenerate" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "regenerate"
-                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
+                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
                 : onHover === "regenerate"
-                ? `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`
-                : `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
+                : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "regenerate"
@@ -145,11 +142,12 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   }
 };
 const Message_Section = ({ index, role, message, is_last_index }) => {
+  const { RGB } = useContext(RootConfigContexts);
   const { sectionData } = useContext(RootDataContexts);
   const { targetAddress } = useContext(RootStatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
-    backgroundColor: `rgba(${R}, ${G}, ${B}, 0)`,
+    backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
   });
   const [onHover, setOnHover] = useState(false);
   const [plainTextMode, setPlainTextMode] = useState(false);
@@ -162,7 +160,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
   useEffect(() => {
     if (role === "assistant") {
       setStyle({
-        backgroundColor: `rgba(${R}, ${G}, ${B},0)`,
+        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B},0)`,
       });
     } else if (role === "terminal") {
       setStyle({
@@ -206,9 +204,9 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
         ) : (
           <span
             style={{
-              color: `rgba(${R + default_font_color_offset}, ${
-                G + default_font_color_offset
-              }, ${B + default_font_color_offset}, 1)`,
+              color: `rgba(${RGB.R + default_font_color_offset}, ${
+                RGB.G + default_font_color_offset
+              }, ${RGB.B + default_font_color_offset}, 1)`,
             }}
           >
             {message}
@@ -236,6 +234,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
   );
 };
 const Scrolling_Section = () => {
+  const { RGB } = useContext(RootConfigContexts);
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
   const { setComponentOnFocus } = useContext(RootStatusContexts);
   const {
@@ -276,7 +275,7 @@ const Scrolling_Section = () => {
       !isUserScrolling &&
       scrollRef.current &&
       awaitResponse !== null &&
-      awaitResponse === sectionData.messages.length - 1
+      awaitResponse === - 1
     ) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
@@ -302,28 +301,30 @@ const Scrolling_Section = () => {
       }
 
       .scrolling-space::-webkit-scrollbar-track {
-        background-color: rgba(${R}, ${G}, ${B}, 1); /* Scrollbar track color */
+        background-color: rgba(${RGB.R}, ${RGB.G}, ${
+      RGB.B
+    }, 1); /* Scrollbar track color */
       }
 
       .scrolling-space::-webkit-scrollbar-thumb {
-        background-color: rgba(${R + default_forground_color_offset}, ${
-      G + default_forground_color_offset
-    }, ${B + default_forground_color_offset}, 1);
+        background-color: rgba(${RGB.R + default_forground_color_offset}, ${
+      RGB.G + default_forground_color_offset
+    }, ${RGB.B + default_forground_color_offset}, 1);
         border-radius: 6px;
-        border: 3px solid rgba(${R}, ${G}, ${B}, 1);
+        border: 3px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1);
       }
       .scrolling-space::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(${R + default_forground_color_offset + 32}, ${
-      G + default_forground_color_offset + 32
-    }, ${B + default_forground_color_offset + 32}, 1);
+        background-color: rgba(${
+          RGB.R + default_forground_color_offset + 32
+        }, ${RGB.G + default_forground_color_offset + 32}, ${
+      RGB.B + default_forground_color_offset + 32
+    }, 1);
       }
       .scrolling-space::-webkit-scrollbar:horizontal {
         display: none;
       }
     `;
     document.head.appendChild(styleElement);
-
-    // Cleanup style when the component unmounts
     return () => {
       document.head.removeChild(styleElement);
     };
@@ -382,13 +383,14 @@ const Scrolling_Section = () => {
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
+  const { RGB } = useContext(RootConfigContexts);
+  const { componentOnFocus } = useContext(RootStatusContexts);
+  const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     colorOffset: 0,
     opacity: 0,
     border: "1px solid rgba(255, 255, 255, 0)",
   });
-  const { componentOnFocus } = useContext(RootStatusContexts);
-  const { awaitResponse } = useContext(ChatSectionContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
   const [onFocus, setOnFocus] = useState(false);
@@ -430,7 +432,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           right: 16,
           height: 32,
 
-          backgroundColor: `rgba(${R}, ${G}, ${B}, 1)`,
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
         }}
       ></div>
       <Input
@@ -453,9 +455,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           color: `rgba(255, 255, 255, 0.64)`,
 
           borderRadius: default_border_radius,
-          backgroundColor: `rgba(${R + default_forground_color_offset}, ${
-            G + default_forground_color_offset
-          }, ${B + default_forground_color_offset}, 0.64)`,
+          backgroundColor: `rgba(${RGB.R + default_forground_color_offset}, ${
+            RGB.G + default_forground_color_offset
+          }, ${RGB.B + default_forground_color_offset}, 0.64)`,
           backdropFilter: "blur(24px)",
           boxShadow: `0px 4px 32px rgba(0, 0, 0, 0.64)`,
           border: "1px solid rgba(255, 255, 255, 0.16)",
@@ -483,9 +485,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             padding: 8,
             borderRadius: default_border_radius - 4,
             backgroundColor: `rgba(${
-              R + default_forground_color_offset + style.colorOffset
-            }, ${G + default_forground_color_offset + style.colorOffset}, ${
-              B + default_forground_color_offset + style.colorOffset
+              RGB.R + default_forground_color_offset + style.colorOffset
+            }, ${RGB.G + default_forground_color_offset + style.colorOffset}, ${
+              RGB.B + default_forground_color_offset + style.colorOffset
             }, ${style.opacity})`,
             border: style.border,
           }}

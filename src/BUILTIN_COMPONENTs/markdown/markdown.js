@@ -9,6 +9,7 @@ import Icon from "../icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
 import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
+import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import "./markdown.css";
 
@@ -24,6 +25,7 @@ const default_border_radius = 10;
 const default_tag_max_Width = 128;
 
 const CodeSection = ({ language, children }) => {
+  const { RGB } = useContext(RootConfigContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
   const [style, setStyle] = useState({
@@ -165,13 +167,14 @@ const CodeSection = ({ language, children }) => {
           overflowY: "hidden",
           maxWidth: "100%",
           boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
-          border: `2px solid rgba(${225}, ${255}, ${225} , 0.16)`,
+          border: `2px solid rgba(225, 255, 225 , 0.32)`,
         }}
       />
     </div>
   );
 };
 const SingleLineCodeSection = ({ language, children }) => {
+  const { RGB } = useContext(RootConfigContexts);
   return (
     <CodeBlock
       text={children}
@@ -183,10 +186,10 @@ const SingleLineCodeSection = ({ language, children }) => {
       customStyle={{
         display: "inline-block",
         fontSize: `${default_font_size}px`,
-        color: `rgb(${R + default_font_color_offset}, ${
-          G + default_font_color_offset
-        }, ${B + default_font_color_offset})`,
-        backgroundColor: `rgb(${R - 8}, ${G - 8}, ${B - 8})`,
+        color: `rgb(${RGB.R + default_font_color_offset}, ${
+          RGB.G + default_font_color_offset
+        }, ${RGB.B + default_font_color_offset})`,
+        backgroundColor: `rgb(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 8})`,
         borderRadius: default_border_radius,
         overflowY: "hidden",
       }}
@@ -194,9 +197,61 @@ const SingleLineCodeSection = ({ language, children }) => {
   );
 };
 const MarkDownSection = ({ children }) => {
+  const { RGB } = useContext(RootConfigContexts);
+  useEffect(() => {
+    const styleElement = document.createElement("style");
+    styleElement.innerHTML = `
+    .markdown-section code {
+      background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
+        RGB.B + 32
+      }, 0.64)`};
+      color: ${`rgb(${RGB.R + default_font_color_offset}, ${
+        RGB.G + default_font_color_offset
+      }, ${RGB.B + default_font_color_offset})`};
+      padding: 1px 3px;
+      margin: 3px;  
+      border-radius: 4px;
+    }
+    .markdown-section a {
+      color:  ${`rgb(${RGB.R + default_font_color_offset}, ${
+        RGB.G + default_font_color_offset
+      }, ${RGB.B + default_font_color_offset})`};
+      padding: 1px 3px;
+      margin: 3px; 
+      border-radius: 4px;
+      background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
+        RGB.B + 32
+      }, 0.32)`};
+    }
+    .markdown-section a:hover {
+      transition: all 0.16s cubic-bezier(0.32, 1, 0.32, 1);
+      color: ${`rgb(${RGB.R + default_font_color_offset}, ${
+        RGB.G + default_font_color_offset
+      }, ${RGB.B + default_font_color_offset})`};
+      padding: 1px 3px;
+      margin: 3px; 
+      border-radius: 4px;
+      background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
+        RGB.B + 32
+      }, 0.96)`};
+    }  
+    `;
+    document.head.appendChild(styleElement);
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, []);
+
   return (
     <div className="markdown-section" style={{ display: "inline-block" }}>
-      <ReactShowdown markdown={children} />
+      <ReactShowdown
+        markdown={children}
+        customStyle={{
+          code: {
+            backgroundColor: "#b66767",
+          },
+        }}
+      />
     </div>
   );
 };
@@ -260,6 +315,7 @@ const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
 const ThinkingSection = ({ index, children }) => {
+  const { RGB } = useContext(RootConfigContexts);
   const { set_expand_section_message, sectionData } =
     useContext(RootDataContexts);
   const [isExpanded, setIsExpanded] = useState(
@@ -274,21 +330,21 @@ const ThinkingSection = ({ index, children }) => {
   useEffect(() => {
     if (onClick) {
       setStyle({
-        backgroundColor: `rgba(${R + default_forground_color_offset * 2}, ${
-          G + default_forground_color_offset * 2
-        }, ${B + default_forground_color_offset * 2}, 1)`,
+        backgroundColor: `rgba(${RGB.R + default_forground_color_offset * 2}, ${
+          RGB.G + default_forground_color_offset * 2
+        }, ${RGB.B + default_forground_color_offset * 2}, 1)`,
       });
     } else if (onHover) {
       setStyle({
-        backgroundColor: `rgba(${R + default_forground_color_offset}, ${
-          G + default_forground_color_offset
-        }, ${B + default_forground_color_offset}, 0.32)`,
+        backgroundColor: `rgba(${RGB.R + default_forground_color_offset}, ${
+          RGB.G + default_forground_color_offset
+        }, ${RGB.B + default_forground_color_offset}, 0.32)`,
       });
     } else {
       setStyle({
-        backgroundColor: `rgba(${R + default_forground_color_offset}, ${
-          G + default_forground_color_offset
-        }, ${B + default_forground_color_offset}, 0)`,
+        backgroundColor: `rgba(${RGB.R + default_forground_color_offset}, ${
+          RGB.G + default_forground_color_offset
+        }, ${RGB.B + default_forground_color_offset}, 0)`,
       });
     }
   }, [onClick, onHover]);
@@ -311,9 +367,11 @@ const ThinkingSection = ({ index, children }) => {
           transition: "all 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
 
           display: "inline-block",
-          backgroundColor: `rgba(${R + default_forground_color_offset / 2}, ${
-            G + default_forground_color_offset / 2
-          }, ${B + default_forground_color_offset / 2}, 0.64)`,
+          backgroundColor: `rgba(${
+            RGB.R + default_forground_color_offset / 2
+          }, ${RGB.G + default_forground_color_offset / 2}, ${
+            RGB.B + default_forground_color_offset / 2
+          }, 0.64)`,
           borderRadius: `${default_border_radius}px`,
           padding: `${default_font_size}px`,
           maxHeight: isExpanded ? "none" : "8px",
@@ -324,9 +382,9 @@ const ThinkingSection = ({ index, children }) => {
         <ReactShowdown
           markdown={children}
           style={{
-            color: `rgb(${R + default_font_color_offset / 2}, ${
-              G + default_font_color_offset / 2
-            }, ${B + default_font_color_offset / 2})`,
+            color: `rgb(${RGB.R + default_font_color_offset / 2}, ${
+              RGB.G + default_font_color_offset / 2
+            }, ${RGB.B + default_font_color_offset / 2})`,
           }}
         />
       </div>
@@ -336,9 +394,9 @@ const ThinkingSection = ({ index, children }) => {
           top: "17px",
           left: "44px",
 
-          color: `rgb(${R + default_font_color_offset / 2}, ${
-            G + default_font_color_offset / 2
-          }, ${B + default_font_color_offset / 2})`,
+          color: `rgb(${RGB.R + default_font_color_offset / 2}, ${
+            RGB.G + default_font_color_offset / 2
+          }, ${RGB.B + default_font_color_offset / 2})`,
         }}
       >
         Thought process
@@ -400,6 +458,7 @@ const CustomizedTagSection = ({ tag }) => {
 };
 
 const Markdown = ({ children, index, style }) => {
+  const { RGB } = useContext(RootConfigContexts);
   const [processedContent, setProcessedContent] = useState(children);
 
   useEffect(() => {
@@ -807,12 +866,12 @@ const Markdown = ({ children, index, style }) => {
         backgroundColor:
           style && style.backgroundColor
             ? style.backgroundColor
-            : `rgb(${R + default_forground_color_offset}, ${
-                G + default_forground_color_offset
-              }, ${B + default_forground_color_offset})`,
-        color: `rgb(${R + default_font_color_offset}, ${
-          G + default_font_color_offset
-        }, ${B + default_font_color_offset})`,
+            : `rgb(${RGB.R + default_forground_color_offset}, ${
+                RGB.G + default_forground_color_offset
+              }, ${RGB.B + default_forground_color_offset})`,
+        color: `rgb(${RGB.R + default_font_color_offset}, ${
+          RGB.G + default_font_color_offset
+        }, ${RGB.B + default_font_color_offset})`,
 
         overflow: "hidden",
       }}

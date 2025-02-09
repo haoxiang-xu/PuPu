@@ -8,15 +8,23 @@ const RootConfigManager = ({ children }) => {
   const [instructions, setInstructions] = useState({
     chat_room_title_generation_prompt: chat_room_title_generation_prompt,
   });
+  const [RGB, setRGB] = useState({
+    R: 30,
+    G: 26,
+    B: 30,
+  });
 
   return (
-    <RootConfigContexts.Provider
-      value={{
-        instructions,
-      }}
-    >
-      {children}
-    </RootConfigContexts.Provider>
+    <>
+      <RootConfigContexts.Provider
+        value={{
+          instructions,
+          RGB,
+        }}
+      >
+        {children}
+      </RootConfigContexts.Provider>
+    </>
   );
 };
 

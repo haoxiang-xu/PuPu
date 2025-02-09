@@ -1,11 +1,8 @@
 import React, { useState, useEffect, useContext, createContext } from "react";
+import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_data_manager/root_status_contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-
-const R = 30;
-const G = 30;
-const B = 30;
 
 const component_name = "side_menu";
 
@@ -13,6 +10,7 @@ const Side_Menu_Contexts = createContext();
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 const Chat_Room_Item = ({ address }) => {
+  const { RGB } = useContext(RootConfigContexts);
   const {
     addressBook,
     sectionData,
@@ -22,7 +20,7 @@ const Chat_Room_Item = ({ address }) => {
   const [onHover, setOnHover] = useState(false);
   const [onDelete, setOnDelete] = useState(false);
   const [containerStyle, setContainerStyle] = useState({
-    backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.64)`,
+    backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`,
     boxShadow: "none",
     border: "1px solid rgba(255, 255, 255, 0)",
   });
@@ -34,7 +32,7 @@ const Chat_Room_Item = ({ address }) => {
   useEffect(() => {
     if (address === sectionData.address) {
       setContainerStyle({
-        backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.84)`,
+        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.84)`,
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
         border: "1px solid rgba(255, 255, 255, 0.16)",
       });
@@ -44,13 +42,13 @@ const Chat_Room_Item = ({ address }) => {
     }
     if (onHover) {
       setContainerStyle({
-        backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0.4)`,
+        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.4)`,
         boxShadow: "none",
         border: "1px solid rgba(255, 255, 255, 0.08)",
       });
     } else {
       setContainerStyle({
-        backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
         boxShadow: "none",
         border: "1px solid rgba(255, 255, 255, 0)",
       });
@@ -188,6 +186,7 @@ const Chat_Room_Item = ({ address }) => {
   );
 };
 const Chat_Room_List = ({}) => {
+  const { RGB } = useContext(RootConfigContexts);
   const { start_new_section, addressBook } = useContext(RootDataContexts);
   const { componentOnFocus } = useContext(RootStatusContexts);
 
@@ -196,24 +195,24 @@ const Chat_Room_List = ({}) => {
   const [addButtonOnHover, setAddButtonOnHover] = useState(false);
   const [addButtonOnClick, setAddButtonOnClick] = useState(false);
   const [addButtonStyle, setAddButtonStyle] = useState({
-    backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+    backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
     border: "1px solid rgba(255, 255, 255, 0)",
   });
 
   useEffect(() => {
     if (addButtonOnClick) {
       setAddButtonStyle({
-        backgroundColor: `rgba(${R + 60}, ${G + 60}, ${B + 60}, 0.84)`,
+        backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${RGB.B + 60}, 0.84)`,
         border: "1px solid rgba(255, 255, 255, 1)",
       });
     } else if (addButtonOnHover) {
       setAddButtonStyle({
-        backgroundColor: `rgba(${R + 60}, ${G + 60}, ${B + 60}, 0.64)`,
+        backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${RGB.B + 60}, 0.64)`,
         border: "1px solid rgba(255, 255, 255, 0.64)",
       });
     } else {
       setAddButtonStyle({
-        backgroundColor: `rgba(${R + 30}, ${G + 30}, ${B + 30}, 0)`,
+        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
         border: "1px solid rgba(255, 255, 255, 0)",
       });
     }
@@ -309,6 +308,7 @@ const Chat_Room_List = ({}) => {
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
+  const { RGB } = useContext(RootConfigContexts);
   const { windowWidth, componentOnFocus, setComponentOnFocus } =
     useContext(RootStatusContexts);
   const [iconStyle, setIconStyle] = useState({});
@@ -375,7 +375,7 @@ const Side_Menu = ({}) => {
             borderRight: "1px solid rgba(255, 255, 255, 0.12)",
             scrollBehavior: "smooth",
 
-            backgroundColor: `rgba(${R}, ${G}, ${B}, 0.64)`,
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
             backdropFilter: "blur(36px)",
           }}
           onClick={(e) => {
