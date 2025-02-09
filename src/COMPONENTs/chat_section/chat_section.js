@@ -15,8 +15,6 @@ import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
 
-const default_forground_color_offset = 12;
-const default_font_color_offset = 128;
 const default_border_radius = 10;
 const default_font_size = 14;
 const default_padding = default_font_size;
@@ -144,7 +142,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   }
 };
 const Message_Section = ({ index, role, message, is_last_index }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   const { sectionData } = useContext(RootDataContexts);
   const { targetAddress } = useContext(RootStatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
@@ -206,9 +204,9 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
         ) : (
           <span
             style={{
-              color: `rgba(${RGB.R + default_font_color_offset}, ${
-                RGB.G + default_font_color_offset
-              }, ${RGB.B + default_font_color_offset}, 1)`,
+              color: `rgba(${RGB.R + colorOffset.font}, ${
+                RGB.G + colorOffset.font
+              }, ${RGB.B + colorOffset.font}, 1)`,
             }}
           >
             {message}
@@ -236,7 +234,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
   );
 };
 const Scrolling_Section = () => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
   const { setComponentOnFocus } = useContext(RootStatusContexts);
   const {
@@ -309,17 +307,17 @@ const Scrolling_Section = () => {
       }
 
       .scrolling-space::-webkit-scrollbar-thumb {
-        background-color: rgba(${RGB.R + default_forground_color_offset}, ${
-      RGB.G + default_forground_color_offset
-    }, ${RGB.B + default_forground_color_offset}, 1);
+        background-color: rgba(${RGB.R + colorOffset.middle_ground}, ${
+      RGB.G + colorOffset.middle_ground
+    }, ${RGB.B + colorOffset.middle_ground}, 1);
         border-radius: 6px;
         border: 3px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1);
       }
       .scrolling-space::-webkit-scrollbar-thumb:hover {
         background-color: rgba(${
-          RGB.R + default_forground_color_offset + 32
-        }, ${RGB.G + default_forground_color_offset + 32}, ${
-      RGB.B + default_forground_color_offset + 32
+          RGB.R + colorOffset.middle_ground + 32
+        }, ${RGB.G + colorOffset.middle_ground + 32}, ${
+      RGB.B + colorOffset.middle_ground + 32
     }, 1);
       }
       .scrolling-space::-webkit-scrollbar:horizontal {
@@ -549,7 +547,7 @@ const Model_Menu = ({ value }) => {
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   const { componentOnFocus } = useContext(RootStatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
@@ -621,9 +619,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           color: `rgba(255, 255, 255, 0.64)`,
 
           borderRadius: default_border_radius,
-          backgroundColor: `rgba(${RGB.R + default_forground_color_offset}, ${
-            RGB.G + default_forground_color_offset
-          }, ${RGB.B + default_forground_color_offset}, 0.64)`,
+          backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
+            RGB.G + colorOffset.middle_ground
+          }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
           backdropFilter: "blur(24px)",
           boxShadow: `0px 4px 32px rgba(0, 0, 0, 0.64)`,
           border: "1px solid rgba(255, 255, 255, 0.16)",
@@ -651,9 +649,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             padding: 8,
             borderRadius: default_border_radius - 4,
             backgroundColor: `rgba(${
-              RGB.R + default_forground_color_offset + style.colorOffset
-            }, ${RGB.G + default_forground_color_offset + style.colorOffset}, ${
-              RGB.B + default_forground_color_offset + style.colorOffset
+              RGB.R + colorOffset.middle_ground + style.colorOffset
+            }, ${RGB.G + colorOffset.middle_ground + style.colorOffset}, ${
+              RGB.B + colorOffset.middle_ground + style.colorOffset
             }, ${style.opacity})`,
             border: style.border,
           }}

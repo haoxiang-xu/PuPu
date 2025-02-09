@@ -26,15 +26,12 @@ const R = 30;
 const G = 30;
 const B = 30;
 
-const default_forground_color_offset = 12;
-const default_front_object_color_offset = 50;
-const default_font_color_offset = 128;
 const default_font_size = 12;
 const default_border_radius = 10;
 const default_tag_max_Width = 128;
 
 const CodeSection = ({ language, children }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
   const [style, setStyle] = useState({
@@ -78,9 +75,6 @@ const CodeSection = ({ language, children }) => {
 
           opacity: 1,
           borderRadius: `${default_border_radius - 4}px`,
-          // backgroundColor: `rgb(${R + default_forground_color_offset / 6}, ${
-          //   G + default_forground_color_offset / 6
-          // }, ${B + default_forground_color_offset / 6})`,
           boxShadow: `0 2px 16px rgba(0, 0, 0, 0.64)`,
         }}
       >
@@ -95,9 +89,9 @@ const CodeSection = ({ language, children }) => {
 
             fontSize: `${default_font_size + 4}px`,
             fontWeight: "bold",
-            color: `rgb(${R + default_font_color_offset}, ${
-              G + default_font_color_offset
-            }, ${B + default_font_color_offset}, 0.64)`,
+            color: `rgb(${RGB.R + colorOffset.font}, ${
+              RGB.G + colorOffset.font
+            }, ${RGB.B + colorOffset.font}, 0.64)`,
           }}
         >
           {language}
@@ -146,9 +140,9 @@ const CodeSection = ({ language, children }) => {
               transform: "translateY(-55%)",
 
               fontSize: `${default_font_size + 3}px`,
-              color: `rgb(${R + default_font_color_offset}, ${
-                G + default_font_color_offset
-              }, ${B + default_font_color_offset})`,
+              color: `rgb(${RGB.R + colorOffset.font}, ${
+                RGB.G + colorOffset.font
+              }, ${RGB.B + colorOffset.font})`,
               PointerEvents: "none",
               userSelect: "none",
               opacity: onClicked ? 1 : 0.64,
@@ -184,7 +178,7 @@ const CodeSection = ({ language, children }) => {
   );
 };
 const SingleLineCodeSection = ({ language, children }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   return (
     <CodeBlock
       text={children}
@@ -196,9 +190,9 @@ const SingleLineCodeSection = ({ language, children }) => {
       customStyle={{
         display: "inline-block",
         fontSize: `${default_font_size}px`,
-        color: `rgb(${RGB.R + default_font_color_offset}, ${
-          RGB.G + default_font_color_offset
-        }, ${RGB.B + default_font_color_offset})`,
+        color: `rgb(${RGB.R + colorOffset.font}, ${
+          RGB.G + colorOffset.font
+        }, ${RGB.B + colorOffset.font})`,
         backgroundColor: `rgb(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 8})`,
         borderRadius: default_border_radius,
         overflowY: "hidden",
@@ -207,7 +201,7 @@ const SingleLineCodeSection = ({ language, children }) => {
   );
 };
 const MarkDownSection = ({ children }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   useEffect(() => {
     const styleElement = document.createElement("style");
     styleElement.innerHTML = `
@@ -215,17 +209,17 @@ const MarkDownSection = ({ children }) => {
       background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
         RGB.B + 32
       }, 0.64)`};
-      color: ${`rgb(${RGB.R + default_font_color_offset}, ${
-        RGB.G + default_font_color_offset
-      }, ${RGB.B + default_font_color_offset})`};
+      color: ${`rgb(${RGB.R + colorOffset.font}, ${
+        RGB.G + colorOffset.font
+      }, ${RGB.B + colorOffset.font})`};
       padding: 1px 3px;
       margin: 3px;
       border-radius: 4px;
     }
     .markdown-section a {
-      color:  ${`rgb(${RGB.R + default_font_color_offset}, ${
-        RGB.G + default_font_color_offset
-      }, ${RGB.B + default_font_color_offset})`};
+      color:  ${`rgb(${RGB.R + colorOffset.font}, ${
+        RGB.G + colorOffset.font
+      }, ${RGB.B + colorOffset.font})`};
       padding: 1px 3px;
       margin: 3px; 
       border-radius: 4px;
@@ -235,9 +229,9 @@ const MarkDownSection = ({ children }) => {
     }
     .markdown-section a:hover {
       transition: all 0.16s cubic-bezier(0.32, 1, 0.32, 1);
-      color: ${`rgb(${RGB.R + default_font_color_offset}, ${
-        RGB.G + default_font_color_offset
-      }, ${RGB.B + default_font_color_offset})`};
+      color: ${`rgb(${RGB.R + colorOffset.font}, ${
+        RGB.G + colorOffset.font
+      }, ${RGB.B + colorOffset.font})`};
       padding: 1px 3px;
       margin: 3px; 
       border-radius: 4px;
@@ -254,9 +248,7 @@ const MarkDownSection = ({ children }) => {
 
   return (
     <div className="markdown-section" style={{ display: "inline-block" }}>
-      <ReactShowdown
-        markdown={children}
-      />
+      <ReactShowdown markdown={children} />
     </div>
   );
 };
@@ -320,7 +312,7 @@ const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
 const ThinkingSection = ({ index, children }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   const { set_expand_section_message, sectionData } =
     useContext(RootDataContexts);
   const [isExpanded, setIsExpanded] = useState(
@@ -335,21 +327,24 @@ const ThinkingSection = ({ index, children }) => {
   useEffect(() => {
     if (onClick) {
       setStyle({
-        backgroundColor: `rgba(${RGB.R + default_forground_color_offset * 2}, ${
-          RGB.G + default_forground_color_offset * 2
-        }, ${RGB.B + default_forground_color_offset * 2}, 1)`,
+        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground * 2}, ${
+          RGB.G + colorOffset.middle_ground * 2
+        }, ${RGB.B + colorOffset.middle_ground * 2}, 1)`,
+        border: `1px solid rgba(${225}, ${225}, ${225}, 0.32)`,
       });
     } else if (onHover) {
       setStyle({
-        backgroundColor: `rgba(${RGB.R + default_forground_color_offset}, ${
-          RGB.G + default_forground_color_offset
-        }, ${RGB.B + default_forground_color_offset}, 0.32)`,
+        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
+          RGB.G + colorOffset.middle_ground
+        }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
+        border: `1px solid rgba(${225}, ${225}, ${225}, 0.12)`,
       });
     } else {
       setStyle({
-        backgroundColor: `rgba(${RGB.R + default_forground_color_offset}, ${
-          RGB.G + default_forground_color_offset
-        }, ${RGB.B + default_forground_color_offset}, 0)`,
+        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
+          RGB.G + colorOffset.middle_ground
+        }, ${RGB.B + colorOffset.middle_ground}, 0)`,
+        border: `1px solid rgba(${225}, ${225}, ${225}, 0)`,
       });
     }
   }, [onClick, onHover]);
@@ -372,11 +367,9 @@ const ThinkingSection = ({ index, children }) => {
           transition: "all 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
 
           display: "inline-block",
-          backgroundColor: `rgba(${
-            RGB.R + default_forground_color_offset / 2
-          }, ${RGB.G + default_forground_color_offset / 2}, ${
-            RGB.B + default_forground_color_offset / 2
-          }, 0.64)`,
+          backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground / 2}, ${
+            RGB.G + colorOffset.middle_ground / 2
+          }, ${RGB.B + colorOffset.middle_ground / 2}, 0.64)`,
           borderRadius: `${default_border_radius}px`,
           padding: `${default_font_size}px`,
           maxHeight: isExpanded ? "none" : "8px",
@@ -387,9 +380,9 @@ const ThinkingSection = ({ index, children }) => {
         <ReactShowdown
           markdown={children}
           style={{
-            color: `rgb(${RGB.R + default_font_color_offset / 2}, ${
-              RGB.G + default_font_color_offset / 2
-            }, ${RGB.B + default_font_color_offset / 2})`,
+            color: `rgb(${RGB.R + colorOffset.font / 2}, ${
+              RGB.G + colorOffset.font / 2
+            }, ${RGB.B + colorOffset.font / 2})`,
           }}
         />
       </div>
@@ -399,9 +392,9 @@ const ThinkingSection = ({ index, children }) => {
           top: "17px",
           left: "44px",
 
-          color: `rgb(${RGB.R + default_font_color_offset / 2}, ${
-            RGB.G + default_font_color_offset / 2
-          }, ${RGB.B + default_font_color_offset / 2})`,
+          color: `rgb(${RGB.R + colorOffset.font / 2}, ${
+            RGB.G + colorOffset.font / 2
+          }, ${RGB.B + colorOffset.font / 2})`,
         }}
       >
         Thought process
@@ -409,16 +402,18 @@ const ThinkingSection = ({ index, children }) => {
       <Icon
         src="arrow"
         style={{
-          transition: "backgroundColor 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
+          transition:
+            "backgroundColor 0.32s cubic-bezier(0.32, 1, 0.32, 1), border 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
           position: "absolute",
-          top: "28px",
-          left: "28px",
+          top: "29px",
+          left: "29px",
           transform: isExpanded
             ? "translate(-50%, -50%) rotate(-90deg)"
             : "translate(-50%, -50%) rotate(90deg)",
           padding: 4,
           borderRadius: default_border_radius - 4,
           backgroundColor: style.backgroundColor,
+          border: style.border,
         }}
         onMouseEnter={() => setOnHover(true)}
         onMouseLeave={() => {
@@ -463,7 +458,7 @@ const CustomizedTagSection = ({ tag }) => {
 };
 
 const Markdown = ({ children, index, style }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(RootConfigContexts);
   const [processedContent, setProcessedContent] = useState(children);
 
   useEffect(() => {
@@ -872,12 +867,12 @@ const Markdown = ({ children, index, style }) => {
         backgroundColor:
           style && style.backgroundColor
             ? style.backgroundColor
-            : `rgb(${RGB.R + default_forground_color_offset}, ${
-                RGB.G + default_forground_color_offset
-              }, ${RGB.B + default_forground_color_offset})`,
-        color: `rgb(${RGB.R + default_font_color_offset}, ${
-          RGB.G + default_font_color_offset
-        }, ${RGB.B + default_font_color_offset})`,
+            : `rgb(${RGB.R + colorOffset.middle_ground}, ${
+                RGB.G + colorOffset.middle_ground
+              }, ${RGB.B + colorOffset.middle_ground})`,
+        color: `rgb(${RGB.R + colorOffset.font}, ${RGB.G + colorOffset.font}, ${
+          RGB.B + colorOffset.font
+        })`,
 
         overflow: "hidden",
       }}
