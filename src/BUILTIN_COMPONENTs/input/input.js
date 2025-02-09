@@ -55,9 +55,9 @@ const Input = ({
   const [placeholder, setPlaceholder] = useState("Ask Ollama");
   useEffect(() => {
     if (modelOnTask === "generating") {
-      setPlaceholder("Generating");
+      setPlaceholder("Generating...");
     } else if (modelOnTask === "naming the chat room") {
-      setPlaceholder("Naming the chat room");
+      setPlaceholder("Naming the chat room...");
     } else {
       setPlaceholder("Ask Ollama");
     }
