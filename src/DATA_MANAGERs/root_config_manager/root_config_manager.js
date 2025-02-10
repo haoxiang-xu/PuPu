@@ -2,8 +2,8 @@ import React, { useEffect, useState, useCallback } from "react";
 
 import { RootConfigContexts } from "./root_config_contexts";
 
-import { chat_room_title_generation_prompt } from "./DEFAULT_INSTRUCTIONS";
-import { dark_theme, light_theme } from "./DEFAULT_THEMES";
+import { chat_room_title_generation_prompt } from "./default_instructions";
+import { dark_theme, light_theme } from "./default_themes";
 
 const RootConfigManager = ({ children }) => {
   const [instructions, setInstructions] = useState({
