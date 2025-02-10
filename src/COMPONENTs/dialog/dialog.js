@@ -6,7 +6,7 @@ import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_dat
 
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
-import { await_Ollama_setup_warning } from "./default_dialog_messages";
+import { await_Ollama_setup_warning } from "./DEFAULT_DIALOGS";
 
 const AwaitOllamaSetup = ({}) => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
