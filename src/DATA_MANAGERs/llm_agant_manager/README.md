@@ -10,10 +10,11 @@ Below is a sample structure of the LLMs in the sequence.
 
 ```js
 {
+    name: "user_defined_agent_name",
     id: "random_generated_string",
     root: {
         source_model: "deepseek:r1",
-        name: "user_defined_name",
+        name: "user_defined_model_name",
         type: "json_format",
         request_structure: {
             prompt: "Decide what kind of task user wants to perform, " +
@@ -34,7 +35,7 @@ Below is a sample structure of the LLMs in the sequence.
     },
     llm_1: {
         source_model: "codellama",
-        name: "user_defined_name",
+        name: "user_defined_model_name",
         type: "completion",
         request_structure: {
             prompt: "try to complete the code",
