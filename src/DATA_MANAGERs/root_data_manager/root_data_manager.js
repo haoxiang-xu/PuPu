@@ -6,8 +6,8 @@ import { RootDataContexts } from "./root_data_contexts";
 import { RootStatusContexts } from "../root_status_manager/root_status_contexts";
 import { RootConfigContexts } from "../root_config_manager/root_config_contexts";
 
-import Control_Panel from "../../COMPONENTs/control_panel/control_panel";
-import WarningScreen from "../../COMPONENTs/warning_screen/warning_screen";
+import Chat_Page from "../../COMPONENTs/chat_page/chat_page";
+import Dialog from "../../COMPONENTs/dialog/dialog";
 import ScaleLoader from "react-spinners/ScaleLoader";
 
 const RootDataManager = () => {
@@ -27,7 +27,7 @@ const RootDataManager = () => {
   /* { Local Storage } ------------------------------------------------------------------------------- */
   const [addressBook, setAddressBook] = useState({ avaliable_addresses: [] });
   const [sectionData, setSectionData] = useState({});
-  
+
   /* { load from local storage } */
   useEffect(() => {
     app_initialization();
@@ -471,7 +471,7 @@ const RootDataManager = () => {
             setComponentOnFocus("");
           }}
         >
-          <Control_Panel />
+          <Chat_Page />
         </div>
       )}
       {ollamaServerStatus === null ? (
@@ -487,7 +487,7 @@ const RootDataManager = () => {
           <ScaleLoader color={"#cccccc"} size={12} margin={1} />
         </div>
       ) : null}
-      <WarningScreen display={ollamaServerStatus === false} />
+      <Dialog display={ollamaServerStatus === false} />
     </RootDataContexts.Provider>
   );
 };

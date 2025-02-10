@@ -6,7 +6,7 @@ import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_dat
 
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
-import { await_Ollama_setup_warning } from "./default_warnings";
+import { await_Ollama_setup_warning } from "./default_dialog_messages";
 
 const AwaitOllamaSetup = ({}) => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
@@ -104,7 +104,7 @@ const AwaitOllamaSetup = ({}) => {
   );
 };
 
-const WarningScreen = ({ display }) => {
+const Dialog = ({ display }) => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
 
   useEffect(() => {
@@ -168,4 +168,4 @@ const WarningScreen = ({ display }) => {
   );
 };
 
-export default WarningScreen;
+export default Dialog;

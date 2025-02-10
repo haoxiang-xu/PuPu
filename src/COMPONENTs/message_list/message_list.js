@@ -708,7 +708,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   );
 };
 
-const Chat_Section = () => {
+const Message_List = () => {
   const {
     selectedModel,
     sectionData,
@@ -824,4 +824,4 @@ const Chat_Section = () => {
   );
 };
 
-export default Chat_Section;
+export default Message_List;

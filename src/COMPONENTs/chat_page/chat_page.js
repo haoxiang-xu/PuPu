@@ -3,11 +3,11 @@ import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
 import ollama from "./ollama.png";
-import Chat_Section from "../chat_section/chat_section";
+import Message_List from "../message_list/message_list";
 import Side_Menu from "../side_menu/side_menu";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
-const Control_Panel = ({}) => {
+const Chat_Page = ({}) => {
   const { RGB } = useContext(RootConfigContexts);
   const { sectionStarted } = useContext(RootDataContexts);
   const { windowWidth } = useContext(RootStatusContexts);
@@ -286,11 +286,11 @@ const Control_Panel = ({}) => {
           maxWidth: 700,
         }}
       >
-        <Chat_Section />
+        <Message_List />
       </div>
       <Side_Menu />
     </div>
   );
 };
 
-export default Control_Panel;
+export default Chat_Page;
