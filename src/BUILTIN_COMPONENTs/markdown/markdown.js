@@ -18,8 +18,8 @@ import Icon from "../icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
 import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
-import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
+import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
 import "./markdown.css";
 
 const R = 30;
@@ -190,9 +190,9 @@ const SingleLineCodeSection = ({ language, children }) => {
       customStyle={{
         display: "inline-block",
         fontSize: `${default_font_size}px`,
-        color: `rgb(${RGB.R + colorOffset.font}, ${
-          RGB.G + colorOffset.font
-        }, ${RGB.B + colorOffset.font})`,
+        color: `rgb(${RGB.R + colorOffset.font}, ${RGB.G + colorOffset.font}, ${
+          RGB.B + colorOffset.font
+        })`,
         backgroundColor: `rgb(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 8})`,
         borderRadius: default_border_radius,
         overflowY: "hidden",
@@ -209,9 +209,9 @@ const MarkDownSection = ({ children }) => {
       background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
         RGB.B + 32
       }, 0.64)`};
-      color: ${`rgb(${RGB.R + colorOffset.font}, ${
-        RGB.G + colorOffset.font
-      }, ${RGB.B + colorOffset.font})`};
+      color: ${`rgb(${RGB.R + colorOffset.font}, ${RGB.G + colorOffset.font}, ${
+        RGB.B + colorOffset.font
+      })`};
       padding: 1px 3px;
       margin: 3px;
       border-radius: 4px;
@@ -229,9 +229,9 @@ const MarkDownSection = ({ children }) => {
     }
     .markdown-section a:hover {
       transition: all 0.16s cubic-bezier(0.32, 1, 0.32, 1);
-      color: ${`rgb(${RGB.R + colorOffset.font}, ${
-        RGB.G + colorOffset.font
-      }, ${RGB.B + colorOffset.font})`};
+      color: ${`rgb(${RGB.R + colorOffset.font}, ${RGB.G + colorOffset.font}, ${
+        RGB.B + colorOffset.font
+      })`};
       padding: 1px 3px;
       margin: 3px; 
       border-radius: 4px;

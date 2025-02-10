@@ -7,9 +7,9 @@ import React, {
   createContext,
   use,
 } from "react";
-import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
-import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
+import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
+import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -144,7 +144,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
 const Message_Section = ({ index, role, message, is_last_index }) => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
   const { sectionData } = useContext(RootDataContexts);
-  const { targetAddress } = useContext(RootStatusContexts);
+  const { targetAddress } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
@@ -236,7 +236,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
 const Scrolling_Section = () => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
   const { sectionData, sectionStarted } = useContext(RootDataContexts);
-  const { setComponentOnFocus } = useContext(RootStatusContexts);
+  const { setComponentOnFocus } = useContext(StatusContexts);
   const {
     awaitResponse,
     preLoadingCompleted,
@@ -384,7 +384,7 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
   const { RGB } = useContext(RootConfigContexts);
   const { selectedModel, setSelectedModel, list_all_ollama_local_models } =
     useContext(RootDataContexts);
-  const { setComponentOnFocus } = useContext(RootStatusContexts);
+  const { setComponentOnFocus } = useContext(StatusContexts);
   const [onHover, setOnHover] = useState(false);
 
   return (
@@ -440,7 +440,7 @@ const Model_Menu = ({ value }) => {
   const { selectedModel, avaliableModels, list_all_ollama_local_models } =
     useContext(RootDataContexts);
   const { modelOnTask, componentOnFocus, setComponentOnFocus } =
-    useContext(RootStatusContexts);
+    useContext(StatusContexts);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
@@ -568,7 +568,7 @@ const Model_Menu = ({ value }) => {
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
-  const { componentOnFocus } = useContext(RootStatusContexts);
+  const { componentOnFocus } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     colorOffset: 0,

@@ -1,8 +1,8 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 
-import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
-import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
+import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
+import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
 
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
@@ -11,7 +11,7 @@ import { await_Ollama_setup_warning } from "./default_dialogs";
 const AwaitOllamaSetup = ({}) => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
   const { app_initialization } = useContext(RootDataContexts);
-  const { setOllamaServerStatus } = useContext(RootStatusContexts);
+  const { setOllamaServerStatus } = useContext(StatusContexts);
 
   const [onHover, setOnHover] = useState(false);
   const [onClick, setOnClick] = useState(false);

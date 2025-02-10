@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 
-import { RootStatusContexts } from "../root_status_manager/root_status_contexts";
+import { StatusContexts } from "./contexts";
 
 const RootStatusManager = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
@@ -34,7 +34,7 @@ const RootStatusManager = ({ children }) => {
   /* { Model Related } ------------------------------------------------------------------------------- */
 
   return (
-    <RootStatusContexts.Provider
+    <StatusContexts.Provider
       value={{
         /* { UI Related Status } ======================================================== { UI Related Status } */
         /* { which UI component is selected } */
@@ -58,7 +58,7 @@ const RootStatusManager = ({ children }) => {
       }}
     >
       {children}
-    </RootStatusContexts.Provider>
+    </StatusContexts.Provider>
   );
 };
 

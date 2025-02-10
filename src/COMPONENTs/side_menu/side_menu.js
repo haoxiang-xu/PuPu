@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, createContext } from "react";
-import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
-import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
+import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
+import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
@@ -192,7 +192,7 @@ const Chat_Room_Item = ({ address }) => {
 const Chat_Room_List = ({}) => {
   const { RGB } = useContext(RootConfigContexts);
   const { start_new_section, addressBook } = useContext(RootDataContexts);
-  const { componentOnFocus } = useContext(RootStatusContexts);
+  const { componentOnFocus } = useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
 
@@ -318,7 +318,7 @@ const Chat_Room_List = ({}) => {
 const Side_Menu = ({}) => {
   const { RGB } = useContext(RootConfigContexts);
   const { windowWidth, componentOnFocus, setComponentOnFocus } =
-    useContext(RootStatusContexts);
+    useContext(StatusContexts);
   const [iconStyle, setIconStyle] = useState({});
   const [menuStyle, setMenuStyle] = useState({
     width: 0,

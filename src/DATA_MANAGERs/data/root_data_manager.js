@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
-import { UNIQUE_KEY, RETITLE_TURNS } from "../../DATA_MANAGERs/root_consts";
+import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
 import { RootDataContexts } from "./root_data_contexts";
-import { RootStatusContexts } from "../root_status_manager/root_status_contexts";
-import { RootConfigContexts } from "../root_config_manager/root_config_contexts";
+import { StatusContexts } from "../status/contexts";
+import { RootConfigContexts } from "../config/root_config_contexts";
 
 import Chat_Page from "../../COMPONENTs/chat_page/chat_page";
 import Dialog from "../../COMPONENTs/dialog/dialog";
@@ -17,7 +17,7 @@ const RootDataManager = () => {
     setModelOnTask,
     ollamaServerStatus,
     setOllamaServerStatus,
-  } = useContext(RootStatusContexts);
+  } = useContext(StatusContexts);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [selectedModel, setSelectedModel] = useState(null);

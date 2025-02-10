@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
-import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
-import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
+import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
+import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
 import ollama from "./ollama.png";
 import Message_List from "../message_list/message_list";
 import Side_Menu from "../side_menu/side_menu";
@@ -10,7 +10,7 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 const Chat_Page = ({}) => {
   const { RGB } = useContext(RootConfigContexts);
   const { sectionStarted } = useContext(RootDataContexts);
-  const { windowWidth } = useContext(RootStatusContexts);
+  const { windowWidth } = useContext(StatusContexts);
 
   /* { Title } ------------------------------------------------------------------------------ */
   const title_list = [

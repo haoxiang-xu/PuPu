@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
-import RootConfigManager from "./DATA_MANAGERs/root_config_manager/root_config_manager";
-import RootStatusManager from "./DATA_MANAGERs/root_status_manager/root_status_manager";
-import RootDataManager from "./DATA_MANAGERs/root_data_manager/root_data_manager";
+import RootConfigManager from "./DATA_MANAGERs/config/root_config_manager";
+import RootStatusManager from "./DATA_MANAGERs/status/root_status_manager";
+import RootDataManager from "./DATA_MANAGERs/data/root_data_manager";
 
 const App = () => {
   const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useContext } from "react";
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
-import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
+import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
 import TextareaAutosize from "react-textarea-autosize";
 
 const default_font_size = 14;
@@ -21,7 +21,7 @@ const Input = ({
   setOnFocus,
   ...props
 }) => {
-  const { modelOnTask } = useContext(RootStatusContexts);
+  const { modelOnTask } = useContext(StatusContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
