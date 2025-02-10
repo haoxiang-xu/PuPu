@@ -21,7 +21,7 @@ const Input = ({
   setOnFocus,
   ...props
 }) => {
-  const { modelOnTask } = useContext(StatusContexts);
+  const { ollamaOnTask } = useContext(StatusContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
@@ -56,14 +56,14 @@ const Input = ({
   /* { Placeholder } --------------------------------------------------------- */
   const [placeholder, setPlaceholder] = useState("Ask Ollama");
   useEffect(() => {
-    if (modelOnTask === "generating") {
+    if (ollamaOnTask === "generating") {
       setPlaceholder("Generating...");
-    } else if (modelOnTask === "naming the chat room") {
+    } else if (ollamaOnTask === "naming the chat room") {
       setPlaceholder("Naming the chat room...");
     } else {
       setPlaceholder("Ask ");
     }
-  }, [modelOnTask]);
+  }, [ollamaOnTask]);
   /* { Placeholder } --------------------------------------------------------- */
 
   /* { Model Menu } ========================================================== */

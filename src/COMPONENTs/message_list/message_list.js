@@ -440,7 +440,7 @@ const Model_Menu = ({ value }) => {
   const { RGB } = useContext(ConfigContexts);
   const { selectedModel, avaliableModels, list_all_ollama_local_models } =
     useContext(DataContexts);
-  const { modelOnTask, componentOnFocus, setComponentOnFocus } =
+  const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
 
   const [onHover, setOnHover] = useState(false);
@@ -462,7 +462,7 @@ const Model_Menu = ({ value }) => {
         position: "absolute",
         bottom: 35,
         left:
-          value.length !== 0 || modelOnTask !== null
+          value.length !== 0 || ollamaOnTask !== null
             ? 60 + default_padding
             : 60,
 
@@ -471,7 +471,7 @@ const Model_Menu = ({ value }) => {
         fontWeight: 500,
 
         opacity:
-          value.length !== 0 || modelOnTask !== null
+          value.length !== 0 || ollamaOnTask !== null
             ? 0
             : componentOnFocus === sub_component_name
             ? 1

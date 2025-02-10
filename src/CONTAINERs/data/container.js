@@ -14,7 +14,7 @@ const DataContainer = () => {
   const { instructions } = useContext(ConfigContexts);
   const {
     setComponentOnFocus,
-    setModelOnTask,
+    setOllamaOnTask,
     ollamaServerStatus,
     setOllamaServerStatus,
   } = useContext(StatusContexts);
@@ -301,7 +301,7 @@ const DataContainer = () => {
       });
     }
     const processed_messages = preprocess_messages(messages, 8, index);
-    setModelOnTask("generating");
+    setOllamaOnTask("generating");
     try {
       const request = {
         model: model,
@@ -341,7 +341,7 @@ const DataContainer = () => {
           console.error("Error parsing stream chunk:", error);
         }
       }
-      setModelOnTask(null);
+      setOllamaOnTask(null);
       return {
         role: "assistant",
         message: accumulatedResponse,
@@ -349,7 +349,7 @@ const DataContainer = () => {
       };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
-      setModelOnTask(null);
+      setOllamaOnTask(null);
     }
   };
   const chat_room_title_generation = async (model, address, messages) => {
@@ -365,7 +365,7 @@ const DataContainer = () => {
       return processed_messages;
     };
     let prompt = preprocess_messages(messages, 7);
-    setModelOnTask("naming the chat room");
+    setOllamaOnTask("naming the chat room");
     try {
       const request = {
         model: model,
@@ -400,11 +400,11 @@ const DataContainer = () => {
       }
       const title = JSON.parse(data.response).title;
       update_title(address, title);
-      setModelOnTask(null);
+      setOllamaOnTask(null);
       return title;
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
-      setModelOnTask(null);
+      setOllamaOnTask(null);
     }
   };
   const list_all_ollama_local_models = async () => {

@@ -29,9 +29,9 @@ const StatusContainer = ({ children }) => {
   }, []);
   /* { Event Listener } ------------------------------------------------------------------------------- */
 
-  /* { Model Related } ------------------------------------------------------------------------------- */
-  const [modelOnTask, setModelOnTask] = useState(null);
-  /* { Model Related } ------------------------------------------------------------------------------- */
+  /* { Request Related } ------------------------------------------------------------------------------- */
+  const [ollamaOnTask, setOllamaOnTask] = useState(null);
+  /* { Request Related } ------------------------------------------------------------------------------- */
 
   return (
     <StatusContexts.Provider
@@ -52,8 +52,8 @@ const StatusContainer = ({ children }) => {
 
         /* { Model Related Status } ================================================== { Model Related Status } */
         /* { indicate current model working on task } */
-        modelOnTask,
-        setModelOnTask,
+        ollamaOnTask,
+        setOllamaOnTask,
         /* { Model Related Status } =========================================================================== */
       }}
     >
