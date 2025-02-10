@@ -1,6 +1,8 @@
 ## VARIABLEs
 
-`addressBook`
+### Varibales that will be stored in the `localStorage`
+
+- `addressBook`
 
 ```js
 {
@@ -11,7 +13,7 @@
 }
 ```
 
-`sectionData`
+- `sectionData`
 
 ```js
 [
@@ -24,7 +26,7 @@
 ]
 ```
 
-`messages`
+- `messages`
 
 ```js
 [
@@ -37,7 +39,7 @@
 ];
 ```
 
-`modelOnTask`
+- `modelOnTask`
 
 - `null`
 - `"generating"`
