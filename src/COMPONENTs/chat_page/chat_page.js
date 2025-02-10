@@ -1,15 +1,15 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
-import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
-import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
+import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import ollama from "./ollama.png";
 import Message_List from "../message_list/message_list";
 import Side_Menu from "../side_menu/side_menu";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
 const Chat_Page = ({}) => {
-  const { RGB } = useContext(RootConfigContexts);
-  const { sectionStarted } = useContext(RootDataContexts);
+  const { RGB } = useContext(ConfigContexts);
+  const { sectionStarted } = useContext(DataContexts);
   const { windowWidth } = useContext(StatusContexts);
 
   /* { Title } ------------------------------------------------------------------------------ */

@@ -2,16 +2,16 @@ import React, { useEffect, useState, useCallback, useContext } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
-import { RootDataContexts } from "./root_data_contexts";
+import { DataContexts } from "./contexts";
 import { StatusContexts } from "../status/contexts";
-import { RootConfigContexts } from "../config/root_config_contexts";
+import { ConfigContexts } from "../config/contexts";
 
 import Chat_Page from "../../COMPONENTs/chat_page/chat_page";
 import Dialog from "../../COMPONENTs/dialog/dialog";
 import ScaleLoader from "react-spinners/ScaleLoader";
 
-const RootDataManager = () => {
-  const { instructions } = useContext(RootConfigContexts);
+const DataContainer = () => {
+  const { instructions } = useContext(ConfigContexts);
   const {
     setComponentOnFocus,
     setModelOnTask,
@@ -432,7 +432,7 @@ const RootDataManager = () => {
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   return (
-    <RootDataContexts.Provider
+    <DataContexts.Provider
       value={{
         addressBook,
         sectionData,
@@ -488,8 +488,8 @@ const RootDataManager = () => {
         </div>
       ) : null}
       <Dialog display={ollamaServerStatus === false} />
-    </RootDataContexts.Provider>
+    </DataContexts.Provider>
   );
 };
 
-export default RootDataManager;
+export default DataContainer;

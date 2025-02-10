@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, createContext } from "react";
-import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
-import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
+import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
@@ -10,13 +10,13 @@ const Side_Menu_Contexts = createContext();
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 const Chat_Room_Item = ({ address }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB } = useContext(ConfigContexts);
   const {
     addressBook,
     sectionData,
     load_section_data,
     delete_address_in_local_storage,
-  } = useContext(RootDataContexts);
+  } = useContext(DataContexts);
   const [onHover, setOnHover] = useState(false);
   const [onDelete, setOnDelete] = useState(false);
   const [containerStyle, setContainerStyle] = useState({
@@ -190,8 +190,8 @@ const Chat_Room_Item = ({ address }) => {
   );
 };
 const Chat_Room_List = ({}) => {
-  const { RGB } = useContext(RootConfigContexts);
-  const { start_new_section, addressBook } = useContext(RootDataContexts);
+  const { RGB } = useContext(ConfigContexts);
+  const { start_new_section, addressBook } = useContext(DataContexts);
   const { componentOnFocus } = useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
@@ -316,7 +316,7 @@ const Chat_Room_List = ({}) => {
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB } = useContext(ConfigContexts);
   const { windowWidth, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
   const [iconStyle, setIconStyle] = useState({});

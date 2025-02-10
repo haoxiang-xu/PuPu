@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useCallback } from "react";
 
-import { RootConfigContexts } from "./root_config_contexts";
+import { ConfigContexts } from "./contexts";
 
 import { chat_room_title_generation_prompt } from "./default_instructions";
 import { dark_theme, light_theme } from "./default_themes";
 
-const RootConfigManager = ({ children }) => {
+const ConfigContainer = ({ children }) => {
   const [instructions, setInstructions] = useState({
     chat_room_title_generation_prompt: chat_room_title_generation_prompt,
   });
@@ -59,7 +59,7 @@ const RootConfigManager = ({ children }) => {
 
   return (
     <>
-      <RootConfigContexts.Provider
+      <ConfigContexts.Provider
         value={{
           instructions,
           theme,
@@ -68,9 +68,9 @@ const RootConfigManager = ({ children }) => {
         }}
       >
         {children}
-      </RootConfigContexts.Provider>
+      </ConfigContexts.Provider>
     </>
   );
 };
 
-export default RootConfigManager;
+export default ConfigContainer;

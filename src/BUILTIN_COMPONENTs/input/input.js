@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useContext } from "react";
-import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
-import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import TextareaAutosize from "react-textarea-autosize";
 
 const default_font_size = 14;

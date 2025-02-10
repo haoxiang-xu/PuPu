@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 
 import { StatusContexts } from "./contexts";
 
-const RootStatusManager = ({ children }) => {
+const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
 
   /* { API Status } =================================================================================== */
@@ -62,4 +62,4 @@ const RootStatusManager = ({ children }) => {
   );
 };
 
-export default RootStatusManager;
+export default StatusContainer;

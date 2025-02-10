@@ -7,9 +7,10 @@ import React, {
   createContext,
   use,
 } from "react";
-import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
-import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
+import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
+
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -24,8 +25,8 @@ const component_name = "chat_section";
 const ChatSectionContexts = createContext("");
 
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
-  const { RGB } = useContext(RootConfigContexts);
-  const { sectionData } = useContext(RootDataContexts);
+  const { RGB } = useContext(ConfigContexts);
+  const { sectionData } = useContext(DataContexts);
   const { update_message_on_index } = useContext(ChatSectionContexts);
 
   const [onHover, setOnHover] = useState(null);
@@ -142,8 +143,8 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   }
 };
 const Message_Section = ({ index, role, message, is_last_index }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
-  const { sectionData } = useContext(RootDataContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { sectionData } = useContext(DataContexts);
   const { targetAddress } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
@@ -234,8 +235,8 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
   );
 };
 const Scrolling_Section = () => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
-  const { sectionData, sectionStarted } = useContext(RootDataContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { sectionData, sectionStarted } = useContext(DataContexts);
   const { setComponentOnFocus } = useContext(StatusContexts);
   const {
     awaitResponse,
@@ -381,9 +382,9 @@ const Scrolling_Section = () => {
   );
 };
 const Model_list_Item = ({ model, setModelOnTask }) => {
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB } = useContext(ConfigContexts);
   const { selectedModel, setSelectedModel, list_all_ollama_local_models } =
-    useContext(RootDataContexts);
+    useContext(DataContexts);
   const { setComponentOnFocus } = useContext(StatusContexts);
   const [onHover, setOnHover] = useState(false);
 
@@ -436,9 +437,9 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
 const Model_Menu = ({ value }) => {
   const sub_component_name = component_name + "model_menu";
 
-  const { RGB } = useContext(RootConfigContexts);
+  const { RGB } = useContext(ConfigContexts);
   const { selectedModel, avaliableModels, list_all_ollama_local_models } =
-    useContext(RootDataContexts);
+    useContext(DataContexts);
   const { modelOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
 
@@ -567,7 +568,7 @@ const Model_Menu = ({ value }) => {
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
   const { componentOnFocus } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
@@ -716,7 +717,7 @@ const Message_List = () => {
     chat_room_title_generation,
     reset_regenerate_title_count_down,
     generate_llm_message_on_index,
-  } = useContext(RootDataContexts);
+  } = useContext(DataContexts);
   const [inputValue, setInputValue] = useState("");
   const [awaitResponse, setAwaitResponse] = useState(null);
 

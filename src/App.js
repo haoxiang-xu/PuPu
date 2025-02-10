@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
-import RootConfigManager from "./DATA_MANAGERs/config/root_config_manager";
-import RootStatusManager from "./DATA_MANAGERs/status/root_status_manager";
-import RootDataManager from "./DATA_MANAGERs/data/root_data_manager";
+import ConfigContainer from "./CONTAINERs/config/container";
+import StatusContainer from "./CONTAINERs/status/container";
+import DataContainer from "./CONTAINERs/data/container";
 
 const App = () => {
   const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });
@@ -31,11 +31,11 @@ const App = () => {
           <Route
             path="/"
             element={
-              <RootConfigManager>
-                <RootStatusManager>
-                  <RootDataManager />
-                </RootStatusManager>
-              </RootConfigManager>
+              <ConfigContainer>
+                <StatusContainer>
+                  <DataContainer />
+                </StatusContainer>
+              </ConfigContainer>
             }
           />
         </Routes>

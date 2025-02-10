@@ -18,8 +18,8 @@ import Icon from "../icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
 import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
-import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
+import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
 import "./markdown.css";
 
 const R = 30;
@@ -31,7 +31,7 @@ const default_border_radius = 10;
 const default_tag_max_Width = 128;
 
 const CodeSection = ({ language, children }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
   const [style, setStyle] = useState({
@@ -178,7 +178,7 @@ const CodeSection = ({ language, children }) => {
   );
 };
 const SingleLineCodeSection = ({ language, children }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
   return (
     <CodeBlock
       text={children}
@@ -201,7 +201,7 @@ const SingleLineCodeSection = ({ language, children }) => {
   );
 };
 const MarkDownSection = ({ children }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
   useEffect(() => {
     const styleElement = document.createElement("style");
     styleElement.innerHTML = `
@@ -312,9 +312,8 @@ const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
 const ThinkingSection = ({ index, children }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
-  const { set_expand_section_message, sectionData } =
-    useContext(RootDataContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { set_expand_section_message, sectionData } = useContext(DataContexts);
   const [isExpanded, setIsExpanded] = useState(
     sectionData.messages[index].expanded
   );
@@ -458,7 +457,7 @@ const CustomizedTagSection = ({ tag }) => {
 };
 
 const Markdown = ({ children, index, style }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
   const [processedContent, setProcessedContent] = useState(children);
 
   useEffect(() => {

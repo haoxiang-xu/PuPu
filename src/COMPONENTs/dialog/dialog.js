@@ -1,16 +1,16 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 
-import { RootConfigContexts } from "../../DATA_MANAGERs/config/root_config_contexts";
-import { StatusContexts } from "../../DATA_MANAGERs/status/contexts";
-import { RootDataContexts } from "../../DATA_MANAGERs/data/root_data_contexts";
+import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
 import { await_Ollama_setup_warning } from "./default_dialogs";
 
 const AwaitOllamaSetup = ({}) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
-  const { app_initialization } = useContext(RootDataContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { app_initialization } = useContext(DataContexts);
   const { setOllamaServerStatus } = useContext(StatusContexts);
 
   const [onHover, setOnHover] = useState(false);
@@ -105,7 +105,7 @@ const AwaitOllamaSetup = ({}) => {
 };
 
 const Dialog = ({ display }) => {
-  const { RGB, colorOffset } = useContext(RootConfigContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
 
   useEffect(() => {
     const styleElement = document.createElement("style");
