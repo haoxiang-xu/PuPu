@@ -522,7 +522,7 @@ const Model_Menu = ({ value }) => {
       <div
         className="scrolling-space"
         style={{
-          maxHeight: 150,
+          maxHeight: 111,
           overflowX: "hidden",
           overflowY: "auto",
         }}
@@ -545,17 +545,21 @@ const Model_Menu = ({ value }) => {
           <div
             style={{
               position: "relative",
-              
+
               width: "100%",
               height: 40,
             }}
           >
-            <Icon src="add" alt="add" style={{
-              position: "absolute",
-              transform: "translate(-50%, -50%)",
-              left: "50%",
-              top: "50%",
-            }}/>
+            <Icon
+              src="add"
+              alt="add"
+              style={{
+                position: "absolute",
+                transform: "translate(-50%, -50%)",
+                left: "50%",
+                top: "50%",
+              }}
+            />
           </div>
         ) : null}
       </div>
