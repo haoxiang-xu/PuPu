@@ -15,7 +15,7 @@ Below is a sample structure of the LLMs in the sequence.
     root: {
         source_model: "deepseek:r1",
         name: "user_defined_model_name",
-        type: "json_format",
+        type: "json_format_llm",
         request_structure: {
             prompt: "Decide what kind of task user wants to perform, " +
             "if user require code completion, provide the first model" +
@@ -36,7 +36,7 @@ Below is a sample structure of the LLMs in the sequence.
     llm_1: {
         source_model: "codellama",
         name: "user_defined_model_name",
-        type: "completion",
+        type: "completion_llm",
         request_structure: {
             prompt: "try to complete the code",
         }
@@ -56,3 +56,14 @@ Below is a sample structure of the LLMs in the sequence.
     2. 确认上述的数据格式是否可以支持多个model的sequence，如果不行，优化一下数据结构。在设计的时候，要留一些容予的空间，之后穿插在中间的不一定是model也可能使web search等等。
     3. 写一个function read上述的数据格式，然后根据上述的格式发送request，然后有另外一个json结构存储每个模型的输出，然后把这个json结构返回。
     4. 先跑通一个简单的sequence，然后后续在做其他功能，先别整的太复杂
+
+
+```js
+types = [
+    "json_format_llm",
+    "completion_llm",
+    "customized_api",
+    ...
+];
+
+```
