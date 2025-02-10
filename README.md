@@ -1,22 +1,18 @@
-# AI Lounge
+# Ollama WebUI
 
 ## Table of Contents
+
 - [Installation](#installation)
 - [Running the app](#running-the-app)
-
 
 ## Installation <a name="installation"></a>
 
 ### Ollama
 
-
-
-
-
 ### Running the app <a name="running-the-app"></a>
 
 - Step 1.<span style="opacity: 0.32">To run the app, you need to install the dependencies first. You can do this by running the following command:
-</span>
+  </span>
 
 ```bash
 npm install
@@ -29,7 +25,7 @@ npm install --legacy-peer-deps
 ```
 
 - Step 2.<span style="opacity: 0.32">Once the dependencies are installed, you can run the app by running the following command:
-</span>
+  </span>
 
 ```bash
 npm start
