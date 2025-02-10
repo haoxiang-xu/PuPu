@@ -53,5 +53,5 @@ Below is a sample structure of the LLMs in the sequence.
 
 - Tasks:
     1. root model 是一个 json format return的model，你写几个request测试一下，怎么样的format和request可以让模型做到多选一的功能，然后优化一下我上面的存储结构，让它可以存储这个信息。
-    2. 确认上述的数据格式是否可以支持多个model的sequence，如果不行，优化一下数据结构。
+    2. 确认上述的数据格式是否可以支持多个model的sequence，如果不行，优化一下数据结构。在设计的时候，要留一些容予的空间，之后穿插在中间的不一定是model也可能使web search等等。
     3. 写一个function read上述的数据格式，然后根据上述的格式发送request，然后有另外一个json结构存储每个模型的输出，然后把这个json结构返回。
