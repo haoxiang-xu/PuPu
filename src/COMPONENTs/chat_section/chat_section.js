@@ -394,7 +394,7 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
         top: 0,
 
         width: 180,
-        margin: 6,
+        margin: 5,
         padding: "2px 6px",
 
         color: `rgba(225, 225, 225, 0.64)`,
