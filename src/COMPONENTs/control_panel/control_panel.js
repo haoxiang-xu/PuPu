@@ -160,7 +160,7 @@ const Control_Panel = ({}) => {
     }
     currentText = switchFromText;
 
-    let clockTime = 12;
+    let clockTime = 6;
     for (let c = 0; c <= switchToText.length; c++) {
       let c_from_index = character.indexOf(switchFromText[c]);
       let c_to_index = character.indexOf(switchToText[c]);
