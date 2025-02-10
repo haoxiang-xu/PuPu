@@ -12,13 +12,17 @@ import ScaleLoader from "react-spinners/ScaleLoader";
 
 const RootDataManager = () => {
   const { instructions } = useContext(RootConfigContexts);
-
-  const [componentOnFocus, setComponentOnFocus] = useState("");
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const {
+    componentOnFocus,
+    setComponentOnFocus,
+    windowWidth,
+    setWindowWidth,
+    modelOnTask,
+    setModelOnTask,
+  } = useContext(RootStatusContexts);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [isOllamaRunning, setIsOllamaRunning] = useState(null);
-  const [modelOnTask, setModelOnTask] = useState(null);
   const [selectedModel, setSelectedModel] = useState(null);
   const [avaliableModels, setAvaliableModels] = useState([]);
   /* { Model Related } ------------------------------------------------------------------------------- */
