@@ -476,54 +476,36 @@ const RootDataManager = () => {
         /* { Ollama APIs } ----------------------- */
       }}
     >
-      <RootStatusContexts.Provider
-        value={{
-          /* { UI Related Status } ============================================================================= */
-          /* { which UI component is selected } */
-          componentOnFocus,
-          setComponentOnFocus,
-          /* { window width } */
-          windowWidth,
-          /* { UI Related Status } ============================================================================= */
-
-          /* { Model Related Status } ========================================================================== */
-          /* { indicate current model working on task } */
-          modelOnTask,
-          setModelOnTask,
-          /* { Model Related Status } ========================================================================== */
-        }}
-      >
-        {!isOllamaRunning ? null : (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-            }}
-            onClick={() => {
-              setComponentOnFocus("");
-            }}
-          >
-            <Control_Panel />
-          </div>
-        )}
-        {isOllamaRunning === null ? (
-          <div
-            style={{
-              position: "absolute",
-              top: "50%",
-              left: "50%",
-              transform: "translate(-50%, -50%)",
-              opacity: 0.32,
-            }}
-          >
-            <ScaleLoader color={"#cccccc"} size={12} margin={1} />
-          </div>
-        ) : null}
-        <WarningScreen display={isOllamaRunning === false} />
-      </RootStatusContexts.Provider>
+      {!isOllamaRunning ? null : (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+          onClick={() => {
+            setComponentOnFocus("");
+          }}
+        >
+          <Control_Panel />
+        </div>
+      )}
+      {isOllamaRunning === null ? (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            opacity: 0.32,
+          }}
+        >
+          <ScaleLoader color={"#cccccc"} size={12} margin={1} />
+        </div>
+      ) : null}
+      <WarningScreen display={isOllamaRunning === false} />
     </RootDataContexts.Provider>
   );
 };
