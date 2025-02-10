@@ -393,7 +393,7 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
         position: "relative",
         top: 0,
 
-        width: 160,
+        width: 180,
         margin: 6,
         padding: "2px 6px",
 
@@ -541,6 +541,23 @@ const Model_Menu = ({ value }) => {
             {selectedModel}
           </div>
         )}
+        {componentOnFocus === sub_component_name ? (
+          <div
+            style={{
+              position: "relative",
+              
+              width: "100%",
+              height: 40,
+            }}
+          >
+            <Icon src="add" alt="add" style={{
+              position: "absolute",
+              transform: "translate(-50%, -50%)",
+              left: "50%",
+              top: "50%",
+            }}/>
+          </div>
+        ) : null}
       </div>
     </div>
   );
