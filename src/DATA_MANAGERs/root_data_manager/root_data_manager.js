@@ -3,7 +3,7 @@ import { UNIQUE_KEY, RETITLE_TURNS } from "../../DATA_MANAGERs/root_consts";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
 import { RootDataContexts } from "./root_data_contexts";
-import { RootStatusContexts } from "./root_status_contexts";
+import { RootStatusContexts } from "../root_status_manager/root_status_contexts";
 import { RootConfigContexts } from "../root_config_manager/root_config_contexts";
 
 import Control_Panel from "../../COMPONENTs/control_panel/control_panel";

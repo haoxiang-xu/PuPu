@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
 import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
 import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
-import { RootStatusContexts } from "../../DATA_MANAGERs/root_data_manager/root_status_contexts";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
 import ollama from "./ollama.png";
 import Chat_Section from "../chat_section/chat_section";
 import Side_Menu from "../side_menu/side_menu";
