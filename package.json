@@ -39,5 +39,9 @@
       "last 1 firefox version",
       "last 1 safari version"
     ]
+  },
+  "devDependencies": {
+    "@electron/remote": "^2.1.2",
+    "electron": "^34.1.1"
   }
 }
