@@ -38,7 +38,9 @@ const RootDataManager = () => {
           setIsOllamaRunning(false);
           return false;
         } else {
-          setIsOllamaRunning(true);
+          setTimeout(() => {
+            setIsOllamaRunning(true);
+          }, 1000);
           load_models();
           return true;
         }
