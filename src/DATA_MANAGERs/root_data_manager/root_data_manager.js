@@ -15,10 +15,11 @@ const RootDataManager = () => {
   const {
     setComponentOnFocus,
     setModelOnTask,
+    ollamaServerStatus,
+    setOllamaServerStatus,
   } = useContext(RootStatusContexts);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
-  const [isOllamaRunning, setIsOllamaRunning] = useState(null);
   const [selectedModel, setSelectedModel] = useState(null);
   const [avaliableModels, setAvaliableModels] = useState([]);
   /* { Model Related } ------------------------------------------------------------------------------- */
@@ -26,6 +27,7 @@ const RootDataManager = () => {
   /* { Local Storage } ------------------------------------------------------------------------------- */
   const [addressBook, setAddressBook] = useState({ avaliable_addresses: [] });
   const [sectionData, setSectionData] = useState({});
+  
   /* { load from local storage } */
   useEffect(() => {
     app_initialization();
@@ -35,11 +37,11 @@ const RootDataManager = () => {
       load_from_local_storage();
       get_ollama_version().then((version) => {
         if (!version) {
-          setIsOllamaRunning(false);
+          setOllamaServerStatus(false);
           return false;
         } else {
           setTimeout(() => {
-            setIsOllamaRunning(true);
+            setOllamaServerStatus(true);
           }, 1000);
           load_models();
           return true;
@@ -432,8 +434,6 @@ const RootDataManager = () => {
   return (
     <RootDataContexts.Provider
       value={{
-        isOllamaRunning,
-        setIsOllamaRunning,
         addressBook,
         sectionData,
         sectionStarted,
@@ -458,7 +458,7 @@ const RootDataManager = () => {
         /* { Ollama APIs } ----------------------- */
       }}
     >
-      {!isOllamaRunning ? null : (
+      {!ollamaServerStatus ? null : (
         <div
           style={{
             position: "absolute",
@@ -474,7 +474,7 @@ const RootDataManager = () => {
           <Control_Panel />
         </div>
       )}
-      {isOllamaRunning === null ? (
+      {ollamaServerStatus === null ? (
         <div
           style={{
             position: "absolute",
@@ -487,7 +487,7 @@ const RootDataManager = () => {
           <ScaleLoader color={"#cccccc"} size={12} margin={1} />
         </div>
       ) : null}
-      <WarningScreen display={isOllamaRunning === false} />
+      <WarningScreen display={ollamaServerStatus === false} />
     </RootDataContexts.Provider>
   );
 };

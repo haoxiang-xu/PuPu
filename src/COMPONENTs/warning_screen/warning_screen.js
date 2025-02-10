@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 
-import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 import { RootConfigContexts } from "../../DATA_MANAGERs/root_config_manager/root_config_contexts";
+import { RootStatusContexts } from "../../DATA_MANAGERs/root_status_manager/root_status_contexts";
+import { RootDataContexts } from "../../DATA_MANAGERs/root_data_manager/root_data_contexts";
 
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
@@ -9,8 +10,8 @@ import { await_Ollama_setup_warning } from "./default_warnings";
 
 const AwaitOllamaSetup = ({}) => {
   const { RGB, colorOffset } = useContext(RootConfigContexts);
-  const { app_initialization, setIsOllamaRunning } =
-    useContext(RootDataContexts);
+  const { app_initialization } = useContext(RootDataContexts);
+  const { setOllamaServerStatus } = useContext(RootStatusContexts);
 
   const [onHover, setOnHover] = useState(false);
   const [onClick, setOnClick] = useState(false);
@@ -92,7 +93,7 @@ const AwaitOllamaSetup = ({}) => {
             setOnClick(false);
           }}
           onClick={() => {
-            setIsOllamaRunning(null);
+            setOllamaServerStatus(null);
             app_initialization();
           }}
         >

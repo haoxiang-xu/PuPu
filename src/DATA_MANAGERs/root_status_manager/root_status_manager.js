@@ -3,8 +3,17 @@ import React, { useState, useEffect } from "react";
 import { RootStatusContexts } from "../root_status_manager/root_status_contexts";
 
 const RootStatusManager = ({ children }) => {
-  const [componentOnFocus, setComponentOnFocus] = useState("");
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [componentOnFocus, setComponentOnFocus] = useState("");
+
+  /* { API Status } =================================================================================== */
+  /* 
+    null: ---------------------------------- await for response
+    false: ------------------------------------ response failed
+    true: ------------------------------------ response success
+  */
+  const [ollamaServerStatus, setOllamaServerStatus] = useState(null);
+  /* { API Status } =================================================================================== */
 
   /* { Event Listener } ------------------------------------------------------------------------------- */
   /* { window size listener } */
@@ -27,20 +36,25 @@ const RootStatusManager = ({ children }) => {
   return (
     <RootStatusContexts.Provider
       value={{
-        /* { UI Related Status } ============================================================================= */
+        /* { UI Related Status } ======================================================== { UI Related Status } */
         /* { which UI component is selected } */
         componentOnFocus,
         setComponentOnFocus,
         /* { window width } */
         windowWidth,
         setWindowWidth,
-        /* { UI Related Status } ============================================================================= */
+        /* { UI Related Status } ============================================================================== */
 
-        /* { Model Related Status } ========================================================================== */
+        /* { API Status } ====================================================================== { API Status } */
+        ollamaServerStatus,
+        setOllamaServerStatus,
+        /* { API Status } ===================================================================================== */
+
+        /* { Model Related Status } ================================================== { Model Related Status } */
         /* { indicate current model working on task } */
         modelOnTask,
         setModelOnTask,
-        /* { Model Related Status } ========================================================================== */
+        /* { Model Related Status } =========================================================================== */
       }}
     >
       {children}
