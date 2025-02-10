@@ -3,7 +3,6 @@ import React, { useState, useEffect } from "react";
 import { RootStatusContexts } from "../root_status_manager/root_status_contexts";
 
 const RootStatusManager = ({ children }) => {
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [componentOnFocus, setComponentOnFocus] = useState("");
 
   /* { API Status } =================================================================================== */
@@ -17,6 +16,7 @@ const RootStatusManager = ({ children }) => {
 
   /* { Event Listener } ------------------------------------------------------------------------------- */
   /* { window size listener } */
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
