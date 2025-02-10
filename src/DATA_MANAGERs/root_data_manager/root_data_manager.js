@@ -13,11 +13,7 @@ import ScaleLoader from "react-spinners/ScaleLoader";
 const RootDataManager = () => {
   const { instructions } = useContext(RootConfigContexts);
   const {
-    componentOnFocus,
     setComponentOnFocus,
-    windowWidth,
-    setWindowWidth,
-    modelOnTask,
     setModelOnTask,
   } = useContext(RootStatusContexts);
 
@@ -432,20 +428,6 @@ const RootDataManager = () => {
     }
   };
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-
-  /* { Event Listener } ------------------------------------------------------------------------------- */
-  /* { window size listener } */
-  useEffect(() => {
-    const handleResize = () => {
-      setWindowWidth(window.innerWidth);
-    };
-    window.addEventListener("resize", handleResize);
-    handleResize();
-    return () => {
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
-  /* { Event Listener } ------------------------------------------------------------------------------- */
 
   return (
     <RootDataContexts.Provider

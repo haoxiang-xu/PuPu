@@ -6,9 +6,23 @@ const RootStatusManager = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
-    /* { Model Related } ------------------------------------------------------------------------------- */
-    const [modelOnTask, setModelOnTask] = useState(null);
-    /* { Model Related } ------------------------------------------------------------------------------- */
+  /* { Event Listener } ------------------------------------------------------------------------------- */
+  /* { window size listener } */
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+  /* { Event Listener } ------------------------------------------------------------------------------- */
+
+  /* { Model Related } ------------------------------------------------------------------------------- */
+  const [modelOnTask, setModelOnTask] = useState(null);
+  /* { Model Related } ------------------------------------------------------------------------------- */
 
   return (
     <RootStatusContexts.Provider
