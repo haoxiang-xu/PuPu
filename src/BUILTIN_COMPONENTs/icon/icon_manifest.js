@@ -34,6 +34,7 @@ export const iconManifest = {
   model: () => import("./SVGs/UI/model.svg"),
   txt: () => import("./SVGs/UI/txt.svg"),
   update: () => import("./SVGs/UI/update.svg"),
+  stop: () => import("./SVGs/UI/stop.svg"),
 
   /* {win32} */
   win32_maximize: () => import("./SVGs/UI/win32/maximize.svg"),

@@ -301,7 +301,7 @@ const DataContainer = () => {
       });
     }
     const processed_messages = preprocess_messages(messages, 8, index);
-    setOllamaOnTask("generating");
+    setOllamaOnTask(`chat_completion_streaming|[${model} is diving into the neural abyss...]`);
     try {
       const request = {
         model: model,
@@ -365,7 +365,7 @@ const DataContainer = () => {
       return processed_messages;
     };
     let prompt = preprocess_messages(messages, 7);
-    setOllamaOnTask("naming the chat room");
+    setOllamaOnTask(`generate_no_streaming|[${model} is brainstorming an chat title...]`);
     try {
       const request = {
         model: model,

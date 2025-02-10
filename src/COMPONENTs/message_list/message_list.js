@@ -692,16 +692,47 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           onClick={on_input_submit}
         />
       ) : (
-        <PulseLoader
+        <Icon
+          src="stop"
+          alt="stop"
           style={{
+            transition:
+              "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), bottom 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+
+            userSelect: "none",
+            draggable: "false",
             position: "fixed",
-            bottom: 38,
-            right: 30,
-            opacity: 0.32,
+            transform: "translate(-50%, -50%)",
+
+            bottom: onClicked ? 14 : 16,
+            right: 7,
+            width: 16,
+            height: 16,
+            cursor: "pointer",
+
+            padding: 8,
+            borderRadius: default_border_radius - 4,
+            backgroundColor: `rgba(${
+              RGB.R + colorOffset.middle_ground + style.colorOffset
+            }, ${RGB.G + colorOffset.middle_ground + style.colorOffset}, ${
+              RGB.B + colorOffset.middle_ground + style.colorOffset
+            }, ${style.opacity})`,
+            border: style.border,
           }}
-          size={7}
-          color={"#cccccc"}
-          speedMultiplier={0.8}
+          onMouseEnter={() => {
+            setOnHover(true);
+          }}
+          onMouseLeave={() => {
+            setOnHover(false);
+            setOnClicked(false);
+          }}
+          onMouseDown={() => {
+            setOnClicked(true);
+          }}
+          onMouseUp={() => {
+            setOnClicked(false);
+          }}
+
         />
       )}
       <Model_Menu value={inputValue} />

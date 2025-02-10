@@ -56,18 +56,21 @@ const Input = ({
   /* { Placeholder } --------------------------------------------------------- */
   const [placeholder, setPlaceholder] = useState("Ask Ollama");
   useEffect(() => {
-    if (ollamaOnTask === "generating") {
-      setPlaceholder("Generating...");
-    } else if (ollamaOnTask === "naming the chat room") {
-      setPlaceholder("Naming the chat room...");
+    const extract_status = (status) => {
+      let result = status.match(/\[(.*?)\]/);
+      if (result) {
+        return result[1];
+      } else {
+        return null;
+      }
+    };
+    if (ollamaOnTask) {
+      setPlaceholder(extract_status(ollamaOnTask));
     } else {
       setPlaceholder("Ask ");
     }
   }, [ollamaOnTask]);
   /* { Placeholder } --------------------------------------------------------- */
-
-  /* { Model Menu } ========================================================== */
-  /* { Model Menu } ========================================================== */
 
   useEffect(() => {
     if (onFocus) {
