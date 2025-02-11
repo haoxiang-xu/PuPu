@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
+import { task_descriptions } from "./constants";
 
 import { StatusContexts } from "../status/contexts";
 import { RequestContexts } from "./contexts";
@@ -77,7 +78,13 @@ const RequestContainer = ({ children }) => {
     }
     const processed_messages = preprocess_messages(messages, 8, index);
     setOllamaOnTask(
-      `chat_completion_streaming|[${model} is diving into the neural abyss...]`
+      `chat_completion_streaming|[${model} ${
+        task_descriptions.chat_completion_streaming[
+          Math.floor(
+            Math.random() * task_descriptions.chat_completion_streaming.length
+          )
+        ]
+      }]`
     );
     try {
       const request = {
