@@ -6,6 +6,8 @@ import StatusContainer from "./CONTAINERs/status/container";
 import RequestContainer from "./CONTAINERs/requests/container";
 import DataContainer from "./CONTAINERs/data/container";
 
+import GraphDemo from "./DEMOs/node_graph/graph_demo";
+
 const App = () => {
   const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });
   const [fontFamily, setFontFamily] = useState("Jost");
@@ -41,6 +43,7 @@ const App = () => {
               </ConfigContainer>
             }
           />
+          <Route path="/graph" element={<GraphDemo />} />
         </Routes>
       </Router>
     </div>
