@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { HashRouter } from "react-router-dom";
 
 import ConfigContainer from "./CONTAINERs/config/container";
 import StatusContainer from "./CONTAINERs/status/container";
@@ -29,23 +29,15 @@ const App = () => {
         href="https://fonts.googleapis.com/css2?family=Jost:wght@400;700&display=swap"
         rel="stylesheet"
       ></link>
-      <Router>
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <ConfigContainer>
-                <StatusContainer>
-                  <RequestContainer>
-                    <DataContainer />
-                  </RequestContainer>
-                </StatusContainer>
-              </ConfigContainer>
-            }
-          />
-          <Route path="/graph" element={<GraphDemo />} />
-        </Routes>
-      </Router>
+      <HashRouter>
+        <ConfigContainer>
+          <StatusContainer>
+            <RequestContainer>
+              <DataContainer />
+            </RequestContainer>
+          </StatusContainer>
+        </ConfigContainer>
+      </HashRouter>
     </div>
   );
 };

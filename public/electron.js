@@ -83,7 +83,12 @@ const create_main_window = () => {
   mainWindow.setTitle("Ollama webUI");
 
   // Load the index.html of the app.
-  checkServerAndLoadURL("http://localhost:3000");
+  const isDev = !app.isPackaged;
+  isDev
+    ? checkServerAndLoadURL("http://localhost:3000")
+    : mainWindow.loadURL(
+        `file://${path.join(__dirname, "..", "build", "index.html")}`
+      );
   mainWindow.webContents.openDevTools();
 };
 

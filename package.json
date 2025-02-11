@@ -2,6 +2,7 @@
   "name": "ai_lounge",
   "version": "0.1.0",
   "private": true,
+  "homepage": "./",
   "dependencies": {
     "axios": "^1.7.9",
     "cra-template": "1.2.0",
@@ -17,7 +18,7 @@
     "remixicon": "^4.6.0",
     "web-vitals": "^4.2.4"
   },
-  "main": "main.js",
+  "main": "public/electron.js",
   "scripts": {
     "react-start": "cross-env BROWSER=none PORT=3000 react-scripts start",
     "electron-start": "electron . --no-sandbox",
@@ -31,6 +32,27 @@
       "react-app",
       "react-app/jest"
     ]
+  },
+  "build": {
+    "appId": "com.yourcompany.ai_lounge",
+    "productName": "AI Lounge",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "public/electron.js",
+      "public/preload.js"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
   },
   "browserslist": {
     "production": [
@@ -48,6 +70,7 @@
     "@electron/remote": "^2.1.2",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
-    "electron": "^34.1.1"
+    "electron": "^34.1.1",
+    "electron-builder": "^25.1.8"
   }
 }

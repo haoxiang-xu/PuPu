@@ -32,3 +32,8 @@ npm start
 ```
 
 - Step 3.<span style="opacity: 0.32">The app should now be running on </span>[Local Host port 3000](http://localhost:3000). <span style="opacity: 0.32">You can open this URL in your browser to view the app. </span>
+
+
+```bash
+npx electron-builder --mac
+```
