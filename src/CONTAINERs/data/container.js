@@ -7,9 +7,7 @@ import { RequestContexts } from "../requests/contexts";
 import { DataContexts } from "./contexts";
 
 import Chat_Page from "../../COMPONENTs/chat_page/chat_page";
-import Dialog from "../../COMPONENTs/dialog/dialog";
 import ScaleLoader from "react-spinners/ScaleLoader";
-import Title_Bar from "../../COMPONENTs/title_bar/title_bar";
 
 const DataContainer = () => {
   const { instructions } = useContext(ConfigContexts);
@@ -382,8 +380,6 @@ const DataContainer = () => {
           <ScaleLoader color={"#cccccc"} size={12} margin={1} />
         </div>
       ) : null}
-      <Dialog display={ollamaServerStatus === false} />
-      <Title_Bar />
     </DataContexts.Provider>
   );
 };

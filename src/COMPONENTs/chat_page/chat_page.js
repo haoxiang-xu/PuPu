@@ -1,16 +1,22 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
+
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
-import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
+import { RequestContexts } from "../../CONTAINERs/requests/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
+
 import ollama from "./ollama.png";
+
 import Message_List from "../message_list/message_list";
 import Side_Menu from "../side_menu/side_menu";
+import Title_Bar from "../title_bar/title_bar";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
+import Dialog from "../dialog/dialog";
 
 const Chat_Page = ({}) => {
   const { RGB } = useContext(ConfigContexts);
+  const { windowWidth, ollamaServerStatus } = useContext(StatusContexts);
   const { sectionStarted } = useContext(DataContexts);
-  const { windowWidth } = useContext(StatusContexts);
 
   /* { Title } ------------------------------------------------------------------------------ */
   const title_list = [
@@ -287,6 +293,8 @@ const Chat_Page = ({}) => {
       >
         <Message_List />
       </div>
+      <Dialog display={ollamaServerStatus === false} />
+      <Title_Bar />
       <Side_Menu />
     </div>
   );

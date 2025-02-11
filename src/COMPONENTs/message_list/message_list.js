@@ -296,41 +296,6 @@ const Scrolling_Section = () => {
   }, [preLoadingCompleted, arrivedAtPosition]);
   /* { Scrolling } ----------------------------------------------------------- */
 
-  useEffect(() => {
-    const styleElement = document.createElement("style");
-    styleElement.innerHTML = `
-      .scrolling-space::-webkit-scrollbar {
-        width: 12px; /* Custom width for the vertical scrollbar */
-      }
-
-      .scrolling-space::-webkit-scrollbar-track {
-        background-color: rgba(${RGB.R}, ${RGB.G}, ${
-      RGB.B
-    }, 1); /* Scrollbar track color */
-      }
-
-      .scrolling-space::-webkit-scrollbar-thumb {
-        background-color: rgba(${RGB.R + colorOffset.middle_ground}, ${
-      RGB.G + colorOffset.middle_ground
-    }, ${RGB.B + colorOffset.middle_ground}, 1);
-        border-radius: 6px;
-        border: 3px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1);
-      }
-      .scrolling-space::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(${RGB.R + colorOffset.middle_ground + 32}, ${
-      RGB.G + colorOffset.middle_ground + 32
-    }, ${RGB.B + colorOffset.middle_ground + 32}, 1);
-      }
-      .scrolling-space::-webkit-scrollbar:horizontal {
-        display: none;
-      }
-    `;
-    document.head.appendChild(styleElement);
-    return () => {
-      document.head.removeChild(styleElement);
-    };
-  }, []);
-
   return (
     <div
       ref={scrollRef}
