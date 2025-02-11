@@ -317,8 +317,12 @@ const Chat_Room_List = ({}) => {
 
 const Side_Menu = ({}) => {
   const { RGB } = useContext(ConfigContexts);
-  const { windowWidth, componentOnFocus, setComponentOnFocus } =
-    useContext(StatusContexts);
+  const {
+    windowWidth,
+    windowIsMaximized,
+    componentOnFocus,
+    setComponentOnFocus,
+  } = useContext(StatusContexts);
   const [iconStyle, setIconStyle] = useState({});
   const [menuStyle, setMenuStyle] = useState({
     width: 0,
@@ -334,7 +338,7 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top: window.osInfo.platform === 'darwin' ? 17 : 14,
+          top: window.osInfo.platform === "darwin" ? 17 : 14,
           left: window.innerWidth * 0.25 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -345,7 +349,7 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top: window.osInfo.platform === 'darwin' ? 17 :14,
+          top: window.osInfo.platform === "darwin" ? 17 : 14,
           left: 256 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -355,14 +359,23 @@ const Side_Menu = ({}) => {
         width: 0,
         borderRight: "0px solid rgba(255, 255, 255, 0)",
       });
-      setIconStyle({
-        src: "side_menu",
-        top: window.osInfo.platform === 'darwin' ? 25 : 20,
-        left: window.osInfo.platform === 'darwin' ? 96 : 18,
-        transform: "translate(-50%, -50%)",
-      });
+      if (window.osInfo.platform === "darwin") {
+        setIconStyle({
+          src: "side_menu",
+          top: 25,
+          left: windowIsMaximized ? 25 : 96,
+          transform: "translate(-50%, -50%)",
+        });
+      } else {
+        setIconStyle({
+          src: "side_menu",
+          top: 20,
+          left: 18,
+          transform: "translate(-50%, -50%)",
+        });
+      }
     }
-  }, [windowWidth, componentOnFocus]);
+  }, [windowWidth, componentOnFocus, windowIsMaximized]);
 
   return (
     <Side_Menu_Contexts.Provider value={{}}>
