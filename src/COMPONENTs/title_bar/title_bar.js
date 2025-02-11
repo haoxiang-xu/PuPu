@@ -31,8 +31,8 @@ const Control_Panel = ({}) => {
         style={{
           transition: "opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: 2,
-          right: 2,
+          top: 3,
+          right: 3,
           height: 20,
           opacity: onHover ? 0.72 : 0.5,
           padding: 4,
@@ -46,7 +46,7 @@ const Control_Panel = ({}) => {
         style={{
           transition: "opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: 2,
+          top: 3,
           right: 26,
           height: 20,
           opacity: onHover ? 0.72 : 0.5,
@@ -61,7 +61,7 @@ const Control_Panel = ({}) => {
         style={{
           transition: "opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: 2,
+          top: 3,
           right: 51,
           height: 20,
           opacity: onHover ? 0.72 : 0.5,

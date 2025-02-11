@@ -79,7 +79,7 @@ const create_main_window = () => {
       frame: false,
     });
   }
-  mainWindow.setTitle("Surface Editor");
+  mainWindow.setTitle("Ollama webUI");
 
   // Load the index.html of the app.
   checkServerAndLoadURL("http://localhost:3000");
