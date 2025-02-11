@@ -1,5 +1,8 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
+contextBridge.exposeInMainWorld("osInfo", {
+  platform: process.platform,
+});
 contextBridge.exposeInMainWorld("windowStateAPI", {
   windowStateEventHandler: (action) => {
     ipcRenderer.send("window-state-event-handler", action);

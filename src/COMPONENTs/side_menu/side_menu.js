@@ -334,7 +334,7 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top: 14,
+          top: window.osInfo.platform === 'darwin' ? 17 : 14,
           left: window.innerWidth * 0.25 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -345,7 +345,7 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top: 14,
+          top: window.osInfo.platform === 'darwin' ? 17 :14,
           left: 256 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -357,8 +357,8 @@ const Side_Menu = ({}) => {
       });
       setIconStyle({
         src: "side_menu",
-        top: 20,
-        left: 18,
+        top: window.osInfo.platform === 'darwin' ? 25 : 20,
+        left: window.osInfo.platform === 'darwin' ? 96 : 18,
         transform: "translate(-50%, -50%)",
       });
     }

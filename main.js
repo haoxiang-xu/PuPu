@@ -24,6 +24,8 @@ const create_main_window = () => {
       title: "",
       width: 1200,
       height: 800,
+      minHeight: minimum_window_size.height,
+      minWidth: minimum_window_size.width,
       webSecurity: true,
       resizable: true,
       maximizable: true,

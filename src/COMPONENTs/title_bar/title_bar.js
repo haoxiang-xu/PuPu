@@ -92,7 +92,7 @@ const Title_Bar = ({}) => {
       style={{
         position: "absolute",
         top: 0,
-        left: 32,
+        left: window.osInfo.platform === "darwin" ? 128 : 32,
         right: 0,
         height: 40,
 
@@ -102,7 +102,7 @@ const Title_Bar = ({}) => {
       <TitleBarContexts.Provider
         value={{ handleClose, handleMinimize, handleMaximize }}
       >
-        <Control_Panel />
+        {window.osInfo.platform === "win32" ? <Control_Panel /> : null}
       </TitleBarContexts.Provider>
     </div>
   );
