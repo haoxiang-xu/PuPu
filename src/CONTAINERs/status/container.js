@@ -24,9 +24,6 @@ const StatusContainer = ({ children }) => {
     });
   }, []);
   useEffect(() => {
-    console.log(windowIsMaximized);
-  }, [windowIsMaximized]);
-  useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
     };

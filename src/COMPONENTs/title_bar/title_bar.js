@@ -1,4 +1,4 @@
-import React, { useContext, createContext } from "react";
+import React, { useContext, createContext, useEffect } from "react";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
@@ -85,6 +85,7 @@ const Title_Bar = ({}) => {
   const handleMaximize = () => {
     window.windowStateAPI.windowStateEventHandler("maximize");
   };
+  
   return (
     <div
       className="title_bar"
