@@ -14,6 +14,7 @@ const DataContainer = () => {
   const { instructions } = useContext(ConfigContexts);
   const {
     setComponentOnFocus,
+    ollamaOnTask,
     setOllamaOnTask,
     ollamaServerStatus,
     setOllamaServerStatus,
@@ -301,18 +302,23 @@ const DataContainer = () => {
       });
     }
     const processed_messages = preprocess_messages(messages, 8, index);
-    setOllamaOnTask(`chat_completion_streaming|[${model} is diving into the neural abyss...]`);
+    setOllamaOnTask(
+      `chat_completion_streaming|[${model} is diving into the neural abyss...]`
+    );
     try {
       const request = {
         model: model,
         messages: processed_messages,
       };
+      const abortController = new AbortController();
+      const signal = abortController.signal;
       const response = await fetch(`http://localhost:11434/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(request),
+        signal,
       });
       if (!response.body) {
         console.error("No response body received from Ollama.");
@@ -321,10 +327,21 @@ const DataContainer = () => {
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
       let accumulatedResponse = "";
+      let end = false;
 
       while (true) {
         const { value, done } = await reader.read();
         if (done) break;
+        setOllamaOnTask((prev) => {
+          if (prev && prev.includes("force_stop")) {
+            end = true;
+          }
+          return prev;
+        });
+        if (end) {
+          abortController.abort();
+          break;
+        }
         const chunk = decoder.decode(value, { stream: true });
         try {
           const jsonChunk = JSON.parse(chunk);
@@ -365,7 +382,9 @@ const DataContainer = () => {
       return processed_messages;
     };
     let prompt = preprocess_messages(messages, 7);
-    setOllamaOnTask(`generate_no_streaming|[${model} is brainstorming an chat title...]`);
+    setOllamaOnTask(
+      `generate_no_streaming|[${model} is brainstorming an chat title...]`
+    );
     try {
       const request = {
         model: model,

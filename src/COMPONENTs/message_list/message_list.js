@@ -569,7 +569,7 @@ const Model_Menu = ({ value }) => {
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { componentOnFocus } = useContext(StatusContexts);
+  const { componentOnFocus, setOllamaOnTask } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     colorOffset: 0,
@@ -732,7 +732,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           onMouseUp={() => {
             setOnClicked(false);
           }}
-
+          onClick={() => {
+            setOllamaOnTask(`force_stop|[]`);
+          }}
         />
       )}
       <Model_Menu value={inputValue} />
