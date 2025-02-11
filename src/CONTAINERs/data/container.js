@@ -142,6 +142,9 @@ const DataContainer = () => {
     }
   };
   const append_message = (target_address, message) => {
+    if (target_address !== sectionData.address) {
+      return;
+    }
     setSectionData((prev) => ({
       ...prev,
       messages: [...prev.messages, message],
@@ -241,118 +244,6 @@ const DataContainer = () => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-  const generate_llm_message_on_index = async (
-    model,
-    target_address,
-    messages,
-    index
-  ) => {
-    const preprocess_messages = (messages, memory_length, index) => {
-      let range = index;
-      if (index === -1) range = messages.length;
-
-      let processed_messages = [];
-
-      for (let i = 0; i < range; i++) {
-        if (messages[i].role === "system") {
-          processed_messages.push({
-            role: messages[i].role,
-            content: messages[i].content,
-          });
-        } else if (range - i <= memory_length) {
-          processed_messages.push({
-            role: messages[i].role,
-            content: messages[i].content,
-          });
-        }
-      }
-      return processed_messages;
-    };
-    if (index === -1) {
-      append_message(target_address, {
-        role: "assistant",
-        message: LOADING_TAG,
-        content: "",
-        think_section_expanded: true,
-      });
-    } else if (index < 0 || index >= messages.length) {
-      return;
-    } else {
-      update_message_on_index(target_address, index, {
-        role: "assistant",
-        message: LOADING_TAG,
-        content: "",
-        think_section_expanded: true,
-      });
-    }
-    const processed_messages = preprocess_messages(messages, 8, index);
-    setOllamaOnTask(
-      `chat_completion_streaming|[${model} is diving into the neural abyss...]`
-    );
-    try {
-      const request = {
-        model: model,
-        messages: processed_messages,
-      };
-      const abortController = new AbortController();
-      const signal = abortController.signal;
-      const response = await fetch(`http://localhost:11434/api/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request),
-        signal,
-      });
-      if (!response.body) {
-        console.error("No response body received from Ollama.");
-        return;
-      }
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder("utf-8");
-      let accumulatedResponse = "";
-      let end = false;
-
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        setOllamaOnTask((prev) => {
-          if (prev && prev.includes("force_stop")) {
-            end = true;
-          }
-          return prev;
-        });
-        if (end) {
-          abortController.abort();
-          break;
-        }
-        const chunk = decoder.decode(value, { stream: true });
-        try {
-          const jsonChunk = JSON.parse(chunk);
-          if (jsonChunk.message && jsonChunk.message.content) {
-            accumulatedResponse += jsonChunk.message.content;
-            update_message_on_index(target_address, index, {
-              role: "assistant",
-              message: accumulatedResponse,
-              content: accumulatedResponse,
-            });
-          }
-          if (jsonChunk.done) break;
-        } catch (error) {
-          console.error("Error parsing stream chunk:", error);
-        }
-      }
-      setOllamaOnTask(null);
-      return {
-        role: "assistant",
-        message: accumulatedResponse,
-        content: accumulatedResponse,
-      };
-    } catch (error) {
-      console.error("Error communicating with Ollama:", error);
-      setOllamaOnTask(null);
-    }
-  };
   const chat_room_title_generation = async (model, address, messages) => {
     const preprocess_messages = (messages, memory_length) => {
       let processed_messages = instructions.chat_room_title_generation_prompt;
@@ -454,9 +345,10 @@ const DataContainer = () => {
         setSelectedModel,
         start_new_section,
         update_title,
+        update_message_on_index,
+        append_message,
 
         /* { Ollama APIs } ----------------------- */
-        generate_llm_message_on_index,
         list_all_ollama_local_models,
         /* { Ollama APIs } ----------------------- */
       }}

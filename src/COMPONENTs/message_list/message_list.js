@@ -7,9 +7,11 @@ import React, {
   createContext,
   use,
 } from "react";
+
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
-import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
+import { RequestContexts } from "../../CONTAINERs/requests/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
@@ -746,11 +748,13 @@ const Message_List = () => {
   const {
     selectedModel,
     sectionData,
-    append_message,
     chat_room_title_generation,
+    update_message_on_index,
+    append_message,
     reset_regenerate_title_count_down,
-    generate_llm_message_on_index,
   } = useContext(DataContexts);
+  const { ollama_chat_completion_streaming } = useContext(RequestContexts);
+
   const [inputValue, setInputValue] = useState("");
   const [awaitResponse, setAwaitResponse] = useState(null);
 
@@ -790,10 +794,17 @@ const Message_List = () => {
       setInputValue("");
     }
   }, [inputValue, awaitResponse]);
-  const update_message_on_index = useCallback(
+  const update_message = useCallback(
     (address, messages, index) => {
       setAwaitResponse(index);
-      generate_llm_message_on_index(selectedModel, address, messages, index)
+      ollama_chat_completion_streaming(
+        selectedModel,
+        address,
+        messages,
+        index,
+        append_message,
+        update_message_on_index
+      )
         .then((response) => {
           setAwaitResponse(null);
         })
@@ -819,7 +830,7 @@ const Message_List = () => {
       messages.length > 0 &&
       messages[messages.length - 1].role === "user"
     ) {
-      update_message_on_index(address, messages, -1);
+      update_message(address, messages, -1);
     }
   }, [sectionData, targetAddress, awaitResponse]);
   /* { Input Section } ------------------------------------------------------------------------------- */
