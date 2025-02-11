@@ -4,7 +4,7 @@ const task_descriptions = {
     "is crafting your masterpiece...🛠️",
     "is pondering the universe...🧠",
     "is brewing something magical...🧙‍♂️",
-    "Thinking… 🤔",
+    "is thinking… 🤔",
   ],
 };
 
