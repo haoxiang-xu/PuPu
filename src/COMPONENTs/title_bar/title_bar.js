@@ -1,7 +1,15 @@
-import React, { useState, useRef, useEffect, useContext } from "react";
+import React, { useContext, createContext } from "react";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
+
+const TitleBarContexts = createContext("");
 
 const Control_Panel = ({}) => {
+  const { windowIsMaximized } = useContext(StatusContexts);
+  const { handleClose, handleMinimize, handleMaximize } =
+    useContext(TitleBarContexts);
+  const [onHover, setOnHover] = React.useState(false);
+
   return (
     <div
       className="control_panel"
@@ -10,55 +18,73 @@ const Control_Panel = ({}) => {
         top: 0,
         right: 0,
 
-        width: 128,
-        height: 40,
+        width: 83,
+        height: 36,
 
         WebkitAppRegion: "no-drag",
       }}
+      onMouseEnter={() => setOnHover(true)}
+      onMouseLeave={() => setOnHover(false)}
     >
       <Icon
         src="close"
         style={{
+          transition: "opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: 3,
-          right: 3,
+          top: 2,
+          right: 2,
           height: 20,
-
-          opacity: 0.5,
-
+          opacity: onHover ? 0.72 : 0.5,
           padding: 4,
           cursor: "pointer",
+          userSelect: "none",
         }}
+        onClick={handleClose}
       />
       <Icon
-        src="win32_maximize"
+        src={windowIsMaximized ? "win32_restore" : "win32_maximize"}
         style={{
+          transition: "opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: 3,
+          top: 2,
           right: 26,
           height: 20,
-          opacity: 0.5,
+          opacity: onHover ? 0.72 : 0.5,
           padding: 4,
           cursor: "pointer",
+          userSelect: "none",
         }}
+        onClick={handleMaximize}
       />
       <Icon
         src="win32_minimize"
         style={{
+          transition: "opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: 3,
-          right: 49,
+          top: 2,
+          right: 51,
           height: 20,
-          opacity: 0.5,
+          opacity: onHover ? 0.72 : 0.5,
           padding: 4,
           cursor: "pointer",
+          userSelect: "none",
         }}
+        onClick={handleMinimize}
       />
     </div>
   );
 };
 
 const Title_Bar = ({}) => {
+  const handleClose = () => {
+    window.windowStateAPI.windowStateEventHandler("close");
+  };
+  const handleMinimize = () => {
+    window.windowStateAPI.windowStateEventHandler("minimize");
+  };
+  const handleMaximize = () => {
+    window.windowStateAPI.windowStateEventHandler("maximize");
+  };
   return (
     <div
       className="title_bar"
@@ -72,7 +98,11 @@ const Title_Bar = ({}) => {
         WebkitAppRegion: "drag",
       }}
     >
-      <Control_Panel />
+      <TitleBarContexts.Provider
+        value={{ handleClose, handleMinimize, handleMaximize }}
+      >
+        <Control_Panel />
+      </TitleBarContexts.Provider>
     </div>
   );
 };

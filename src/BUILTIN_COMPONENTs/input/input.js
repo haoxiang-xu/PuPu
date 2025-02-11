@@ -148,6 +148,7 @@ const Input = ({
 
           opacity: value.length !== 0 ? 0 : 0.32,
           pointerEvents: "none",
+          userSelect: "none",
         }}
       >
         {placeholder}

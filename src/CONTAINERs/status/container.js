@@ -16,7 +16,16 @@ const StatusContainer = ({ children }) => {
 
   /* { Event Listener } ------------------------------------------------------------------------------- */
   /* { window size listener } */
+  const [windowIsMaximized, setWindowIsMaximized] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  useEffect(() => {
+    window.windowStateAPI.windowStateEventListener(({ isMaximized }) => {
+      setWindowIsMaximized(isMaximized);
+    });
+  }, []);
+  useEffect(() => {
+    console.log(windowIsMaximized);
+  }, [windowIsMaximized]);
   useEffect(() => {
     const handleResize = () => {
       setWindowWidth(window.innerWidth);
@@ -43,6 +52,8 @@ const StatusContainer = ({ children }) => {
         /* { window width } */
         windowWidth,
         setWindowWidth,
+        windowIsMaximized,
+        setWindowIsMaximized,
         /* { UI Related Status } ============================================================================== */
 
         /* { API Status } ====================================================================== { API Status } */
