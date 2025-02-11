@@ -19,7 +19,6 @@ const Chat_Page = ({}) => {
     "🌎 Exploring knowledge with AI",
     "🛸 Chatting with the future!",
     "Powered by Ollama",
-    "Thinking… 🤔",
   ];
   const [logo_title, setLogoTitle] = useState(title_list[0]);
   const logoTitleRef = useRef(logo_title);
