@@ -733,6 +733,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 };
 
 const Message_List = () => {
+  const { RGB } = useContext(ConfigContexts);
   const {
     selectedModel,
     sectionData,
@@ -853,6 +854,17 @@ const Message_List = () => {
           on_input_submit={on_input_submit}
         />
       </div>
+      <div
+        style={{
+          position: "absolute",
+          top: -9,
+          left: 9,
+          right: 9,
+
+          height: 96,
+          background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 16%, rgba(0, 0, 0, 0)) 100%`,
+        }}
+      ></div>
     </ChatSectionContexts.Provider>
   );
 };
