@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "axios": "^1.7.9",
     "cra-template": "1.2.0",
     "react": "^19.0.0",
     "react-code-blocks": "^0.1.6",
@@ -16,8 +17,11 @@
     "remixicon": "^4.6.0",
     "web-vitals": "^4.2.4"
   },
+  "main": "main.js",
   "scripts": {
-    "start": "react-scripts start",
+    "react-start": "cross-env BROWSER=none PORT=3000 react-scripts start",
+    "electron-start": "electron . --no-sandbox",
+    "start": "concurrently \"npm run react-start\" \"npm run electron-start\"",
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
@@ -42,6 +46,8 @@
   },
   "devDependencies": {
     "@electron/remote": "^2.1.2",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
     "electron": "^34.1.1"
   }
 }

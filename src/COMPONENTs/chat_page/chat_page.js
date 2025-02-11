@@ -277,7 +277,7 @@ const Chat_Page = ({}) => {
           transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(-50%, 0%)",
-          top: 4,
+          top: 6,
           left: "50%",
           bottom: 2,
 

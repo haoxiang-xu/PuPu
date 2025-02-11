@@ -385,6 +385,7 @@ const Side_Menu = ({}) => {
 
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
             backdropFilter: "blur(36px)",
+            WebkitAppRegion: "no-drag",
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -407,6 +408,7 @@ const Side_Menu = ({}) => {
           <Icon
             src={iconStyle.src}
             style={{
+              cursor: "pointer",
               userSelect: "none",
               height: 20,
               opacity: 0.5,

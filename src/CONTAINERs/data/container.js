@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
-import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
 import { ConfigContexts } from "../config/contexts";
 import { StatusContexts } from "../status/contexts";
@@ -10,6 +9,7 @@ import { DataContexts } from "./contexts";
 import Chat_Page from "../../COMPONENTs/chat_page/chat_page";
 import Dialog from "../../COMPONENTs/dialog/dialog";
 import ScaleLoader from "react-spinners/ScaleLoader";
+import Title_Bar from "../../COMPONENTs/title_bar/title_bar";
 
 const DataContainer = () => {
   const { instructions } = useContext(ConfigContexts);
@@ -383,6 +383,7 @@ const DataContainer = () => {
         </div>
       ) : null}
       <Dialog display={ollamaServerStatus === false} />
+      <Title_Bar />
     </DataContexts.Provider>
   );
 };
