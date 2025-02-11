@@ -9,6 +9,9 @@ const RequestContainer = ({ children }) => {
   const { setOllamaOnTask } = useContext(StatusContexts);
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
+  const force_stop_ollama = () => {
+    setOllamaOnTask(`force_stop|[🔌unplugged...]`);
+  };
   const get_ollama_version = async () => {
     try {
       const response = await fetch(`http://localhost:11434/api/version`);
@@ -145,6 +148,7 @@ const RequestContainer = ({ children }) => {
   return (
     <RequestContexts.Provider
       value={{
+        force_stop_ollama,
         get_ollama_version,
         ollama_chat_completion_streaming,
       }}

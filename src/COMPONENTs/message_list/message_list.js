@@ -29,7 +29,7 @@ const ChatSectionContexts = createContext("");
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   const { RGB } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
-  const { update_message_on_index } = useContext(ChatSectionContexts);
+  const { update_message } = useContext(ChatSectionContexts);
 
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
@@ -131,7 +131,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             setOnClick(null);
           }}
           onClick={() => {
-            update_message_on_index(
+            update_message(
               sectionData.address,
               sectionData.messages,
               index
@@ -572,6 +572,7 @@ const Model_Menu = ({ value }) => {
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
   const { componentOnFocus, setOllamaOnTask } = useContext(StatusContexts);
+  const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     colorOffset: 0,
@@ -735,7 +736,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             setOnClicked(false);
           }}
           onClick={() => {
-            setOllamaOnTask(`force_stop|[]`);
+            force_stop_ollama();
           }}
         />
       )}
@@ -845,7 +846,7 @@ const Message_List = () => {
         preLoadingCompleted,
         setPreLoadingCompleted,
 
-        update_message_on_index,
+        update_message,
       }}
     >
       <div
