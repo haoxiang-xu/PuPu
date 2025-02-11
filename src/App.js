@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 
 import ConfigContainer from "./CONTAINERs/config/container";
 import StatusContainer from "./CONTAINERs/status/container";
+import RequestContainer from "./CONTAINERs/requests/container";
 import DataContainer from "./CONTAINERs/data/container";
 
 const App = () => {
@@ -33,7 +34,9 @@ const App = () => {
             element={
               <ConfigContainer>
                 <StatusContainer>
-                  <DataContainer />
+                  <RequestContainer>
+                    <DataContainer />
+                  </RequestContainer>
                 </StatusContainer>
               </ConfigContainer>
             }

@@ -2,9 +2,10 @@ import React, { useEffect, useState, useCallback, useContext } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 
-import { DataContexts } from "./contexts";
-import { StatusContexts } from "../status/contexts";
 import { ConfigContexts } from "../config/contexts";
+import { StatusContexts } from "../status/contexts";
+import { RequestContexts } from "../requests/contexts";
+import { DataContexts } from "./contexts";
 
 import Chat_Page from "../../COMPONENTs/chat_page/chat_page";
 import Dialog from "../../COMPONENTs/dialog/dialog";
@@ -14,11 +15,11 @@ const DataContainer = () => {
   const { instructions } = useContext(ConfigContexts);
   const {
     setComponentOnFocus,
-    ollamaOnTask,
     setOllamaOnTask,
     ollamaServerStatus,
     setOllamaServerStatus,
   } = useContext(StatusContexts);
+  const { get_ollama_version } = useContext(RequestContexts);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [selectedModel, setSelectedModel] = useState(null);
@@ -240,23 +241,6 @@ const DataContainer = () => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-  const get_ollama_version = async () => {
-    try {
-      const response = await fetch(`http://localhost:11434/api/version`);
-      if (!response.ok) {
-        console.error("API request failed:", response.statusText);
-        return;
-      }
-      const data = await response.json();
-      if (!data || !data.version) {
-        console.error("Invalid API response:", data);
-        return;
-      }
-      return data.version;
-    } catch (error) {
-      console.error("Error communicating with Ollama:", error);
-    }
-  };
   const generate_llm_message_on_index = async (
     model,
     target_address,

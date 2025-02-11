@@ -31,9 +31,6 @@ const StatusContainer = ({ children }) => {
 
   /* { Request Related } ------------------------------------------------------------------------------- */
   const [ollamaOnTask, setOllamaOnTask] = useState(null);
-  useEffect(() => {
-    console.log(ollamaOnTask);
-  }, [ollamaOnTask]);
   /* { Request Related } ------------------------------------------------------------------------------- */
 
   return (
