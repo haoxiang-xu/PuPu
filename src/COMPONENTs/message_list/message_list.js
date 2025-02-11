@@ -862,7 +862,7 @@ const Message_List = () => {
           right: 9,
 
           height: 96,
-          background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 16%, rgba(0, 0, 0, 0)) 100%`,
+          background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 32%, rgba(0, 0, 0, 0)) 100%`,
         }}
       ></div>
     </ChatSectionContexts.Provider>
