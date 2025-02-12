@@ -248,7 +248,15 @@ const MarkDownSection = ({ children }) => {
 
   return (
     <div className="markdown-section" style={{ display: "inline-block" }}>
-      <ReactShowdown markdown={children} />
+      <ReactShowdown
+        markdown={children}
+        options={{
+          simplifiedAutoLink: true,
+          tables: true,
+          strikethrough: true,
+          tasklists: true,
+        }}
+      />
     </div>
   );
 };
