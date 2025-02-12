@@ -46,7 +46,7 @@ const create_main_window = () => {
   } else if (process.platform === "win32") {
     mainWindow = new BrowserWindow({
       title: "PuPu",
-      icon: path.join(__dirname, "favicon.ico"),
+      icon: path.join(__dirname, "logo_512x512.png"),
       width: 1200,
       height: 800,
       minHeight: minimum_window_size.height,
