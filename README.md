@@ -6,7 +6,7 @@
 
 # PuPu
 
-" A simple and easy to use UI for the Ollama. "
+**" A simple and easy to use UI for the Ollama. "**
 
 <img src="assets/PuPu_UI.png" alt="PuPu UI"/>
 
@@ -14,14 +14,6 @@
 
 [![Download for Windows][windows-shield]][windows-url]<br>
 [![Download for Mac][macos-shield]][macos-url]
-
-<br><br><br>
-<br><br><br>
-<br><br><br>
-<br><br><br>
-<br><br><br>
-<br><br><br>
-<br><br><br>
 
 ## Table of Contents
 
