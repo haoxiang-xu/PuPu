@@ -37,3 +37,13 @@ npm start
 ```bash
 npx electron-builder --mac
 ```
+
+```bash
+npx electron-builder --win
+```
+
+```bash
+npx electron-builder --linux
+```
+
+
