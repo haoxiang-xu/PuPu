@@ -44,4 +44,4 @@
 [windows-shield]: https://img.shields.io/badge/download_for_windows-222222?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=412991
 [windows-url]: ./download/PuPu%20Setup%200.0.1.exe
 [macos-shield]: https://img.shields.io/badge/download_for_mac-222222?style=for-the-badge&logo=apple&logoColor=FFFFFF&labelColor=412991
-[macos-url]: ./download/PuPu-0.0.1.dmg
+[macos-url]: ./download/PuPu-0.0.1-arm64.dmg
