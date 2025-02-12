@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { HashRouter } from "react-router-dom";
+import { HashRouter, Route, Routes } from "react-router-dom";
 
 import ConfigContainer from "./CONTAINERs/config/container";
 import StatusContainer from "./CONTAINERs/status/container";
@@ -37,6 +37,7 @@ const App = () => {
             </RequestContainer>
           </StatusContainer>
         </ConfigContainer>
+        {/* <GraphDemo /> */}
       </HashRouter>
     </div>
   );
