@@ -1,0 +1,3 @@
+- macos close unable to reopen
+- markdown internal link will direct to the empty page
+- does not allow windows user to customize the download path
