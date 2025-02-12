@@ -1,11 +1,18 @@
 const { app, BrowserWindow, shell, ipcMain } = require("electron");
-const path = require("path");
+
+const pty = require("node-pty");
 const axios = require("axios");
+const path = require("path");
+const os = require("os");
+
+console.log("NODE_MODULE_VERSION:", process.versions.modules);
 
 const { minimum_window_size } = require("./constants");
 
 let mainWindow;
+let terminalProcess;
 
+/* { create main window } ============================================================================================================== */
 const create_main_window = () => {
   const checkServerAndLoadURL = (url) => {
     axios
@@ -96,13 +103,15 @@ const create_main_window = () => {
     );
   }
 };
+/* { create main window } ============================================================================================================== */
 
 app.whenReady().then(() => {
   create_main_window();
+  create_terminal();
   register_window_state_event_listeners();
   register_will_navigate_event_listener();
+  register_terminal_event_listener();
 });
-
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
     app.quit();
@@ -180,3 +189,27 @@ const register_will_navigate_event_listener = () => {
     }
   });
 };
+
+/* { node-pty } ======================================================================================================================== */
+const create_terminal = () => {
+  terminalProcess = pty.spawn(
+    os.platform() === "win32" ? "cmd.exe" : "bash",
+    [],
+    {
+      name: "xterm-color",
+      cols: 80,
+      rows: 30,
+      cwd: process.env.HOME,
+      env: process.env,
+    }
+  );
+};
+ipcMain.on("terminal-event-handler", (event, input) => {
+  terminalProcess.write(input);
+});
+const register_terminal_event_listener = () => {
+  terminalProcess.on("data", (data) => {
+    mainWindow.webContents.send("terminal-event-listener", data);
+  });
+};
+/* { node-pty } ======================================================================================================================== */
