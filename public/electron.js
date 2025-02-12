@@ -22,6 +22,7 @@ const create_main_window = () => {
   if (process.platform === "darwin") {
     mainWindow = new BrowserWindow({
       title: "PuPu",
+      icon: path.join(__dirname, "favicon.ico"),
       width: 1200,
       height: 800,
       minHeight: minimum_window_size.height,
@@ -45,6 +46,7 @@ const create_main_window = () => {
   } else if (process.platform === "win32") {
     mainWindow = new BrowserWindow({
       title: "PuPu",
+      icon: path.join(__dirname, "favicon.ico"),
       width: 1200,
       height: 800,
       minHeight: minimum_window_size.height,
@@ -66,6 +68,7 @@ const create_main_window = () => {
   } else {
     mainWindow = new BrowserWindow({
       title: "PuPu",
+      icon: path.join(__dirname, "favicon.ico"),
       width: 1200,
       height: 800,
       webSecurity: true,
