@@ -319,9 +319,6 @@ const Chat_Page = ({}) => {
       >
         <Message_List />
       </div>
-      <Dialog display={ollamaServerStatus === false} />
-      <Title_Bar />
-      <Side_Menu />
     </div>
   );
 };
