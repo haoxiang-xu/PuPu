@@ -2,9 +2,8 @@
   href="https://fonts.googleapis.com/css2?family=Jost:wght@400;700&display=swap"
   rel="stylesheet"
 ></link>
-<img src="assets/logo_64x64.png" alt="PuPu UI"/>
 
-# PuPu
+# <img src="assets/logo.png" alt="PuPu UI" style="height: 128px"> PuPu
 
 **" A simple and easy to use UI for the Ollama. "**
 
