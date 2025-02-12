@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, dialog } = require("electron");
+const { app, BrowserWindow, shell, ipcMain } = require("electron");
 const path = require("path");
 const axios = require("axios");
 
@@ -100,6 +100,7 @@ const create_main_window = () => {
 app.whenReady().then(() => {
   create_main_window();
   register_window_state_event_listeners();
+  register_will_navigate_event_listener();
 });
 
 app.on("window-all-closed", () => {
@@ -168,3 +169,14 @@ ipcMain.on("window-state-event-handler", (event, action) => {
   }
 });
 /* { window state event listener } ===================================================================================================== */
+
+/* { 拦截 will-navigate 事件 } */
+const register_will_navigate_event_listener = () => {
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    if (!url.startsWith("file://")) {
+      // 防止 Electron 内部页面也被拦截
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
+};
