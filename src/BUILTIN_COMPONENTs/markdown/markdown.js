@@ -775,10 +775,10 @@ const Markdown = ({ children, index, style }) => {
         //   processed_content,
         //   extract_HTML
         // );
-        processed_content = apply_extract_function(
-          processed_content,
-          extract_LaTeX
-        );
+        // processed_content = apply_extract_function(
+        //   processed_content,
+        //   extract_LaTeX
+        // );
         return processed_content;
       };
       let processed_content = extract_and_merge(raw_content);
