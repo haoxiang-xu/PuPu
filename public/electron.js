@@ -21,7 +21,7 @@ const create_main_window = () => {
   // Initialize the browser window.
   if (process.platform === "darwin") {
     mainWindow = new BrowserWindow({
-      title: "",
+      title: "PuPu",
       width: 1200,
       height: 800,
       minHeight: minimum_window_size.height,
@@ -41,10 +41,10 @@ const create_main_window = () => {
       vibrancy: "sidebar",
       visualEffectState: "active",
     });
-    // app.dock.setIcon(path.join(__dirname, "/assets/logos/logo_pink_512.png"));
+    app.dock.setIcon(path.join(__dirname, "logo_512x512.png"));
   } else if (process.platform === "win32") {
     mainWindow = new BrowserWindow({
-      title: "",
+      title: "PuPu",
       width: 1200,
       height: 800,
       minHeight: minimum_window_size.height,
@@ -65,7 +65,7 @@ const create_main_window = () => {
     });
   } else {
     mainWindow = new BrowserWindow({
-      title: "",
+      title: "PuPu",
       width: 1200,
       height: 800,
       webSecurity: true,
@@ -80,16 +80,18 @@ const create_main_window = () => {
       frame: false,
     });
   }
-  mainWindow.setTitle("Ollama webUI");
+  mainWindow.setTitle("PuPu");
 
   // Load the index.html of the app.
   const isDev = !app.isPackaged;
-  isDev
-    ? checkServerAndLoadURL("http://localhost:3000")
-    : mainWindow.loadURL(
-        `file://${path.join(__dirname, "..", "build", "index.html")}`
-      );
-  mainWindow.webContents.openDevTools();
+  if (isDev) {
+    checkServerAndLoadURL("http://localhost:3000");
+    mainWindow.webContents.openDevTools();
+  } else {
+    mainWindow.loadURL(
+      `file://${path.join(__dirname, "..", "build", "index.html")}`
+    );
+  }
 };
 
 app.whenReady().then(() => {

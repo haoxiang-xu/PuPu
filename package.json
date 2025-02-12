@@ -1,6 +1,11 @@
 {
-  "name": "ai_lounge",
-  "version": "0.1.0",
+  "name": "pupu",
+  "version": "0.0.1",
+  "author": {
+    "name": "Haoxiang Xu",
+    "email": "haoxiangxu1998@gmail.com"
+  },
+  "description": "",
   "private": true,
   "homepage": "./",
   "dependencies": {
@@ -34,8 +39,8 @@
     ]
   },
   "build": {
-    "appId": "com.yourcompany.ai_lounge",
-    "productName": "AI Lounge",
+    "appId": "com.haoxiangxu.pupu",
+    "productName": "PuPu",
     "directories": {
       "output": "dist"
     },
