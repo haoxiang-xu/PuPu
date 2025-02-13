@@ -50,6 +50,6 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 `npx electron-builder --linux` <span style="opacity: 0.32"> (for linux) </span>
 
 [windows-shield]: https://img.shields.io/badge/download_for_windows-AA3E71?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
-[windows-url]: ./download/PuPu%20Setup%200.0.1.exe
+[windows-url]: ./download/
 [macos-shield]: https://img.shields.io/badge/download_for_mac-AA3E71?style=for-the-badge&logo=apple&logoColor=FFFFFF&labelColor=AA3E71
-[macos-url]: ./download/PuPu-0.0.1-arm64.dmg
+[macos-url]: ./download/
