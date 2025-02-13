@@ -31,15 +31,15 @@ const App = () => {
         rel="stylesheet"
       ></link>
       <HashRouter>
-        {/* <ConfigContainer>
+        <ConfigContainer>
           <StatusContainer>
             <RequestContainer>
               <DataContainer />
             </RequestContainer>
           </StatusContainer>
-        </ConfigContainer> */}
+        </ConfigContainer>
         {/* <GraphDemo /> */}
-        <XTerm />
+        {/* <XTerm /> */}
       </HashRouter>
     </div>
   );

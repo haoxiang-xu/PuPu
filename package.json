@@ -14,7 +14,6 @@
     "electron": "^30.5.1",
     "license": "^1.0.3",
     "node-pty": "^1.0.0",
-    "node-pty-prebuilt-multiarch": "^0.10.1-pre.5",
     "react": "^18.3.1",
     "react-code-blocks": "^0.1.6",
     "react-dom": "^18.3.1",
