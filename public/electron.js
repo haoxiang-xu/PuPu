@@ -120,6 +120,8 @@ app.on("window-all-closed", () => {
 app.on("activate", () => {
   if (mainWindow === null) {
     createWindow();
+  } else {
+    mainWindow.show();
   }
 });
 
@@ -148,6 +150,14 @@ const register_window_state_event_listeners = () => {
     mainWindow.webContents.send("window-state-event-listener", {
       isMaximized: false,
     });
+  });
+  mainWindow.on("close", (event) => {
+    if (process.platform === "darwin") {
+      event.preventDefault();
+      mainWindow.hide();
+    } else {
+      mainWindow = null;
+    }
   });
 };
 ipcMain.on("window-state-event-handler", (event, action) => {
