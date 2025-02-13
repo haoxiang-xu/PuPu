@@ -13,14 +13,13 @@ import Title_Bar from "../../COMPONENTs/title_bar/title_bar";
 import Dialog from "../../COMPONENTs/dialog/dialog";
 
 const DataContainer = () => {
-  const { instructions } = useContext(ConfigContexts);
   const {
     setComponentOnFocus,
     setOllamaOnTask,
     ollamaServerStatus,
     setOllamaServerStatus,
   } = useContext(StatusContexts);
-  const { get_ollama_version } = useContext(RequestContexts);
+  const { ollama_get_version, ollama_list_available_models } = useContext(RequestContexts);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [selectedModel, setSelectedModel] = useState(null);
@@ -38,7 +37,7 @@ const DataContainer = () => {
   const app_initialization = () => {
     try {
       load_from_local_storage();
-      get_ollama_version().then((version) => {
+      ollama_get_version().then((version) => {
         if (!version) {
           setOllamaServerStatus(false);
           return false;
@@ -97,12 +96,13 @@ const DataContainer = () => {
     const selected_model = JSON.parse(
       localStorage.getItem(UNIQUE_KEY + "selected_model")
     );
-    list_all_ollama_local_models().then((response) => {
+    ollama_list_available_models().then((response) => {
       if (response.includes(selected_model)) {
         setSelectedModel(selected_model);
       } else {
         setSelectedModel(response[0]);
       }
+      setAvaliableModels(response);
     });
   };
   const save_to_local_storage = () => {
@@ -244,88 +244,6 @@ const DataContainer = () => {
   }, [sectionData, addressBook, selectedModel]);
   /* { Section Data } --------------------------------------------------------------------------------- */
 
-  /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-  const chat_room_title_generation = async (model, address, messages) => {
-    const preprocess_messages = (messages, memory_length) => {
-      let processed_messages = instructions.chat_room_title_generation_prompt;
-
-      for (let i = 0; i < messages.length; i++) {
-        if (messages[i].role === "user") {
-          processed_messages +=
-            messages[i].role + ": " + messages[i].content + "\n\n\n";
-        }
-      }
-      return processed_messages;
-    };
-    let prompt = preprocess_messages(messages, 7);
-    setOllamaOnTask(
-      `generate_no_streaming|[${model} is brainstorming an chat title...]`
-    );
-    try {
-      const request = {
-        model: model,
-        prompt: prompt,
-        stream: false,
-        format: {
-          type: "object",
-          properties: {
-            title: {
-              type: "string",
-            },
-          },
-          required: ["title"],
-        },
-      };
-      const response = await fetch(`http://localhost:11434/api/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(request),
-      });
-      if (!response.ok) {
-        console.error("API request failed:", response.statusText);
-        return;
-      }
-
-      const data = await response.json();
-      if (!data || !data.response) {
-        console.error("Invalid API response:", data);
-        return;
-      }
-      const title = JSON.parse(data.response).title;
-      update_title(address, title);
-      setOllamaOnTask(null);
-      return title;
-    } catch (error) {
-      console.error("Error communicating with Ollama:", error);
-      setOllamaOnTask(null);
-    }
-  };
-  const list_all_ollama_local_models = async () => {
-    try {
-      const response = await fetch(`http://localhost:11434/api/tags`);
-      if (!response.ok) {
-        console.error("API request failed:", response.statusText);
-        return;
-      }
-      const data = await response.json();
-      if (!data || !data.models) {
-        console.error("Invalid API response:", data);
-        return;
-      }
-      let avaliableModels = [];
-      for (let model of data.models) {
-        avaliableModels.push(model.name);
-      }
-      setAvaliableModels(avaliableModels);
-      return avaliableModels;
-    } catch (error) {
-      console.error("Error communicating with Ollama:", error);
-    }
-  };
-  /* { Ollama APIs } ---------------------------------------------------------------------------------- */
-
   return (
     <DataContexts.Provider
       value={{
@@ -338,7 +256,6 @@ const DataContainer = () => {
 
         app_initialization,
         append_message,
-        chat_room_title_generation,
         delete_address_in_local_storage,
         load_section_data,
         reset_regenerate_title_count_down,
@@ -348,10 +265,6 @@ const DataContainer = () => {
         update_title,
         update_message_on_index,
         append_message,
-
-        /* { Ollama APIs } ----------------------- */
-        list_all_ollama_local_models,
-        /* { Ollama APIs } ----------------------- */
       }}
     >
       {!ollamaServerStatus ? null : (

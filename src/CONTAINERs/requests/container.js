@@ -2,18 +2,22 @@ import React, { useEffect, useState, useCallback, useContext } from "react";
 
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import { task_descriptions } from "./constants";
+import { chat_room_title_generation_prompt } from "./default_instructions";
 
 import { StatusContexts } from "../status/contexts";
 import { RequestContexts } from "./contexts";
 
 const RequestContainer = ({ children }) => {
+  const [instructions, setInstructions] = useState({
+    chat_room_title_generation_prompt: chat_room_title_generation_prompt,
+  });
   const { setOllamaOnTask } = useContext(StatusContexts);
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
   const force_stop_ollama = () => {
     setOllamaOnTask(`force_stop|[🔌unplugged...]`);
   };
-  const get_ollama_version = async () => {
+  const ollama_get_version = async () => {
     try {
       const response = await fetch(`http://localhost:11434/api/version`);
       if (!response.ok) {
@@ -150,14 +154,100 @@ const RequestContainer = ({ children }) => {
       setOllamaOnTask(null);
     }
   };
+  const ollama_update_title_no_streaming = async (
+    model,
+    address,
+    messages,
+    update_title
+  ) => {
+    const preprocess_messages = (messages) => {
+      let processed_messages = instructions.chat_room_title_generation_prompt;
+
+      for (let i = 0; i < messages.length; i++) {
+        if (messages[i].role === "user") {
+          processed_messages +=
+            messages[i].role + ": " + messages[i].content + "\n\n\n";
+        }
+      }
+      return processed_messages;
+    };
+    let prompt = preprocess_messages(messages);
+    setOllamaOnTask(
+      `generate_no_streaming|[${model} is brainstorming an chat title...]`
+    );
+    try {
+      const request = {
+        model: model,
+        prompt: prompt,
+        stream: false,
+        format: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+            },
+          },
+          required: ["title"],
+        },
+      };
+      const response = await fetch(`http://localhost:11434/api/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        console.error("API request failed:", response.statusText);
+        return;
+      }
+
+      const data = await response.json();
+      if (!data || !data.response) {
+        console.error("Invalid API response:", data);
+        return;
+      }
+      const title = JSON.parse(data.response).title;
+      update_title(address, title);
+      setOllamaOnTask(null);
+      return title;
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+      setOllamaOnTask(null);
+    }
+  };
+  const ollama_list_available_models = async () => {
+    try {
+      const response = await fetch(`http://localhost:11434/api/tags`);
+      if (!response.ok) {
+        console.error("API request failed:", response.statusText);
+        return;
+      }
+      const data = await response.json();
+      if (!data || !data.models) {
+        console.error("Invalid API response:", data);
+        return;
+      }
+      let avaliableModels = [];
+      for (let model of data.models) {
+        avaliableModels.push(model.name);
+      }
+      return avaliableModels;
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+    }
+  };
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   return (
     <RequestContexts.Provider
       value={{
         force_stop_ollama,
-        get_ollama_version,
+
+        ollama_get_version,
         ollama_chat_completion_streaming,
+        ollama_update_title_no_streaming,
+        ollama_list_available_models,
       }}
     >
       {children}

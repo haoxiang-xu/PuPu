@@ -346,8 +346,9 @@ const Scrolling_Section = () => {
 };
 const Model_list_Item = ({ model, setModelOnTask }) => {
   const { RGB } = useContext(ConfigContexts);
-  const { selectedModel, setSelectedModel, list_all_ollama_local_models } =
+  const { selectedModel, setSelectedModel, setAvaliableModels } =
     useContext(DataContexts);
+  const { ollama_list_available_models } = useContext(RequestContexts);
   const { setComponentOnFocus } = useContext(StatusContexts);
   const [onHover, setOnHover] = useState(false);
 
@@ -390,7 +391,9 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
       }}
       onClick={(e) => {
         setComponentOnFocus(component_name);
-        list_all_ollama_local_models();
+        ollama_list_available_models().then((response) => {
+          setAvaliableModels(response);
+        });
       }}
     >
       {model}
@@ -401,8 +404,7 @@ const Model_Menu = ({ value }) => {
   const sub_component_name = component_name + "model_menu";
 
   const { RGB } = useContext(ConfigContexts);
-  const { selectedModel, avaliableModels, list_all_ollama_local_models } =
-    useContext(DataContexts);
+  const { selectedModel, avaliableModels } = useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
 
@@ -558,7 +560,7 @@ const Model_Menu = ({ value }) => {
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { componentOnFocus, setOllamaOnTask } = useContext(StatusContexts);
+  const { componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
@@ -737,12 +739,13 @@ const Message_List = () => {
   const {
     selectedModel,
     sectionData,
-    chat_room_title_generation,
+    update_title,
     update_message_on_index,
     append_message,
     reset_regenerate_title_count_down,
   } = useContext(DataContexts);
-  const { ollama_chat_completion_streaming } = useContext(RequestContexts);
+  const { ollama_chat_completion_streaming, ollama_update_title_no_streaming } =
+    useContext(RequestContexts);
 
   const [inputValue, setInputValue] = useState("");
   const [awaitResponse, setAwaitResponse] = useState(null);
@@ -799,9 +802,12 @@ const Message_List = () => {
         })
         .finally(() => {
           if (sectionData.n_turns_to_regenerate_title === 0) {
-            chat_room_title_generation(selectedModel, address, messages).then(
-              (response) => {}
-            );
+            ollama_update_title_no_streaming(
+              selectedModel,
+              address,
+              messages,
+              update_title
+            ).then((response) => {});
             reset_regenerate_title_count_down();
           }
         });
