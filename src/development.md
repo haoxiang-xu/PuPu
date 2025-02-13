@@ -18,6 +18,11 @@
 
 - `componentOnFocus, setComponentOnFocus`
 
+- `onDialog, setOnDialog`
+
+  - `null` no dialog should be shown.
+  - `await_Ollama_setup_warning` 
+
 - `ollamaServerStatus, setOllamaServerStatus`
   <span style="opacity: 0.5">
   This variable is show the status of the server. whelther it is running or not. Notice that the way of checking the status of the server is by sending a request to the server.

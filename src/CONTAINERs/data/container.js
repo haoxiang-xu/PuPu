@@ -15,7 +15,6 @@ import Dialog from "../../COMPONENTs/dialog/dialog";
 const DataContainer = () => {
   const {
     setComponentOnFocus,
-    setOllamaOnTask,
     ollamaServerStatus,
     setOllamaServerStatus,
   } = useContext(StatusContexts);
@@ -296,7 +295,7 @@ const DataContainer = () => {
           <ScaleLoader color={"#cccccc"} size={12} margin={1} />
         </div>
       ) : null}
-      <Dialog display={ollamaServerStatus === false} />
+      <Dialog/>
       <Title_Bar />
       {ollamaServerStatus === true ? <Side_Menu /> : null}
     </DataContexts.Provider>

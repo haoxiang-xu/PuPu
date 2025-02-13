@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 
 import { StatusContexts } from "./contexts";
 
 const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
+  const [onDialog, setOnDialog] = useState("");
 
   /* { API Status } =================================================================================== */
   /* 
@@ -12,6 +13,13 @@ const StatusContainer = ({ children }) => {
     true: ------------------------------------ response success
   */
   const [ollamaServerStatus, setOllamaServerStatus] = useState(null);
+  useEffect(() => {
+    if (ollamaServerStatus || ollamaServerStatus === true) {
+      setOnDialog("");
+    } else {
+      setOnDialog("await_Ollama_setup_warning");
+    }
+  }, [ollamaServerStatus]);
   /* { API Status } =================================================================================== */
 
   /* { Event Listener } ------------------------------------------------------------------------------- */
@@ -46,6 +54,8 @@ const StatusContainer = ({ children }) => {
         /* { which UI component is selected } */
         componentOnFocus,
         setComponentOnFocus,
+        onDialog,
+        setOnDialog,
         /* { window width } */
         windowWidth,
         setWindowWidth,
