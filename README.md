@@ -19,18 +19,25 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 ## Table of Contents
 
 - [Local Setup](#local-setup)
+- [Deployment](#deployment)
 
 ### Local Setup <a name="local-setup"></a>
 
 - Install dependencies: <span style="opacity: 0.32">To run the electron app locally, you need to install the dependencies by running the following command:</span>
 
-`npm install --legacy-peer-deps`
+`npm install`
+
+- Rebuild the Electron App: <span style="opacity: 0.32">After installing the dependencies, you need to rebuild the electron app by running the following command:</span>
+
+`npx electron-rebuild`
 
 - Run the Electron App: <span style="opacity: 0.32">Once the dependencies are installed, you can run the app by running the following command:</span>
 
 `npm start`
 
 - Build the React App: <span style="opacity: 0.32"> In order to build the app for different platforms, you should build the React app first by running the following command:</span>
+
+### Deployment <a name="deployment"></a>
 
 `npm run build`
 

@@ -6,3 +6,4 @@
     - `DARWIN` MACOS mainWindow will not show up after minimized
     - `WIN32` Installasion will be default to the C drive on Windows
     - Markdown internal link will direct to the empty page
+    - Loading Tag should be removed if there is no response from the server coming back.
