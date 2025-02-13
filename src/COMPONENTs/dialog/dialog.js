@@ -26,7 +26,7 @@ const DownloadOllamaModel = ({}) => {
         borderRadius: 10,
         border: `1px solid rgba(225, 225, 225, 0.16)`,
 
-        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.32)`,
+        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
       }}
     ></div>
   );
@@ -55,7 +55,7 @@ const AwaitOllamaSetup = ({}) => {
         borderRadius: 10,
         border: `1px solid rgba(225, 225, 225, 0.16)`,
 
-        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.32)`,
+        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
       }}
     >
       <div
@@ -135,8 +135,11 @@ const Dialog = () => {
   const [dialog, setDialog] = useState(null);
   useEffect(() => {
     switch (onDialog) {
-      case "await_Ollama_setup_warning":
+      case "await_ollama_setup_warning":
         setDialog(<AwaitOllamaSetup />);
+        break;
+      case "download_ollama_model":
+        setDialog(<DownloadOllamaModel />);
         break;
       default:
         setDialog(null);
@@ -159,7 +162,7 @@ const Dialog = () => {
         alignItems: "center",
 
         backgroundColor: "rgba(0, 0, 0, 0.32)",
-        backdropFilter: "blur(3px)",
+        backdropFilter: "blur(16px)",
 
         opacity: onDialog !== "" ? 1 : 0,
         pointerEvents: onDialog !== "" ? "auto" : "none",

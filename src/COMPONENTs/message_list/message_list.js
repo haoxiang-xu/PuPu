@@ -400,6 +400,62 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
     </div>
   );
 };
+const Add_Model_Button = () => {
+
+  const { RGB } = useContext(ConfigContexts);
+  const { setComponentOnFocus, setOnDialog } = useContext(StatusContexts);
+
+  const [onHover, setOnHover] = useState(false);
+  const [onClick, setOnClick] = useState(false);
+
+  return (
+    <div
+      style={{
+        transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+        position: "relative",
+
+        width: "calc(100% - 12px)",
+        height: 40,
+        margin: 5,
+        border: onHover ? "1px solid rgba(255, 255, 255, 0.16)" : "1px solid rgba(255, 255, 255, 0)",
+        borderRadius: 4,
+        backgroundColor: onClick
+          ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.84)`
+          : onHover
+          ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.4)`
+          : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+      }}
+      onMouseEnter={(e) => {
+        setOnHover(true);
+      }}
+      onMouseLeave={(e) => {
+        setOnHover(false);
+        setOnClick(false);
+      }}
+      onMouseDown={(e) => {
+        setOnClick(true);
+      }}
+      onMouseUp={(e) => {
+        setOnClick(false);
+      }}
+      onClick={(e) => {
+        setComponentOnFocus(component_name);
+        setOnDialog("download_ollama_model");
+      }}
+    >
+      <Icon
+        src="add"
+        alt="add"
+        style={{
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          left: "50%",
+          top: "50%",
+        }}
+      />
+    </div>
+  );
+};
 const Model_Menu = ({ value }) => {
   const sub_component_name = component_name + "model_menu";
 
@@ -533,27 +589,7 @@ const Model_Menu = ({ value }) => {
             {selectedModel}
           </div>
         )}
-        {componentOnFocus === sub_component_name ? (
-          <div
-            style={{
-              position: "relative",
-
-              width: "100%",
-              height: 40,
-            }}
-          >
-            <Icon
-              src="add"
-              alt="add"
-              style={{
-                position: "absolute",
-                transform: "translate(-50%, -50%)",
-                left: "50%",
-                top: "50%",
-              }}
-            />
-          </div>
-        ) : null}
+        {componentOnFocus === sub_component_name ? <Add_Model_Button /> : null}
       </div>
     </div>
   );

@@ -21,7 +21,8 @@
 - `onDialog, setOnDialog`
 
   - `null` no dialog should be shown.
-  - `await_Ollama_setup_warning` 
+  - `await_ollama_setup_warning` 
+  - `download_ollama_model`
 
 - `ollamaServerStatus, setOllamaServerStatus`
   <span style="opacity: 0.5">

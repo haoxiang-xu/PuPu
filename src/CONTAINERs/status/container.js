@@ -15,9 +15,11 @@ const StatusContainer = ({ children }) => {
   const [ollamaServerStatus, setOllamaServerStatus] = useState(null);
   useEffect(() => {
     if (ollamaServerStatus === null || ollamaServerStatus === true) {
-      setOnDialog("");
+      setOnDialog((prev) => {
+        return prev;
+      });
     } else {
-      setOnDialog("await_Ollama_setup_warning");
+      setOnDialog("await_ollama_setup_warning");
     }
   }, [ollamaServerStatus]);
   /* { API Status } =================================================================================== */
