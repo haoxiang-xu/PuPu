@@ -12,6 +12,10 @@ const { minimum_window_size } = require("./constants");
 let mainWindow;
 let terminalProcess;
 
+/* { flags } */
+let quitting = false;
+/* { flags } */
+
 /* { create main window } ============================================================================================================== */
 const create_main_window = () => {
   const checkServerAndLoadURL = (url) => {
@@ -124,6 +128,9 @@ app.on("activate", () => {
     mainWindow.show();
   }
 });
+app.on("before-quit", () => {
+  quitting = true;
+});
 
 /* { window state event listener } ===================================================================================================== */
 const register_window_state_event_listeners = () => {
@@ -152,7 +159,7 @@ const register_window_state_event_listeners = () => {
     });
   });
   mainWindow.on("close", (event) => {
-    if (process.platform === "darwin") {
+    if (process.platform === "darwin" && !quitting) {
       event.preventDefault();
       mainWindow.hide();
     } else {
