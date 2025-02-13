@@ -7,6 +7,7 @@ import RequestContainer from "./CONTAINERs/requests/container";
 import DataContainer from "./CONTAINERs/data/container";
 
 import GraphDemo from "./DEMOs/node_graph/graph_demo";
+import XTerm from "./DEMOs/x_term/x_term";
 
 const App = () => {
   const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });
@@ -38,6 +39,7 @@ const App = () => {
           </StatusContainer>
         </ConfigContainer>
         {/* <GraphDemo /> */}
+        {/* <XTerm /> */}
       </HashRouter>
     </div>
   );

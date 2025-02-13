@@ -256,6 +256,24 @@ const MarkDownSection = ({ children }) => {
           strikethrough: true,
           tasklists: true,
         }}
+        components={{
+          a: (props) => {
+            if (props.href?.startsWith("#")) {
+              return (
+                <a
+                  href={props.href}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    window.location.hash = props.href;
+                  }}
+                >
+                  {props.children}
+                </a>
+              );
+            }
+            return <a {...props}>{props.children}</a>;
+          },
+        }}
       />
     </div>
   );

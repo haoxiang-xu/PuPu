@@ -2,13 +2,9 @@ import React, { useEffect, useState, useCallback } from "react";
 
 import { ConfigContexts } from "./contexts";
 
-import { chat_room_title_generation_prompt } from "./default_instructions";
 import { dark_theme, light_theme } from "./default_themes";
 
 const ConfigContainer = ({ children }) => {
-  const [instructions, setInstructions] = useState({
-    chat_room_title_generation_prompt: chat_room_title_generation_prompt,
-  });
 
   /* { Theme } ------------------------------------------------------------------------------- */
   const [theme, setTheme] = useState("dark_theme");
@@ -61,7 +57,6 @@ const ConfigContainer = ({ children }) => {
     <>
       <ConfigContexts.Provider
         value={{
-          instructions,
           theme,
           RGB,
           colorOffset,
