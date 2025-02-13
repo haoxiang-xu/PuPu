@@ -55,7 +55,7 @@ const AwaitOllamaSetup = ({}) => {
         borderRadius: 10,
         border: `1px solid rgba(225, 225, 225, 0.16)`,
 
-        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.32)`,
       }}
     >
       <div
