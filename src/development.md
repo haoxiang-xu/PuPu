@@ -17,7 +17,9 @@
 <span style="opacity: 0.32">Status for UI, running processes, server status, etc.</span>
 
 - `componentOnFocus, setComponentOnFocus`
-
+  - `side_menu`
+  - `message_list`
+    - `message_list_model_menu`
 - `onDialog, setOnDialog`
 
   - `""` no dialog should be shown.

@@ -22,7 +22,7 @@ const default_border_radius = 10;
 const default_font_size = 14;
 const default_padding = default_font_size;
 
-const component_name = "chat_section";
+const component_name = "message_list";
 
 const ChatSectionContexts = createContext("");
 
@@ -458,7 +458,7 @@ const Add_Model_Button = () => {
   );
 };
 const Model_Menu = ({ value }) => {
-  const sub_component_name = component_name + "model_menu";
+  const sub_component_name = component_name + "_" + "model_menu";
 
   const { RGB } = useContext(ConfigContexts);
   const { selectedModel, avaliableModels, setAvaliableModels } =
