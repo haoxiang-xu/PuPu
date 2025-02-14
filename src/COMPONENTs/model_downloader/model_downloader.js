@@ -9,9 +9,11 @@ import React, {
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
+import { RequestContexts } from "../../CONTAINERs/requests/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import MoonLoader from "react-spinners/MoonLoader";
 
 const component_name = "model_downloader";
 
@@ -126,22 +128,24 @@ const ModelTab = ({ model }) => {
         zIndex: ItemOnSelect === sub_component_name + model.name ? 1 : 0,
 
         margin: 5,
-        border: ItemOnSelect === sub_component_name + model.name
-          ? `1px solid rgba(225, 225, 225, 0)`
-          : panelOnHover
-          ? `1px solid rgba(225, 225, 225, 0.16)`
-          : `1px solid rgba(225, 225, 225, 0)`,
-        backgroundColor: ItemOnSelect === sub_component_name + model.name
-          ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
-              RGB.G + colorOffset.middle_ground
-            }, ${RGB.B + colorOffset.middle_ground}, 0)`
-          : panelOnHover
-          ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
-              RGB.G + colorOffset.middle_ground
-            }, ${RGB.B + colorOffset.middle_ground}, 0.64)`
-          : `rgba(${RGB.R + colorOffset.middle_ground}, ${
-              RGB.G + colorOffset.middle_ground
-            }, ${RGB.B + colorOffset.middle_ground}, 0)`,
+        border:
+          ItemOnSelect === sub_component_name + model.name
+            ? `1px solid rgba(225, 225, 225, 0)`
+            : panelOnHover
+            ? `1px solid rgba(225, 225, 225, 0.16)`
+            : `1px solid rgba(225, 225, 225, 0)`,
+        backgroundColor:
+          ItemOnSelect === sub_component_name + model.name
+            ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
+                RGB.G + colorOffset.middle_ground
+              }, ${RGB.B + colorOffset.middle_ground}, 0)`
+            : panelOnHover
+            ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
+                RGB.G + colorOffset.middle_ground
+              }, ${RGB.B + colorOffset.middle_ground}, 0.64)`
+            : `rgba(${RGB.R + colorOffset.middle_ground}, ${
+                RGB.G + colorOffset.middle_ground
+              }, ${RGB.B + colorOffset.middle_ground}, 0)`,
         borderRadius: 4,
       }}
       onMouseEnter={() => {
@@ -210,15 +214,19 @@ const ModelTab = ({ model }) => {
 
           zIndex: 1,
           top: 1,
-          left: ItemOnSelect === sub_component_name + model.name ? spanWidth + 16 : spanWidth + 13,
+          left:
+            ItemOnSelect === sub_component_name + model.name
+              ? spanWidth + 16
+              : spanWidth + 13,
 
           maxWidth: `calc(100% - ${spanWidth + 53}px)`,
           padding: 2,
 
           borderRadius: 7,
-          border: ItemOnSelect === sub_component_name + model.name
-            ? `1px solid rgba(225, 225, 225, 0.16)`
-            : `1px solid rgba(225, 225, 225, 0)`,
+          border:
+            ItemOnSelect === sub_component_name + model.name
+              ? `1px solid rgba(225, 225, 225, 0.16)`
+              : `1px solid rgba(225, 225, 225, 0)`,
 
           display: "flex",
           flexDirection: "row",
@@ -269,7 +277,7 @@ const FamilyTab = ({ family }) => {
 /* { Cloud Model List } ------------------------------------------------------------------------------------------------------------------------------ */
 
 /* { Available Model List } ========================================================================================================================== */
-const OptionItem = ({ img_src, label }) => {
+const OptionItem = ({ img_src, label, onClick }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
   return (
     <>
@@ -284,6 +292,7 @@ const OptionItem = ({ img_src, label }) => {
           border: `1px solid rgba(225, 225, 225, 0.16)`,
           borderRadius: 6,
         }}
+        onClick={onClick}
       >
         <Icon
           src={img_src}
@@ -313,8 +322,10 @@ const OptionItem = ({ img_src, label }) => {
     </>
   );
 };
-const MoreOption = ({ tagWidth }) => {
+const MoreOption = ({ model, tagWidth }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { setOnDeleteModels } = useContext(contexts);
+
   return (
     <div
       style={{
@@ -334,7 +345,13 @@ const MoreOption = ({ tagWidth }) => {
         boxShadow: `0 0 8px rgba(0, 0, 0, 0.32)`,
       }}
     >
-      <OptionItem img_src={"delete"} label={"Delete"} />
+      <OptionItem
+        img_src={"delete"}
+        label={"Delete"}
+        onClick={() => {
+          setOnDeleteModels((prev) => [...prev, model]);
+        }}
+      />
     </div>
   );
 };
@@ -342,7 +359,8 @@ const ModelTag = ({ model }) => {
   const sub_component_name = "installed_models_section";
 
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { ItemOnSelect, setItemOnSelect } = useContext(contexts);
+  const { ItemOnSelect, setItemOnSelect, onDeleteModels } =
+    useContext(contexts);
 
   const tagRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -393,23 +411,27 @@ const ModelTag = ({ model }) => {
           height: 17,
         }}
       >
-        <Icon
-          src={"more"}
-          style={{
-            width: 17,
-            height: 17,
-            opacity: 0.5,
+        {onDeleteModels.includes(model) ? (
+          <MoonLoader size={13} color={"#FFFFFF"} speedMultiplier={0.8} />
+        ) : (
+          <Icon
+            src={"more"}
+            style={{
+              width: 17,
+              height: 17,
+              opacity: 0.5,
 
-            userSelect: "none",
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            setItemOnSelect(sub_component_name + model);
-          }}
-        />
+              userSelect: "none",
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setItemOnSelect(sub_component_name + model);
+            }}
+          />
+        )}
       </div>
       {ItemOnSelect === sub_component_name + model ? (
-        <MoreOption tagWidth={tagWidth} />
+        <MoreOption model={model} tagWidth={tagWidth} />
       ) : null}
     </div>
   );
@@ -426,11 +448,32 @@ const AvailableModel = ({ avaliableModels }) => {
 /* { Available Model List } ========================================================================================================================== */
 
 const ModelDownloader = ({ available_models }) => {
-  const { avaliableModels } = useContext(DataContexts);
+  const { avaliableModels, setAvaliableModels } = useContext(DataContexts);
+  const { ollama_list_available_models, ollama_delete_local_model } =
+    useContext(RequestContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
+  const [onDeleteModels, setOnDeleteModels] = useState([]);
+
+  useEffect(() => {
+    if (onDeleteModels.length === 0) {
+      return;
+    }
+    ollama_delete_local_model(onDeleteModels[0]).then((response) => {
+      ollama_list_available_models().then((response) => {
+        setAvaliableModels(response);
+      });
+    });
+  }, [onDeleteModels]);
 
   return (
-    <contexts.Provider value={{ ItemOnSelect, setItemOnSelect }}>
+    <contexts.Provider
+      value={{
+        ItemOnSelect,
+        setItemOnSelect,
+        onDeleteModels,
+        setOnDeleteModels,
+      }}
+    >
       <div
         className="scrolling-space"
         style={{

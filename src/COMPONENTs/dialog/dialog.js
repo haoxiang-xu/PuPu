@@ -189,7 +189,7 @@ const Dialog = () => {
     <div
       className="scrolling-space"
       style={{
-        transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        transition: "top 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "absolute",
         top: onDialog !== "" ? 0 : -100,
         left: 0,

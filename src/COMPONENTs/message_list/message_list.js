@@ -573,6 +573,9 @@ const Model_Menu = ({ value }) => {
       }}
       onClick={(e) => {
         e.stopPropagation();
+        ollama_list_available_models().then((response) => {
+          setAvaliableModels(response);
+        });
       }}
     >
       <div

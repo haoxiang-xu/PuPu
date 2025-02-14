@@ -239,6 +239,38 @@ const RequestContainer = ({ children }) => {
       console.error("Error communicating with Ollama:", error);
     }
   };
+  const ollama_delete_local_model = async (model) => {
+    try {
+      const response = await fetch(`http://localhost:11434/api/delete`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: model }),
+      });
+
+      if (!response.ok) {
+        console.error(
+          "API request failed:",
+          response.status,
+          response.statusText
+        );
+        return;
+      }
+
+      const text = await response.text();
+      if (!text) {
+        console.log("API returned no content, deletion might be successful.");
+        return "Model deleted successfully";
+      }
+
+      const data = JSON.parse(text);
+      return data.message ?? "Model deleted successfully";
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+    }
+  };
+
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   return (
@@ -250,6 +282,7 @@ const RequestContainer = ({ children }) => {
         ollama_chat_completion_streaming,
         ollama_update_title_no_streaming,
         ollama_list_available_models,
+        ollama_delete_local_model,
       }}
     >
       {children}
