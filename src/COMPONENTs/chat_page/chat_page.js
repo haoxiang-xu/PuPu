@@ -5,7 +5,7 @@ import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import { RequestContexts } from "../../CONTAINERs/requests/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
-import ollama from "./ollama.png";
+import ollama_pupu from "./ollama_pupu.png";
 
 import Message_List from "../message_list/message_list";
 import Side_Menu from "../side_menu/side_menu";
@@ -260,7 +260,7 @@ const Chat_Page = ({}) => {
       }}
     >
       <img
-        src={ollama}
+        src={ollama_pupu}
         alt="ollama"
         style={{
           transition: "all 0.4s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
