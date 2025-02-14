@@ -270,6 +270,7 @@ const RequestContainer = ({ children }) => {
       console.error("Error communicating with Ollama:", error);
     }
   };
+  const ollama_pull_model = async (model) => {};
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
