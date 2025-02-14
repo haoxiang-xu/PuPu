@@ -34,8 +34,8 @@ const create_main_window = () => {
     mainWindow = new BrowserWindow({
       title: "PuPu",
       icon: path.join(__dirname, "favicon.ico"),
-      width: 1200,
-      height: 800,
+      width: 744,
+      height: 744,
       minHeight: minimum_window_size.height,
       minWidth: minimum_window_size.width,
       webSecurity: true,
@@ -58,8 +58,8 @@ const create_main_window = () => {
     mainWindow = new BrowserWindow({
       title: "PuPu",
       icon: path.join(__dirname, "logo_256x256.ico"),
-      width: 1200,
-      height: 800,
+      width: 744,
+      height: 744,
       minHeight: minimum_window_size.height,
       minWidth: minimum_window_size.width,
       webSecurity: true,
@@ -80,8 +80,8 @@ const create_main_window = () => {
     mainWindow = new BrowserWindow({
       title: "PuPu",
       icon: path.join(__dirname, "favicon.ico"),
-      width: 1200,
-      height: 800,
+      width: 744,
+      height: 744,
       webSecurity: true,
       transparent: true,
       resizable: true,
