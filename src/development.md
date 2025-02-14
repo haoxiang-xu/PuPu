@@ -20,7 +20,7 @@
 
 - `onDialog, setOnDialog`
 
-  - `null` no dialog should be shown.
+  - `""` no dialog should be shown.
   - `await_ollama_setup_warning` 
   - `download_ollama_model`
 
