@@ -401,7 +401,6 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
   );
 };
 const Add_Model_Button = () => {
-
   const { RGB } = useContext(ConfigContexts);
   const { setComponentOnFocus, setOnDialog } = useContext(StatusContexts);
 
@@ -417,7 +416,9 @@ const Add_Model_Button = () => {
         width: "calc(100% - 12px)",
         height: 40,
         margin: 5,
-        border: onHover ? "1px solid rgba(255, 255, 255, 0.16)" : "1px solid rgba(255, 255, 255, 0)",
+        border: onHover
+          ? "1px solid rgba(255, 255, 255, 0.16)"
+          : "1px solid rgba(255, 255, 255, 0)",
         borderRadius: 4,
         backgroundColor: onClick
           ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.84)`
@@ -460,9 +461,11 @@ const Model_Menu = ({ value }) => {
   const sub_component_name = component_name + "model_menu";
 
   const { RGB } = useContext(ConfigContexts);
-  const { selectedModel, avaliableModels } = useContext(DataContexts);
+  const { selectedModel, avaliableModels, setAvaliableModels } =
+    useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
+  const { ollama_list_available_models } = useContext(RequestContexts);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
@@ -495,6 +498,11 @@ const Model_Menu = ({ value }) => {
     return () => {
       document.head.removeChild(styleElement);
     };
+  }, []);
+  useEffect(() => {
+    ollama_list_available_models().then((response) => {
+      setAvaliableModels(response);
+    });
   }, []);
 
   return (
