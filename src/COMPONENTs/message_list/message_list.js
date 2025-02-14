@@ -851,7 +851,7 @@ const Message_List = () => {
               address,
               messages,
               update_title
-            ).then((response) => {});
+            );
             reset_regenerate_title_count_down();
           }
         });

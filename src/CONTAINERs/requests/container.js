@@ -208,7 +208,9 @@ const RequestContainer = ({ children }) => {
         return;
       }
       const title = JSON.parse(data.response).title;
-      update_title(address, title);
+      if (title || title.length > 0) {
+        update_title(address, title);
+      }
       setOllamaOnTask(null);
       return title;
     } catch (error) {
