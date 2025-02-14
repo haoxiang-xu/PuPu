@@ -383,6 +383,9 @@ const DownloadOllamaModel = ({}) => {
         backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
         backdropFilter: "blur(16px)",
       }}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
     >
       <AvailableModels available_models={available_models} />
     </div>
@@ -422,6 +425,9 @@ const AwaitOllamaSetup = ({}) => {
 
         backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
         backdropFilter: "blur(16px)",
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
       }}
     >
       <div
@@ -494,7 +500,7 @@ const Dialog = () => {
         className="dialog-container"
         style={{
           position: "absolute",
-          top: onDialog !== "" ? 0 : -64,
+          top: 0,
           left: 0,
 
           height: "100%",
