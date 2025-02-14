@@ -85,7 +85,7 @@ const OptionTab = ({
         transition: "all 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
 
-        width: "100%",
+        width: 40,
         height: 24,
         border: onExpand
           ? onHover
@@ -106,9 +106,7 @@ const OptionTab = ({
       onMouseLeave={() => {
         setOnHover(false);
       }}
-      onClick={(e) => {
-        e.stopPropagation();
-        setOnExpand(!onExpand);
+      onClick={() => {
         if (onExpand) {
           setSelectedOption(option);
         }
@@ -162,14 +160,15 @@ const ModelTab = ({ model, modelOnSelect, setModelOnSelect }) => {
       setOptions(model.available_options);
       setModelOnSelect(model.name);
     } else {
-      setOptions([model.available_options[0]]);
+      setOptions([selectedOption]);
       setModelOnSelect(null);
     }
   }, [onExpand]);
   useEffect(() => {
-    if (modelOnSelect === null || modelOnSelect !== model.name) {
+    if (modelOnSelect !== model.name) {
       setOnExpand(false);
     }
+    // console.log(modelOnSelect);
   }, [modelOnSelect]);
 
   return (
@@ -184,10 +183,16 @@ const ModelTab = ({ model, modelOnSelect, setModelOnSelect }) => {
         zIndex: onExpand ? 1 : 0,
 
         margin: 5,
-        border: panelOnHover
+        border: onExpand
+          ? `1px solid rgba(225, 225, 225, 0)`
+          : panelOnHover
           ? `1px solid rgba(225, 225, 225, 0.16)`
           : `1px solid rgba(225, 225, 225, 0)`,
-        backgroundColor: panelOnHover
+        backgroundColor: onExpand
+          ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
+              RGB.G + colorOffset.middle_ground
+            }, ${RGB.B + colorOffset.middle_ground}, 0)`
+          : panelOnHover
           ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
               RGB.G + colorOffset.middle_ground
             }, ${RGB.B + colorOffset.middle_ground}, 0.64)`
@@ -211,6 +216,7 @@ const ModelTab = ({ model, modelOnSelect, setModelOnSelect }) => {
       }}
       onClick={() => {
         setOnExpand(false);
+        setModelOnSelect(model.name);
       }}
     >
       <div
@@ -262,21 +268,22 @@ const ModelTab = ({ model, modelOnSelect, setModelOnSelect }) => {
 
           zIndex: 1,
           top: 1,
-          left: spanWidth + 13,
+          left: onExpand?spanWidth + 16 :  spanWidth + 13,
 
-          width: 42,
+          maxWidth: `calc(100% - ${spanWidth + 53}px)`,
           padding: 2,
+
           borderRadius: 7,
           border: onExpand
             ? `1px solid rgba(225, 225, 225, 0.16)`
             : `1px solid rgba(225, 225, 225, 0)`,
-          backgroundColor: onExpand
-            ? `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`
-            : `rgba(${RGB.R + colorOffset.middle_ground}, ${
-                RGB.G + colorOffset.middle_ground
-              }, ${RGB.B + colorOffset.middle_ground}, 0)`,
 
-          overflow: "hidden",
+          display: "flex",
+          flexDirection: "row",
+          gap: 2,
+          overflowX: "auto",
+          overflowY: "hidden",
+          whiteSpace: "nowrap",
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -349,6 +356,9 @@ const AvailableModels = ({ available_models }) => {
         overflowX: "hidden",
         overflowY: "auto",
       }}
+      onClick={(e) => {
+        setModelOnSelect(null);
+      }}
     >
       {available_models.map((family, index) => {
         return (
@@ -380,7 +390,9 @@ const DownloadOllamaModel = ({}) => {
         borderRadius: 10,
         border: `1px solid rgba(225, 225, 225, 0.16)`,
 
-        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
+        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
+          RGB.G + colorOffset.middle_ground
+        }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
         backdropFilter: "blur(16px)",
       }}
       onClick={(e) => {
@@ -423,7 +435,9 @@ const AwaitOllamaSetup = ({}) => {
         borderRadius: 10,
         border: `1px solid rgba(225, 225, 225, 0.16)`,
 
-        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
+        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
+          RGB.G + colorOffset.middle_ground
+        }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
         backdropFilter: "blur(16px)",
       }}
       onClick={(e) => {
