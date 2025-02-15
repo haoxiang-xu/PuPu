@@ -183,7 +183,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
           maxWidth: role === "user" ? 328 : "100%",
 
           float: role === "user" ? "right" : "left",
-          marginTop: index === 0 ? 32 : 0,
+          marginTop: index === 0 ? 40 : 0,
           marginBottom: is_last_index ? 128 : 36,
           borderRadius: default_border_radius,
           boxShadow:
@@ -928,7 +928,7 @@ const Message_List = () => {
           left: 9,
           right: 9,
 
-          height: 96,
+          height: 64,
           background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 32%, rgba(0, 0, 0, 0)) 100%`,
         }}
       ></div>
