@@ -235,7 +235,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
 const Scrolling_Section = () => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
   const { sectionData, sectionStarted } = useContext(DataContexts);
-  const { setComponentOnFocus } = useContext(StatusContexts);
+  const { windowWidth, setComponentOnFocus } = useContext(StatusContexts);
   const {
     awaitResponse,
     preLoadingCompleted,
@@ -304,9 +304,8 @@ const Scrolling_Section = () => {
 
         top: 0,
         left: 0,
+        right: 0,
         bottom: 4,
-
-        width: "100%",
 
         padding: 32,
         overflowX: "hidden",
@@ -321,19 +320,32 @@ const Scrolling_Section = () => {
         setComponentOnFocus(component_name);
       }}
     >
-      {sectionData && sectionData.messages
-        ? sectionData.messages.map((msg, index) => (
-            <Message_Section
-              key={index}
-              index={index}
-              role={msg.role}
-              message={msg.message}
-              is_last_index={
-                index === sectionData.messages.length - 1 ? true : false
-              }
-            />
-          ))
-        : null}
+      <div
+        style={{
+          transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(-50%, 0%)",
+          top: 0,
+          left: "calc(50%  + 4px)",
+          padding: "4px 8px",
+
+          width: windowWidth > 760 ? 684 : windowWidth - 60,
+        }}
+      >
+        {sectionData && sectionData.messages
+          ? sectionData.messages.map((msg, index) => (
+              <Message_Section
+                key={index}
+                index={index}
+                role={msg.role}
+                message={msg.message}
+                is_last_index={
+                  index === sectionData.messages.length - 1 ? true : false
+                }
+              />
+            ))
+          : null}
+      </div>
       <div
         style={{
           position: "relative",
@@ -607,7 +619,7 @@ const Model_Menu = ({ value }) => {
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { componentOnFocus } = useContext(StatusContexts);
+  const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
@@ -647,18 +659,20 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   }, [componentOnFocus]);
 
   return (
-    <>
       <div
         style={{
+          transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",
+          transform: "translate(-50%, 0%)",
+          left: "50%",
           bottom: 0,
-          left: 16,
-          right: 16,
-          height: 32,
 
+          height: 64,
+
+          width: windowWidth > 740 ? 700 : windowWidth - 40,
           backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
         }}
-      ></div>
+      >
       <Input
         value={inputValue}
         setValue={setInputValue}
@@ -667,11 +681,11 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         setOnFocus={setOnFocus}
         style={{
           transition: "height 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "fixed",
+          position: "absolute",
 
           bottom: 24,
-          left: 16,
-          right: 16,
+          left: 0,
+          right: 0,
           padding: 0,
           margin: 0,
 
@@ -777,7 +791,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         />
       )}
       <Model_Menu value={inputValue} />
-    </>
+      </div>
   );
 };
 

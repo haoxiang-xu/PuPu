@@ -308,13 +308,11 @@ const Chat_Page = ({}) => {
         style={{
           transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          transform: "translate(-50%, 0%)",
-          top: 6,
-          left: "50%",
-          bottom: 2,
 
-          width: windowWidth <= 712 ? "calc(100% - 12px)" : 700,
-          maxWidth: 700,
+          top: 6,
+          left: 6,
+          right: 6,
+          bottom: 2,
         }}
       >
         <Message_List />
