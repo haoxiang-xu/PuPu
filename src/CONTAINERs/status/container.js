@@ -22,6 +22,12 @@ const StatusContainer = ({ children }) => {
   }, [ollamaServerStatus]);
   /* { API Status } =================================================================================== */
 
+  /* { Ollama Related Status } ------------------------------------------------------------------------ */
+  const [ollamaPendingDeleteModels, setOllamaPendingDeleteModels] = useState([]);
+  const [ollamaPendingDownloadModels, setOllamaPendingDownloadModels] = useState([]);
+  const [ollamaInstallingStatus, setOllamaInstallingStatus] = useState(null);
+  /* { Ollama Related Status } ------------------------------------------------------------------------ */
+
   /* { Event Listener } ------------------------------------------------------------------------------- */
   /* { window size listener } */
   const [windowIsMaximized, setWindowIsMaximized] = useState(false);
@@ -67,6 +73,18 @@ const StatusContainer = ({ children }) => {
         ollamaServerStatus,
         setOllamaServerStatus,
         /* { API Status } ===================================================================================== */
+
+        /* { Ollama Related Status } ================================================ { Ollama Related Status } */
+        /* { pending delete models } */
+        ollamaPendingDeleteModels,
+        setOllamaPendingDeleteModels,
+        /* { pending download models } */
+        ollamaPendingDownloadModels,
+        setOllamaPendingDownloadModels,
+        /* { installing status } */
+        ollamaInstallingStatus,
+        setOllamaInstallingStatus,
+        /* { Ollama Related Status } ========================================================================= */
 
         /* { Model Related Status } ================================================== { Model Related Status } */
         /* { indicate current model working on task } */

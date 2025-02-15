@@ -4,12 +4,11 @@ import React, {
   useEffect,
   useRef,
   createContext,
-  use,
+  useCallback,
 } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
-import { RequestContexts } from "../../CONTAINERs/requests/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -54,7 +53,7 @@ const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
       onMouseLeave={() => {
         setOnHover(false);
       }}
-      onClick={() => {
+      onClick={(e) => {
         setSelectedOption(option);
         if (ItemOnSelect === sub_component_name + model) {
           setItemOnSelect(null);
@@ -86,7 +85,10 @@ const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
 const ModelTab = ({ model }) => {
   const sub_component_name = "available_models_section";
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { ItemOnSelect, setItemOnSelect } = useContext(contexts);
+  const { avaliableModels } = useContext(DataContexts);
+  const { setOllamaPendingDownloadModels, ollamaPendingDownloadModels } =
+    useContext(StatusContexts);
+  const { ItemOnSelect, setItemOnSelect, scrollToTop } = useContext(contexts);
 
   const [isLoaded, setIsLoaded] = useState(false);
   useEffect(() => {
@@ -104,15 +106,33 @@ const ModelTab = ({ model }) => {
   const [panelOnHover, setPanelOnHover] = useState(false);
   const [onClick, setOnClick] = useState(false);
 
-  const [options, setOptions] = useState(model.available_options);
+  const filter_options = useCallback(
+    (options) => {
+      let filtered_options = [];
+      for (let i = 0; i < options.length; i++) {
+        if (
+          avaliableModels.includes(options[i].download_id) ||
+          ollamaPendingDownloadModels.includes(options[i].download_id)
+        ) {
+          continue;
+        }
+        filtered_options.push(options[i]);
+      }
+      return filtered_options;
+    },
+    [avaliableModels, ollamaPendingDownloadModels]
+  );
+  const [options, setOptions] = useState(
+    filter_options(model.available_options)
+  );
   const [selectedOption, setSelectedOption] = useState(
-    model.available_options[0]
+    filter_options(model.available_options)[0]
   );
   useEffect(() => {
     if (ItemOnSelect === sub_component_name + model.name) {
-      setOptions(model.available_options);
+      setOptions(filter_options(model.available_options));
     } else {
-      setOptions([model.available_options[0]]);
+      setOptions([filter_options(model.available_options)[0]]);
     }
   }, [ItemOnSelect]);
 
@@ -204,6 +224,13 @@ const ModelTab = ({ model }) => {
           opacity: 0.5,
 
           userSelect: "none",
+        }}
+        onClick={(e) => {
+          setOllamaPendingDownloadModels((prev) => [
+            ...prev,
+            selectedOption.download_id,
+          ]);
+          scrollToTop();
         }}
       />
       <div
@@ -324,7 +351,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
 };
 const MoreOption = ({ model, tagWidth }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { setOnDeleteModels } = useContext(contexts);
+  const { setOllamaPendingDeleteModels } = useContext(StatusContexts);
 
   return (
     <div
@@ -349,7 +376,7 @@ const MoreOption = ({ model, tagWidth }) => {
         img_src={"delete"}
         label={"Delete"}
         onClick={() => {
-          setOnDeleteModels((prev) => [...prev, model]);
+          setOllamaPendingDeleteModels((prev) => [...prev, model]);
         }}
       />
     </div>
@@ -359,8 +386,15 @@ const ModelTag = ({ model }) => {
   const sub_component_name = "installed_models_section";
 
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { ItemOnSelect, setItemOnSelect, onDeleteModels } =
-    useContext(contexts);
+  const {
+    /* { pending delete models } */
+    ollamaPendingDeleteModels,
+    /* { pending download models } */
+    ollamaPendingDownloadModels,
+    /* { installing status } */
+    ollamaInstallingStatus,
+  } = useContext(StatusContexts);
+  const { ItemOnSelect, setItemOnSelect } = useContext(contexts);
 
   const tagRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -411,7 +445,8 @@ const ModelTag = ({ model }) => {
           height: 17,
         }}
       >
-        {onDeleteModels.includes(model) ? (
+        {ollamaPendingDeleteModels.includes(model) ||
+        ollamaPendingDownloadModels.includes(model) ? (
           <MoonLoader size={13} color={"#FFFFFF"} speedMultiplier={0.8} />
         ) : (
           <Icon
@@ -433,14 +468,36 @@ const ModelTag = ({ model }) => {
       {ItemOnSelect === sub_component_name + model ? (
         <MoreOption model={model} tagWidth={tagWidth} />
       ) : null}
+
+      {ollamaInstallingStatus && ollamaInstallingStatus.model === model ? (
+        <div
+          style={{
+            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: `calc(${ollamaInstallingStatus.percentage}% - 4px)`,
+            height: "calc(100% - 4px)",
+            backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.18})`,
+            borderRadius: 3,
+            margin: 2,
+            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          }}
+        ></div>
+      ) : null}
     </div>
   );
 };
-const AvailableModel = ({ avaliableModels }) => {
+const AvailableModel = () => {
+  const { avaliableModels } = useContext(DataContexts);
+  const { ollamaPendingDownloadModels } = useContext(StatusContexts);
   return (
     <>
       {avaliableModels.map((model, index) => {
         return <ModelTag key={"available_model_" + index} model={model} />;
+      })}
+      {ollamaPendingDownloadModels.map((model, index) => {
+        return <ModelTag key={"installing_model_" + index} model={model} />;
       })}
     </>
   );
@@ -448,33 +505,25 @@ const AvailableModel = ({ avaliableModels }) => {
 /* { Available Model List } ========================================================================================================================== */
 
 const ModelDownloader = ({ available_models }) => {
-  const { avaliableModels, setAvaliableModels } = useContext(DataContexts);
-  const { ollama_list_available_models, ollama_delete_local_model } =
-    useContext(RequestContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
-  const [onDeleteModels, setOnDeleteModels] = useState([]);
+  const ScrollRef = useRef(null);
 
-  useEffect(() => {
-    if (onDeleteModels.length === 0) {
-      return;
+  const scrollToTop = () => {
+    if (ScrollRef.current) {
+      ScrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
     }
-    ollama_delete_local_model(onDeleteModels[0]).then((response) => {
-      ollama_list_available_models().then((response) => {
-        setAvaliableModels(response);
-      });
-    });
-  }, [onDeleteModels]);
+  };
 
   return (
     <contexts.Provider
       value={{
         ItemOnSelect,
         setItemOnSelect,
-        onDeleteModels,
-        setOnDeleteModels,
+        scrollToTop,
       }}
     >
       <div
+        ref={ScrollRef}
         className="scrolling-space"
         style={{
           position: "absolute",
@@ -529,7 +578,7 @@ const ModelDownloader = ({ available_models }) => {
             Installed Models
           </span>
         </div>
-        <AvailableModel avaliableModels={avaliableModels} />
+        <AvailableModel />
         <div
           style={{
             position: "relative",

@@ -11,7 +11,7 @@ const available_models = [
           { name: "1.5b", download_id: "deepseek-r1:1.5b" },
           { name: "7b", download_id: "deepseek-r1:7b" },
           { name: "8b", download_id: "deepseek-r1:8b" },
-          { name: "14b", download_id: "deepseek-r1:9b" },
+          { name: "14b", download_id: "deepseek-r1:14b" },
           { name: "32b", download_id: "deepseek-r1:32b" },
           { name: "70b", download_id: "deepseek-r1:70b" },
           { name: "671b", download_id: "deepseek-r1:671b" },

@@ -17,8 +17,21 @@ const DataContainer = () => {
     setComponentOnFocus,
     ollamaServerStatus,
     setOllamaServerStatus,
+    /* { pending delete models } */
+    ollamaPendingDeleteModels,
+    setOllamaPendingDeleteModels,
+    /* { pending download models } */
+    ollamaPendingDownloadModels,
+    setOllamaPendingDownloadModels,
+    /* { installing status } */
+    setOllamaInstallingStatus,
   } = useContext(StatusContexts);
-  const { ollama_get_version, ollama_list_available_models } = useContext(RequestContexts);
+  const {
+    ollama_get_version,
+    ollama_list_available_models,
+    ollama_delete_local_model,
+    ollama_pull_cloud_model,
+  } = useContext(RequestContexts);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [selectedModel, setSelectedModel] = useState(null);
@@ -243,6 +256,51 @@ const DataContainer = () => {
   }, [sectionData, addressBook, selectedModel]);
   /* { Section Data } --------------------------------------------------------------------------------- */
 
+  /* { Model Data } ----------------------------------------------------------------------------------- */
+    useEffect(() => {
+      if (ollamaPendingDeleteModels.length === 0) {
+        return;
+      }
+      ollama_delete_local_model(ollamaPendingDeleteModels[0]).then((response) => {
+        ollama_list_available_models().then((response) => {
+          setAvaliableModels(response);
+          setOllamaPendingDeleteModels((prev) => {
+            let new_list = [...prev];
+            new_list.shift();
+            return new_list;
+          });
+        });
+      });
+    }, [ollamaPendingDeleteModels]);
+    useEffect(() => {
+      if (ollamaPendingDownloadModels.length === 0) {
+        return;
+      }
+      setOllamaInstallingStatus({
+        model: ollamaPendingDownloadModels[0],
+        percentage: 0,
+        done: false,
+      });
+      ollama_pull_cloud_model(
+        ollamaPendingDownloadModels[0],
+        setOllamaInstallingStatus
+      )
+        .then((response) => {
+          ollama_list_available_models().then((response) => {
+            setAvaliableModels(response);
+            setOllamaPendingDownloadModels((prev) => {
+              let new_list = [...prev];
+              new_list.shift();
+              return new_list;
+            });
+          });
+        })
+        .finally(() => {
+          setOllamaInstallingStatus(null);
+        });
+    }, [ollamaPendingDownloadModels]);
+  /* { Model Data } ----------------------------------------------------------------------------------- */
+
   return (
     <DataContexts.Provider
       value={{
@@ -295,7 +353,7 @@ const DataContainer = () => {
           <ScaleLoader color={"#cccccc"} size={12} margin={1} />
         </div>
       ) : null}
-      <Dialog/>
+      <Dialog />
       <Title_Bar />
       {ollamaServerStatus === true ? <Side_Menu /> : null}
     </DataContexts.Provider>
