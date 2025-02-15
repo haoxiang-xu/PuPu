@@ -192,7 +192,7 @@ const Chat_Room_Item = ({ address }) => {
           right: 0,
           width: 17,
           height: 17,
-          opacity: 0.5,
+          opacity: 0.16,
 
           userSelect: "none",
         }}

@@ -484,7 +484,7 @@ const ModelTag = ({ model }) => {
             style={{
               width: 17,
               height: 17,
-              opacity: 0.5,
+              opacity: 0.16,
 
               userSelect: "none",
             }}
