@@ -5,6 +5,7 @@
 - `New STUFF`
   - Ollama Models management panel allowing users to pull or delete models.
   - Consistent more options menu.
+  - Support fot light and dark theme.
 
 - `Reported BUGs`
   - When the downloaded model having a name that does not match the model name in the model list, the app will crash.
