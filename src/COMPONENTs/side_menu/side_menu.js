@@ -192,7 +192,7 @@ const Chat_Room_Item = ({ address }) => {
 const Chat_Room_List = ({}) => {
   const { RGB } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
-  const { componentOnFocus } = useContext(StatusContexts);
+  const { componentOnFocus, setComponentOnFocus } = useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
 
@@ -290,6 +290,7 @@ const Chat_Room_List = ({}) => {
         }}
         onClick={() => {
           start_new_section();
+          setComponentOnFocus("message_list");
         }}
       ></Icon>
       <span
@@ -333,13 +334,13 @@ const Side_Menu = ({}) => {
     if (componentOnFocus === component_name) {
       if (window.innerWidth * 0.25 > 256) {
         setMenuStyle({
-          width: window.innerWidth * 0.25,
+          width: Math.min(window.innerWidth * 0.25, 320),
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
         });
         setIconStyle({
           src: "arrow",
           top: window.osInfo.platform === "darwin" ? 17 : 14,
-          left: window.innerWidth * 0.25 - 16,
+          left: Math.min(window.innerWidth * 0.25, 320) - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       } else {
