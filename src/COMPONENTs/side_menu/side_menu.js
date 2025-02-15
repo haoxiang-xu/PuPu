@@ -224,6 +224,7 @@ const Chat_Room_Item = ({ address }) => {
           boxSizing: "border-box",
           boxShadow: `0 0 8px rgba(0, 0, 0, 0.32)`,
           opacity: onSelectAddress === address ? 1 : 0,
+          pointerEvents: onSelectAddress === address ? "auto" : "none",
           overflow: "hidden",
         }}
       >
