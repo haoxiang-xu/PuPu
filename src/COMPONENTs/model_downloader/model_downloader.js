@@ -16,13 +16,13 @@ import MoonLoader from "react-spinners/MoonLoader";
 
 const component_name = "model_downloader";
 
-const contexts = createContext("");
+const Contexts = createContext("");
 
 /* { Cloud Model List } ------------------------------------------------------------------------------------------------------------------------------ */
 const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
   const sub_component_name = "available_models_section";
   const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { ItemOnSelect, setItemOnSelect } = useContext(contexts);
+  const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
   const [onHover, setOnHover] = useState(false);
 
   return (
@@ -88,7 +88,7 @@ const ModelTab = ({ model }) => {
   const { avaliableModels } = useContext(DataContexts);
   const { setOllamaPendingDownloadModels, ollamaPendingDownloadModels } =
     useContext(StatusContexts);
-  const { ItemOnSelect, setItemOnSelect, scrollToTop } = useContext(contexts);
+  const { ItemOnSelect, setItemOnSelect, scrollToTop } = useContext(Contexts);
 
   const [isLoaded, setIsLoaded] = useState(false);
   useEffect(() => {
@@ -306,20 +306,31 @@ const FamilyTab = ({ family }) => {
 /* { Available Model List } ========================================================================================================================== */
 const OptionItem = ({ img_src, label, onClick }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
+  const [onHover, setOnHover] = useState(false);
+
   return (
     <>
       <div
         style={{
+          transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "relative",
           display: "block",
           width: "clac(100%- 6px)",
           height: 30,
           margin: 2,
 
-          border: `1px solid rgba(225, 225, 225, 0.16)`,
+          border: onHover
+            ? `1px solid rgba(225, 225, 225, 0.16)`
+            : `1px solid rgba(225, 225, 225, 0)`,
           borderRadius: 6,
         }}
         onClick={onClick}
+        onMouseEnter={() => {
+          setOnHover(true);
+        }}
+        onMouseLeave={() => {
+          setOnHover(false);
+        }}
       >
         <Icon
           src={img_src}
@@ -352,15 +363,33 @@ const OptionItem = ({ img_src, label, onClick }) => {
 const MoreOption = ({ model, tagWidth }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
   const { setOllamaPendingDeleteModels } = useContext(StatusContexts);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [style, setStyle] = useState({
+    width: 32,
+    opacity: 0,
+  });
+
+  useEffect(() => {
+    setIsLoaded(true);
+  }, []);
+  useEffect(() => {
+    if (isLoaded) {
+      setStyle({
+        width: tagWidth + 2,
+        opacity: 1,
+      });
+    }
+  }, [isLoaded]);
 
   return (
     <div
       style={{
+        transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "absolute",
         maxHeight: (tagWidth + 2) * 0.618,
         top: 20,
         right: -1,
-        width: tagWidth + 2,
+        width: style.width,
         zIndex: 1,
 
         backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
@@ -370,6 +399,7 @@ const MoreOption = ({ model, tagWidth }) => {
         border: `1px solid rgba(225, 225, 225, 0.16)`,
         boxSizing: "border-box",
         boxShadow: `0 0 8px rgba(0, 0, 0, 0.32)`,
+        opacity: style.opacity,
       }}
     >
       <OptionItem
@@ -394,7 +424,7 @@ const ModelTag = ({ model }) => {
     /* { installing status } */
     ollamaInstallingStatus,
   } = useContext(StatusContexts);
-  const { ItemOnSelect, setItemOnSelect } = useContext(contexts);
+  const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
 
   const tagRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -515,7 +545,7 @@ const ModelDownloader = ({ available_models }) => {
   };
 
   return (
-    <contexts.Provider
+    <Contexts.Provider
       value={{
         ItemOnSelect,
         setItemOnSelect,
@@ -616,7 +646,7 @@ const ModelDownloader = ({ available_models }) => {
           return <FamilyTab key={"model_family_" + index} family={family} />;
         })}
       </div>
-    </contexts.Provider>
+    </Contexts.Provider>
   );
 };
 

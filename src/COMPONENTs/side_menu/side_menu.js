@@ -6,17 +6,74 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
 
-const Side_Menu_Contexts = createContext();
+const Contexts = createContext();
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
+const OptionItem = ({ img_src, label, onClick }) => {
+  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const [onHover, setOnHover] = useState(false);
+
+  return (
+    <>
+      <div
+        style={{
+          transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "relative",
+          display: "block",
+          width: "clac(100%- 6px)",
+          height: 30,
+          margin: 2,
+
+          border: onHover
+            ? `1px solid rgba(225, 225, 225, 0.16)`
+            : `1px solid rgba(225, 225, 225, 0)`,
+          borderRadius: 6,
+        }}
+        onClick={onClick}
+        onMouseEnter={() => {
+          setOnHover(true);
+        }}
+        onMouseLeave={() => {
+          setOnHover(false);
+        }}
+      >
+        <Icon
+          src={img_src}
+          style={{
+            position: "absolute",
+            transform: "translate(0, -50%)",
+            top: "50%",
+            left: 6,
+            userSelect: "none",
+          }}
+        />
+        <span
+          style={{
+            position: "absolute",
+            transform: "translate(0, -50%)",
+            top: "50%",
+            left: 30,
+            color: `rgba(${RGB.R + colorOffset.font}, ${
+              RGB.G + colorOffset.font
+            }, ${RGB.B + colorOffset.font}, 1)`,
+            userSelect: "none",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    </>
+  );
+};
 const Chat_Room_Item = ({ address }) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, colorOffset } = useContext(ConfigContexts);
   const {
     addressBook,
     sectionData,
     load_section_data,
     delete_address_in_local_storage,
   } = useContext(DataContexts);
+  const { onSelectAddress, setOnSelectAddress } = useContext(Contexts);
   const [onHover, setOnHover] = useState(false);
   const [onDelete, setOnDelete] = useState(false);
   const [containerStyle, setContainerStyle] = useState({
@@ -86,7 +143,6 @@ const Chat_Room_Item = ({ address }) => {
         border: containerStyle.border,
         backgroundColor: containerStyle.backgroundColor,
         boxShadow: containerStyle.boxShadow,
-        overflow: "hidden",
       }}
       onMouseEnter={() => {
         setOnHover(true);
@@ -98,6 +154,7 @@ const Chat_Room_Item = ({ address }) => {
         e.stopPropagation();
         load_section_data(address);
         setOnDelete(false);
+        setOnSelectAddress(null);
       }}
     >
       <span
@@ -126,66 +183,58 @@ const Chat_Room_Item = ({ address }) => {
           ? addressBook[address].chat_title || address
           : address}
       </span>
-      <>
-        <Icon
-          src="red_circle"
-          style={{
-            userSelect: "none",
-            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            transform: "translate(-50%, -50%)",
-            top: "50%",
-            right: -2,
-            width: 17,
-            height: 17,
-            opacity: onDelete && sectionData.address === address ? 1 : 0,
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
+      <Icon
+        src={"more"}
+        style={{
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          top: "50%",
+          right: 0,
+          width: 17,
+          height: 17,
+          opacity: 0.5,
+
+          userSelect: "none",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (onSelectAddress === address) {
+            setOnSelectAddress(null);
+          } else {
+            setOnSelectAddress(address);
+          }
+        }}
+      />
+
+      <div
+        style={{
+          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          maxHeight: 128 * 0.618,
+          top: 20,
+          right: -1,
+          width: onSelectAddress === address ? 128 : 32,
+          zIndex: 1,
+
+          backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
+            RGB.G + colorOffset.middle_ground
+          }, ${RGB.B + colorOffset.middle_ground}, 1)`,
+          borderRadius: 8,
+          border: `1px solid rgba(225, 225, 225, 0.16)`,
+          boxSizing: "border-box",
+          boxShadow: `0 0 8px rgba(0, 0, 0, 0.32)`,
+          opacity: onSelectAddress === address ? 1 : 0,
+          overflow: "hidden",
+        }}
+      >
+        <OptionItem
+          img_src={"delete"}
+          label={"Delete"}
+          onClick={() => {
             delete_address_in_local_storage(address);
           }}
         />
-        <Icon
-          src="add"
-          style={{
-            userSelect: "none",
-            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            transform: "translate(-50%, -50%) rotate(45deg)",
-            top: "50%",
-            right: onDelete && sectionData.address === address ? 14 : -2,
-            width: 17,
-            height: 17,
-            opacity: onDelete && sectionData.address === address ? 0.5 : 0,
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            setOnDelete(!onDelete);
-          }}
-        />
-        <Icon
-          src={deleteButtonStyle.src}
-          style={{
-            transition:
-              "right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            transform: "translate(-50%, -50%)",
-            top: "50%",
-            right: onDelete && sectionData.address === address ? 32 : -2,
-            opacity:
-              sectionData.address === address ? deleteButtonStyle.opacity : 0,
-            width: 17,
-            height: 17,
-            userSelect: "none",
-          }}
-          onClick={(e) => {
-            if (sectionData.address === address) {
-              e.stopPropagation();
-            }
-            setOnDelete(!onDelete);
-          }}
-        />
-      </>
+      </div>
     </div>
   );
 };
@@ -249,9 +298,6 @@ const Chat_Room_List = ({}) => {
 
         overflowX: "hidden",
         overflowY: "auto",
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
       }}
     >
       {chatRoomItems}
@@ -329,6 +375,7 @@ const Side_Menu = ({}) => {
     width: 0,
     borderRight: "0px solid rgba(255, 255, 255, 0)",
   });
+  const [onSelectAddress, setOnSelectAddress] = useState(null);
 
   useEffect(() => {
     if (componentOnFocus === component_name) {
@@ -375,11 +422,12 @@ const Side_Menu = ({}) => {
           transform: "translate(-50%, -50%)",
         });
       }
+      setOnSelectAddress(null);
     }
   }, [windowWidth, componentOnFocus, windowIsMaximized]);
 
   return (
-    <Side_Menu_Contexts.Provider value={{}}>
+    <Contexts.Provider value={{ onSelectAddress, setOnSelectAddress }}>
       <div>
         <div
           className="scrolling-space"
@@ -403,6 +451,7 @@ const Side_Menu = ({}) => {
           }}
           onClick={(e) => {
             e.stopPropagation();
+            setOnSelectAddress(null);
           }}
         >
           <Chat_Room_List />
@@ -438,7 +487,7 @@ const Side_Menu = ({}) => {
           />
         </div>
       </div>
-    </Side_Menu_Contexts.Provider>
+    </Contexts.Provider>
   );
 };
 
