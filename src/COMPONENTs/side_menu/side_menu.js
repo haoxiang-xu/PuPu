@@ -30,10 +30,10 @@ const OptionItem = ({ img_src, label, onClick }) => {
           borderRadius: 6,
         }}
         onClick={onClick}
-        onMouseEnter={() => {
+        onMouseEnter={(e) => {
           setOnHover(true);
         }}
-        onMouseLeave={() => {
+        onMouseLeave={(e) => {
           setOnHover(false);
         }}
       >
@@ -227,6 +227,13 @@ const Chat_Room_Item = ({ address }) => {
           overflow: "hidden",
         }}
       >
+        <OptionItem
+          img_src={"rename"}
+          label={"Rename"}
+          onClick={() => {
+            console.log("rename");
+          }}
+        />
         <OptionItem
           img_src={"delete"}
           label={"Delete"}
