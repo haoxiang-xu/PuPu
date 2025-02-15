@@ -117,8 +117,12 @@ const Input = ({
           fontSize: default_font_size + 2,
           fontFamily: "inherit",
           fontWeight: 100,
+          color:
+            props && props.style && props.style.color
+              ? props.style.color
+              : `#FFFFFF`,
 
-          opacity: value.length !== 0 ? 0 : 0.32,
+          opacity: value.length !== 0 ? 0 : 0.5,
           pointerEvents: "none",
           userSelect: "none",
         }}

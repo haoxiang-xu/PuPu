@@ -141,7 +141,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   }
 };
 const Message_Section = ({ index, role, message, is_last_index }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, boxShadow } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
   const { targetAddress } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
@@ -187,7 +187,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
           marginBottom: is_last_index ? 128 : 36,
           borderRadius: default_border_radius,
           boxShadow:
-            role === "user" ? `0px 4px 16px rgba(0, 0, 0, 0.16)` : "none",
+            role === "user" ? boxShadow.light : "none",
         }}
         onMouseEnter={(e) => {
           setOnHover(true);
@@ -322,7 +322,6 @@ const Scrolling_Section = () => {
     >
       <div
         style={{
-          transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(-50%, 0%)",
           top: 0,
@@ -472,7 +471,7 @@ const Add_Model_Button = () => {
 const Model_Menu = ({ value }) => {
   const sub_component_name = component_name + "_" + "model_menu";
 
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, boxShadow } = useContext(ConfigContexts);
   const { selectedModel, avaliableModels, setAvaliableModels } =
     useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
@@ -530,8 +529,8 @@ const Model_Menu = ({ value }) => {
         bottom: 35,
         left:
           value.length !== 0 || ollamaOnTask !== null
-            ? 60 + default_padding
-            : 60,
+            ? 50 + default_padding
+            : 50,
 
         fontSize: default_font_size + 2,
         fontFamily: "inherit",
@@ -566,7 +565,7 @@ const Model_Menu = ({ value }) => {
             : `rgba(225, 225, 225, 0)`,
         boxShadow:
           onHover || componentOnFocus === sub_component_name
-            ? `0px 4px 16px rgba(0, 0, 0, 0.32)`
+            ? boxShadow.middle
             : "none",
         cursor: "pointer",
         backdropFilter:
@@ -618,7 +617,7 @@ const Model_Menu = ({ value }) => {
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, color, boxShadow, border } = useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
@@ -690,15 +689,15 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           margin: 0,
 
           fontSize: 16,
-          color: `rgba(255, 255, 255, 0.64)`,
+          color: color,
 
           borderRadius: default_border_radius,
           backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
             RGB.G + colorOffset.middle_ground
           }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
           backdropFilter: "blur(24px)",
-          boxShadow: `0px 4px 32px rgba(0, 0, 0, 0.64)`,
-          border: "1px solid rgba(255, 255, 255, 0.16)",
+          boxShadow: boxShadow.drak,
+          border: border,
         }}
       ></Input>
       {awaitResponse === null ? (
@@ -714,8 +713,8 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: onClicked ? 14 : 16,
-            right: 7,
+            bottom: onClicked ? 14 : 15,
+            right: -8,
             width: 16,
             height: 16,
             cursor: "pointer",
@@ -757,8 +756,8 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: onClicked ? 14 : 16,
-            right: 7,
+            bottom: onClicked ? 14 : 15,
+            right: -8,
             width: 16,
             height: 16,
             cursor: "pointer",

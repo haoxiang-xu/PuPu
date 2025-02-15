@@ -13,13 +13,6 @@ const App = () => {
   const [RGB, setRGB] = useState({ R: 30, G: 30, B: 30 });
   const [fontFamily, setFontFamily] = useState("Jost");
 
-  useEffect(() => {
-    document.body.style.backgroundColor = `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`;
-    return () => {
-      document.body.style.backgroundColor = "";
-    };
-  }, []);
-
   return (
     <div
       style={{

@@ -371,7 +371,7 @@ const Chat_Room_List = ({}) => {
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, border } = useContext(ConfigContexts);
   const {
     windowWidth,
     windowIsMaximized,
@@ -450,7 +450,7 @@ const Side_Menu = ({}) => {
             width: menuStyle.width,
 
             boxSizing: "border-box",
-            borderRight: "1px solid rgba(255, 255, 255, 0.12)",
+            borderRight: border,
             scrollBehavior: "smooth",
 
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
