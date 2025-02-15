@@ -570,6 +570,7 @@ const ModelDownloader = ({ available_models }) => {
 
           overflowX: "hidden",
           overflowY: "auto",
+          userSelect: "none",
         }}
         onClick={(e) => {
           setItemOnSelect(null);
@@ -593,6 +594,8 @@ const ModelDownloader = ({ available_models }) => {
               width: 20,
               height: 20,
               margin: 6,
+
+              userSelect: "none",
             }}
           />
           <span
@@ -603,6 +606,7 @@ const ModelDownloader = ({ available_models }) => {
               left: 30,
               fontSize: 20,
               color: `rgba(${225}, ${225}, ${225}, 0.72)`,
+              userSelect: "none",
             }}
           >
             Installed Models
@@ -627,6 +631,8 @@ const ModelDownloader = ({ available_models }) => {
               width: 20,
               height: 20,
               margin: 6,
+
+              userSelect: "none",
             }}
           />
           <span
