@@ -418,8 +418,8 @@ const Side_Menu = ({}) => {
       if (window.osInfo.platform === "darwin") {
         setIconStyle({
           src: "side_menu",
-          top: 25,
-          left: windowIsMaximized ? 25 : 96,
+          top: 24.3,
+          left: windowIsMaximized ? 25 : 85,
           transform: "translate(-50%, -50%)",
         });
       } else {

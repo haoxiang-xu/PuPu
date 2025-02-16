@@ -19,3 +19,4 @@
   - Markdown internal link will direct to the empty page [X] - 0.0.2
   - Loading Tag should be removed if there is no response from the server coming back.
   - Code LLM could cause Markdown rendering error.
+  - Regenerated message will not trigger the message list to auto scroll to that position.
