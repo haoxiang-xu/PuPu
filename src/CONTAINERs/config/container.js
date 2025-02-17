@@ -6,7 +6,7 @@ import { dark_theme, light_theme } from "./default_themes";
 
 const ConfigContainer = ({ children }) => {
   /* { Theme } ------------------------------------------------------------------------------- */
-  const [theme, setTheme] = useState("light_theme");
+  const [theme, setTheme] = useState("dark_theme");
   const update_RGB = useCallback(() => {
     let RGB = {};
     if (theme) {

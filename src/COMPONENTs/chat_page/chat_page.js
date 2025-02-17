@@ -13,7 +13,6 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
 const Chat_Page = ({}) => {
   const { RGB, theme } = useContext(ConfigContexts);
-  const { windowWidth, ollamaServerStatus } = useContext(StatusContexts);
   const { sectionStarted } = useContext(DataContexts);
 
   /* { Title } ------------------------------------------------------------------------------ */
@@ -232,7 +231,7 @@ const Chat_Page = ({}) => {
       }}
     >
       <img
-        src={theme === "drak_theme" ? ollama_pupu : ollama_pupu_}
+        src={theme === "dark_theme" ? ollama_pupu : ollama_pupu_}
         alt="ollama"
         style={{
           transition: "all 0.4s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
