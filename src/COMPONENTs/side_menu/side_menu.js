@@ -88,7 +88,7 @@ const Chat_Room_Item = ({ address }) => {
     if (address === sectionData.address) {
       setContainerStyle({
         backgroundColor: sideMenu.chat_room_item.backgroundColor_onActive,
-        boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
+        boxShadow: sideMenu.chat_room_item.boxShadow_onActive,
         border: sideMenu.chat_room_item.border_onActive,
       });
       return;

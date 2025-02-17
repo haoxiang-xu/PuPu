@@ -356,7 +356,7 @@ const Scrolling_Section = () => {
   );
 };
 const Model_list_Item = ({ model, setModelOnTask }) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, messageList } = useContext(ConfigContexts);
   const { selectedModel, setSelectedModel, setAvaliableModels } =
     useContext(DataContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
@@ -373,7 +373,7 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
         margin: 5,
         padding: "2px 6px",
 
-        color: `rgba(225, 225, 225, 0.64)`,
+        color: messageList.model_list_item.color,
 
         border:
           selectedModel === model
@@ -384,12 +384,12 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
         borderRadius: 4,
         backgroundColor:
           selectedModel === model
-            ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.84)`
+            ? messageList.model_list_item.backgroundColor_onActive
             : onHover
-            ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.4)`
-            : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+            ? messageList.model_list_item.backgroundColor_onHover
+            : messageList.model_list_item.backgroundColor,
         boxShadow:
-          selectedModel === model ? "0px 4px 16px rgba(0, 0, 0, 0.16)" : "none",
+          selectedModel === model ? messageList.model_list_item.boxShadow_onHover : "none",
       }}
       onMouseEnter={(e) => {
         setOnHover(true);
@@ -412,7 +412,7 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
   );
 };
 const Add_Model_Button = () => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, messageList } = useContext(ConfigContexts);
   const { setComponentOnFocus, setOnDialog } = useContext(StatusContexts);
 
   const [onHover, setOnHover] = useState(false);
@@ -432,9 +432,9 @@ const Add_Model_Button = () => {
           : "1px solid rgba(255, 255, 255, 0)",
         borderRadius: 4,
         backgroundColor: onClick
-          ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.84)`
+          ? messageList.add_model_button.backgroundColor_onActive
           : onHover
-          ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.4)`
+          ? messageList.add_model_button.backgroundColor_onHover
           : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
       }}
       onMouseEnter={(e) => {
@@ -471,7 +471,7 @@ const Add_Model_Button = () => {
 const Model_Menu = ({ value }) => {
   const sub_component_name = component_name + "_" + "model_menu";
 
-  const { RGB, boxShadow } = useContext(ConfigContexts);
+  const { RGB, boxShadow, messageList } = useContext(ConfigContexts);
   const { selectedModel, avaliableModels, setAvaliableModels } =
     useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
@@ -549,19 +549,19 @@ const Model_Menu = ({ value }) => {
         borderRadius: componentOnFocus === sub_component_name ? 8 : 4,
         color:
           componentOnFocus === sub_component_name
-            ? `rgba(225, 225, 225, 0.32)`
-            : `rgba(225, 225, 225, 0.72)`,
+            ? messageList.model_menu.color_onActive
+            : messageList.model_menu.color,
         border:
           componentOnFocus === sub_component_name
-            ? `1px solid rgba(255, 255, 255, 0.12)`
+            ? messageList.model_menu.border_onActive
             : onHover
-            ? `1px solid rgba(225, 225, 225, 0.64)`
-            : `1px solid rgba(225, 225, 225, 0.5)`,
+            ? messageList.model_menu.border_onHover
+            : messageList.model_menu.border,
         backgroundColor:
           componentOnFocus === sub_component_name
-            ? `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`
+            ? messageList.model_menu.backgroundColor_onActive
             : onHover
-            ? `rgba(225, 225, 225, 0.08)`
+            ? messageList.model_menu.backgroundColor_onHover
             : `rgba(225, 225, 225, 0)`,
         boxShadow:
           onHover || componentOnFocus === sub_component_name
