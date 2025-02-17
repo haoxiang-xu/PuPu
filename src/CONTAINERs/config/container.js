@@ -84,11 +84,46 @@ const ConfigContainer = ({ children }) => {
     }
     return border;
   }, [theme]);
+  const update_side_menu = useCallback(() => {
+    if (theme) {
+      if (theme === "dark_theme") {
+        return {
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
+          color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.64)`,
+          chat_room_item: {
+            backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.4)`,
+            backgroundColor_onActive: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.84)`,
+            border_onHover: "1px solid rgba(255, 255, 255, 0.08)",
+            border_onActive: "1px solid rgba(255, 255, 255, 0.16)",
+          },
+        };
+      } else {
+        return {
+          backgroundColor: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${
+            RGB.B - 64
+          }, 0.32)`,
+          color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.72)`,
+          chat_room_item: {
+            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.5)`,
+            backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            border_onHover: "1px solid rgba(0, 0, 0, 0)",
+            border_onActive: "1px solid rgba(0, 0, 0, 0)",
+          },
+        };
+      }
+    }
+  }, [theme]);
+
   const [RGB, setRGB] = useState(update_RGB());
   const [colorOffset, setColorOffset] = useState(update_color_offset());
   const [color, setColor] = useState(update_color());
   const [boxShadow, setBoxShadow] = useState({});
   const [border, setBorder] = useState(null);
+  const [sideMenu, setSideMenu] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -103,6 +138,7 @@ const ConfigContainer = ({ children }) => {
     setColor(update_color());
     setBoxShadow(update_box_shadow());
     setBorder(update_border());
+    setSideMenu(update_side_menu());
   }, [theme]);
 
   return (
@@ -115,6 +151,7 @@ const ConfigContainer = ({ children }) => {
           color,
           boxShadow,
           border,
+          sideMenu,
         }}
       >
         {children}

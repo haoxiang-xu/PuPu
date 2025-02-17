@@ -10,7 +10,7 @@ const Contexts = createContext();
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 const OptionItem = ({ img_src, label, onClick }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, sideMenu } = useContext(ConfigContexts);
   const [onHover, setOnHover] = useState(false);
 
   return (
@@ -53,9 +53,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
             transform: "translate(0, -50%)",
             top: "50%",
             left: 30,
-            color: `rgba(${RGB.R + colorOffset.font}, ${
-              RGB.G + colorOffset.font
-            }, ${RGB.B + colorOffset.font}, 1)`,
+            color: sideMenu.color,
             userSelect: "none",
           }}
         >
@@ -66,7 +64,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
   );
 };
 const Chat_Room_Item = ({ address }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, sideMenu } = useContext(ConfigContexts);
   const {
     addressBook,
     sectionData,
@@ -89,11 +87,9 @@ const Chat_Room_Item = ({ address }) => {
   useEffect(() => {
     if (address === sectionData.address) {
       setContainerStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-          RGB.B + 30
-        }, 0.84)`,
+        backgroundColor: sideMenu.chat_room_item.backgroundColor_onActive,
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
-        border: "1px solid rgba(255, 255, 255, 0.16)",
+        border: sideMenu.chat_room_item.border_onActive,
       });
       return;
     } else {
@@ -101,15 +97,13 @@ const Chat_Room_Item = ({ address }) => {
     }
     if (onHover) {
       setContainerStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-          RGB.B + 30
-        }, 0.4)`,
+        backgroundColor: sideMenu.chat_room_item.backgroundColor_onHover,
         boxShadow: "none",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
+        border: sideMenu.chat_room_item.border_onHover,
       });
     } else {
       setContainerStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+        backgroundColor: "rgba(0, 0, 0, 0)",
         boxShadow: "none",
         border: "1px solid rgba(255, 255, 255, 0)",
       });
@@ -173,7 +167,7 @@ const Chat_Room_Item = ({ address }) => {
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           overflow: "hidden",
-          color: `rgba(225, 225, 225, 0.64)`,
+          color: sideMenu.color,
 
           userSelect: "none",
           pointerEvents: "none",
@@ -192,7 +186,7 @@ const Chat_Room_Item = ({ address }) => {
           right: 0,
           width: 17,
           height: 17,
-          opacity: 0.16,
+          opacity: 0.32,
 
           userSelect: "none",
         }}
@@ -247,7 +241,7 @@ const Chat_Room_Item = ({ address }) => {
   );
 };
 const Chat_Room_List = ({}) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, sideMenu } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
   const { componentOnFocus, setComponentOnFocus } = useContext(StatusContexts);
 
@@ -357,7 +351,7 @@ const Chat_Room_List = ({}) => {
           fontSize: 14,
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
-          color: `rgba(255, 255, 255, 0.32)`,
+          color: sideMenu.color,
 
           userSelect: "none",
           pointerEvents: "none",
@@ -371,7 +365,7 @@ const Chat_Room_List = ({}) => {
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
-  const { RGB, border } = useContext(ConfigContexts);
+  const { RGB, border, sideMenu } = useContext(ConfigContexts);
   const {
     windowWidth,
     windowIsMaximized,
@@ -453,7 +447,7 @@ const Side_Menu = ({}) => {
             borderRight: border,
             scrollBehavior: "smooth",
 
-            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
+            backgroundColor: sideMenu.backgroundColor,
             backdropFilter: "blur(36px)",
             WebkitAppRegion: "no-drag",
           }}

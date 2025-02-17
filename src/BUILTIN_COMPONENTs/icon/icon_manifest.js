@@ -1,5 +1,3 @@
-import Side_Menu from "../../COMPONENTs/side_menu/side_menu";
-
 export const iconManifest = {
   /* { System UI Icons } ------------------------------------------------------------------------------------------------------------- */
   arrow: () => import("./SVGs/UI/arrow.svg"),
@@ -10,6 +8,7 @@ export const iconManifest = {
   close: () => import("./SVGs/UI/close.svg"),
   close_: () => import("./SVGs/UI/close_.svg"),
   rename: () => import("./SVGs/UI/rename.svg"),
+  rename_: () => import("./SVGs/UI/rename_.svg"),
   open_folder: () => import("./SVGs/UI/open_folder.svg"),
   open_file: () => import("./SVGs/UI/open_file.svg"),
   new_folder: () => import("./SVGs/UI/new_folder.svg"),
