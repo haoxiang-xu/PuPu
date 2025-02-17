@@ -592,7 +592,7 @@ const Model_Menu = ({ value }) => {
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, colorOffset, color, boxShadow, border } = useContext(ConfigContexts);
+  const { RGB, colorOffset, color, boxShadow, border, messageList } = useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
@@ -610,19 +610,22 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
-        border: "1px solid rgba(255, 255, 255, 0.16)",
+        border: messageList.input_section.border_onActive,
+        backgroundColor: messageList.input_section.backgroundColor_onActive,
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
-        border: "1px solid rgba(255, 255, 255, 0.16)",
+        border: messageList.input_section.border_onHover,
+        backgroundColor: messageList.input_section.backgroundColor_onHover,
       });
     } else {
       setStyle({
         colorOffset: 0,
         opacity: 0,
-        border: "1px solid rgba(255, 255, 255, 0)",
+        border: messageList.input_section.border,
+        backgroundColor: messageList.input_section.backgroundColor,
       });
     }
   }, [onHover, onClicked]);
@@ -696,11 +699,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 
             padding: 8,
             borderRadius: default_border_radius - 4,
-            backgroundColor: `rgba(${
-              RGB.R + colorOffset.middle_ground + style.colorOffset
-            }, ${RGB.G + colorOffset.middle_ground + style.colorOffset}, ${
-              RGB.B + colorOffset.middle_ground + style.colorOffset
-            }, ${style.opacity})`,
+            backgroundColor: style.backgroundColor,
             border: style.border,
           }}
           onMouseEnter={() => {
