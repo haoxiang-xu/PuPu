@@ -214,11 +214,38 @@ const ConfigContainer = ({ children }) => {
         return {
           color: `rgba(${225}, ${225}, ${225}, 0.72)`,
           border: `1px solid rgba(225, 225, 225, 0.16)`,
+          progress_bar: {
+            backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
+          },
+          loader: {
+            color: "#FFFFFF",
+          },
         };
       } else {
         return {
           color: `rgba(${0}, ${0}, ${0}, 0.72)`,
           border: `1px solid rgba(0, 0, 0, 0.16)`,
+          progress_bar: {
+            backgroundColor: `rgba(${255}, ${187}, ${0}, ${0.64})`,
+          },
+          loader: {
+            color: "#222222",
+          },
+        };
+      }
+    }
+  }, [theme, RGB]);
+  const update_scrolling_space = useCallback(() => {
+    if (theme) {
+      if (theme === "dark_theme") {
+        return {
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
+          border: `1px solid rgb(225, 225, 225, 0.16)`,
+        };
+      } else {
+        return {
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
+          border: `1px solid rgb(0, 0, 0, 0.2)`,
         };
       }
     }
@@ -228,6 +255,7 @@ const ConfigContainer = ({ children }) => {
   const [messageList, setMessageList] = useState({});
   const [dialog, setDialog] = useState({});
   const [modelDownloader, setModelDownloader] = useState({});
+  const [scrollingSapce, setScrollingSpace] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -246,6 +274,7 @@ const ConfigContainer = ({ children }) => {
     setMessageList(update_message_list());
     setDialog(update_dialog());
     setModelDownloader(update_model_downloader());
+    setScrollingSpace(update_scrolling_space());
   }, [theme]);
 
   return (
@@ -263,6 +292,7 @@ const ConfigContainer = ({ children }) => {
           messageList,
           dialog,
           modelDownloader,
+          scrollingSapce,
         }}
       >
         {children}

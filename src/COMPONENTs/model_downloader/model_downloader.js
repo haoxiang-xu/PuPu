@@ -452,6 +452,22 @@ const ModelTag = ({ model }) => {
         boxSizing: "border-box",
       }}
     >
+      {ollamaInstallingStatus && ollamaInstallingStatus.model === model ? (
+        <div
+          style={{
+            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: `calc(${ollamaInstallingStatus.percentage}% - 4px)`,
+            height: "calc(100% - 4px)",
+            backgroundColor: modelDownloader.progress_bar.backgroundColor,
+            borderRadius: 3,
+            margin: 2,
+            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          }}
+        ></div>
+      ) : null}
       <span
         style={{
           position: "relative",
@@ -477,7 +493,7 @@ const ModelTag = ({ model }) => {
       >
         {ollamaPendingDeleteModels.includes(model) ||
         ollamaPendingDownloadModels.includes(model) ? (
-          <MoonLoader size={13} color={"#FFFFFF"} speedMultiplier={0.8} />
+          <MoonLoader size={13} color={modelDownloader.loader.color} speedMultiplier={0.8} />
         ) : (
           <Icon
             src={"more"}
@@ -497,23 +513,6 @@ const ModelTag = ({ model }) => {
       </div>
       {ItemOnSelect === sub_component_name + model ? (
         <MoreOption model={model} tagWidth={tagWidth} />
-      ) : null}
-
-      {ollamaInstallingStatus && ollamaInstallingStatus.model === model ? (
-        <div
-          style={{
-            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: `calc(${ollamaInstallingStatus.percentage}% - 4px)`,
-            height: "calc(100% - 4px)",
-            backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.18})`,
-            borderRadius: 3,
-            margin: 2,
-            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          }}
-        ></div>
       ) : null}
     </div>
   );
