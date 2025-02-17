@@ -191,9 +191,43 @@ const ConfigContainer = ({ children }) => {
       }
     }
   }, [theme, RGB]);
+  const update_dialog = useCallback(() => {
+    if (theme) {
+      if (theme === "dark_theme") {
+        return {
+          backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
+            RGB.B + 12
+          }, 0.64)`,
+        };
+      } else {
+        return {
+          backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
+            RGB.B + 12
+          }, 0.96)`,
+        };
+      }
+    }
+  }, [theme, RGB]);
+  const update_model_downloader = useCallback(() => {
+    if (theme) {
+      if (theme === "dark_theme") {
+        return {
+          color: `rgba(${225}, ${225}, ${225}, 0.72)`,
+          border: `1px solid rgba(225, 225, 225, 0.16)`,
+        };
+      } else {
+        return {
+          color: `rgba(${0}, ${0}, ${0}, 0.72)`,
+          border: `1px solid rgba(0, 0, 0, 0.16)`,
+        };
+      }
+    }
+  }, [theme, RGB]);
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
+  const [dialog, setDialog] = useState({});
+  const [modelDownloader, setModelDownloader] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -210,6 +244,8 @@ const ConfigContainer = ({ children }) => {
     setBorder(update_border());
     setSideMenu(update_side_menu());
     setMessageList(update_message_list());
+    setDialog(update_dialog());
+    setModelDownloader(update_model_downloader());
   }, [theme]);
 
   return (
@@ -225,6 +261,8 @@ const ConfigContainer = ({ children }) => {
 
           sideMenu,
           messageList,
+          dialog,
+          modelDownloader,
         }}
       >
         {children}

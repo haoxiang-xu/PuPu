@@ -71,7 +71,7 @@ const Button = ({ handle_button_click, label }) => {
 
 /* { down_load_ollama_model } ---------------------------------------------------------------------------------------------------- */
 const DownloadOllamaModel = ({}) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
   return (
     <div
       style={{
@@ -87,9 +87,7 @@ const DownloadOllamaModel = ({}) => {
         borderRadius: 10,
         border: `1px solid rgba(225, 225, 225, 0.16)`,
 
-        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
-          RGB.G + colorOffset.middle_ground
-        }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
+        backgroundColor: dialog.backgroundColor,
         backdropFilter: "blur(16px)",
       }}
       onClick={(e) => {
@@ -104,7 +102,7 @@ const DownloadOllamaModel = ({}) => {
 
 /* { await_Ollama_setup } -------------------------------------------------------------------------------------------------------- */
 const AwaitOllamaSetup = ({}) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
   const { app_initialization } = useContext(DataContexts);
   const { setOllamaServerStatus } = useContext(StatusContexts);
 
@@ -132,9 +130,7 @@ const AwaitOllamaSetup = ({}) => {
         borderRadius: 10,
         border: `1px solid rgba(225, 225, 225, 0.16)`,
 
-        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
-          RGB.G + colorOffset.middle_ground
-        }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
+        backgroundColor: dialog.backgroundColor,
         backdropFilter: "blur(16px)",
       }}
       onClick={(e) => {

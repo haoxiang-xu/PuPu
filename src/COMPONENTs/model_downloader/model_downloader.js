@@ -21,7 +21,7 @@ const Contexts = createContext("");
 /* { Cloud Model List } ------------------------------------------------------------------------------------------------------------------------------ */
 const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
   const sub_component_name = "available_models_section";
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
   const [onHover, setOnHover] = useState(false);
 
@@ -36,9 +36,9 @@ const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
         border:
           ItemOnSelect === sub_component_name + model
             ? onHover
-              ? `1px solid rgba(225, 225, 225, 0.16)`
+              ? modelDownloader.border
               : `1px solid rgba(225, 225, 225, 0)`
-            : `1px solid rgba(225, 225, 225, 0.16)`,
+            : modelDownloader.border,
         boxSizing: "border-box",
 
         alignContent: "center",
@@ -84,7 +84,7 @@ const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
 };
 const ModelTab = ({ model }) => {
   const sub_component_name = "available_models_section";
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const { avaliableModels } = useContext(DataContexts);
   const { setOllamaPendingDownloadModels, ollamaPendingDownloadModels } =
     useContext(StatusContexts);
@@ -152,7 +152,7 @@ const ModelTab = ({ model }) => {
           ItemOnSelect === sub_component_name + model.name
             ? `1px solid rgba(225, 225, 225, 0)`
             : panelOnHover
-            ? `1px solid rgba(225, 225, 225, 0.16)`
+            ? modelDownloader.border
             : `1px solid rgba(225, 225, 225, 0)`,
         backgroundColor:
           ItemOnSelect === sub_component_name + model.name
@@ -252,7 +252,7 @@ const ModelTab = ({ model }) => {
           borderRadius: 7,
           border:
             ItemOnSelect === sub_component_name + model.name
-              ? `1px solid rgba(225, 225, 225, 0.16)`
+              ? modelDownloader.border
               : `1px solid rgba(225, 225, 225, 0)`,
 
           display: "flex",
@@ -415,7 +415,7 @@ const MoreOption = ({ model, tagWidth }) => {
 const ModelTag = ({ model }) => {
   const sub_component_name = "installed_models_section";
 
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const {
     /* { pending delete models } */
     ollamaPendingDeleteModels,
@@ -448,7 +448,7 @@ const ModelTag = ({ model }) => {
         margin: 5,
         padding: "2px 6px",
         borderRadius: 5,
-        border: `1px solid rgba(225, 225, 225, 0.16)`,
+        border: modelDownloader.border,
         boxSizing: "border-box",
       }}
     >
@@ -484,7 +484,7 @@ const ModelTag = ({ model }) => {
             style={{
               width: 17,
               height: 17,
-              opacity: 0.16,
+              opacity: 0.4,
 
               userSelect: "none",
             }}
@@ -535,6 +535,7 @@ const AvailableModel = () => {
 /* { Available Model List } ========================================================================================================================== */
 
 const ModelDownloader = ({ available_models }) => {
+  const { modelDownloader } = useContext(ConfigContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
   const ScrollRef = useRef(null);
 
@@ -605,7 +606,7 @@ const ModelDownloader = ({ available_models }) => {
               top: "50%",
               left: 30,
               fontSize: 20,
-              color: `rgba(${225}, ${225}, ${225}, 0.72)`,
+              color: modelDownloader.color,
               userSelect: "none",
             }}
           >
@@ -642,7 +643,7 @@ const ModelDownloader = ({ available_models }) => {
               top: "50%",
               left: 30,
               fontSize: 20,
-              color: `rgba(${225}, ${225}, ${225}, 0.72)`,
+              color: modelDownloader.color,
             }}
           >
             Available Ollama Models
