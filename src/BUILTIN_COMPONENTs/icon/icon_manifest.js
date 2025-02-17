@@ -17,6 +17,7 @@ export const iconManifest = {
   unfold: () => import("./SVGs/UI/unfold.svg"),
   search: () => import("./SVGs/UI/search.svg"),
   copy: () => import("./SVGs/UI/copy.svg"),
+  copy_: () => import("./SVGs/UI/copy_.svg"),
   paste: () => import("./SVGs/UI/paste.svg"),
   save: () => import("./SVGs/UI/save.svg"),
   send: () => import("./SVGs/UI/send.svg"),

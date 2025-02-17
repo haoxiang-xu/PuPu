@@ -20,7 +20,6 @@ import { LOADING_TAG } from "./const";
 /* { style } --------------------------------------------------------------------- */
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
-import "./markdown.css";
 
 const R = 30;
 const G = 30;
@@ -31,7 +30,7 @@ const default_border_radius = 10;
 const default_tag_max_Width = 128;
 
 const CodeSection = ({ language, children }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { theme, RGB, colorOffset, markdown } = useContext(ConfigContexts);
   const [onHover, setOnHover] = useState(false);
   const [onClicked, setOnClicked] = useState(false);
   const [style, setStyle] = useState({
@@ -75,7 +74,7 @@ const CodeSection = ({ language, children }) => {
 
           opacity: 1,
           borderRadius: `${default_border_radius - 4}px`,
-          boxShadow: `0 2px 16px rgba(0, 0, 0, 0.64)`,
+          boxShadow: markdown.code_section.tag_boxShadow,
         }}
       >
         <span
@@ -156,22 +155,22 @@ const CodeSection = ({ language, children }) => {
         text={children}
         language={language}
         showLineNumbers={false}
-        theme={dracula}
+        theme={theme === "dark_theme" ? dracula : github}
         wrapLines={false}
         codeBlock
         customStyle={{
           fontSize: `${default_font_size + 2}px`,
           fontFamily:
             "'Fira Code', 'JetBrains Mono', 'Source Code Pro', monospace",
-          backgroundColor: `rgb(${R - 8}, ${G - 8}, ${B - 8})`,
+          backgroundColor: markdown.code_section.backgroundColor,
           paddingTop: 36,
           paddingLeft: 6,
           borderRadius: default_border_radius,
           overflowX: "auto",
           overflowY: "hidden",
           maxWidth: "100%",
-          boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
-          border: `2px solid rgba(225, 255, 225 , 0.32)`,
+          boxShadow: markdown.code_section.boxShadow,
+          border: markdown.code_section.border,
         }}
       />
     </div>
@@ -201,50 +200,61 @@ const SingleLineCodeSection = ({ language, children }) => {
   );
 };
 const MarkDownSection = ({ children }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { markdown } = useContext(ConfigContexts);
   useEffect(() => {
     const styleElement = document.createElement("style");
     styleElement.innerHTML = `
     .markdown-section code {
-      background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
-        RGB.B + 32
-      }, 0.64)`};
-      color: ${`rgb(${RGB.R + colorOffset.font}, ${RGB.G + colorOffset.font}, ${
-        RGB.B + colorOffset.font
-      })`};
+      background-color: ${markdown.a_backgroundColor_onHover};
+      color: ${markdown.a_color};
       padding: 1px 3px;
       margin: 3px;
       border-radius: 4px;
     }
     .markdown-section a {
-      color:  ${`rgb(${RGB.R + colorOffset.font}, ${
-        RGB.G + colorOffset.font
-      }, ${RGB.B + colorOffset.font})`};
+      color:  ${markdown.a_color};
       padding: 1px 3px;
       margin: 3px; 
       border-radius: 4px;
-      background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
-        RGB.B + 32
-      }, 0.32)`};
+      background-color: ${markdown.a_backgroundColor};
     }
     .markdown-section a:hover {
       transition: all 0.16s cubic-bezier(0.32, 1, 0.32, 1);
-      color: ${`rgb(${RGB.R + colorOffset.font}, ${RGB.G + colorOffset.font}, ${
-        RGB.B + colorOffset.font
-      })`};
+      color: ${markdown.a_color};
       padding: 1px 3px;
       margin: 3px; 
       border-radius: 4px;
-      background-color: ${`rgbA(${RGB.R + 32}, ${RGB.G + 32}, ${
-        RGB.B + 32
-      }, 0.96)`};
+      background-color: ${markdown.a_backgroundColor_onHover};
     }  
     `;
     document.head.appendChild(styleElement);
     return () => {
       document.head.removeChild(styleElement);
     };
-  }, []);
+  }, [markdown]);
+  useEffect(() => {
+    const styleElement = document.createElement("style");
+    styleElement.innerHTML = `
+    .code-section ::-webkit-scrollbar {
+      width: 10px;
+      height: 14px;
+    }
+    .code-section ::-webkit-scrollbar-thumb {
+      transition: background-color 0.64s cubic-bezier(0.32, 1, 0.32, 1);
+      background-color: ${markdown.code_section.scrolling_bar_backgroundColor};
+      border-radius: 10px;
+      border: 4px solid ${markdown.code_section.backgroundColor};
+    }
+    .code-section ::-webkit-scrollbar-thumb:hover {
+      transition: background-color 0.64s cubic-bezier(0.32, 1, 0.32, 1);
+      background-color: ${markdown.code_section.scrolling_bar_backgroundColor_onHover};
+    }
+  `;
+    document.head.appendChild(styleElement);
+    return () => {
+      document.head.removeChild(styleElement);
+    };
+  }, [markdown]);
 
   return (
     <div className="markdown-section" style={{ display: "inline-block" }}>

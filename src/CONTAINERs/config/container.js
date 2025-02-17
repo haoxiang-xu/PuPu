@@ -323,6 +323,47 @@ const ConfigContainer = ({ children }) => {
       }
     }
   };
+  const update_markdown = (theme, RGB) => {
+    if (theme) {
+      if (theme === "dark_theme") {
+        return {
+          a_color: `rgb(${RGB.R + 128}, ${RGB.G + 128}, ${RGB.B + 128})`,
+          a_backgroundColor: `rgba(${RGB.R + 32}, ${RGB.G + 32}, ${
+            RGB.B + 32
+          }, 0.32)`,
+          a_backgroundColor_onHover: `rgba(${RGB.R + 32}, ${RGB.G + 32}, ${
+            RGB.B + 32
+          }, 0.96)`,
+          code_section: {
+            backgroundColor: `rgb(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 8})`,
+            boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
+            tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.64)`,
+            border: `2px solid rgba(225, 255, 225, 0.32)`,
+            scrolling_bar_backgroundColor: `rgba(64, 64, 64, 0.5)`,
+            scrolling_bar_backgroundColor_onHover: `rgba(64, 64, 64, 1)`,
+          },
+        };
+      } else {
+        return {
+          a_color: `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`,
+          a_backgroundColor: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${
+            RGB.B - 64
+          }, 0.96)`,
+          a_backgroundColor_onHover: `rgba(${RGB.R - 96}, ${RGB.G - 96}, ${
+            RGB.B - 96
+          }, 0.96)`,
+          code_section: {
+            backgroundColor: `rgb(${RGB.R - 12}, ${RGB.G - 12}, ${RGB.B - 12})`,
+            boxShadow: `0 4px 12px rgba(5, 4, 4, 0.12)`,
+            tag_boxShadow: `0 4px 12px rgba(0, 0, 0, 0.24)`,
+            border: `2px solid rgba(0, 0, 0, 0.16)`,
+            scrolling_bar_backgroundColor: `rgba(32, 32, 32, 0.16)`,
+            scrolling_bar_backgroundColor_onHover: `rgba(32, 32, 32, 0.5)`,
+          },
+        };
+      }
+    }
+  };
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
@@ -330,6 +371,7 @@ const ConfigContainer = ({ children }) => {
   const [modelDownloader, setModelDownloader] = useState({});
   const [scrollingSapce, setScrollingSpace] = useState({});
   const [switchs, setSwitchs] = useState({});
+  const [markdown, setMarkdown] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -361,6 +403,7 @@ const ConfigContainer = ({ children }) => {
     setModelDownloader(update_model_downloader(theme, newRGB));
     setScrollingSpace(update_scrolling_space(theme, newRGB));
     setSwitchs(update_switchs(theme, newRGB));
+    setMarkdown(update_markdown(theme, newRGB));
   }, [theme]);
 
   return (
@@ -381,6 +424,7 @@ const ConfigContainer = ({ children }) => {
           modelDownloader,
           scrollingSapce,
           switchs,
+          markdown,
         }}
       >
         {children}
