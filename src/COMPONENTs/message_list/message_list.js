@@ -27,7 +27,7 @@ const component_name = "message_list";
 const ChatSectionContexts = createContext("");
 
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, messageList } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
   const { update_message } = useContext(ChatSectionContexts);
 
@@ -62,17 +62,17 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "plainTextMode" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "plainTextMode"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
+                ? messageList.message_bottom_panel.backgroundColor_onActive
                 : onHover === "plainTextMode"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
-                : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+                ? messageList.message_bottom_panel.backgroundColor_onHover
+                : messageList.message_bottom_panel.backgroundColor,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "plainTextMode"
-                ? "1px solid rgba(255, 255, 255, 0.64)"
+                ? messageList.message_bottom_panel.border_onActive
                 : onHover === "plainTextMode"
-                ? "1px solid rgba(255, 255, 255, 0.32)"
-                : "1px solid rgba(255, 255, 255, 0)",
+                ? messageList.message_bottom_panel.border_onHover
+                : messageList.message_bottom_panel.border,
           }}
           onMouseEnter={() => {
             setOnHover("plainTextMode");
@@ -105,17 +105,17 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "regenerate" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "regenerate"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
+                ? messageList.message_bottom_panel.backgroundColor_onActive
                 : onHover === "regenerate"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
-                : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+                ? messageList.message_bottom_panel.backgroundColor_onHover
+                : messageList.message_bottom_panel.backgroundColor,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "regenerate"
-                ? "1px solid rgba(255, 255, 255, 0.64)"
+                ? messageList.message_bottom_panel.border_onActive
                 : onHover === "regenerate"
-                ? "1px solid rgba(255, 255, 255, 0.32)"
-                : "1px solid rgba(255, 255, 255, 0)",
+                ? messageList.message_bottom_panel.border_onHover
+                :messageList.message_bottom_panel.border,
           }}
           onMouseEnter={() => {
             setOnHover("regenerate");

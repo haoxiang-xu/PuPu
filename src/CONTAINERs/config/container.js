@@ -6,7 +6,7 @@ import { dark_theme, light_theme } from "./default_themes";
 
 const ConfigContainer = ({ children }) => {
   /* { Theme } ------------------------------------------------------------------------------- */
-  const [theme, setTheme] = useState("dark_theme");
+  const [theme, setTheme] = useState("light_theme");
   const update_RGB = useCallback(() => {
     let RGB = {};
     if (theme) {
@@ -160,6 +160,14 @@ const ConfigContainer = ({ children }) => {
             }, 0.84)`,
             boxShadow_onHover: "0px 8px 12px rgba(0, 0, 0, 0.12)",
           },
+          message_bottom_panel: {
+            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+            backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`,
+            backgroundColor_onActive: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`,
+            border: `1px solid rgba(225, 225, 225, 0)`,
+            border_onHover: `1px solid rgba(225, 225, 225, 0.32)`,
+            border_onActive: `1px solid rgba(225, 225, 225, 0.64)`,
+          },
         };
       } else {
         return {
@@ -186,6 +194,14 @@ const ConfigContainer = ({ children }) => {
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.5)`,
             backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             boxShadow_onHover: "0px 6px 6px rgba(0, 0, 0, 0.08)",
+          },
+          message_bottom_panel: {
+            backgroundColor: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${RGB.B - 64}, 0)`,
+            backgroundColor_onHover: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${RGB.B - 64}, 0.32)`,
+            backgroundColor_onActive: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${RGB.B - 64}, 0.64)`,
+            border: `1px solid rgba(0, 0, 0, 0)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.64)`,
           },
         };
       }
