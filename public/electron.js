@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, nativeTheme } = require("electron");
 
 const pty = require("node-pty");
 const axios = require("axios");
@@ -193,6 +193,9 @@ ipcMain.on("window-state-event-handler", (event, action) => {
     default:
       break;
   }
+});
+ipcMain.on("theme-status-handler", (event, theme) => {
+  nativeTheme.themeSource = theme;
 });
 /* { window state event listener } ===================================================================================================== */
 

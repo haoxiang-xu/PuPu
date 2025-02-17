@@ -6,7 +6,7 @@ import { dark_theme, light_theme } from "./default_themes";
 
 const ConfigContainer = ({ children }) => {
   /* { Theme } ------------------------------------------------------------------------------- */
-  const [theme, setTheme] = useState("light_theme");
+  const [theme, setTheme] = useState("dark_theme");
   const update_RGB = useCallback(() => {
     let RGB = {};
     if (theme) {
@@ -91,7 +91,7 @@ const ConfigContainer = ({ children }) => {
   const [boxShadow, setBoxShadow] = useState({});
   const [border, setBorder] = useState(null);
 
-  const update_side_menu = useCallback(() => {
+  const update_side_menu = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
         return {
@@ -125,8 +125,8 @@ const ConfigContainer = ({ children }) => {
         };
       }
     }
-  }, [theme, RGB]);
-  const update_message_list = useCallback(() => {
+  };
+  const update_message_list = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
         return {
@@ -242,8 +242,8 @@ const ConfigContainer = ({ children }) => {
         };
       }
     }
-  }, [theme, RGB]);
-  const update_dialog = useCallback(() => {
+  };
+  const update_dialog = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
         return {
@@ -259,8 +259,8 @@ const ConfigContainer = ({ children }) => {
         };
       }
     }
-  }, [theme, RGB]);
-  const update_model_downloader = useCallback(() => {
+  };
+  const update_model_downloader = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
         return {
@@ -286,8 +286,8 @@ const ConfigContainer = ({ children }) => {
         };
       }
     }
-  }, [theme, RGB]);
-  const update_scrolling_space = useCallback(() => {
+  };
+  const update_scrolling_space = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
         return {
@@ -301,32 +301,66 @@ const ConfigContainer = ({ children }) => {
         };
       }
     }
-  }, [theme, RGB]);
+  };
+  const update_switchs = (theme, RGB) => {
+    if (theme) {
+      if (theme === "dark_theme") {
+        return {
+          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
+          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          toggle: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          }
+        };
+      } else {
+        return {
+          backgroundColor: `rgba(${255}, ${187}, ${0}, ${0.64})`,
+          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          toggle: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          }
+        };
+      }
+    }
+  };
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
   const [dialog, setDialog] = useState({});
   const [modelDownloader, setModelDownloader] = useState({});
   const [scrollingSapce, setScrollingSpace] = useState({});
+  const [switchs, setSwitchs] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
+    if (theme === "dark_theme") {
+      window.windowStateAPI.themeStatusHandler("dark");
+    } else {
+      window.windowStateAPI.themeStatusHandler("light");
+    }
     document.body.style.backgroundColor = `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`;
     return () => {
       document.body.style.backgroundColor = "";
     };
   }, []);
   useEffect(() => {
-    setRGB(update_RGB());
-    setColorOffset(update_color_offset());
-    setColor(update_color());
-    setBoxShadow(update_box_shadow());
-    setBorder(update_border());
-    setSideMenu(update_side_menu());
-    setMessageList(update_message_list());
-    setDialog(update_dialog());
-    setModelDownloader(update_model_downloader());
-    setScrollingSpace(update_scrolling_space());
+    if (theme === "dark_theme") {
+      window.windowStateAPI.themeStatusHandler("dark");
+    } else {
+      window.windowStateAPI.themeStatusHandler("light");
+    }
+    const newRGB = update_RGB();
+    setRGB(newRGB);
+    setColorOffset(update_color_offset(theme, newRGB));
+    setColor(update_color(theme, newRGB));
+    setBoxShadow(update_box_shadow(theme, newRGB));
+    setBorder(update_border(theme, newRGB));
+    setSideMenu(update_side_menu(theme, newRGB));
+    setMessageList(update_message_list(theme, newRGB));
+    setDialog(update_dialog(theme, newRGB));
+    setModelDownloader(update_model_downloader(theme, newRGB));
+    setScrollingSpace(update_scrolling_space(theme, newRGB));
+    setSwitchs(update_switchs(theme, newRGB));
   }, [theme]);
 
   return (
@@ -334,6 +368,7 @@ const ConfigContainer = ({ children }) => {
       <ConfigContexts.Provider
         value={{
           theme,
+          setTheme,
           RGB,
           colorOffset,
           color,
@@ -345,6 +380,7 @@ const ConfigContainer = ({ children }) => {
           dialog,
           modelDownloader,
           scrollingSapce,
+          switchs,
         }}
       >
         {children}

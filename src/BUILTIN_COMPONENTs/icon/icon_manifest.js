@@ -51,6 +51,11 @@ export const iconManifest = {
   more: () => import("./SVGs/UI/more.svg"),
   more_: () => import("./SVGs/UI/more_.svg"),
 
+  sun: () => import("./SVGs/UI/sun.svg"),
+  sun_: () => import("./SVGs/UI/sun_.svg"),
+  moon: () => import("./SVGs/UI/moon.svg"),
+  moon_: () => import("./SVGs/UI/moon_.svg"),
+
   /* {win32} */
   win32_maximize: () => import("./SVGs/UI/win32/maximize.svg"),
   win32_maximize_: () => import("./SVGs/UI/win32/maximize_.svg"),

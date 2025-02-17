@@ -9,8 +9,96 @@ const component_name = "side_menu";
 const Contexts = createContext();
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
+const ThemeSwitch = ({}) => {
+  const { theme, setTheme, switchs } = useContext(ConfigContexts);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transform: "translate(0%, -50%)",
+        top: "50%",
+        left: 32,
+
+        width: 38,
+        height: 24,
+
+        borderRadius: 32,
+        border: switchs.border,
+        backgroundColor: switchs.backgroundColor,
+        boxShadow: "inset 0 0 12px rgba(0, 0, 0, 0.16)",
+      }}
+      onClick={() => {
+        setTheme((prev) =>
+          prev === "light_theme" ? "dark_theme" : "light_theme"
+        );
+      }}
+    >
+      <Icon
+        src="sun"
+        style={{
+          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: theme === "light_theme" ? "50%" : "200%",
+          left: -24,
+          width: 18,
+          height: 18,
+          userSelect: "none",
+          opacity: 0.5,
+        }}
+      />
+      <Icon
+        src="moon"
+        style={{
+          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: theme === "light_theme" ? "200%" : "50%",
+          left: -24,
+          width: 18,
+          height: 18,
+          userSelect: "none",
+          opacity: 0.5,
+        }}
+      />
+      <div
+        style={{
+          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: theme === "light_theme" ? 3 : 16,
+
+          width: 19,
+          height: 19,
+
+          borderRadius: 32,
+          backgroundColor: switchs.toggle.backgroundColor,
+        }}
+      ></div>
+    </div>
+  );
+};
+const BottomPanel = ({ width }) => {
+  return (
+    <div
+      style={{
+        transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+
+        width: width,
+        height: 40,
+        overflow: "hidden",
+      }}
+    >
+      <ThemeSwitch />
+    </div>
+  );
+};
 const OptionItem = ({ img_src, label, onClick }) => {
-  const { RGB, colorOffset, sideMenu } = useContext(ConfigContexts);
+  const { sideMenu } = useContext(ConfigContexts);
   const [onHover, setOnHover] = useState(false);
 
   return (
@@ -108,7 +196,7 @@ const Chat_Room_Item = ({ address }) => {
         border: "1px solid rgba(255, 255, 255, 0)",
       });
     }
-  }, [onHover, address, sectionData]);
+  }, [onHover, address, sectionData, sideMenu]);
   /* { update delete icon styling when on delete or not on delete } */
   useEffect(() => {
     if (onDelete) {
@@ -294,7 +382,7 @@ const Chat_Room_List = ({}) => {
         top: 72,
         left: 0,
         right: 0,
-        bottom: 0,
+        bottom: 40,
         marginRight: 3,
         marginBottom: 3,
 
@@ -488,6 +576,7 @@ const Side_Menu = ({}) => {
             }}
           />
         </div>
+        <BottomPanel width={menuStyle.width} />
       </div>
     </Contexts.Provider>
   );
