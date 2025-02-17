@@ -111,9 +111,9 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          backgroundColor: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${
-            RGB.B - 64
-          }, 0.32)`,
+          backgroundColor: `rgba(${RGB.R - 45}, ${RGB.G - 45}, ${
+            RGB.B - 45
+          }, 0.72)`,
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.72)`,
           chat_room_item: {
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.5)`,
@@ -193,9 +193,9 @@ const ConfigContainer = ({ children }) => {
         return {
           model_menu: {
             backgroundColor_onHover: `rgba(225, 225, 225, 1)`,
-            backgroundColor_onActive: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${
-              RGB.B - 64
-            }, 0.32)`,
+            backgroundColor_onActive: `rgba(${RGB.R - 45}, ${RGB.G - 45}, ${
+              RGB.B - 45
+            }, 0.72)`,
             border: `1px solid rgba(0, 0, 0, 0.5)`,
             border_onHover: `1px solid rgba(0, 0, 0, 0.32)`,
             border_onActive: `1px solid rgba(0, 0, 0, 0.12)`,
@@ -310,7 +310,7 @@ const ConfigContainer = ({ children }) => {
           border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           toggle: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          }
+          },
         };
       } else {
         return {
@@ -318,7 +318,7 @@ const ConfigContainer = ({ children }) => {
           border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           toggle: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          }
+          },
         };
       }
     }
