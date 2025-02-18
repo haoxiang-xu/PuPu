@@ -5,8 +5,6 @@ const axios = require("axios");
 const path = require("path");
 const os = require("os");
 
-console.log("NODE_MODULE_VERSION:", process.versions.modules);
-
 const { minimum_window_size } = require("./constants");
 
 let mainWindow;
@@ -79,7 +77,7 @@ const create_main_window = () => {
   } else {
     mainWindow = new BrowserWindow({
       title: "PuPu",
-      icon: path.join(__dirname, "favicon.ico"),
+      icon: path.join(__dirname, "logo_512x512.png"),
       width: 744,
       height: 744,
       webSecurity: true,
