@@ -296,8 +296,8 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
-          border: `1px solid rgb(0, 0, 0, 0.24)`,
+          backgroundColor: `rgba(102, 45, 71, 0.12)`,
+          border: `1px solid rgba(102, 45, 71, 0.4)`,
         };
       }
     }
@@ -314,7 +314,7 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          backgroundColor: `rgba(${255}, ${187}, ${0}, ${0.64})`,
+          backgroundColor: `rgba(${180}, ${78}, ${121}, ${0.64})`,
           border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           toggle: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
@@ -346,14 +346,10 @@ const ConfigContainer = ({ children }) => {
       } else {
         return {
           a_color: `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`,
-          a_backgroundColor: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${
-            RGB.B - 64
-          }, 0.96)`,
-          a_backgroundColor_onHover: `rgba(${RGB.R - 96}, ${RGB.G - 96}, ${
-            RGB.B - 96
-          }, 0.96)`,
+          a_backgroundColor: `rgba(${230}, ${168}, ${162}, 0.96)`,
+          a_backgroundColor_onHover: `rgba(${191}, ${139}, ${135}, 0.96)`,
           code_section: {
-            backgroundColor: `rgb(${RGB.R - 12}, ${RGB.G - 12}, ${RGB.B - 12})`,
+            backgroundColor: `rgb(${RGB.R - 14}, ${RGB.G - 18}, ${RGB.B - 16})`,
             boxShadow: `0 4px 12px rgba(5, 4, 4, 0.12)`,
             tag_boxShadow: `0 4px 12px rgba(0, 0, 0, 0.24)`,
             border: `2px solid rgba(0, 0, 0, 0.16)`,
