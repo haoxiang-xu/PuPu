@@ -9,6 +9,7 @@
 
 - `Reported BUGs`
   - When the downloaded model having a name that does not match the model name in the model list, the app will crash.
+  - App was acting weird when there is no model installed.
 
 ### Version 0.0.1
 
