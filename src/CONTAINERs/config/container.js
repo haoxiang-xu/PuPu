@@ -380,17 +380,6 @@ const ConfigContainer = ({ children }) => {
     } else {
       window.windowStateAPI.themeStatusHandler("light");
     }
-    document.body.style.backgroundColor = `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`;
-    return () => {
-      document.body.style.backgroundColor = "";
-    };
-  }, []);
-  useEffect(() => {
-    if (theme === "dark_theme") {
-      window.windowStateAPI.themeStatusHandler("dark");
-    } else {
-      window.windowStateAPI.themeStatusHandler("light");
-    }
     const newRGB = update_RGB();
     setRGB(newRGB);
     setColorOffset(update_color_offset(theme, newRGB));
@@ -404,6 +393,10 @@ const ConfigContainer = ({ children }) => {
     setScrollingSpace(update_scrolling_space(theme, newRGB));
     setSwitchs(update_switchs(theme, newRGB));
     setMarkdown(update_markdown(theme, newRGB));
+    document.body.style.backgroundColor = `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`;
+    return () => {
+      document.body.style.backgroundColor = "";
+    };
   }, [theme]);
 
   return (
