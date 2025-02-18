@@ -278,7 +278,7 @@ const ConfigContainer = ({ children }) => {
           color: `rgba(${0}, ${0}, ${0}, 0.72)`,
           border: `1px solid rgba(0, 0, 0, 0.16)`,
           progress_bar: {
-            backgroundColor: `rgba(${255}, ${187}, ${0}, ${0.64})`,
+            backgroundColor: `rgba(${191}, ${139}, ${135}, 0.64)`,
           },
           loader: {
             color: "#222222",
