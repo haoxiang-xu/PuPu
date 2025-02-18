@@ -6,17 +6,160 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
 
-const Side_Menu_Contexts = createContext();
+const Contexts = createContext();
 
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
+const ThemeSwitch = ({}) => {
+  const { theme, setTheme, switchs } = useContext(ConfigContexts);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transform: "translate(0%, -50%)",
+        top: "50%",
+        left: 32,
+
+        width: 38,
+        height: 24,
+
+        borderRadius: 32,
+        border: switchs.border,
+        backgroundColor: switchs.backgroundColor,
+        boxShadow: "inset 0 0 12px rgba(0, 0, 0, 0.16)",
+      }}
+      onClick={() => {
+        setTheme((prev) =>
+          prev === "light_theme" ? "dark_theme" : "light_theme"
+        );
+      }}
+    >
+      <Icon
+        src="sun"
+        style={{
+          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: theme === "light_theme" ? "50%" : "200%",
+          left: -24,
+          width: 18,
+          height: 18,
+          userSelect: "none",
+          opacity: 0.5,
+        }}
+      />
+      <Icon
+        src="moon"
+        style={{
+          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: theme === "light_theme" ? "200%" : "50%",
+          left: -24,
+          width: 18,
+          height: 18,
+          userSelect: "none",
+          opacity: 0.5,
+        }}
+      />
+      <div
+        style={{
+          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: theme === "light_theme" ? 3 : 16,
+
+          width: 19,
+          height: 19,
+
+          borderRadius: 32,
+          backgroundColor: switchs.toggle.backgroundColor,
+        }}
+      ></div>
+    </div>
+  );
+};
+const BottomPanel = ({ width }) => {
+  return (
+    <div
+      style={{
+        transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+
+        width: width,
+        height: 40,
+        overflow: "hidden",
+      }}
+    >
+      <ThemeSwitch />
+    </div>
+  );
+};
+const OptionItem = ({ img_src, label, onClick }) => {
+  const { sideMenu } = useContext(ConfigContexts);
+  const [onHover, setOnHover] = useState(false);
+
+  return (
+    <>
+      <div
+        style={{
+          transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "relative",
+          display: "block",
+          width: "clac(100%- 6px)",
+          height: 30,
+          margin: 2,
+
+          border: onHover
+            ? `1px solid rgba(225, 225, 225, 0.16)`
+            : `1px solid rgba(225, 225, 225, 0)`,
+          borderRadius: 6,
+        }}
+        onClick={onClick}
+        onMouseEnter={(e) => {
+          setOnHover(true);
+        }}
+        onMouseLeave={(e) => {
+          setOnHover(false);
+        }}
+      >
+        <Icon
+          src={img_src}
+          style={{
+            position: "absolute",
+            transform: "translate(0, -50%)",
+            top: "50%",
+            left: 6,
+            userSelect: "none",
+          }}
+        />
+        <span
+          style={{
+            position: "absolute",
+            transform: "translate(0, -50%)",
+            top: "50%",
+            left: 30,
+            color: sideMenu.color,
+            userSelect: "none",
+          }}
+        >
+          {label}
+        </span>
+      </div>
+    </>
+  );
+};
 const Chat_Room_Item = ({ address }) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, colorOffset, sideMenu } = useContext(ConfigContexts);
   const {
     addressBook,
     sectionData,
     load_section_data,
     delete_address_in_local_storage,
   } = useContext(DataContexts);
+  const { onSelectAddress, setOnSelectAddress } = useContext(Contexts);
   const [onHover, setOnHover] = useState(false);
   const [onDelete, setOnDelete] = useState(false);
   const [containerStyle, setContainerStyle] = useState({
@@ -32,11 +175,9 @@ const Chat_Room_Item = ({ address }) => {
   useEffect(() => {
     if (address === sectionData.address) {
       setContainerStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-          RGB.B + 30
-        }, 0.84)`,
-        boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
-        border: "1px solid rgba(255, 255, 255, 0.16)",
+        backgroundColor: sideMenu.chat_room_item.backgroundColor_onActive,
+        boxShadow: sideMenu.chat_room_item.boxShadow_onActive,
+        border: sideMenu.chat_room_item.border_onActive,
       });
       return;
     } else {
@@ -44,20 +185,18 @@ const Chat_Room_Item = ({ address }) => {
     }
     if (onHover) {
       setContainerStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-          RGB.B + 30
-        }, 0.4)`,
+        backgroundColor: sideMenu.chat_room_item.backgroundColor_onHover,
         boxShadow: "none",
-        border: "1px solid rgba(255, 255, 255, 0.08)",
+        border: sideMenu.chat_room_item.border_onHover,
       });
     } else {
       setContainerStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+        backgroundColor: "rgba(0, 0, 0, 0)",
         boxShadow: "none",
         border: "1px solid rgba(255, 255, 255, 0)",
       });
     }
-  }, [onHover, address, sectionData]);
+  }, [onHover, address, sectionData, sideMenu]);
   /* { update delete icon styling when on delete or not on delete } */
   useEffect(() => {
     if (onDelete) {
@@ -86,7 +225,6 @@ const Chat_Room_Item = ({ address }) => {
         border: containerStyle.border,
         backgroundColor: containerStyle.backgroundColor,
         boxShadow: containerStyle.boxShadow,
-        overflow: "hidden",
       }}
       onMouseEnter={() => {
         setOnHover(true);
@@ -98,6 +236,7 @@ const Chat_Room_Item = ({ address }) => {
         e.stopPropagation();
         load_section_data(address);
         setOnDelete(false);
+        setOnSelectAddress(null);
       }}
     >
       <span
@@ -116,7 +255,7 @@ const Chat_Room_Item = ({ address }) => {
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           overflow: "hidden",
-          color: `rgba(225, 225, 225, 0.64)`,
+          color: sideMenu.color,
 
           userSelect: "none",
           pointerEvents: "none",
@@ -126,73 +265,73 @@ const Chat_Room_Item = ({ address }) => {
           ? addressBook[address].chat_title || address
           : address}
       </span>
-      <>
-        <Icon
-          src="red_circle"
-          style={{
-            userSelect: "none",
-            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            transform: "translate(-50%, -50%)",
-            top: "50%",
-            right: -2,
-            width: 17,
-            height: 17,
-            opacity: onDelete && sectionData.address === address ? 1 : 0,
+      <Icon
+        src={"more"}
+        style={{
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          top: "50%",
+          right: 0,
+          width: 17,
+          height: 17,
+          opacity: 0.32,
+
+          userSelect: "none",
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          if (onSelectAddress === address) {
+            setOnSelectAddress(null);
+          } else {
+            setOnSelectAddress(address);
+          }
+        }}
+      />
+
+      <div
+        style={{
+          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          maxHeight: 128 * 0.618,
+          top: 20,
+          right: -1,
+          width: onSelectAddress === address ? 128 : 32,
+          zIndex: 1,
+
+          backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
+            RGB.G + colorOffset.middle_ground
+          }, ${RGB.B + colorOffset.middle_ground}, 1)`,
+          borderRadius: 8,
+          border: `1px solid rgba(225, 225, 225, 0.16)`,
+          boxSizing: "border-box",
+          boxShadow: `0 0 8px rgba(0, 0, 0, 0.32)`,
+          opacity: onSelectAddress === address ? 1 : 0,
+          pointerEvents: onSelectAddress === address ? "auto" : "none",
+          overflow: "hidden",
+        }}
+      >
+        <OptionItem
+          img_src={"rename"}
+          label={"Rename"}
+          onClick={() => {
+            console.log("rename");
           }}
-          onClick={(e) => {
-            e.stopPropagation();
+        />
+        <OptionItem
+          img_src={"delete"}
+          label={"Delete"}
+          onClick={() => {
             delete_address_in_local_storage(address);
           }}
         />
-        <Icon
-          src="add"
-          style={{
-            userSelect: "none",
-            transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            transform: "translate(-50%, -50%) rotate(45deg)",
-            top: "50%",
-            right: onDelete && sectionData.address === address ? 14 : -2,
-            width: 17,
-            height: 17,
-            opacity: onDelete && sectionData.address === address ? 0.5 : 0,
-          }}
-          onClick={(e) => {
-            e.stopPropagation();
-            setOnDelete(!onDelete);
-          }}
-        />
-        <Icon
-          src={deleteButtonStyle.src}
-          style={{
-            transition:
-              "right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-            position: "absolute",
-            transform: "translate(-50%, -50%)",
-            top: "50%",
-            right: onDelete && sectionData.address === address ? 32 : -2,
-            opacity:
-              sectionData.address === address ? deleteButtonStyle.opacity : 0,
-            width: 17,
-            height: 17,
-            userSelect: "none",
-          }}
-          onClick={(e) => {
-            if (sectionData.address === address) {
-              e.stopPropagation();
-            }
-            setOnDelete(!onDelete);
-          }}
-        />
-      </>
+      </div>
     </div>
   );
 };
 const Chat_Room_List = ({}) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, sideMenu } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
-  const { componentOnFocus } = useContext(StatusContexts);
+  const { componentOnFocus, setComponentOnFocus } = useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
 
@@ -243,15 +382,12 @@ const Chat_Room_List = ({}) => {
         top: 72,
         left: 0,
         right: 0,
-        bottom: 0,
+        bottom: 40,
         marginRight: 3,
         marginBottom: 3,
 
         overflowX: "hidden",
         overflowY: "auto",
-      }}
-      onClick={(e) => {
-        e.stopPropagation();
       }}
     >
       {chatRoomItems}
@@ -290,6 +426,7 @@ const Chat_Room_List = ({}) => {
         }}
         onClick={() => {
           start_new_section();
+          setComponentOnFocus("message_list");
         }}
       ></Icon>
       <span
@@ -302,7 +439,7 @@ const Chat_Room_List = ({}) => {
           fontSize: 14,
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
-          color: `rgba(255, 255, 255, 0.32)`,
+          color: sideMenu.color,
 
           userSelect: "none",
           pointerEvents: "none",
@@ -316,7 +453,7 @@ const Chat_Room_List = ({}) => {
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, border, sideMenu } = useContext(ConfigContexts);
   const {
     windowWidth,
     windowIsMaximized,
@@ -328,18 +465,19 @@ const Side_Menu = ({}) => {
     width: 0,
     borderRight: "0px solid rgba(255, 255, 255, 0)",
   });
+  const [onSelectAddress, setOnSelectAddress] = useState(null);
 
   useEffect(() => {
     if (componentOnFocus === component_name) {
       if (window.innerWidth * 0.25 > 256) {
         setMenuStyle({
-          width: window.innerWidth * 0.25,
+          width: Math.min(window.innerWidth * 0.25, 320),
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
         });
         setIconStyle({
           src: "arrow",
           top: window.osInfo.platform === "darwin" ? 17 : 14,
-          left: window.innerWidth * 0.25 - 16,
+          left: Math.min(window.innerWidth * 0.25, 320) - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       } else {
@@ -362,8 +500,8 @@ const Side_Menu = ({}) => {
       if (window.osInfo.platform === "darwin") {
         setIconStyle({
           src: "side_menu",
-          top: 25,
-          left: windowIsMaximized ? 25 : 96,
+          top: 24.3,
+          left: windowIsMaximized ? 25 : 85,
           transform: "translate(-50%, -50%)",
         });
       } else {
@@ -374,11 +512,12 @@ const Side_Menu = ({}) => {
           transform: "translate(-50%, -50%)",
         });
       }
+      setOnSelectAddress(null);
     }
   }, [windowWidth, componentOnFocus, windowIsMaximized]);
 
   return (
-    <Side_Menu_Contexts.Provider value={{}}>
+    <Contexts.Provider value={{ onSelectAddress, setOnSelectAddress }}>
       <div>
         <div
           className="scrolling-space"
@@ -393,15 +532,16 @@ const Side_Menu = ({}) => {
             width: menuStyle.width,
 
             boxSizing: "border-box",
-            borderRight: "1px solid rgba(255, 255, 255, 0.12)",
+            borderRight: border,
             scrollBehavior: "smooth",
 
-            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
+            backgroundColor: sideMenu.backgroundColor,
             backdropFilter: "blur(36px)",
             WebkitAppRegion: "no-drag",
           }}
           onClick={(e) => {
             e.stopPropagation();
+            setOnSelectAddress(null);
           }}
         >
           <Chat_Room_List />
@@ -436,8 +576,9 @@ const Side_Menu = ({}) => {
             }}
           />
         </div>
+        <BottomPanel width={menuStyle.width} />
       </div>
-    </Side_Menu_Contexts.Provider>
+    </Contexts.Provider>
   );
 };
 

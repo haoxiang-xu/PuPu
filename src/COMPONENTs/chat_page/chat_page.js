@@ -5,17 +5,14 @@ import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import { RequestContexts } from "../../CONTAINERs/requests/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
-import ollama from "./ollama.png";
+import ollama_pupu from "./ollama_pupu.png";
+import ollama_pupu_ from "./ollama_pupu_.png";
 
 import Message_List from "../message_list/message_list";
-import Side_Menu from "../side_menu/side_menu";
-import Title_Bar from "../title_bar/title_bar";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
-import Dialog from "../dialog/dialog";
 
 const Chat_Page = ({}) => {
-  const { RGB } = useContext(ConfigContexts);
-  const { windowWidth, ollamaServerStatus } = useContext(StatusContexts);
+  const { RGB, theme } = useContext(ConfigContexts);
   const { sectionStarted } = useContext(DataContexts);
 
   /* { Title } ------------------------------------------------------------------------------ */
@@ -219,32 +216,6 @@ const Chat_Page = ({}) => {
   };
   /* { Title } ------------------------------------------------------------------------------ */
 
-  useEffect(() => {
-    const styleElement = document.createElement("style");
-    styleElement.innerHTML = `
-        .scrolling-space::-webkit-scrollbar {
-          width: 8px; /* Custom width for the vertical scrollbar */
-        }
-        .scrolling-space::-webkit-scrollbar-track {
-          background-color: rgb(225, 225, 225, 0); /* Scrollbar track color */
-        }
-        .scrolling-space::-webkit-scrollbar-thumb {
-          background-color: rgb(225, 225, 225, 0.02);
-          border-radius: 6px;
-          border: 1px solid rgb(225, 225, 225, 0.16);
-        }
-        .scrolling-space::-webkit-scrollbar-thumb:hover {
-        }
-        .scrolling-space::-webkit-scrollbar:horizontal {
-          display: none;
-        }
-      `;
-    document.head.appendChild(styleElement);
-    return () => {
-      document.head.removeChild(styleElement);
-    };
-  }, []);
-
   return (
     <div
       className="control-panel"
@@ -260,7 +231,7 @@ const Chat_Page = ({}) => {
       }}
     >
       <img
-        src={ollama}
+        src={theme === "dark_theme" ? ollama_pupu : ollama_pupu_}
         alt="ollama"
         style={{
           transition: "all 0.4s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
@@ -308,13 +279,11 @@ const Chat_Page = ({}) => {
         style={{
           transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          transform: "translate(-50%, 0%)",
-          top: 6,
-          left: "50%",
-          bottom: 2,
 
-          width: windowWidth <= 712 ? "calc(100% - 12px)" : 700,
-          maxWidth: 700,
+          top: 6,
+          left: 6,
+          right: 6,
+          bottom: 2,
         }}
       >
         <Message_List />

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, shell, ipcMain, nativeTheme } = require("electron");
 
 const pty = require("node-pty");
 const axios = require("axios");
@@ -34,8 +34,8 @@ const create_main_window = () => {
     mainWindow = new BrowserWindow({
       title: "PuPu",
       icon: path.join(__dirname, "favicon.ico"),
-      width: 1200,
-      height: 800,
+      width: 744,
+      height: 744,
       minHeight: minimum_window_size.height,
       minWidth: minimum_window_size.width,
       webSecurity: true,
@@ -57,9 +57,9 @@ const create_main_window = () => {
   } else if (process.platform === "win32") {
     mainWindow = new BrowserWindow({
       title: "PuPu",
-      icon: path.join(__dirname, "logo_512x512.png"),
-      width: 1200,
-      height: 800,
+      icon: path.join(__dirname, "logo_256x256.ico"),
+      width: 744,
+      height: 744,
       minHeight: minimum_window_size.height,
       minWidth: minimum_window_size.width,
       webSecurity: true,
@@ -80,8 +80,8 @@ const create_main_window = () => {
     mainWindow = new BrowserWindow({
       title: "PuPu",
       icon: path.join(__dirname, "favicon.ico"),
-      width: 1200,
-      height: 800,
+      width: 744,
+      height: 744,
       webSecurity: true,
       transparent: true,
       resizable: true,
@@ -193,6 +193,9 @@ ipcMain.on("window-state-event-handler", (event, action) => {
     default:
       break;
   }
+});
+ipcMain.on("theme-status-handler", (event, theme) => {
+  nativeTheme.themeSource = theme;
 });
 /* { window state event listener } ===================================================================================================== */
 

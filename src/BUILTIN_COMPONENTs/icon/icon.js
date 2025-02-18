@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useContext, use } from "react";
 import { iconManifest } from "./icon_manifest";
 
+import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+
 const Icon = ({ src, ...props }) => {
+  const { theme } = useContext(ConfigContexts);
+
   const [iconSrc, setIconSrc] = useState(null);
   const [isIconLoaded, setIsIconLoaded] = useState(false);
   const iconRef = useRef(null);
@@ -9,7 +13,12 @@ const Icon = ({ src, ...props }) => {
   useEffect(() => {
     const fetchSVG = async () => {
       try {
-        const svg = await iconManifest[src]();
+        let svg = null;
+        if (theme === "dark_theme") {
+          svg = await iconManifest[src]();
+        } else {
+          svg = await iconManifest[src + "_"]();
+        }
         setIconSrc(svg.default);
         setIsIconLoaded(true);
       } catch (error) {
@@ -27,11 +36,17 @@ const Icon = ({ src, ...props }) => {
     } catch (error) {
       console.error(error);
     }
-  }, [src]);
+  }, [src, theme]);
 
   if (!isIconLoaded) return null;
   return (
-    <img ref={iconRef} src={iconSrc} alt={src} draggable={false} {...props} />
+    <img
+      ref={iconRef}
+      src={iconSrc}
+      alt={src}
+      draggable={false}
+      {...props}
+    />
   );
 };
 

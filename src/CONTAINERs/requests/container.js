@@ -208,7 +208,9 @@ const RequestContainer = ({ children }) => {
         return;
       }
       const title = JSON.parse(data.response).title;
-      update_title(address, title);
+      if (title || title.length > 0) {
+        update_title(address, title);
+      }
       setOllamaOnTask(null);
       return title;
     } catch (error) {
@@ -237,6 +239,88 @@ const RequestContainer = ({ children }) => {
       console.error("Error communicating with Ollama:", error);
     }
   };
+  const ollama_delete_local_model = async (model) => {
+    try {
+      const response = await fetch(`http://localhost:11434/api/delete`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: model }),
+      });
+
+      if (!response.ok) {
+        console.error(
+          "API request failed:",
+          response.status,
+          response.statusText
+        );
+        return;
+      }
+
+      const text = await response.text();
+      if (!text) {
+        console.log("API returned no content, deletion might be successful.");
+        return "Model deleted successfully";
+      }
+
+      const data = JSON.parse(text);
+      return data.message ?? "Model deleted successfully";
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+    }
+  };
+  const ollama_pull_cloud_model = async (model, setStatus) => {
+    try {
+      const response = await fetch("http://localhost:11434/api/pull", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: model }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.statusText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+
+        const jsonObjects = chunk
+          .trim()
+          .split("\n")
+          .map((line) => {
+            try {
+              return JSON.parse(line);
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+
+        jsonObjects.forEach((entry) => {
+          if (entry.total && entry.completed) {
+            const percent = Math.round((entry.completed / entry.total) * 100);
+            setStatus({
+              model: model,
+              percentage: percent,
+              done: false,
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error pulling model:", error);
+    }
+  };
+
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   return (
@@ -248,6 +332,8 @@ const RequestContainer = ({ children }) => {
         ollama_chat_completion_streaming,
         ollama_update_title_no_streaming,
         ollama_list_available_models,
+        ollama_delete_local_model,
+        ollama_pull_cloud_model,
       }}
     >
       {children}

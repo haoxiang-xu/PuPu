@@ -56,7 +56,7 @@ You now have Ollama running on your machine. Click the <br>\` I am ready! \`<br>
 ---
 Open Terminal 🖥️ and run the following command:
 \`\`\`shell
-ollama server
+ollama serve
 \`\`\`
 
 OR simply run the Ollama application.

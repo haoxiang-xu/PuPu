@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld("windowStateAPI", {
   windowStateEventListener: (callback) => {
     ipcRenderer.on("window-state-event-listener", (_, data) => callback(data));
   },
+  themeStatusHandler: (theme) => {
+    ipcRenderer.send("theme-status-handler", theme);
+  },
 });
 contextBridge.exposeInMainWorld("terminalAPI", {
   terminalEventHandler: (input) => {

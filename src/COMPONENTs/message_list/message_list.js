@@ -22,12 +22,12 @@ const default_border_radius = 10;
 const default_font_size = 14;
 const default_padding = default_font_size;
 
-const component_name = "chat_section";
+const component_name = "message_list";
 
 const ChatSectionContexts = createContext("");
 
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, messageList } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
   const { update_message } = useContext(ChatSectionContexts);
 
@@ -62,17 +62,17 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "plainTextMode" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "plainTextMode"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
+                ? messageList.message_bottom_panel.backgroundColor_onActive
                 : onHover === "plainTextMode"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
-                : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+                ? messageList.message_bottom_panel.backgroundColor_onHover
+                : messageList.message_bottom_panel.backgroundColor,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "plainTextMode"
-                ? "1px solid rgba(255, 255, 255, 0.64)"
+                ? messageList.message_bottom_panel.border_onActive
                 : onHover === "plainTextMode"
-                ? "1px solid rgba(255, 255, 255, 0.32)"
-                : "1px solid rgba(255, 255, 255, 0)",
+                ? messageList.message_bottom_panel.border_onHover
+                : messageList.message_bottom_panel.border,
           }}
           onMouseEnter={() => {
             setOnHover("plainTextMode");
@@ -105,17 +105,17 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "regenerate" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "regenerate"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
+                ? messageList.message_bottom_panel.backgroundColor_onActive
                 : onHover === "regenerate"
-                ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`
-                : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+                ? messageList.message_bottom_panel.backgroundColor_onHover
+                : messageList.message_bottom_panel.backgroundColor,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "regenerate"
-                ? "1px solid rgba(255, 255, 255, 0.64)"
+                ? messageList.message_bottom_panel.border_onActive
                 : onHover === "regenerate"
-                ? "1px solid rgba(255, 255, 255, 0.32)"
-                : "1px solid rgba(255, 255, 255, 0)",
+                ? messageList.message_bottom_panel.border_onHover
+                :messageList.message_bottom_panel.border,
           }}
           onMouseEnter={() => {
             setOnHover("regenerate");
@@ -141,7 +141,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   }
 };
 const Message_Section = ({ index, role, message, is_last_index }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, boxShadow } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
   const { targetAddress } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
@@ -183,11 +183,11 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
           maxWidth: role === "user" ? 328 : "100%",
 
           float: role === "user" ? "right" : "left",
-          marginTop: index === 0 ? 32 : 0,
+          marginTop: index === 0 ? 40 : 0,
           marginBottom: is_last_index ? 128 : 36,
           borderRadius: default_border_radius,
           boxShadow:
-            role === "user" ? `0px 4px 16px rgba(0, 0, 0, 0.16)` : "none",
+            role === "user" ? boxShadow.light : "none",
         }}
         onMouseEnter={(e) => {
           setOnHover(true);
@@ -235,7 +235,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
 const Scrolling_Section = () => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
   const { sectionData, sectionStarted } = useContext(DataContexts);
-  const { setComponentOnFocus } = useContext(StatusContexts);
+  const { windowWidth, setComponentOnFocus } = useContext(StatusContexts);
   const {
     awaitResponse,
     preLoadingCompleted,
@@ -304,9 +304,8 @@ const Scrolling_Section = () => {
 
         top: 0,
         left: 0,
+        right: 0,
         bottom: 4,
-
-        width: "100%",
 
         padding: 32,
         overflowX: "hidden",
@@ -321,19 +320,31 @@ const Scrolling_Section = () => {
         setComponentOnFocus(component_name);
       }}
     >
-      {sectionData && sectionData.messages
-        ? sectionData.messages.map((msg, index) => (
-            <Message_Section
-              key={index}
-              index={index}
-              role={msg.role}
-              message={msg.message}
-              is_last_index={
-                index === sectionData.messages.length - 1 ? true : false
-              }
-            />
-          ))
-        : null}
+      <div
+        style={{
+          position: "absolute",
+          transform: "translate(-50%, 0%)",
+          top: 0,
+          left: "calc(50%  + 4px)",
+          padding: "4px 8px",
+
+          width: windowWidth > 760 ? 684 : windowWidth - 60,
+        }}
+      >
+        {sectionData && sectionData.messages
+          ? sectionData.messages.map((msg, index) => (
+              <Message_Section
+                key={index}
+                index={index}
+                role={msg.role}
+                message={msg.message}
+                is_last_index={
+                  index === sectionData.messages.length - 1 ? true : false
+                }
+              />
+            ))
+          : null}
+      </div>
       <div
         style={{
           position: "relative",
@@ -345,7 +356,7 @@ const Scrolling_Section = () => {
   );
 };
 const Model_list_Item = ({ model, setModelOnTask }) => {
-  const { RGB } = useContext(ConfigContexts);
+  const { RGB, messageList } = useContext(ConfigContexts);
   const { selectedModel, setSelectedModel, setAvaliableModels } =
     useContext(DataContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
@@ -362,7 +373,7 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
         margin: 5,
         padding: "2px 6px",
 
-        color: `rgba(225, 225, 225, 0.64)`,
+        color: messageList.model_list_item.color,
 
         border:
           selectedModel === model
@@ -373,12 +384,12 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
         borderRadius: 4,
         backgroundColor:
           selectedModel === model
-            ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.84)`
+            ? messageList.model_list_item.backgroundColor_onActive
             : onHover
-            ? `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.4)`
-            : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+            ? messageList.model_list_item.backgroundColor_onHover
+            : messageList.model_list_item.backgroundColor,
         boxShadow:
-          selectedModel === model ? "0px 4px 16px rgba(0, 0, 0, 0.16)" : "none",
+          selectedModel === model ? messageList.model_list_item.boxShadow_onHover : "none",
       }}
       onMouseEnter={(e) => {
         setOnHover(true);
@@ -400,13 +411,72 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
     </div>
   );
 };
-const Model_Menu = ({ value }) => {
-  const sub_component_name = component_name + "model_menu";
+const Add_Model_Button = () => {
+  const { RGB, messageList } = useContext(ConfigContexts);
+  const { setComponentOnFocus, setOnDialog } = useContext(StatusContexts);
 
-  const { RGB } = useContext(ConfigContexts);
-  const { selectedModel, avaliableModels } = useContext(DataContexts);
+  const [onHover, setOnHover] = useState(false);
+  const [onClick, setOnClick] = useState(false);
+
+  return (
+    <div
+      style={{
+        transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+        position: "relative",
+
+        width: "calc(100% - 12px)",
+        height: 40,
+        margin: 5,
+        border: onHover
+          ? "1px solid rgba(255, 255, 255, 0.16)"
+          : "1px solid rgba(255, 255, 255, 0)",
+        borderRadius: 4,
+        backgroundColor: onClick
+          ? messageList.add_model_button.backgroundColor_onActive
+          : onHover
+          ? messageList.add_model_button.backgroundColor_onHover
+          : `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
+      }}
+      onMouseEnter={(e) => {
+        setOnHover(true);
+      }}
+      onMouseLeave={(e) => {
+        setOnHover(false);
+        setOnClick(false);
+      }}
+      onMouseDown={(e) => {
+        setOnClick(true);
+      }}
+      onMouseUp={(e) => {
+        setOnClick(false);
+      }}
+      onClick={(e) => {
+        setComponentOnFocus(component_name);
+        setOnDialog("download_ollama_model");
+      }}
+    >
+      <Icon
+        src="add"
+        alt="add"
+        style={{
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          left: "50%",
+          top: "50%",
+        }}
+      />
+    </div>
+  );
+};
+const Model_Menu = ({ value }) => {
+  const sub_component_name = component_name + "_" + "model_menu";
+
+  const { RGB, boxShadow, messageList } = useContext(ConfigContexts);
+  const { selectedModel, avaliableModels, setAvaliableModels } =
+    useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
+  const { ollama_list_available_models } = useContext(RequestContexts);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
@@ -416,29 +486,9 @@ const Model_Menu = ({ value }) => {
   }, [componentOnFocus]);
 
   useEffect(() => {
-    const styleElement = document.createElement("style");
-    styleElement.innerHTML = `
-      .scrolling-space::-webkit-scrollbar {
-        width: 8px; /* Custom width for the vertical scrollbar */
-      }
-      .scrolling-space::-webkit-scrollbar-track {
-        background-color: rgb(225, 225, 225, 0); /* Scrollbar track color */
-      }
-      .scrolling-space::-webkit-scrollbar-thumb {
-        background-color: rgb(225, 225, 225, 0.02);
-        border-radius: 6px;
-        border: 1px solid rgb(225, 225, 225, 0.16);
-      }
-      .scrolling-space::-webkit-scrollbar-thumb:hover {
-      }
-      .scrolling-space::-webkit-scrollbar:horizontal {
-        display: none;
-      }
-    `;
-    document.head.appendChild(styleElement);
-    return () => {
-      document.head.removeChild(styleElement);
-    };
+    ollama_list_available_models().then((response) => {
+      setAvaliableModels(response);
+    });
   }, []);
 
   return (
@@ -454,8 +504,8 @@ const Model_Menu = ({ value }) => {
         bottom: 35,
         left:
           value.length !== 0 || ollamaOnTask !== null
-            ? 60 + default_padding
-            : 60,
+            ? 50 + default_padding
+            : 50,
 
         fontSize: default_font_size + 2,
         fontFamily: "inherit",
@@ -474,23 +524,23 @@ const Model_Menu = ({ value }) => {
         borderRadius: componentOnFocus === sub_component_name ? 8 : 4,
         color:
           componentOnFocus === sub_component_name
-            ? `rgba(225, 225, 225, 0.32)`
-            : `rgba(225, 225, 225, 0.72)`,
+            ? messageList.model_menu.color_onActive
+            : messageList.model_menu.color,
         border:
           componentOnFocus === sub_component_name
-            ? `1px solid rgba(255, 255, 255, 0.12)`
+            ? messageList.model_menu.border_onActive
             : onHover
-            ? `1px solid rgba(225, 225, 225, 0.64)`
-            : `1px solid rgba(225, 225, 225, 0.5)`,
+            ? messageList.model_menu.border_onHover
+            : messageList.model_menu.border,
         backgroundColor:
           componentOnFocus === sub_component_name
-            ? `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`
+            ? messageList.model_menu.backgroundColor_onActive
             : onHover
-            ? `rgba(225, 225, 225, 0.08)`
+            ? messageList.model_menu.backgroundColor_onHover
             : `rgba(225, 225, 225, 0)`,
         boxShadow:
           onHover || componentOnFocus === sub_component_name
-            ? `0px 4px 16px rgba(0, 0, 0, 0.32)`
+            ? boxShadow.middle
             : "none",
         cursor: "pointer",
         backdropFilter:
@@ -509,6 +559,9 @@ const Model_Menu = ({ value }) => {
       }}
       onClick={(e) => {
         e.stopPropagation();
+        ollama_list_available_models().then((response) => {
+          setAvaliableModels(response);
+        });
       }}
     >
       <div
@@ -533,34 +586,14 @@ const Model_Menu = ({ value }) => {
             {selectedModel}
           </div>
         )}
-        {componentOnFocus === sub_component_name ? (
-          <div
-            style={{
-              position: "relative",
-
-              width: "100%",
-              height: 40,
-            }}
-          >
-            <Icon
-              src="add"
-              alt="add"
-              style={{
-                position: "absolute",
-                transform: "translate(-50%, -50%)",
-                left: "50%",
-                top: "50%",
-              }}
-            />
-          </div>
-        ) : null}
+        {componentOnFocus === sub_component_name ? <Add_Model_Button /> : null}
       </div>
     </div>
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { componentOnFocus } = useContext(StatusContexts);
+  const { RGB, colorOffset, color, boxShadow, border, messageList } = useContext(ConfigContexts);
+  const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
@@ -577,19 +610,22 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
-        border: "1px solid rgba(255, 255, 255, 0.16)",
+        border: messageList.input_section.border_onActive,
+        backgroundColor: messageList.input_section.backgroundColor_onActive,
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
-        border: "1px solid rgba(255, 255, 255, 0.16)",
+        border: messageList.input_section.border_onHover,
+        backgroundColor: messageList.input_section.backgroundColor_onHover,
       });
     } else {
       setStyle({
         colorOffset: 0,
         opacity: 0,
-        border: "1px solid rgba(255, 255, 255, 0)",
+        border: messageList.input_section.border,
+        backgroundColor: messageList.input_section.backgroundColor,
       });
     }
   }, [onHover, onClicked]);
@@ -600,18 +636,20 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   }, [componentOnFocus]);
 
   return (
-    <>
       <div
         style={{
+          transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",
+          transform: "translate(-50%, 0%)",
+          left: "50%",
           bottom: 0,
-          left: 16,
-          right: 16,
-          height: 32,
 
+          height: 64,
+
+          width: windowWidth > 740 ? 700 : windowWidth - 40,
           backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
         }}
-      ></div>
+      >
       <Input
         value={inputValue}
         setValue={setInputValue}
@@ -620,24 +658,24 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         setOnFocus={setOnFocus}
         style={{
           transition: "height 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "fixed",
+          position: "absolute",
 
           bottom: 24,
-          left: 16,
-          right: 16,
+          left: 0,
+          right: 0,
           padding: 0,
           margin: 0,
 
           fontSize: 16,
-          color: `rgba(255, 255, 255, 0.64)`,
+          color: color,
 
           borderRadius: default_border_radius,
           backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
             RGB.G + colorOffset.middle_ground
           }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
           backdropFilter: "blur(24px)",
-          boxShadow: `0px 4px 32px rgba(0, 0, 0, 0.64)`,
-          border: "1px solid rgba(255, 255, 255, 0.16)",
+          boxShadow: boxShadow.drak,
+          border: border,
         }}
       ></Input>
       {awaitResponse === null ? (
@@ -653,19 +691,15 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: onClicked ? 14 : 16,
-            right: 7,
+            bottom: onClicked ? 14 : 15,
+            right: -8,
             width: 16,
             height: 16,
             cursor: "pointer",
 
             padding: 8,
             borderRadius: default_border_radius - 4,
-            backgroundColor: `rgba(${
-              RGB.R + colorOffset.middle_ground + style.colorOffset
-            }, ${RGB.G + colorOffset.middle_ground + style.colorOffset}, ${
-              RGB.B + colorOffset.middle_ground + style.colorOffset
-            }, ${style.opacity})`,
+            backgroundColor: style.backgroundColor,
             border: style.border,
           }}
           onMouseEnter={() => {
@@ -696,8 +730,8 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: onClicked ? 14 : 16,
-            right: 7,
+            bottom: onClicked ? 14 : 15,
+            right: -8,
             width: 16,
             height: 16,
             cursor: "pointer",
@@ -730,7 +764,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         />
       )}
       <Model_Menu value={inputValue} />
-    </>
+      </div>
   );
 };
 
@@ -807,7 +841,7 @@ const Message_List = () => {
               address,
               messages,
               update_title
-            ).then((response) => {});
+            );
             reset_regenerate_title_count_down();
           }
         });
@@ -867,7 +901,7 @@ const Message_List = () => {
           left: 9,
           right: 9,
 
-          height: 96,
+          height: 64,
           background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 32%, rgba(0, 0, 0, 0)) 100%`,
         }}
       ></div>

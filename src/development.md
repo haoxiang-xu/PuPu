@@ -17,6 +17,14 @@
 <span style="opacity: 0.32">Status for UI, running processes, server status, etc.</span>
 
 - `componentOnFocus, setComponentOnFocus`
+  - `side_menu`
+  - `message_list`
+    - `message_list_model_menu`
+- `onDialog, setOnDialog`
+
+  - `""` no dialog should be shown.
+  - `await_ollama_setup_warning` 
+  - `download_ollama_model`
 
 - `ollamaServerStatus, setOllamaServerStatus`
   <span style="opacity: 0.5">

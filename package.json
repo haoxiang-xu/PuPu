@@ -1,6 +1,6 @@
 {
   "name": "pupu",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "Haoxiang Xu",
     "email": "haoxiangxu1998@gmail.com"
@@ -55,7 +55,7 @@
     ],
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.ico"
+      "icon": "public/logo_256x256.ico"
     },
     "mac": {
       "target": "dmg",

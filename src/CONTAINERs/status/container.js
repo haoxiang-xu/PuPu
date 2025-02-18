@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 
 import { StatusContexts } from "./contexts";
 
 const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
+  const [onDialog, setOnDialog] = useState("");
 
   /* { API Status } =================================================================================== */
   /* 
@@ -12,7 +13,20 @@ const StatusContainer = ({ children }) => {
     true: ------------------------------------ response success
   */
   const [ollamaServerStatus, setOllamaServerStatus] = useState(null);
+  useEffect(() => {
+    if (ollamaServerStatus === null || ollamaServerStatus === true) {
+      setOnDialog("");
+    } else {
+      setOnDialog("await_ollama_setup_warning");
+    }
+  }, [ollamaServerStatus]);
   /* { API Status } =================================================================================== */
+
+  /* { Ollama Related Status } ------------------------------------------------------------------------ */
+  const [ollamaPendingDeleteModels, setOllamaPendingDeleteModels] = useState([]);
+  const [ollamaPendingDownloadModels, setOllamaPendingDownloadModels] = useState([]);
+  const [ollamaInstallingStatus, setOllamaInstallingStatus] = useState(null);
+  /* { Ollama Related Status } ------------------------------------------------------------------------ */
 
   /* { Event Listener } ------------------------------------------------------------------------------- */
   /* { window size listener } */
@@ -46,6 +60,8 @@ const StatusContainer = ({ children }) => {
         /* { which UI component is selected } */
         componentOnFocus,
         setComponentOnFocus,
+        onDialog,
+        setOnDialog,
         /* { window width } */
         windowWidth,
         setWindowWidth,
@@ -57,6 +73,18 @@ const StatusContainer = ({ children }) => {
         ollamaServerStatus,
         setOllamaServerStatus,
         /* { API Status } ===================================================================================== */
+
+        /* { Ollama Related Status } ================================================ { Ollama Related Status } */
+        /* { pending delete models } */
+        ollamaPendingDeleteModels,
+        setOllamaPendingDeleteModels,
+        /* { pending download models } */
+        ollamaPendingDownloadModels,
+        setOllamaPendingDownloadModels,
+        /* { installing status } */
+        ollamaInstallingStatus,
+        setOllamaInstallingStatus,
+        /* { Ollama Related Status } ========================================================================= */
 
         /* { Model Related Status } ================================================== { Model Related Status } */
         /* { indicate current model working on task } */
