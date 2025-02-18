@@ -43,6 +43,7 @@ export const iconManifest = {
   update: () => import("./SVGs/UI/update.svg"),
   update_: () => import("./SVGs/UI/update_.svg"),
   stop: () => import("./SVGs/UI/stop.svg"),
+  stop_: () => import("./SVGs/UI/stop_.svg"),
   download: () => import("./SVGs/UI/download.svg"),
   download_: () => import("./SVGs/UI/download_.svg"),
   drive: () => import("./SVGs/UI/drive.svg"),
