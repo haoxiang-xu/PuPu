@@ -62,8 +62,12 @@
       "icon": "public/favicon.ico"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "public/favicon.ico"
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Utility",
+      "icon": "public/logo_256x256.png"
     }
   },
   "browserslist": {
@@ -85,5 +89,5 @@
     "cross-env": "^7.0.3",
     "electron-builder": "^25.1.8"
   },
-  "license": "0BSD"
+  "license": "MIT"
 }
