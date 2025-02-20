@@ -75,6 +75,7 @@ const CodeSection = ({ language, children }) => {
           opacity: 1,
           borderRadius: `${default_border_radius - 4}px`,
           boxShadow: markdown.code_section.tag_boxShadow,
+          backgroundColor: markdown.code_section.tag_backgroundColor,
         }}
       >
         <span

@@ -118,8 +118,8 @@ const ConfigContainer = ({ children }) => {
           chat_room_item: {
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.5)`,
             backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-            border_onHover: "1px solid rgba(0, 0, 0, 0)",
-            border_onActive: "1px solid rgba(0, 0, 0, 0)",
+            border_onHover: "1px solid rgba(255, 255, 255, 0)",
+            border_onActive: "1px solid rgba(255, 255, 255, 0)",
             boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.12)",
           },
         };
@@ -231,13 +231,13 @@ const ConfigContainer = ({ children }) => {
           },
           input_section: {
             border: `1px solid rgba(225, 225, 225, 0)`,
-            border_onHover: `1px solid rgba(0, 0, 0, 0.16)`,
-            border_onActive: `1px solid rgba(0, 0, 0, 0.32)`,
+            border_onHover: `1px solid rgba(255, 255, 255, 0.16)`,
+            border_onActive: `1px solid rgba(255, 255, 255, 0.32)`,
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
-            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-            backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onHover: `rgba(255, 255, 255, 1)`,
+            backgroundColor_onActive: `rgba(255, 255, 255, 1)`,
           },
         };
       }
@@ -292,7 +292,7 @@ const ConfigContainer = ({ children }) => {
       if (theme === "dark_theme") {
         return {
           backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
-          border: `1px solid rgb(225, 225, 225, 0.16)`,
+          border: `1px solid rgb(225, 225, 225, 0.24)`,
         };
       } else {
         return {
@@ -336,6 +336,7 @@ const ConfigContainer = ({ children }) => {
           }, 0.96)`,
           code_section: {
             backgroundColor: `rgb(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 8})`,
+            tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.32)`,
             boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
             tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.64)`,
             border: `2px solid rgba(225, 255, 225, 0.32)`,
@@ -349,10 +350,11 @@ const ConfigContainer = ({ children }) => {
           a_backgroundColor: `rgba(${230}, ${168}, ${162}, 0.96)`,
           a_backgroundColor_onHover: `rgba(${191}, ${139}, ${135}, 0.96)`,
           code_section: {
-            backgroundColor: `rgb(${RGB.R - 14}, ${RGB.G - 18}, ${RGB.B - 16})`,
-            boxShadow: `0 4px 12px rgba(5, 4, 4, 0.12)`,
-            tag_boxShadow: `0 4px 12px rgba(0, 0, 0, 0.24)`,
-            border: `2px solid rgba(0, 0, 0, 0.16)`,
+            backgroundColor: `rgb(${RGB.R - 20}, ${RGB.G - 19}, ${RGB.B - 21})`,
+            tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            boxShadow: `inset 0 6px 18px rgba(5, 4, 4, 0.06)`,
+            tag_boxShadow: `0 4px 12px rgba(0, 0, 0, 0.08)`,
+            border: `0px solid rgba(0, 0, 0, 0)`,
             scrolling_bar_backgroundColor: `rgba(32, 32, 32, 0.16)`,
             scrolling_bar_backgroundColor_onHover: `rgba(32, 32, 32, 0.5)`,
           },
@@ -389,7 +391,7 @@ const ConfigContainer = ({ children }) => {
     setScrollingSpace(update_scrolling_space(theme, newRGB));
     setSwitchs(update_switchs(theme, newRGB));
     setMarkdown(update_markdown(theme, newRGB));
-    document.body.style.backgroundColor = `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`;
+    document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
     return () => {
       document.body.style.backgroundColor = "";
     };

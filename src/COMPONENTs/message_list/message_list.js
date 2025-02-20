@@ -115,7 +115,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
                 ? messageList.message_bottom_panel.border_onActive
                 : onHover === "regenerate"
                 ? messageList.message_bottom_panel.border_onHover
-                :messageList.message_bottom_panel.border,
+                : messageList.message_bottom_panel.border,
           }}
           onMouseEnter={() => {
             setOnHover("regenerate");
@@ -186,8 +186,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
           marginTop: index === 0 ? 40 : 0,
           marginBottom: is_last_index ? 128 : 36,
           borderRadius: default_border_radius,
-          boxShadow:
-            role === "user" ? boxShadow.light : "none",
+          boxShadow: role === "user" ? boxShadow.light : "none",
         }}
         onMouseEnter={(e) => {
           setOnHover(true);
@@ -389,7 +388,9 @@ const Model_list_Item = ({ model, setModelOnTask }) => {
             ? messageList.model_list_item.backgroundColor_onHover
             : messageList.model_list_item.backgroundColor,
         boxShadow:
-          selectedModel === model ? messageList.model_list_item.boxShadow_onHover : "none",
+          selectedModel === model
+            ? messageList.model_list_item.boxShadow_onHover
+            : "none",
       }}
       onMouseEnter={(e) => {
         setOnHover(true);
@@ -425,6 +426,7 @@ const Add_Model_Button = () => {
         position: "relative",
 
         width: "calc(100% - 12px)",
+        minWidth: 180,
         height: 40,
         margin: 5,
         border: onHover
@@ -581,9 +583,11 @@ const Model_Menu = ({ value }) => {
             style={{
               position: "relative",
               top: 0,
+
+              minHeight: 23,
             }}
           >
-            {selectedModel}
+            {selectedModel ? selectedModel : "Click to Add Model"}
           </div>
         )}
         {componentOnFocus === sub_component_name ? <Add_Model_Button /> : null}
@@ -592,7 +596,8 @@ const Model_Menu = ({ value }) => {
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, colorOffset, color, boxShadow, border, messageList } = useContext(ConfigContexts);
+  const { RGB, colorOffset, color, boxShadow, border, messageList } =
+    useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
@@ -636,20 +641,20 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   }, [componentOnFocus]);
 
   return (
-      <div
-        style={{
-          transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "fixed",
-          transform: "translate(-50%, 0%)",
-          left: "50%",
-          bottom: 0,
+    <div
+      style={{
+        transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        position: "fixed",
+        transform: "translate(-50%, 0%)",
+        left: "50%",
+        bottom: 0,
 
-          height: 64,
+        height: 64,
 
-          width: windowWidth > 740 ? 700 : windowWidth - 40,
-          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-        }}
-      >
+        width: windowWidth > 740 ? 700 : windowWidth - 40,
+        backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+      }}
+    >
       <Input
         value={inputValue}
         setValue={setInputValue}
@@ -764,7 +769,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         />
       )}
       <Model_Menu value={inputValue} />
-      </div>
+    </div>
   );
 };
 
