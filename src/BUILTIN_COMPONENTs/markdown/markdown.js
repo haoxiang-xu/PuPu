@@ -237,14 +237,16 @@ const MarkDownSection = ({ children }) => {
     const styleElement = document.createElement("style");
     styleElement.innerHTML = `
     .code-section ::-webkit-scrollbar {
-      width: 10px;
-      height: 14px;
+      height: 18px;
+    }
+    .code-section::-webkit-scrollbar-track {
+      background-color: rgb(225, 225, 225, 0);
     }
     .code-section ::-webkit-scrollbar-thumb {
       transition: background-color 0.64s cubic-bezier(0.32, 1, 0.32, 1);
       background-color: ${markdown.code_section.scrolling_bar_backgroundColor};
       border-radius: 10px;
-      border: 4px solid ${markdown.code_section.backgroundColor};
+      border: 6px solid ${markdown.code_section.backgroundColor};
     }
     .code-section ::-webkit-scrollbar-thumb:hover {
       transition: background-color 0.64s cubic-bezier(0.32, 1, 0.32, 1);

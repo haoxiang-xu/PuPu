@@ -335,11 +335,11 @@ const ConfigContainer = ({ children }) => {
             RGB.B + 32
           }, 0.96)`,
           code_section: {
-            backgroundColor: `rgb(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 8})`,
-            tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.32)`,
-            boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
-            tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.64)`,
-            border: `2px solid rgba(225, 255, 225, 0.32)`,
+            backgroundColor: `rgb(${RGB.R - 6}, ${RGB.G - 5}, ${RGB.B - 5})`,
+            tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            boxShadow: `inset 0 2px 16px rgba(0, 0, 0, 0.16)`,
+            tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
+            border: `1px solid rgba(225, 255, 225, 0.16)`,
             scrolling_bar_backgroundColor: `rgba(64, 64, 64, 0.5)`,
             scrolling_bar_backgroundColor_onHover: `rgba(64, 64, 64, 1)`,
           },
@@ -352,7 +352,7 @@ const ConfigContainer = ({ children }) => {
           code_section: {
             backgroundColor: `rgb(${RGB.R - 20}, ${RGB.G - 19}, ${RGB.B - 21})`,
             tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-            boxShadow: `inset 0 6px 18px rgba(5, 4, 4, 0.06)`,
+            boxShadow: `inset 0 0px 32px rgba(5, 4, 4, 0.08)`,
             tag_boxShadow: `0 4px 12px rgba(0, 0, 0, 0.08)`,
             border: `0px solid rgba(0, 0, 0, 0)`,
             scrolling_bar_backgroundColor: `rgba(32, 32, 32, 0.16)`,
