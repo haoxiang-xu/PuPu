@@ -141,7 +141,6 @@ const AwaitOllamaSetup = ({}) => {
         className="scrolling-space"
         style={{
           maxHeight: "100%",
-          overflowX: "hidden",
           overflowY: "auto",
         }}
       >

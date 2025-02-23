@@ -13,6 +13,7 @@ import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import MoonLoader from "react-spinners/MoonLoader";
+import MoreOptionMenu from "../more_option_menu/more_option_menu";
 
 const component_name = "model_downloader";
 
@@ -304,114 +305,6 @@ const FamilyTab = ({ family }) => {
 /* { Cloud Model List } ------------------------------------------------------------------------------------------------------------------------------ */
 
 /* { Available Model List } ========================================================================================================================== */
-const OptionItem = ({ img_src, label, onClick }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
-  const [onHover, setOnHover] = useState(false);
-
-  return (
-    <>
-      <div
-        style={{
-          transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "relative",
-          display: "block",
-          width: "clac(100%- 6px)",
-          height: 30,
-          margin: 2,
-
-          border: onHover
-            ? `1px solid rgba(225, 225, 225, 0.16)`
-            : `1px solid rgba(225, 225, 225, 0)`,
-          borderRadius: 6,
-        }}
-        onClick={onClick}
-        onMouseEnter={() => {
-          setOnHover(true);
-        }}
-        onMouseLeave={() => {
-          setOnHover(false);
-        }}
-      >
-        <Icon
-          src={img_src}
-          style={{
-            position: "absolute",
-            transform: "translate(0, -50%)",
-            top: "50%",
-            left: 6,
-            userSelect: "none",
-          }}
-        />
-        <span
-          style={{
-            position: "absolute",
-            transform: "translate(0, -50%)",
-            top: "50%",
-            left: 30,
-            color: `rgba(${RGB.R + colorOffset.font}, ${
-              RGB.G + colorOffset.font
-            }, ${RGB.B + colorOffset.font}, 1)`,
-            userSelect: "none",
-          }}
-        >
-          {label}
-        </span>
-      </div>
-    </>
-  );
-};
-const MoreOption = ({ model, tagWidth }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
-  const { setOllamaPendingDeleteModels } = useContext(StatusContexts);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [style, setStyle] = useState({
-    width: 32,
-    opacity: 0,
-  });
-
-  useEffect(() => {
-    setIsLoaded(true);
-  }, []);
-  useEffect(() => {
-    if (isLoaded) {
-      setStyle({
-        width: tagWidth + 2,
-        opacity: 1,
-      });
-    }
-  }, [isLoaded]);
-
-  return (
-    <div
-      style={{
-        transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-        position: "absolute",
-        maxHeight: (tagWidth + 2) * 0.618,
-        top: 20,
-        right: -1,
-        width: style.width,
-        zIndex: 1,
-
-        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
-          RGB.G + colorOffset.middle_ground
-        }, ${RGB.B + colorOffset.middle_ground}, 1)`,
-        borderRadius: 8,
-        border: `1px solid rgba(225, 225, 225, 0.16)`,
-        boxSizing: "border-box",
-        boxShadow: `0 0 8px rgba(0, 0, 0, 0.32)`,
-        opacity: style.opacity,
-      }}
-    >
-      <OptionItem
-        img_src={"delete"}
-        label={"Delete"}
-        onClick={() => {
-          setOllamaPendingDeleteModels((prev) => [...prev, model]);
-        }}
-      />
-    </div>
-  );
-};
 const ModelTag = ({ model }) => {
   const sub_component_name = "installed_models_section";
 
@@ -419,6 +312,7 @@ const ModelTag = ({ model }) => {
   const {
     /* { pending delete models } */
     ollamaPendingDeleteModels,
+    setOllamaPendingDeleteModels,
     /* { pending download models } */
     ollamaPendingDownloadModels,
     /* { installing status } */
@@ -493,7 +387,11 @@ const ModelTag = ({ model }) => {
       >
         {ollamaPendingDeleteModels.includes(model) ||
         ollamaPendingDownloadModels.includes(model) ? (
-          <MoonLoader size={13} color={modelDownloader.loader.color} speedMultiplier={0.8} />
+          <MoonLoader
+            size={13}
+            color={modelDownloader.loader.color}
+            speedMultiplier={0.8}
+          />
         ) : (
           <Icon
             src={"more"}
@@ -512,7 +410,19 @@ const ModelTag = ({ model }) => {
         )}
       </div>
       {ItemOnSelect === sub_component_name + model ? (
-        <MoreOption model={model} tagWidth={tagWidth} />
+        <MoreOptionMenu
+          model={model}
+          width={tagWidth}
+          options={[
+            {
+              img_src: "delete",
+              label: "Delete",
+              onClick: () => {
+                setOllamaPendingDeleteModels((prev) => [...prev, model]);
+              },
+            },
+          ]}
+        />
       ) : null}
     </div>
   );
@@ -568,7 +478,6 @@ const ModelDownloader = ({ available_models }) => {
 
           boxSizing: "border-box",
 
-          overflowX: "hidden",
           overflowY: "auto",
           userSelect: "none",
         }}

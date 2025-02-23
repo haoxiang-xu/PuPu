@@ -23,7 +23,7 @@
 - `onDialog, setOnDialog`
 
   - `""` no dialog should be shown.
-  - `await_ollama_setup_warning` 
+  - `await_ollama_setup_warning`
   - `download_ollama_model`
 
 - `ollamaServerStatus, setOllamaServerStatus`
@@ -61,7 +61,7 @@
 /* [ @ ] indicates the address */
 {
     avaliable_addresses: [`list_of_addresses`],
-    @: { 
+    @: {
         chat_title: `string_that_describes_conversation`,
     }
 }
@@ -91,4 +91,22 @@
 ];
 ```
 
+## Components
 
+### More Option Menu
+
+<span style="opacity: 0.32">Complex Json Format data structures.</span>
+
+- `width`
+
+- `options`
+
+```js
+[
+  {
+    img_src: "image_src_string",
+    label: "label_string",
+    onClick: () => {},
+  },
+];
+```

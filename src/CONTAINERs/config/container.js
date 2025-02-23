@@ -307,7 +307,7 @@ const ConfigContainer = ({ children }) => {
       if (theme === "dark_theme") {
         return {
           backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
-          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
           toggle: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           },
@@ -362,6 +362,35 @@ const ConfigContainer = ({ children }) => {
       }
     }
   };
+  const update_more_option_menu = (theme, RGB) => {
+    if (theme) {
+      if (theme === "dark_theme") {
+        return {
+          backgroundColor: `rgba(${RGB.R + 10}, ${RGB.G + 10}, ${
+            RGB.B + 10
+          }, 1)`,
+          border: `1px solid rgba(225, 225, 225, 0.16)`,
+          boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
+          option_item: {
+            backgroundColor: `rgba(${RGB.R + 50}, ${RGB.G + 50}, ${
+              RGB.B + 50
+            }, 0.64)`,
+            boxShadow: "none",
+          },
+        };
+      } else {
+        return {
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          border: `1px solid rgba(0, 0, 0, 0.18)`,
+          boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
+          option_item: {
+            backgroundColor: `rgba(${180}, ${78}, ${121}, ${0.24})`,
+            boxShadow: "none",
+          },
+        };
+      }
+    }
+  };
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
@@ -370,6 +399,7 @@ const ConfigContainer = ({ children }) => {
   const [scrollingSapce, setScrollingSpace] = useState({});
   const [switchs, setSwitchs] = useState({});
   const [markdown, setMarkdown] = useState({});
+  const [moreOptionMenu, setMoreOptionMenu] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -391,6 +421,7 @@ const ConfigContainer = ({ children }) => {
     setScrollingSpace(update_scrolling_space(theme, newRGB));
     setSwitchs(update_switchs(theme, newRGB));
     setMarkdown(update_markdown(theme, newRGB));
+    setMoreOptionMenu(update_more_option_menu(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
     return () => {
       document.body.style.backgroundColor = "";
@@ -416,6 +447,7 @@ const ConfigContainer = ({ children }) => {
           scrollingSapce,
           switchs,
           markdown,
+          moreOptionMenu,
         }}
       >
         {children}

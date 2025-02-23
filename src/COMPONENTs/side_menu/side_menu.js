@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useContext, createContext } from "react";
+
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
+
+import MoreOptionMenu from "../more_option_menu/more_option_menu";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
@@ -95,60 +98,6 @@ const BottomPanel = ({ width }) => {
     >
       <ThemeSwitch />
     </div>
-  );
-};
-const OptionItem = ({ img_src, label, onClick }) => {
-  const { sideMenu } = useContext(ConfigContexts);
-  const [onHover, setOnHover] = useState(false);
-
-  return (
-    <>
-      <div
-        style={{
-          transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "relative",
-          display: "block",
-          width: "clac(100%- 6px)",
-          height: 30,
-          margin: 2,
-
-          border: onHover
-            ? `1px solid rgba(225, 225, 225, 0.16)`
-            : `1px solid rgba(225, 225, 225, 0)`,
-          borderRadius: 6,
-        }}
-        onClick={onClick}
-        onMouseEnter={(e) => {
-          setOnHover(true);
-        }}
-        onMouseLeave={(e) => {
-          setOnHover(false);
-        }}
-      >
-        <Icon
-          src={img_src}
-          style={{
-            position: "absolute",
-            transform: "translate(0, -50%)",
-            top: "50%",
-            left: 6,
-            userSelect: "none",
-          }}
-        />
-        <span
-          style={{
-            position: "absolute",
-            transform: "translate(0, -50%)",
-            top: "50%",
-            left: 30,
-            color: sideMenu.color,
-            userSelect: "none",
-          }}
-        >
-          {label}
-        </span>
-      </div>
-    </>
   );
 };
 const Chat_Room_Item = ({ address }) => {
@@ -287,44 +236,30 @@ const Chat_Room_Item = ({ address }) => {
           }
         }}
       />
-
-      <div
-        style={{
-          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          maxHeight: 128 * 0.618,
-          top: 20,
-          right: -1,
-          width: onSelectAddress === address ? 128 : 32,
-          zIndex: 1,
-
-          backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
-            RGB.G + colorOffset.middle_ground
-          }, ${RGB.B + colorOffset.middle_ground}, 1)`,
-          borderRadius: 8,
-          border: `1px solid rgba(225, 225, 225, 0.16)`,
-          boxSizing: "border-box",
-          boxShadow: `0 0 8px rgba(0, 0, 0, 0.32)`,
-          opacity: onSelectAddress === address ? 1 : 0,
-          pointerEvents: onSelectAddress === address ? "auto" : "none",
-          overflow: "hidden",
-        }}
-      >
-        <OptionItem
-          img_src={"rename"}
-          label={"Rename"}
-          onClick={() => {
-            console.log("rename");
-          }}
+      {onSelectAddress === address ? (
+        <MoreOptionMenu
+          width={180}
+          options={[
+            {
+              img_src: "rename",
+              label: "Rename",
+              onClick: () => {
+                console.log("rename");
+              },
+            },
+            {
+              img_src: "delete",
+              label: "Delete",
+              onClick: () => {
+                delete_address_in_local_storage(address);
+              },
+              style: {
+                opacity: deleteButtonStyle.opacity,
+              },
+            },
+          ]}
         />
-        <OptionItem
-          img_src={"delete"}
-          label={"Delete"}
-          onClick={() => {
-            delete_address_in_local_storage(address);
-          }}
-        />
-      </div>
+      ) : null}
     </div>
   );
 };
