@@ -351,7 +351,7 @@ const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
 const ThinkingSection = ({ index, children }) => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
+  const { RGB, colorOffset, markdown } = useContext(ConfigContexts);
   const { set_expand_section_message, sectionData } = useContext(DataContexts);
   const [isExpanded, setIsExpanded] = useState(
     sectionData.messages[index].expanded
@@ -367,22 +367,22 @@ const ThinkingSection = ({ index, children }) => {
       setStyle({
         backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground * 2}, ${
           RGB.G + colorOffset.middle_ground * 2
-        }, ${RGB.B + colorOffset.middle_ground * 2}, 1)`,
-        border: `1px solid rgba(${225}, ${225}, ${225}, 0.32)`,
+        }, ${RGB.B + colorOffset.middle_ground * 2}, 0.72)`,
+        border: markdown.think_section.border_onActive,
       });
     } else if (onHover) {
       setStyle({
         backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
           RGB.G + colorOffset.middle_ground
         }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
-        border: `1px solid rgba(${225}, ${225}, ${225}, 0.12)`,
+        border: markdown.think_section.border_onHover,
       });
     } else {
       setStyle({
         backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
           RGB.G + colorOffset.middle_ground
         }, ${RGB.B + colorOffset.middle_ground}, 0)`,
-        border: `1px solid rgba(${225}, ${225}, ${225}, 0)`,
+        border: markdown.think_section.border,
       });
     }
   }, [onClick, onHover]);
@@ -452,6 +452,8 @@ const ThinkingSection = ({ index, children }) => {
           borderRadius: default_border_radius - 4,
           backgroundColor: style.backgroundColor,
           border: style.border,
+          userSelect: "none",
+          cursor: "pointer",
         }}
         onMouseEnter={() => setOnHover(true)}
         onMouseLeave={() => {

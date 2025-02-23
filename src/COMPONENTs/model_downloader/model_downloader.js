@@ -225,6 +225,7 @@ const ModelTab = ({ model }) => {
           opacity: 0.5,
 
           userSelect: "none",
+          cursor: "pointer",
         }}
         onClick={(e) => {
           setOllamaPendingDownloadModels((prev) => [
@@ -262,6 +263,8 @@ const ModelTab = ({ model }) => {
           overflowX: "auto",
           overflowY: "hidden",
           whiteSpace: "nowrap",
+
+          cursor: "pointer",
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -401,6 +404,7 @@ const ModelTag = ({ model }) => {
               opacity: 0.4,
 
               userSelect: "none",
+              cursor: "pointer",
             }}
             onClick={(e) => {
               e.stopPropagation();

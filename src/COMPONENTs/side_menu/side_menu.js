@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, createContext } from "react";
+import React, { useState, useEffect, useContext, createContext, use } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
@@ -29,6 +29,7 @@ const ThemeSwitch = ({}) => {
         border: switchs.border,
         backgroundColor: switchs.backgroundColor,
         boxShadow: "inset 0 0 12px rgba(0, 0, 0, 0.16)",
+        cursor: "pointer",
       }}
       onClick={() => {
         setTheme((prev) =>
@@ -174,6 +175,7 @@ const Chat_Room_Item = ({ address }) => {
         border: containerStyle.border,
         backgroundColor: containerStyle.backgroundColor,
         boxShadow: containerStyle.boxShadow,
+        cursor: "pointer",
       }}
       onMouseEnter={() => {
         setOnHover(true);
@@ -226,6 +228,7 @@ const Chat_Room_Item = ({ address }) => {
           opacity: 0.32,
 
           userSelect: "none",
+          cursor: "pointer",
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -345,6 +348,9 @@ const Chat_Room_List = ({}) => {
           border: addButtonStyle.border,
 
           opacity: 0.64,
+
+          cursor: "pointer",
+          userSelect: "none",
         }}
         onMouseEnter={() => {
           setAddButtonOnHover(true);

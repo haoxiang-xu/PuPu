@@ -26,6 +26,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
           borderRadius: 5,
           backgroundColor: onHover ? moreOptionMenu.option_item.backgroundColor : "transparent",
           boxShadow: onHover ? moreOptionMenu.option_item.boxShadow : "none",
+          cursor: "pointer",
         }}
         onClick={onClick}
         onMouseEnter={() => {
