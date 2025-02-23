@@ -14,12 +14,47 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 ## Download the App
 
 [![Download for Windows][windows-shield]][windows-url]<br>
-[![Download for Mac][macos-shield]][macos-url]
+[![Download for Mac][macos-shield]][macos-url]<br>
+[![Download for Linux][linux-shield]][linux-url]
 
 ## Table of Contents
 
+- [App installation](#app-installation)
 - [Local Setup](#local-setup)
 - [Deployment](#deployment)
+
+### App installation <a name="app-installation"></a>
+
+### Windows
+
+- Download the `.exe` Windows installer [here](windows-url).
+- Run the installer and follow the instructions.
+- Once the installation is complete, you can find the app in the start menu.
+
+### Mac
+
+- Download the `.dmg` Mac installer [here](macos-url).
+- Open the downloaded file and drag the app to the Applications folder.
+- Once the installation is complete, you can find the app in the Applications folder.
+
+### Linux
+
+- Download the `.deb` or `.AppImage` file [here](linux-url).
+- If you downloaded the `.deb` file, run the following command in the terminal:
+
+```bash
+sudo dpkg -i PuPu-0.0.2.deb
+```
+OR
+```bash
+sudo apt install ./PuPu-0.0.2.deb
+```
+- Ensuring Proper Sandbox Permissions: <span style="opacity: 0.32">If you encounter an error message about sandbox permissions, you can run the following command:</span>
+
+```bash
+sudo chown root:root /opt/PuPu/chrome-sandbox
+sudo chmod 4755 /opt/PuPu/chrome-sandbox
+```
 
 ### Local Setup <a name="local-setup"></a>
 
@@ -53,3 +88,5 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 [windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.1
 [macos-shield]: https://img.shields.io/badge/download_for_mac-AA3E71?style=for-the-badge&logo=apple&logoColor=FFFFFF&labelColor=AA3E71
 [macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.1
+[linux-shield]: https://img.shields.io/badge/download_for_linux-AA3E71?style=for-the-badge&logo=linux&logoColor=FFFFFF&labelColor=AA3E71
+[linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.1
