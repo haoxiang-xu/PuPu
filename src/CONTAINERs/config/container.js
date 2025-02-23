@@ -86,6 +86,7 @@ const ConfigContainer = ({ children }) => {
   }, [theme]);
 
   const [RGB, setRGB] = useState(update_RGB());
+  const [fontFamily, setFontFamily] = useState("Jost");
   const [colorOffset, setColorOffset] = useState(update_color_offset());
   const [color, setColor] = useState(update_color());
   const [boxShadow, setBoxShadow] = useState({});
@@ -441,7 +442,15 @@ const ConfigContainer = ({ children }) => {
   }, [theme]);
 
   return (
-    <>
+    <div
+      style={{
+        fontFamily: fontFamily,
+      }}
+    >
+      <link
+        href="https://fonts.googleapis.com/css2?family=Jost:wght@400;700&display=swap"
+        rel="stylesheet"
+      ></link>
       <ConfigContexts.Provider
         value={{
           theme,
@@ -464,7 +473,7 @@ const ConfigContainer = ({ children }) => {
       >
         {children}
       </ConfigContexts.Provider>
-    </>
+    </div>
   );
 };
 
