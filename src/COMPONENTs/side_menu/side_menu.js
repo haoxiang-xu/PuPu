@@ -197,6 +197,10 @@ const Chat_Room_Item = ({ address }) => {
         load_section_data(address);
         setOnSelectAddress(null);
       }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        setOnRenameAddress(address);
+      }}
     >
       <Icon
         src={"more"}
