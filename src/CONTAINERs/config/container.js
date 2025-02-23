@@ -314,7 +314,7 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          backgroundColor: `rgba(${180}, ${78}, ${121}, ${0.64})`,
+          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
           border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           toggle: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
@@ -376,6 +376,7 @@ const ConfigContainer = ({ children }) => {
               RGB.B + 50
             }, 0.64)`,
             boxShadow: "none",
+            border: `1px solid rgba(225, 225, 225, 0.16)`,
           },
         };
       } else {
@@ -384,8 +385,9 @@ const ConfigContainer = ({ children }) => {
           border: `1px solid rgba(0, 0, 0, 0.18)`,
           boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
           option_item: {
-            backgroundColor: `rgba(${180}, ${78}, ${121}, ${0.24})`,
+            backgroundColor: `rgba(${191}, ${139}, ${135}, 0.36)`,
             boxShadow: "none",
+            border: `1px solid rgba(0, 0, 0, 0)`,
           },
         };
       }

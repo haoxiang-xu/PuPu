@@ -21,8 +21,8 @@ const OptionItem = ({ img_src, label, onClick }) => {
           margin: 5,
 
           border: onHover
-            ? `1px solid rgba(225, 225, 225, 0)`
-            : `1px solid rgba(225, 225, 225, 0)`,
+            ? moreOptionMenu.option_item.border
+            : "1px solid transparent",
           borderRadius: 5,
           backgroundColor: onHover ? moreOptionMenu.option_item.backgroundColor : "transparent",
           boxShadow: onHover ? moreOptionMenu.option_item.boxShadow : "none",
