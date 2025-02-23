@@ -88,7 +88,7 @@ const MoreOptionMenu = ({ model, width, options }) => {
   return (
     <div
       style={{
-        transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "absolute",
         maxHeight: (width + 2) * 0.618,
         top: 20,
@@ -102,6 +102,8 @@ const MoreOptionMenu = ({ model, width, options }) => {
         boxSizing: "border-box",
         boxShadow: moreOptionMenu.boxShadow,
         opacity: style.opacity,
+
+        overflowX: "hidden",
       }}
     >
       {options.map((option, index) => {
