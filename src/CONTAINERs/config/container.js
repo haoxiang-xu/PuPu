@@ -236,8 +236,8 @@ const ConfigContainer = ({ children }) => {
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
-            backgroundColor_onHover: `rgba(255, 255, 255, 1)`,
-            backgroundColor_onActive: `rgba(255, 255, 255, 1)`,
+            backgroundColor_onHover: `rgba(255, 255, 255, 0.32)`,
+            backgroundColor_onActive: `rgba(255, 255, 255, 0.5)`,
           },
         };
       }
