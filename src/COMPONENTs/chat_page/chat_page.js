@@ -246,6 +246,7 @@ const Chat_Page = ({}) => {
           padding: 8,
           borderRadius: 8,
           opacity: sectionStarted ? 0 : 0.32,
+          userSelect: "none",
         }}
       />
       {!sectionStarted ? (
