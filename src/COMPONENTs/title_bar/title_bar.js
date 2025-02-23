@@ -102,7 +102,7 @@ const Title_Bar = ({}) => {
       <TitleBarContexts.Provider
         value={{ handleClose, handleMinimize, handleMaximize }}
       >
-        {window.osInfo.platform === "win32" ? <Control_Panel /> : null}
+        {window.osInfo.platform !== "darwin" ? <Control_Panel /> : null}
       </TitleBarContexts.Provider>
     </div>
   );

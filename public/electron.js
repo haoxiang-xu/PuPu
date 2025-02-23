@@ -80,6 +80,8 @@ const create_main_window = () => {
       icon: path.join(__dirname, "logo_512x512.png"),
       width: 744,
       height: 744,
+      minHeight: minimum_window_size.height,
+      minWidth: minimum_window_size.width,
       webSecurity: true,
       transparent: true,
       resizable: true,
@@ -138,10 +140,12 @@ const register_window_state_event_listeners = () => {
     });
   });
   mainWindow.on("unmaximize", () => {
-    mainWindow.setBounds({
-      width: mainWindow.getBounds().width,
-      height: mainWindow.getBounds().height,
-    });
+    if (process.platform === "win32") {
+      mainWindow.setBounds({
+        width: mainWindow.getBounds().width,
+        height: mainWindow.getBounds().height,
+      });
+    }
     mainWindow.webContents.send("window-state-event-listener", {
       isMaximized: false,
     });
@@ -177,6 +181,12 @@ ipcMain.on("window-state-event-handler", (event, action) => {
       if (process.platform === "win32") {
         if (mainWindow.isMaximized()) {
           mainWindow.unmaximize();
+        } else {
+          mainWindow.maximize();
+        }
+      } else if (process.platform === "linux") {
+        if (mainWindow.isMaximized()) {
+          mainWindow.restore();
         } else {
           mainWindow.maximize();
         }
