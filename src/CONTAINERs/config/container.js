@@ -211,7 +211,7 @@ const ConfigContainer = ({ children }) => {
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
-            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.5)`,
+            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.74)`,
             backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             boxShadow_onHover: "0px 6px 6px rgba(0, 0, 0, 0.08)",
           },
@@ -383,10 +383,10 @@ const ConfigContainer = ({ children }) => {
         return {
           backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           border: `1px solid rgba(0, 0, 0, 0.18)`,
-          boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
+          boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
           option_item: {
             backgroundColor: `rgba(${191}, ${139}, ${135}, 0.36)`,
-            boxShadow: "none",
+            boxShadow: `inset 0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
             border: `1px solid rgba(0, 0, 0, 0)`,
           },
         };

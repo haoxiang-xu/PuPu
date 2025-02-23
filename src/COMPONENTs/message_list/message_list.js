@@ -520,7 +520,7 @@ const Model_Menu = ({ value }) => {
             ? 1
             : onHover
             ? 0.5
-            : 0.32,
+            : 0.5,
         padding: componentOnFocus === sub_component_name ? "5px" : "2px 6px",
 
         borderRadius: componentOnFocus === sub_component_name ? 8 : 4,
@@ -587,7 +587,7 @@ const Model_Menu = ({ value }) => {
               minHeight: 23,
             }}
           >
-            {selectedModel ? selectedModel : "Click to Add Model"}
+            {selectedModel ? selectedModel : "Select Model"}
           </div>
         )}
         {componentOnFocus === sub_component_name ? <Add_Model_Button /> : null}
