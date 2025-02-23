@@ -1,4 +1,11 @@
-import React, { useState, useEffect, useContext, createContext, use } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useContext,
+  createContext,
+  use,
+} from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
@@ -102,24 +109,42 @@ const BottomPanel = ({ width }) => {
   );
 };
 const Chat_Room_Item = ({ address }) => {
-  const { RGB, colorOffset, sideMenu } = useContext(ConfigContexts);
+  const { RGB, sideMenu } = useContext(ConfigContexts);
   const {
+    update_title,
     addressBook,
     sectionData,
     load_section_data,
     delete_address_in_local_storage,
   } = useContext(DataContexts);
-  const { onSelectAddress, setOnSelectAddress } = useContext(Contexts);
+  const {
+    onSelectAddress,
+    setOnSelectAddress,
+    onRenameAddress,
+    setOnRenameAddress,
+  } = useContext(Contexts);
   const [onHover, setOnHover] = useState(false);
-  const [onDelete, setOnDelete] = useState(false);
+
+  const inputRef = useRef(null);
+  const [renameValue, setRenameValue] = useState("");
+  useEffect(() => {
+    if (onRenameAddress === address && inputRef.current) {
+      inputRef.current.focus();
+      setTimeout(() => {
+        inputRef.current?.select();
+      }, 32);
+      setRenameValue(
+        addressBook[address]
+          ? addressBook[address].chat_title || address
+          : address
+      );
+    }
+  }, [onRenameAddress, address]);
+
   const [containerStyle, setContainerStyle] = useState({
     backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0.64)`,
     boxShadow: "none",
     border: "1px solid rgba(255, 255, 255, 0)",
-  });
-  const [deleteButtonStyle, setDeleteButtonStyle] = useState({
-    src: "delete",
-    opacity: 0,
   });
 
   useEffect(() => {
@@ -130,8 +155,6 @@ const Chat_Room_Item = ({ address }) => {
         border: sideMenu.chat_room_item.border_onActive,
       });
       return;
-    } else {
-      setOnDelete(false);
     }
     if (onHover) {
       setContainerStyle({
@@ -147,20 +170,6 @@ const Chat_Room_Item = ({ address }) => {
       });
     }
   }, [onHover, address, sectionData, sideMenu]);
-  /* { update delete icon styling when on delete or not on delete } */
-  useEffect(() => {
-    if (onDelete) {
-      setDeleteButtonStyle({
-        src: "gray_delete",
-        opacity: 0.5,
-      });
-    } else {
-      setDeleteButtonStyle({
-        src: "delete",
-        opacity: 1,
-      });
-    }
-  }, [onDelete]);
 
   return (
     <div
@@ -175,7 +184,7 @@ const Chat_Room_Item = ({ address }) => {
         border: containerStyle.border,
         backgroundColor: containerStyle.backgroundColor,
         boxShadow: containerStyle.boxShadow,
-        cursor: "pointer",
+        cursor: onSelectAddress === address ? "cursor" : "pointer",
       }}
       onMouseEnter={() => {
         setOnHover(true);
@@ -186,36 +195,9 @@ const Chat_Room_Item = ({ address }) => {
       onClick={(e) => {
         e.stopPropagation();
         load_section_data(address);
-        setOnDelete(false);
         setOnSelectAddress(null);
       }}
     >
-      <span
-        style={{
-          transition: "all 0.2s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          display: "block",
-
-          transform: "translateY(-50%)",
-          top: "50%",
-          left: 11,
-          width: onDelete ? "calc(100% - 72px)" : "calc(100% - 36px)",
-
-          fontSize: 14,
-
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          overflow: "hidden",
-          color: sideMenu.color,
-
-          userSelect: "none",
-          pointerEvents: "none",
-        }}
-      >
-        {addressBook[address]
-          ? addressBook[address].chat_title || address
-          : address}
-      </span>
       <Icon
         src={"more"}
         style={{
@@ -247,7 +229,7 @@ const Chat_Room_Item = ({ address }) => {
               img_src: "rename",
               label: "Rename",
               onClick: () => {
-                console.log("rename");
+                setOnRenameAddress(address);
               },
             },
             {
@@ -256,13 +238,77 @@ const Chat_Room_Item = ({ address }) => {
               onClick: () => {
                 delete_address_in_local_storage(address);
               },
-              style: {
-                opacity: deleteButtonStyle.opacity,
-              },
             },
           ]}
         />
       ) : null}
+      {onRenameAddress === address ? (
+        <input
+          ref={inputRef}
+          style={{
+            position: "absolute",
+            transform: "translate(0%, -50%)",
+            display: "block",
+            top: "50%",
+            left: 9,
+
+            width: "calc(100% - 40px)",
+
+            fontSize: 14,
+            fontFamily: "inherit",
+            color: sideMenu.color,
+
+            backgroundColor: "rgba(0, 0, 0, 0)",
+            border: "none",
+            outline: "none",
+          }}
+          value={renameValue}
+          onChange={(e) => {
+            setRenameValue(e.target.value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              setOnRenameAddress(null);
+              update_title(address, renameValue);
+              setRenameValue("");
+            } else if (e.key === "Escape") {
+              setOnRenameAddress(null);
+              setRenameValue("");
+            }
+          }}
+          onBlur={() => {
+            setOnRenameAddress(null);
+            setRenameValue("");
+          }}
+        />
+      ) : (
+        <span
+          style={{
+            transition: "all 0.2s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            display: "block",
+
+            transform: "translateY(-50%)",
+            top: "50%",
+            left: 11,
+            width: "calc(100% - 40px)",
+
+            fontSize: 14,
+
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            color: sideMenu.color,
+
+            userSelect: "none",
+            pointerEvents: "none",
+          }}
+        >
+          {addressBook[address]
+            ? addressBook[address].chat_title || address
+            : address}
+        </span>
+      )}
     </div>
   );
 };
@@ -407,6 +453,7 @@ const Side_Menu = ({}) => {
     borderRight: "0px solid rgba(255, 255, 255, 0)",
   });
   const [onSelectAddress, setOnSelectAddress] = useState(null);
+  const [onRenameAddress, setOnRenameAddress] = useState(null);
 
   useEffect(() => {
     if (componentOnFocus === component_name) {
@@ -454,11 +501,19 @@ const Side_Menu = ({}) => {
         });
       }
       setOnSelectAddress(null);
+      setOnRenameAddress(null);
     }
   }, [windowWidth, componentOnFocus, windowIsMaximized]);
 
   return (
-    <Contexts.Provider value={{ onSelectAddress, setOnSelectAddress }}>
+    <Contexts.Provider
+      value={{
+        onSelectAddress,
+        setOnSelectAddress,
+        onRenameAddress,
+        setOnRenameAddress,
+      }}
+    >
       <div>
         <div
           className="scrolling-space"
