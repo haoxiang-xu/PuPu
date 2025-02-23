@@ -1,14 +1,12 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
-import { StatusContexts } from "../../CONTAINERs/status/contexts";
-import { RequestContexts } from "../../CONTAINERs/requests/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import ollama_pupu from "./ollama_pupu.png";
 import ollama_pupu_ from "./ollama_pupu_.png";
 
-import Message_List from "../message_list/message_list";
+import Message_List from "../../COMPONENTs/message_list/message_list";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
 const Chat_Page = ({}) => {

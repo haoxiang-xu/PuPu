@@ -6,7 +6,7 @@ import { StatusContexts } from "../status/contexts";
 import { RequestContexts } from "../requests/contexts";
 import { DataContexts } from "./contexts";
 
-import Chat_Page from "../../COMPONENTs/chat_page/chat_page";
+import Chat_Page from "../../PAGEs/chat_page/chat_page";
 import ScaleLoader from "react-spinners/ScaleLoader";
 import Side_Menu from "../../COMPONENTs/side_menu/side_menu";
 import Title_Bar from "../../COMPONENTs/title_bar/title_bar";
