@@ -370,7 +370,7 @@ const ConfigContainer = ({ children }) => {
             tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             boxShadow: `inset 0 2px 16px rgba(0, 0, 0, 0.16)`,
             tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
-            border: `1px solid rgba(225, 255, 225, 0.16)`,
+            border: `1px solid rgba(225, 255, 225, 0.4)`,
             scrolling_bar_backgroundColor: `rgba(64, 64, 64, 0.5)`,
             scrolling_bar_backgroundColor_onHover: `rgba(64, 64, 64, 1)`,
           },
