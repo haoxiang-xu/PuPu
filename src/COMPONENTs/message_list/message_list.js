@@ -184,7 +184,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
 
           float: role === "user" ? "right" : "left",
           marginTop: index === 0 ? 40 : 0,
-          marginBottom: is_last_index ? 128 : 36,
+          marginBottom: is_last_index ? 256 : 36,
           borderRadius: default_border_radius,
           boxShadow: role === "user" ? boxShadow.light : "none",
         }}
@@ -583,9 +583,12 @@ const Model_Menu = ({ value, setMenuWidth }) => {
           <div
             ref={menuRef}
             style={{
+              transition: "color 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
               position: "relative",
               top: 0,
-              color: messageList.model_menu.color,
+              color: onHover
+                ? messageList.model_menu.color_onHover
+                : messageList.model_menu.color,
               minHeight: 23,
             }}
           >
@@ -598,10 +601,15 @@ const Model_Menu = ({ value, setMenuWidth }) => {
   );
 };
 const Input_Upper_Panel = ({ value, menuWidth }) => {
+  const { RGB, messageList } = useContext(ConfigContexts);
   const { inputHeight } = useContext(ChatSectionContexts);
+
+  const [onHover, setOnHover] = useState(null);
+  const [onClick, setOnClick] = useState(null);
+
   const default_offset = {
-    longer: 72,
-    shorter: 24,
+    longer: 70,
+    shorter: 20,
   };
 
   return (
@@ -615,15 +623,139 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
           value.length !== 0
             ? menuWidth + default_offset.shorter
             : menuWidth + default_offset.longer,
-        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 82) : 33,
+        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 83) : 33,
 
         height: 33,
         width: 128,
 
         boxSizing: "border-box",
-        border: "1px solid rgba(0, 0, 0, 0.16)",
+        border: "1px solid rgba(0, 0, 0, 0)",
       }}
-    ></div>
+    >
+      <div
+        className="terminal_button"
+        style={{
+          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: 0,
+          width: 26,
+          height: 26,
+          backgroundColor:
+            onClick === "terminalMode"
+              ? messageList.input_upper_panel.backgroundColor_onActive
+              : onHover === "terminalMode"
+              ? messageList.input_upper_panel.backgroundColor_onHover
+              : messageList.input_upper_panel.backgroundColor,
+          borderRadius: default_border_radius - 2,
+          border:
+            onClick === "terminalMode"
+              ? messageList.input_upper_panel.border_onActive
+              : onHover === "terminalMode"
+              ? messageList.input_upper_panel.border_onHover
+              : messageList.input_upper_panel.border,
+          boxShadow:
+            onHover === "terminalMode"
+              ? messageList.input_upper_panel.boxShadow
+              : "none",
+        }}
+        onMouseEnter={() => {
+          setOnHover("terminalMode");
+        }}
+        onMouseLeave={() => {
+          setOnHover(null);
+          setOnClick(null);
+        }}
+        onMouseDown={() => {
+          setOnClick("terminalMode");
+        }}
+        onMouseUp={() => {
+          setOnClick(null);
+        }}
+        onClick={() => {}}
+      >
+        <Icon
+          src="terminal"
+          alt="terminal"
+          style={{
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            left: "50%",
+            width: 20,
+            borderRadius: 24,
+            opacity:
+              onClick === "terminalMode"
+                ? messageList.input_upper_panel.opacity_onActive
+                : onHover === "terminalMode"
+                ? messageList.input_upper_panel.opacity_onHover
+                : messageList.input_upper_panel.opacity,
+          }}
+        />
+      </div>
+      <div
+        className="web_button"
+        style={{
+          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: 34,
+          width: 26,
+          height: 26,
+          backgroundColor:
+            onClick === "webMode"
+              ? messageList.input_upper_panel.backgroundColor_onActive
+              : onHover === "webMode"
+              ? messageList.input_upper_panel.backgroundColor_onHover
+              : messageList.input_upper_panel.backgroundColor,
+          borderRadius: default_border_radius - 2,
+          border:
+            onClick === "webMode"
+              ? messageList.input_upper_panel.border_onActive
+              : onHover === "webMode"
+              ? messageList.input_upper_panel.border_onHover
+              : messageList.input_upper_panel.border,
+          boxShadow:
+            onHover === "webMode"
+              ? messageList.input_upper_panel.boxShadow
+              : "none",
+        }}
+        onMouseEnter={() => {
+          setOnHover("webMode");
+        }}
+        onMouseLeave={() => {
+          setOnHover(null);
+          setOnClick(null);
+        }}
+        onMouseDown={() => {
+          setOnClick("webMode");
+        }}
+        onMouseUp={() => {
+          setOnClick(null);
+        }}
+        onClick={() => {}}
+      >
+        <Icon
+          src="web"
+          alt="web"
+          style={{
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            left: "50%",
+            width: 20,
+            opacity:
+              onClick === "webMode"
+                ? messageList.input_upper_panel.opacity_onActive
+                : onHover === "webMode"
+                ? messageList.input_upper_panel.opacity_onHover
+                : messageList.input_upper_panel.opacity,
+          }}
+        />
+      </div>
+    </div>
   );
 };
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {

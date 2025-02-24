@@ -139,6 +139,7 @@ const ConfigContainer = ({ children }) => {
             border_onHover: `1px solid rgba(225, 225, 225, 0.32)`,
             border_onActive: `1px solid rgba(255, 255, 255, 0.12)`,
             color: `rgba(225, 225, 225, 0.36)`,
+            color_onHover: `rgba(225, 225, 225, 0.5)`,
             color_onActive: `rgba(225, 225, 225, 0.32)`,
             boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0.32)",
           },
@@ -191,6 +192,18 @@ const ConfigContainer = ({ children }) => {
               RGB.B + 32
             }, 1)`,
           },
+          input_upper_panel: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            border: `1px solid rgba(255, 255, 255, 0.24)`,
+            border_onHover: `1px solid rgba(255, 255, 255, 0.5)`,
+            border_onActive: `1px solid rgba(255, 255, 255, 0.64)`,
+            opacity: 0.36,
+            opacity_onHover: 0.64,
+            opacity_onActive: 0.72,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
+          },
         };
       } else {
         return {
@@ -200,19 +213,20 @@ const ConfigContainer = ({ children }) => {
             backgroundColor_onActive: `rgba(${RGB.R - 45}, ${RGB.G - 45}, ${
               RGB.B - 45
             }, 0.72)`,
-            border: `1px solid rgba(0, 0, 0, 0.24)`,
-            border_onHover: `1px solid rgba(0, 0, 0, 0.32)`,
-            border_onActive: `1px solid rgba(0, 0, 0, 0.12)`,
-            color: `rgba(0, 0, 0, 0.5)`,
-            color_onActive: `rgba(0, 0, 0, 0.72)`,
-            boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0.16)",
+            border: `1px solid rgba(0, 0, 0, 0.2)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.32)`,
+            color: `rgba(0, 0, 0, 0.32)`,
+            color_onHover: `rgba(0, 0, 0, 0.64)`,
+            color_onActive: `rgba(0, 0, 0, 1)`,
+            boxShadow_onHover: `0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
           },
           add_model_button: {
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.5)`,
             backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           },
           model_list_item: {
-            color: `rgba(0, 0, 0, 0.5)`,
+            color: `rgba(0, 0, 0, 0.72)`,
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
@@ -243,6 +257,18 @@ const ConfigContainer = ({ children }) => {
             }, 0)`,
             backgroundColor_onHover: `rgba(255, 255, 255, 0.32)`,
             backgroundColor_onActive: `rgba(255, 255, 255, 0.5)`,
+          },
+          input_upper_panel: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            border: `1px solid rgba(0, 0, 0, 0.24)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.64)`,
+            opacity: 0.32,
+            opacity_onHover: 0.64,
+            opacity_onActive: 0.72,
+            boxShadow: `0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
           },
         };
       }
