@@ -22,7 +22,6 @@ const XTerm = () => {
       setApiReady(true);
     }
   }, []);
-
   useEffect(() => {
     if (!apiReady || !terminalRef.current || term.current) return;
 
@@ -48,17 +47,20 @@ const XTerm = () => {
   }, [apiReady]);
 
   return (
-    <div
-      ref={terminalRef}
-      style={{
-        position: "absolute",
-        top: 32,
-        left: 0,
-        width: "100%",
-        height: "calc(100% - 32px)",
-        overflow: "hidden",
-      }}
-    />
+    <div>
+      <div
+        ref={terminalRef}
+        style={{
+          position: "absolute",
+          transform: "translate(-50%, -50%)",
+          top: "50%",
+          left: "50%",
+          width: "50%",
+
+          overflow: "hidden",
+        }}
+      />
+    </div>
   );
 };
 
