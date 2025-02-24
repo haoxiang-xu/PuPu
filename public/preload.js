@@ -16,9 +16,24 @@ contextBridge.exposeInMainWorld("windowStateAPI", {
 });
 contextBridge.exposeInMainWorld("terminalAPI", {
   terminalEventHandler: (input) => {
-    ipcRenderer.send("terminal-event-handler", input);
+    try {
+      ipcRenderer.send("terminal-event-handler", input);
+    } catch (error) {
+      console.error("Error sending terminal input:", error);
+    }
   },
   terminalEventListener: (callback) => {
-    ipcRenderer.on("terminal-event-listener", (_, data) => callback(data));
+    try {
+      ipcRenderer.on("terminal-event-listener", (_, data) => callback(data));
+    } catch (error) {
+      console.error("Error in terminal event listener:", error);
+    }
   },
+  resizeTerminal: (cols, rows) => {
+    try {
+      ipcRenderer.send("terminal-resize", { cols, rows });
+    } catch (error) {
+      console.error("Error resizing terminal:", error);
+    }
+  }
 });
