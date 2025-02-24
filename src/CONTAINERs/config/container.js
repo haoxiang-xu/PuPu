@@ -438,7 +438,7 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          backgroundColor: `rgba(${RGB.R+ 5}, ${RGB.G + 5}, ${RGB.B + 5}, 1)`,
           border: `1px solid rgba(0, 0, 0, 0.18)`,
           boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
           option_item: {
