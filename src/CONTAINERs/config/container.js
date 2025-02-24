@@ -5,6 +5,8 @@ import { ConfigContexts } from "./contexts";
 import { dark_theme, light_theme } from "./default_themes";
 
 const ConfigContainer = ({ children }) => {
+
+  const [isConfigReady, setIsConfigReady] = useState(false);
   /* { Theme } ------------------------------------------------------------------------------- */
   const [theme, setTheme] = useState("dark_theme");
   const update_RGB = useCallback(() => {
@@ -436,11 +438,13 @@ const ConfigContainer = ({ children }) => {
     setMarkdown(update_markdown(theme, newRGB));
     setMoreOptionMenu(update_more_option_menu(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
+    setIsConfigReady(true);
     return () => {
       document.body.style.backgroundColor = "";
     };
   }, [theme]);
 
+  if (!isConfigReady) return null;
   return (
     <div
       style={{
