@@ -36,6 +36,11 @@ const DataContainer = () => {
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [selectedModel, setSelectedModel] = useState(null);
   const [avaliableModels, setAvaliableModels] = useState([]);
+  useEffect(() => {
+    if (!selectedModel || !avaliableModels.includes(selectedModel)) {
+      setSelectedModel(avaliableModels[0]);
+    }
+  }, [selectedModel, avaliableModels]);
   /* { Model Related } ------------------------------------------------------------------------------- */
 
   /* { Local Storage } ------------------------------------------------------------------------------- */
@@ -257,48 +262,48 @@ const DataContainer = () => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Model Data } ----------------------------------------------------------------------------------- */
-    useEffect(() => {
-      if (ollamaPendingDeleteModels.length === 0) {
-        return;
-      }
-      ollama_delete_local_model(ollamaPendingDeleteModels[0]).then((response) => {
+  useEffect(() => {
+    if (ollamaPendingDeleteModels.length === 0) {
+      return;
+    }
+    ollama_delete_local_model(ollamaPendingDeleteModels[0]).then((response) => {
+      ollama_list_available_models().then((response) => {
+        setAvaliableModels(response);
+        setOllamaPendingDeleteModels((prev) => {
+          let new_list = [...prev];
+          new_list.shift();
+          return new_list;
+        });
+      });
+    });
+  }, [ollamaPendingDeleteModels]);
+  useEffect(() => {
+    if (ollamaPendingDownloadModels.length === 0) {
+      return;
+    }
+    setOllamaInstallingStatus({
+      model: ollamaPendingDownloadModels[0],
+      percentage: 0,
+      done: false,
+    });
+    ollama_pull_cloud_model(
+      ollamaPendingDownloadModels[0],
+      setOllamaInstallingStatus
+    )
+      .then((response) => {
         ollama_list_available_models().then((response) => {
           setAvaliableModels(response);
-          setOllamaPendingDeleteModels((prev) => {
+          setOllamaPendingDownloadModels((prev) => {
             let new_list = [...prev];
             new_list.shift();
             return new_list;
           });
         });
+      })
+      .finally(() => {
+        setOllamaInstallingStatus(null);
       });
-    }, [ollamaPendingDeleteModels]);
-    useEffect(() => {
-      if (ollamaPendingDownloadModels.length === 0) {
-        return;
-      }
-      setOllamaInstallingStatus({
-        model: ollamaPendingDownloadModels[0],
-        percentage: 0,
-        done: false,
-      });
-      ollama_pull_cloud_model(
-        ollamaPendingDownloadModels[0],
-        setOllamaInstallingStatus
-      )
-        .then((response) => {
-          ollama_list_available_models().then((response) => {
-            setAvaliableModels(response);
-            setOllamaPendingDownloadModels((prev) => {
-              let new_list = [...prev];
-              new_list.shift();
-              return new_list;
-            });
-          });
-        })
-        .finally(() => {
-          setOllamaInstallingStatus(null);
-        });
-    }, [ollamaPendingDownloadModels]);
+  }, [ollamaPendingDownloadModels]);
   /* { Model Data } ----------------------------------------------------------------------------------- */
 
   return (

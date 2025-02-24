@@ -601,7 +601,8 @@ const Model_Menu = ({ value, setMenuWidth }) => {
   );
 };
 const Input_Upper_Panel = ({ value, menuWidth }) => {
-  const { RGB, messageList } = useContext(ConfigContexts);
+  const { messageList } = useContext(ConfigContexts);
+  const { ollamaOnTask } = useContext(StatusContexts);
   const { inputHeight } = useContext(ChatSectionContexts);
 
   const [onHover, setOnHover] = useState(null);
@@ -611,7 +612,9 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
     longer: 70,
     shorter: 20,
   };
-
+  if (ollamaOnTask !== null) {
+    return null;
+  }
   return (
     <div
       style={{
@@ -626,7 +629,6 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
         bottom: value.length !== 0 ? Math.max(inputHeight + 33, 83) : 33,
 
         height: 33,
-        width: 128,
 
         boxSizing: "border-box",
         border: "1px solid rgba(0, 0, 0, 0)",
@@ -691,6 +693,7 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
                 : onHover === "terminalMode"
                 ? messageList.input_upper_panel.opacity_onHover
                 : messageList.input_upper_panel.opacity,
+            userSelect: "none",
           }}
         />
       </div>
@@ -721,6 +724,7 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
             onHover === "webMode"
               ? messageList.input_upper_panel.boxShadow
               : "none",
+          userSelect: "none",
         }}
         onMouseEnter={() => {
           setOnHover("webMode");
