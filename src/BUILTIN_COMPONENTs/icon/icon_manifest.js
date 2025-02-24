@@ -1,3 +1,5 @@
+import { github } from "react-code-blocks";
+
 export const iconManifest = {
   /* { System UI Icons } ------------------------------------------------------------------------------------------------------------- */
   arrow: () => import("./SVGs/UI/arrow.svg"),
@@ -56,6 +58,8 @@ export const iconManifest = {
   terminal_: () => import("./SVGs/UI/terminal_.svg"),
   web: () => import("./SVGs/UI/web.svg"),
   web_: () => import("./SVGs/UI/web_.svg"),
+  github: () => import("./SVGs/UI/github.svg"),
+  github_: () => import("./SVGs/UI/github_.svg"),
 
   sun: () => import("./SVGs/UI/sun.svg"),
   sun_: () => import("./SVGs/UI/sun_.svg"),

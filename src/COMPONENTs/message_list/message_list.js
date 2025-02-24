@@ -759,6 +759,68 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
           }}
         />
       </div>
+      <div
+        className="github_button"
+        style={{
+          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: 68,
+          width: 26,
+          height: 26,
+          backgroundColor:
+            onClick === "githubMode"
+              ? messageList.input_upper_panel.backgroundColor_onActive
+              : onHover === "githubMode"
+              ? messageList.input_upper_panel.backgroundColor_onHover
+              : messageList.input_upper_panel.backgroundColor,
+          borderRadius: default_border_radius - 2,
+          border:
+            onClick === "githubMode"
+              ? messageList.input_upper_panel.border_onActive
+              : onHover === "githubMode"
+              ? messageList.input_upper_panel.border_onHover
+              : messageList.input_upper_panel.border,
+          boxShadow:
+            onHover === "githubMode"
+              ? messageList.input_upper_panel.boxShadow
+              : "none",
+          userSelect: "none",
+        }}
+        onMouseEnter={() => {
+          setOnHover("githubMode");
+        }}
+        onMouseLeave={() => {
+          setOnHover(null);
+          setOnClick(null);
+        }}
+        onMouseDown={() => {
+          setOnClick("githubMode");
+        }}
+        onMouseUp={() => {
+          setOnClick(null);
+        }}
+        onClick={() => {}}
+      >
+        <Icon
+          src="github"
+          alt="github"
+          style={{
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            left: "50%",
+            width: 20,
+            opacity:
+              onClick === "githubMode"
+                ? messageList.input_upper_panel.opacity_onActive
+                : onHover === "githubMode"
+                ? messageList.input_upper_panel.opacity_onHover
+                : messageList.input_upper_panel.opacity,
+          }}
+        />
+      </div>
     </div>
   );
 };
