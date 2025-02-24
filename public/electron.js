@@ -266,7 +266,6 @@ const create_terminal = () => {
     }
   }
 };
-
 // Handle terminal resize events
 ipcMain.on("terminal-resize", (event, { cols, rows }) => {
   if (terminalProcess) {
@@ -278,7 +277,6 @@ ipcMain.on("terminal-resize", (event, { cols, rows }) => {
     }
   }
 });
-
 // Handle input from the frontend
 ipcMain.on("terminal-event-handler", (event, input) => {
   if (terminalProcess) {
@@ -292,17 +290,6 @@ ipcMain.on("terminal-event-handler", (event, input) => {
   } else {
     // If no terminal process exists, create one
     create_terminal();
-  }
-});
-
-// Ensure terminal is properly cleaned up on app quit
-app.on("before-quit", () => {
-  if (terminalProcess) {
-    try {
-      terminalProcess.kill();
-    } catch (error) {
-      console.error("Error killing terminal process:", error);
-    }
   }
 });
 /* { node-pty } ======================================================================================================================== */
