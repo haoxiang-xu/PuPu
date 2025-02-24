@@ -19,6 +19,7 @@ const Input = ({
   onSubmit,
   onFocus,
   setOnFocus,
+  setInputHeight,
   ...props
 }) => {
   const { ollamaOnTask } = useContext(StatusContexts);
@@ -53,6 +54,7 @@ const Input = ({
   useEffect(() => {
     if (inputRef.current) {
       setHeight(inputRef.current.clientHeight + 12);
+      setInputHeight(inputRef.current.clientHeight + 12);
     }
   }, [value, window.innerWidth, window.innerHeight]);
 

@@ -479,6 +479,7 @@ const Model_Menu = ({ value }) => {
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
+  const { inputHeight } = useContext(ChatSectionContexts);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
@@ -498,29 +499,24 @@ const Model_Menu = ({ value }) => {
       style={{
         userSelect: "none",
         transition:
-          "left 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
-          " opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          "bottom 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          "left 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " opacity 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
           " border 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " box-shadow 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
           " padding 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "absolute",
-        bottom: 35,
-        left:
+        bottom:
           value.length !== 0 || ollamaOnTask !== null
-            ? 50 + default_padding
-            : 50,
+            ? Math.max(inputHeight + 35, 84)
+            : 35,
+        left: value.length !== 0 || ollamaOnTask !== null ? 0 : 50,
 
         fontSize: default_font_size + 2,
         fontFamily: "inherit",
         fontWeight: 500,
 
-        opacity:
-          value.length !== 0 || ollamaOnTask !== null
-            ? 0
-            : componentOnFocus === sub_component_name
-            ? 1
-            : onHover
-            ? 0.5
-            : 0.5,
+        opacity: ollamaOnTask !== null ? 0 : 1,
         padding: componentOnFocus === sub_component_name ? "5px" : "2px 6px",
 
         borderRadius: componentOnFocus === sub_component_name ? 8 : 4,
@@ -537,17 +533,16 @@ const Model_Menu = ({ value }) => {
         backgroundColor:
           componentOnFocus === sub_component_name
             ? messageList.model_menu.backgroundColor_onActive
-            : onHover
-            ? messageList.model_menu.backgroundColor_onHover
-            : `rgba(225, 225, 225, 0)`,
+            : messageList.model_menu.backgroundColor,
+
         boxShadow:
           onHover || componentOnFocus === sub_component_name
-            ? boxShadow.middle
+            ? messageList.model_menu.boxShadow_onHover
             : "none",
         cursor: "pointer",
         backdropFilter:
           componentOnFocus === sub_component_name ? "blur(16px)" : "none",
-        pointerEvents: value.length !== 0 ? "none" : "auto",
+        pointerEvents: ollamaOnTask !== null ? "none" : "auto",
       }}
       onMouseEnter={(e) => {
         setOnHover(true);
@@ -600,7 +595,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
     useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
-  const { awaitResponse } = useContext(ChatSectionContexts);
+  const { awaitResponse, setInputHeight } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
     colorOffset: 0,
     opacity: 0,
@@ -661,6 +656,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         onSubmit={on_input_submit}
         onFocus={onFocus}
         setOnFocus={setOnFocus}
+        setInputHeight={setInputHeight}
         style={{
           transition: "height 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
@@ -787,6 +783,7 @@ const Message_List = () => {
     useContext(RequestContexts);
 
   const [inputValue, setInputValue] = useState("");
+  const [inputHeight, setInputHeight] = useState(0);
   const [awaitResponse, setAwaitResponse] = useState(null);
 
   /* { Target Address } ------------------------------------------------------------------------------ */
@@ -878,6 +875,8 @@ const Message_List = () => {
         setArrivedAtPosition,
         preLoadingCompleted,
         setPreLoadingCompleted,
+        inputHeight,
+        setInputHeight,
 
         update_message,
       }}
