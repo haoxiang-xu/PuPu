@@ -21,7 +21,7 @@ const App = () => {
           </StatusContainer>
         </ConfigContainer>
         {/* <GraphDemo /> */}
-        <XTerm />
+        {/* <XTerm /> */}
       </HashRouter>
     </div>
   );
