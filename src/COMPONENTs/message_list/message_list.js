@@ -354,7 +354,7 @@ const Scrolling_Section = () => {
     </div>
   );
 };
-const Model_list_Item = ({ model, setModelOnTask }) => {
+const Model_list_Item = ({ model }) => {
   const { RGB, messageList } = useContext(ConfigContexts);
   const { selectedModel, setSelectedModel, setAvaliableModels } =
     useContext(DataContexts);
@@ -470,16 +470,22 @@ const Add_Model_Button = () => {
     </div>
   );
 };
-const Model_Menu = ({ value }) => {
+const Model_Menu = ({ value, setMenuWidth }) => {
   const sub_component_name = component_name + "_" + "model_menu";
 
-  const { RGB, boxShadow, messageList } = useContext(ConfigContexts);
+  const { messageList } = useContext(ConfigContexts);
   const { selectedModel, avaliableModels, setAvaliableModels } =
     useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
   const { inputHeight } = useContext(ChatSectionContexts);
+
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!menuRef || !menuRef.current) return;
+    setMenuWidth(menuRef.current.offsetWidth);
+  }, [componentOnFocus]);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
@@ -500,7 +506,7 @@ const Model_Menu = ({ value }) => {
         userSelect: "none",
         transition:
           "bottom 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
-          "left 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " left 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
           " opacity 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
           " border 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
           " box-shadow 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
@@ -575,10 +581,11 @@ const Model_Menu = ({ value }) => {
           ))
         ) : (
           <div
+            ref={menuRef}
             style={{
               position: "relative",
               top: 0,
-
+              color: messageList.model_menu.color,
               minHeight: 23,
             }}
           >
@@ -590,12 +597,43 @@ const Model_Menu = ({ value }) => {
     </div>
   );
 };
+const Input_Upper_Panel = ({ value, menuWidth }) => {
+  const { inputHeight } = useContext(ChatSectionContexts);
+  const default_offset = {
+    longer: 72,
+    shorter: 24,
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transition:
+          "bottom 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+
+        left:
+          value.length !== 0
+            ? menuWidth + default_offset.shorter
+            : menuWidth + default_offset.longer,
+        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 82) : 33,
+
+        height: 33,
+        width: 128,
+
+        boxSizing: "border-box",
+        border: "1px solid rgba(0, 0, 0, 0.16)",
+      }}
+    ></div>
+  );
+};
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, colorOffset, color, boxShadow, border, messageList } =
     useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse, setInputHeight } = useContext(ChatSectionContexts);
+
+  const [menuWidth, setMenuWidth] = useState(0);
   const [style, setStyle] = useState({
     colorOffset: 0,
     opacity: 0,
@@ -764,7 +802,8 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           }}
         />
       )}
-      <Model_Menu value={inputValue} />
+      <Input_Upper_Panel value={inputValue} menuWidth={menuWidth} />
+      <Model_Menu value={inputValue} setMenuWidth={setMenuWidth} />
     </div>
   );
 };

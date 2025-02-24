@@ -203,7 +203,7 @@ const ConfigContainer = ({ children }) => {
             border: `1px solid rgba(0, 0, 0, 0.24)`,
             border_onHover: `1px solid rgba(0, 0, 0, 0.32)`,
             border_onActive: `1px solid rgba(0, 0, 0, 0.12)`,
-            color: `rgba(0, 0, 0, 0.36)`,
+            color: `rgba(0, 0, 0, 0.5)`,
             color_onActive: `rgba(0, 0, 0, 0.72)`,
             boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0.16)",
           },
