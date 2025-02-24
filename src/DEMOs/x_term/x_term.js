@@ -83,7 +83,8 @@ const XTerm = () => {
       cursorBlink: true,
       cursorStyle: "block",
       fontSize: 14,
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontFamily:
+        "'Hack Nerd Font', monospace",
       theme: {
         background: "#1e1e1e",
         foreground: "#ffffff",
@@ -135,6 +136,7 @@ const XTerm = () => {
         width: "100%",
         height: "100%",
         backgroundColor: "#1e1e1e",
+        overflow: "hidden",
       }}
     >
       {/* Close Button */}
@@ -177,9 +179,9 @@ const XTerm = () => {
         style={{
           position: "absolute",
           top: 55,
-          left: 6,
-          right: 6,
-          bottom: 6,
+          left: 5,
+          right: 5,
+          bottom: 0,
           overflow: "hidden",
           boxSizing: "border-box",
         }}
