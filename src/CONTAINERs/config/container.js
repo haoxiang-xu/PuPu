@@ -250,13 +250,13 @@ const ConfigContainer = ({ children }) => {
           },
           input_section: {
             border: `1px solid rgba(225, 225, 225, 0)`,
-            border_onHover: `1px solid rgba(255, 255, 255, 0.16)`,
-            border_onActive: `1px solid rgba(255, 255, 255, 0.32)`,
+            border_onHover: `1px solid rgba(255, 255, 255, 0)`,
+            border_onActive: `1px solid rgba(255, 255, 255, 0)`,
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
-            backgroundColor_onHover: `rgba(255, 255, 255, 0.32)`,
-            backgroundColor_onActive: `rgba(255, 255, 255, 0.5)`,
+            backgroundColor_onHover: `rgba(255, 255, 255, 0.5)`,
+            backgroundColor_onActive: `rgba(255, 255, 255, 0.72)`,
           },
           input_upper_panel: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
