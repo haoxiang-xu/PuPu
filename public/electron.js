@@ -100,7 +100,7 @@ const create_main_window = () => {
   const isDev = !app.isPackaged;
   if (isDev) {
     checkServerAndLoadURL("http://localhost:3000");
-    mainWindow.webContents.openDevTools();
+    // mainWindow.webContents.openDevTools();
   } else {
     mainWindow.loadURL(
       `file://${path.join(__dirname, "..", "build", "index.html")}`
