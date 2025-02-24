@@ -374,6 +374,14 @@ const ConfigContainer = ({ children }) => {
             scrolling_bar_backgroundColor: `rgba(64, 64, 64, 0.5)`,
             scrolling_bar_backgroundColor_onHover: `rgba(64, 64, 64, 1)`,
           },
+          copy_button: {
+            backgroundColor: `rgba(225, 225, 225, 0)`,
+            backgroundColor_onHover: `rgba(225, 225, 225, 0.08)`,
+            backgroundColor_onActive: `rgba(225, 225, 225, 0.16)`,
+            border: `1px solid rgba(225, 225, 225, 0)`,
+            border_onHover: `1px solid rgba(225, 225, 225, 0.16)`,
+            border_onActive: `1px solid rgba(225, 225, 225, 0.32)`,
+          },
           think_section: {
             border: `1px solid rgba(225, 225, 225, 0)`,
             border_onHover: `1px solid rgba(225, 225, 225, 0.16)`,
@@ -393,6 +401,14 @@ const ConfigContainer = ({ children }) => {
             border: `0px solid rgba(0, 0, 0, 0)`,
             scrolling_bar_backgroundColor: `rgba(32, 32, 32, 0.16)`,
             scrolling_bar_backgroundColor_onHover: `rgba(32, 32, 32, 0.5)`,
+          },
+          copy_button: {
+            backgroundColor: `rgba(0, 0, 0, 0)`,
+            backgroundColor_onHover: `rgba(0, 0, 0, 0.08)`,
+            backgroundColor_onActive: `rgba(0, 0, 0, 0.08)`,
+            border: `1px solid rgba(0, 0, 0, 0)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.16)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.32)`,
           },
           think_section: {
             border: `1px solid rgba(0, 0, 0, 0)`,
