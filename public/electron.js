@@ -8,7 +8,7 @@ const os = require("os");
 const { minimum_window_size } = require("./constants");
 
 let mainWindow;
-let terminalProcess;
+let terminalProcess = null;
 
 /* { flags } */
 let quitting = false;
@@ -220,17 +220,19 @@ const register_will_navigate_event_listener = () => {
 
 /* { node-pty } ======================================================================================================================== */
 const create_terminal = () => {
-  terminalProcess = pty.spawn(
-    os.platform() === "win32" ? "cmd.exe" : "bash",
-    [],
-    {
-      name: "xterm-color",
-      cols: 80,
-      rows: 30,
-      cwd: process.env.HOME,
-      env: process.env,
-    }
-  );
+  if (!terminalProcess) {
+    terminalProcess = pty.spawn(
+      os.platform() === "win32" ? "cmd.exe" : "bash",
+      [],
+      {
+        name: "xterm-color",
+        cols: 80,
+        rows: 30,
+        cwd: process.env.HOME,
+        env: process.env,
+      }
+    );
+  }
 };
 ipcMain.on("terminal-event-handler", (event, input) => {
   terminalProcess.write(input);
@@ -238,6 +240,9 @@ ipcMain.on("terminal-event-handler", (event, input) => {
 const register_terminal_event_listener = () => {
   terminalProcess.on("data", (data) => {
     mainWindow.webContents.send("terminal-event-listener", data);
+  });
+  terminalProcess.on("exit", () => {
+    terminalProcess = null;
   });
 };
 /* { node-pty } ======================================================================================================================== */
