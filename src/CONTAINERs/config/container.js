@@ -367,7 +367,7 @@ const ConfigContainer = ({ children }) => {
           }, 0.96)`,
           code_section: {
             backgroundColor: `rgb(${RGB.R - 6}, ${RGB.G - 5}, ${RGB.B - 5})`,
-            tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            tag_backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${RGB.B + 16}, 1)`,
             boxShadow: `inset 0 2px 16px rgba(0, 0, 0, 0.16)`,
             tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
             border: `1px solid rgba(225, 255, 225, 0.4)`,
