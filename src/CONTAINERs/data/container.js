@@ -110,17 +110,22 @@ const DataContainer = () => {
     }
   };
   const load_models = () => {
-    const selected_model = JSON.parse(
-      localStorage.getItem(UNIQUE_KEY + "selected_model")
-    );
-    ollama_list_available_models().then((response) => {
-      if (response.includes(selected_model)) {
-        setSelectedModel(selected_model);
-      } else {
-        setSelectedModel(response[0]);
+    try {
+      let selected_model = localStorage.getItem(UNIQUE_KEY + "selected_model")
+      if (!selected_model) {
+        selected_model = JSON.parse(selected_model);
       }
-      setAvaliableModels(response);
-    });
+      ollama_list_available_models().then((response) => {
+        if (response.includes(selected_model)) {
+          setSelectedModel(selected_model);
+        } else {
+          setSelectedModel(response[0]);
+        }
+        setAvaliableModels(response);
+      });
+    } catch (error) {
+      console.error("Error loading models:", error);
+    }
   };
   const save_to_local_storage = () => {
     setSectionData((prev) => {
