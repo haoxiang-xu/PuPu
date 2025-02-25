@@ -134,13 +134,16 @@ const ConfigContainer = ({ children }) => {
       if (theme === "dark_theme") {
         return {
           model_menu: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             backgroundColor_onHover: `rgba(225, 225, 225, 0.08)`,
             backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
-            border: `1px solid rgba(225, 225, 225, 0.5)`,
-            border_onHover: `1px solid rgba(225, 225, 225, 0.64)`,
+            border: `1px solid rgba(225, 225, 225, 0.24)`,
+            border_onHover: `1px solid rgba(225, 225, 225, 0.32)`,
             border_onActive: `1px solid rgba(255, 255, 255, 0.12)`,
-            color: `rgba(225, 225, 225, 0.72)`,
+            color: `rgba(225, 225, 225, 0.36)`,
+            color_onHover: `rgba(225, 225, 225, 0.5)`,
             color_onActive: `rgba(225, 225, 225, 0.32)`,
+            boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0.32)",
           },
           add_model_button: {
             backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
@@ -191,26 +194,41 @@ const ConfigContainer = ({ children }) => {
               RGB.B + 32
             }, 1)`,
           },
+          input_upper_panel: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            border: `1px solid rgba(255, 255, 255, 0.24)`,
+            border_onHover: `1px solid rgba(255, 255, 255, 0.5)`,
+            border_onActive: `1px solid rgba(255, 255, 255, 0.64)`,
+            opacity: 0.36,
+            opacity_onHover: 0.64,
+            opacity_onActive: 0.72,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
+          },
         };
       } else {
         return {
           model_menu: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             backgroundColor_onHover: `rgba(225, 225, 225, 1)`,
             backgroundColor_onActive: `rgba(${RGB.R - 45}, ${RGB.G - 45}, ${
               RGB.B - 45
             }, 0.72)`,
-            border: `1px solid rgba(0, 0, 0, 0.5)`,
-            border_onHover: `1px solid rgba(0, 0, 0, 0.32)`,
-            border_onActive: `1px solid rgba(0, 0, 0, 0.12)`,
-            color: `rgba(0, 0, 0, 0.72)`,
-            color_onActive: `rgba(0, 0, 0, 0.72)`,
+            border: `1px solid rgba(0, 0, 0, 0.2)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.32)`,
+            color: `rgba(0, 0, 0, 0.32)`,
+            color_onHover: `rgba(0, 0, 0, 0.64)`,
+            color_onActive: `rgba(0, 0, 0, 1)`,
+            boxShadow_onHover: `0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
           },
           add_model_button: {
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.5)`,
             backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           },
           model_list_item: {
-            color: `rgba(0, 0, 0, 0.5)`,
+            color: `rgba(0, 0, 0, 0.72)`,
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
@@ -234,13 +252,25 @@ const ConfigContainer = ({ children }) => {
           },
           input_section: {
             border: `1px solid rgba(225, 225, 225, 0)`,
-            border_onHover: `1px solid rgba(255, 255, 255, 0.16)`,
-            border_onActive: `1px solid rgba(255, 255, 255, 0.32)`,
+            border_onHover: `1px solid rgba(255, 255, 255, 0)`,
+            border_onActive: `1px solid rgba(255, 255, 255, 0)`,
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
-            backgroundColor_onHover: `rgba(255, 255, 255, 0.32)`,
-            backgroundColor_onActive: `rgba(255, 255, 255, 0.5)`,
+            backgroundColor_onHover: `rgba(255, 255, 255, 0.5)`,
+            backgroundColor_onActive: `rgba(255, 255, 255, 0.72)`,
+          },
+          input_upper_panel: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            border: `1px solid rgba(0, 0, 0, 0.24)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.64)`,
+            opacity: 0.32,
+            opacity_onHover: 0.64,
+            opacity_onActive: 0.72,
+            boxShadow: `0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
           },
         };
       }
@@ -339,12 +369,20 @@ const ConfigContainer = ({ children }) => {
           }, 0.96)`,
           code_section: {
             backgroundColor: `rgb(${RGB.R - 6}, ${RGB.G - 5}, ${RGB.B - 5})`,
-            tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            tag_backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${RGB.B + 16}, 1)`,
             boxShadow: `inset 0 2px 16px rgba(0, 0, 0, 0.16)`,
             tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
-            border: `1px solid rgba(225, 255, 225, 0.16)`,
+            border: `1px solid rgba(225, 255, 225, 0.4)`,
             scrolling_bar_backgroundColor: `rgba(64, 64, 64, 0.5)`,
             scrolling_bar_backgroundColor_onHover: `rgba(64, 64, 64, 1)`,
+          },
+          copy_button: {
+            backgroundColor: `rgba(225, 225, 225, 0)`,
+            backgroundColor_onHover: `rgba(225, 225, 225, 0.08)`,
+            backgroundColor_onActive: `rgba(225, 225, 225, 0.16)`,
+            border: `1px solid rgba(225, 225, 225, 0)`,
+            border_onHover: `1px solid rgba(225, 225, 225, 0.16)`,
+            border_onActive: `1px solid rgba(225, 225, 225, 0.32)`,
           },
           think_section: {
             border: `1px solid rgba(225, 225, 225, 0)`,
@@ -365,6 +403,14 @@ const ConfigContainer = ({ children }) => {
             border: `0px solid rgba(0, 0, 0, 0)`,
             scrolling_bar_backgroundColor: `rgba(32, 32, 32, 0.16)`,
             scrolling_bar_backgroundColor_onHover: `rgba(32, 32, 32, 0.5)`,
+          },
+          copy_button: {
+            backgroundColor: `rgba(0, 0, 0, 0)`,
+            backgroundColor_onHover: `rgba(0, 0, 0, 0.08)`,
+            backgroundColor_onActive: `rgba(0, 0, 0, 0.08)`,
+            border: `1px solid rgba(0, 0, 0, 0)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.16)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.32)`,
           },
           think_section: {
             border: `1px solid rgba(0, 0, 0, 0)`,
@@ -394,7 +440,7 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          backgroundColor: `rgba(${RGB.R+ 5}, ${RGB.G + 5}, ${RGB.B + 5}, 1)`,
           border: `1px solid rgba(0, 0, 0, 0.18)`,
           boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
           option_item: {

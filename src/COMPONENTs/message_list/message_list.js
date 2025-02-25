@@ -184,7 +184,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
 
           float: role === "user" ? "right" : "left",
           marginTop: index === 0 ? 40 : 0,
-          marginBottom: is_last_index ? 128 : 36,
+          marginBottom: is_last_index ? 256 : 36,
           borderRadius: default_border_radius,
           boxShadow: role === "user" ? boxShadow.light : "none",
         }}
@@ -354,7 +354,7 @@ const Scrolling_Section = () => {
     </div>
   );
 };
-const Model_list_Item = ({ model, setModelOnTask }) => {
+const Model_list_Item = ({ model }) => {
   const { RGB, messageList } = useContext(ConfigContexts);
   const { selectedModel, setSelectedModel, setAvaliableModels } =
     useContext(DataContexts);
@@ -470,15 +470,22 @@ const Add_Model_Button = () => {
     </div>
   );
 };
-const Model_Menu = ({ value }) => {
+const Model_Menu = ({ value, setMenuWidth }) => {
   const sub_component_name = component_name + "_" + "model_menu";
 
-  const { RGB, boxShadow, messageList } = useContext(ConfigContexts);
+  const { messageList } = useContext(ConfigContexts);
   const { selectedModel, avaliableModels, setAvaliableModels } =
     useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
+  const { inputHeight } = useContext(ChatSectionContexts);
+
+  const menuRef = useRef(null);
+  useEffect(() => {
+    if (!menuRef || !menuRef.current) return;
+    setMenuWidth(menuRef.current.offsetWidth);
+  }, [componentOnFocus, selectedModel]);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
@@ -498,29 +505,24 @@ const Model_Menu = ({ value }) => {
       style={{
         userSelect: "none",
         transition:
-          "left 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
-          " opacity 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          "bottom 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " left 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " opacity 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
           " border 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
+          " box-shadow 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)," +
           " padding 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "absolute",
-        bottom: 35,
-        left:
+        bottom:
           value.length !== 0 || ollamaOnTask !== null
-            ? 50 + default_padding
-            : 50,
+            ? Math.max(inputHeight + 35, 84)
+            : 35,
+        left: value.length !== 0 || ollamaOnTask !== null ? 0 : 50,
 
         fontSize: default_font_size + 2,
         fontFamily: "inherit",
         fontWeight: 500,
 
-        opacity:
-          value.length !== 0 || ollamaOnTask !== null
-            ? 0
-            : componentOnFocus === sub_component_name
-            ? 1
-            : onHover
-            ? 0.5
-            : 0.5,
+        opacity: ollamaOnTask !== null ? 0 : 1,
         padding: componentOnFocus === sub_component_name ? "5px" : "2px 6px",
 
         borderRadius: componentOnFocus === sub_component_name ? 8 : 4,
@@ -537,17 +539,16 @@ const Model_Menu = ({ value }) => {
         backgroundColor:
           componentOnFocus === sub_component_name
             ? messageList.model_menu.backgroundColor_onActive
-            : onHover
-            ? messageList.model_menu.backgroundColor_onHover
-            : `rgba(225, 225, 225, 0)`,
+            : messageList.model_menu.backgroundColor,
+
         boxShadow:
           onHover || componentOnFocus === sub_component_name
-            ? boxShadow.middle
+            ? messageList.model_menu.boxShadow_onHover
             : "none",
         cursor: "pointer",
         backdropFilter:
           componentOnFocus === sub_component_name ? "blur(16px)" : "none",
-        pointerEvents: value.length !== 0 ? "none" : "auto",
+        pointerEvents: ollamaOnTask !== null ? "none" : "auto",
       }}
       onMouseEnter={(e) => {
         setOnHover(true);
@@ -580,17 +581,245 @@ const Model_Menu = ({ value }) => {
           ))
         ) : (
           <div
+            ref={menuRef}
             style={{
+              transition: "color 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
               position: "relative",
               top: 0,
-
+              color: onHover
+                ? messageList.model_menu.color_onHover
+                : messageList.model_menu.color,
               minHeight: 23,
             }}
           >
-            {selectedModel ? selectedModel : "Select Model"}
+            {selectedModel ? selectedModel : "a Model here"}
           </div>
         )}
         {componentOnFocus === sub_component_name ? <Add_Model_Button /> : null}
+      </div>
+    </div>
+  );
+};
+const Input_Upper_Panel = ({ value, menuWidth }) => {
+  const { messageList } = useContext(ConfigContexts);
+  const { ollamaOnTask } = useContext(StatusContexts);
+  const { inputHeight } = useContext(ChatSectionContexts);
+
+  const [onHover, setOnHover] = useState(null);
+  const [onClick, setOnClick] = useState(null);
+
+  const default_offset = {
+    longer: 70,
+    shorter: 20,
+  };
+  if (ollamaOnTask !== null) {
+    return null;
+  }
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transition:
+          "bottom 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+
+        left:
+          value.length !== 0
+            ? menuWidth + default_offset.shorter
+            : menuWidth + default_offset.longer,
+        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 83) : 33,
+
+        height: 33,
+
+        boxSizing: "border-box",
+        border: "1px solid rgba(0, 0, 0, 0)",
+      }}
+    >
+      <div
+        className="terminal_button"
+        style={{
+          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: 0,
+          width: 26,
+          height: 26,
+          backgroundColor:
+            onClick === "terminalMode"
+              ? messageList.input_upper_panel.backgroundColor_onActive
+              : onHover === "terminalMode"
+              ? messageList.input_upper_panel.backgroundColor_onHover
+              : messageList.input_upper_panel.backgroundColor,
+          borderRadius: default_border_radius - 2,
+          border:
+            onClick === "terminalMode"
+              ? messageList.input_upper_panel.border_onActive
+              : onHover === "terminalMode"
+              ? messageList.input_upper_panel.border_onHover
+              : messageList.input_upper_panel.border,
+          boxShadow:
+            onHover === "terminalMode"
+              ? messageList.input_upper_panel.boxShadow
+              : "none",
+        }}
+        onMouseEnter={() => {
+          setOnHover("terminalMode");
+        }}
+        onMouseLeave={() => {
+          setOnHover(null);
+          setOnClick(null);
+        }}
+        onMouseDown={() => {
+          setOnClick("terminalMode");
+        }}
+        onMouseUp={() => {
+          setOnClick(null);
+        }}
+        onClick={() => {}}
+      >
+        <Icon
+          src="terminal"
+          alt="terminal"
+          style={{
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            left: "50%",
+            width: 20,
+            borderRadius: 24,
+            opacity:
+              onClick === "terminalMode"
+                ? messageList.input_upper_panel.opacity_onActive
+                : onHover === "terminalMode"
+                ? messageList.input_upper_panel.opacity_onHover
+                : messageList.input_upper_panel.opacity,
+            userSelect: "none",
+          }}
+        />
+      </div>
+      <div
+        className="web_button"
+        style={{
+          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: 34,
+          width: 26,
+          height: 26,
+          backgroundColor:
+            onClick === "webMode"
+              ? messageList.input_upper_panel.backgroundColor_onActive
+              : onHover === "webMode"
+              ? messageList.input_upper_panel.backgroundColor_onHover
+              : messageList.input_upper_panel.backgroundColor,
+          borderRadius: default_border_radius - 2,
+          border:
+            onClick === "webMode"
+              ? messageList.input_upper_panel.border_onActive
+              : onHover === "webMode"
+              ? messageList.input_upper_panel.border_onHover
+              : messageList.input_upper_panel.border,
+          boxShadow:
+            onHover === "webMode"
+              ? messageList.input_upper_panel.boxShadow
+              : "none",
+          userSelect: "none",
+        }}
+        onMouseEnter={() => {
+          setOnHover("webMode");
+        }}
+        onMouseLeave={() => {
+          setOnHover(null);
+          setOnClick(null);
+        }}
+        onMouseDown={() => {
+          setOnClick("webMode");
+        }}
+        onMouseUp={() => {
+          setOnClick(null);
+        }}
+        onClick={() => {}}
+      >
+        <Icon
+          src="web"
+          alt="web"
+          style={{
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            left: "50%",
+            width: 20,
+            opacity:
+              onClick === "webMode"
+                ? messageList.input_upper_panel.opacity_onActive
+                : onHover === "webMode"
+                ? messageList.input_upper_panel.opacity_onHover
+                : messageList.input_upper_panel.opacity,
+          }}
+        />
+      </div>
+      <div
+        className="github_button"
+        style={{
+          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: 68,
+          width: 26,
+          height: 26,
+          backgroundColor:
+            onClick === "githubMode"
+              ? messageList.input_upper_panel.backgroundColor_onActive
+              : onHover === "githubMode"
+              ? messageList.input_upper_panel.backgroundColor_onHover
+              : messageList.input_upper_panel.backgroundColor,
+          borderRadius: default_border_radius - 2,
+          border:
+            onClick === "githubMode"
+              ? messageList.input_upper_panel.border_onActive
+              : onHover === "githubMode"
+              ? messageList.input_upper_panel.border_onHover
+              : messageList.input_upper_panel.border,
+          boxShadow:
+            onHover === "githubMode"
+              ? messageList.input_upper_panel.boxShadow
+              : "none",
+          userSelect: "none",
+        }}
+        onMouseEnter={() => {
+          setOnHover("githubMode");
+        }}
+        onMouseLeave={() => {
+          setOnHover(null);
+          setOnClick(null);
+        }}
+        onMouseDown={() => {
+          setOnClick("githubMode");
+        }}
+        onMouseUp={() => {
+          setOnClick(null);
+        }}
+        onClick={() => {}}
+      >
+        <Icon
+          src="github"
+          alt="github"
+          style={{
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            left: "50%",
+            width: 20,
+            opacity:
+              onClick === "githubMode"
+                ? messageList.input_upper_panel.opacity_onActive
+                : onHover === "githubMode"
+                ? messageList.input_upper_panel.opacity_onHover
+                : messageList.input_upper_panel.opacity,
+          }}
+        />
       </div>
     </div>
   );
@@ -600,7 +829,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
     useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
-  const { awaitResponse } = useContext(ChatSectionContexts);
+  const { awaitResponse, setInputHeight } = useContext(ChatSectionContexts);
+
+  const [menuWidth, setMenuWidth] = useState(0);
   const [style, setStyle] = useState({
     colorOffset: 0,
     opacity: 0,
@@ -661,6 +892,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         onSubmit={on_input_submit}
         onFocus={onFocus}
         setOnFocus={setOnFocus}
+        setInputHeight={setInputHeight}
         style={{
           transition: "height 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
@@ -768,7 +1000,8 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           }}
         />
       )}
-      <Model_Menu value={inputValue} />
+      <Input_Upper_Panel value={inputValue} menuWidth={menuWidth} />
+      <Model_Menu value={inputValue} setMenuWidth={setMenuWidth} />
     </div>
   );
 };
@@ -787,6 +1020,7 @@ const Message_List = () => {
     useContext(RequestContexts);
 
   const [inputValue, setInputValue] = useState("");
+  const [inputHeight, setInputHeight] = useState(0);
   const [awaitResponse, setAwaitResponse] = useState(null);
 
   /* { Target Address } ------------------------------------------------------------------------------ */
@@ -816,7 +1050,7 @@ const Message_List = () => {
 
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
-    if (inputValue.length > 0 && awaitResponse === null) {
+    if (inputValue.length > 0 && awaitResponse === null && selectedModel) {
       append_message(targetAddress, {
         role: "user",
         message: inputValue,
@@ -878,6 +1112,8 @@ const Message_List = () => {
         setArrivedAtPosition,
         preLoadingCompleted,
         setPreLoadingCompleted,
+        inputHeight,
+        setInputHeight,
 
         update_message,
       }}
@@ -908,6 +1144,7 @@ const Message_List = () => {
 
           height: 64,
           background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 32%, rgba(0, 0, 0, 0)) 100%`,
+          pointerEvents: "none",
         }}
       ></div>
     </ChatSectionContexts.Provider>

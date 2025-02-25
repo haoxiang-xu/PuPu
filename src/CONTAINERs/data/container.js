@@ -36,6 +36,11 @@ const DataContainer = () => {
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [selectedModel, setSelectedModel] = useState(null);
   const [avaliableModels, setAvaliableModels] = useState([]);
+  useEffect(() => {
+    if (!selectedModel || !avaliableModels.includes(selectedModel)) {
+      setSelectedModel(avaliableModels[0]);
+    }
+  }, [selectedModel, avaliableModels]);
   /* { Model Related } ------------------------------------------------------------------------------- */
 
   /* { Local Storage } ------------------------------------------------------------------------------- */
@@ -105,17 +110,22 @@ const DataContainer = () => {
     }
   };
   const load_models = () => {
-    const selected_model = JSON.parse(
-      localStorage.getItem(UNIQUE_KEY + "selected_model")
-    );
-    ollama_list_available_models().then((response) => {
-      if (response.includes(selected_model)) {
-        setSelectedModel(selected_model);
-      } else {
-        setSelectedModel(response[0]);
+    try {
+      let selected_model = localStorage.getItem(UNIQUE_KEY + "selected_model")
+      if (!selected_model) {
+        selected_model = JSON.parse(selected_model);
       }
-      setAvaliableModels(response);
-    });
+      ollama_list_available_models().then((response) => {
+        if (response.includes(selected_model)) {
+          setSelectedModel(selected_model);
+        } else {
+          setSelectedModel(response[0]);
+        }
+        setAvaliableModels(response);
+      });
+    } catch (error) {
+      console.error("Error loading models:", error);
+    }
   };
   const save_to_local_storage = () => {
     setSectionData((prev) => {
@@ -257,48 +267,48 @@ const DataContainer = () => {
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Model Data } ----------------------------------------------------------------------------------- */
-    useEffect(() => {
-      if (ollamaPendingDeleteModels.length === 0) {
-        return;
-      }
-      ollama_delete_local_model(ollamaPendingDeleteModels[0]).then((response) => {
+  useEffect(() => {
+    if (ollamaPendingDeleteModels.length === 0) {
+      return;
+    }
+    ollama_delete_local_model(ollamaPendingDeleteModels[0]).then((response) => {
+      ollama_list_available_models().then((response) => {
+        setAvaliableModels(response);
+        setOllamaPendingDeleteModels((prev) => {
+          let new_list = [...prev];
+          new_list.shift();
+          return new_list;
+        });
+      });
+    });
+  }, [ollamaPendingDeleteModels]);
+  useEffect(() => {
+    if (ollamaPendingDownloadModels.length === 0) {
+      return;
+    }
+    setOllamaInstallingStatus({
+      model: ollamaPendingDownloadModels[0],
+      percentage: 0,
+      done: false,
+    });
+    ollama_pull_cloud_model(
+      ollamaPendingDownloadModels[0],
+      setOllamaInstallingStatus
+    )
+      .then((response) => {
         ollama_list_available_models().then((response) => {
           setAvaliableModels(response);
-          setOllamaPendingDeleteModels((prev) => {
+          setOllamaPendingDownloadModels((prev) => {
             let new_list = [...prev];
             new_list.shift();
             return new_list;
           });
         });
+      })
+      .finally(() => {
+        setOllamaInstallingStatus(null);
       });
-    }, [ollamaPendingDeleteModels]);
-    useEffect(() => {
-      if (ollamaPendingDownloadModels.length === 0) {
-        return;
-      }
-      setOllamaInstallingStatus({
-        model: ollamaPendingDownloadModels[0],
-        percentage: 0,
-        done: false,
-      });
-      ollama_pull_cloud_model(
-        ollamaPendingDownloadModels[0],
-        setOllamaInstallingStatus
-      )
-        .then((response) => {
-          ollama_list_available_models().then((response) => {
-            setAvaliableModels(response);
-            setOllamaPendingDownloadModels((prev) => {
-              let new_list = [...prev];
-              new_list.shift();
-              return new_list;
-            });
-          });
-        })
-        .finally(() => {
-          setOllamaInstallingStatus(null);
-        });
-    }, [ollamaPendingDownloadModels]);
+  }, [ollamaPendingDownloadModels]);
   /* { Model Data } ----------------------------------------------------------------------------------- */
 
   return (

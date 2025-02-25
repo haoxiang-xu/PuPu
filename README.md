@@ -9,7 +9,7 @@
 
 PuPu is a lightweight tool that makes it easy to run AI models on your own device. Designed for smooth performance and ease of use, PuPu is perfect for anyone who wants quick access to AI without technical complexity.
 
-<img src="assets/PuPu_UI.png" alt="PuPu UI"/>
+<img src="assets/PuPu_UI.png" alt="PuPu UI 3"/>
 
 ## Download the App
 

@@ -40,18 +40,18 @@ const CodeSection = ({ language, children }) => {
   useEffect(() => {
     if (onClicked) {
       setStyle({
-        backgroundColor: `rgba(225, 225, 225, 0.16)`,
-        border: `1px solid rgba(225, 225, 225, 0.32)`,
+        backgroundColor: markdown.copy_button.backgroundColor_onActive,
+        border: markdown.copy_button.border_onActive,
       });
     } else if (onHover) {
       setStyle({
-        backgroundColor: `rgba(225, 225, 225, 0.08)`,
-        border: `1px solid rgba(225, 225, 225, 0.16)`,
+        backgroundColor: markdown.copy_button.backgroundColor_onHover,
+        border: markdown.copy_button.border_onHover,
       });
     } else {
       setStyle({
-        backgroundColor: `rgba(225, 225, 225, 0)`,
-        border: `1px solid rgba(225, 225, 225, 0)`,
+        backgroundColor: markdown.copy_button.backgroundColor,
+        border: markdown.copy_button.border,
       });
     }
   }, [onHover, onClicked]);

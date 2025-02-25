@@ -4,9 +4,9 @@ const dark_theme = {
   B: 31,
 };
 const light_theme = {
-  R: 232,
-  G: 221,
-  B: 229,
+  R: 255,
+  G: 235,
+  B: 243,
 };
 
 export { dark_theme, light_theme };

@@ -19,9 +19,11 @@ const Input = ({
   onSubmit,
   onFocus,
   setOnFocus,
+  setInputHeight,
   ...props
 }) => {
   const { ollamaOnTask } = useContext(StatusContexts);
+  const { selectedModel } = useContext(DataContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
@@ -36,12 +38,15 @@ const Input = ({
         return null;
       }
     };
+    if (selectedModel) {
     if (ollamaOnTask) {
       setPlaceholder(extract_status(ollamaOnTask));
     } else {
       setPlaceholder("Ask ");
+    }} else {
+      setPlaceholder("Pick");
     }
-  }, [ollamaOnTask]);
+  }, [ollamaOnTask, selectedModel]);
   /* { Placeholder } --------------------------------------------------------- */
 
   useEffect(() => {
@@ -53,6 +58,7 @@ const Input = ({
   useEffect(() => {
     if (inputRef.current) {
       setHeight(inputRef.current.clientHeight + 12);
+      setInputHeight(inputRef.current.clientHeight + 12);
     }
   }, [value, window.innerWidth, window.innerHeight]);
 

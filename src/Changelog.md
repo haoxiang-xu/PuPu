@@ -9,8 +9,10 @@
 
 - `Reported BUGs`
   - When the downloaded model having a name that does not match the model name in the model list, the app will crash.
-  - App was acting weird when there is no model installed.
-
+  - App was acting weird when there is no model installed. [x] - 0.0.3
+  - Selected model will not be changed after the model is deleted. [x] - 0.0.3
+  - Current message will lost if chat room is changed.
+  
 ### Version 0.0.1
 
 - `Reported BUGs`
