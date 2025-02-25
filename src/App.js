@@ -17,11 +17,10 @@ const App = () => {
           <StatusContainer>
             <RequestContainer>
               <DataContainer />
+              {/* <GraphDemo /> */}
             </RequestContainer>
           </StatusContainer>
         </ConfigContainer>
-        {/* <GraphDemo /> */}
-        {/* <XTerm /> */}
       </HashRouter>
     </div>
   );

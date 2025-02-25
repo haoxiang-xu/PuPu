@@ -3,11 +3,13 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
 import "xterm/css/xterm.css";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
-const XTerm = () => {
+const Term = () => {
+  const { setModelAvailableTools } = useContext(StatusContexts);
   const { scrollingSapce } = useContext(ConfigContexts);
 
   const terminalRef = useRef(null);
@@ -83,8 +85,7 @@ const XTerm = () => {
       cursorBlink: true,
       cursorStyle: "block",
       fontSize: 14,
-      fontFamily:
-        "'Hack Nerd Font', monospace",
+      fontFamily: "'Hack Nerd Font', monospace",
       theme: {
         background: "#1e1e1e",
         foreground: "#ffffff",
@@ -143,9 +144,9 @@ const XTerm = () => {
       <div
         style={{
           position: "absolute",
-          top: "12px",
-          right: "12px",
-          zIndex: 1000,
+          top: "24px",
+          right: "0px",
+          zIndex: 1,
           padding: "8px",
           borderRadius: "4px",
           cursor: "pointer",
@@ -156,7 +157,15 @@ const XTerm = () => {
           transition: "background-color 0.2s ease",
           WebkitAppRegion: "no-drag",
         }}
-        onClick={() => setShowTerminal(false)}
+        onClick={() => {
+          setShowTerminal(false);
+          setModelAvailableTools((prev) => {
+            if (prev.includes("terminal")) {
+              return prev.filter((tool) => tool !== "terminal");
+            }
+            return [...prev, "terminal"];
+          });
+        }}
         onMouseEnter={(e) =>
           (e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.2)")
         }
@@ -170,6 +179,7 @@ const XTerm = () => {
             width: "16px",
             height: "16px",
             opacity: 0.8,
+            userSelect: "none",
           }}
         />
       </div>
@@ -190,4 +200,4 @@ const XTerm = () => {
   );
 };
 
-export default XTerm;
+export default Term;

@@ -8,7 +8,7 @@ const os = require("os");
 const { minimum_window_size } = require("./constants");
 
 let mainWindow;
-let terminalProcess;
+let terminalProcess = null;
 
 /* { flags } */
 let quitting = false;
@@ -114,7 +114,6 @@ app.whenReady().then(() => {
   create_terminal();
   register_window_state_event_listeners();
   register_will_navigate_event_listener();
-  register_terminal_event_listener();
 });
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
@@ -130,6 +129,13 @@ app.on("activate", () => {
 });
 app.on("before-quit", () => {
   quitting = true;
+  if (terminalProcess) {
+    try {
+      terminalProcess.kill();
+    } catch (error) {
+      console.error("Error killing terminal process:", error);
+    }
+  }
 });
 
 /* { window state event listener } ===================================================================================================== */
@@ -220,24 +226,70 @@ const register_will_navigate_event_listener = () => {
 
 /* { node-pty } ======================================================================================================================== */
 const create_terminal = () => {
-  terminalProcess = pty.spawn(
-    os.platform() === "win32" ? "cmd.exe" : "bash",
-    [],
-    {
-      name: "xterm-color",
-      cols: 80,
-      rows: 30,
-      cwd: process.env.HOME,
-      env: process.env,
+  if (!terminalProcess) {
+    // Set shell based on platform
+    const shell = os.platform() === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
+    const args = os.platform() === "win32" ? [] : ["-l"]; // -l for login shell
+
+    try {
+      // Create terminal with proper encoding and environment
+      terminalProcess = pty.spawn(shell, args, {
+        name: "xterm-256color",
+        cols: 80,
+        rows: 30,
+        cwd: os.homedir(), // Use homedir() instead of HOME
+        env: {
+          ...process.env,
+          TERM: "xterm-256color",
+        },
+        encoding: "utf8", // Ensure proper encoding
+      });
+
+      console.log(`Terminal process created with PID: ${terminalProcess.pid}`);
+
+      // Setup data handling immediately
+      terminalProcess.onData((data) => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          mainWindow.webContents.send("terminal-event-listener", data);
+        }
+      });
+
+      terminalProcess.onExit(({ exitCode, signal }) => {
+        console.log(`Terminal process exited with code: ${exitCode}, signal: ${signal}`);
+        terminalProcess = null;
+        // Recreate terminal after a short delay
+        setTimeout(create_terminal, 1000);
+      });
+
+    } catch (error) {
+      console.error("Failed to create terminal process:", error);
     }
-  );
+  }
 };
-ipcMain.on("terminal-event-handler", (event, input) => {
-  terminalProcess.write(input);
+// Handle terminal resize events
+ipcMain.on("terminal-resize", (event, { cols, rows }) => {
+  if (terminalProcess) {
+    try {
+      terminalProcess.resize(cols, rows);
+      console.log(`Terminal resized to ${cols}x${rows}`);
+    } catch (error) {
+      console.error("Error resizing terminal:", error);
+    }
+  }
 });
-const register_terminal_event_listener = () => {
-  terminalProcess.on("data", (data) => {
-    mainWindow.webContents.send("terminal-event-listener", data);
-  });
-};
+// Handle input from the frontend
+ipcMain.on("terminal-event-handler", (event, input) => {
+  if (terminalProcess) {
+    try {
+      terminalProcess.write(input);
+    } catch (error) {
+      console.error("Error writing to terminal:", error);
+      // Try to recreate terminal if write fails
+      create_terminal();
+    }
+  } else {
+    // If no terminal process exists, create one
+    create_terminal();
+  }
+});
 /* { node-pty } ======================================================================================================================== */

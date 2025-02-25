@@ -34,7 +34,8 @@
     "start": "concurrently \"npm run react-start\" \"npm run electron-start\"",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "postinstall": "npx electron-rebuild -f -w node-pty --verbose"
   },
   "eslintConfig": {
     "extends": [

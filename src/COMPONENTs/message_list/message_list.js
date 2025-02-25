@@ -17,6 +17,7 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
+import Term from "../terminal/terminal";
 
 const default_border_radius = 10;
 const default_font_size = 14;
@@ -602,7 +603,7 @@ const Model_Menu = ({ value, setMenuWidth }) => {
 };
 const Input_Upper_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
-  const { ollamaOnTask } = useContext(StatusContexts);
+  const { ollamaOnTask, setModelAvailableTools } = useContext(StatusContexts);
   const { inputHeight } = useContext(ChatSectionContexts);
 
   const [onHover, setOnHover] = useState(null);
@@ -675,7 +676,15 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
         onMouseUp={() => {
           setOnClick(null);
         }}
-        onClick={() => {}}
+        onClick={() => {
+          setModelAvailableTools((prev) => {
+            if (prev.includes("terminal")) {
+              return prev.filter((tool) => tool !== "terminal");
+            } else {
+              return [...prev, "terminal"];
+            }
+          });
+        }}
       >
         <Icon
           src="terminal"
@@ -1016,6 +1025,7 @@ const Message_List = () => {
     append_message,
     reset_regenerate_title_count_down,
   } = useContext(DataContexts);
+  const { modelAvailableTools } = useContext(StatusContexts);
   const { ollama_chat_completion_streaming, ollama_update_title_no_streaming } =
     useContext(RequestContexts);
 
@@ -1129,6 +1139,7 @@ const Message_List = () => {
         }}
       >
         <Scrolling_Section />
+        {modelAvailableTools?.includes("terminal") ? <Term /> : null}
         <Input_Section
           inputValue={inputValue}
           setInputValue={setInputValue}
