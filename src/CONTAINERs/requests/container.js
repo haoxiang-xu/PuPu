@@ -320,8 +320,25 @@ const RequestContainer = ({ children }) => {
       console.error("Error pulling model:", error);
     }
   };
-
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
+
+  /* { GitHub APIs } ---------------------------------------------------------------------------------- */
+  const github_search_repo_by_keyword = async (keyword) => {
+    // returns a list of available repositories
+  };
+  const github_get_repo_info = async (repo) => {
+    // returns the repository information (like language, stars, forks, etc.)
+  }
+  const github_get_repo_readme = async (repo) => {
+    // returns the README.md content of the repository
+  };
+  const github_get_repo_files = async (repo) => {
+    // returns a root tree of files in the repository
+  };
+  const github_get_repo_file_content = async (repo, file_path) => {
+    // returns the content of the file in the repository
+  };
+  /* { GitHub APIs } ---------------------------------------------------------------------------------- */
 
   return (
     <RequestContexts.Provider
