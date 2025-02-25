@@ -1050,7 +1050,7 @@ const Message_List = () => {
 
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
-    if (inputValue.length > 0 && awaitResponse === null) {
+    if (inputValue.length > 0 && awaitResponse === null && selectedModel) {
       append_message(targetAddress, {
         role: "user",
         message: inputValue,
