@@ -592,7 +592,7 @@ const Model_Menu = ({ value, setMenuWidth }) => {
               minHeight: 23,
             }}
           >
-            {selectedModel ? selectedModel : "Select Model"}
+            {selectedModel ? selectedModel : "a Model here"}
           </div>
         )}
         {componentOnFocus === sub_component_name ? <Add_Model_Button /> : null}

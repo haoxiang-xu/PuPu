@@ -23,6 +23,7 @@ const Input = ({
   ...props
 }) => {
   const { ollamaOnTask } = useContext(StatusContexts);
+  const { selectedModel } = useContext(DataContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
@@ -37,10 +38,13 @@ const Input = ({
         return null;
       }
     };
+    if (selectedModel) {
     if (ollamaOnTask) {
       setPlaceholder(extract_status(ollamaOnTask));
     } else {
       setPlaceholder("Ask ");
+    }} else {
+      setPlaceholder("Pick");
     }
   }, [ollamaOnTask]);
   /* { Placeholder } --------------------------------------------------------- */
