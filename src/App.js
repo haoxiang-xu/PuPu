@@ -17,11 +17,9 @@ const App = () => {
           <StatusContainer>
             <RequestContainer>
               <DataContainer />
+              {/* <GraphDemo /> */}
             </RequestContainer>
           </StatusContainer>
-
-          {/* <GraphDemo /> */}
-          <XTerm />
         </ConfigContainer>
       </HashRouter>
     </div>
