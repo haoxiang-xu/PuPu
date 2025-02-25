@@ -485,7 +485,7 @@ const Model_Menu = ({ value, setMenuWidth }) => {
   useEffect(() => {
     if (!menuRef || !menuRef.current) return;
     setMenuWidth(menuRef.current.offsetWidth);
-  }, [componentOnFocus]);
+  }, [componentOnFocus, selectedModel]);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {

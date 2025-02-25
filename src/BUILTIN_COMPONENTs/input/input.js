@@ -46,7 +46,7 @@ const Input = ({
     }} else {
       setPlaceholder("Pick");
     }
-  }, [ollamaOnTask]);
+  }, [ollamaOnTask, selectedModel]);
   /* { Placeholder } --------------------------------------------------------- */
 
   useEffect(() => {
