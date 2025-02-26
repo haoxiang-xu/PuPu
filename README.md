@@ -85,8 +85,8 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 `npx electron-builder --linux` <span style="opacity: 0.32"> (for linux) </span>
 
 [windows-shield]: https://img.shields.io/badge/download_for_windows-AA3E71?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
-[windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.1
+[windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
 [macos-shield]: https://img.shields.io/badge/download_for_mac-AA3E71?style=for-the-badge&logo=apple&logoColor=FFFFFF&labelColor=AA3E71
-[macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.1
+[macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
 [linux-shield]: https://img.shields.io/badge/download_for_linux-AA3E71?style=for-the-badge&logo=linux&logoColor=FFFFFF&labelColor=AA3E71
-[linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.1
+[linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
