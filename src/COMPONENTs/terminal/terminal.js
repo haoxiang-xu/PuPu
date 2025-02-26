@@ -90,6 +90,7 @@ const Term = () => {
         background: "#1e1e1e",
         foreground: "#ffffff",
       },
+      scrollback: 5000,
     });
 
     fitAddon.current = new FitAddon();
@@ -113,17 +114,21 @@ const Term = () => {
         window.terminalAPI.terminalEventHandler(data);
       });
 
-      window.terminalAPI.terminalEventListener((data) => {
-        term.current.write(data);
+      // Setup event listener and error handler for xterm instance
+      const cleanup = window.terminalAPI.terminalEventListener((data) => {
+        term.current?.write(data);
+        term.current?.scrollToBottom();
       });
-    }
 
-    return () => {
-      if (term.current) {
-        term.current.dispose();
-        term.current = null;
-      }
-    };
+      return () => {
+        // Cleanup event listeners
+        cleanup?.();
+        if (term.current) {
+          term.current.dispose();
+          term.current = null;
+        }
+      };
+    }
   }, [apiReady]);
 
   if (!showTerminal) return null;
