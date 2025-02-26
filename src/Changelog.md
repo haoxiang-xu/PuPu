@@ -12,7 +12,10 @@
   - App was acting weird when there is no model installed. [x] - 0.0.3
   - Selected model will not be changed after the model is deleted. [x] - 0.0.3
   - Current message will lost if chat room is changed.
-  
+  - Downloading list will lost pending models after the first model is downloaded.
+  - If there's no reponse coming back show delete the loading tag.
+  - when app started should use default system theme.
+
 ### Version 0.0.1
 
 - `Reported BUGs`

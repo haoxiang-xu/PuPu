@@ -212,8 +212,8 @@ const ConfigContainer = ({ children }) => {
           model_menu: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             backgroundColor_onHover: `rgba(225, 225, 225, 1)`,
-            backgroundColor_onActive: `rgba(${RGB.R - 45}, ${RGB.G - 45}, ${
-              RGB.B - 45
+            backgroundColor_onActive: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
+              RGB.B - 32
             }, 0.72)`,
             border: `1px solid rgba(0, 0, 0, 0.2)`,
             border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
