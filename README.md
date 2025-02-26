@@ -86,7 +86,7 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
 [windows-shield]: https://img.shields.io/badge/download_for_windows-FCFBFC?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
 [windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
-[macos-shield]: https://img.shields.io/badge/download_for_mac-FCFBFC?style=for-the-badge&logo=apple&logoColor=FFFFFF&labelColor=AA3E71
+[macos-shield]: https://img.shields.io/badge/download_for_mac-FCFBFC?style=for-the-badge&logo=apple&logoColor=000000&labelColor=EBDBE2
 [macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
-[linux-shield]: https://img.shields.io/badge/download_for_linux-FCFBFC?style=for-the-badge&logo=linux&logoColor=FFFFFF&labelColor=AA3E71
+[linux-shield]: https://img.shields.io/badge/download_for_linux-FCFBFC?style=for-the-badge&logo=linux&logoColor=000000&labelColor=EBDBE2
 [linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
