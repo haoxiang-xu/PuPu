@@ -3,9 +3,12 @@
   rel="stylesheet"
 ></link>
 
-# <img src="assets/logo.png" alt="PuPu UI" style="height: 128px"> PuPu
-
-**" A simple and easy to use UI for the Ollama. "**
+<div align="center">
+  <img src="assets/logo.png" alt="PuPu UI" style="height: 128px">
+  <h1>PuPu</h1>
+  <p>A simple and easy to use UI for the Ollama.</p>
+</div>
+<br><br><br>
 
 PuPu is a lightweight tool that makes it easy to run AI models on your own device. Designed for smooth performance and ease of use, PuPu is perfect for anyone who wants quick access to AI without technical complexity.
 
@@ -45,10 +48,13 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 ```bash
 sudo dpkg -i PuPu-0.0.2.deb
 ```
+
 OR
+
 ```bash
 sudo apt install ./PuPu-0.0.2.deb
 ```
+
 - Ensuring Proper Sandbox Permissions: <span style="opacity: 0.32">If you encounter an error message about sandbox permissions, you can run the following command:</span>
 
 ```bash
