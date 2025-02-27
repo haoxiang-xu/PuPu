@@ -24,7 +24,13 @@ contextBridge.exposeInMainWorld("terminalAPI", {
   },
   terminalEventListener: (callback) => {
     try {
+      // Remove all listeners before adding a new one
+      ipcRenderer.removeAllListeners("terminal-event-listener");
       ipcRenderer.on("terminal-event-listener", (_, data) => callback(data));
+      // Return a cleanup function to remove the listener when the component unmounts
+      return () => {
+        ipcRenderer.removeAllListeners("terminal-event-listener");
+      };
     } catch (error) {
       console.error("Error in terminal event listener:", error);
     }
