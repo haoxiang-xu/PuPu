@@ -8,6 +8,7 @@ import ollama_pupu_ from "./ollama_pupu_.png";
 
 import Message_List from "../../COMPONENTs/message_list/message_list";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
+import FileDropZone from "../../COMPONENTs/file_drop_zone/file_drop_zone";
 
 const Chat_Page = ({}) => {
   const { RGB, theme } = useContext(ConfigContexts);

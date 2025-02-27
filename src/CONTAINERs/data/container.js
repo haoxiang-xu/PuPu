@@ -275,7 +275,6 @@ const DataContainer = () => {
     });
   };
   useEffect(() => {
-    console.log(sectionData);
     save_to_local_storage();
   }, [sectionData, addressBook, selectedModel]);
   /* { Section Data } --------------------------------------------------------------------------------- */
