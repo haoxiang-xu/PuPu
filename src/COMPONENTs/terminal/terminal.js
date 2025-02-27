@@ -3,13 +3,15 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import "xterm/css/xterm.css";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const Term = () => {
-  const { scrollingSapce } = useContext(ConfigContexts);
+  const { scrollingSapce, RGB, colorOffset, markdown } = useContext(ConfigContexts);
+  const { windowWidth } = useContext(StatusContexts);
   const { trigger_section_mode } = useContext(DataContexts);
 
   const terminalRef = useRef(null);
@@ -86,8 +88,10 @@ const Term = () => {
       fontSize: 14,
       fontFamily: "'Hack Nerd Font', monospace",
       theme: {
-        background: "#1e1e1e",
-        foreground: "#ffffff",
+        background: `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`,
+        foreground: `rgb(${RGB.R + colorOffset.font}, ${
+          RGB.G + colorOffset.font
+        }, ${RGB.B + colorOffset.font})`,
       },
       scrollback: 5000,
     });
@@ -128,7 +132,7 @@ const Term = () => {
         }
       };
     }
-  }, [apiReady]);
+  }, [apiReady, markdown]);
 
   if (!showTerminal) return null;
 
@@ -140,7 +144,7 @@ const Term = () => {
         left: 0,
         width: "100%",
         height: "100%",
-        backgroundColor: "#1e1e1e",
+        backgroundColor: `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`,
         overflow: "hidden",
       }}
     >
@@ -186,11 +190,14 @@ const Term = () => {
       <div
         ref={terminalRef}
         style={{
+          transition: "width 0.16s",
           position: "absolute",
+          transform: "translate(-50%, 0%)",
           top: 55,
-          left: 5,
-          right: 5,
-          bottom: 0,
+          left: "50%",
+          padding: 6,
+          width: windowWidth > 730 ? 680 : windowWidth - 50,
+          bottom: 72,
           overflow: "hidden",
           boxSizing: "border-box",
         }}
