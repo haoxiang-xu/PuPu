@@ -617,6 +617,7 @@ const Input_Image = ({ index, imageSrc }) => {
     >
       <img
         src={imageSrc}
+        draggable="false"
         style={{
           height: 50,
           borderRadius: 4,
@@ -637,6 +638,7 @@ const Input_Image = ({ index, imageSrc }) => {
           backgroundColor: messageList.input_images.backgroundColor,
           borderRadius: 16,
           padding: 3,
+          cursor: "pointer",
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -961,6 +963,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
       }}
     >
+      <Input_Image_Panel value={inputValue} />
       <Input
         value={inputValue}
         setValue={setInputValue}
@@ -1076,7 +1079,6 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         />
       )}
       <Input_Upper_Panel value={inputValue} menuWidth={menuWidth} />
-      <Input_Image_Panel value={inputValue} />
       <Model_Menu value={inputValue} setMenuWidth={setMenuWidth} />
     </div>
   );
