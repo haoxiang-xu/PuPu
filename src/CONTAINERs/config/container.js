@@ -5,7 +5,6 @@ import { ConfigContexts } from "./contexts";
 import { dark_theme, light_theme } from "./default_themes";
 
 const ConfigContainer = ({ children }) => {
-
   const [isConfigReady, setIsConfigReady] = useState(false);
   /* { Theme } ------------------------------------------------------------------------------- */
   const [theme, setTheme] = useState("dark_theme");
@@ -206,6 +205,10 @@ const ConfigContainer = ({ children }) => {
             opacity_onActive: 0.72,
             boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
           },
+          input_images: {
+            backgroundColor: `rgb(0, 0, 0)`,
+            border: `1px solid rgba(225, 225, 225, 0.32)`,
+          },
         };
       } else {
         return {
@@ -271,6 +274,12 @@ const ConfigContainer = ({ children }) => {
             opacity_onHover: 0.64,
             opacity_onActive: 0.72,
             boxShadow: `0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
+          },
+          input_images: {
+            backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
+              RGB.B - 32
+            }, 1)`,
+            border: `1px solid rgba(0, 0, 0, 0.32)`,
           },
         };
       }
@@ -369,7 +378,9 @@ const ConfigContainer = ({ children }) => {
           }, 0.96)`,
           code_section: {
             backgroundColor: `rgb(${RGB.R - 6}, ${RGB.G - 5}, ${RGB.B - 5})`,
-            tag_backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${RGB.B + 16}, 1)`,
+            tag_backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
+              RGB.B + 16
+            }, 1)`,
             boxShadow: `inset 0 2px 16px rgba(0, 0, 0, 0.16)`,
             tag_boxShadow: `0 2px 16px rgba(0, 0, 0, 0.32)`,
             border: `1px solid rgba(225, 255, 225, 0.4)`,
@@ -440,7 +451,7 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          backgroundColor: `rgba(${RGB.R+ 5}, ${RGB.G + 5}, ${RGB.B + 5}, 1)`,
+          backgroundColor: `rgba(${RGB.R + 5}, ${RGB.G + 5}, ${RGB.B + 5}, 1)`,
           border: `1px solid rgba(0, 0, 0, 0.18)`,
           boxShadow: "0px 2px 8px rgba(0, 0, 0, 0.08)",
           option_item: {

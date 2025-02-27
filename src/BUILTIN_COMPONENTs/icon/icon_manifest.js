@@ -60,6 +60,8 @@ export const iconManifest = {
   web_: () => import("./SVGs/UI/web_.svg"),
   github: () => import("./SVGs/UI/github.svg"),
   github_: () => import("./SVGs/UI/github_.svg"),
+  upload: () => import("./SVGs/UI/upload.svg"),
+  upload_: () => import("./SVGs/UI/upload_.svg"),
 
   sun: () => import("./SVGs/UI/sun.svg"),
   sun_: () => import("./SVGs/UI/sun_.svg"),

@@ -18,6 +18,7 @@ import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
 import Term from "../terminal/terminal";
+import FileDropZone from "../../COMPONENTs/file_drop_zone/file_drop_zone";
 
 const default_border_radius = 10;
 const default_font_size = 14;
@@ -601,6 +602,76 @@ const Model_Menu = ({ value, setMenuWidth }) => {
     </div>
   );
 };
+const Input_Image = ({ index, imageSrc }) => {
+  const { messageList } = useContext(ConfigContexts);
+  const { setInputImages } = useContext(ChatSectionContexts);
+
+  return imageSrc ? (
+    <div
+      style={{
+        position: "relative",
+        display: "inline-block",
+        height: 32,
+        marginRight: 24,
+      }}
+    >
+      <img
+        src={imageSrc}
+        style={{
+          height: 50,
+          borderRadius: 4,
+          border: messageList.input_images.border,
+        }}
+      />
+      <Icon
+        src="close"
+        alt="close"
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          transform: "translate(50%, -50%)",
+
+          width: 12,
+
+          backgroundColor: messageList.input_images.backgroundColor,
+          borderRadius: 16,
+          padding: 3,
+        }}
+        onClick={(e) => {
+          e.stopPropagation();
+          setInputImages((prev) => {
+            return prev.filter((_, i) => i !== index);
+          });
+        }}
+      />
+    </div>
+  ) : null;
+};
+const Input_Image_Panel = ({ value }) => {
+  const { inputHeight, inputImages } = useContext(ChatSectionContexts);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        transform: "translate(0%, -50%)",
+        transition: "bottom 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        left: 0,
+        bottom: value.length !== 0 ? Math.max(inputHeight + 55, 103) : 67,
+
+        width: "100%",
+        height: 50,
+      }}
+    >
+      {inputImages.length !== 0
+        ? inputImages.map((image, index) => (
+            <Input_Image key={index} index={index} imageSrc={image} />
+          ))
+        : null}
+    </div>
+  );
+};
 const Input_Upper_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
@@ -701,7 +772,7 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
           }}
         />
       </div>
-      <div
+      {/* <div
         className="web_button"
         style={{
           transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
@@ -824,7 +895,7 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
                 : messageList.input_upper_panel.opacity,
           }}
         />
-      </div>
+      </div> */}
     </div>
   );
 };
@@ -1005,6 +1076,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         />
       )}
       <Input_Upper_Panel value={inputValue} menuWidth={menuWidth} />
+      <Input_Image_Panel value={inputValue} />
       <Model_Menu value={inputValue} setMenuWidth={setMenuWidth} />
     </div>
   );
@@ -1024,8 +1096,10 @@ const Message_List = () => {
     useContext(RequestContexts);
 
   const [inputValue, setInputValue] = useState("");
+  const [inputImages, setInputImages] = useState([]);
   const [inputHeight, setInputHeight] = useState(0);
   const [awaitResponse, setAwaitResponse] = useState(null);
+  const [onFileDragOver, setOnFileDragOver] = useState(false);
 
   /* { Target Address } ------------------------------------------------------------------------------ */
   const [targetAddress, setTargetAddress] = useState(sectionData.address || "");
@@ -1118,6 +1192,8 @@ const Message_List = () => {
         setPreLoadingCompleted,
         inputHeight,
         setInputHeight,
+        inputImages,
+        setInputImages,
 
         update_message,
       }}
@@ -1131,27 +1207,38 @@ const Message_List = () => {
           width: "100%",
           height: "100%",
         }}
+        onDragOver={(e) => {
+          if (onFileDragOver) return;
+          setOnFileDragOver(true);
+        }}
       >
         <Scrolling_Section />
-        {sectionData.on_mode === 'terminal' ? <Term /> : null}
+        {sectionData.on_mode === "terminal" ? <Term /> : null}
         <Input_Section
           inputValue={inputValue}
           setInputValue={setInputValue}
           on_input_submit={on_input_submit}
         />
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          top: -9,
-          left: 9,
-          right: 9,
+        <div
+          style={{
+            position: "absolute",
+            top: -9,
+            left: 9,
+            right: 9,
 
-          height: 64,
-          background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 32%, rgba(0, 0, 0, 0)) 100%`,
-          pointerEvents: "none",
-        }}
-      ></div>
+            height: 64,
+            background: `linear-gradient(to bottom,  rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1) 0%, rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.9) 32%, rgba(0, 0, 0, 0)) 100%`,
+            pointerEvents: "none",
+          }}
+        ></div>
+        {onFileDragOver ? (
+          <FileDropZone
+            onFileDragOver={onFileDragOver}
+            setOnFileDragOver={setOnFileDragOver}
+            setInputImages={setInputImages}
+          />
+        ) : null}
+      </div>
     </ChatSectionContexts.Provider>
   );
 };
