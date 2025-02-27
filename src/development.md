@@ -71,11 +71,13 @@
 
 ```js
 /* [ messages ] structure will be shown below */
+/* [ mode ] "chat" / "terminal" */
 [
     @: {
         address: `address`,
         n_turns_to_regenerate_title: #,
         last_edit_date: `date_of_last_edit`,
+        on_mode: `chat`,
         messages: [{`list_of_json_that_stores_messages`}],
     },
 ]

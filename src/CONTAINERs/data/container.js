@@ -151,6 +151,7 @@ const DataContainer = () => {
       address: generated_address,
       n_turns_to_regenerate_title: 0,
       last_edit_date: new Date().getTime(),
+      on_mode: "chat",
       messages: [],
     });
     setSectionStarted(false);
@@ -261,7 +262,20 @@ const DataContainer = () => {
       n_turns_to_regenerate_title: RETITLE_TURNS,
     }));
   }, []);
+  const trigger_section_mode = (mode) => {
+    setSectionData((prev) => {
+      let updated_section = { ...prev };
+      if (updated_section.on_mode === mode) {
+        updated_section.on_mode = "chat";
+        return updated_section;
+      } else {
+        updated_section.on_mode = mode;
+        return updated_section;
+      }
+    });
+  };
   useEffect(() => {
+    console.log(sectionData);
     save_to_local_storage();
   }, [sectionData, addressBook, selectedModel]);
   /* { Section Data } --------------------------------------------------------------------------------- */
@@ -332,6 +346,7 @@ const DataContainer = () => {
         update_title,
         update_message_on_index,
         append_message,
+        trigger_section_mode,
       }}
     >
       {!ollamaServerStatus ? null : (

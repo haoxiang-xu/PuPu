@@ -5,7 +5,6 @@ import { StatusContexts } from "./contexts";
 const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
   const [onDialog, setOnDialog] = useState("");
-  const [modelAvailableTools, setModelAvailableTools] = useState([]);
 
   /* { API Status } =================================================================================== */
   /* 
@@ -66,8 +65,6 @@ const StatusContainer = ({ children }) => {
         setComponentOnFocus,
         onDialog,
         setOnDialog,
-        modelAvailableTools,
-        setModelAvailableTools,
         /* { window width } */
         windowWidth,
         setWindowWidth,

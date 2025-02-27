@@ -603,7 +603,8 @@ const Model_Menu = ({ value, setMenuWidth }) => {
 };
 const Input_Upper_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
-  const { ollamaOnTask, setModelAvailableTools } = useContext(StatusContexts);
+  const { ollamaOnTask } = useContext(StatusContexts);
+  const { trigger_section_mode } = useContext(DataContexts);
   const { inputHeight } = useContext(ChatSectionContexts);
 
   const [onHover, setOnHover] = useState(null);
@@ -677,13 +678,7 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
           setOnClick(null);
         }}
         onClick={() => {
-          setModelAvailableTools((prev) => {
-            if (prev.includes("terminal")) {
-              return prev.filter((tool) => tool !== "terminal");
-            } else {
-              return [...prev, "terminal"];
-            }
-          });
+          trigger_section_mode("terminal");
         }}
       >
         <Icon
@@ -1025,7 +1020,6 @@ const Message_List = () => {
     append_message,
     reset_regenerate_title_count_down,
   } = useContext(DataContexts);
-  const { modelAvailableTools } = useContext(StatusContexts);
   const { ollama_chat_completion_streaming, ollama_update_title_no_streaming } =
     useContext(RequestContexts);
 
@@ -1139,7 +1133,7 @@ const Message_List = () => {
         }}
       >
         <Scrolling_Section />
-        {modelAvailableTools?.includes("terminal") ? <Term /> : null}
+        {sectionData.on_mode === 'terminal' ? <Term /> : null}
         <Input_Section
           inputValue={inputValue}
           setInputValue={setInputValue}

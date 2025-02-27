@@ -3,14 +3,14 @@ import { Terminal } from "xterm";
 import { FitAddon } from "xterm-addon-fit";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
-import { StatusContexts } from "../../CONTAINERs/status/contexts";
+import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import "xterm/css/xterm.css";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const Term = () => {
-  const { setModelAvailableTools } = useContext(StatusContexts);
   const { scrollingSapce } = useContext(ConfigContexts);
+  const { trigger_section_mode } = useContext(DataContexts);
 
   const terminalRef = useRef(null);
   const term = useRef(null);
@@ -61,7 +61,6 @@ const Term = () => {
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
-
   // Initialize terminal
   useEffect(() => {
     if (!window.terminalAPI) {
@@ -159,12 +158,7 @@ const Term = () => {
         }}
         onClick={() => {
           setShowTerminal(false);
-          setModelAvailableTools((prev) => {
-            if (prev.includes("terminal")) {
-              return prev.filter((tool) => tool !== "terminal");
-            }
-            return [...prev, "terminal"];
-          });
+          trigger_section_mode("terminal");
         }}
         onMouseEnter={(e) =>
           (e.currentTarget.style.backgroundColor = "rgba(255, 255, 255, 0.2)")
