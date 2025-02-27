@@ -40,13 +40,18 @@ const RequestContainer = ({ children }) => {
     messages,
     index,
     append_message,
-    update_message_on_index
+    update_message_on_index,
+    system_message = ""
   ) => {
     const preprocess_messages = (messages, memory_length, index) => {
       let range = index;
       if (index === -1) range = messages.length;
 
       let processed_messages = [];
+      processed_messages.push({
+        role: "system",
+        content: system_message,
+      });
 
       for (let i = 0; i < range; i++) {
         if (messages[i].role === "system") {
@@ -320,6 +325,47 @@ const RequestContainer = ({ children }) => {
       console.error("Error pulling model:", error);
     }
   };
+  const ollama_image_to_text = async (base64Image) => {
+    const cleanedBase64Image = base64Image
+      .replace(/^data:image\/[a-z]+;base64,/, "")
+      .trim();
+
+    if (!cleanedBase64Image) {
+      console.error("Invalid base64 format:", base64Image);
+      return;
+    }
+
+    const apiUrl = "http://localhost:11434/api/generate";
+
+    const requestBody = {
+      model: "llava",
+      prompt: "What is in this picture?",
+      images: [cleanedBase64Image],
+      stream: false,
+    };
+
+    try {
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      });
+      const responseText = await response.text();
+
+      try {
+        const data = JSON.parse(responseText);
+        return data.response;
+      } catch (jsonError) {
+        console.error("Response is not valid JSON. Error:", jsonError);
+        return null;
+      }
+    } catch (error) {
+      console.error("Fetch error:", error);
+      return null;
+    }
+  };
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   /* { GitHub APIs } ---------------------------------------------------------------------------------- */
@@ -328,7 +374,7 @@ const RequestContainer = ({ children }) => {
   };
   const github_get_repo_info = async (repo) => {
     // returns the repository information (like language, stars, forks, etc.)
-  }
+  };
   const github_get_repo_readme = async (repo) => {
     // returns the README.md content of the repository
   };
@@ -351,6 +397,7 @@ const RequestContainer = ({ children }) => {
         ollama_list_available_models,
         ollama_delete_local_model,
         ollama_pull_cloud_model,
+        ollama_image_to_text,
       }}
     >
       {children}

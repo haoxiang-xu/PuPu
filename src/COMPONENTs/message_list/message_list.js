@@ -1094,8 +1094,11 @@ const Message_List = () => {
     append_message,
     reset_regenerate_title_count_down,
   } = useContext(DataContexts);
-  const { ollama_chat_completion_streaming, ollama_update_title_no_streaming } =
-    useContext(RequestContexts);
+  const {
+    ollama_chat_completion_streaming,
+    ollama_update_title_no_streaming,
+    ollama_image_to_text,
+  } = useContext(RequestContexts);
 
   const [inputValue, setInputValue] = useState("");
   const [inputImages, setInputImages] = useState([]);
@@ -1142,30 +1145,60 @@ const Message_List = () => {
   const update_message = useCallback(
     (address, messages, index) => {
       setAwaitResponse(index);
-      ollama_chat_completion_streaming(
-        selectedModel,
-        address,
-        messages,
-        index,
-        append_message,
-        update_message_on_index
-      )
-        .then((response) => {
-          setAwaitResponse(null);
-        })
-        .finally(() => {
-          if (sectionData.n_turns_to_regenerate_title === 0) {
-            ollama_update_title_no_streaming(
-              selectedModel,
-              address,
-              messages,
-              update_title
-            );
-            reset_regenerate_title_count_down();
-          }
+
+      if (inputImages.length > 0) {
+        ollama_image_to_text(inputImages[0]).then((response) => {
+          setInputImages([]);
+          ollama_chat_completion_streaming(
+            selectedModel,
+            address,
+            messages,
+            index,
+            append_message,
+            update_message_on_index,
+            "user have sent an image: " + response
+          )
+            .then((response) => {
+              setAwaitResponse(null);
+            })
+            .finally(() => {
+              if (sectionData.n_turns_to_regenerate_title === 0) {
+                ollama_update_title_no_streaming(
+                  selectedModel,
+                  address,
+                  messages,
+                  update_title
+                );
+                reset_regenerate_title_count_down();
+              }
+            });
         });
+      } else {
+        ollama_chat_completion_streaming(
+          selectedModel,
+          address,
+          messages,
+          index,
+          append_message,
+          update_message_on_index
+        )
+          .then((response) => {
+            setAwaitResponse(null);
+          })
+          .finally(() => {
+            if (sectionData.n_turns_to_regenerate_title === 0) {
+              ollama_update_title_no_streaming(
+                selectedModel,
+                address,
+                messages,
+                update_title
+              );
+              reset_regenerate_title_count_down();
+            }
+          });
+      }
     },
-    [inputValue, selectedModel]
+    [inputValue, selectedModel, inputImages]
   );
   useEffect(() => {
     const messages = sectionData.messages || [];
