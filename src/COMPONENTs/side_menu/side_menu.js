@@ -104,6 +104,20 @@ const BottomPanel = ({ width }) => {
         overflow: "hidden",
       }}
     >
+      <Icon
+        src="settings"
+        style={{
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+
+          top: "50%",
+          right: 10,
+
+          width: 20,
+          height: 20,
+          opacity: 0.5,
+        }}
+      />
       <ThemeSwitch />
     </div>
   );

@@ -26,6 +26,7 @@ export const iconManifest = {
   send_: () => import("./SVGs/UI/send_.svg"),
   run: () => import("./SVGs/UI/run.svg"),
   settings: () => import("./SVGs/UI/settings.svg"),
+  settings_: () => import("./SVGs/UI/settings_.svg"),
   pen: () => import("./SVGs/UI/pen.svg"),
   hammer: () => import("./SVGs/UI/hammer.svg"),
   delete: () => import("./SVGs/UI/delete.svg"),
