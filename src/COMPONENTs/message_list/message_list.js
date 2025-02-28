@@ -20,6 +20,8 @@ import PulseLoader from "react-spinners/PulseLoader";
 import Term from "../terminal/terminal";
 import FileDropZone from "../../COMPONENTs/file_drop_zone/file_drop_zone";
 
+import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
+
 const default_border_radius = 10;
 const default_font_size = 14;
 const default_padding = default_font_size;
@@ -1147,7 +1149,7 @@ const Message_List = () => {
       setAwaitResponse(index);
 
       if (inputImages.length > 0) {
-        ollama_image_to_text(inputImages[0]).then((response) => {
+        ollama_image_to_text(inputImages, messages).then((response) => {
           setInputImages([]);
           ollama_chat_completion_streaming(
             selectedModel,
@@ -1156,7 +1158,7 @@ const Message_List = () => {
             index,
             append_message,
             update_message_on_index,
-            "user have sent an image: " + response
+            vision_prompt + response
           )
             .then((response) => {
               setAwaitResponse(null);

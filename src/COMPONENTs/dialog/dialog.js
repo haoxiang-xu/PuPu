@@ -10,7 +10,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import ModelDownloader from "../model_downloader/model_downloader";
 
 import { await_Ollama_setup_warning } from "./default_dialogs";
-import { available_models } from "../../CONTAINERs/consts/ollama";
+import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
 
 const Button = ({ handle_button_click, label }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
@@ -94,7 +94,7 @@ const DownloadOllamaModel = ({}) => {
         e.stopPropagation();
       }}
     >
-      <ModelDownloader available_models={available_models} />
+      <ModelDownloader available_models={available_large_language_models} />
     </div>
   );
 };

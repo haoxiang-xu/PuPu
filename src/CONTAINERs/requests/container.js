@@ -2,10 +2,15 @@ import React, { useEffect, useState, useCallback, useContext } from "react";
 
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import { task_descriptions } from "./constants";
-import { chat_room_title_generation_prompt } from "./default_instructions";
+import {
+  chat_room_title_generation_prompt,
+  vision_prompt,
+} from "./default_instructions";
 
 import { StatusContexts } from "../status/contexts";
 import { RequestContexts } from "./contexts";
+
+import { available_vision_models } from "../../CONTAINERs/consts/ollama";
 
 const RequestContainer = ({ children }) => {
   const [instructions, setInstructions] = useState({
@@ -41,17 +46,20 @@ const RequestContainer = ({ children }) => {
     index,
     append_message,
     update_message_on_index,
-    system_message = ""
+    system_message = "",
+    user_addition_message = ""
   ) => {
     const preprocess_messages = (messages, memory_length, index) => {
       let range = index;
       if (index === -1) range = messages.length;
 
       let processed_messages = [];
-      processed_messages.push({
-        role: "system",
-        content: system_message,
-      });
+      if (system_message && system_message.length > 0) {
+        processed_messages.push({
+          role: "system",
+          content: system_message,
+        });
+      }
 
       for (let i = 0; i < range; i++) {
         if (messages[i].role === "system") {
@@ -65,6 +73,10 @@ const RequestContainer = ({ children }) => {
             content: messages[i].content,
           });
         }
+      }
+      if (user_addition_message && user_addition_message.length > 0) {
+        processed_messages[processed_messages.length - 1].content +=
+          "\n\n" + user_addition_message;
       }
       return processed_messages;
     };
@@ -224,6 +236,16 @@ const RequestContainer = ({ children }) => {
     }
   };
   const ollama_list_available_models = async () => {
+    const check_is_vision_model = (model_name) => {
+      for (let model_family of available_vision_models) {
+        for (let model of model_family.models) {
+          if (model_name.includes(model.name)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
     try {
       const response = await fetch(`http://localhost:11434/api/tags`);
       if (!response.ok) {
@@ -236,8 +258,16 @@ const RequestContainer = ({ children }) => {
         return;
       }
       let avaliableModels = [];
+      let all_vision_models = [];
+      for (let model_family of available_vision_models) {
+        all_vision_models.push(model_family.family_name);
+      }
+
       for (let model of data.models) {
-        avaliableModels.push(model.name);
+        if (check_is_vision_model(model.model)) {
+          continue;
+        }
+        avaliableModels.push(model.model);
       }
       return avaliableModels;
     } catch (error) {
@@ -325,46 +355,61 @@ const RequestContainer = ({ children }) => {
       console.error("Error pulling model:", error);
     }
   };
-  const ollama_image_to_text = async (base64Image) => {
-    const cleanedBase64Image = base64Image
-      .replace(/^data:image\/[a-z]+;base64,/, "")
-      .trim();
+  const ollama_image_to_text = async (base64Images, messages) => {
+    const ollama_image_to_text_single = async (base64Image, user_message) => {
+      const cleanedBase64Image = base64Image
+        .replace(/^data:image\/[a-z]+;base64,/, "")
+        .trim();
 
-    if (!cleanedBase64Image) {
-      console.error("Invalid base64 format:", base64Image);
-      return;
-    }
+      if (!cleanedBase64Image) {
+        console.error("Invalid base64 format:", base64Image);
+        return;
+      }
 
-    const apiUrl = "http://localhost:11434/api/generate";
+      const apiUrl = "http://localhost:11434/api/generate";
 
-    const requestBody = {
-      model: "llava",
-      prompt: "What is in this picture?",
-      images: [cleanedBase64Image],
-      stream: false,
-    };
-
-    try {
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestBody),
-      });
-      const responseText = await response.text();
+      const requestBody = {
+        model: "llava",
+        prompt: vision_prompt.to_image_model + user_message,
+        images: [cleanedBase64Image],
+        stream: false,
+      };
 
       try {
-        const data = JSON.parse(responseText);
-        return data.response;
-      } catch (jsonError) {
-        console.error("Response is not valid JSON. Error:", jsonError);
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        });
+        const responseText = await response.text();
+
+        try {
+          const data = JSON.parse(responseText);
+          return data.response;
+        } catch (jsonError) {
+          console.error("Response is not valid JSON. Error:", jsonError);
+          return null;
+        }
+      } catch (error) {
+        console.error("Fetch error:", error);
         return null;
       }
-    } catch (error) {
-      console.error("Fetch error:", error);
-      return null;
+    };
+    const user_message = messages[messages.length - 1].content;
+
+    const responses = [];
+    let image_index = 1;
+
+    setOllamaOnTask(`image_to_text|[${task_descriptions.image_to_text[0]}]`);
+    for (const base64Image of base64Images) {
+      const text = await ollama_image_to_text_single(base64Image, user_message);
+      responses.push(`image ${image_index}: ${text}`);
+      image_index++;
     }
+    setOllamaOnTask(null);
+    return responses.join("\n");
   };
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 

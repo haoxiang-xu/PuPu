@@ -6,6 +6,13 @@ const task_descriptions = {
     "is brewing something magical...🧙‍♂️",
     "is thinking… 🤔",
   ],
+  image_to_text: [
+    "is deciphering the image...🔍",
+    "is translating the image...🔠",
+    "is reading the image...📖",
+    "is analyzing the image...🔬",
+    "is decoding the image...🔢",
+  ],
 };
 
 export { task_descriptions };

@@ -39,11 +39,12 @@ const Input = ({
       }
     };
     if (selectedModel) {
-    if (ollamaOnTask) {
-      setPlaceholder(extract_status(ollamaOnTask));
+      if (ollamaOnTask) {
+        setPlaceholder(extract_status(ollamaOnTask));
+      } else {
+        setPlaceholder("Ask ");
+      }
     } else {
-      setPlaceholder("Ask ");
-    }} else {
       setPlaceholder("Pick");
     }
   }, [ollamaOnTask, selectedModel]);

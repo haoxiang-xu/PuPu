@@ -45,6 +45,7 @@
   - `chat_completion_streaming|[]`
   - `generate_no_streaming|[]`
   - `force_stop|[]`
+  - `image_to_text|[]`
   - `null`
 
 ### Request Container

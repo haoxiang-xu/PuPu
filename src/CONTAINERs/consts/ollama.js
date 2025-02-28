@@ -1,4 +1,4 @@
-const available_models = [
+const available_large_language_models = [
   {
     family_name: "deepseek",
     models: [
@@ -154,5 +154,22 @@ const available_models = [
     ],
   },
 ];
+const available_vision_models = [
+  {
+    family_name: "llava",
+    models: [
+      {
+        name: "llava",
+        description:
+          "🌋 LLaVA is a novel end-to-end trained large multimodal model that combines a vision encoder and Vicuna for general-purpose visual and language understanding. Updated to version 1.6.",
+        available_options: [
+          { name: "7b", download_id: "llava:7b" },
+          { name: "13b", download_id: "llava:13b" },
+          { name: "34b", download_id: "llava:34b" },
+        ],
+      },
+    ],
+  },
+];
 
-export { available_models };
+export { available_large_language_models, available_vision_models };
