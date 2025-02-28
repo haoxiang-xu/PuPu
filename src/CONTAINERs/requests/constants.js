@@ -13,6 +13,7 @@ const task_descriptions = {
     "is analyzing the image...🔬",
     "is decoding the image...🔢",
   ],
+  
 };
 
 export { task_descriptions };

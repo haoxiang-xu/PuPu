@@ -402,7 +402,7 @@ const RequestContainer = ({ children }) => {
     const responses = [];
     let image_index = 1;
 
-    setOllamaOnTask(`image_to_text|[${task_descriptions.image_to_text[0]}]`);
+    setOllamaOnTask(`image_to_text|[🌋 LLaVA ${task_descriptions.image_to_text[0]}]`);
     for (const base64Image of base64Images) {
       const text = await ollama_image_to_text_single(base64Image, user_message);
       responses.push(`image ${image_index}: ${text}`);
