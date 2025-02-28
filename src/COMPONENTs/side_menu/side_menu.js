@@ -116,6 +116,7 @@ const BottomPanel = ({ width }) => {
           width: 20,
           height: 20,
           opacity: 0.5,
+          cursor: "pointer",
         }}
       />
       <ThemeSwitch />
