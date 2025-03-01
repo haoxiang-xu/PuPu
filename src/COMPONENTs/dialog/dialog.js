@@ -69,6 +69,34 @@ const Button = ({ handle_button_click, label }) => {
   );
 };
 
+/* { setting } ------------------------------------------------------------------------------------------------------------------- */
+const Setting = ({}) => {
+  const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
+  return (
+    <div
+      style={{
+        position: "absolute",
+        alignItems: "center",
+
+        padding: 6,
+        margin: 64,
+
+        width: 460,
+        height: 460,
+
+        borderRadius: 10,
+        border: `1px solid rgba(225, 225, 225, 0.16)`,
+
+        backgroundColor: dialog.backgroundColor,
+        backdropFilter: "blur(16px)",
+      }}
+      onClick={(e) => {
+        e.stopPropagation();
+      }}
+    ></div>
+  );
+};
+
 /* { down_load_ollama_model } ---------------------------------------------------------------------------------------------------- */
 const DownloadOllamaModel = ({}) => {
   const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
@@ -173,6 +201,9 @@ const Dialog = () => {
         break;
       case "download_ollama_model":
         setDialog(<DownloadOllamaModel />);
+        break;
+      case "setting":
+        setDialog(<Setting />);
         break;
       default:
         setDialog(null);

@@ -91,6 +91,7 @@ const ThemeSwitch = ({}) => {
   );
 };
 const BottomPanel = ({ width }) => {
+  const { setOnDialog, setComponentOnFocus } = useContext(StatusContexts);
   return (
     <div
       style={{
@@ -117,6 +118,10 @@ const BottomPanel = ({ width }) => {
           height: 20,
           opacity: 0.5,
           cursor: "pointer",
+        }}
+        onClick={() => {
+          setOnDialog("setting");
+          setComponentOnFocus("");
         }}
       />
       <ThemeSwitch />

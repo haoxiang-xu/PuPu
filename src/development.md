@@ -25,6 +25,7 @@
   - `""` no dialog should be shown.
   - `await_ollama_setup_warning`
   - `download_ollama_model`
+  - `setting`
 
 - `ollamaServerStatus, setOllamaServerStatus`
   <span style="opacity: 0.5">

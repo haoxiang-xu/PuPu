@@ -498,6 +498,7 @@ const ConfigContainer = ({ children }) => {
     setIsConfigReady(true);
     return () => {
       document.body.style.backgroundColor = "";
+      document.body.style.overflow = "hidden";
     };
   }, [theme]);
 
