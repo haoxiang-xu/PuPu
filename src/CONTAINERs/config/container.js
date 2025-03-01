@@ -514,7 +514,7 @@ const ConfigContainer = ({ children }) => {
             backgroundColor_onHover: `rgba(255, 255, 255, 1)`,
             border_onActive: `1px solid rgba(0, 0, 0, 0)`,
             backgroundColor_onActive: `rgba(255, 255, 255, 1)`,
-            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.2)",
+            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.16)",
           },
         };
       }

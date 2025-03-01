@@ -20,6 +20,7 @@
   - `side_menu`
   - `message_list`
     - `message_list_model_menu`
+  - `setting`
 - `onDialog, setOnDialog`
 
   - `""` no dialog should be shown.

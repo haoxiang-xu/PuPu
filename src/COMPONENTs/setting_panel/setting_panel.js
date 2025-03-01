@@ -1,11 +1,4 @@
-import React, {
-  useState,
-  useEffect,
-  useRef,
-  useCallback,
-  useContext,
-  createContext,
-} from "react";
+import React, { useState, useEffect, useContext, createContext } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
@@ -13,6 +6,8 @@ import { RequestContexts } from "../../CONTAINERs/requests/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import ModelDownloader from "../model_downloader/model_downloader";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import { LocalStoragePanel } from "../local_storage_panel/local_storage_panel";
 import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
 import { list_of_setting_menus } from "./constants";
 
@@ -86,7 +81,7 @@ const SideListItem = ({ label }) => {
 
           transform: "translateY(-50%)",
           top: "50%",
-          left: 11,
+          left: 28,
           width: "calc(100% - 40px)",
 
           fontSize: 14,
@@ -102,6 +97,20 @@ const SideListItem = ({ label }) => {
       >
         {label}
       </span>
+      <Icon
+        src={label.split(" ").join("_").toLowerCase()}
+        style={{
+          position: "absolute",
+          transform: "translateY(-50%)",
+          top: "50%",
+          left: 3,
+          width: 20,
+          height: 20,
+          userSelect: "none",
+          pointerEvents: "none",
+          opacity: selectedMenu === label ? 0.64 : 0.5,
+        }}
+      />
     </div>
   );
 };
@@ -137,8 +146,7 @@ const SideList = () => {
   );
 };
 const SettingPanel = () => {
-  const { RGB, colorOffset, settingPanel } = useContext(ConfigContexts);
-  const { available_models } = useContext(DataContexts);
+  const { setComponentOnFocus } = useContext(StatusContexts);
   const [selectedMenu, setSelectedMenu] = useState("");
   const [menu, setMenu] = useState(<div></div>);
 
@@ -148,6 +156,9 @@ const SettingPanel = () => {
         setMenu(
           <ModelDownloader available_models={available_large_language_models} />
         );
+        break;
+      case "local storage":
+        setMenu(<LocalStoragePanel />);
         break;
       default:
         setMenu(<div></div>);
@@ -164,6 +175,9 @@ const SettingPanel = () => {
           left: 0,
           right: 0,
           bottom: 0,
+        }}
+        onClick={() => {
+          setComponentOnFocus("setting");
         }}
       >
         <SideList />

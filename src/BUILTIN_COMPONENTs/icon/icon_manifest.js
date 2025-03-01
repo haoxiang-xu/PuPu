@@ -64,6 +64,11 @@ export const iconManifest = {
   upload: () => import("./SVGs/UI/upload.svg"),
   upload_: () => import("./SVGs/UI/upload_.svg"),
 
+  local_storage: () => import("./SVGs/UI/local_storage.svg"),
+  local_storage_: () => import("./SVGs/UI/local_storage_.svg"),
+  models: () => import("./SVGs/UI/models.svg"),
+  models_: () => import("./SVGs/UI/models_.svg"),
+
   sun: () => import("./SVGs/UI/sun.svg"),
   sun_: () => import("./SVGs/UI/sun_.svg"),
   moon: () => import("./SVGs/UI/moon.svg"),

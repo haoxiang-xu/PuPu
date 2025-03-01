@@ -121,7 +121,7 @@ const BottomPanel = ({ width }) => {
         }}
         onClick={() => {
           setOnDialog("setting");
-          setComponentOnFocus("");
+          setComponentOnFocus("setting");
         }}
       />
       <ThemeSwitch />
