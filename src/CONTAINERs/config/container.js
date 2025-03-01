@@ -231,7 +231,7 @@ const ConfigContainer = ({ children }) => {
             backgroundColor_onActive: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           },
           model_list_item: {
-            color: `rgba(0, 0, 0, 0.72)`,
+            color: `rgba(0, 0, 0, 0.64)`,
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
@@ -333,13 +333,27 @@ const ConfigContainer = ({ children }) => {
     if (theme) {
       if (theme === "dark_theme") {
         return {
-          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
-          border: `1px solid rgb(225, 225, 225, 0.24)`,
+          vertical: {
+            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
+            border: `1px solid rgba(225, 225, 225, 0.24)`,
+          },
+          horizontal: {
+            backgroundColor: `rgba(${RGB.R + 64}, ${RGB.G + 64}, ${
+              RGB.B + 64
+            }, 1)`,
+          },
         };
       } else {
         return {
-          backgroundColor: `rgba(102, 45, 71, 0.12)`,
-          border: `1px solid rgba(102, 45, 71, 0.4)`,
+          vertical: {
+            backgroundColor: `rgba(102, 45, 71, 0.12)`,
+            border: `1px solid rgba(102, 45, 71, 0.4)`,
+          },
+          horizontal: {
+            backgroundColor: `rgba(${RGB.R - 128}, ${RGB.G - 128}, ${
+              RGB.B - 128
+            }, 1)`,
+          },
         };
       }
     }
@@ -400,6 +414,9 @@ const ConfigContainer = ({ children }) => {
             border_onHover: `1px solid rgba(225, 225, 225, 0.16)`,
             border_onActive: `1px solid rgba(225, 225, 225, 0)`,
           },
+          loader: {
+            color: `rgba(225, 225, 225, 0.72)`,
+          }
         };
       } else {
         return {
@@ -428,6 +445,9 @@ const ConfigContainer = ({ children }) => {
             border_onHover: `1px solid rgba(0, 0, 0, 0.16)`,
             border_onActive: `1px solid rgba(225, 225, 225, 0)`,
           },
+          loader: {
+            color: `rgba(0, 0, 0, 0.72)`,
+          }
         };
       }
     }
@@ -476,9 +496,10 @@ const ConfigContainer = ({ children }) => {
               RGB.B + 30
             }, 0.4)`,
             border_onActive: `1px solid rgba(225, 225, 225, 0.32)`,
-            backgroundColor_onActive: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${ RGB.B + 30 }, 0.84)`,
+            backgroundColor_onActive: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.84)`,
             boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.12)",
-
           },
         };
       } else {
@@ -493,7 +514,7 @@ const ConfigContainer = ({ children }) => {
             backgroundColor_onHover: `rgba(255, 255, 255, 1)`,
             border_onActive: `1px solid rgba(0, 0, 0, 0)`,
             backgroundColor_onActive: `rgba(255, 255, 255, 1)`,
-            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.12)",
+            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.2)",
           },
         };
       }

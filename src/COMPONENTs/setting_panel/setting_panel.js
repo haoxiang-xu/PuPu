@@ -65,7 +65,7 @@ const SideListItem = ({ label }) => {
           selectedMenu === label
             ? settingPanel.side_menu_item.boxShadow_onActive
             : "none",
-        borderRadius: 3,
+        borderRadius: 4,
         boxSizing: "border-box",
       }}
       onMouseEnter={() => {
@@ -130,8 +130,8 @@ const SideList = () => {
           backgroundColor: settingPanel.separator,
         }}
       ></div>
-      {list_of_setting_menus.map((label) => (
-        <SideListItem label={label} />
+      {list_of_setting_menus.map((label, index) => (
+        <SideListItem key={index} label={label} />
       ))}
     </div>
   );
@@ -145,7 +145,9 @@ const SettingPanel = () => {
   useEffect(() => {
     switch (selectedMenu) {
       case "models":
-        setMenu(<ModelDownloader available_models={available_large_language_models} />);
+        setMenu(
+          <ModelDownloader available_models={available_large_language_models} />
+        );
         break;
       default:
         setMenu(<div></div>);

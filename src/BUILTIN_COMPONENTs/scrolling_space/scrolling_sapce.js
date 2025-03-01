@@ -14,13 +14,28 @@ const ScrollingSpace = ({}) => {
       background-color: rgb(225, 225, 225, 0);
     }
     .scrolling-space::-webkit-scrollbar-thumb {
-      background-color: ${scrollingSapce.backgroundColor};
+      background-color: ${scrollingSapce.vertical.backgroundColor};
       border-radius: 6px;
-      border: ${scrollingSapce.border};
+      border: ${scrollingSapce.vertical.border};
     }
     .scrolling-space::-webkit-scrollbar-thumb:hover {
     }
     .scrolling-space::-webkit-scrollbar:horizontal {
+      display: none;
+    }
+    .horizontal-scrolling-space::-webkit-scrollbar {
+      height: 7px;
+    }
+    .horizontal-scrolling-space::-webkit-scrollbar-track {
+      background-color: rgb(225, 225, 225, 0);
+    }
+    .horizontal-scrolling-space::-webkit-scrollbar-thumb {
+      background-color: ${scrollingSapce.horizontal.backgroundColor};
+      border-radius: 8px;
+    }
+    .horizontal-scrolling-space::-webkit-scrollbar-thumb:hover {
+    }
+    .horizontal-scrolling-space::-webkit-scrollbar:vertical {
       display: none;
     }
   `;

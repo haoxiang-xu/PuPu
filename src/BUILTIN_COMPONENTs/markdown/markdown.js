@@ -471,16 +471,14 @@ const ThinkingSection = ({ index, children }) => {
   );
 };
 const CustomizedTagSection = ({ tag }) => {
+  const { markdown } = useContext(ConfigContexts);
   const [component, setComponent] = useState(null);
 
   useEffect(() => {
     if (tag === LOADING_TAG) {
       setComponent(
         <PulseLoader
-          style={{
-            opacity: 0.32,
-          }}
-          color={"#cccccc"}
+          color={markdown.loader.color}
           size={7}
           speedMultiplier={0.8}
         />

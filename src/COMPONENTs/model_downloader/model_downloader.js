@@ -24,6 +24,7 @@ const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
   const sub_component_name = "available_models_section";
   const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
+
   const [onHover, setOnHover] = useState(false);
 
   return (
@@ -33,6 +34,7 @@ const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
         position: "relative",
 
         width: 40,
+        minWidth: 40,
         height: 24,
         border:
           ItemOnSelect === sub_component_name + model
@@ -85,7 +87,8 @@ const OptionTab = ({ model, option, selectedOption, setSelectedOption }) => {
 };
 const ModelTab = ({ model }) => {
   const sub_component_name = "available_models_section";
-  const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
+  const { RGB, colorOffset, modelDownloader, dialog } =
+    useContext(ConfigContexts);
   const { avaliableModels } = useContext(DataContexts);
   const { setOllamaPendingDownloadModels, ollamaPendingDownloadModels } =
     useContext(StatusContexts);
@@ -236,9 +239,10 @@ const ModelTab = ({ model }) => {
         }}
       />
       <div
-        className="scrolling-space"
+        className="horizontal-scrolling-space"
         style={{
-          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition:
+            "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), background-color 0s",
           position: "absolute",
 
           zIndex: 1,
@@ -256,7 +260,6 @@ const ModelTab = ({ model }) => {
             ItemOnSelect === sub_component_name + model.name
               ? modelDownloader.border
               : `1px solid rgba(225, 225, 225, 0)`,
-
           display: "flex",
           flexDirection: "row",
           gap: 2,
@@ -265,6 +268,10 @@ const ModelTab = ({ model }) => {
           whiteSpace: "nowrap",
 
           cursor: "pointer",
+          backgroundColor:
+            ItemOnSelect === sub_component_name + model.name
+              ? dialog.backgroundColor
+              : "rgba(0, 0, 0, 0)",
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -483,6 +490,7 @@ const ModelDownloader = ({ available_models }) => {
           boxSizing: "border-box",
 
           overflowY: "auto",
+          overflowX: "hidden",
           userSelect: "none",
         }}
         onClick={(e) => {
