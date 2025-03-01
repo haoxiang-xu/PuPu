@@ -8,6 +8,7 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import ScrollingSpace from "../../BUILTIN_COMPONENTs/scrolling_space/scrolling_sapce";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import ModelDownloader from "../model_downloader/model_downloader";
+import SettingPanel from "../setting_panel/setting_panel";
 
 import { await_Ollama_setup_warning } from "./default_dialogs";
 import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
@@ -93,9 +94,12 @@ const Setting = ({}) => {
       onClick={(e) => {
         e.stopPropagation();
       }}
-    ></div>
+    >
+      <SettingPanel />
+    </div>
   );
 };
+/* { setting } ------------------------------------------------------------------------------------------------------------------- */
 
 /* { down_load_ollama_model } ---------------------------------------------------------------------------------------------------- */
 const DownloadOllamaModel = ({}) => {
