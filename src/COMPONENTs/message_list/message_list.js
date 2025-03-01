@@ -161,7 +161,6 @@ const Image = ({ index, imageSrc }) => {
         style={{
           height: 96,
           borderRadius: 4,
-          border: messageList.input_images.border,
         }}
       />
     </div>
@@ -218,22 +217,6 @@ const Message_Section = ({
 
   return (
     <>
-      {role === "assistant" || !image_addresses ? null : (
-        <div
-          className="message-upper-panel"
-          style={{
-            transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
-            position: "relative",
-            display: "flex",
-            flexDirection: "row-reverse",
-            justifyContent: "flex-start",
-            width: "100%",
-            height: 128,
-          }}
-        >
-          <Message_Upper_Panel role={role} index={index} images={images} />
-        </div>
-      )}
       <div
         style={{
           transition: "margin-left 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
@@ -255,6 +238,25 @@ const Message_Section = ({
           setOnHover(false);
         }}
       >
+        {role === "assistant" || !image_addresses ? null : (
+          <div
+            className="horizontal-scrolling-space"
+            style={{
+              transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+              position: "relative",
+              display: "flex",
+              flexDirection: "row-reverse",
+              justifyContent: "flex-start",
+              maxWidth: "328px",
+              height: 112,
+              marginBottom: 8,
+              overflowX: "auto",
+              overflowY: "hidden",
+            }}
+          >
+            <Message_Upper_Panel role={role} index={index} images={images} />
+          </div>
+        )}
         {!plainTextMode ? (
           <Markdown index={index} style={style}>
             {message}
