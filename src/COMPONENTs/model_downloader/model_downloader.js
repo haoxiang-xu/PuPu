@@ -558,7 +558,7 @@ const ModelDownloader = ({ available_models }) => {
               color: modelDownloader.color,
             }}
           >
-            Available Ollama Models
+            Ollama Language Models
           </span>
         </div>
         {available_models.map((family, index) => {

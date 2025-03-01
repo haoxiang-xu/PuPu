@@ -12,10 +12,28 @@ import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import { RequestContexts } from "../../CONTAINERs/requests/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
+import ModelDownloader from "../model_downloader/model_downloader";
+import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
 import { list_of_setting_menus } from "./constants";
 
 const SettingPanelContexts = createContext("");
 
+const MenuContainer = ({ children }) => {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 156,
+        right: 0,
+        bottom: 0,
+        borderRadius: 6,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 const SideListItem = ({ label }) => {
   const { RGB, settingPanel, sideMenu } = useContext(ConfigContexts);
   const { selectedMenu, setSelectedMenu } = useContext(SettingPanelContexts);
@@ -106,7 +124,7 @@ const SideList = () => {
         style={{
           position: "absolute",
           top: 12,
-          right: -12,
+          right: -7,
           bottom: 12,
           width: 2,
           backgroundColor: settingPanel.separator,
@@ -120,7 +138,20 @@ const SideList = () => {
 };
 const SettingPanel = () => {
   const { RGB, colorOffset, settingPanel } = useContext(ConfigContexts);
+  const { available_models } = useContext(DataContexts);
   const [selectedMenu, setSelectedMenu] = useState("");
+  const [menu, setMenu] = useState(<div></div>);
+
+  useEffect(() => {
+    switch (selectedMenu) {
+      case "models":
+        setMenu(<ModelDownloader available_models={available_large_language_models} />);
+        break;
+      default:
+        setMenu(<div></div>);
+        break;
+    }
+  }, [selectedMenu]);
 
   return (
     <SettingPanelContexts.Provider value={{ selectedMenu, setSelectedMenu }}>
@@ -134,6 +165,7 @@ const SettingPanel = () => {
         }}
       >
         <SideList />
+        <MenuContainer>{menu}</MenuContainer>
       </div>
     </SettingPanelContexts.Provider>
   );
