@@ -38,6 +38,22 @@ const ScrollingSpace = ({}) => {
     .horizontal-scrolling-space::-webkit-scrollbar:vertical {
       display: none;
     }
+    .h_2_scrolling-space::-webkit-scrollbar {
+      height: 8px;
+    }
+    .h_2_scrolling-space::-webkit-scrollbar-track {
+      background-color: rgb(225, 225, 225, 0);
+    }
+    .h_2_scrolling-space::-webkit-scrollbar-thumb {
+      background-color: ${scrollingSapce.vertical.backgroundColor};
+      border-radius: 6px;
+      border: ${scrollingSapce.vertical.border};
+    }
+    .h_2_scrolling-space::-webkit-scrollbar-thumb:hover {
+    }
+    .h_2_scrolling-space::-webkit-scrollbar:vertical {
+      display: none;
+    }
   `;
     document.head.appendChild(styleElement);
     return () => {

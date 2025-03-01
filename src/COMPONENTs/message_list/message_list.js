@@ -161,6 +161,7 @@ const Image = ({ index, imageSrc }) => {
         style={{
           height: 96,
           borderRadius: 4,
+          userSelect: "none",
         }}
       />
     </div>
@@ -240,7 +241,7 @@ const Message_Section = ({
       >
         {role === "assistant" || !image_addresses ? null : (
           <div
-            className="horizontal-scrolling-space"
+            className="h_2_scrolling-space"
             style={{
               transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
               position: "relative",
