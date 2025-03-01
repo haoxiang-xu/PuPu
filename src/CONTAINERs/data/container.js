@@ -111,7 +111,7 @@ const DataContainer = () => {
   };
   const load_models = () => {
     try {
-      let selected_model = localStorage.getItem(UNIQUE_KEY + "selected_model")
+      let selected_model = localStorage.getItem(UNIQUE_KEY + "selected_model");
       if (!selected_model) {
         selected_model = JSON.parse(selected_model);
       }
@@ -274,6 +274,31 @@ const DataContainer = () => {
       }
     });
   };
+  const save_input_images = (target_address, images) => {
+    let saved_keys = [];
+    setSectionData((prev) => {
+      const index_to_save = prev.messages.length - 1;
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+        const image_key = target_address + "_" + (index_to_save + 1) + "_" + i;
+        localStorage.setItem(UNIQUE_KEY + image_key, image);
+        saved_keys.push(image_key);
+      }
+      return prev;
+    });
+    return saved_keys;
+  };
+  const load_saved_images = (target_address, message_index, image_addresses) => {
+    let loaded_images = [];
+    for (let i = 0; i < image_addresses.length; i++) {
+      const image_key = image_addresses[i];
+      const image = localStorage.getItem(UNIQUE_KEY + image_key);
+      if (image) {
+        loaded_images.push(image);
+      }
+    }
+    return loaded_images;
+  };
   useEffect(() => {
     save_to_local_storage();
   }, [sectionData, addressBook, selectedModel]);
@@ -346,6 +371,8 @@ const DataContainer = () => {
         update_message_on_index,
         append_message,
         trigger_section_mode,
+        save_input_images,
+        load_saved_images,
       }}
     >
       {!ollamaServerStatus ? null : (

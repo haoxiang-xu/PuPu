@@ -144,9 +144,44 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
     return null;
   }
 };
-const Message_Section = ({ index, role, message, is_last_index }) => {
+const Image = ({ index, imageSrc }) => {
+  const { messageList } = useContext(ConfigContexts);
+
+  return imageSrc ? (
+    <div
+      style={{
+        position: "relative",
+        display: "inline-block",
+        height: 32,
+        marginLeft: 24,
+      }}
+    >
+      <img
+        src={imageSrc}
+        draggable="false"
+        style={{
+          height: 96,
+          borderRadius: 4,
+          border: messageList.input_images.border,
+        }}
+      />
+    </div>
+  ) : null;
+};
+const Message_Upper_Panel = ({ role, index, images }) => {
+  return images.length !== 0
+    ? images.map((image, i) => <Image key={i} index={index} imageSrc={image} />)
+    : null;
+};
+const Message_Section = ({
+  index,
+  role,
+  message,
+  image_addresses,
+  is_last_index,
+}) => {
   const { RGB, colorOffset, boxShadow } = useContext(ConfigContexts);
-  const { sectionData } = useContext(DataContexts);
+  const { sectionData, load_saved_images } = useContext(DataContexts);
   const { targetAddress } = useContext(StatusContexts);
   const { awaitResponse } = useContext(ChatSectionContexts);
   const [style, setStyle] = useState({
@@ -154,6 +189,7 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
   });
   const [onHover, setOnHover] = useState(false);
   const [plainTextMode, setPlainTextMode] = useState(false);
+  const [images, setImages] = useState([]);
 
   useEffect(() => {
     if (sectionData.address !== targetAddress) {
@@ -175,9 +211,30 @@ const Message_Section = ({ index, role, message, is_last_index }) => {
       });
     }
   }, [role]);
+  useEffect(() => {
+    if (image_addresses && image_addresses.length !== 0) {
+      setImages(load_saved_images(targetAddress, index, image_addresses));
+    }
+  }, [image_addresses, index, targetAddress]);
 
   return (
     <>
+      {role === "assistant" || !image_addresses ? null : (
+        <div
+          className="message-upper-panel"
+          style={{
+            transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+            position: "relative",
+            display: "flex",
+            flexDirection: "row-reverse",
+            justifyContent: "flex-start",
+            width: "100%",
+            height: 128,
+          }}
+        >
+          <Message_Upper_Panel role={role} index={index} images={images} />
+        </div>
+      )}
       <div
         style={{
           transition: "margin-left 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
@@ -341,6 +398,7 @@ const Scrolling_Section = () => {
                 index={index}
                 role={msg.role}
                 message={msg.message}
+                image_addresses={msg.images}
                 is_last_index={
                   index === sectionData.messages.length - 1 ? true : false
                 }
@@ -1095,6 +1153,7 @@ const Message_List = () => {
     update_message_on_index,
     append_message,
     reset_regenerate_title_count_down,
+    save_input_images,
   } = useContext(DataContexts);
   const {
     ollama_chat_completion_streaming,
@@ -1136,14 +1195,19 @@ const Message_List = () => {
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
     if (inputValue.length > 0 && awaitResponse === null && selectedModel) {
+      let image_keys = [];
+      if (inputImages.length > 0) {
+        image_keys = save_input_images(targetAddress, inputImages);
+      }
       append_message(targetAddress, {
         role: "user",
         message: inputValue,
         content: inputValue,
+        images: image_keys.length > 0 ? image_keys : null,
       });
       setInputValue("");
     }
-  }, [inputValue, awaitResponse]);
+  }, [inputValue, inputImages, awaitResponse]);
   const update_message = useCallback(
     (address, messages, index) => {
       setAwaitResponse(index);

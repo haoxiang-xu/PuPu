@@ -84,11 +84,13 @@
 ]
 /* [ content ] same with message, to have this variable is just for different standard APIs */
 /* [ expanded ] for user and asistent this variable indicates different thing, for deepseek models if expanded === false, the thought process will be shown */
+/* [ image ] a list of image addresses, address is structured as `address_messageIndex_imageIndex` */
 [
   {
     role: `role_of_sender`,
     content: `message_content`,
     message: `message_content`,
+    images: [`list_of_images`],
     expanded: false,
   },
 ];
