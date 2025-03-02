@@ -1056,7 +1056,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
           backdropFilter: "blur(24px)",
           boxShadow: boxShadow.drak,
-          border: border,
+          border: messageList.border,
         }}
       ></Input>
       {awaitResponse === null ? (

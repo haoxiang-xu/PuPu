@@ -124,7 +124,7 @@ const AddressSizesItem = ({
             top: "50%",
             right: 12,
             height: 18,
-            opacity: onHover ? 0.5 : 0.32,
+            opacity: onHover ? 1 : 0.72,
             userSelect: "none",
           }}
           onClick={(e) => {
@@ -332,6 +332,7 @@ const LocalStoragePanel = () => {
             left: spanWidth + 60,
             fontSize: 16,
             fontFamily: "inherit",
+            fontWeight: 600,
             color: modelDownloader.color,
             userSelect: "none",
             pointerEvents: "none",
