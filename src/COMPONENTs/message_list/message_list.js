@@ -721,6 +721,7 @@ const Input_Image_Panel = ({ value }) => {
 
   return (
     <div
+      className="input-image-panel"
       style={{
         position: "absolute",
         transform: "translate(0%, -50%)",
@@ -728,7 +729,6 @@ const Input_Image_Panel = ({ value }) => {
         left: 0,
         bottom: value.length !== 0 ? Math.max(inputHeight + 55, 103) : 67,
 
-        width: "100%",
         height: 50,
       }}
     >
