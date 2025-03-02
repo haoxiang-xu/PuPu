@@ -230,7 +230,6 @@ const Message_Section = ({
           marginTop: index === 0 ? 40 : 0,
           marginBottom: is_last_index ? 256 : 36,
           borderRadius: default_border_radius,
-          boxShadow: role === "user" ? boxShadow.light : "none",
         }}
         onMouseEnter={(e) => {
           setOnHover(true);

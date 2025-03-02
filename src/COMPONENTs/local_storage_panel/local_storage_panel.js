@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   createContext,
+  use,
 } from "react";
 
 import { UNIQUE_KEY } from "../../CONTAINERs/root_consts";
@@ -12,11 +13,115 @@ import { UNIQUE_KEY } from "../../CONTAINERs/root_consts";
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
+const AddressSizesItem = ({ index, title, size }) => {
+  const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
+
+  const [onHover, setOnHover] = useState(false);
+  const spanRef = useRef(null);
+  const [spanWidth, setSpanWidth] = useState(0);
+  useEffect(() => {
+    if (spanRef.current) {
+      setSpanWidth(spanRef.current.offsetWidth);
+    }
+  }, [title, size]);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: "calc(100% - 12px)",
+        height: 45,
+        marginTop: index === 0 ? 32 : 0,
+        borderRadius: 5,
+        backgroundColor: onHover
+          ? `rgba(${RGB.R + colorOffset.middle_ground}, ${
+              RGB.G + colorOffset.middle_ground
+            }, ${RGB.B + colorOffset.middle_ground}, 0.64)`
+          : "transparent",
+        border: onHover ? modelDownloader.border : "1px solid #00000000",
+        boxShadow: "none",
+        cursor: "pointer",
+      }}
+      onMouseEnter={() => {
+        setOnHover(true);
+      }}
+      onMouseLeave={() => {
+        setOnHover(false);
+      }}
+    >
+      <span
+        ref={spanRef}
+        style={{
+          position: "absolute",
+          transform: "translate(0, -50%)",
+          top: "50%",
+          left: 6,
+          color: `rgba(${RGB.R + colorOffset.font}, ${
+            RGB.G + colorOffset.font
+          }, ${RGB.B + colorOffset.font}, 1)`,
+          fontSize: 14,
+          padding: "1px 8px",
+          borderRadius: 4,
+          border: modelDownloader.border,
+          userSelect: "none",
+        }}
+      >
+        {size.toFixed(2)} KB
+      </span>
+      <span
+        style={{
+          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          position: "absolute",
+          transform: "translate(0, -50%)",
+          top: "50%",
+          left: spanWidth + 12,
+          maxWidth: "calc(50%)",
+          color: `rgba(${RGB.R + colorOffset.font}, ${
+            RGB.G + colorOffset.font
+          }, ${RGB.B + colorOffset.font}, 1)`,
+          fontSize: 14,
+          userSelect: "none",
+        }}
+      >
+        {title}
+      </span>
+    </div>
+  );
+};
+
+const AddressSizesTable = ({ addressSizes }) => {
+  return (
+    <div
+      className="scrolling-space"
+      style={{
+        position: "absolute",
+        top: 60,
+        left: 12,
+        width: "calc(100% - 16px)",
+        bottom: 5,
+
+        boxSizing: "border-box",
+        overflowY: "auto",
+      }}
+    >
+      {addressSizes.map((addressSize, index) => (
+        <AddressSizesItem
+          key={index}
+          index={index}
+          title={addressSize.chat_title}
+          size={addressSize.size_in_kb}
+        />
+      ))}
+    </div>
+  );
+};
+
 const LocalStoragePanel = () => {
   const { modelDownloader, RGB } = useContext(ConfigContexts);
   const { addressBook } = useContext(DataContexts);
 
   const [localStorageSize, setLocalStorageSize] = useState(0);
+  const [addressSizes, setAddressSizes] = useState([]);
   const [spanWidth, setSpanWidth] = useState(0);
   const spanRef = useRef(null);
 
@@ -71,10 +176,21 @@ const LocalStoragePanel = () => {
         };
       }
     }
+
+    let chatMessagesArray = [];
+
+    for (let key in chatMessages) {
+      let chat_message = chatMessages[key];
+      chat_message["address"] = key;
+      chatMessagesArray.push(chat_message);
+    }
+    chatMessagesArray.sort((a, b) => b.size_in_kb - a.size_in_kb);
+
+    return chatMessagesArray;
   }, [addressBook]);
   useEffect(() => {
     setLocalStorageSize(get_local_storage_size());
-    calculate_chat_messages_size();
+    setAddressSizes(calculate_chat_messages_size());
   }, []);
   useEffect(() => {
     if (spanRef.current) {
@@ -83,13 +199,22 @@ const LocalStoragePanel = () => {
   }, [localStorageSize]);
 
   return (
-    <div>
+    <div
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        overflow: "hidden",
+      }}
+    >
       <span
         style={{
           transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           top: 6,
-          left: spanWidth + 8,
+          left: spanWidth + 14,
           fontSize: 32,
           fontFamily: "inherit",
           color: modelDownloader.color,
@@ -106,7 +231,7 @@ const LocalStoragePanel = () => {
           transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           top: 23,
-          left: spanWidth + 54,
+          left: spanWidth + 60,
           fontSize: 16,
           fontFamily: "inherit",
           color: modelDownloader.color,
@@ -123,7 +248,7 @@ const LocalStoragePanel = () => {
         style={{
           position: "absolute",
           top: 6,
-          left: 5,
+          left: 12,
           fontSize: 32,
           fontFamily: "inherit",
           color: modelDownloader.color,
@@ -137,6 +262,7 @@ const LocalStoragePanel = () => {
       >
         {localStorageSize}
       </span>
+      <AddressSizesTable addressSizes={addressSizes} />
     </div>
   );
 };

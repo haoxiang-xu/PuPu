@@ -103,12 +103,12 @@ const SideListItem = ({ label }) => {
           position: "absolute",
           transform: "translateY(-50%)",
           top: "50%",
-          left: 3,
-          width: 20,
-          height: 20,
+          left: 6,
+          width: 16,
+          height: 16,
           userSelect: "none",
           pointerEvents: "none",
-          opacity: selectedMenu === label ? 0.64 : 0.5,
+          opacity: selectedMenu === label ? 0.72 : 0.32,
         }}
       />
     </div>

@@ -89,7 +89,7 @@ const MoreOptionMenu = ({ model, width, options }) => {
   return (
     <div
       style={{
-        transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        transition: "width 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "absolute",
         maxHeight: (width + 2) * 0.618,
         top: 20,
