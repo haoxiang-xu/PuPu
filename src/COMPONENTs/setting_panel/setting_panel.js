@@ -29,7 +29,7 @@ const MenuContainer = ({ children }) => {
     </div>
   );
 };
-const SideListItem = ({ label }) => {
+const SideListItem = ({ index, label }) => {
   const { RGB, settingPanel, sideMenu } = useContext(ConfigContexts);
   const { selectedMenu, setSelectedMenu } = useContext(SettingPanelContexts);
 
@@ -42,7 +42,7 @@ const SideListItem = ({ label }) => {
         position: "relative",
         width: "calc(100% - 12px)",
         height: 30,
-        margin: "6px 6px 0 6px",
+        margin: index === 0 ? "6px 6px 0 6px" : "3px 6px 0 6px",
 
         border:
           selectedMenu === label
@@ -140,7 +140,7 @@ const SideList = () => {
         }}
       ></div>
       {list_of_setting_menus.map((label, index) => (
-        <SideListItem key={index} label={label} />
+        <SideListItem key={index} index={index} label={label} />
       ))}
     </div>
   );
