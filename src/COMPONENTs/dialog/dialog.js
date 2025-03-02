@@ -70,6 +70,72 @@ const Button = ({ handle_button_click, label }) => {
   );
 };
 
+/* { image_viewer } -------------------------------------------------------------------------------------------------------------- */
+const ImageViewer = ({}) => {
+  const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
+  const { onDialog, setOnDialog } = useContext(StatusContexts);
+
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [imageBase64, setImageBase64] = useState(null);
+  useEffect(() => {
+    if (onDialog.split("|")[1] !== undefined) {
+      setImageBase64(onDialog.split("|")[1]);
+    }
+  }, [onDialog]);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        alignItems: "center",
+
+        margin: 64,
+
+        width: "100%",
+        height: "100%",
+
+        backdropFilter: "blur(16px)",
+      }}
+      onClick={(e) => {
+        setOnDialog("");
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+
+          transform: "translate(-50%, -50%)",
+
+          width: "calc(100% - 128px)",
+          height: "calc(100% - 128px)",
+        }}
+      >
+        <img
+          src={imageBase64}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+
+            transform: "translate(-50%, -50%)",
+
+            maxHeight: "100%",
+            maxWidth: "100%",
+            objectFit: "contain",
+            opacity: isLoaded ? 1 : 0,
+          }}
+          onLoad={() => {
+            setIsLoaded(true);
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+/* { image_viewer } -------------------------------------------------------------------------------------------------------------- */
+
 /* { setting } ------------------------------------------------------------------------------------------------------------------- */
 const Setting = ({}) => {
   const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
@@ -199,7 +265,7 @@ const Dialog = () => {
 
   const [dialog, setDialog] = useState(null);
   useEffect(() => {
-    switch (onDialog) {
+    switch (onDialog.split("|")[0]) {
       case "await_ollama_setup_warning":
         setDialog(<AwaitOllamaSetup />);
         break;
@@ -208,6 +274,9 @@ const Dialog = () => {
         break;
       case "setting":
         setDialog(<Setting />);
+        break;
+      case "image_viewer":
+        setDialog(<ImageViewer />);
         break;
       default:
         setDialog(null);

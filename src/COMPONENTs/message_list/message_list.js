@@ -145,6 +145,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
 };
 const Image = ({ index, imageSrc }) => {
   const { messageList } = useContext(ConfigContexts);
+  const { setOnDialog } = useContext(StatusContexts);
 
   return imageSrc ? (
     <div
@@ -153,6 +154,10 @@ const Image = ({ index, imageSrc }) => {
         display: "inline-block",
         height: 32,
         marginLeft: 24,
+        cursor: "pointer",
+      }}
+      onClick={(e) => {
+        setOnDialog("image_viewer|" + imageSrc);
       }}
     >
       <img

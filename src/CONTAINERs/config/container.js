@@ -292,12 +292,14 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
             RGB.B + 12
           }, 0.64)`,
+          border: `1px solid rgba(225, 225, 225, 0.16)`,
         };
       } else {
         return {
           backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
             RGB.B + 12
           }, 0.96)`,
+          border: `1px solid rgba(0, 0, 0, 0.16)`,
         };
       }
     }
