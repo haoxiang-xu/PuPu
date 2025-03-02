@@ -116,7 +116,7 @@ const BottomPanel = ({ width }) => {
 
           width: 20,
           height: 20,
-          opacity: 0.5,
+          opacity: 1,
           cursor: "pointer",
         }}
         onClick={() => {
@@ -584,7 +584,7 @@ const Side_Menu = ({}) => {
               cursor: "pointer",
               userSelect: "none",
               height: 20,
-              opacity: 0.5,
+              opacity: 1,
             }}
             onClick={(e) => {
               e.stopPropagation();

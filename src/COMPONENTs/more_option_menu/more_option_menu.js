@@ -46,6 +46,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
             top: "50%",
             left: 6,
             userSelect: "none",
+            height: 18,
             opacity: onHover ? 1 : 0.72,
           }}
         />
