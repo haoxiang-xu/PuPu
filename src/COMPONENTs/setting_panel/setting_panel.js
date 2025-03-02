@@ -147,7 +147,7 @@ const SideList = () => {
 };
 const SettingPanel = () => {
   const { setComponentOnFocus } = useContext(StatusContexts);
-  const [selectedMenu, setSelectedMenu] = useState("");
+  const [selectedMenu, setSelectedMenu] = useState(list_of_setting_menus[0]);
   const [menu, setMenu] = useState(<div></div>);
 
   useEffect(() => {
