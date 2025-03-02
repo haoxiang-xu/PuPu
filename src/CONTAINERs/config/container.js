@@ -292,6 +292,9 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
             RGB.B + 12
           }, 0.64)`,
+          blurBackgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
+            RGB.B + 12
+          }, 0.64)`,
           border: `1px solid rgba(225, 225, 225, 0.16)`,
         };
       } else {
@@ -299,6 +302,7 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
             RGB.B + 12
           }, 0.96)`,
+          blurBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
           border: `1px solid rgba(0, 0, 0, 0.16)`,
         };
       }
@@ -418,7 +422,7 @@ const ConfigContainer = ({ children }) => {
           },
           loader: {
             color: `rgba(225, 225, 225, 0.72)`,
-          }
+          },
         };
       } else {
         return {
@@ -449,7 +453,7 @@ const ConfigContainer = ({ children }) => {
           },
           loader: {
             color: `rgba(0, 0, 0, 0.72)`,
-          }
+          },
         };
       }
     }

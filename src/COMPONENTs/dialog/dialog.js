@@ -94,6 +94,7 @@ const ImageViewer = ({}) => {
         width: "100%",
         height: "100%",
 
+        backgroundColor: dialog.blurBackgroundColor,
         backdropFilter: "blur(16px)",
       }}
       onClick={(e) => {
