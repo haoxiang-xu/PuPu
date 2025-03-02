@@ -24,7 +24,9 @@ const OptionItem = ({ img_src, label, onClick }) => {
             ? moreOptionMenu.option_item.border
             : "1px solid transparent",
           borderRadius: 5,
-          backgroundColor: onHover ? moreOptionMenu.option_item.backgroundColor : "transparent",
+          backgroundColor: onHover
+            ? moreOptionMenu.option_item.backgroundColor
+            : "transparent",
           boxShadow: onHover ? moreOptionMenu.option_item.boxShadow : "none",
           cursor: "pointer",
         }}
@@ -66,7 +68,11 @@ const OptionItem = ({ img_src, label, onClick }) => {
     </>
   );
 };
-const MoreOptionMenu = ({ model, width, options }) => {
+const MoreOptionMenu = ({
+  model,
+  width,
+  options,
+}) => {
   const { RGB, colorOffset, moreOptionMenu } = useContext(ConfigContexts);
   const [isLoaded, setIsLoaded] = useState(false);
   const [style, setStyle] = useState({

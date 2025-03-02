@@ -41,7 +41,7 @@ const SideListItem = ({ label }) => {
         transition: "box-shadow 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
         width: "calc(100% - 12px)",
-        height: 28,
+        height: 36,
         margin: "6px 6px 0 6px",
 
         border:
