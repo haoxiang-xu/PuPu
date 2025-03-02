@@ -193,6 +193,7 @@ const LocalStoragePanel = () => {
   const [addressSizes, setAddressSizes] = useState([]);
   const [spanWidth, setSpanWidth] = useState(0);
   const spanRef = useRef(null);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   const get_local_storage_size = () => {
     let totalSize = 0;
@@ -242,7 +243,7 @@ const LocalStoragePanel = () => {
         chatMessages[processed_key].size_in_kb += item.size;
       } else {
         if (addressBook.avaliable_addresses.includes(processed_key)) {
-          chat_title = addressBook[processed_key].chat_title;
+          chat_title = addressBook[processed_key]?.chat_title;
         }
         if (chat_title === "unknown") {
           chatMessages["System Data"].size_in_kb += item.size;
@@ -254,6 +255,7 @@ const LocalStoragePanel = () => {
         }
       }
     }
+    console.log(chatMessages);
 
     let chatMessagesArray = [];
 
@@ -279,6 +281,7 @@ const LocalStoragePanel = () => {
   useEffect(() => {
     setLocalStorageSize(get_local_storage_size());
     setAddressSizes(calculate_chat_messages_size());
+    setIsLoaded(true);
   }, []);
   useEffect(() => {
     if (spanRef.current) {
@@ -286,6 +289,9 @@ const LocalStoragePanel = () => {
     }
   }, [localStorageSize]);
 
+  if (!isLoaded) {
+    return null;
+  }
   return (
     <LocalStoragePanelContexts.Provider value={{ delete_local_storage_item }}>
       <div
