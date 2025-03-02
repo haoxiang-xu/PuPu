@@ -30,10 +30,12 @@ const AddressSizesItem = ({
   const [onHover, setOnHover] = useState(false);
   const spanRef = useRef(null);
   const [spanWidth, setSpanWidth] = useState(0);
+  const [spanOpacity, setSpanOpacity] = useState(0);
   const [formatedSize, setFormatedSize] = useState("");
   useEffect(() => {
     setTimeout(() => {
       if (spanRef.current) {
+        setSpanOpacity(1);
         setSpanWidth(spanRef.current.offsetWidth);
       }
     }, 80);
@@ -97,7 +99,7 @@ const AddressSizesItem = ({
       </span>
       <span
         style={{
-          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.36s",
           position: "absolute",
           transform: "translate(0, -50%)",
           top: "50%",
@@ -108,6 +110,7 @@ const AddressSizesItem = ({
           }, ${RGB.B + colorOffset.font}, 1)`,
           fontSize: 14,
           userSelect: "none",
+          opacity: spanOpacity,
         }}
       >
         {title}
