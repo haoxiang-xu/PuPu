@@ -1123,12 +1123,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 
             padding: 8,
             borderRadius: default_border_radius - 4,
-            backgroundColor: `rgba(${
-              RGB.R + colorOffset.middle_ground + style.colorOffset
-            }, ${RGB.G + colorOffset.middle_ground + style.colorOffset}, ${
-              RGB.B + colorOffset.middle_ground + style.colorOffset
-            }, ${style.opacity})`,
+            backgroundColor: style.backgroundColor,
             border: style.border,
+            boxShadow: style.boxShadow,
           }}
           onMouseEnter={() => {
             setOnHover(true);
