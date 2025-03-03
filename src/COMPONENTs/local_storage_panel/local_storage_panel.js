@@ -20,12 +20,11 @@ const AddressSizesItem = ({
   index,
   title,
   size,
-  address,
-  onSelectLabel,
-  setOnSelectLabel,
+  address
 }) => {
   const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
-  const { delete_local_storage_item } = useContext(LocalStoragePanelContexts);
+  const { delete_local_storage_item, onSelectLabel, setOnSelectLabel } =
+    useContext(LocalStoragePanelContexts);
 
   const [onHover, setOnHover] = useState(false);
   const spanRef = useRef(null);
@@ -99,7 +98,8 @@ const AddressSizesItem = ({
       </span>
       <span
         style={{
-          transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.36s",
+          transition:
+            "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.36s",
           position: "absolute",
           transform: "translate(0, -50%)",
           top: "50%",
@@ -134,31 +134,31 @@ const AddressSizesItem = ({
         />
       )}
       {onSelectLabel !== address ? null : (
-        <div style={{
+        <div
+          style={{
             position: "absolute",
             top: 8,
             right: 10,
-
-        }}>
-        <MoreOptionMenu
-          width={120}
-          options={[
-            {
-              img_src: "delete",
-              label: "Delete",
-              onClick: () => {
-                delete_local_storage_item(address);
+          }}
+        >
+          <MoreOptionMenu
+            width={120}
+            options={[
+              {
+                img_src: "delete",
+                label: "Delete",
+                onClick: () => {
+                  delete_local_storage_item(address);
+                },
               },
-            },
-          ]}
-        />
+            ]}
+          />
         </div>
       )}
     </div>
   );
 };
 const AddressSizesTable = ({ addressSizes }) => {
-  const [onSelectLabel, setOnSelectLabel] = useState("");
   return (
     <div
       className="scrolling-space"
@@ -180,8 +180,6 @@ const AddressSizesTable = ({ addressSizes }) => {
           title={addressSize.chat_title}
           size={addressSize.size_in_kb}
           address={addressSize.address}
-          onSelectLabel={onSelectLabel}
-          setOnSelectLabel={setOnSelectLabel}
         />
       ))}
     </div>
@@ -197,6 +195,7 @@ const LocalStoragePanel = () => {
   const [spanWidth, setSpanWidth] = useState(0);
   const spanRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [onSelectLabel, setOnSelectLabel] = useState("");
 
   const get_local_storage_size = () => {
     let totalSize = 0;
@@ -296,7 +295,9 @@ const LocalStoragePanel = () => {
     return null;
   }
   return (
-    <LocalStoragePanelContexts.Provider value={{ delete_local_storage_item }}>
+    <LocalStoragePanelContexts.Provider
+      value={{ delete_local_storage_item, onSelectLabel, setOnSelectLabel }}
+    >
       <div
         style={{
           position: "absolute",
@@ -305,6 +306,9 @@ const LocalStoragePanel = () => {
           right: 0,
           bottom: 0,
           overflow: "hidden",
+        }}
+        onClick={() => {
+          setOnSelectLabel("");
         }}
       >
         <span
