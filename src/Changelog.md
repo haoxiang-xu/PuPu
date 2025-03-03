@@ -1,5 +1,15 @@
 # Changelog
 
+### Version 0.0.3
+
+- `New STUFF`
+  - Support for Image uploading (early stage).
+  - settings panel allowing users to manage the model and local storage.
+  - Improvement on the styling of the App.
+
+- `Reported BUGs`
+
+
 ### Version 0.0.2
 
 - `New STUFF`
