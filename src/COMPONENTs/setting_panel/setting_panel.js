@@ -84,7 +84,7 @@ const SideListItem = ({ index, label }) => {
           left: 28,
           width: "calc(100% - 40px)",
 
-          fontSize: 14,
+          fontSize: 16,
 
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
@@ -103,12 +103,12 @@ const SideListItem = ({ index, label }) => {
           position: "absolute",
           transform: "translateY(-50%)",
           top: "50%",
-          left: 6,
-          width: 16,
-          height: 16,
+          left: 5,
+          width: 18,
+          height: 18,
           userSelect: "none",
           pointerEvents: "none",
-          opacity: selectedMenu === label ? 0.72 : 0.32,
+          opacity: selectedMenu === label ? 1 : 0.32,
         }}
       />
     </div>

@@ -55,7 +55,7 @@ const ThemeSwitch = ({}) => {
           width: 18,
           height: 18,
           userSelect: "none",
-          opacity: 0.5,
+          opacity: 0.8,
         }}
       />
       <Icon
@@ -69,7 +69,7 @@ const ThemeSwitch = ({}) => {
           width: 18,
           height: 18,
           userSelect: "none",
-          opacity: 0.5,
+          opacity: 0.8,
         }}
       />
       <div
@@ -451,7 +451,7 @@ const Chat_Room_List = ({}) => {
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           color: sideMenu.color,
-
+          
           userSelect: "none",
           pointerEvents: "none",
         }}

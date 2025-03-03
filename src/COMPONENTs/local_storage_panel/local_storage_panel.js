@@ -166,8 +166,8 @@ const AddressSizesTable = ({ addressSizes }) => {
         position: "absolute",
         top: 60,
         left: 12,
-        width: "calc(100% - 16px)",
-        bottom: 5,
+        width: "calc(100% - 18px)",
+        bottom: 6,
 
         boxSizing: "border-box",
         overflowY: "auto",
