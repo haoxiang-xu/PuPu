@@ -451,7 +451,7 @@ const Chat_Room_List = ({}) => {
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           color: sideMenu.color,
-          
+
           userSelect: "none",
           pointerEvents: "none",
         }}
@@ -552,7 +552,10 @@ const Side_Menu = ({}) => {
             width: menuStyle.width,
 
             boxSizing: "border-box",
-            borderRight: sideMenu.border,
+            borderRight:
+              componentOnFocus === component_name
+                ? sideMenu.border
+                : "0px solid rgba(255, 255, 255, 0)",
             scrollBehavior: "smooth",
 
             backgroundColor: sideMenu.backgroundColor,
