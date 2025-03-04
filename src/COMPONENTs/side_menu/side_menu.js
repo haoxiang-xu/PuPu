@@ -559,6 +559,7 @@ const Side_Menu = ({}) => {
             scrollBehavior: "smooth",
 
             backgroundColor: sideMenu.backgroundColor,
+            boxShadow: sideMenu.boxShadow,
             backdropFilter: "blur(36px)",
             WebkitAppRegion: "no-drag",
           }}

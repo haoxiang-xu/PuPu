@@ -99,6 +99,7 @@ const ConfigContainer = ({ children }) => {
         return {
           border: "1px solid rgba(255, 255, 255, 0.32)",
           backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
+          boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.72)`,
           chat_room_item: {
             backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
@@ -114,10 +115,11 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          border: "1px solid rgba(0, 0, 0, 0.32)",
-          backgroundColor: `rgba(${RGB.R - 16}, ${RGB.G - 16}, ${
-            RGB.B - 16
-          }, 0.72)`,
+          border: "1px solid rgba(0, 0, 0, 0)",
+          backgroundColor: `rgba(${RGB.R - 28}, ${RGB.G - 28}, ${
+            RGB.B - 28
+          }, 1)`,
+          boxShadow: "8px 0px 32px rgba(0, 0, 0, 0.32)",
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.96)`,
           chat_room_item: {
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
@@ -183,15 +185,19 @@ const ConfigContainer = ({ children }) => {
           },
           input_section: {
             border: `1px solid rgba(225, 225, 225, 0)`,
-            border_onHover: `1px solid rgba(225, 225, 225, 0)`,
-            border_onActive: `1px solid rgba(225, 225, 225, 0)`,
+            border_onHover: `1px solid rgba(225, 225, 225, 0.16)`,
+            border_onActive: `1px solid rgba(225, 225, 225, 0.5)`,
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
-            backgroundColor_onHover: `rgba(${RGB.R - 6}, ${RGB.G - 6}, ${RGB.B - 6}, 1)`,
-            backgroundColor_onActive: `rgba(${RGB.R - 12}, ${RGB.G - 12}, ${RGB.B - 12}, 1)`,
-            boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0)",
-            boxShadow_onActive: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
+            backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            backgroundColor_onActive: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0.32)",
+            boxShadow_onActive: "0px 4px 16px rgba(0, 0, 0, 0)",
           },
           input_upper_panel: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
@@ -261,8 +267,12 @@ const ConfigContainer = ({ children }) => {
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0)`,
-            backgroundColor_onHover: `rgba(${RGB.R - 50}, ${RGB.G - 50}, ${RGB.B - 50}, 1)`,
-            backgroundColor_onActive: `rgba(${RGB.R - 72}, ${RGB.G - 72}, ${RGB.B - 72}, 1)`,
+            backgroundColor_onHover: `rgba(${RGB.R - 50}, ${RGB.G - 50}, ${
+              RGB.B - 50
+            }, 1)`,
+            backgroundColor_onActive: `rgba(${RGB.R - 72}, ${RGB.G - 72}, ${
+              RGB.B - 72
+            }, 1)`,
             boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0)",
             boxShadow_onActive: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
           },
@@ -515,9 +525,9 @@ const ConfigContainer = ({ children }) => {
       } else {
         return {
           separator: `rgba(0, 0, 0, 0)`,
-          backgroundColor: `rgba(${RGB.R - 45}, ${RGB.G - 45}, ${
-            RGB.B - 45
-          }, 0.32)`,
+          backgroundColor: `rgba(${RGB.R - 28}, ${RGB.G - 28}, ${
+            RGB.B - 28
+          }, 1)`,
           border: `1px solid rgba(0, 0, 0, 0)`,
           side_menu_item: {
             border_onHover: `1px solid rgba(0, 0, 0, 0)`,
