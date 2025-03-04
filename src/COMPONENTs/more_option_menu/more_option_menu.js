@@ -47,7 +47,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
             left: 6,
             userSelect: "none",
             height: 18,
-            opacity: onHover ? 1 : 0.72,
+            opacity: 1,
           }}
         />
         <span
@@ -60,7 +60,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
               RGB.G + colorOffset.font
             }, ${RGB.B + colorOffset.font}, 1)`,
             userSelect: "none",
-            opacity: onHover ? 1 : 0.96,
+            opacity: 1,
           }}
         >
           {label}

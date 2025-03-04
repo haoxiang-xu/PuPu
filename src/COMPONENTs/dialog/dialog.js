@@ -153,7 +153,7 @@ const Setting = ({}) => {
         height: 460,
 
         borderRadius: 10,
-        border: `1px solid rgba(225, 225, 225, 0.16)`,
+        border: dialog.border,
 
         backgroundColor: dialog.backgroundColor,
         backdropFilter: "blur(16px)",
@@ -184,7 +184,7 @@ const DownloadOllamaModel = ({}) => {
         height: 284,
 
         borderRadius: 10,
-        border: `1px solid rgba(225, 225, 225, 0.16)`,
+        border: dialog.border,
 
         backgroundColor: dialog.backgroundColor,
         backdropFilter: "blur(16px)",
@@ -227,7 +227,7 @@ const AwaitOllamaSetup = ({}) => {
         height: 284,
 
         borderRadius: 10,
-        border: `1px solid rgba(225, 225, 225, 0.16)`,
+        border: dialog.border,
 
         backgroundColor: dialog.backgroundColor,
         backdropFilter: "blur(16px)",

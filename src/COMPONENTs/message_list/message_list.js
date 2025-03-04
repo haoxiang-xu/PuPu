@@ -444,9 +444,9 @@ const Model_list_Item = ({ model }) => {
 
         border:
           selectedModel === model
-            ? "1px solid rgba(255, 255, 255, 0.16)"
+            ? "1px solid rgba(255, 255, 255, 0.32)"
             : onHover
-            ? "1px solid rgba(255, 255, 255, 0.08)"
+            ? "1px solid rgba(255, 255, 255, 0.16)"
             : "1px solid rgba(255, 255, 255, 0)",
         borderRadius: 4,
         backgroundColor:
@@ -991,6 +991,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         opacity: 1,
         border: messageList.input_section.border_onActive,
         backgroundColor: messageList.input_section.backgroundColor_onActive,
+        boxShadow: messageList.input_section.boxShadow_onActive,
       });
     } else if (onHover) {
       setStyle({
@@ -998,6 +999,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         opacity: 1,
         border: messageList.input_section.border_onHover,
         backgroundColor: messageList.input_section.backgroundColor_onHover,
+        boxShadow: messageList.input_section.boxShadow_onHover,
       });
     } else {
       setStyle({
@@ -1005,6 +1007,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         opacity: 0,
         border: messageList.input_section.border,
         backgroundColor: messageList.input_section.backgroundColor,
+        boxShadow: "none",
       });
     }
   }, [onHover, onClicked]);
@@ -1056,7 +1059,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
           backdropFilter: "blur(24px)",
           boxShadow: boxShadow.drak,
-          border: border,
+          border: messageList.border,
         }}
       ></Input>
       {awaitResponse === null ? (
@@ -1072,7 +1075,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: onClicked ? 14 : 15,
+            bottom: 15,
             right: -8,
             width: 16,
             height: 16,
@@ -1082,6 +1085,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             borderRadius: default_border_radius - 4,
             backgroundColor: style.backgroundColor,
             border: style.border,
+            boxShadow: style.boxShadow,
           }}
           onMouseEnter={() => {
             setOnHover(true);
@@ -1111,7 +1115,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: onClicked ? 14 : 15,
+            bottom: 15,
             right: -8,
             width: 16,
             height: 16,
@@ -1119,12 +1123,9 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 
             padding: 8,
             borderRadius: default_border_radius - 4,
-            backgroundColor: `rgba(${
-              RGB.R + colorOffset.middle_ground + style.colorOffset
-            }, ${RGB.G + colorOffset.middle_ground + style.colorOffset}, ${
-              RGB.B + colorOffset.middle_ground + style.colorOffset
-            }, ${style.opacity})`,
+            backgroundColor: style.backgroundColor,
             border: style.border,
+            boxShadow: style.boxShadow,
           }}
           onMouseEnter={() => {
             setOnHover(true);

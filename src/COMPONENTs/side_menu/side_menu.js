@@ -55,7 +55,7 @@ const ThemeSwitch = ({}) => {
           width: 18,
           height: 18,
           userSelect: "none",
-          opacity: 0.5,
+          opacity: 0.8,
         }}
       />
       <Icon
@@ -69,7 +69,7 @@ const ThemeSwitch = ({}) => {
           width: 18,
           height: 18,
           userSelect: "none",
-          opacity: 0.5,
+          opacity: 0.8,
         }}
       />
       <div
@@ -116,7 +116,7 @@ const BottomPanel = ({ width }) => {
 
           width: 20,
           height: 20,
-          opacity: 1,
+          opacity: 0.8,
           cursor: "pointer",
         }}
         onClick={() => {
@@ -231,7 +231,7 @@ const Chat_Room_Item = ({ address }) => {
           right: 0,
           width: 17,
           height: 17,
-          opacity: 0.32,
+          opacity: 0.64,
 
           userSelect: "none",
           cursor: "pointer",
@@ -356,14 +356,14 @@ const Chat_Room_List = ({}) => {
         backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${
           RGB.B + 60
         }, 0.84)`,
-        border: "1px solid rgba(255, 255, 255, 1)",
+        border: "1px solid rgba(255, 255, 255, 0.32)",
       });
     } else if (addButtonOnHover) {
       setAddButtonStyle({
         backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${
           RGB.B + 60
         }, 0.64)`,
-        border: "1px solid rgba(255, 255, 255, 0.64)",
+        border: "1px solid rgba(255, 255, 255, 0.32)",
       });
     } else {
       setAddButtonStyle({
@@ -390,7 +390,7 @@ const Chat_Room_List = ({}) => {
         top: 72,
         left: 0,
         right: 0,
-        bottom: 40,
+        bottom: 36,
         marginRight: 3,
         marginBottom: 3,
 
@@ -417,7 +417,7 @@ const Chat_Room_List = ({}) => {
           backgroundColor: addButtonStyle.backgroundColor,
           border: addButtonStyle.border,
 
-          opacity: 0.64,
+          opacity: 0.96,
 
           cursor: "pointer",
           userSelect: "none",
@@ -444,10 +444,10 @@ const Chat_Room_List = ({}) => {
         style={{
           transition: "left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",
-          top: 49,
+          top: 46,
           left: componentOnFocus === component_name ? 14 : -100,
 
-          fontSize: 14,
+          fontSize: 19,
           textOverflow: "ellipsis",
           whiteSpace: "nowrap",
           color: sideMenu.color,
@@ -464,7 +464,7 @@ const Chat_Room_List = ({}) => {
 /* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
 
 const Side_Menu = ({}) => {
-  const { RGB, border, sideMenu } = useContext(ConfigContexts);
+  const { RGB, sideMenu } = useContext(ConfigContexts);
   const {
     windowWidth,
     windowIsMaximized,
@@ -552,7 +552,10 @@ const Side_Menu = ({}) => {
             width: menuStyle.width,
 
             boxSizing: "border-box",
-            borderRight: border,
+            borderRight:
+              componentOnFocus === component_name
+                ? sideMenu.border
+                : "0px solid rgba(255, 255, 255, 0)",
             scrollBehavior: "smooth",
 
             backgroundColor: sideMenu.backgroundColor,
@@ -584,7 +587,7 @@ const Side_Menu = ({}) => {
               cursor: "pointer",
               userSelect: "none",
               height: 20,
-              opacity: 1,
+              opacity: 0.8,
             }}
             onClick={(e) => {
               e.stopPropagation();

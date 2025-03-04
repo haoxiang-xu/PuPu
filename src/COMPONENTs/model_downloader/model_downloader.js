@@ -225,7 +225,7 @@ const ModelTab = ({ model }) => {
           right: 7,
           width: 20,
 
-          opacity: 0.5,
+          opacity: 0.72,
 
           userSelect: "none",
           cursor: "pointer",
@@ -408,7 +408,7 @@ const ModelTag = ({ model }) => {
             style={{
               width: 17,
               height: 17,
-              opacity: 0.4,
+              opacity: 0.72,
 
               userSelect: "none",
               cursor: "pointer",
