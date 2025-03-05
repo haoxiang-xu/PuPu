@@ -2,6 +2,8 @@ import React, { useState, useEffect, use } from "react";
 
 import { StatusContexts } from "./contexts";
 
+import ContextMenu from "../../COMPONENTs/context_menu/context_menu";
+
 const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
   const [onDialog, setOnDialog] = useState("");
@@ -56,6 +58,33 @@ const StatusContainer = ({ children }) => {
   const [ollamaOnTask, setOllamaOnTask] = useState(null);
   /* { Request Related } ------------------------------------------------------------------------------- */
 
+  /* { Context Menu } ================================================================================== */
+  const [onContextMenu, setOnContextMenu] = useState(false);
+  const [ContextMenuPosition, setContextMenuPosition] = useState(null);
+  const [ContextMenuConfig, setContextMenuConfig] = useState(null);
+
+  const load_context_menu = (e, width, options) => {
+    e.preventDefault();
+    setOnContextMenu(true);
+    setContextMenuPosition({
+      x: e.clientX,
+      y: e.clientY,
+    });
+    setContextMenuConfig({
+      width: width,
+      options: options,
+    });
+  };
+  const unload_context_menu = () => {
+    setOnContextMenu(false);
+    setContextMenuPosition(null);
+    setContextMenuConfig(null);
+  };
+  useEffect(() => {
+    unload_context_menu();
+  }, [componentOnFocus, onDialog]);
+  /* { Context Menu } ================================================================================== */
+
   return (
     <StatusContexts.Provider
       value={{
@@ -94,9 +123,22 @@ const StatusContainer = ({ children }) => {
         ollamaOnTask,
         setOllamaOnTask,
         /* { Model Related Status } =========================================================================== */
+
+        /* { Context Menu } ================================================================== { Context Menu } */
+        load_context_menu,
+        unload_context_menu,
+        /* { Context Menu } =================================================================================== */
       }}
     >
       {children}
+      {onContextMenu ? (
+        <ContextMenu
+          x={ContextMenuPosition?.x}
+          y={ContextMenuPosition?.y}
+          width={ContextMenuConfig?.width}
+          options={ContextMenuConfig?.options}
+        />
+      ) : null}
     </StatusContexts.Provider>
   );
 };

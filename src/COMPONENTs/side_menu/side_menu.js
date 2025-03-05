@@ -139,6 +139,7 @@ const Chat_List_Item = ({ address }) => {
     load_section_data,
     delete_address_in_local_storage,
   } = useContext(DataContexts);
+  const { load_context_menu, unload_context_menu } = useContext(StatusContexts);
   const {
     onSelectAddress,
     setOnSelectAddress,
@@ -218,6 +219,7 @@ const Chat_List_Item = ({ address }) => {
         e.stopPropagation();
         load_section_data(address);
         setOnSelectAddress(null);
+        unload_context_menu();
       }}
       onDoubleClick={(e) => {
         e.stopPropagation();
@@ -245,17 +247,13 @@ const Chat_List_Item = ({ address }) => {
           } else {
             setOnSelectAddress(address);
           }
-        }}
-      />
-      {onSelectAddress === address ? (
-        <ContextMenu
-          width={180}
-          options={[
+          load_context_menu(e, 180, [
             {
               img_src: "rename",
               label: "Rename",
               onClick: () => {
                 setOnRenameAddress(address);
+                unload_context_menu();
               },
             },
             {
@@ -263,11 +261,12 @@ const Chat_List_Item = ({ address }) => {
               label: "Delete",
               onClick: () => {
                 delete_address_in_local_storage(address);
+                unload_context_menu();
               },
             },
-          ]}
-        />
-      ) : null}
+          ]);
+        }}
+      />
       {onRenameAddress === address ? (
         <input
           ref={inputRef}
@@ -470,6 +469,7 @@ const Side_Menu = ({}) => {
     windowIsMaximized,
     componentOnFocus,
     setComponentOnFocus,
+    unload_context_menu,
   } = useContext(StatusContexts);
   const [iconStyle, setIconStyle] = useState({});
   const [menuStyle, setMenuStyle] = useState({
@@ -565,6 +565,7 @@ const Side_Menu = ({}) => {
           }}
           onClick={(e) => {
             e.stopPropagation();
+            unload_context_menu();
             setOnSelectAddress(null);
           }}
         >

@@ -101,7 +101,7 @@
 
 ## Components
 
-### More Option Menu
+### Context Menu
 
 <span style="opacity: 0.32">Complex Json Format data structures.</span>
 

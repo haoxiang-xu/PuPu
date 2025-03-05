@@ -16,9 +16,9 @@ const OptionItem = ({ img_src, label, onClick }) => {
           transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "relative",
           display: "block",
-          width: "calc(100% - 12px)",
+          width: "calc(100% - 14px)",
           height: 30,
-          margin: 5,
+          margin: 7,
 
           border: onHover
             ? moreOptionMenu.option_item.border
@@ -28,6 +28,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
             ? moreOptionMenu.option_item.backgroundColor
             : "transparent",
           boxShadow: onHover ? moreOptionMenu.option_item.boxShadow : "none",
+          boxSizing: "border-box",
           cursor: "pointer",
         }}
         onClick={onClick}
@@ -69,7 +70,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
     </>
   );
 };
-const ContextMenu = ({ model, width, options }) => {
+const ContextMenu = ({ x, y, width, options }) => {
   const { RGB, colorOffset, moreOptionMenu } = useContext(ConfigContexts);
   const [isLoaded, setIsLoaded] = useState(false);
   const [style, setStyle] = useState({
@@ -93,15 +94,15 @@ const ContextMenu = ({ model, width, options }) => {
     <div
       style={{
         transition: "width 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-        position: "absolute",
+        position: "fixed",
         maxHeight: (width + 2) * 0.618,
-        top: 20,
-        right: -1,
+        top: y,
+        left: x,
         width: style.width,
         zIndex: 12,
 
         backgroundColor: moreOptionMenu.backgroundColor,
-        borderRadius: 8,
+        borderRadius: 10,
         border: moreOptionMenu.border,
         boxSizing: "border-box",
         boxShadow: moreOptionMenu.boxShadow,

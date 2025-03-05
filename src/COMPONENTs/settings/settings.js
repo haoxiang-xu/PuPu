@@ -152,7 +152,7 @@ const Submenu_Side_List = () => {
   );
 };
 const Settings = () => {
-  const { setComponentOnFocus } = useContext(StatusContexts);
+  const { setComponentOnFocus, unload_context_menu } = useContext(StatusContexts);
   const [selectedMenu, setSelectedMenu] = useState(list_of_setting_menus[0]);
   const [menu, setMenu] = useState(<div></div>);
 
@@ -186,6 +186,7 @@ const Settings = () => {
         }}
         onClick={() => {
           setComponentOnFocus("setting");
+          unload_context_menu();
         }}
       >
         <Submenu_Side_List />

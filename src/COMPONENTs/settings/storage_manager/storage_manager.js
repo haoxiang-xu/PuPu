@@ -13,6 +13,7 @@ import ContextMenu from "../../context_menu/context_menu";
 
 import { ConfigContexts } from "../../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../../CONTAINERs/data/contexts";
+import { StatusContexts } from "../../../CONTAINERs/status/contexts";
 
 const LocalStoragePanelContexts = createContext("");
 
@@ -20,6 +21,7 @@ const AddressSizesItem = ({ index, title, size, address }) => {
   const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const { delete_local_storage_item, onSelectLabel, setOnSelectLabel } =
     useContext(LocalStoragePanelContexts);
+  const { load_context_menu, unload_context_menu } = useContext(StatusContexts);
 
   const [onHover, setOnHover] = useState(false);
   const spanRef = useRef(null);
@@ -125,30 +127,18 @@ const AddressSizesItem = ({ index, title, size, address }) => {
           onClick={(e) => {
             e.stopPropagation();
             setOnSelectLabel(address);
-          }}
-        />
-      )}
-      {onSelectLabel !== address ? null : (
-        <div
-          style={{
-            position: "absolute",
-            top: 8,
-            right: 10,
-          }}
-        >
-          <ContextMenu
-            width={120}
-            options={[
+            load_context_menu(e, 120, [
               {
                 img_src: "delete",
                 label: "Delete",
                 onClick: () => {
                   delete_local_storage_item(address);
+                  unload_context_menu();
                 },
               },
-            ]}
-          />
-        </div>
+            ]);
+          }}
+        />
       )}
     </div>
   );

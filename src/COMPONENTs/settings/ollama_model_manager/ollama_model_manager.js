@@ -13,7 +13,6 @@ import { DataContexts } from "../../../CONTAINERs/data/contexts";
 
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import MoonLoader from "react-spinners/MoonLoader";
-import ContextMenu from "../../context_menu/context_menu";
 
 const component_name = "model_downloader";
 
@@ -327,6 +326,9 @@ const ModelTag = ({ model }) => {
     ollamaPendingDownloadModels,
     /* { installing status } */
     ollamaInstallingStatus,
+
+    load_context_menu,
+    unload_context_menu,
   } = useContext(StatusContexts);
   const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
 
@@ -416,25 +418,20 @@ const ModelTag = ({ model }) => {
             onClick={(e) => {
               e.stopPropagation();
               setItemOnSelect(sub_component_name + model);
+              load_context_menu(e, tagWidth, [
+                {
+                  img_src: "delete",
+                  label: "Delete",
+                  onClick: () => {
+                    setOllamaPendingDeleteModels((prev) => [...prev, model]);
+                    unload_context_menu();
+                  },
+                },
+              ]);
             }}
           />
         )}
       </div>
-      {ItemOnSelect === sub_component_name + model ? (
-        <ContextMenu
-          model={model}
-          width={tagWidth}
-          options={[
-            {
-              img_src: "delete",
-              label: "Delete",
-              onClick: () => {
-                setOllamaPendingDeleteModels((prev) => [...prev, model]);
-              },
-            },
-          ]}
-        />
-      ) : null}
     </div>
   );
 };
@@ -456,6 +453,7 @@ const AvailableModel = () => {
 
 const OllamaModelManager = ({ available_models }) => {
   const { modelDownloader } = useContext(ConfigContexts);
+  const { unload_context_menu } = useContext(StatusContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
   const ScrollRef = useRef(null);
 
@@ -495,6 +493,7 @@ const OllamaModelManager = ({ available_models }) => {
         }}
         onClick={(e) => {
           setItemOnSelect(null);
+          unload_context_menu();
         }}
       >
         <div
