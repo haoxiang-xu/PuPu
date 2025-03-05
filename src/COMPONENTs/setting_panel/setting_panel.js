@@ -30,7 +30,7 @@ const MenuContainer = ({ children }) => {
   );
 };
 const SideListItem = ({ index, label }) => {
-  const { RGB, settingPanel, sideMenu } = useContext(ConfigContexts);
+  const { RGB, settingPanel, sideMenu, theme } = useContext(ConfigContexts);
   const { selectedMenu, setSelectedMenu } = useContext(SettingPanelContexts);
 
   const [onHover, setOnHover] = useState(false);
@@ -40,9 +40,16 @@ const SideListItem = ({ index, label }) => {
       style={{
         transition: "box-shadow 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
-        width: "calc(100% - 12px)",
+        width: theme === "light_theme"? "calc(100% - 12px)": "calc(100% - 4px)",
         height: 30,
-        margin: index === 0 ? "6px 6px 0 6px" : "3px 6px 0 6px",
+        margin:
+          theme === "light_theme"
+            ? index === 0
+              ? "6px 6px 0 6px"
+              : "3px 6px 0 6px"
+            : index === 0
+            ? "3px 2px 0 2px"
+            : "3px 2px 0 2px",
 
         border:
           selectedMenu === label

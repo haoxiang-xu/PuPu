@@ -101,6 +101,7 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
           boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.72)`,
+          borderRadius: 0,
           chat_room_item: {
             backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
@@ -115,12 +116,13 @@ const ConfigContainer = ({ children }) => {
         };
       } else {
         return {
-          border: "1px solid rgba(0, 0, 0, 0)",
+          border: "1px solid rgba(0, 0, 0, 0.12)",
           backgroundColor: `rgba(${RGB.R - 28}, ${RGB.G - 28}, ${
             RGB.B - 28
           }, 1)`,
-          boxShadow: "8px 0px 32px rgba(0, 0, 0, 0.32)",
+          boxShadow: "8px 0px 32px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.96)`,
+          borderRadius: 12,
           chat_room_item: {
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             backgroundColor_onActive: `rgba(255, 255, 255, 1)`,
