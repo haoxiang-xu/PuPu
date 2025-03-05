@@ -17,18 +17,18 @@ import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
 import Term from "../terminal/terminal";
-import FileDropZone from "../../COMPONENTs/file_drop_zone/file_drop_zone";
+import FileDropZone from "../file_drop_zone/file_drop_zone";
 
 import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
 
 const default_border_radius = 10;
 const default_font_size = 14;
-const default_padding = default_font_size;
 
 const component_name = "message_list";
 
 const ChatSectionContexts = createContext("");
 
+/* { Message List } -------------------------------------------------------------------------------------------------------- */
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   const { RGB, messageList } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
@@ -143,7 +143,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
     return null;
   }
 };
-const Image = ({ index, imageSrc }) => {
+const Message_Upper_Panel_File_Item = ({ index, imageSrc }) => {
   const { messageList } = useContext(ConfigContexts);
   const { setOnDialog } = useContext(StatusContexts);
 
@@ -174,10 +174,10 @@ const Image = ({ index, imageSrc }) => {
 };
 const Message_Upper_Panel = ({ role, index, images }) => {
   return images.length !== 0
-    ? images.map((image, i) => <Image key={i} index={index} imageSrc={image} />)
+    ? images.map((image, i) => <Message_Upper_Panel_File_Item key={i} index={index} imageSrc={image} />)
     : null;
 };
-const Message_Section = ({
+const Message = ({
   index,
   role,
   message,
@@ -298,7 +298,7 @@ const Message_Section = ({
     </>
   );
 };
-const Scrolling_Section = () => {
+const Message_Scrolling_List = () => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
   const { sectionData, sectionStarted } = useContext(DataContexts);
   const { windowWidth, setComponentOnFocus } = useContext(StatusContexts);
@@ -399,7 +399,7 @@ const Scrolling_Section = () => {
       >
         {sectionData && sectionData.messages
           ? sectionData.messages.map((msg, index) => (
-              <Message_Section
+              <Message
                 key={index}
                 index={index}
                 role={msg.role}
@@ -422,65 +422,10 @@ const Scrolling_Section = () => {
     </div>
   );
 };
-const Model_list_Item = ({ model }) => {
-  const { RGB, messageList } = useContext(ConfigContexts);
-  const { selectedModel, setSelectedModel, setAvaliableModels } =
-    useContext(DataContexts);
-  const { ollama_list_available_models } = useContext(RequestContexts);
-  const { setComponentOnFocus } = useContext(StatusContexts);
-  const [onHover, setOnHover] = useState(false);
+/* { Message List } -------------------------------------------------------------------------------------------------------- */
 
-  return (
-    <div
-      style={{
-        position: "relative",
-        top: 0,
-
-        width: 180,
-        margin: 5,
-        padding: "2px 6px",
-
-        color: messageList.model_list_item.color,
-
-        border:
-          selectedModel === model
-            ? "1px solid rgba(255, 255, 255, 0.32)"
-            : onHover
-            ? "1px solid rgba(255, 255, 255, 0.16)"
-            : "1px solid rgba(255, 255, 255, 0)",
-        borderRadius: 4,
-        backgroundColor:
-          selectedModel === model
-            ? messageList.model_list_item.backgroundColor_onActive
-            : onHover
-            ? messageList.model_list_item.backgroundColor_onHover
-            : messageList.model_list_item.backgroundColor,
-        boxShadow:
-          selectedModel === model
-            ? messageList.model_list_item.boxShadow_onHover
-            : "none",
-      }}
-      onMouseEnter={(e) => {
-        setOnHover(true);
-      }}
-      onMouseLeave={(e) => {
-        setOnHover(false);
-      }}
-      onMouseDown={(e) => {
-        setSelectedModel(model);
-      }}
-      onClick={(e) => {
-        setComponentOnFocus(component_name);
-        ollama_list_available_models().then((response) => {
-          setAvaliableModels(response);
-        });
-      }}
-    >
-      {model}
-    </div>
-  );
-};
-const Add_Model_Button = () => {
+/* { Model Selector } ------------------------------------------------------------------------------------------------------ */
+const Model_Selector_Add_Model_Button = () => {
   const { RGB, messageList } = useContext(ConfigContexts);
   const { setComponentOnFocus, setOnDialog } = useContext(StatusContexts);
 
@@ -538,7 +483,65 @@ const Add_Model_Button = () => {
     </div>
   );
 };
-const Model_Menu = ({ value, setMenuWidth }) => {
+const Model_Selector_Item = ({ model }) => {
+  const { RGB, messageList } = useContext(ConfigContexts);
+  const { selectedModel, setSelectedModel, setAvaliableModels } =
+    useContext(DataContexts);
+  const { ollama_list_available_models } = useContext(RequestContexts);
+  const { setComponentOnFocus } = useContext(StatusContexts);
+  const [onHover, setOnHover] = useState(false);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        top: 0,
+
+        width: 180,
+        margin: 5,
+        padding: "2px 6px",
+
+        color: messageList.model_list_item.color,
+
+        border:
+          selectedModel === model
+            ? "1px solid rgba(255, 255, 255, 0.32)"
+            : onHover
+            ? "1px solid rgba(255, 255, 255, 0.16)"
+            : "1px solid rgba(255, 255, 255, 0)",
+        borderRadius: 4,
+        backgroundColor:
+          selectedModel === model
+            ? messageList.model_list_item.backgroundColor_onActive
+            : onHover
+            ? messageList.model_list_item.backgroundColor_onHover
+            : messageList.model_list_item.backgroundColor,
+        boxShadow:
+          selectedModel === model
+            ? messageList.model_list_item.boxShadow_onHover
+            : "none",
+      }}
+      onMouseEnter={(e) => {
+        setOnHover(true);
+      }}
+      onMouseLeave={(e) => {
+        setOnHover(false);
+      }}
+      onMouseDown={(e) => {
+        setSelectedModel(model);
+      }}
+      onClick={(e) => {
+        setComponentOnFocus(component_name);
+        ollama_list_available_models().then((response) => {
+          setAvaliableModels(response);
+        });
+      }}
+    >
+      {model}
+    </div>
+  );
+};
+const Model_Selector = ({ value, setMenuWidth }) => {
   const sub_component_name = component_name + "_" + "model_menu";
 
   const { messageList } = useContext(ConfigContexts);
@@ -645,7 +648,7 @@ const Model_Menu = ({ value, setMenuWidth }) => {
       >
         {componentOnFocus === sub_component_name ? (
           avaliableModels.map((model, index) => (
-            <Model_list_Item key={index} model={model} />
+            <Model_Selector_Item key={index} model={model} />
           ))
         ) : (
           <div
@@ -663,12 +666,15 @@ const Model_Menu = ({ value, setMenuWidth }) => {
             {selectedModel ? selectedModel : "a Model here"}
           </div>
         )}
-        {componentOnFocus === sub_component_name ? <Add_Model_Button /> : null}
+        {componentOnFocus === sub_component_name ? <Model_Selector_Add_Model_Button /> : null}
       </div>
     </div>
   );
 };
-const Input_Image = ({ index, imageSrc }) => {
+/* { Model Selector } ------------------------------------------------------------------------------------------------------ */
+
+/* { Input Panel } --------------------------------------------------------------------------------------------------------- */
+const Input_File_Panel_Item = ({ index, imageSrc }) => {
   const { messageList } = useContext(ConfigContexts);
   const { setInputImages } = useContext(ChatSectionContexts);
 
@@ -716,7 +722,7 @@ const Input_Image = ({ index, imageSrc }) => {
     </div>
   ) : null;
 };
-const Input_Image_Panel = ({ value }) => {
+const Input_File_Panel = ({ value }) => {
   const { inputHeight, inputImages } = useContext(ChatSectionContexts);
 
   return (
@@ -734,13 +740,13 @@ const Input_Image_Panel = ({ value }) => {
     >
       {inputImages.length !== 0
         ? inputImages.map((image, index) => (
-            <Input_Image key={index} index={index} imageSrc={image} />
+            <Input_File_Panel_Item key={index} index={index} imageSrc={image} />
           ))
         : null}
     </div>
   );
 };
-const Input_Upper_Panel = ({ value, menuWidth }) => {
+const Input_Function_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
   const { trigger_section_mode } = useContext(DataContexts);
@@ -967,6 +973,8 @@ const Input_Upper_Panel = ({ value, menuWidth }) => {
     </div>
   );
 };
+/* { Input Panel } --------------------------------------------------------------------------------------------------------- */
+
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, colorOffset, color, boxShadow, border, messageList } =
     useContext(ConfigContexts);
@@ -1032,7 +1040,7 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
         backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
       }}
     >
-      <Input_Image_Panel value={inputValue} />
+      <Input_File_Panel value={inputValue} />
       <Input
         value={inputValue}
         setValue={setInputValue}
@@ -1145,13 +1153,13 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           }}
         />
       )}
-      <Input_Upper_Panel value={inputValue} menuWidth={menuWidth} />
-      <Model_Menu value={inputValue} setMenuWidth={setMenuWidth} />
+      <Input_Function_Panel value={inputValue} menuWidth={menuWidth} />
+      <Model_Selector value={inputValue} setMenuWidth={setMenuWidth} />
     </div>
   );
 };
 
-const Message_List = () => {
+const Chat = () => {
   const { RGB } = useContext(ConfigContexts);
   const {
     selectedModel,
@@ -1320,7 +1328,7 @@ const Message_List = () => {
           setOnFileDragOver(true);
         }}
       >
-        <Scrolling_Section />
+        <Message_Scrolling_List />
         {sectionData.on_mode === "terminal" ? <Term /> : null}
         <Input_Section
           inputValue={inputValue}
@@ -1351,4 +1359,4 @@ const Message_List = () => {
   );
 };
 
-export default Message_List;
+export default Chat;

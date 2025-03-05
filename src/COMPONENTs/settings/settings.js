@@ -11,7 +11,7 @@ import { list_of_setting_menus } from "./constants";
 
 const SettingPanelContexts = createContext("");
 
-const MenuContainer = ({ children }) => {
+const Submenu = ({ children }) => {
   return (
     <div
       style={{
@@ -27,7 +27,7 @@ const MenuContainer = ({ children }) => {
     </div>
   );
 };
-const SideListItem = ({ index, label }) => {
+const Submenu_Side_List_Item = ({ index, label }) => {
   const { RGB, settingPanel, sideMenu, theme } = useContext(ConfigContexts);
   const { selectedMenu, setSelectedMenu } = useContext(SettingPanelContexts);
 
@@ -120,7 +120,7 @@ const SideListItem = ({ index, label }) => {
     </div>
   );
 };
-const SideList = () => {
+const Submenu_Side_List = () => {
   const { settingPanel } = useContext(ConfigContexts);
   return (
     <div
@@ -146,7 +146,7 @@ const SideList = () => {
         }}
       ></div>
       {list_of_setting_menus.map((label, index) => (
-        <SideListItem key={index} index={index} label={label} />
+        <Submenu_Side_List_Item key={index} index={index} label={label} />
       ))}
     </div>
   );
@@ -188,8 +188,8 @@ const Settings = () => {
           setComponentOnFocus("setting");
         }}
       >
-        <SideList />
-        <MenuContainer>{menu}</MenuContainer>
+        <Submenu_Side_List />
+        <Submenu>{menu}</Submenu>
       </div>
     </SettingPanelContexts.Provider>
   );

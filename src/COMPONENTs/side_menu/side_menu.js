@@ -18,8 +18,8 @@ const component_name = "side_menu";
 
 const Contexts = createContext();
 
-/* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
-const ThemeSwitch = ({}) => {
+/* { Chat Button Function Panel } --------------------------------------------------------------------------------------------------------------------------------------------------- */
+const Bottom_Function_Panel_Theme_Switch = ({}) => {
   const { theme, setTheme, switchs } = useContext(ConfigContexts);
   return (
     <div
@@ -90,7 +90,7 @@ const ThemeSwitch = ({}) => {
     </div>
   );
 };
-const BottomPanel = ({ width }) => {
+const Bottom_Function_Panel = ({ width }) => {
   const { setOnDialog, setComponentOnFocus } = useContext(StatusContexts);
   return (
     <div
@@ -124,11 +124,13 @@ const BottomPanel = ({ width }) => {
           setComponentOnFocus("setting");
         }}
       />
-      <ThemeSwitch />
+      <Bottom_Function_Panel_Theme_Switch />
     </div>
   );
 };
-const Chat_Room_Item = ({ address }) => {
+/* { Chat Button Function Panel } --------------------------------------------------------------------------------------------------------------------------------------------------- */
+
+const Chat_List_Item = ({ address }) => {
   const { RGB, sideMenu } = useContext(ConfigContexts);
   const {
     update_title,
@@ -336,7 +338,7 @@ const Chat_Room_Item = ({ address }) => {
     </div>
   );
 };
-const Chat_Room_List = ({}) => {
+const Chat_List = ({}) => {
   const { RGB, sideMenu } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
   const { componentOnFocus, setComponentOnFocus } = useContext(StatusContexts);
@@ -376,7 +378,7 @@ const Chat_Room_List = ({}) => {
     if (addressBook && Array.isArray(addressBook.avaliable_addresses)) {
       setChatRoomItems(
         addressBook.avaliable_addresses.map((address, index) => (
-          <Chat_Room_Item key={index} address={address} />
+          <Chat_List_Item key={index} address={address} />
         ))
       );
     }
@@ -461,8 +463,6 @@ const Chat_Room_List = ({}) => {
     </div>
   );
 };
-/* { Chat Room Section } ------------------------------------------------------------------------------------------------------------------------------------------------------------ */
-
 const Side_Menu = ({}) => {
   const { RGB, sideMenu } = useContext(ConfigContexts);
   const {
@@ -568,7 +568,7 @@ const Side_Menu = ({}) => {
             setOnSelectAddress(null);
           }}
         >
-          <Chat_Room_List />
+          <Chat_List />
         </div>
         <div
           className="icon-container"
@@ -600,7 +600,7 @@ const Side_Menu = ({}) => {
             }}
           />
         </div>
-        <BottomPanel width={menuStyle.width} />
+        <Bottom_Function_Panel width={menuStyle.width} />
       </div>
     </Contexts.Provider>
   );

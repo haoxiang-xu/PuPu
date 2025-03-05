@@ -6,7 +6,7 @@ import { DataContexts } from "../../CONTAINERs/data/contexts";
 import ollama_pupu from "./ollama_pupu.png";
 import ollama_pupu_ from "./ollama_pupu_.png";
 
-import Message_List from "../../COMPONENTs/message_list/message_list";
+import Chat from "../../COMPONENTs/chat/chat";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
 const Chat_Page = ({}) => {
@@ -285,7 +285,7 @@ const Chat_Page = ({}) => {
           bottom: 2,
         }}
       >
-        <Message_List />
+        <Chat />
       </div>
     </div>
   );
