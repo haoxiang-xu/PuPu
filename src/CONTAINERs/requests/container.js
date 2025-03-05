@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useContext } from "react";
+import React, { useState, useContext } from "react";
 
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import { task_descriptions } from "./constants";

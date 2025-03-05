@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback, useContext } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
 
-import { ConfigContexts } from "../config/contexts";
 import { StatusContexts } from "../status/contexts";
 import { RequestContexts } from "../requests/contexts";
 import { DataContexts } from "./contexts";
