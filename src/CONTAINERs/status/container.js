@@ -2,7 +2,7 @@ import React, { useState, useEffect, use } from "react";
 
 import { StatusContexts } from "./contexts";
 
-import ContextMenu from "../../COMPONENTs/context_menu/context_menu";
+import Context_Menu from "../../COMPONENTs/context_menu/context_menu";
 
 const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
@@ -132,7 +132,7 @@ const StatusContainer = ({ children }) => {
     >
       {children}
       {onContextMenu ? (
-        <ContextMenu
+        <Context_Menu
           x={ContextMenuPosition?.x}
           y={ContextMenuPosition?.y}
           width={ContextMenuConfig?.width}

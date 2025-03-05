@@ -5,7 +5,7 @@ import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
-const OptionItem = ({ img_src, label, onClick }) => {
+const Context_Menu_Item = ({ img_src, label, onClick }) => {
   const { RGB, colorOffset, moreOptionMenu } = useContext(ConfigContexts);
   const [onHover, setOnHover] = useState(false);
 
@@ -70,7 +70,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
     </>
   );
 };
-const ContextMenu = ({ x, y, width, options }) => {
+const Context_Menu = ({ x, y, width, options }) => {
   const { RGB, colorOffset, moreOptionMenu } = useContext(ConfigContexts);
   const [isLoaded, setIsLoaded] = useState(false);
   const [style, setStyle] = useState({
@@ -113,7 +113,7 @@ const ContextMenu = ({ x, y, width, options }) => {
     >
       {options.map((option, index) => {
         return (
-          <OptionItem
+          <Context_Menu_Item
             key={index}
             img_src={option.img_src}
             label={option.label}
@@ -127,4 +127,4 @@ const ContextMenu = ({ x, y, width, options }) => {
   );
 };
 
-export default ContextMenu;
+export default Context_Menu;

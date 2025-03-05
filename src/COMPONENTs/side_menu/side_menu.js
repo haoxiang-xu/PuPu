@@ -11,7 +11,7 @@ import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
-import ContextMenu from "../context_menu/context_menu";
+import Context_Menu from "../context_menu/context_menu";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";

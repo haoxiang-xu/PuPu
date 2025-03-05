@@ -71,7 +71,7 @@ const Button = ({ handle_button_click, label }) => {
 };
 
 /* { image_viewer } -------------------------------------------------------------------------------------------------------------- */
-const ImageViewer = ({}) => {
+const Image_Viewer = ({}) => {
   const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
   const { onDialog, setOnDialog } = useContext(StatusContexts);
 
@@ -169,7 +169,7 @@ const Setting = ({}) => {
 /* { setting } ------------------------------------------------------------------------------------------------------------------- */
 
 /* { down_load_ollama_model } ---------------------------------------------------------------------------------------------------- */
-const DownloadOllamaModel = ({}) => {
+const Ollama_Model_Manager = ({}) => {
   const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
   return (
     <div
@@ -271,13 +271,13 @@ const Dialog = () => {
         setDialog(<AwaitOllamaSetup />);
         break;
       case "download_ollama_model":
-        setDialog(<DownloadOllamaModel />);
+        setDialog(<Ollama_Model_Manager />);
         break;
       case "setting":
         setDialog(<Setting />);
         break;
       case "image_viewer":
-        setDialog(<ImageViewer />);
+        setDialog(<Image_Viewer />);
         break;
       default:
         setDialog(null);

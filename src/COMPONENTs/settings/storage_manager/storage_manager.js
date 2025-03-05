@@ -9,7 +9,7 @@ import React, {
 
 import { UNIQUE_KEY } from "../../../CONTAINERs/root_consts";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
-import ContextMenu from "../../context_menu/context_menu";
+import Context_Menu from "../../context_menu/context_menu";
 
 import { ConfigContexts } from "../../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../../CONTAINERs/data/contexts";
