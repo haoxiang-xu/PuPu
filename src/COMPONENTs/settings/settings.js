@@ -2,12 +2,10 @@ import React, { useState, useEffect, useContext, createContext } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
-import { RequestContexts } from "../../CONTAINERs/requests/contexts";
-import { DataContexts } from "../../CONTAINERs/data/contexts";
 
-import ModelDownloader from "../model_downloader/model_downloader";
+import OllamaModelManager from "./ollama_model_manager/ollama_model_manager";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import { LocalStoragePanel } from "../local_storage_panel/local_storage_panel";
+import { LocalStoragePanel } from "./storage_manager/storage_manager";
 import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
 import { list_of_setting_menus } from "./constants";
 
@@ -40,7 +38,8 @@ const SideListItem = ({ index, label }) => {
       style={{
         transition: "box-shadow 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
-        width: theme === "light_theme"? "calc(100% - 12px)": "calc(100% - 4px)",
+        width:
+          theme === "light_theme" ? "calc(100% - 12px)" : "calc(100% - 4px)",
         height: 30,
         margin:
           theme === "light_theme"
@@ -152,7 +151,7 @@ const SideList = () => {
     </div>
   );
 };
-const SettingPanel = () => {
+const Settings = () => {
   const { setComponentOnFocus } = useContext(StatusContexts);
   const [selectedMenu, setSelectedMenu] = useState(list_of_setting_menus[0]);
   const [menu, setMenu] = useState(<div></div>);
@@ -161,7 +160,9 @@ const SettingPanel = () => {
     switch (selectedMenu) {
       case "models":
         setMenu(
-          <ModelDownloader available_models={available_large_language_models} />
+          <OllamaModelManager
+            available_models={available_large_language_models}
+          />
         );
         break;
       case "local storage":
@@ -194,4 +195,4 @@ const SettingPanel = () => {
   );
 };
 
-export default SettingPanel;
+export default Settings;

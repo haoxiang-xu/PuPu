@@ -11,7 +11,7 @@ import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
-import MoreOptionMenu from "../more_option_menu/more_option_menu";
+import ContextMenu from "../context_menu/context_menu";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
@@ -246,7 +246,7 @@ const Chat_Room_Item = ({ address }) => {
         }}
       />
       {onSelectAddress === address ? (
-        <MoreOptionMenu
+        <ContextMenu
           width={180}
           options={[
             {

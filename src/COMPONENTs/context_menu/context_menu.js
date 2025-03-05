@@ -69,11 +69,7 @@ const OptionItem = ({ img_src, label, onClick }) => {
     </>
   );
 };
-const MoreOptionMenu = ({
-  model,
-  width,
-  options,
-}) => {
+const ContextMenu = ({ model, width, options }) => {
   const { RGB, colorOffset, moreOptionMenu } = useContext(ConfigContexts);
   const [isLoaded, setIsLoaded] = useState(false);
   const [style, setStyle] = useState({
@@ -130,4 +126,4 @@ const MoreOptionMenu = ({
   );
 };
 
-export default MoreOptionMenu;
+export default ContextMenu;

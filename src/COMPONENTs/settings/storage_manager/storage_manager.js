@@ -7,21 +7,16 @@ import React, {
   createContext,
 } from "react";
 
-import { UNIQUE_KEY } from "../../CONTAINERs/root_consts";
-import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import MoreOptionMenu from "../more_option_menu/more_option_menu";
+import { UNIQUE_KEY } from "../../../CONTAINERs/root_consts";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import ContextMenu from "../../context_menu/context_menu";
 
-import { ConfigContexts } from "../../CONTAINERs/config/contexts";
-import { DataContexts } from "../../CONTAINERs/data/contexts";
+import { ConfigContexts } from "../../../CONTAINERs/config/contexts";
+import { DataContexts } from "../../../CONTAINERs/data/contexts";
 
 const LocalStoragePanelContexts = createContext("");
 
-const AddressSizesItem = ({
-  index,
-  title,
-  size,
-  address
-}) => {
+const AddressSizesItem = ({ index, title, size, address }) => {
   const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const { delete_local_storage_item, onSelectLabel, setOnSelectLabel } =
     useContext(LocalStoragePanelContexts);
@@ -141,7 +136,7 @@ const AddressSizesItem = ({
             right: 10,
           }}
         >
-          <MoreOptionMenu
+          <ContextMenu
             width={120}
             options={[
               {

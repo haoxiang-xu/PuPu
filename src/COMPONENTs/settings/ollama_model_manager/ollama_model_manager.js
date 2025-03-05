@@ -7,13 +7,13 @@ import React, {
   useCallback,
 } from "react";
 
-import { ConfigContexts } from "../../CONTAINERs/config/contexts";
-import { StatusContexts } from "../../CONTAINERs/status/contexts";
-import { DataContexts } from "../../CONTAINERs/data/contexts";
+import { ConfigContexts } from "../../../CONTAINERs/config/contexts";
+import { StatusContexts } from "../../../CONTAINERs/status/contexts";
+import { DataContexts } from "../../../CONTAINERs/data/contexts";
 
-import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import MoonLoader from "react-spinners/MoonLoader";
-import MoreOptionMenu from "../more_option_menu/more_option_menu";
+import ContextMenu from "../../context_menu/context_menu";
 
 const component_name = "model_downloader";
 
@@ -421,7 +421,7 @@ const ModelTag = ({ model }) => {
         )}
       </div>
       {ItemOnSelect === sub_component_name + model ? (
-        <MoreOptionMenu
+        <ContextMenu
           model={model}
           width={tagWidth}
           options={[
@@ -454,7 +454,7 @@ const AvailableModel = () => {
 };
 /* { Available Model List } ========================================================================================================================== */
 
-const ModelDownloader = ({ available_models }) => {
+const OllamaModelManager = ({ available_models }) => {
   const { modelDownloader } = useContext(ConfigContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
   const ScrollRef = useRef(null);
@@ -577,4 +577,4 @@ const ModelDownloader = ({ available_models }) => {
   );
 };
 
-export default ModelDownloader;
+export default OllamaModelManager;
