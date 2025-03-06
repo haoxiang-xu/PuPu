@@ -118,7 +118,9 @@ const Input = ({
         style={{
           transition: "left 0.12s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: 13,
+
+          top: "50%",
+          transform: "translate(0%, -50%)",
           left: value.length !== 0 ? default_padding * 2 : default_padding,
 
           fontSize: default_font_size + 2,

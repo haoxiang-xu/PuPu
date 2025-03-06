@@ -5,7 +5,7 @@ import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
 import OllamaModelManager from "./ollama_model_manager/ollama_model_manager";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import { LocalStoragePanel } from "./storage_manager/storage_manager";
+import { Storage_Manager } from "./storage_manager/storage_manager";
 import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
 import { list_of_setting_menus } from "./constants";
 
@@ -166,7 +166,7 @@ const Settings = () => {
         );
         break;
       case "local storage":
-        setMenu(<LocalStoragePanel />);
+        setMenu(<Storage_Manager />);
         break;
       default:
         setMenu(<div></div>);

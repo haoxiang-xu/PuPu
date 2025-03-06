@@ -526,7 +526,7 @@ const OllamaModelManager = ({ available_models }) => {
           }}
         >
           <Icon
-            src={"drive"}
+            src={"folder"}
             style={{
               position: "absolute",
               top: 0,
@@ -563,7 +563,7 @@ const OllamaModelManager = ({ available_models }) => {
           }}
         >
           <Icon
-            src={"cloud"}
+            src={"install"}
             style={{
               position: "absolute",
               top: 0,

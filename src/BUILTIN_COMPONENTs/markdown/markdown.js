@@ -448,7 +448,7 @@ const ThinkingSection = ({ index, children }) => {
             ? "translate(-50%, -50%) rotate(-90deg)"
             : "translate(-50%, -50%) rotate(90deg)",
           padding: 4,
-          borderRadius: default_border_radius - 3,
+          borderRadius: default_border_radius - 2,
           backgroundColor: style.backgroundColor,
           border: style.border,
           userSelect: "none",

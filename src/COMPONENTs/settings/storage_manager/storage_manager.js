@@ -16,7 +16,7 @@ import { StatusContexts } from "../../../CONTAINERs/status/contexts";
 
 const LocalStoragePanelContexts = createContext("");
 
-const AddressSizesItem = ({ index, title, size, address }) => {
+const Address_Size_Item = ({ index, title, size, address }) => {
   const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const { delete_local_storage_item, onSelectLabel, setOnSelectLabel } =
     useContext(LocalStoragePanelContexts);
@@ -115,11 +115,13 @@ const AddressSizesItem = ({ index, title, size, address }) => {
           top: "50%",
           left: spanWidth + 12,
           maxWidth: "calc(50%)",
+          maxHeight: "100%",
           color: `rgba(${RGB.R + colorOffset.font}, ${
             RGB.G + colorOffset.font
           }, ${RGB.B + colorOffset.font}, 1)`,
           fontSize: 14,
           userSelect: "none",
+          overflow: "hidden",
           opacity: spanOpacity,
         }}
       >
@@ -164,7 +166,7 @@ const AddressSizesItem = ({ index, title, size, address }) => {
     </div>
   );
 };
-const AddressSizesTable = ({ addressSizes }) => {
+const Address_Size_List = ({ addressSizes }) => {
   return (
     <div
       className="scrolling-space"
@@ -180,7 +182,7 @@ const AddressSizesTable = ({ addressSizes }) => {
       }}
     >
       {addressSizes.map((addressSize, index) => (
-        <AddressSizesItem
+        <Address_Size_Item
           key={index}
           index={index}
           title={addressSize.chat_title}
@@ -191,7 +193,7 @@ const AddressSizesTable = ({ addressSizes }) => {
     </div>
   );
 };
-const LocalStoragePanel = () => {
+const Storage_Manager = () => {
   const { modelDownloader, RGB } = useContext(ConfigContexts);
   const { addressBook, delete_address_in_local_storage } =
     useContext(DataContexts);
@@ -371,10 +373,10 @@ const LocalStoragePanel = () => {
         >
           {localStorageSize}
         </span>
-        <AddressSizesTable addressSizes={addressSizes} />
+        <Address_Size_List addressSizes={addressSizes} />
       </div>
     </LocalStoragePanelContexts.Provider>
   );
 };
 
-export { LocalStoragePanel };
+export { Storage_Manager };
