@@ -1,12 +1,11 @@
 import React, { useContext, useEffect, useState } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
-import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const Context_Menu_Item = ({ img_src, label, onClick }) => {
-  const { RGB, colorOffset, moreOptionMenu } = useContext(ConfigContexts);
+  const { RGB, theme, colorOffset, contextMenu } = useContext(ConfigContexts);
   const [onHover, setOnHover] = useState(false);
 
   return (
@@ -16,18 +15,18 @@ const Context_Menu_Item = ({ img_src, label, onClick }) => {
           transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "relative",
           display: "block",
-          width: "calc(100% - 14px)",
-          height: 30,
-          margin: 7,
+          width: theme === "dark_theme"? "calc(100% - 14px)" : "calc(100% - 10px)",
+          height: 32,
+          margin: theme === "dark_theme"? 7 : 5,
 
           border: onHover
-            ? moreOptionMenu.option_item.border
+            ? contextMenu.option_item.border
             : "1px solid transparent",
-          borderRadius: 5,
+          borderRadius: contextMenu.option_item.borderRadius,
           backgroundColor: onHover
-            ? moreOptionMenu.option_item.backgroundColor
+            ? contextMenu.option_item.backgroundColor
             : "transparent",
-          boxShadow: onHover ? moreOptionMenu.option_item.boxShadow : "none",
+          boxShadow: onHover ? contextMenu.option_item.boxShadow : "none",
           boxSizing: "border-box",
           cursor: "pointer",
         }}
@@ -71,7 +70,7 @@ const Context_Menu_Item = ({ img_src, label, onClick }) => {
   );
 };
 const Context_Menu = ({ x, y, width, options }) => {
-  const { RGB, colorOffset, moreOptionMenu } = useContext(ConfigContexts);
+  const { contextMenu } = useContext(ConfigContexts);
   const [isLoaded, setIsLoaded] = useState(false);
   const [style, setStyle] = useState({
     width: 32,
@@ -101,11 +100,11 @@ const Context_Menu = ({ x, y, width, options }) => {
         width: style.width,
         zIndex: 12,
 
-        backgroundColor: moreOptionMenu.backgroundColor,
-        borderRadius: 10,
-        border: moreOptionMenu.border,
+        backgroundColor: contextMenu.backgroundColor,
+        borderRadius: contextMenu.borderRadius,
+        border: contextMenu.border,
         boxSizing: "border-box",
-        boxShadow: moreOptionMenu.boxShadow,
+        boxShadow: contextMenu.boxShadow,
         opacity: style.opacity,
 
         overflowX: "hidden",

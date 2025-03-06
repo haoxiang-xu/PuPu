@@ -456,37 +456,6 @@ const ConfigContainer = ({ children }) => {
       }
     }
   };
-  const update_more_option_menu = (theme, RGB) => {
-    if (theme) {
-      if (theme === "dark_theme") {
-        return {
-          backgroundColor: `rgba(${RGB.R + 10}, ${RGB.G + 10}, ${
-            RGB.B + 10
-          }, 1)`,
-          border: "1px solid rgba(255, 255, 255, 0.5)",
-          boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
-          option_item: {
-            backgroundColor: `rgba(${RGB.R + 50}, ${RGB.G + 50}, ${
-              RGB.B + 50
-            }, 0.64)`,
-            boxShadow: "none",
-            border: `1px solid rgba(225, 225, 225, 0.16)`,
-          },
-        };
-      } else {
-        return {
-          backgroundColor: `rgba(${RGB.R + 5}, ${RGB.G + 5}, ${RGB.B + 5}, 1)`,
-          border: `1px solid rgba(0, 0, 0, 0)`,
-          boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
-          option_item: {
-            backgroundColor: `rgba(71, 83, 99, 0.16)`,
-            boxShadow: `inset 0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
-            border: `1px solid rgba(0, 0, 0, 0)`,
-          },
-        };
-      }
-    }
-  };
   const update_setting_panel = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
@@ -579,6 +548,39 @@ const ConfigContainer = ({ children }) => {
       };
     }
   };
+  const update_context_menu = (theme, RGB) => {
+    if (theme && theme === "dark_theme") {
+      return {
+        backgroundColor: `rgba(${RGB.R + 10}, ${RGB.G + 10}, ${
+          RGB.B + 10
+        }, 1)`,
+        border: "1px solid rgba(255, 255, 255, 0.5)",
+        boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
+        borderRadius: 10,
+        option_item: {
+          backgroundColor: `rgba(${RGB.R + 50}, ${RGB.G + 50}, ${
+            RGB.B + 50
+          }, 0.64)`,
+          boxShadow: "none",
+          border: `1px solid rgba(225, 225, 225, 0.16)`,
+          borderRadius: 5,
+        },
+      };
+    } else {
+      return {
+        backgroundColor: `rgba(${RGB.R + 5}, ${RGB.G + 5}, ${RGB.B + 5}, 1)`,
+        border: `1px solid rgba(0, 0, 0, 0)`,
+        boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
+        borderRadius: 10,
+        option_item: {
+          backgroundColor: `rgba(71, 83, 99, 0.16)`,
+          boxShadow: `inset 0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
+          border: `1px solid rgba(255, 255, 255, 1)`,
+          borderRadius: 6,
+        },
+      };
+    }
+  };
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
@@ -587,9 +589,9 @@ const ConfigContainer = ({ children }) => {
   const [scrollingSapce, setScrollingSpace] = useState({});
   const [switchs, setSwitchs] = useState({});
   const [markdown, setMarkdown] = useState({});
-  const [moreOptionMenu, setMoreOptionMenu] = useState({});
   const [settingPanel, setSettingPanel] = useState({});
   const [inputBox, setInputBox] = useState({});
+  const [contextMenu, setContextMenu] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -611,9 +613,9 @@ const ConfigContainer = ({ children }) => {
     setScrollingSpace(update_scrolling_space(theme, newRGB));
     setSwitchs(update_switchs(theme, newRGB));
     setMarkdown(update_markdown(theme, newRGB));
-    setMoreOptionMenu(update_more_option_menu(theme, newRGB));
     setSettingPanel(update_setting_panel(theme, newRGB));
     setInputBox(update_input_box(theme, newRGB));
+    setContextMenu(update_context_menu(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
     setIsConfigReady(true);
     return () => {
@@ -650,9 +652,9 @@ const ConfigContainer = ({ children }) => {
           scrollingSapce,
           switchs,
           markdown,
-          moreOptionMenu,
           settingPanel,
           inputBox,
+          contextMenu,
         }}
       >
         {children}

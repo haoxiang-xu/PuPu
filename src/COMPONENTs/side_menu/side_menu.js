@@ -525,7 +525,7 @@ const Side_Menu = ({}) => {
                 : 21
               : theme === "dark_theme"
               ? 14
-              : 18,
+              : 21,
           left: 300 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -578,7 +578,8 @@ const Side_Menu = ({}) => {
       <div>
         <div
           style={{
-            transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            transition:
+              "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "fixed",
 
             top: theme === "dark_theme" ? 0 : 8,
@@ -604,6 +605,12 @@ const Side_Menu = ({}) => {
             boxShadow: sideMenu.boxShadow,
             backdropFilter: "blur(36px)",
             WebkitAppRegion: "no-drag",
+            opacity:
+              theme === "dark_theme"
+                ? 1
+                : componentOnFocus === component_name
+                ? 1
+                : 0,
           }}
           onClick={(e) => {
             e.stopPropagation();
