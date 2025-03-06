@@ -586,7 +586,7 @@ const Model_Selector = ({ value, setMenuWidth }) => {
         bottom:
           value.length !== 0 || ollamaOnTask !== null
             ? Math.max(inputHeight + 35, 84)
-            : 35,
+            : 33,
         left: value.length !== 0 || ollamaOnTask !== null ? 0 : 50,
 
         fontSize: default_font_size + 2,
@@ -773,7 +773,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
           value.length !== 0
             ? menuWidth + default_offset.shorter
             : menuWidth + default_offset.longer,
-        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 83) : 33,
+        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 83) : 31,
 
         height: 33,
 
@@ -976,7 +976,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, colorOffset, color, boxShadow, border, messageList } =
+  const { RGB, colorOffset, color, boxShadow, messageList, inputBox } =
     useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
@@ -997,24 +997,24 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
-        border: messageList.input_section.border_onActive,
-        backgroundColor: messageList.input_section.backgroundColor_onActive,
-        boxShadow: messageList.input_section.boxShadow_onActive,
+        border: inputBox.inside_button.onActive.border,
+        backgroundColor: inputBox.inside_button.onActive.backgroundColor,
+        boxShadow: inputBox.inside_button.onActive.boxShadow,
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
-        border: messageList.input_section.border_onHover,
-        backgroundColor: messageList.input_section.backgroundColor_onHover,
-        boxShadow: messageList.input_section.boxShadow_onHover,
+        border: inputBox.inside_button.onHover.border,
+        backgroundColor: inputBox.inside_button.onHover.backgroundColor,
+        boxShadow: inputBox.inside_button.onHover.boxShadow,
       });
     } else {
       setStyle({
         colorOffset: 0,
         opacity: 0,
-        border: messageList.input_section.border,
-        backgroundColor: messageList.input_section.backgroundColor,
+        border: inputBox.inside_button.border,
+        backgroundColor: inputBox.inside_button.backgroundColor,
         boxShadow: "none",
       });
     }
@@ -1061,13 +1061,12 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
           fontSize: 16,
           color: color,
 
-          borderRadius: default_border_radius,
-          backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
-            RGB.G + colorOffset.middle_ground
-          }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
+          borderRadius: 12,
+          backgroundColor: inputBox.backgroundColor,
           backdropFilter: "blur(24px)",
-          boxShadow: boxShadow.drak,
-          border: messageList.border,
+          boxShadow: inputBox.boxShadow,
+          border: inputBox.border,
+          boxSizing: "border-box",
         }}
       ></Input>
       {awaitResponse === null ? (
@@ -1083,14 +1082,14 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: 15,
-            right: -8,
+            bottom: 14,
+            right: -9,
             width: 16,
             height: 16,
             cursor: "pointer",
 
             padding: 8,
-            borderRadius: default_border_radius - 4,
+            borderRadius: 7,
             backgroundColor: style.backgroundColor,
             border: style.border,
             boxShadow: style.boxShadow,
@@ -1123,14 +1122,14 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
             position: "fixed",
             transform: "translate(-50%, -50%)",
 
-            bottom: 15,
-            right: -8,
+            bottom: 14,
+            right: -9,
             width: 16,
             height: 16,
             cursor: "pointer",
 
             padding: 8,
-            borderRadius: default_border_radius - 4,
+            borderRadius: 7,
             backgroundColor: style.backgroundColor,
             border: style.border,
             boxShadow: style.boxShadow,

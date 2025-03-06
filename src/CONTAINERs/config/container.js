@@ -217,7 +217,6 @@ const ConfigContainer = ({ children }) => {
             backgroundColor: `rgb(0, 0, 0)`,
             border: `1px solid rgba(225, 225, 225, 0.32)`,
           },
-          border: "1px solid rgba(255, 255, 255, 0.64)",
         };
       } else {
         return {
@@ -262,22 +261,6 @@ const ConfigContainer = ({ children }) => {
             border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
             border_onActive: `1px solid rgba(0, 0, 0, 0.64)`,
           },
-          input_section: {
-            border: `1px solid rgba(0, 0, 0, 0)`,
-            border_onHover: `1px solid rgba(255, 255, 255, 0)`,
-            border_onActive: `1px solid rgba(0, 0, 0, 0)`,
-            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0)`,
-            backgroundColor_onHover: `rgba(${RGB.R - 50}, ${RGB.G - 50}, ${
-              RGB.B - 50
-            }, 1)`,
-            backgroundColor_onActive: `rgba(${RGB.R - 72}, ${RGB.G - 72}, ${
-              RGB.B - 72
-            }, 1)`,
-            boxShadow_onHover: "0px 4px 16px rgba(0, 0, 0, 0)",
-            boxShadow_onActive: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
-          },
           input_upper_panel: {
             backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
             backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
@@ -296,7 +279,6 @@ const ConfigContainer = ({ children }) => {
             }, 1)`,
             border: `1px solid rgba(0, 0, 0, 0.32)`,
           },
-          border: "1px solid rgba(0, 0, 0, 0.64)",
         };
       }
     }
@@ -542,6 +524,61 @@ const ConfigContainer = ({ children }) => {
       }
     }
   };
+  const update_input_box = (theme, RGB) => {
+    if (theme && theme === "dark_theme") {
+      return {
+        backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
+          RGB.B + 12
+        }, 0.64)`,
+        border: "1px solid rgba(255, 255, 255, 0.64)",
+        boxShadow: "0px 6px 32px rgba(0, 0, 0, 0.18)",
+        inside_button: {
+          border: `1px solid rgba(225, 225, 225, 0)`,
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onActive: {
+            border: `1px solid rgba(225, 225, 225, 0.5)`,
+            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
+          },
+          onHover: {
+            border: `1px solid rgba(225, 225, 225, 0.32)`,
+            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
+          },
+        },
+      };
+    } else {
+      return {
+        backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${RGB.B - 32}, 1)`,
+        border: "1px solid rgba(255, 255, 255, 1)",
+        boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.04)",
+        inside_button: {
+          border: `1px solid rgba(0, 0, 0, 0)`,
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onActive: {
+            border: `1px solid rgba(255, 255, 255, 1)`,
+            backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
+              RGB.B - 32
+            }, 1)`,
+            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
+          },
+          onHover: {
+            border: `1px solid rgba(255, 255, 255, 1)`,
+            backgroundColor: `rgba(255, 255, 255, 0.64)`,
+            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.08)",
+          },
+        },
+      };
+    }
+  };
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
@@ -552,6 +589,7 @@ const ConfigContainer = ({ children }) => {
   const [markdown, setMarkdown] = useState({});
   const [moreOptionMenu, setMoreOptionMenu] = useState({});
   const [settingPanel, setSettingPanel] = useState({});
+  const [inputBox, setInputBox] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -575,6 +613,7 @@ const ConfigContainer = ({ children }) => {
     setMarkdown(update_markdown(theme, newRGB));
     setMoreOptionMenu(update_more_option_menu(theme, newRGB));
     setSettingPanel(update_setting_panel(theme, newRGB));
+    setInputBox(update_input_box(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
     setIsConfigReady(true);
     return () => {
@@ -613,6 +652,7 @@ const ConfigContainer = ({ children }) => {
           markdown,
           moreOptionMenu,
           settingPanel,
+          inputBox,
         }}
       >
         {children}
