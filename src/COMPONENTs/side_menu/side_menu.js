@@ -11,7 +11,6 @@ import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
-import Context_Menu from "../context_menu/context_menu";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
@@ -536,7 +535,14 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top: window.osInfo.platform === "darwin" ? 17 : 14,
+          top:
+            window.osInfo.platform === "darwin"
+              ? theme === "dark_theme"
+                ? 17
+                : 21
+              : theme === "dark_theme"
+              ? 14
+              : 21,
           left: 256 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
