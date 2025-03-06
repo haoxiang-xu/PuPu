@@ -226,7 +226,7 @@ const AwaitOllamaSetup = ({}) => {
 
         height: "calc(100% - 128px)",
         width: 460,
-        height: 284,
+        height: 460,
 
         borderRadius: 10,
         border: dialog.border,
