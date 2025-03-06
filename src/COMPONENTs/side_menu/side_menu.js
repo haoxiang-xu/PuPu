@@ -290,7 +290,9 @@ const Chat_List_Item = ({ address }) => {
                 },
               },
             ],
-            tagRef.current?.getBoundingClientRect().x + tagRef.current?.offsetWidth - 32,
+            tagRef.current?.getBoundingClientRect().x +
+              tagRef.current?.offsetWidth -
+              32,
             tagRef.current?.getBoundingClientRect().y + 28
           );
         }}
@@ -491,7 +493,7 @@ const Chat_List = ({}) => {
   );
 };
 const Side_Menu = ({}) => {
-  const { RGB, sideMenu } = useContext(ConfigContexts);
+  const { RGB, theme, sideMenu } = useContext(ConfigContexts);
   const {
     windowWidth,
     windowIsMaximized,
@@ -509,15 +511,22 @@ const Side_Menu = ({}) => {
 
   useEffect(() => {
     if (componentOnFocus === component_name) {
-      if (window.innerWidth * 0.25 > 256) {
+      if (window.innerWidth > 700) {
         setMenuStyle({
-          width: Math.min(window.innerWidth * 0.25, 320),
+          width: 300,
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
         });
         setIconStyle({
           src: "arrow",
-          top: window.osInfo.platform === "darwin" ? 17 : 14,
-          left: Math.min(window.innerWidth * 0.25, 320) - 16,
+          top:
+            window.osInfo.platform === "darwin"
+              ? theme === "dark_theme"
+                ? 17
+                : 21
+              : theme === "dark_theme"
+              ? 14
+              : 18,
+          left: 300 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       } else {
@@ -555,7 +564,7 @@ const Side_Menu = ({}) => {
       setOnSelectAddress(null);
       setOnRenameAddress(null);
     }
-  }, [windowWidth, componentOnFocus, windowIsMaximized]);
+  }, [windowWidth, componentOnFocus, windowIsMaximized, theme]);
 
   return (
     <Contexts.Provider
@@ -568,23 +577,28 @@ const Side_Menu = ({}) => {
     >
       <div>
         <div
-          className="scrolling-space"
           style={{
             transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "fixed",
 
-            top: 0,
-            left: 0,
-            bottom: 0,
+            top: theme === "dark_theme" ? 0 : 8,
+            left: theme === "dark_theme" ? 0 : 8,
+            bottom: theme === "dark_theme" ? 0 : 8,
 
-            width: menuStyle.width,
+            width:
+              theme === "dark_theme"
+                ? menuStyle.width
+                : Math.max(menuStyle.width - 8, 0),
 
             boxSizing: "border-box",
             borderRight:
-              componentOnFocus === component_name
-                ? sideMenu.border
-                : "0px solid rgba(255, 255, 255, 0)",
+              theme === "dark_theme"
+                ? componentOnFocus === component_name
+                  ? sideMenu.border
+                  : "0px solid rgba(255, 255, 255, 0)"
+                : "none",
             scrollBehavior: "smooth",
+            borderRadius: theme === "dark_theme" ? 0 : 12,
 
             backgroundColor: sideMenu.backgroundColor,
             boxShadow: sideMenu.boxShadow,
@@ -598,6 +612,13 @@ const Side_Menu = ({}) => {
           }}
         >
           <Chat_List />
+          <Bottom_Function_Panel
+            width={
+              theme === "dark_theme"
+                ? menuStyle.width
+                : Math.max(menuStyle.width - 8, 0)
+            }
+          />
         </div>
         <div
           className="icon-container"
@@ -629,7 +650,6 @@ const Side_Menu = ({}) => {
             }}
           />
         </div>
-        <Bottom_Function_Panel width={menuStyle.width} />
       </div>
     </Contexts.Provider>
   );
