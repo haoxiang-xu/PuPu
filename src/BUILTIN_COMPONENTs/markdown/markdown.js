@@ -351,7 +351,7 @@ const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
 const ThinkingSection = ({ index, children }) => {
-  const { RGB, colorOffset, markdown } = useContext(ConfigContexts);
+  const { RGB, colorOffset, markdown, span } = useContext(ConfigContexts);
   const { set_expand_section_message, sectionData } = useContext(DataContexts);
   const [isExpanded, setIsExpanded] = useState(
     sectionData.messages[index].expanded
@@ -388,39 +388,40 @@ const ThinkingSection = ({ index, children }) => {
   }, [onClick, onHover]);
 
   return (
-    <div style={{ display: "inline-block" }}>
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
+    <div
+      style={{
+        display: "inline-block",
+        backgroundColor: isExpanded
+          ? `rgba(${RGB.R + colorOffset.middle_ground / 2}, ${
+              RGB.G + colorOffset.middle_ground / 2
+            }, ${RGB.B + colorOffset.middle_ground / 2}, 0.64)`
+          : `rgba(${RGB.R + colorOffset.middle_ground / 2}, ${
+              RGB.G + colorOffset.middle_ground / 2
+            }, ${RGB.B + colorOffset.middle_ground / 2}, 0)`,
 
-          width: "100%",
-          height: "64px",
-        }}
-      ></div>
+        borderRadius: `${default_border_radius}px`,
+        border: isExpanded
+          ? markdown.think_section.border_onHover
+          : markdown.think_section.border,
+      }}
+    >
       <div
-        className="markdown-section"
+        className="scrolling-space"
         style={{
           transition: "all 0.32s cubic-bezier(0.32, 1, 0.32, 1)",
-
           display: "inline-block",
-          backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground / 2}, ${
-            RGB.G + colorOffset.middle_ground / 2
-          }, ${RGB.B + colorOffset.middle_ground / 2}, 0.64)`,
           borderRadius: `${default_border_radius}px`,
           padding: `${default_font_size}px`,
-          maxHeight: isExpanded ? "none" : "8px",
-          overflowY: "hidden",
+          margin: isExpanded ? `32px 6px 0px 6px` : `0px 6px`,
+          maxHeight: isExpanded ? "256px" : "8px",
+          overflowY: "auto",
           opacity: isExpanded ? 1 : 0,
         }}
       >
         <ReactShowdown
           markdown={children}
           style={{
-            color: `rgb(${RGB.R + colorOffset.font / 2}, ${
-              RGB.G + colorOffset.font / 2
-            }, ${RGB.B + colorOffset.font / 2})`,
+            color: span.ignore.color,
           }}
         />
       </div>
@@ -430,9 +431,7 @@ const ThinkingSection = ({ index, children }) => {
           top: "17px",
           left: "44px",
 
-          color: `rgb(${RGB.R + colorOffset.font / 2}, ${
-            RGB.G + colorOffset.font / 2
-          }, ${RGB.B + colorOffset.font / 2})`,
+          color: span.ignore.color,
         }}
       >
         Thought process
@@ -449,7 +448,7 @@ const ThinkingSection = ({ index, children }) => {
             ? "translate(-50%, -50%) rotate(-90deg)"
             : "translate(-50%, -50%) rotate(90deg)",
           padding: 4,
-          borderRadius: default_border_radius - 4,
+          borderRadius: default_border_radius - 3,
           backgroundColor: style.backgroundColor,
           border: style.border,
           userSelect: "none",

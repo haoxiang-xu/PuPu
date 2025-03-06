@@ -354,6 +354,8 @@ const Chat_List_Item = ({ address }) => {
             overflow: "hidden",
             color: sideMenu.color,
 
+            opacity: 0.8,
+
             userSelect: "none",
             pointerEvents: "none",
           }}
@@ -423,6 +425,7 @@ const Chat_List = ({}) => {
         bottom: 36,
         marginRight: 3,
         marginBottom: 3,
+        paddingTop: 16,
 
         overflowX: "hidden",
         overflowY: "auto",

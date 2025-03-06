@@ -551,9 +551,7 @@ const ConfigContainer = ({ children }) => {
   const update_context_menu = (theme, RGB) => {
     if (theme && theme === "dark_theme") {
       return {
-        backgroundColor: `rgba(${RGB.R + 10}, ${RGB.G + 10}, ${
-          RGB.B + 10
-        }, 1)`,
+        backgroundColor: `rgba(${RGB.R + 10}, ${RGB.G + 10}, ${RGB.B + 10}, 1)`,
         border: "1px solid rgba(255, 255, 255, 0.5)",
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
         borderRadius: 10,
@@ -581,6 +579,27 @@ const ConfigContainer = ({ children }) => {
       };
     }
   };
+  const update_span = (theme, RGB) => {
+    if (theme && theme === "dark_theme") {
+      return {
+        paragraph: {
+          color: `rgba(${RGB.R + 150}, ${RGB.G + 150}, ${RGB.B + 150}, 1)`,
+        },
+        ignore: {
+          color: `rgba(${RGB.R + 150}, ${RGB.G + 150}, ${RGB.B + 150}, 0.64)`,
+        },
+      };
+    } else {
+      return {
+        paragraph: {
+          color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 1)`,
+        },
+        ignore: {
+          color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.64)`,
+        },
+      };
+    }
+  };
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
@@ -592,6 +611,7 @@ const ConfigContainer = ({ children }) => {
   const [settingPanel, setSettingPanel] = useState({});
   const [inputBox, setInputBox] = useState({});
   const [contextMenu, setContextMenu] = useState({});
+  const [span, setSpan] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -616,6 +636,7 @@ const ConfigContainer = ({ children }) => {
     setSettingPanel(update_setting_panel(theme, newRGB));
     setInputBox(update_input_box(theme, newRGB));
     setContextMenu(update_context_menu(theme, newRGB));
+    setSpan(update_span(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
     setIsConfigReady(true);
     return () => {
@@ -655,6 +676,7 @@ const ConfigContainer = ({ children }) => {
           settingPanel,
           inputBox,
           contextMenu,
+          span,
         }}
       >
         {children}
