@@ -275,7 +275,7 @@ const Dialog = () => {
       case "download_ollama_model":
         setDialog(<Ollama_Model_Manager />);
         break;
-      case "setting":
+      case "settings":
         setDialog(<Setting />);
         break;
       case "image_viewer":

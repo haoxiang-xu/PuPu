@@ -8,7 +8,7 @@ const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
   const [onDialog, setOnDialog] = useState("");
 
-  /* { API Status } =================================================================================== */
+  /* { API Status } ==================================================================================== */
   /* 
     null: ---------------------------------- await for response
     false: ------------------------------------ response failed
@@ -22,18 +22,18 @@ const StatusContainer = ({ children }) => {
       setOnDialog("await_ollama_setup_warning");
     }
   }, [ollamaServerStatus]);
-  /* { API Status } =================================================================================== */
+  /* { API Status } ==================================================================================== */
 
-  /* { Ollama Related Status } ------------------------------------------------------------------------ */
+  /* { Ollama Related Status } ------------------------------------------------------------------------- */
   const [ollamaPendingDeleteModels, setOllamaPendingDeleteModels] = useState(
     []
   );
   const [ollamaPendingDownloadModels, setOllamaPendingDownloadModels] =
     useState([]);
   const [ollamaInstallingStatus, setOllamaInstallingStatus] = useState(null);
-  /* { Ollama Related Status } ------------------------------------------------------------------------ */
+  /* { Ollama Related Status } ------------------------------------------------------------------------- */
 
-  /* { Event Listener } ------------------------------------------------------------------------------- */
+  /* { Event Listener } -------------------------------------------------------------------------------- */
   /* { window size listener } */
   const [windowIsMaximized, setWindowIsMaximized] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -52,7 +52,7 @@ const StatusContainer = ({ children }) => {
       window.removeEventListener("resize", handleResize);
     };
   }, []);
-  /* { Event Listener } ------------------------------------------------------------------------------- */
+  /* { Event Listener } -------------------------------------------------------------------------------- */
 
   /* { Request Related } ------------------------------------------------------------------------------- */
   const [ollamaOnTask, setOllamaOnTask] = useState(null);

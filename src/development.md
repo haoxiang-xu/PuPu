@@ -1,10 +1,21 @@
 # Development Guide
 
-## Containers
+- <span style="font-size: 20px">[`Containers`](#containers)</span>
+  - [`Config`](#config-container)
+  - [`Status`](#status-container)
+  - [`Request`](#request-container)
+  - [`Data`](#data-container)
+- <span style="font-size: 20px">[`Components`](#components)</span>
+  - [`# Context Menu`](#context-menu)
+
+
+# Containers <a name="containers"></a>
 
 <span style="opacity: 0.32">containers are the main building blocks of the application. They are responsible for managing the state of the application and for rendering the components. Each container component is composed of a </span>`Container`<span style="opacity: 0.32"> component and a </span>`Context.Provider`<span style="opacity: 0.32"> component. </span>
 
-### Config Container
+### Config Container <a name="config-container"></a>
+
+---
 
 <span style="opacity: 0.32">Setting related variables.</span>
 
@@ -12,21 +23,23 @@
 - `RGB, setRGB`
 - `colorOffset, setColorOffset`
 
-### Status Container
+### Status Container <a name="status-container"></a>
+
+---
 
 <span style="opacity: 0.32">Status for UI, running processes, server status, etc.</span>
 
 - `componentOnFocus, setComponentOnFocus`
   - `side_menu`
-  - `message_list`
-    - `message_list_model_menu`
-  - `setting`
+  - `chat`
+    - `chat_model_selector`
+  - `settings`
 - `onDialog, setOnDialog`
 
   - `""` no dialog should be shown.
   - `await_ollama_setup_warning`
   - `download_ollama_model`
-  - `setting`
+  - `settings`
   - `image_viewer|image_base64`
 
 - `ollamaServerStatus, setOllamaServerStatus`
@@ -51,11 +64,15 @@
   - `image_to_text|[]`
   - `null`
 
-### Request Container
+### Request Container <a name="request-container"></a>
+
+---
 
 <span style="opacity: 0.32">Request Functions to local remote server.</span>
 
-### Data Container
+### Data Container <a name="data-container"></a>
+
+---
 
 <span style="opacity: 0.32">Complex Json Format data structures.</span>
 
@@ -100,13 +117,13 @@
 ];
 ```
 
-## Components
+## Components <a name="components"></a>
 
-### Context Menu
+### Context Menu <a name="context-menu"></a>
 
 <span style="opacity: 0.32">Complex Json Format data structures.</span>
 
-- `width`
+- `width` <span style="opacity: 0.32">Width of the menu</span>
 
 - `options`
 
@@ -118,8 +135,9 @@
     img_src: "image_src_string",
     label: "label_string",
     onClick: () => {},
-    x: 0, // optional
-    y: 0, // optional
   },
 ];
 ```
+
+- `x` <span style="opacity: 0.32">If x is not defined, the menu will be shown at the mouse click position (optional).</span>
+- `y` <span style="opacity: 0.32">If y is not defined, the menu will be shown at the mouse click position (optional).</span>

@@ -67,3 +67,13 @@ types = [
 ];
 
 ```
+
+```js
+{
+    root: {
+        model: "deepseek:r1",
+        inputs: [],
+        outputs: [],
+    },
+}
+```

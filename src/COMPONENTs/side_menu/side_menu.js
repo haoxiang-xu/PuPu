@@ -119,8 +119,8 @@ const Bottom_Function_Panel = ({ width }) => {
           cursor: "pointer",
         }}
         onClick={() => {
-          setOnDialog("setting");
-          setComponentOnFocus("setting");
+          setOnDialog("settings");
+          setComponentOnFocus("settings");
         }}
       />
       <Bottom_Function_Panel_Theme_Switch />
@@ -495,7 +495,7 @@ const Chat_List = ({}) => {
   );
 };
 const Side_Menu = ({}) => {
-  const { RGB, theme, sideMenu } = useContext(ConfigContexts);
+  const { theme, sideMenu } = useContext(ConfigContexts);
   const {
     windowWidth,
     windowIsMaximized,

@@ -536,7 +536,7 @@ const Model_Selector_Item = ({ model }) => {
   );
 };
 const Model_Selector = ({ value, setMenuWidth }) => {
-  const sub_component_name = component_name + "_" + "model_menu";
+  const sub_component_name = component_name + "_" + "model_selector";
 
   const { messageList } = useContext(ConfigContexts);
   const { sectionData, avaliableModels, setAvaliableModels } =
@@ -580,7 +580,7 @@ const Model_Selector = ({ value, setMenuWidth }) => {
         bottom:
           value.length !== 0 || ollamaOnTask !== null
             ? Math.max(inputHeight + 35, 84)
-            : 33,
+            : 34,
         left: value.length !== 0 || ollamaOnTask !== null ? 0 : 50,
 
         fontSize: default_font_size + 2,
@@ -771,7 +771,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
           value.length !== 0
             ? menuWidth + default_offset.shorter
             : menuWidth + default_offset.longer,
-        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 83) : 31,
+        bottom: value.length !== 0 ? Math.max(inputHeight + 33, 83) : 32,
 
         height: 33,
 

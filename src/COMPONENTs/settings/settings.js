@@ -11,6 +11,8 @@ import { list_of_setting_menus } from "./constants";
 
 const SettingPanelContexts = createContext("");
 
+const component_name = "settings";
+
 const Submenu = ({ children }) => {
   return (
     <div
@@ -186,7 +188,7 @@ const Settings = () => {
           bottom: 0,
         }}
         onClick={() => {
-          setComponentOnFocus("setting");
+          setComponentOnFocus(component_name);
           unload_context_menu();
         }}
       >
