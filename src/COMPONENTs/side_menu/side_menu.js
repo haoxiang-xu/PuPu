@@ -119,6 +119,7 @@ const Bottom_Function_Panel = ({ width }) => {
           height: 20,
           opacity: 0.8,
           cursor: "pointer",
+          userSelect: "none",
         }}
         onClick={() => {
           setOnDialog("settings");

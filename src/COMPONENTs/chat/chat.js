@@ -1027,6 +1027,9 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
   return (
     <div
       style={{
+        transition:
+          "left 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
+          "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "fixed",
         transform: "translate(-50%, 0%)",
         left:
