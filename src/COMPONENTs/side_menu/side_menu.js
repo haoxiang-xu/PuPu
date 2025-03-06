@@ -51,8 +51,8 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
           transform: "translate(0%, -50%)",
           top: theme === "light_theme" ? "50%" : "200%",
           left: -24,
-          width: 18,
-          height: 18,
+          width: 20,
+          height: 20,
           userSelect: "none",
           opacity: 0.8,
         }}
@@ -65,8 +65,8 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
           transform: "translate(0%, -50%)",
           top: theme === "light_theme" ? "200%" : "50%",
           left: -24,
-          width: 18,
-          height: 18,
+          width: 20,
+          height: 20,
           userSelect: "none",
           opacity: 0.8,
         }}
