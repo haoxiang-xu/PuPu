@@ -228,7 +228,7 @@ const ConfigContainer = ({ children }) => {
             }, 0.72)`,
             border: `1px solid rgba(0, 0, 0, 0.2)`,
             border_onHover: `1px solid rgba(0, 0, 0, 0.5)`,
-            border_onActive: `1px solid rgba(0, 0, 0, 0.5)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0.36)`,
             color: `rgba(0, 0, 0, 0.32)`,
             color_onHover: `rgba(0, 0, 0, 0.64)`,
             color_onActive: `rgba(0, 0, 0, 1)`,
