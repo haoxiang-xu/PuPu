@@ -597,12 +597,31 @@ const Side_Menu = ({}) => {
         setOnRenameAddress,
       }}
     >
-      <div>
+      <>
+        <div
+          style={{
+            transition:
+              "background-color 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+
+            backgroundColor:
+              onSideMenu &&
+              windowWidth <= side_menu_width_threshold &&
+              theme === "light_theme"
+                ? "rgba(0, 0, 0, 0.32)"
+                : "rgba(0, 0, 0, 0)",
+            pointerEvents: "none",
+          }}
+        ></div>
         <div
           style={{
             transition:
               "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
-              "opacity 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
+              "opacity 0.36s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
               "background-color 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
               "border-right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "fixed",
@@ -698,7 +717,7 @@ const Side_Menu = ({}) => {
             }}
           />
         </div>
-      </div>
+      </>
     </Contexts.Provider>
   );
 };

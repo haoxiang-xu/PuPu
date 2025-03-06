@@ -118,11 +118,11 @@ const ConfigContainer = ({ children }) => {
       } else {
         return {
           border: "1px solid rgba(0, 0, 0, 0.12)",
-          backgroundColor: `rgba(${RGB.R - 28}, ${RGB.G - 28}, ${
-            RGB.B - 28
+          backgroundColor: `rgba(${RGB.R - 22}, ${RGB.G - 22}, ${
+            RGB.B - 22
           }, 1)`,
-          backgroundColor_onHover: `rgba(${RGB.R - 8 }, ${RGB.G - 8}, ${RGB.B - 8}, 1)`,
-          boxShadow: "inset 0px 0px 32px rgba(0, 0, 0, 0.08)",
+          backgroundColor_onHover: `rgba(${RGB.R - 16}, ${RGB.G - 16}, ${RGB.B - 16}, 1)`,
+          boxShadow: "inset 0px 0px 32px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.96)`,
           borderRadius: 12,
           chat_room_item: {
@@ -489,7 +489,7 @@ const ConfigContainer = ({ children }) => {
             backgroundColor_onHover: `rgba(255, 255, 255, 1)`,
             border_onActive: `1px solid rgba(0, 0, 0, 0)`,
             backgroundColor_onActive: `rgba(255, 255, 255, 1)`,
-            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.16)",
+            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.08)",
           },
         };
       }

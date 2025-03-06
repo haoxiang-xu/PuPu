@@ -6,11 +6,6 @@ import TextareaAutosize from "react-textarea-autosize";
 const default_font_size = 14;
 const default_padding = default_font_size;
 
-const R = 30;
-const G = 30;
-const B = 30;
-const default_forground_color_offset = 12;
-
 const default_max_rows = 16;
 
 const Input = ({

@@ -974,7 +974,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
 };
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 
-const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
+const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, color, inputBox } = useContext(ConfigContexts);
   const { windowWidth, componentOnFocus, onSideMenu } =
     useContext(StatusContexts);
@@ -1027,10 +1027,12 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   return (
     <div
       style={{
-        transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "fixed",
         transform: "translate(-50%, 0%)",
-        left: windowWidth > side_menu_width_threshold && onSideMenu ? "calc(50% + 150px)" : "50%",
+        left:
+          windowWidth > side_menu_width_threshold && onSideMenu
+            ? "calc(50% + 150px)"
+            : "50%",
         bottom: 0,
 
         height: 64,
@@ -1326,7 +1328,9 @@ const Chat = () => {
           left: windowWidth > side_menu_width_threshold && onSideMenu ? 300 : 0,
 
           width:
-            windowWidth > side_menu_width_threshold && onSideMenu ? "calc(100% - 300px)" : "100%",
+            windowWidth > side_menu_width_threshold && onSideMenu
+              ? "calc(100% - 300px)"
+              : "100%",
           height: "100%",
         }}
         onDragOver={(e) => {
@@ -1336,7 +1340,7 @@ const Chat = () => {
       >
         <Message_Scrolling_List />
         {sectionData.on_mode === "terminal" ? <Term /> : null}
-        <Input_Section
+        <Input_Box
           inputValue={inputValue}
           setInputValue={setInputValue}
           on_input_submit={on_input_submit}
