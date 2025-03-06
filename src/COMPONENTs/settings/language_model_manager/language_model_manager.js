@@ -471,7 +471,7 @@ const AvailableModel = () => {
 };
 /* { Available Model List } ========================================================================================================================== */
 
-const OllamaModelManager = ({ available_models }) => {
+const Language_Model_Manager = ({ available_models }) => {
   const { modelDownloader } = useContext(ConfigContexts);
   const { unload_context_menu } = useContext(StatusContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
@@ -585,7 +585,7 @@ const OllamaModelManager = ({ available_models }) => {
               color: modelDownloader.color,
             }}
           >
-            Ollama Language Models
+            Ollama Models
           </span>
         </div>
         {available_models.map((family, index) => {
@@ -596,4 +596,4 @@ const OllamaModelManager = ({ available_models }) => {
   );
 };
 
-export default OllamaModelManager;
+export default Language_Model_Manager;

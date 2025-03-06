@@ -7,7 +7,7 @@ import { DataContexts } from "../../CONTAINERs/data/contexts";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import ScrollingSpace from "../../BUILTIN_COMPONENTs/scrolling_space/scrolling_sapce";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import OllamaModelManager from "../settings/ollama_model_manager/ollama_model_manager";
+import Language_Model_Manager from "../settings/language_model_manager/language_model_manager";
 import Settings from "../settings/settings";
 
 import { await_Ollama_setup_warning } from "./default_dialogs";
@@ -193,7 +193,9 @@ const Ollama_Model_Manager = ({}) => {
         e.stopPropagation();
       }}
     >
-      <OllamaModelManager available_models={available_large_language_models} />
+      <Language_Model_Manager
+        available_models={available_large_language_models}
+      />
     </div>
   );
 };

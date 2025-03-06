@@ -480,11 +480,8 @@ const Model_Selector_Add_Model_Button = () => {
 };
 const Model_Selector_Item = ({ model }) => {
   const { messageList } = useContext(ConfigContexts);
-  const {
-    sectionData,
-    setAvaliableModels,
-    update_lanaguage_model_using,
-  } = useContext(DataContexts);
+  const { sectionData, setAvaliableModels, update_lanaguage_model_using } =
+    useContext(DataContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
   const { setComponentOnFocus } = useContext(StatusContexts);
   const { targetAddress } = useContext(ChatContexts);
@@ -783,13 +780,75 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
       }}
     >
       <div
-        className="terminal_button"
+        className="attach_button"
         style={{
           transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
           position: "absolute",
           transform: "translate(0%, -50%)",
           top: "50%",
           left: 0,
+          width: 26,
+          height: 26,
+          backgroundColor:
+            onClick === "attachMode"
+              ? messageList.input_upper_panel.backgroundColor_onActive
+              : onHover === "attachMode"
+              ? messageList.input_upper_panel.backgroundColor_onHover
+              : messageList.input_upper_panel.backgroundColor,
+          borderRadius: default_border_radius - 2,
+          border:
+            onClick === "attachMode"
+              ? messageList.input_upper_panel.border_onActive
+              : onHover === "attachMode"
+              ? messageList.input_upper_panel.border_onHover
+              : messageList.input_upper_panel.border,
+          boxShadow:
+            onHover === "attachMode"
+              ? messageList.input_upper_panel.boxShadow
+              : "none",
+          userSelect: "none",
+        }}
+        onMouseEnter={() => {
+          setOnHover("attachMode");
+        }}
+        onMouseLeave={() => {
+          setOnHover(null);
+          setOnClick(null);
+        }}
+        onMouseDown={() => {
+          setOnClick("attachMode");
+        }}
+        onMouseUp={() => {
+          setOnClick(null);
+        }}
+        onClick={() => {}}
+      >
+        <Icon
+          src="attachment"
+          alt="attach"
+          style={{
+            position: "absolute",
+            transform: "translate(-50%, -50%)",
+            top: "50%",
+            left: "50%",
+            width: 20,
+            opacity:
+              onClick === "attachMode"
+                ? messageList.input_upper_panel.opacity_onActive
+                : onHover === "attachMode"
+                ? messageList.input_upper_panel.opacity_onHover
+                : messageList.input_upper_panel.opacity,
+          }}
+        />
+      </div>
+      <div
+        className="terminal_button"
+        style={{
+          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          transform: "translate(0%, -50%)",
+          top: "50%",
+          left: 34,
           width: 26,
           height: 26,
           backgroundColor:
@@ -848,68 +907,6 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
         />
       </div>
       {/* <div
-        className="web_button"
-        style={{
-          transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
-          position: "absolute",
-          transform: "translate(0%, -50%)",
-          top: "50%",
-          left: 34,
-          width: 26,
-          height: 26,
-          backgroundColor:
-            onClick === "webMode"
-              ? messageList.input_upper_panel.backgroundColor_onActive
-              : onHover === "webMode"
-              ? messageList.input_upper_panel.backgroundColor_onHover
-              : messageList.input_upper_panel.backgroundColor,
-          borderRadius: default_border_radius - 2,
-          border:
-            onClick === "webMode"
-              ? messageList.input_upper_panel.border_onActive
-              : onHover === "webMode"
-              ? messageList.input_upper_panel.border_onHover
-              : messageList.input_upper_panel.border,
-          boxShadow:
-            onHover === "webMode"
-              ? messageList.input_upper_panel.boxShadow
-              : "none",
-          userSelect: "none",
-        }}
-        onMouseEnter={() => {
-          setOnHover("webMode");
-        }}
-        onMouseLeave={() => {
-          setOnHover(null);
-          setOnClick(null);
-        }}
-        onMouseDown={() => {
-          setOnClick("webMode");
-        }}
-        onMouseUp={() => {
-          setOnClick(null);
-        }}
-        onClick={() => {}}
-      >
-        <Icon
-          src="web"
-          alt="web"
-          style={{
-            position: "absolute",
-            transform: "translate(-50%, -50%)",
-            top: "50%",
-            left: "50%",
-            width: 20,
-            opacity:
-              onClick === "webMode"
-                ? messageList.input_upper_panel.opacity_onActive
-                : onHover === "webMode"
-                ? messageList.input_upper_panel.opacity_onHover
-                : messageList.input_upper_panel.opacity,
-          }}
-        />
-      </div>
-      <div
         className="github_button"
         style={{
           transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
@@ -1207,7 +1204,11 @@ const Chat = () => {
 
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
-    if (inputValue.length > 0 && awaitResponse === null && sectionData.language_model_using) {
+    if (
+      inputValue.length > 0 &&
+      awaitResponse === null &&
+      sectionData.language_model_using
+    ) {
       let image_keys = [];
       if (inputImages.length > 0) {
         image_keys = save_input_images(targetAddress, inputImages);

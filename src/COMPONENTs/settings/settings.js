@@ -3,7 +3,7 @@ import React, { useState, useEffect, useContext, createContext } from "react";
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
-import OllamaModelManager from "./ollama_model_manager/ollama_model_manager";
+import Language_Model_Manager from "./language_model_manager/language_model_manager";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { Storage_Manager } from "./storage_manager/storage_manager";
 import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
@@ -152,7 +152,8 @@ const Submenu_Side_List = () => {
   );
 };
 const Settings = () => {
-  const { setComponentOnFocus, unload_context_menu } = useContext(StatusContexts);
+  const { setComponentOnFocus, unload_context_menu } =
+    useContext(StatusContexts);
   const [selectedMenu, setSelectedMenu] = useState(list_of_setting_menus[0]);
   const [menu, setMenu] = useState(<div></div>);
 
@@ -160,7 +161,7 @@ const Settings = () => {
     switch (selectedMenu) {
       case "models":
         setMenu(
-          <OllamaModelManager
+          <Language_Model_Manager
             available_models={available_large_language_models}
           />
         );

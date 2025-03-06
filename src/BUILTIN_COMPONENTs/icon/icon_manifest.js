@@ -67,6 +67,8 @@ export const iconManifest = {
   folder_: () => import("./SVGs/UI/folder_.svg"),
   install: () => import("./SVGs/UI/install.svg"),
   install_: () => import("./SVGs/UI/install_.svg"),
+  attachment: () => import("./SVGs/UI/attachment.svg"),
+  attachment_: () => import("./SVGs/UI/attachment_.svg"),
 
   local_storage: () => import("./SVGs/UI/local_storage.svg"),
   local_storage_: () => import("./SVGs/UI/local_storage_.svg"),
