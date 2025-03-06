@@ -9,7 +9,6 @@ import React, {
 
 import { UNIQUE_KEY } from "../../../CONTAINERs/root_consts";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
-import Context_Menu from "../../context_menu/context_menu";
 
 import { ConfigContexts } from "../../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../../CONTAINERs/data/contexts";
@@ -25,6 +24,7 @@ const AddressSizesItem = ({ index, title, size, address }) => {
 
   const [onHover, setOnHover] = useState(false);
   const spanRef = useRef(null);
+  const tagRef = useRef(null);
   const [spanWidth, setSpanWidth] = useState(0);
   const [spanOpacity, setSpanOpacity] = useState(0);
   const [formatedSize, setFormatedSize] = useState("");
@@ -49,6 +49,7 @@ const AddressSizesItem = ({ index, title, size, address }) => {
 
   return (
     <div
+      ref={tagRef}
       style={{
         position: "relative",
         width: "calc(100% - 12px)",
@@ -70,8 +71,20 @@ const AddressSizesItem = ({ index, title, size, address }) => {
       onMouseLeave={() => {
         setOnHover(false);
       }}
-      onClick={() => {
+      onClick={(e) => {
         setOnSelectLabel("");
+      }}
+      onContextMenu={(e) => {
+        load_context_menu(e, 120, [
+          {
+            img_src: "delete",
+            label: "Delete",
+            onClick: () => {
+              delete_local_storage_item(address);
+              unload_context_menu();
+            },
+          },
+        ]);
       }}
     >
       <span
@@ -127,16 +140,24 @@ const AddressSizesItem = ({ index, title, size, address }) => {
           onClick={(e) => {
             e.stopPropagation();
             setOnSelectLabel(address);
-            load_context_menu(e, 120, [
-              {
-                img_src: "delete",
-                label: "Delete",
-                onClick: () => {
-                  delete_local_storage_item(address);
-                  unload_context_menu();
+            load_context_menu(
+              e,
+              120,
+              [
+                {
+                  img_src: "delete",
+                  label: "Delete",
+                  onClick: () => {
+                    delete_local_storage_item(address);
+                    unload_context_menu();
+                  },
                 },
-              },
-            ]);
+              ],
+              tagRef.current?.getBoundingClientRect().x +
+                tagRef.current?.offsetWidth -
+                36,
+              tagRef.current?.getBoundingClientRect().y + 36
+            );
           }}
         />
       )}

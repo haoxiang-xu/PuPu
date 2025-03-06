@@ -149,6 +149,7 @@ const Chat_List_Item = ({ address }) => {
   const [onHover, setOnHover] = useState(false);
 
   const inputRef = useRef(null);
+  const tagRef = useRef(null);
   const [renameValue, setRenameValue] = useState("");
   useEffect(() => {
     if (onRenameAddress === address && inputRef.current) {
@@ -196,6 +197,7 @@ const Chat_List_Item = ({ address }) => {
 
   return (
     <div
+      ref={tagRef}
       style={{
         transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
@@ -225,6 +227,26 @@ const Chat_List_Item = ({ address }) => {
         e.stopPropagation();
         setOnRenameAddress(address);
       }}
+      onContextMenu={(e) => {
+        load_context_menu(e, 180, [
+          {
+            img_src: "rename",
+            label: "Rename",
+            onClick: () => {
+              setOnRenameAddress(address);
+              unload_context_menu();
+            },
+          },
+          {
+            img_src: "delete",
+            label: "Delete",
+            onClick: () => {
+              delete_address_in_local_storage(address);
+              unload_context_menu();
+            },
+          },
+        ]);
+      }}
     >
       <Icon
         src={"more"}
@@ -247,24 +269,30 @@ const Chat_List_Item = ({ address }) => {
           } else {
             setOnSelectAddress(address);
           }
-          load_context_menu(e, 180, [
-            {
-              img_src: "rename",
-              label: "Rename",
-              onClick: () => {
-                setOnRenameAddress(address);
-                unload_context_menu();
+          load_context_menu(
+            e,
+            180,
+            [
+              {
+                img_src: "rename",
+                label: "Rename",
+                onClick: () => {
+                  setOnRenameAddress(address);
+                  unload_context_menu();
+                },
               },
-            },
-            {
-              img_src: "delete",
-              label: "Delete",
-              onClick: () => {
-                delete_address_in_local_storage(address);
-                unload_context_menu();
+              {
+                img_src: "delete",
+                label: "Delete",
+                onClick: () => {
+                  delete_address_in_local_storage(address);
+                  unload_context_menu();
+                },
               },
-            },
-          ]);
+            ],
+            tagRef.current?.getBoundingClientRect().x + tagRef.current?.offsetWidth - 32,
+            tagRef.current?.getBoundingClientRect().y + 28
+          );
         }}
       />
       {onRenameAddress === address ? (

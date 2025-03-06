@@ -357,6 +357,20 @@ const ModelTag = ({ model }) => {
         border: modelDownloader.border,
         boxSizing: "border-box",
       }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        load_context_menu(e, tagWidth, [
+          {
+            img_src: "delete",
+            label: "Delete",
+            onClick: () => {
+              setOllamaPendingDeleteModels((prev) => [...prev, model]);
+              unload_context_menu();
+            },
+          },
+        ]);
+      }}
     >
       {ollamaInstallingStatus && ollamaInstallingStatus.model === model ? (
         <div
@@ -418,16 +432,22 @@ const ModelTag = ({ model }) => {
             onClick={(e) => {
               e.stopPropagation();
               setItemOnSelect(sub_component_name + model);
-              load_context_menu(e, tagWidth, [
-                {
-                  img_src: "delete",
-                  label: "Delete",
-                  onClick: () => {
-                    setOllamaPendingDeleteModels((prev) => [...prev, model]);
-                    unload_context_menu();
+              load_context_menu(
+                e,
+                tagWidth,
+                [
+                  {
+                    img_src: "delete",
+                    label: "Delete",
+                    onClick: () => {
+                      setOllamaPendingDeleteModels((prev) => [...prev, model]);
+                      unload_context_menu();
+                    },
                   },
-                },
-              ]);
+                ],
+                tagRef.current?.getBoundingClientRect().x + tagWidth - 32,
+                tagRef.current?.getBoundingClientRect().y + 28
+              );
             }}
           />
         )}

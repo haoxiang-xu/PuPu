@@ -63,13 +63,20 @@ const StatusContainer = ({ children }) => {
   const [ContextMenuPosition, setContextMenuPosition] = useState(null);
   const [ContextMenuConfig, setContextMenuConfig] = useState(null);
 
-  const load_context_menu = (e, width, options) => {
+  const load_context_menu = (e, width, options, x = null, y = null) => {
     e.preventDefault();
     setOnContextMenu(true);
-    setContextMenuPosition({
-      x: e.clientX,
-      y: e.clientY,
-    });
+    if (x !== null && y !== null) {
+      setContextMenuPosition({
+        x: x,
+        y: y,
+      });
+    } else {
+      setContextMenuPosition({
+        x: e.clientX,
+        y: e.clientY,
+      });
+    }
     setContextMenuConfig({
       width: width,
       options: options,
