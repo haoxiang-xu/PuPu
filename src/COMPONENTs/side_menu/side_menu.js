@@ -489,7 +489,7 @@ const Chat_List = ({}) => {
           pointerEvents: "none",
         }}
       >
-        Chat Rooms
+        Chats
       </span>
     </div>
   );
