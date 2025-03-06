@@ -19,6 +19,7 @@ import Term from "../terminal/terminal";
 import FileDropZone from "../file_drop_zone/file_drop_zone";
 
 import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
+import { side_menu_width_threshold } from "../side_menu/constants";
 
 const default_border_radius = 10;
 const default_font_size = 14;
@@ -975,7 +976,8 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
 
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   const { RGB, color, inputBox } = useContext(ConfigContexts);
-  const { windowWidth, componentOnFocus } = useContext(StatusContexts);
+  const { windowWidth, componentOnFocus, onSideMenu } =
+    useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
   const { awaitResponse, setInputHeight } = useContext(ChatContexts);
 
@@ -1025,10 +1027,10 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
   return (
     <div
       style={{
-        transition: "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "fixed",
         transform: "translate(-50%, 0%)",
-        left: "50%",
+        left: windowWidth > side_menu_width_threshold && onSideMenu ? "calc(50% + 150px)" : "50%",
         bottom: 0,
 
         height: 64,
@@ -1165,6 +1167,7 @@ const Chat = () => {
     reset_regenerate_title_count_down,
     save_input_images,
   } = useContext(DataContexts);
+  const { windowWidth, onSideMenu } = useContext(StatusContexts);
   const {
     ollama_chat_completion_streaming,
     ollama_update_title_no_streaming,
@@ -1317,11 +1320,13 @@ const Chat = () => {
     >
       <div
         style={{
+          transition: "all 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
-          top: "0",
-          left: "0",
+          top: 0,
+          left: windowWidth > side_menu_width_threshold && onSideMenu ? 300 : 0,
 
-          width: "100%",
+          width:
+            windowWidth > side_menu_width_threshold && onSideMenu ? "calc(100% - 300px)" : "100%",
           height: "100%",
         }}
         onDragOver={(e) => {

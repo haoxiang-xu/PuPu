@@ -265,8 +265,6 @@ const Storage_Manager = () => {
         }
       }
     }
-    console.log(chatMessages);
-
     let chatMessagesArray = [];
 
     for (let key in chatMessages) {

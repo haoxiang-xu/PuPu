@@ -419,9 +419,9 @@ const DataContainer = ({ children }) => {
           <ScaleLoader color={"#cccccc"} size={12} margin={1} />
         </div>
       ) : null}
-      <Dialog />
       <Title_Bar />
       {ollamaServerStatus === true ? <Side_Menu /> : null}
+      <Dialog />
     </DataContexts.Provider>
   );
 };

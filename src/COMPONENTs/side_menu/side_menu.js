@@ -11,6 +11,8 @@ import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
+import { side_menu_width_threshold } from "./constants";
+
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const component_name = "side_menu";
@@ -354,7 +356,7 @@ const Chat_List_Item = ({ address }) => {
             overflow: "hidden",
             color: sideMenu.color,
 
-            opacity: 0.8,
+            opacity: 0.9,
 
             userSelect: "none",
             pointerEvents: "none",
@@ -371,7 +373,8 @@ const Chat_List_Item = ({ address }) => {
 const Chat_List = ({}) => {
   const { RGB, sideMenu } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
-  const { componentOnFocus, setComponentOnFocus } = useContext(StatusContexts);
+  const { componentOnFocus, setComponentOnFocus, onSideMenu } =
+    useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
 
@@ -478,7 +481,7 @@ const Chat_List = ({}) => {
           transition: "left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",
           top: 46,
-          left: componentOnFocus === component_name ? 14 : -100,
+          left: onSideMenu ? 14 : -100,
 
           fontSize: 19,
           textOverflow: "ellipsis",
@@ -495,13 +498,15 @@ const Chat_List = ({}) => {
   );
 };
 const Side_Menu = ({}) => {
-  const { theme, sideMenu } = useContext(ConfigContexts);
+  const { theme, sideMenu, component } = useContext(ConfigContexts);
   const {
     windowWidth,
     windowIsMaximized,
     componentOnFocus,
     setComponentOnFocus,
     unload_context_menu,
+    onSideMenu,
+    setOnSideMenu,
   } = useContext(StatusContexts);
   const [iconStyle, setIconStyle] = useState({});
   const [menuStyle, setMenuStyle] = useState({
@@ -512,8 +517,8 @@ const Side_Menu = ({}) => {
   const [onRenameAddress, setOnRenameAddress] = useState(null);
 
   useEffect(() => {
-    if (componentOnFocus === component_name) {
-      if (window.innerWidth > 700) {
+    if (onSideMenu) {
+      if (window.innerWidth > side_menu_width_threshold) {
         setMenuStyle({
           width: 300,
           borderRight: "1px solid rgba(255, 255, 255, 0.12)",
@@ -524,10 +529,10 @@ const Side_Menu = ({}) => {
             window.osInfo.platform === "darwin"
               ? theme === "dark_theme"
                 ? 17
-                : 21
+                : 22
               : theme === "dark_theme"
               ? 14
-              : 21,
+              : 22,
           left: 300 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -573,7 +578,15 @@ const Side_Menu = ({}) => {
       setOnSelectAddress(null);
       setOnRenameAddress(null);
     }
-  }, [windowWidth, componentOnFocus, windowIsMaximized, theme]);
+  }, [windowWidth, componentOnFocus, windowIsMaximized, theme, onSideMenu]);
+  useEffect(() => {
+    if (
+      componentOnFocus !== component_name &&
+      windowWidth <= side_menu_width_threshold
+    ) {
+      setOnSideMenu(false);
+    }
+  }, [componentOnFocus]);
 
   return (
     <Contexts.Provider
@@ -588,7 +601,10 @@ const Side_Menu = ({}) => {
         <div
           style={{
             transition:
-              "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), opacity 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+              "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
+              "opacity 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
+              "background-color 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
+              "border-right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "fixed",
 
             top: theme === "dark_theme" ? 0 : 8,
@@ -603,23 +619,24 @@ const Side_Menu = ({}) => {
             boxSizing: "border-box",
             borderRight:
               theme === "dark_theme"
-                ? componentOnFocus === component_name
+                ? onSideMenu && windowWidth <= side_menu_width_threshold
                   ? sideMenu.border
-                  : "0px solid rgba(255, 255, 255, 0)"
+                  : "none"
                 : "none",
             scrollBehavior: "smooth",
             borderRadius: theme === "dark_theme" ? 0 : 12,
 
-            backgroundColor: sideMenu.backgroundColor,
-            boxShadow: sideMenu.boxShadow,
+            backgroundColor:
+              onSideMenu && windowWidth > side_menu_width_threshold
+                ? sideMenu.backgroundColor
+                : sideMenu.backgroundColor_onHover,
+            boxShadow:
+              onSideMenu && windowWidth > side_menu_width_threshold
+                ? sideMenu.boxShadow
+                : "none",
             backdropFilter: "blur(36px)",
             WebkitAppRegion: "no-drag",
-            opacity:
-              theme === "dark_theme"
-                ? 1
-                : componentOnFocus === component_name
-                ? 1
-                : 0,
+            opacity: theme === "dark_theme" ? 1 : onSideMenu ? 1 : 0,
           }}
           onClick={(e) => {
             e.stopPropagation();
@@ -627,6 +644,20 @@ const Side_Menu = ({}) => {
             setOnSelectAddress(null);
           }}
         >
+          {onSideMenu && windowWidth > side_menu_width_threshold ? (
+            <div
+              style={{
+                position: "absolute",
+                top: 16,
+                bottom: 16,
+                right: 0,
+
+                width: component.separator.width,
+                backgroundColor: component.separator.backgroundColor,
+                opacity: 0.32,
+              }}
+            ></div>
+          ) : null}
           <Chat_List />
           <Bottom_Function_Panel
             width={
@@ -658,6 +689,7 @@ const Side_Menu = ({}) => {
             }}
             onClick={(e) => {
               e.stopPropagation();
+              setOnSideMenu(!onSideMenu);
               if (componentOnFocus === component_name) {
                 setComponentOnFocus("");
               } else {

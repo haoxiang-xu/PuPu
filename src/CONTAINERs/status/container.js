@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 
 import { StatusContexts } from "./contexts";
 
@@ -7,6 +7,7 @@ import Context_Menu from "../../COMPONENTs/context_menu/context_menu";
 const StatusContainer = ({ children }) => {
   const [componentOnFocus, setComponentOnFocus] = useState("");
   const [onDialog, setOnDialog] = useState("");
+  const [onSideMenu, setOnSideMenu] = useState(false);
 
   /* { API Status } ==================================================================================== */
   /* 
@@ -101,6 +102,8 @@ const StatusContainer = ({ children }) => {
         setComponentOnFocus,
         onDialog,
         setOnDialog,
+        onSideMenu,
+        setOnSideMenu,
         /* { window width } */
         windowWidth,
         setWindowWidth,

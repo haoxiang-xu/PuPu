@@ -99,6 +99,7 @@ const ConfigContainer = ({ children }) => {
         return {
           border: "1px solid rgba(255, 255, 255, 0.32)",
           backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
+          backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
           boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.72)`,
           borderRadius: 0,
@@ -120,7 +121,8 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R - 28}, ${RGB.G - 28}, ${
             RGB.B - 28
           }, 1)`,
-          boxShadow: "8px 0px 32px rgba(0, 0, 0, 0)",
+          backgroundColor_onHover: `rgba(${RGB.R - 8 }, ${RGB.G - 8}, ${RGB.B - 8}, 1)`,
+          boxShadow: "inset 0px 0px 32px rgba(0, 0, 0, 0.08)",
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.96)`,
           borderRadius: 12,
           chat_room_item: {
@@ -600,6 +602,23 @@ const ConfigContainer = ({ children }) => {
       };
     }
   };
+  const update_component = (theme, RGB) => {
+    if (theme && theme === "dark_theme") {
+      return {
+        separator: {
+          width: 2,
+          backgroundColor: `rgba(225, 225, 225, 0.32)`,
+        },
+      };
+    } else {
+      return {
+        separator: {
+          width: 2,
+          backgroundColor: `rgba(0, 0, 0, 0)`,
+        },
+      };
+    }
+  };
 
   const [sideMenu, setSideMenu] = useState({});
   const [messageList, setMessageList] = useState({});
@@ -612,6 +631,7 @@ const ConfigContainer = ({ children }) => {
   const [inputBox, setInputBox] = useState({});
   const [contextMenu, setContextMenu] = useState({});
   const [span, setSpan] = useState({});
+  const [component, setComponent] = useState({});
   /* { Theme } ------------------------------------------------------------------------------- */
 
   useEffect(() => {
@@ -637,6 +657,7 @@ const ConfigContainer = ({ children }) => {
     setInputBox(update_input_box(theme, newRGB));
     setContextMenu(update_context_menu(theme, newRGB));
     setSpan(update_span(theme, newRGB));
+    setComponent(update_component(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
     setIsConfigReady(true);
     return () => {
@@ -677,6 +698,7 @@ const ConfigContainer = ({ children }) => {
           inputBox,
           contextMenu,
           span,
+          component,
         }}
       >
         {children}
