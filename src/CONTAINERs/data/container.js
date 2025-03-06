@@ -1,4 +1,10 @@
-import React, { useEffect, useState, useCallback, useContext } from "react";
+import React, {
+  useEffect,
+  useState,
+  useCallback,
+  useContext,
+  Children,
+} from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
 
 import { StatusContexts } from "../status/contexts";
@@ -11,7 +17,7 @@ import Side_Menu from "../../COMPONENTs/side_menu/side_menu";
 import Title_Bar from "../../COMPONENTs/title_bar/title_bar";
 import Dialog from "../../COMPONENTs/dialog/dialog";
 
-const DataContainer = () => {
+const DataContainer = ({ children }) => {
   const {
     setComponentOnFocus,
     ollamaServerStatus,
@@ -33,13 +39,17 @@ const DataContainer = () => {
   } = useContext(RequestContexts);
 
   /* { Model Related } ------------------------------------------------------------------------------- */
-  const [selectedModel, setSelectedModel] = useState(null);
   const [avaliableModels, setAvaliableModels] = useState([]);
   useEffect(() => {
-    if (!selectedModel || !avaliableModels.includes(selectedModel)) {
-      setSelectedModel(avaliableModels[0]);
+    if (avaliableModels.includes(sectionData.language_model_using)) {
+      return;
+    } else {
+      setSectionData((prev) => ({
+        ...prev,
+        language_model_using: null,
+      }));
     }
-  }, [selectedModel, avaliableModels]);
+  }, [avaliableModels]);
   /* { Model Related } ------------------------------------------------------------------------------- */
 
   /* { Local Storage } ------------------------------------------------------------------------------- */
@@ -115,11 +125,6 @@ const DataContainer = () => {
         selected_model = JSON.parse(selected_model);
       }
       ollama_list_available_models().then((response) => {
-        if (response.includes(selected_model)) {
-          setSelectedModel(selected_model);
-        } else {
-          setSelectedModel(response[0]);
-        }
         setAvaliableModels(response);
       });
     } catch (error) {
@@ -135,26 +140,23 @@ const DataContainer = () => {
       localStorage.setItem(UNIQUE_KEY + "address_book", JSON.stringify(prev));
       return prev;
     });
-    setSelectedModel((prev) => {
-      localStorage.setItem(UNIQUE_KEY + "selected_model", JSON.stringify(prev));
-      return prev;
-    });
   };
   /* { Local Storage } -------------------------------------------------------------------------------- */
 
   /* { Section Data } --------------------------------------------------------------------------------- */
   const [sectionStarted, setSectionStarted] = useState(false);
-  const start_new_section = () => {
+  const start_new_section = useCallback(() => {
     const generated_address = generate_new_address();
     setSectionData({
       address: generated_address,
       n_turns_to_regenerate_title: 0,
       last_edit_date: new Date().getTime(),
+      language_model_using: avaliableModels[0],
       on_mode: "chat",
       messages: [],
     });
     setSectionStarted(false);
-  };
+  }, [avaliableModels]);
   const load_section_data = (target_address) => {
     const section_data = JSON.parse(
       localStorage.getItem(UNIQUE_KEY + target_address)
@@ -178,6 +180,17 @@ const DataContainer = () => {
     }));
     update_address_book();
     setSectionStarted(true);
+  };
+  const update_lanaguage_model_using = (target_address, model) => {
+    setSectionData((prev) => {
+      if (target_address !== prev.address) {
+        return prev;
+      }
+      return {
+        ...prev,
+        language_model_using: model,
+      };
+    });
   };
   const update_message_on_index = (target_address, message_index, message) => {
     setSectionData((prev) => {
@@ -287,7 +300,11 @@ const DataContainer = () => {
     });
     return saved_keys;
   };
-  const load_saved_images = (target_address, message_index, image_addresses) => {
+  const load_saved_images = (
+    target_address,
+    message_index,
+    image_addresses
+  ) => {
     let loaded_images = [];
     for (let i = 0; i < image_addresses.length; i++) {
       const image_key = image_addresses[i];
@@ -300,7 +317,7 @@ const DataContainer = () => {
   };
   useEffect(() => {
     save_to_local_storage();
-  }, [sectionData, addressBook, selectedModel]);
+  }, [sectionData, addressBook]);
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Model Data } ----------------------------------------------------------------------------------- */
@@ -354,17 +371,16 @@ const DataContainer = () => {
         addressBook,
         sectionData,
         sectionStarted,
-        selectedModel,
         avaliableModels,
         setAvaliableModels,
 
         app_initialization,
         append_message,
+        update_lanaguage_model_using,
         delete_address_in_local_storage,
         load_section_data,
         reset_regenerate_title_count_down,
         set_expand_section_message,
-        setSelectedModel,
         start_new_section,
         update_title,
         update_message_on_index,
@@ -387,7 +403,7 @@ const DataContainer = () => {
             setComponentOnFocus("");
           }}
         >
-          <Chat_Page />
+          {children}
         </div>
       )}
       {ollamaServerStatus === null ? (

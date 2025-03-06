@@ -6,6 +6,7 @@ import StatusContainer from "./CONTAINERs/status/container";
 import RequestContainer from "./CONTAINERs/requests/container";
 import DataContainer from "./CONTAINERs/data/container";
 
+import Chat_Page from "./PAGEs/chat_page/chat_page";
 import GraphDemo from "./DEMOs/node_graph/graph_demo";
 import XTerm from "./DEMOs/x_term/x_term";
 
@@ -16,8 +17,9 @@ const App = () => {
         <ConfigContainer>
           <StatusContainer>
             <RequestContainer>
-              <DataContainer />
-              {/* <GraphDemo /> */}
+              <DataContainer>
+                <Chat_Page />
+              </DataContainer>
             </RequestContainer>
           </StatusContainer>
         </ConfigContainer>

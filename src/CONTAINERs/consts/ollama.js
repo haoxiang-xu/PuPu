@@ -4,6 +4,7 @@ const available_large_language_models = [
     models: [
       {
         name: "deepseek-r1",
+        type: "language",
         description:
           "DeepSeek's first-generation of reasoning models with comparable performance to OpenAI-o1, " +
           "including six dense models distilled from DeepSeek-R1 based on Llama and Qwen.",
@@ -19,6 +20,7 @@ const available_large_language_models = [
       },
       {
         name: "deepseek-coder-v2",
+        type: "language",
         description:
           "An open-source Mixture-of-Experts code language model that achieves performance comparable to GPT4-Turbo in code-specific tasks.",
         available_options: [
@@ -33,6 +35,7 @@ const available_large_language_models = [
     models: [
       {
         name: "phi4",
+        type: "language",
         description:
           "Phi-4 is a 14B parameter, state-of-the-art open model from Microsoft.",
         available_options: [{ name: "14b", download_id: "phi4" }],
@@ -44,6 +47,7 @@ const available_large_language_models = [
     models: [
       {
         name: "llama3.1",
+        type: "language",
         description:
           "Llama 3.1 is a new state-of-the-art model from Meta available in 8B, 70B and 405B parameter sizes.",
         available_options: [
@@ -54,6 +58,7 @@ const available_large_language_models = [
       },
       {
         name: "codellama",
+        type: "language",
         description:
           "A large language model that can use text prompts to generate and discuss code.",
         available_options: [
@@ -70,6 +75,7 @@ const available_large_language_models = [
     models: [
       {
         name: "mistral",
+        type: "language",
         description:
           "The 7B model released by Mistral AI, updated to version 0.3.",
         available_options: [{ name: "7b", download_id: "mistral:7b" }],
@@ -81,6 +87,7 @@ const available_large_language_models = [
     models: [
       {
         name: "qwen2.5",
+        type: "language",
         description:
           "Qwen2.5 models are pretrained on Alibaba's latest large-scale dataset, encompassing up to 18 trillion tokens. " +
           "The model supports up to 128K tokens and has multilingual support.",
@@ -96,6 +103,7 @@ const available_large_language_models = [
       },
       {
         name: "qwen2.5-coder",
+        type: "language",
         description:
           "The latest series of Code-Specific Qwen models, with significant improvements in code generation, code reasoning, and code fixing.",
         available_options: [
@@ -109,6 +117,7 @@ const available_large_language_models = [
       },
       {
         name: "qwen",
+        type: "language",
         description:
           "Qwen 1.5 is a series of large language models by Alibaba Cloud spanning from 0.5B to 110B parameters.",
         available_options: [
@@ -129,6 +138,7 @@ const available_large_language_models = [
     models: [
       {
         name: "starcoder2",
+        type: "language",
         description:
           "StarCoder2 is the next generation of transparently trained open code LLMs that comes in three sizes: 3B, 7B and 15B parameters.",
         available_options: [
@@ -144,6 +154,7 @@ const available_large_language_models = [
     models: [
       {
         name: "sqlcoder",
+        type: "language",
         description:
           "SQLCoder is a code completion model fined-tuned on StarCoder for SQL generation tasks",
         available_options: [
@@ -160,6 +171,7 @@ const available_vision_models = [
     models: [
       {
         name: "llava",
+        type: "vision",
         description:
           "🌋 LLaVA is a novel end-to-end trained large multimodal model that combines a vision encoder and Vicuna for general-purpose visual and language understanding. Updated to version 1.6.",
         available_options: [

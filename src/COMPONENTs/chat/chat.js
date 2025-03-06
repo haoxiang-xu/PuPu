@@ -15,7 +15,6 @@ import { DataContexts } from "../../CONTAINERs/data/contexts";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import PulseLoader from "react-spinners/PulseLoader";
 import Term from "../terminal/terminal";
 import FileDropZone from "../file_drop_zone/file_drop_zone";
 
@@ -24,15 +23,15 @@ import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
 const default_border_radius = 10;
 const default_font_size = 14;
 
-const component_name = "message_list";
+const component_name = "chat";
 
-const ChatSectionContexts = createContext("");
+const ChatContexts = createContext("");
 
 /* { Message List } -------------------------------------------------------------------------------------------------------- */
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
   const { RGB, messageList } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
-  const { update_message } = useContext(ChatSectionContexts);
+  const { update_message } = useContext(ChatContexts);
 
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
@@ -174,20 +173,16 @@ const Message_Upper_Panel_File_Item = ({ index, imageSrc }) => {
 };
 const Message_Upper_Panel = ({ role, index, images }) => {
   return images.length !== 0
-    ? images.map((image, i) => <Message_Upper_Panel_File_Item key={i} index={index} imageSrc={image} />)
+    ? images.map((image, i) => (
+        <Message_Upper_Panel_File_Item key={i} index={index} imageSrc={image} />
+      ))
     : null;
 };
-const Message = ({
-  index,
-  role,
-  message,
-  image_addresses,
-  is_last_index,
-}) => {
+const Message = ({ index, role, message, image_addresses, is_last_index }) => {
   const { RGB, colorOffset, boxShadow } = useContext(ConfigContexts);
   const { sectionData, load_saved_images } = useContext(DataContexts);
   const { targetAddress } = useContext(StatusContexts);
-  const { awaitResponse } = useContext(ChatSectionContexts);
+  const { awaitResponse } = useContext(ChatContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
   });
@@ -307,7 +302,7 @@ const Message_Scrolling_List = () => {
     preLoadingCompleted,
     arrivedAtPosition,
     setArrivedAtPosition,
-  } = useContext(ChatSectionContexts);
+  } = useContext(ChatContexts);
   /* { Scrolling } ----------------------------------------------------------- */
   const scrollRef = useRef(null);
   const [isUserScrolling, setIsUserScrolling] = useState(false);
@@ -484,11 +479,15 @@ const Model_Selector_Add_Model_Button = () => {
   );
 };
 const Model_Selector_Item = ({ model }) => {
-  const { RGB, messageList } = useContext(ConfigContexts);
-  const { selectedModel, setSelectedModel, setAvaliableModels } =
-    useContext(DataContexts);
+  const { messageList } = useContext(ConfigContexts);
+  const {
+    sectionData,
+    setAvaliableModels,
+    update_lanaguage_model_using,
+  } = useContext(DataContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
   const { setComponentOnFocus } = useContext(StatusContexts);
+  const { targetAddress } = useContext(ChatContexts);
   const [onHover, setOnHover] = useState(false);
 
   return (
@@ -504,20 +503,20 @@ const Model_Selector_Item = ({ model }) => {
         color: messageList.model_list_item.color,
 
         border:
-          selectedModel === model
+          sectionData.language_model_using === model
             ? "1px solid rgba(255, 255, 255, 0.32)"
             : onHover
             ? "1px solid rgba(255, 255, 255, 0.16)"
             : "1px solid rgba(255, 255, 255, 0)",
         borderRadius: 4,
         backgroundColor:
-          selectedModel === model
+          sectionData.language_model_using === model
             ? messageList.model_list_item.backgroundColor_onActive
             : onHover
             ? messageList.model_list_item.backgroundColor_onHover
             : messageList.model_list_item.backgroundColor,
         boxShadow:
-          selectedModel === model
+          sectionData.language_model_using === model
             ? messageList.model_list_item.boxShadow_onHover
             : "none",
       }}
@@ -527,10 +526,8 @@ const Model_Selector_Item = ({ model }) => {
       onMouseLeave={(e) => {
         setOnHover(false);
       }}
-      onMouseDown={(e) => {
-        setSelectedModel(model);
-      }}
       onClick={(e) => {
+        update_lanaguage_model_using(targetAddress, model);
         setComponentOnFocus(component_name);
         ollama_list_available_models().then((response) => {
           setAvaliableModels(response);
@@ -545,18 +542,18 @@ const Model_Selector = ({ value, setMenuWidth }) => {
   const sub_component_name = component_name + "_" + "model_menu";
 
   const { messageList } = useContext(ConfigContexts);
-  const { selectedModel, avaliableModels, setAvaliableModels } =
+  const { sectionData, avaliableModels, setAvaliableModels } =
     useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
   const { ollama_list_available_models } = useContext(RequestContexts);
-  const { inputHeight } = useContext(ChatSectionContexts);
+  const { inputHeight } = useContext(ChatContexts);
 
   const menuRef = useRef(null);
   useEffect(() => {
     if (!menuRef || !menuRef.current) return;
     setMenuWidth(menuRef.current.offsetWidth);
-  }, [componentOnFocus, selectedModel]);
+  }, [componentOnFocus, sectionData.language_model_using]);
 
   const [onHover, setOnHover] = useState(false);
   useEffect(() => {
@@ -663,10 +660,14 @@ const Model_Selector = ({ value, setMenuWidth }) => {
               minHeight: 23,
             }}
           >
-            {selectedModel ? selectedModel : "a Model here"}
+            {sectionData.language_model_using
+              ? sectionData.language_model_using
+              : "a Model here"}
           </div>
         )}
-        {componentOnFocus === sub_component_name ? <Model_Selector_Add_Model_Button /> : null}
+        {componentOnFocus === sub_component_name ? (
+          <Model_Selector_Add_Model_Button />
+        ) : null}
       </div>
     </div>
   );
@@ -676,7 +677,7 @@ const Model_Selector = ({ value, setMenuWidth }) => {
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 const Input_File_Panel_Item = ({ index, imageSrc }) => {
   const { messageList } = useContext(ConfigContexts);
-  const { setInputImages } = useContext(ChatSectionContexts);
+  const { setInputImages } = useContext(ChatContexts);
 
   return imageSrc ? (
     <div
@@ -723,7 +724,7 @@ const Input_File_Panel_Item = ({ index, imageSrc }) => {
   ) : null;
 };
 const Input_File_Panel = ({ value }) => {
-  const { inputHeight, inputImages } = useContext(ChatSectionContexts);
+  const { inputHeight, inputImages } = useContext(ChatContexts);
 
   return (
     <div
@@ -750,7 +751,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
   const { trigger_section_mode } = useContext(DataContexts);
-  const { inputHeight } = useContext(ChatSectionContexts);
+  const { inputHeight } = useContext(ChatContexts);
 
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
@@ -976,11 +977,10 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 
 const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, colorOffset, color, boxShadow, messageList, inputBox } =
-    useContext(ConfigContexts);
+  const { RGB, color, inputBox } = useContext(ConfigContexts);
   const { windowWidth, componentOnFocus } = useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
-  const { awaitResponse, setInputHeight } = useContext(ChatSectionContexts);
+  const { awaitResponse, setInputHeight } = useContext(ChatContexts);
 
   const [menuWidth, setMenuWidth] = useState(0);
   const [style, setStyle] = useState({
@@ -1161,7 +1161,6 @@ const Input_Section = ({ inputValue, setInputValue, on_input_submit }) => {
 const Chat = () => {
   const { RGB } = useContext(ConfigContexts);
   const {
-    selectedModel,
     sectionData,
     update_title,
     update_message_on_index,
@@ -1208,7 +1207,7 @@ const Chat = () => {
 
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
-    if (inputValue.length > 0 && awaitResponse === null && selectedModel) {
+    if (inputValue.length > 0 && awaitResponse === null && sectionData.language_model_using) {
       let image_keys = [];
       if (inputImages.length > 0) {
         image_keys = save_input_images(targetAddress, inputImages);
@@ -1230,7 +1229,7 @@ const Chat = () => {
         ollama_image_to_text(inputImages, messages).then((response) => {
           setInputImages([]);
           ollama_chat_completion_streaming(
-            selectedModel,
+            sectionData.language_model_using,
             address,
             messages,
             index,
@@ -1244,7 +1243,7 @@ const Chat = () => {
             .finally(() => {
               if (sectionData.n_turns_to_regenerate_title === 0) {
                 ollama_update_title_no_streaming(
-                  selectedModel,
+                  sectionData.language_model_using,
                   address,
                   messages,
                   update_title
@@ -1255,7 +1254,7 @@ const Chat = () => {
         });
       } else {
         ollama_chat_completion_streaming(
-          selectedModel,
+          sectionData.language_model_using,
           address,
           messages,
           index,
@@ -1268,7 +1267,7 @@ const Chat = () => {
           .finally(() => {
             if (sectionData.n_turns_to_regenerate_title === 0) {
               ollama_update_title_no_streaming(
-                selectedModel,
+                sectionData.language_model_using,
                 address,
                 messages,
                 update_title
@@ -1278,7 +1277,7 @@ const Chat = () => {
           });
       }
     },
-    [inputValue, selectedModel, inputImages]
+    [inputValue, sectionData.language_model_using, inputImages]
   );
   useEffect(() => {
     const messages = sectionData.messages || [];
@@ -1297,8 +1296,10 @@ const Chat = () => {
   /* { Input Section } ------------------------------------------------------------------------------- */
 
   return (
-    <ChatSectionContexts.Provider
+    <ChatContexts.Provider
       value={{
+        targetAddress,
+
         awaitResponse,
         setAwaitResponse,
         arrivedAtPosition,
@@ -1354,7 +1355,7 @@ const Chat = () => {
           />
         ) : null}
       </div>
-    </ChatSectionContexts.Provider>
+    </ChatContexts.Provider>
   );
 };
 

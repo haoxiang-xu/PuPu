@@ -23,7 +23,7 @@ const Input = ({
   ...props
 }) => {
   const { ollamaOnTask } = useContext(StatusContexts);
-  const { selectedModel } = useContext(DataContexts);
+  const { sectionData } = useContext(DataContexts);
   const inputRef = useRef(null);
   const [height, setHeight] = useState(0);
 
@@ -38,7 +38,7 @@ const Input = ({
         return null;
       }
     };
-    if (selectedModel) {
+    if (sectionData.language_model_using) {
       if (ollamaOnTask) {
         setPlaceholder(extract_status(ollamaOnTask));
       } else {
@@ -47,7 +47,7 @@ const Input = ({
     } else {
       setPlaceholder("Pick");
     }
-  }, [ollamaOnTask, selectedModel]);
+  }, [ollamaOnTask, sectionData.language_model_using]);
   /* { Placeholder } --------------------------------------------------------- */
 
   useEffect(() => {

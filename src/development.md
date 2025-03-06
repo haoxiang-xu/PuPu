@@ -81,6 +81,7 @@
         address: `address`,
         n_turns_to_regenerate_title: #,
         last_edit_date: `date_of_last_edit`,
+        language_model_using: `language_model`,
         on_mode: `chat`,
         messages: [{`list_of_json_that_stores_messages`}],
     },
@@ -110,11 +111,15 @@
 - `options`
 
 ```js
+/* [ img_src ] image source */
+/* [ x ] if x is not defined, the menu will be shown at the mouse click position */
 [
   {
     img_src: "image_src_string",
     label: "label_string",
     onClick: () => {},
+    x: 0, // optional
+    y: 0, // optional
   },
 ];
 ```
