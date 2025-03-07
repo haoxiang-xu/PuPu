@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useContext } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import ollama_pupu from "./ollama_pupu.png";
@@ -9,9 +10,13 @@ import ollama_pupu_ from "./ollama_pupu_.png";
 import Chat from "../../COMPONENTs/chat/chat";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
+import { side_menu_width_threshold } from "../../COMPONENTs/side_menu/constants";
+
 const Chat_Page = ({}) => {
   const { RGB, theme } = useContext(ConfigContexts);
   const { sectionStarted } = useContext(DataContexts);
+  const { windowWidth, componentOnFocus, onSideMenu } =
+    useContext(StatusContexts);
 
   /* { Title } ------------------------------------------------------------------------------ */
   const title_list = [
@@ -237,7 +242,10 @@ const Chat_Page = ({}) => {
           position: "fixed",
 
           bottom: sectionStarted ? "-3px" : "24px",
-          left: "50%",
+          left:
+            windowWidth > side_menu_width_threshold && onSideMenu
+              ? "calc(50% + 150px)"
+              : "50%",
 
           width: 72,
 
@@ -255,7 +263,10 @@ const Chat_Page = ({}) => {
             transform: "translate(-50%, -50%)",
 
             top: "calc(50% - 2px)",
-            left: "50%",
+            left:
+              windowWidth > side_menu_width_threshold && onSideMenu
+                ? "calc(50% + 150px)"
+                : "50%",
             width: "100%",
             textAlign: "center",
             fontSize: 32,
