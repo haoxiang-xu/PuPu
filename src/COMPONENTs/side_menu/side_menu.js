@@ -4,7 +4,6 @@ import React, {
   useEffect,
   useContext,
   createContext,
-  use,
 } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
@@ -372,9 +371,9 @@ const Chat_List_Item = ({ address }) => {
   );
 };
 const Chat_List = ({}) => {
-  const { RGB, sideMenu } = useContext(ConfigContexts);
+  const { RGB, sideMenu, component } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
-  const { componentOnFocus, setComponentOnFocus, onSideMenu } =
+  const { setComponentOnFocus, onSideMenu } =
     useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
@@ -389,22 +388,21 @@ const Chat_List = ({}) => {
   useEffect(() => {
     if (addButtonOnClick) {
       setAddButtonStyle({
-        backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${
-          RGB.B + 60
-        }, 0.84)`,
-        border: "1px solid rgba(255, 255, 255, 0.32)",
+        backgroundColor: component.button.onActive.backgroundColor,
+        border: component.button.onActive.border,
+        boxShadow: component.button.onActive.boxShadow,
       });
     } else if (addButtonOnHover) {
       setAddButtonStyle({
-        backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${
-          RGB.B + 60
-        }, 0.64)`,
-        border: "1px solid rgba(255, 255, 255, 0.32)",
+        backgroundColor: component.button.onHover.backgroundColor,
+        border: component.button.onHover.border,
+        boxShadow: component.button.onHover.boxShadow,
       });
     } else {
       setAddButtonStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
-        border: "1px solid rgba(255, 255, 255, 0)",
+        backgroundColor: component.button.backgroundColor,
+        border: component.button.border,
+        boxShadow: component.button.boxShadow,
       });
     }
   }, [addButtonOnHover, addButtonOnClick]);
@@ -453,6 +451,7 @@ const Chat_List = ({}) => {
           borderRadius: 4,
           backgroundColor: addButtonStyle.backgroundColor,
           border: addButtonStyle.border,
+          boxShadow: addButtonStyle.boxShadow,
 
           opacity: 0.96,
 

@@ -985,7 +985,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 
 const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, color, inputBox } = useContext(ConfigContexts);
+  const { RGB, color, inputBox, component } = useContext(ConfigContexts);
   const { windowWidth, componentOnFocus, onSideMenu } =
     useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
@@ -1006,24 +1006,24 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
-        border: inputBox.inside_button.onActive.border,
-        backgroundColor: inputBox.inside_button.onActive.backgroundColor,
-        boxShadow: inputBox.inside_button.onActive.boxShadow,
+        border: component.button.onActive.border,
+        backgroundColor: component.button.onActive.backgroundColor,
+        boxShadow: component.button.onActive.boxShadow,
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
-        border: inputBox.inside_button.onHover.border,
-        backgroundColor: inputBox.inside_button.onHover.backgroundColor,
-        boxShadow: inputBox.inside_button.onHover.boxShadow,
+        border: component.button.onHover.border,
+        backgroundColor: component.button.onHover.backgroundColor,
+        boxShadow: component.button.onHover.boxShadow,
       });
     } else {
       setStyle({
         colorOffset: 0,
         opacity: 0,
-        border: inputBox.inside_button.border,
-        backgroundColor: inputBox.inside_button.backgroundColor,
+        border: component.button.border,
+        backgroundColor: component.button.backgroundColor,
         boxShadow: "none",
       });
     }

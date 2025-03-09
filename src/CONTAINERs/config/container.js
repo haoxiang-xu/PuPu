@@ -121,7 +121,9 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R - 22}, ${RGB.G - 22}, ${
             RGB.B - 22
           }, 1)`,
-          backgroundColor_onHover: `rgba(${RGB.R - 16}, ${RGB.G - 16}, ${RGB.B - 16}, 1)`,
+          backgroundColor_onHover: `rgba(${RGB.R - 16}, ${RGB.G - 16}, ${
+            RGB.B - 16
+          }, 1)`,
           boxShadow: "inset 0px 0px 32px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.96)`,
           borderRadius: 12,
@@ -503,50 +505,12 @@ const ConfigContainer = ({ children }) => {
         }, 0.64)`,
         border: "1px solid rgba(255, 255, 255, 0.64)",
         boxShadow: "0px 6px 32px rgba(0, 0, 0, 0.18)",
-        inside_button: {
-          border: `1px solid rgba(225, 225, 225, 0)`,
-          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-            RGB.B + 30
-          }, 0)`,
-          onActive: {
-            border: `1px solid rgba(225, 225, 225, 0.5)`,
-            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.64)`,
-            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
-          },
-          onHover: {
-            border: `1px solid rgba(225, 225, 225, 0.32)`,
-            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.64)`,
-            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
-          },
-        },
       };
     } else {
       return {
         backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${RGB.B - 32}, 1)`,
         border: "1px solid rgba(255, 255, 255, 1)",
         boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.04)",
-        inside_button: {
-          border: `1px solid rgba(0, 0, 0, 0)`,
-          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-            RGB.B + 30
-          }, 0)`,
-          onActive: {
-            border: `1px solid rgba(255, 255, 255, 1)`,
-            backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
-              RGB.B - 32
-            }, 1)`,
-            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
-          },
-          onHover: {
-            border: `1px solid rgba(255, 255, 255, 1)`,
-            backgroundColor: `rgba(255, 255, 255, 0.64)`,
-            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.08)",
-          },
-        },
       };
     }
   };
@@ -609,12 +573,50 @@ const ConfigContainer = ({ children }) => {
           width: 2,
           backgroundColor: `rgba(225, 225, 225, 0.32)`,
         },
+        button: {
+          border: `1px solid rgba(225, 225, 225, 0)`,
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onActive: {
+            border: `1px solid rgba(225, 225, 225, 0.5)`,
+            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
+          },
+          onHover: {
+            border: `1px solid rgba(225, 225, 225, 0.32)`,
+            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
+          },
+        },
       };
     } else {
       return {
         separator: {
           width: 2,
           backgroundColor: `rgba(0, 0, 0, 0)`,
+        },
+        button: {
+          border: `1px solid rgba(0, 0, 0, 0)`,
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onActive: {
+            border: `1px solid rgba(255, 255, 255, 1)`,
+            backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
+              RGB.B - 32
+            }, 1)`,
+            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
+          },
+          onHover: {
+            border: `1px solid rgba(255, 255, 255, 1)`,
+            backgroundColor: `rgba(255, 255, 255, 0.64)`,
+            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.08)",
+          },
         },
       };
     }
