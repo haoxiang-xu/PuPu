@@ -26,15 +26,18 @@ const FileDropZone = ({
   const handleDrop = (event) => {
     event.preventDefault();
 
-    const file = event.dataTransfer.files[0];
+    const files = event.dataTransfer.files;
 
-    if (file && file.type.startsWith("image/")) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setInputImages((prev) => [...prev, reader.result]);
-      };
-      reader.readAsDataURL(file);
-      setOnFileDragOver(false);
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file && file.type.startsWith("image/")) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setInputImages((prev) => [...prev, reader.result]);
+        };
+        reader.readAsDataURL(file);
+        setOnFileDragOver(false);
+      }
     }
   };
 

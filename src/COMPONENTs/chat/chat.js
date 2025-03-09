@@ -749,7 +749,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
   const { trigger_section_mode } = useContext(DataContexts);
-  const { inputHeight } = useContext(ChatContexts);
+  const { inputHeight, inputImages, setInputImages } = useContext(ChatContexts);
 
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
@@ -761,6 +761,15 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
   if (ollamaOnTask !== null) {
     return null;
   }
+  const handleSelectImage = async () => {
+    const { filePaths } = await window.dataAPI.selectFile();
+    if (filePaths.length > 0) {
+      const filePath = filePaths[0];
+      const fileData = await window.dataAPI.readFileAsBase64(filePath);
+      setInputImages((prev) => [...prev, fileData]);
+    }
+  };
+
   return (
     <div
       style={{
@@ -840,6 +849,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
                 ? messageList.input_upper_panel.opacity_onHover
                 : messageList.input_upper_panel.opacity,
           }}
+          onClick={handleSelectImage}
         />
       </div>
       <div
