@@ -1,6 +1,5 @@
 import React, { useState, useContext } from "react";
 
-import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import { task_descriptions } from "./constants";
 import {
   chat_room_title_generation_prompt,
@@ -44,7 +43,6 @@ const RequestContainer = ({ children }) => {
     target_address,
     messages,
     index,
-    append_message,
     update_message_on_index,
     system_message = "",
     user_addition_message = ""
@@ -80,23 +78,6 @@ const RequestContainer = ({ children }) => {
       }
       return processed_messages;
     };
-    if (index === -1) {
-      append_message(target_address, {
-        role: "assistant",
-        message: LOADING_TAG,
-        content: "",
-        expanded: true,
-      });
-    } else if (index < 0 || index >= messages.length) {
-      return;
-    } else {
-      update_message_on_index(target_address, index, {
-        role: "assistant",
-        message: LOADING_TAG,
-        content: "",
-        expanded: true,
-      });
-    }
     const processed_messages = preprocess_messages(messages, 8, index);
     setOllamaOnTask(
       `chat_completion_streaming|[${model} ${
@@ -402,7 +383,9 @@ const RequestContainer = ({ children }) => {
     const responses = [];
     let image_index = 1;
 
-    setOllamaOnTask(`image_to_text|[🌋 LLaVA ${task_descriptions.image_to_text[0]}]`);
+    setOllamaOnTask(
+      `image_to_text|[🌋 LLaVA ${task_descriptions.image_to_text[0]}]`
+    );
     for (const base64Image of base64Images) {
       const text = await ollama_image_to_text_single(base64Image, user_message);
       responses.push(`image ${image_index}: ${text}`);

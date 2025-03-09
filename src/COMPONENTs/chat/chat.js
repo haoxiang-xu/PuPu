@@ -18,6 +18,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Term from "../terminal/terminal";
 import FileDropZone from "../file_drop_zone/file_drop_zone";
 
+import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
 import { side_menu_width_threshold } from "../side_menu/constants";
 
@@ -676,6 +677,7 @@ const Model_Selector = ({ value, setMenuWidth }) => {
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 const Input_File_Panel_Item = ({ index, imageSrc }) => {
   const { messageList } = useContext(ConfigContexts);
+  const { ollamaOnTask } = useContext(StatusContexts);
   const { setInputImages } = useContext(ChatContexts);
 
   return imageSrc ? (
@@ -685,6 +687,7 @@ const Input_File_Panel_Item = ({ index, imageSrc }) => {
         display: "inline-block",
         height: 32,
         marginRight: 24,
+        opacity: ollamaOnTask !== null ? 0 : 1,
       }}
     >
       <img
@@ -1249,6 +1252,24 @@ const Chat = () => {
     (address, messages, index) => {
       setAwaitResponse(index);
 
+      if (index === -1) {
+        append_message(address, {
+          role: "assistant",
+          message: LOADING_TAG,
+          content: "",
+          expanded: true,
+        });
+      } else if (index < 0 || index >= messages.length) {
+        return;
+      } else {
+        update_message_on_index(address, index, {
+          role: "assistant",
+          message: LOADING_TAG,
+          content: "",
+          expanded: true,
+        });
+      }
+
       if (inputImages.length > 0) {
         ollama_image_to_text(inputImages, messages).then((response) => {
           setInputImages([]);
@@ -1257,7 +1278,6 @@ const Chat = () => {
             address,
             messages,
             index,
-            append_message,
             update_message_on_index,
             vision_prompt + response
           )
@@ -1282,7 +1302,6 @@ const Chat = () => {
           address,
           messages,
           index,
-          append_message,
           update_message_on_index
         )
           .then((response) => {
