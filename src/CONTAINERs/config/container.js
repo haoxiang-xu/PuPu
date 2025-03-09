@@ -648,10 +648,12 @@ const ConfigContainer = ({ children }) => {
     setSpan(update_span(theme, newRGB));
     setComponent(update_component(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
+    document.addEventListener("dragstart", (event) => event.preventDefault());
     setIsConfigReady(true);
     return () => {
       document.body.style.backgroundColor = "";
       document.body.style.overflow = "hidden";
+      document.removeEventListener("dragstart", (event) => event.preventDefault());
     };
   }, [theme]);
 

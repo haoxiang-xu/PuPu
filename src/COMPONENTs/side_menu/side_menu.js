@@ -211,6 +211,7 @@ const Chat_List_Item = ({ address }) => {
         backgroundColor: containerStyle.backgroundColor,
         boxShadow: containerStyle.boxShadow,
         cursor: onSelectAddress === address ? "cursor" : "pointer",
+        draggable: false,
       }}
       onMouseEnter={() => {
         setOnHover(true);
@@ -251,6 +252,7 @@ const Chat_List_Item = ({ address }) => {
     >
       <Icon
         src={"more"}
+        
         style={{
           position: "absolute",
           transform: "translate(-50%, -50%)",
@@ -262,6 +264,7 @@ const Chat_List_Item = ({ address }) => {
 
           userSelect: "none",
           cursor: "pointer",
+          draggable: false,
         }}
         onClick={(e) => {
           e.stopPropagation();

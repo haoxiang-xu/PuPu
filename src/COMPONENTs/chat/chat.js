@@ -295,9 +295,9 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
   );
 };
 const Message_Scrolling_List = () => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
   const { sectionData, sectionStarted } = useContext(DataContexts);
-  const { windowWidth, setComponentOnFocus } = useContext(StatusContexts);
+  const { windowWidth, setComponentOnFocus, unload_context_menu } =
+    useContext(StatusContexts);
   const {
     awaitResponse,
     preLoadingCompleted,
@@ -379,6 +379,7 @@ const Message_Scrolling_List = () => {
       }}
       onClick={(e) => {
         e.stopPropagation();
+        unload_context_menu();
         setComponentOnFocus(component_name);
       }}
     >
