@@ -413,10 +413,13 @@ const Message_Scrolling_List = () => {
           : null}
       </div>
       <div
+        className="message-bottom-panel"
         style={{
           position: "relative",
           width: "100%",
           height: 64,
+          pointerEvents: "none",
+          userSelect: "none",
         }}
       ></div>
     </div>
