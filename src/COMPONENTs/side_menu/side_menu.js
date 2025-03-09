@@ -587,7 +587,7 @@ const Side_Menu = ({}) => {
     ) {
       setOnSideMenu(false);
     }
-  }, [componentOnFocus]);
+  }, [componentOnFocus, windowWidth]);
 
   return (
     <Contexts.Provider
