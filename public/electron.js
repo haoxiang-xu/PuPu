@@ -308,7 +308,7 @@ ipcMain.on("terminal-event-handler", (event, input) => {
 
 /* { local data related } ============================================================================================================== */
 ipcMain.handle("select-file", async () => {
-  const result = await dialog.showOpenDialog({
+  const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile"],
     filters: [{ name: "Images", extensions: ["jpg", "png", "jpeg"] }],
   });
