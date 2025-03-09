@@ -121,7 +121,9 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R - 22}, ${RGB.G - 22}, ${
             RGB.B - 22
           }, 1)`,
-          backgroundColor_onHover: `rgba(${RGB.R - 16}, ${RGB.G - 16}, ${RGB.B - 16}, 1)`,
+          backgroundColor_onHover: `rgba(${RGB.R - 16}, ${RGB.G - 16}, ${
+            RGB.B - 16
+          }, 1)`,
           boxShadow: "inset 0px 0px 32px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.96)`,
           borderRadius: 12,
@@ -364,27 +366,6 @@ const ConfigContainer = ({ children }) => {
       }
     }
   };
-  const update_switchs = (theme, RGB) => {
-    if (theme) {
-      if (theme === "dark_theme") {
-        return {
-          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
-          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
-          toggle: {
-            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          },
-        };
-      } else {
-        return {
-          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
-          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          toggle: {
-            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          },
-        };
-      }
-    }
-  };
   const update_markdown = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
@@ -503,50 +484,12 @@ const ConfigContainer = ({ children }) => {
         }, 0.64)`,
         border: "1px solid rgba(255, 255, 255, 0.64)",
         boxShadow: "0px 6px 32px rgba(0, 0, 0, 0.18)",
-        inside_button: {
-          border: `1px solid rgba(225, 225, 225, 0)`,
-          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-            RGB.B + 30
-          }, 0)`,
-          onActive: {
-            border: `1px solid rgba(225, 225, 225, 0.5)`,
-            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.64)`,
-            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
-          },
-          onHover: {
-            border: `1px solid rgba(225, 225, 225, 0.32)`,
-            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.64)`,
-            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
-          },
-        },
       };
     } else {
       return {
         backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${RGB.B - 32}, 1)`,
         border: "1px solid rgba(255, 255, 255, 1)",
         boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.04)",
-        inside_button: {
-          border: `1px solid rgba(0, 0, 0, 0)`,
-          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-            RGB.B + 30
-          }, 0)`,
-          onActive: {
-            border: `1px solid rgba(255, 255, 255, 1)`,
-            backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
-              RGB.B - 32
-            }, 1)`,
-            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
-          },
-          onHover: {
-            border: `1px solid rgba(255, 255, 255, 1)`,
-            backgroundColor: `rgba(255, 255, 255, 0.64)`,
-            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.08)",
-          },
-        },
       };
     }
   };
@@ -609,12 +552,60 @@ const ConfigContainer = ({ children }) => {
           width: 2,
           backgroundColor: `rgba(225, 225, 225, 0.32)`,
         },
+        button: {
+          border: `1px solid rgba(225, 225, 225, 0)`,
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onActive: {
+            border: `1px solid rgba(225, 225, 225, 0.5)`,
+            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
+          },
+          onHover: {
+            border: `1px solid rgba(225, 225, 225, 0.32)`,
+            backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+              RGB.B + 30
+            }, 0.64)`,
+            boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
+          },
+        },
+        switch: {
+          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
+          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
+          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+        },
       };
     } else {
       return {
         separator: {
           width: 2,
           backgroundColor: `rgba(0, 0, 0, 0)`,
+        },
+        button: {
+          border: `1px solid rgba(0, 0, 0, 0)`,
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onActive: {
+            border: `1px solid rgba(255, 255, 255, 1)`,
+            backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
+              RGB.B - 32
+            }, 1)`,
+            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.16)",
+          },
+          onHover: {
+            border: `1px solid rgba(255, 255, 255, 1)`,
+            backgroundColor: `rgba(255, 255, 255, 0.64)`,
+            boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.08)",
+          },
+        },
+        switch: {
+          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
+          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
         },
       };
     }
@@ -625,7 +616,6 @@ const ConfigContainer = ({ children }) => {
   const [dialog, setDialog] = useState({});
   const [modelDownloader, setModelDownloader] = useState({});
   const [scrollingSapce, setScrollingSpace] = useState({});
-  const [switchs, setSwitchs] = useState({});
   const [markdown, setMarkdown] = useState({});
   const [settingPanel, setSettingPanel] = useState({});
   const [inputBox, setInputBox] = useState({});
@@ -651,7 +641,6 @@ const ConfigContainer = ({ children }) => {
     setDialog(update_dialog(theme, newRGB));
     setModelDownloader(update_model_downloader(theme, newRGB));
     setScrollingSpace(update_scrolling_space(theme, newRGB));
-    setSwitchs(update_switchs(theme, newRGB));
     setMarkdown(update_markdown(theme, newRGB));
     setSettingPanel(update_setting_panel(theme, newRGB));
     setInputBox(update_input_box(theme, newRGB));
@@ -659,10 +648,12 @@ const ConfigContainer = ({ children }) => {
     setSpan(update_span(theme, newRGB));
     setComponent(update_component(theme, newRGB));
     document.body.style.backgroundColor = `rgb(${newRGB.R}, ${newRGB.G}, ${newRGB.B})`;
+    document.addEventListener("dragstart", (event) => event.preventDefault());
     setIsConfigReady(true);
     return () => {
       document.body.style.backgroundColor = "";
       document.body.style.overflow = "hidden";
+      document.removeEventListener("dragstart", (event) => event.preventDefault());
     };
   }, [theme]);
 
@@ -692,7 +683,6 @@ const ConfigContainer = ({ children }) => {
           dialog,
           modelDownloader,
           scrollingSapce,
-          switchs,
           markdown,
           settingPanel,
           inputBox,

@@ -41,5 +41,9 @@ contextBridge.exposeInMainWorld("terminalAPI", {
     } catch (error) {
       console.error("Error resizing terminal:", error);
     }
-  }
+  },
+});
+contextBridge.exposeInMainWorld("dataAPI", {
+  selectFile: () => ipcRenderer.invoke("select-file"),
+  readFileAsBase64: (filePath) => ipcRenderer.invoke("read-file", filePath),
 });

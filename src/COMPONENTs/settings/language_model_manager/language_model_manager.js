@@ -360,7 +360,7 @@ const ModelTag = ({ model }) => {
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        load_context_menu(e, tagWidth, [
+        load_context_menu(e, 120, [
           {
             img_src: "delete",
             label: "Delete",
@@ -434,7 +434,7 @@ const ModelTag = ({ model }) => {
               setItemOnSelect(sub_component_name + model);
               load_context_menu(
                 e,
-                tagWidth,
+                120,
                 [
                   {
                     img_src: "delete",

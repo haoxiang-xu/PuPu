@@ -4,7 +4,6 @@ import React, {
   useEffect,
   useContext,
   createContext,
-  use,
 } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
@@ -21,7 +20,7 @@ const Contexts = createContext();
 
 /* { Chat Button Function Panel } --------------------------------------------------------------------------------------------------------------------------------------------------- */
 const Bottom_Function_Panel_Theme_Switch = ({}) => {
-  const { theme, setTheme, switchs } = useContext(ConfigContexts);
+  const { theme, setTheme, component } = useContext(ConfigContexts);
   return (
     <div
       style={{
@@ -34,8 +33,8 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
         height: 24,
 
         borderRadius: 32,
-        border: switchs.border,
-        backgroundColor: switchs.backgroundColor,
+        border: component.switch.border,
+        backgroundColor: component.switch.backgroundColor,
         boxShadow: "inset 0 0 12px rgba(0, 0, 0, 0.16)",
         cursor: "pointer",
       }}
@@ -85,7 +84,7 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
           height: 19,
 
           borderRadius: 32,
-          backgroundColor: switchs.toggle.backgroundColor,
+          backgroundColor: component.switch.toggleBackgroundColor,
         }}
       ></div>
     </div>
@@ -212,6 +211,7 @@ const Chat_List_Item = ({ address }) => {
         backgroundColor: containerStyle.backgroundColor,
         boxShadow: containerStyle.boxShadow,
         cursor: onSelectAddress === address ? "cursor" : "pointer",
+        draggable: false,
       }}
       onMouseEnter={() => {
         setOnHover(true);
@@ -252,6 +252,7 @@ const Chat_List_Item = ({ address }) => {
     >
       <Icon
         src={"more"}
+        
         style={{
           position: "absolute",
           transform: "translate(-50%, -50%)",
@@ -263,6 +264,7 @@ const Chat_List_Item = ({ address }) => {
 
           userSelect: "none",
           cursor: "pointer",
+          draggable: false,
         }}
         onClick={(e) => {
           e.stopPropagation();
@@ -372,9 +374,9 @@ const Chat_List_Item = ({ address }) => {
   );
 };
 const Chat_List = ({}) => {
-  const { RGB, sideMenu } = useContext(ConfigContexts);
+  const { RGB, sideMenu, component } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
-  const { componentOnFocus, setComponentOnFocus, onSideMenu } =
+  const { setComponentOnFocus, onSideMenu } =
     useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
@@ -389,22 +391,21 @@ const Chat_List = ({}) => {
   useEffect(() => {
     if (addButtonOnClick) {
       setAddButtonStyle({
-        backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${
-          RGB.B + 60
-        }, 0.84)`,
-        border: "1px solid rgba(255, 255, 255, 0.32)",
+        backgroundColor: component.button.onActive.backgroundColor,
+        border: component.button.onActive.border,
+        boxShadow: component.button.onActive.boxShadow,
       });
     } else if (addButtonOnHover) {
       setAddButtonStyle({
-        backgroundColor: `rgba(${RGB.R + 60}, ${RGB.G + 60}, ${
-          RGB.B + 60
-        }, 0.64)`,
-        border: "1px solid rgba(255, 255, 255, 0.32)",
+        backgroundColor: component.button.onHover.backgroundColor,
+        border: component.button.onHover.border,
+        boxShadow: component.button.onHover.boxShadow,
       });
     } else {
       setAddButtonStyle({
-        backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${RGB.B + 30}, 0)`,
-        border: "1px solid rgba(255, 255, 255, 0)",
+        backgroundColor: component.button.backgroundColor,
+        border: component.button.border,
+        boxShadow: component.button.boxShadow,
       });
     }
   }, [addButtonOnHover, addButtonOnClick]);
@@ -453,6 +454,7 @@ const Chat_List = ({}) => {
           borderRadius: 4,
           backgroundColor: addButtonStyle.backgroundColor,
           border: addButtonStyle.border,
+          boxShadow: addButtonStyle.boxShadow,
 
           opacity: 0.96,
 
@@ -587,7 +589,7 @@ const Side_Menu = ({}) => {
     ) {
       setOnSideMenu(false);
     }
-  }, [componentOnFocus]);
+  }, [componentOnFocus, windowWidth]);
 
   return (
     <Contexts.Provider

@@ -18,6 +18,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Term from "../terminal/terminal";
 import FileDropZone from "../file_drop_zone/file_drop_zone";
 
+import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
 import { side_menu_width_threshold } from "../side_menu/constants";
 
@@ -297,9 +298,9 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
   );
 };
 const Message_Scrolling_List = () => {
-  const { RGB, colorOffset } = useContext(ConfigContexts);
   const { sectionData, sectionStarted } = useContext(DataContexts);
-  const { windowWidth, setComponentOnFocus } = useContext(StatusContexts);
+  const { windowWidth, setComponentOnFocus, unload_context_menu } =
+    useContext(StatusContexts);
   const {
     awaitResponse,
     preLoadingCompleted,
@@ -381,6 +382,7 @@ const Message_Scrolling_List = () => {
       }}
       onClick={(e) => {
         e.stopPropagation();
+        unload_context_menu();
         setComponentOnFocus(component_name);
       }}
     >
@@ -677,6 +679,7 @@ const Model_Selector = ({ value, setMenuWidth }) => {
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 const Input_File_Panel_Item = ({ index, imageSrc }) => {
   const { messageList } = useContext(ConfigContexts);
+  const { ollamaOnTask } = useContext(StatusContexts);
   const { setInputImages } = useContext(ChatContexts);
 
   return imageSrc ? (
@@ -686,6 +689,7 @@ const Input_File_Panel_Item = ({ index, imageSrc }) => {
         display: "inline-block",
         height: 32,
         marginRight: 24,
+        opacity: ollamaOnTask !== null ? 0 : 1,
       }}
     >
       <img
@@ -751,7 +755,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
   const { trigger_section_mode } = useContext(DataContexts);
-  const { inputHeight } = useContext(ChatContexts);
+  const { inputHeight, inputImages, setInputImages } = useContext(ChatContexts);
 
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
@@ -763,6 +767,15 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
   if (ollamaOnTask !== null) {
     return null;
   }
+  const handleSelectImage = async () => {
+    const { filePaths } = await window.dataAPI.selectFile();
+    if (filePaths.length > 0) {
+      const filePath = filePaths[0];
+      const fileData = await window.dataAPI.readFileAsBase64(filePath);
+      setInputImages((prev) => [...prev, fileData]);
+    }
+  };
+
   return (
     <div
       style={{
@@ -842,6 +855,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
                 ? messageList.input_upper_panel.opacity_onHover
                 : messageList.input_upper_panel.opacity,
           }}
+          onClick={handleSelectImage}
         />
       </div>
       <div
@@ -977,7 +991,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 
 const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
-  const { RGB, color, inputBox } = useContext(ConfigContexts);
+  const { RGB, color, inputBox, component } = useContext(ConfigContexts);
   const { windowWidth, componentOnFocus, onSideMenu } =
     useContext(StatusContexts);
   const { force_stop_ollama } = useContext(RequestContexts);
@@ -998,24 +1012,24 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
-        border: inputBox.inside_button.onActive.border,
-        backgroundColor: inputBox.inside_button.onActive.backgroundColor,
-        boxShadow: inputBox.inside_button.onActive.boxShadow,
+        border: component.button.onActive.border,
+        backgroundColor: component.button.onActive.backgroundColor,
+        boxShadow: component.button.onActive.boxShadow,
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
-        border: inputBox.inside_button.onHover.border,
-        backgroundColor: inputBox.inside_button.onHover.backgroundColor,
-        boxShadow: inputBox.inside_button.onHover.boxShadow,
+        border: component.button.onHover.border,
+        backgroundColor: component.button.onHover.backgroundColor,
+        boxShadow: component.button.onHover.boxShadow,
       });
     } else {
       setStyle({
         colorOffset: 0,
         opacity: 0,
-        border: inputBox.inside_button.border,
-        backgroundColor: inputBox.inside_button.backgroundColor,
+        border: component.button.border,
+        backgroundColor: component.button.backgroundColor,
         boxShadow: "none",
       });
     }
@@ -1214,27 +1228,49 @@ const Chat = () => {
 
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
-    if (
-      inputValue.length > 0 &&
-      awaitResponse === null &&
-      sectionData.language_model_using
-    ) {
-      let image_keys = [];
-      if (inputImages.length > 0) {
-        image_keys = save_input_images(targetAddress, inputImages);
+    if (sectionData.on_mode === "terminal") {
+      return;
+    } else if (sectionData.on_mode === "chat") {
+      if (
+        inputValue.length > 0 &&
+        awaitResponse === null &&
+        sectionData.language_model_using
+      ) {
+        let image_keys = [];
+        if (inputImages.length > 0) {
+          image_keys = save_input_images(targetAddress, inputImages);
+        }
+        append_message(targetAddress, {
+          role: "user",
+          message: inputValue,
+          content: inputValue,
+          images: image_keys.length > 0 ? image_keys : null,
+        });
+        setInputValue("");
       }
-      append_message(targetAddress, {
-        role: "user",
-        message: inputValue,
-        content: inputValue,
-        images: image_keys.length > 0 ? image_keys : null,
-      });
-      setInputValue("");
     }
-  }, [inputValue, inputImages, awaitResponse]);
+  }, [inputValue, inputImages, awaitResponse, sectionData]);
   const update_message = useCallback(
     (address, messages, index) => {
       setAwaitResponse(index);
+
+      if (index === -1) {
+        append_message(address, {
+          role: "assistant",
+          message: LOADING_TAG,
+          content: "",
+          expanded: true,
+        });
+      } else if (index < 0 || index >= messages.length) {
+        return;
+      } else {
+        update_message_on_index(address, index, {
+          role: "assistant",
+          message: LOADING_TAG,
+          content: "",
+          expanded: true,
+        });
+      }
 
       if (inputImages.length > 0) {
         ollama_image_to_text(inputImages, messages).then((response) => {
@@ -1244,7 +1280,6 @@ const Chat = () => {
             address,
             messages,
             index,
-            append_message,
             update_message_on_index,
             vision_prompt + response
           )
@@ -1269,7 +1304,6 @@ const Chat = () => {
           address,
           messages,
           index,
-          append_message,
           update_message_on_index
         )
           .then((response) => {

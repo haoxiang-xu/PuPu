@@ -1,6 +1,14 @@
-const { app, BrowserWindow, shell, ipcMain, nativeTheme } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  nativeTheme,
+  dialog,
+} = require("electron");
 
 const pty = require("node-pty");
+const fs = require("fs");
 const axios = require("axios");
 const path = require("path");
 const os = require("os");
@@ -228,7 +236,10 @@ const register_will_navigate_event_listener = () => {
 const create_terminal = () => {
   if (!terminalProcess) {
     // Set shell based on platform
-    const shell = os.platform() === "win32" ? "powershell.exe" : process.env.SHELL || "bash";
+    const shell =
+      os.platform() === "win32"
+        ? "powershell.exe"
+        : process.env.SHELL || "bash";
     const args = os.platform() === "win32" ? [] : ["-l"]; // -l for login shell
 
     try {
@@ -255,12 +266,13 @@ const create_terminal = () => {
       });
 
       terminalProcess.onExit(({ exitCode, signal }) => {
-        console.log(`Terminal process exited with code: ${exitCode}, signal: ${signal}`);
+        console.log(
+          `Terminal process exited with code: ${exitCode}, signal: ${signal}`
+        );
         terminalProcess = null;
         // Recreate terminal after a short delay
         setTimeout(create_terminal, 1000);
       });
-
     } catch (error) {
       console.error("Failed to create terminal process:", error);
     }
@@ -293,3 +305,17 @@ ipcMain.on("terminal-event-handler", (event, input) => {
   }
 });
 /* { node-pty } ======================================================================================================================== */
+
+/* { local data related } ============================================================================================================== */
+ipcMain.handle("select-file", async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile"],
+    filters: [{ name: "Images", extensions: ["jpg", "png", "jpeg"] }],
+  });
+  return result;
+});
+ipcMain.handle("read-file", async (event, filePath) => {
+  const fileData = fs.readFileSync(filePath, { encoding: "base64" });
+  return `data:image/png;base64,${fileData}`;
+});
+/* { local data related } ============================================================================================================== */
