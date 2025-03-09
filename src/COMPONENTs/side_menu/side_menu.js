@@ -20,7 +20,7 @@ const Contexts = createContext();
 
 /* { Chat Button Function Panel } --------------------------------------------------------------------------------------------------------------------------------------------------- */
 const Bottom_Function_Panel_Theme_Switch = ({}) => {
-  const { theme, setTheme, switchs } = useContext(ConfigContexts);
+  const { theme, setTheme, component } = useContext(ConfigContexts);
   return (
     <div
       style={{
@@ -33,8 +33,8 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
         height: 24,
 
         borderRadius: 32,
-        border: switchs.border,
-        backgroundColor: switchs.backgroundColor,
+        border: component.switch.border,
+        backgroundColor: component.switch.backgroundColor,
         boxShadow: "inset 0 0 12px rgba(0, 0, 0, 0.16)",
         cursor: "pointer",
       }}
@@ -84,7 +84,7 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
           height: 19,
 
           borderRadius: 32,
-          backgroundColor: switchs.toggle.backgroundColor,
+          backgroundColor: component.switch.toggleBackgroundColor,
         }}
       ></div>
     </div>

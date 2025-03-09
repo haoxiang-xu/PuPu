@@ -366,27 +366,6 @@ const ConfigContainer = ({ children }) => {
       }
     }
   };
-  const update_switchs = (theme, RGB) => {
-    if (theme) {
-      if (theme === "dark_theme") {
-        return {
-          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
-          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
-          toggle: {
-            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          },
-        };
-      } else {
-        return {
-          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
-          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          toggle: {
-            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          },
-        };
-      }
-    }
-  };
   const update_markdown = (theme, RGB) => {
     if (theme) {
       if (theme === "dark_theme") {
@@ -593,6 +572,11 @@ const ConfigContainer = ({ children }) => {
             boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
           },
         },
+        switch: {
+          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
+          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
+          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+        },
       };
     } else {
       return {
@@ -618,6 +602,11 @@ const ConfigContainer = ({ children }) => {
             boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.08)",
           },
         },
+        switch: {
+          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
+          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+        },
       };
     }
   };
@@ -627,7 +616,6 @@ const ConfigContainer = ({ children }) => {
   const [dialog, setDialog] = useState({});
   const [modelDownloader, setModelDownloader] = useState({});
   const [scrollingSapce, setScrollingSpace] = useState({});
-  const [switchs, setSwitchs] = useState({});
   const [markdown, setMarkdown] = useState({});
   const [settingPanel, setSettingPanel] = useState({});
   const [inputBox, setInputBox] = useState({});
@@ -653,7 +641,6 @@ const ConfigContainer = ({ children }) => {
     setDialog(update_dialog(theme, newRGB));
     setModelDownloader(update_model_downloader(theme, newRGB));
     setScrollingSpace(update_scrolling_space(theme, newRGB));
-    setSwitchs(update_switchs(theme, newRGB));
     setMarkdown(update_markdown(theme, newRGB));
     setSettingPanel(update_setting_panel(theme, newRGB));
     setInputBox(update_input_box(theme, newRGB));
@@ -694,7 +681,6 @@ const ConfigContainer = ({ children }) => {
           dialog,
           modelDownloader,
           scrollingSapce,
-          switchs,
           markdown,
           settingPanel,
           inputBox,
