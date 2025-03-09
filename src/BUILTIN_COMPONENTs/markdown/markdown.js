@@ -21,10 +21,6 @@ import { LOADING_TAG } from "./const";
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 
-const R = 30;
-const G = 30;
-const B = 30;
-
 const default_font_size = 12;
 const default_border_radius = 10;
 const default_tag_max_Width = 128;

@@ -1222,24 +1222,28 @@ const Chat = () => {
 
   /* { Input Section } ------------------------------------------------------------------------------- */
   const on_input_submit = useCallback(() => {
-    if (
-      inputValue.length > 0 &&
-      awaitResponse === null &&
-      sectionData.language_model_using
-    ) {
-      let image_keys = [];
-      if (inputImages.length > 0) {
-        image_keys = save_input_images(targetAddress, inputImages);
+    if (sectionData.on_mode === "terminal") {
+      return;
+    } else if (sectionData.on_mode === "chat") {
+      if (
+        inputValue.length > 0 &&
+        awaitResponse === null &&
+        sectionData.language_model_using
+      ) {
+        let image_keys = [];
+        if (inputImages.length > 0) {
+          image_keys = save_input_images(targetAddress, inputImages);
+        }
+        append_message(targetAddress, {
+          role: "user",
+          message: inputValue,
+          content: inputValue,
+          images: image_keys.length > 0 ? image_keys : null,
+        });
+        setInputValue("");
       }
-      append_message(targetAddress, {
-        role: "user",
-        message: inputValue,
-        content: inputValue,
-        images: image_keys.length > 0 ? image_keys : null,
-      });
-      setInputValue("");
     }
-  }, [inputValue, inputImages, awaitResponse]);
+  }, [inputValue, inputImages, awaitResponse, sectionData]);
   const update_message = useCallback(
     (address, messages, index) => {
       setAwaitResponse(index);
