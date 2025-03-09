@@ -86,6 +86,12 @@ const available_large_language_models = [
     family_name: "qwen",
     models: [
       {
+        name: "qwq",
+        type: "language",
+        description: "QwQ is the reasoning model of the Qwen series.",
+        available_options: [{ name: "32b", download_id: "qwq:32b" }],
+      },
+      {
         name: "qwen2.5",
         type: "language",
         description:

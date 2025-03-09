@@ -8,7 +8,9 @@
   - Improvement on the styling of the App.
 
 - `Reported BUGs`
-
+  - Mutiple images drag and drop will only upload the first image.
+  - Uploaded image appear until the message is being sent to the language model.
+  - Sometime click on chat page will not trigger the side menu to close.
 
 ### Version 0.0.2
 

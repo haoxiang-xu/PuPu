@@ -76,6 +76,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
                 : onHover === "plainTextMode"
                 ? messageList.message_bottom_panel.border_onHover
                 : messageList.message_bottom_panel.border,
+            userSelect: "none",
           }}
           onMouseEnter={() => {
             setOnHover("plainTextMode");
@@ -119,6 +120,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
                 : onHover === "regenerate"
                 ? messageList.message_bottom_panel.border_onHover
                 : messageList.message_bottom_panel.border,
+            userSelect: "none",
           }}
           onMouseEnter={() => {
             setOnHover("regenerate");
