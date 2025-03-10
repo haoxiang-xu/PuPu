@@ -145,20 +145,12 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
         {isSubmenuExpanded
           ? list_of_setting_menus[menu_key].sub_menus.map(
               (submenu_key, index) => (
-                <div
-                  style={{
-                    position: "relative",
-                    transition:
-                      "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-                  }}
-                >
-                  <Submenu_Side_List_Item
-                    key={index}
-                    index={index}
-                    menu_key={submenu_key}
-                    left_padding={left_padding + 12}
-                  />
-                </div>
+                <Submenu_Side_List_Item
+                  key={menu_key + submenu_key}
+                  index={index}
+                  menu_key={submenu_key}
+                  left_padding={left_padding + 12}
+                />
               )
             )
           : null}
@@ -282,7 +274,7 @@ const Submenu_Side_List = () => {
       ></div>
       {list_of_setting_menus.root.sub_menus.map((menu_key, index) => (
         <Submenu_Side_List_Item
-          key={index}
+          key={menu_key}
           index={index}
           menu_key={menu_key}
           left_padding={0}
