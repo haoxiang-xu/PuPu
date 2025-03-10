@@ -217,16 +217,6 @@ const RequestContainer = ({ children }) => {
     }
   };
   const ollama_list_available_models = async () => {
-    const check_is_vision_model = (model_name) => {
-      for (let model_family of available_vision_models) {
-        for (let model of model_family.models) {
-          if (model_name.includes(model.name)) {
-            return true;
-          }
-        }
-      }
-      return false;
-    };
     try {
       const response = await fetch(`http://localhost:11434/api/tags`);
       if (!response.ok) {
