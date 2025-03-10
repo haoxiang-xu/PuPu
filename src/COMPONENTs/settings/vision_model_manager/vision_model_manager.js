@@ -461,7 +461,7 @@ const AvailableModel = () => {
 
   const [availableVisionModels, setAvailableVisionModels] = useState([]);
   useEffect(() => {
-    const check_is_language_model = (model_name) => {
+    const check_is_vision_model = (model_name) => {
       for (let model_family of available_vision_models) {
         for (let model of model_family.models) {
           if (model_name.includes(model.name)) {
@@ -473,7 +473,7 @@ const AvailableModel = () => {
     };
     let available_models = [];
     for (let model of avaliableModels) {
-      if (check_is_language_model(model)) {
+      if (check_is_vision_model(model)) {
         available_models.push(model);
       }
     }

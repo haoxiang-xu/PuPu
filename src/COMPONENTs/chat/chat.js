@@ -21,6 +21,7 @@ import FileDropZone from "../file_drop_zone/file_drop_zone";
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
 import { side_menu_width_threshold } from "../side_menu/constants";
+import { available_large_language_models } from "../settings/ollama";
 
 const default_border_radius = 10;
 const default_font_size = 14;
@@ -572,6 +573,26 @@ const Model_Selector = ({ value, setMenuWidth }) => {
       setAvaliableModels(response);
     });
   }, []);
+  const [availableLanguageModels, setAvailableLanguageModels] = useState([]);
+  useEffect(() => {
+    const check_is_language_model = (model_name) => {
+      for (let model_family of available_large_language_models) {
+        for (let model of model_family.models) {
+          if (model_name.includes(model.name)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    let available_models = [];
+    for (let model of avaliableModels) {
+      if (check_is_language_model(model)) {
+        available_models.push(model);
+      }
+    }
+    setAvailableLanguageModels(available_models);
+  }, [avaliableModels]);
 
   return (
     <div
@@ -649,7 +670,7 @@ const Model_Selector = ({ value, setMenuWidth }) => {
         }}
       >
         {componentOnFocus === sub_component_name ? (
-          avaliableModels.map((model, index) => (
+          availableLanguageModels.map((model, index) => (
             <Model_Selector_Item key={index} model={model} />
           ))
         ) : (
