@@ -14,6 +14,8 @@ import { DataContexts } from "../../../CONTAINERs/data/contexts";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import MoonLoader from "react-spinners/MoonLoader";
 
+import { available_vision_models } from "../ollama";
+
 const Contexts = createContext("");
 
 /* { Cloud Model List } ------------------------------------------------------------------------------------------------------------------------------ */
@@ -456,12 +458,55 @@ const ModelTag = ({ model }) => {
 const AvailableModel = () => {
   const { avaliableModels } = useContext(DataContexts);
   const { ollamaPendingDownloadModels } = useContext(StatusContexts);
+
+  const [availableVisionModels, setAvailableVisionModels] = useState([]);
+  useEffect(() => {
+    const check_is_language_model = (model_name) => {
+      for (let model_family of available_vision_models) {
+        for (let model of model_family.models) {
+          if (model_name.includes(model.name)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    let available_models = [];
+    for (let model of avaliableModels) {
+      if (check_is_language_model(model)) {
+        available_models.push(model);
+      }
+    }
+    setAvailableVisionModels(available_models);
+  }, [avaliableModels]);
+  const [pendingDownloadModels, setPendingDownloadModels] = useState([]);
+  useEffect(() => {
+    const check_is_language_model = (model_name) => {
+      for (let model_family of available_vision_models) {
+        for (let model of model_family.models) {
+          if (model_name.includes(model.name)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    let pending_models = [];
+    for (let model of ollamaPendingDownloadModels) {
+      if (check_is_language_model(model)) {
+        pending_models.push(model);
+      }
+    }
+    setPendingDownloadModels(pending_models);
+  }
+  , [ollamaPendingDownloadModels]);
+
   return (
     <>
-      {avaliableModels.map((model, index) => {
+      {availableVisionModels.map((model, index) => {
         return <ModelTag key={"available_model_" + index} model={model} />;
       })}
-      {ollamaPendingDownloadModels.map((model, index) => {
+      {pendingDownloadModels.map((model, index) => {
         return <ModelTag key={"installing_model_" + index} model={model} />;
       })}
     </>

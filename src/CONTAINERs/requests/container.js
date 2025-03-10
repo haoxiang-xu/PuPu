@@ -245,9 +245,6 @@ const RequestContainer = ({ children }) => {
       }
 
       for (let model of data.models) {
-        if (check_is_vision_model(model.model)) {
-          continue;
-        }
         avaliableModels.push(model.model);
       }
       return avaliableModels;
