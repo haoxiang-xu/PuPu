@@ -74,6 +74,10 @@ export const iconManifest = {
   local_storage_: () => import("./SVGs/UI/local_storage_.svg"),
   models: () => import("./SVGs/UI/models.svg"),
   models_: () => import("./SVGs/UI/models_.svg"),
+  chat: () => import("./SVGs/UI/chat.svg"),
+  chat_: () => import("./SVGs/UI/chat_.svg"),
+  vision: () => import("./SVGs/UI/vision.svg"),
+  vision_: () => import("./SVGs/UI/vision_.svg"),
 
   sun: () => import("./SVGs/UI/sun.svg"),
   sun_: () => import("./SVGs/UI/sun_.svg"),
