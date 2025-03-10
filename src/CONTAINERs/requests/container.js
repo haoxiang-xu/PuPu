@@ -9,7 +9,7 @@ import {
 import { StatusContexts } from "../status/contexts";
 import { RequestContexts } from "./contexts";
 
-import { available_vision_models } from "../../CONTAINERs/consts/ollama";
+import { available_vision_models } from "../../COMPONENTs/settings/ollama";
 
 const RequestContainer = ({ children }) => {
   const [instructions, setInstructions] = useState({

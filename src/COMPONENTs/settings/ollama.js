@@ -186,6 +186,86 @@ const available_vision_models = [
           { name: "34b", download_id: "llava:34b" },
         ],
       },
+      {
+        name: "llava-llama3",
+        type: "vision",
+        description:
+          "A LLaVA model fine-tuned from Llama 3 Instruct with better scores in several benchmarks.",
+        available_options: [{ name: "8b", download_id: "llava-llama3:8b" }],
+      },
+      {
+        name: "llava-phi3",
+        type: "vision",
+        description: "A new small LLaVA model fine-tuned from Phi 3 Mini.",
+        available_options: [{ name: "3.8b", download_id: "llava-phi3:3.8b" }],
+      },
+    ],
+  },
+  {
+    family_name: "llama",
+    models: [
+      {
+        name: "llama3.2-vision",
+        type: "vision",
+        description:
+          "Llama 3.2 Vision is a collection of instruction-tuned image reasoning generative models in 11B and 90B sizes.",
+        available_options: [
+          { name: "11b", download_id: "llama3.2-vision:11b" },
+          { name: "90b", download_id: "llama3.2-vision:90b" },
+        ],
+      },
+    ],
+  },
+  {
+    family_name: "moondream",
+    models: [
+      {
+        name: "moondream",
+        type: "vision",
+        description:
+          "moondream2 is a small vision language model designed to run efficiently on edge devices.",
+        available_options: [{ name: "1.8b", download_id: "moondream:1.8b" }],
+      },
+    ],
+  },
+  {
+    family_name: "minicpm-v",
+    models: [
+      {
+        name: "minicpm-v",
+        type: "vision",
+        description:
+          "A series of multimodal LLMs (MLLMs) designed for vision-language understanding.",
+        available_options: [{ name: "8b", download_id: "minicpm-v:8b" }],
+      },
+    ],
+  },
+  {
+    family_name: "bakllava",
+    models: [
+      {
+        name: "bakllava",
+        type: "vision",
+        description:
+          "BakLLaVA is a multimodal model consisting of the Mistral 7B base model augmented with the LLaVA architecture.",
+        available_options: [{ name: "7b", download_id: "bakllava:7b" }],
+      },
+    ],
+  },
+  {
+    family_name: "granite",
+    models: [
+      {
+        name: "granite",
+        type: "vision",
+        description:
+          "A compact and efficient vision-language model, " +
+          "specifically designed for visual document understanding, " +
+          "enabling automated content extraction from tables, charts, infographics, plots, diagrams, and more.",
+        available_options: [
+          { name: "2b", download_id: "granite3.2-vision:2b" },
+        ],
+      },
     ],
   },
 ];

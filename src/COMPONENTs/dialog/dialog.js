@@ -11,7 +11,7 @@ import Language_Model_Manager from "../settings/language_model_manager/language_
 import Settings from "../settings/settings";
 
 import { await_Ollama_setup_warning } from "./default_dialogs";
-import { available_large_language_models } from "../../CONTAINERs/consts/ollama";
+import { available_large_language_models } from "../../COMPONENTs/settings/ollama";
 
 const Button = ({ handle_button_click, label }) => {
   const { RGB, colorOffset } = useContext(ConfigContexts);
