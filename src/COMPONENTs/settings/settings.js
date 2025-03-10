@@ -78,6 +78,7 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
             setOnHover(false);
           }}
           onClick={() => {
+            setIsSubmenuExpanded(!isSubmenuExpanded);
             setSelectedMenu(menu_key);
           }}
         >
