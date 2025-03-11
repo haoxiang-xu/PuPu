@@ -6,10 +6,10 @@
   - [`Request`](#request-container)
   - [`Data`](#data-container)
 - <span style="font-size: 20px">[`Components`](#components)</span>
-  - [`# Context Menu`](#context-menu)
+  - [`Context Menu`](#context-menu)
+- <span style="font-size: 20px">[`Agent`](#agent)</span>
 
-
-# Containers <a name="containers"></a>
+## Containers <a name="containers"></a>
 
 <span style="opacity: 0.32">containers are the main building blocks of the application. They are responsible for managing the state of the application and for rendering the components. Each container component is composed of a </span>`Container`<span style="opacity: 0.32"> component and a </span>`Context.Provider`<span style="opacity: 0.32"> component. </span>
 
@@ -30,26 +30,26 @@
 <span style="opacity: 0.32">Status for UI, running processes, server status, etc.</span>
 
 - `componentOnFocus, setComponentOnFocus`
-  - `side_menu`
-  - `chat`
-    - `chat_model_selector`
-  - `settings`
+  - [`side_menu`](#_)
+  - [`chat`](#_)
+    - [`chat_model_selector`](#_)
+  - [`settings`](#_)
 - `onDialog, setOnDialog`
 
-  - `""` no dialog should be shown.
-  - `await_ollama_setup_warning`
-  - `download_ollama_model`
-  - `settings`
-  - `image_viewer|image_base64`
+  - [`""`](#_) no dialog should be shown.
+  - [`await_ollama_setup_warning`](#_)
+  - [`download_ollama_model`](#_)
+  - [`settings`](#_)
+  - [`image_viewer|image_base64`](#_)
 
 - `ollamaServerStatus, setOllamaServerStatus`
   <span style="opacity: 0.5">
   This variable is show the status of the server. whelther it is running or not. Notice that the way of checking the status of the server is by sending a request to the server.
   </span>
 
-  - `null` await for response from the server. which indicates the checking request is on the way.
-  - `true` the server is running.
-  - `false` the server is not running.
+  - [`null`](#_) await for response from the server. which indicates the checking request is on the way.
+  - [`true`](#_) the server is running.
+  - [`false`](*_) the server is not running.
 
 - `windowIsMaximized, setWindowIsMaximized`
 - `windowWidth, setWindowWidth`
@@ -58,11 +58,11 @@
   This variable is show the on going task of the ollama Rest API server. The string define between</span> `[]` <span style="opacity: 0.5">will be displayed as the on going task.
   </span>
 
-  - `chat_completion_streaming|[]`
-  - `generate_no_streaming|[]`
-  - `force_stop|[]`
-  - `image_to_text|[]`
-  - `null`
+  - [`null`](#_)
+  - [`chat_completion_streaming|[]`](#_)
+  - [`generate_no_streaming|[]`](#_)
+  - [`force_stop|[]`](#_)
+  - [`image_to_text|[]`](#_)
 
 ### Request Container <a name="request-container"></a>
 
@@ -89,6 +89,9 @@
 ```
 
 - `sectionData, setSectionData`
+  - `on_mode`
+    - [`chat`](#_)
+    - [`terminal`](#_)
 
 ```js
 /* [ messages ] structure will be shown below */
@@ -141,3 +144,69 @@
 
 - `x` <span style="opacity: 0.32">If x is not defined, the menu will be shown at the mouse click position (optional).</span>
 - `y` <span style="opacity: 0.32">If y is not defined, the menu will be shown at the mouse click position (optional).</span>
+
+## Agent <a name="agent"></a>
+
+### Root Components
+```js
+{
+    agent_name: "_user_defined_agent_name_",
+    /* { nodes } ---------------------------- */
+    variables: {
+        ud_text_1: "text",
+        ud_image_1: "Base64image",
+        ud_message_1: "json{}",
+        llm_generated_text: "text",
+        itt_generated_text: "text",
+    },
+}
+```
+
+### Start Node
+
+```js
+start: {
+    type: "start_node",
+    next_nodes: ['_user_defined_node_id_1_'],
+}
+```
+
+### Text Completion Node
+
+```js
+_user_defined_node_id_1_: {
+    type: "text_completion_node",
+    model_used: "gpt-3.5-turbo",
+    update_callback: function(),
+    input: "ud_text_1",
+    prompt: "${ud_text_1}$ prompt",
+    output: "llm_generated_text",
+    next_nodes: ['_user_defined_node_id_2_'],
+}
+```
+
+### Image to Text Node
+
+```js
+_user_defined_node_id_2_: {
+    type: "image_to_text_node",
+    model_used: "t5-base",
+    update_callback: function(),
+    input: "ud_image_1"
+    prompt: "${llm_generated_text}$ prompt",
+    output: "itt_generated_text",
+    next_nodes: ['end'],
+}
+```
+
+### End Node
+
+```js
+end: {
+    type: "end_node",
+    output: {
+      itt_generated_text: "text",
+      llm_generated_text: "text",
+    }
+}
+```
