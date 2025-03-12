@@ -11,11 +11,12 @@ import { StatusContexts } from "../status/contexts";
 import { RequestContexts } from "../requests/contexts";
 import { DataContexts } from "./contexts";
 
-import Chat_Page from "../../PAGEs/chat_page/chat_page";
 import ScaleLoader from "react-spinners/ScaleLoader";
 import Side_Menu from "../../COMPONENTs/side_menu/side_menu";
 import Title_Bar from "../../COMPONENTs/title_bar/title_bar";
 import Dialog from "../../COMPONENTs/dialog/dialog";
+
+import { available_large_language_models } from "../../COMPONENTs/settings/ollama";
 
 const DataContainer = ({ children }) => {
   const {
@@ -146,12 +147,36 @@ const DataContainer = ({ children }) => {
   /* { Section Data } --------------------------------------------------------------------------------- */
   const [sectionStarted, setSectionStarted] = useState(false);
   const start_new_section = useCallback(() => {
+    const check_is_language_model = (model_name) => {
+      for (let model_family of available_large_language_models) {
+        for (let model of model_family.models) {
+          if (model_name.includes(model.name)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
     const generated_address = generate_new_address();
+    for (let model of avaliableModels) {
+      if (check_is_language_model(model)) {
+        setSectionData({
+          address: generated_address,
+          n_turns_to_regenerate_title: 0,
+          last_edit_date: new Date().getTime(),
+          language_model_using: model,
+          on_mode: "chat",
+          messages: [],
+        });
+        setSectionStarted(false);
+        return;
+      }
+    }
     setSectionData({
       address: generated_address,
       n_turns_to_regenerate_title: 0,
       last_edit_date: new Date().getTime(),
-      language_model_using: avaliableModels[0],
+      language_model_using: null,
       on_mode: "chat",
       messages: [],
     });
