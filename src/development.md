@@ -185,7 +185,7 @@ _user_defined_node_id_1_: {
 }
 ```
 
-### Image to Text Node
+### `Image to Text Node`
 
 ```js
 _user_defined_node_id_2_: {
