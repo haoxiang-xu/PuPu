@@ -1,6 +1,6 @@
 import React, { useState, useContext } from "react";
 
-import { task_descriptions } from "./constants";
+import { task_descriptions, request_url } from "./constants";
 import {
   chat_room_title_generation_prompt,
   vision_prompt,
@@ -16,6 +16,247 @@ const RequestContainer = ({ children }) => {
     chat_room_title_generation_prompt: chat_room_title_generation_prompt,
   });
   const { setOllamaOnTask } = useContext(StatusContexts);
+
+  /* { Agent } ======================================================================================== */
+  const run = async (agent) => {
+    let next_node_id_to_run = agent.start.next_nodes[0];
+    let variables = agent.variables;
+
+    let end = false;
+
+    while (end === false) {
+      const node = agent[next_node_id_to_run];
+      next_node_id_to_run = node.next_nodes[0];
+      let response = { status: false, variables: variables };
+
+      /* { Stop Conditions } ----------------------- */
+      if (!node) {
+        console.error("Invalid node ID:", next_node_id_to_run);
+        end = true;
+        break;
+      }
+      if (node.type === "end_node") {
+        end = true;
+        break;
+      }
+      /* { Stop Conditions } ----------------------- */
+
+      /* { Switch Node Type } ---------------------- */
+      switch (node.type) {
+        case "text_completion_node":
+          break;
+        case "image_to_text_node":
+          break;
+        case "chat_completion_node":
+          response = await chat_completion_node(node, variables);
+          break;
+        case "title_generation_node":
+          response = await title_generation_node(node, variables);
+          break;
+        default:
+          console.error("Invalid node type:", node.type);
+          end = true;
+          break;
+      }
+      /* { Switch Node Type } ---------------------- */
+
+      if (response.status === false) {
+        end = true;
+      } else {
+        variables = response.variables;
+      }
+      setOllamaOnTask((prev) => {
+        if (prev && prev.includes("force_stop")) {
+          end = true;
+        }
+      });
+    }
+    setOllamaOnTask(null);
+    return variables;
+  };
+  /* { Agent } ======================================================================================== */
+
+  /* { Node } ========================================================================================= */
+  const replace_variables_in_prompt = (prompt, variables) => {
+    return prompt.replace(/\$\{([^}]+)\}\$/g, (match, varName) =>
+      variables[varName] !== undefined ? String(variables[varName]) : match
+    );
+  };
+  const chat_completion_node = async (node, variables) => {
+    const preprocess_messages = (system_prompt, messages, memory_length) => {
+      const range = messages.length;
+
+      let processed_messages = [];
+      if (system_prompt) {
+        processed_messages.push({
+          role: "system",
+          content: system_prompt,
+        });
+      }
+
+      for (let i = 0; i < range; i++) {
+        if (messages[i].role === "system") {
+          processed_messages.push({
+            role: messages[i].role,
+            content: messages[i].content,
+          });
+        } else if (range - i <= memory_length) {
+          processed_messages.push({
+            role: messages[i].role,
+            content: messages[i].content,
+          });
+        }
+      }
+      return processed_messages;
+    };
+    const processed_system_prompt = replace_variables_in_prompt(
+      node.prompt,
+      variables
+    );
+    const processed_messages = preprocess_messages(
+      processed_system_prompt,
+      variables[node.input],
+      8
+    );
+    setOllamaOnTask(
+      `chat_completion_streaming|[${node.model_used} ${
+        task_descriptions.chat_completion_streaming[
+          Math.floor(
+            Math.random() * task_descriptions.chat_completion_streaming.length
+          )
+        ]
+      }]`
+    );
+    try {
+      const request = {
+        model: node.model_used,
+        messages: processed_messages,
+      };
+      const abortController = new AbortController();
+      const signal = abortController.signal;
+      const response = await fetch(request_url.chat_completion.ollama, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+        signal,
+      });
+      if (!response.body) {
+        console.error("No response body received from Ollama.");
+        return { status: false, variables: variables };
+      }
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder("utf-8");
+      let accumulatedResponse = "";
+      let end = false;
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        setOllamaOnTask((prev) => {
+          if (prev && prev.includes("force_stop")) {
+            end = true;
+          }
+          return prev;
+        });
+        if (end) {
+          abortController.abort();
+          break;
+        }
+        const chunk = decoder.decode(value, { stream: true });
+        try {
+          const jsonChunk = JSON.parse(chunk);
+          if (jsonChunk.message && jsonChunk.message.content) {
+            accumulatedResponse += jsonChunk.message.content;
+            if (node.update_callback) {
+              node.update_callback(accumulatedResponse);
+            }
+          }
+          if (jsonChunk.done) break;
+        } catch (error) {
+          console.error("Error parsing stream chunk:", error);
+        }
+      }
+      setOllamaOnTask(null);
+      variables[node.output] = accumulatedResponse;
+      return { status: true, variables: variables };
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+      setOllamaOnTask(null);
+      return { status: false, variables: variables };
+    }
+  };
+  const title_generation_node = async (node, variables) => {
+    const processed_system_prompt = replace_variables_in_prompt(
+      node.prompt,
+      variables
+    );
+    const preprocess_messages = (messages) => {
+      let processed_messages = instructions.chat_room_title_generation_prompt;
+
+      for (let i = 0; i < messages.length; i++) {
+        if (messages[i].role === "user") {
+          processed_messages +=
+            messages[i].role + ": " + messages[i].content + "\n\n\n";
+        }
+      }
+      return processed_messages;
+    };
+
+    let prompt =
+      preprocess_messages(variables[node.input]) + processed_system_prompt;
+    setOllamaOnTask(
+      `generate_no_streaming|[${node.model_used} is brainstorming an chat title...]`
+    );
+    try {
+      const request = {
+        model: node.model_used,
+        prompt: prompt,
+        stream: false,
+        format: {
+          type: "object",
+          properties: {
+            title: {
+              type: "string",
+            },
+          },
+          required: ["title"],
+        },
+      };
+      const response = await fetch(request_url.title_generation.ollama, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        console.error("API request failed:", response.statusText);
+        return { status: false, variables: variables };
+      }
+
+      const data = await response.json();
+      if (!data || !data.response) {
+        console.error("Invalid API response:", data);
+        return { status: false, variables: variables };
+      }
+      const title = JSON.parse(data.response).title;
+      if (title || title.length > 0) {
+        if (node.update_callback) {
+          node.update_callback(title);
+        }
+      }
+      setOllamaOnTask(null);
+      variables[node.output] = title;
+      return { status: true, variables: variables };
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+      setOllamaOnTask(null);
+      return { status: false, variables: variables };
+    }
+  };
+  /* { Node } ========================================================================================= */
 
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
   const force_stop_ollama = () => {
@@ -404,6 +645,7 @@ const RequestContainer = ({ children }) => {
   return (
     <RequestContexts.Provider
       value={{
+        run,
         force_stop_ollama,
 
         ollama_get_version,

@@ -19,7 +19,10 @@ import Term from "../terminal/terminal";
 import FileDropZone from "../file_drop_zone/file_drop_zone";
 
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
-import { vision_prompt } from "../../CONTAINERs/requests/default_instructions";
+import {
+  chat_room_title_generation_prompt,
+  vision_prompt,
+} from "../../CONTAINERs/requests/default_instructions";
 import { side_menu_width_threshold } from "../side_menu/constants";
 import { available_large_language_models } from "../settings/ollama";
 
@@ -1209,11 +1212,11 @@ const Chat = () => {
     update_title,
     update_message_on_index,
     append_message,
-    reset_regenerate_title_count_down,
     save_input_images,
   } = useContext(DataContexts);
   const { windowWidth, onSideMenu } = useContext(StatusContexts);
   const {
+    run,
     ollama_chat_completion_streaming,
     ollama_update_title_no_streaming,
     ollama_image_to_text,
@@ -1318,32 +1321,55 @@ const Chat = () => {
                   messages,
                   update_title
                 );
-                reset_regenerate_title_count_down();
               }
             });
         });
       } else {
-        ollama_chat_completion_streaming(
-          sectionData.language_model_using,
-          address,
-          messages,
-          index,
-          update_message_on_index
-        )
-          .then((response) => {
-            setAwaitResponse(null);
-          })
-          .finally(() => {
-            if (sectionData.n_turns_to_regenerate_title === 0) {
-              ollama_update_title_no_streaming(
-                sectionData.language_model_using,
-                address,
-                messages,
-                update_title
-              );
-              reset_regenerate_title_count_down();
-            }
-          });
+        run({
+          start: {
+            type: "start_node",
+            next_nodes: ["chat_completion_node"],
+          },
+          chat_completion_node: {
+            type: "chat_completion_node",
+            model_used: sectionData.language_model_using,
+            model_provider: "ollama",
+            update_callback: (response) => {
+              update_message_on_index(address, index, {
+                role: "assistant",
+                message: response,
+                content: response,
+              });
+            },
+            input: "chat_messages",
+            prompt: "",
+            output: "llm_generated_text",
+            next_nodes: sectionData.n_turns_to_regenerate_title === 0 ? ["title_generation_node"] : ["end"],
+          },
+          title_generation_node: {
+            type: "title_generation_node",
+            model_used: sectionData.language_model_using,
+            model_provider: "ollama",
+            update_callback: (response) => {
+              update_title(address, response);
+            },
+            input: "chat_messages",
+            prompt: "assistant: ${llm_generated_text}$",
+            output: "llm_generated_title",
+            next_nodes: ["end"],
+          },
+          end: {
+            type: "end_node",
+            next_nodes: [],
+          },
+          variables: {
+            chat_messages: index === -1 ? messages : messages.slice(0, index),
+            llm_generated_text: "",
+            llm_generated_title: "",
+          },
+        }).then(() => {
+          setAwaitResponse(null);
+        });
       }
     },
     [inputValue, sectionData.language_model_using, inputImages]

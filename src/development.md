@@ -162,7 +162,7 @@
 }
 ```
 
-### Start Node
+### `Start Node`
 
 ```js
 start: {
@@ -199,14 +199,41 @@ _user_defined_node_id_2_: {
 }
 ```
 
-### End Node
+### `Chat Completion Node` 
+
+```js
+chat_completion_node: {
+    type: "chat_completion_node",
+    model_used: "gpt-3.5-turbo",
+    model_provider: "openai",
+    update_callback: function(),
+    input: "ud_message_1",
+    prompt: "${ud_message_1}$ prompt",
+    output: "llm_generated_text",
+    next_nodes: ['_user_defined_node_id_2_'],
+}
+```
+
+### `Title Generation Node`
+
+```js
+title_generation_node: {
+    type: "title_generation_node",
+    model_used: "gpt-3.5-turbo",
+    model_provider: "openai",
+    update_callback: function(),
+    input: "ud_message_1",
+    prompt: "${llm_generated_text}$ prompt",
+    output: "title_generated",
+    next_nodes: ['_user_defined_node_id_1_'],
+}
+```
+
+### `End Node`
 
 ```js
 end: {
     type: "end_node",
-    output: {
-      itt_generated_text: "text",
-      llm_generated_text: "text",
-    }
+    next_nodes: [],
 }
 ```

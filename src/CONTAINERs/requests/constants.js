@@ -13,7 +13,10 @@ const task_descriptions = {
     "is analyzing the image...🔬",
     "is decoding the image...🔢",
   ],
-  
+};
+const request_url = {
+  chat_completion: { ollama: `http://localhost:11434/api/chat` },
+  title_generation: { ollama: `http://localhost:11434/api/generate` },
 };
 
-export { task_descriptions };
+export { task_descriptions, request_url };

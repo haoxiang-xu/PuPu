@@ -221,6 +221,10 @@ const DataContainer = ({ children }) => {
       };
       return newAddressBook;
     });
+    setSectionData((prev) => ({
+      ...prev,
+      n_turns_to_regenerate_title: RETITLE_TURNS,
+    }));
   };
   const set_expand_section_message = (message_index, isExpanded) => {
     setSectionData((prev) => {
@@ -268,12 +272,6 @@ const DataContainer = ({ children }) => {
     });
     start_new_section();
   };
-  const reset_regenerate_title_count_down = useCallback(() => {
-    setSectionData((prev) => ({
-      ...prev,
-      n_turns_to_regenerate_title: RETITLE_TURNS,
-    }));
-  }, []);
   const trigger_section_mode = (mode) => {
     setSectionData((prev) => {
       let updated_section = { ...prev };
@@ -379,7 +377,6 @@ const DataContainer = ({ children }) => {
         update_lanaguage_model_using,
         delete_address_in_local_storage,
         load_section_data,
-        reset_regenerate_title_count_down,
         set_expand_section_message,
         start_new_section,
         update_title,
