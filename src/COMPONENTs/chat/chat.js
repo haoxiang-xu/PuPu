@@ -1316,7 +1316,7 @@ const Chat = () => {
             next_nodes: ["generate_prompt_for_itt_model"],
           },
           generate_prompt_for_itt_model: {
-            type: "chat_completion_node",
+            type: "prompt_generation_node",
             model_used: sectionData.language_model_using,
             model_provider: "ollama",
             update_callback: () => {},
@@ -1325,7 +1325,8 @@ const Chat = () => {
               "base on the chat message and this image descriptions below ${basic_description_for_images}$ " +
               "If you think the image descriptions are not enough to answer the user question, " +
               "Try to generate a prompt for the image to text model, " +
-              "So to let the image to text model to take a closer look at the images and generate a more detailed description for the images",
+              "So to let the image to text model to take a closer look at the images and generate a more detailed description for the images, " +
+              "Otherwise you can reply nothing.",
             output: "llm_generated_prompt_for_itt_model",
             next_nodes: ["deeper_look_at_the_images"],
           },

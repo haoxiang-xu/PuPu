@@ -167,7 +167,7 @@
 ```js
 start: {
     type: "start_node",
-    next_nodes: ['_user_defined_node_id_1_'],
+    next_nodes: ['ud_node_id'],
 }
 ```
 
@@ -194,8 +194,8 @@ _user_defined_node_id_2_: {
     update_callback: function(),
     input: "ud_images_array",
     prompt: "${llm_generated_text}$ prompt",
-    output: "itt_generated_text",
-    next_nodes: ['end'],
+    output: "output_text_variable_name",
+    next_nodes: ['ud_node_id'],
 }
 ```
 
@@ -227,6 +227,21 @@ title_generation_node: {
     output: "title_generated",
     next_nodes: ['_user_defined_node_id_1_'],
 }
+```
+
+### `Prompt Generation Node`
+
+```js
+prompt_generation_node: {
+    type: "prompt_generation_node",
+    model_used: "gpt-3.5-turbo",
+    model_provider: "openai",
+    update_callback: function(),
+    prompt: "${llm_generated_text}$ prompt",
+    output: "prompt_generated",
+    next_nodes: ['_user_defined_node_id_1_'],
+}
+
 ```
 
 ### `End Node`

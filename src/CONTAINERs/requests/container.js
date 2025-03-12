@@ -54,6 +54,9 @@ const RequestContainer = ({ children }) => {
         case "title_generation_node":
           response = await title_generation_node(node, variables);
           break;
+        case "prompt_generation_node":
+          response = await prompt_generation_node(node, variables);
+          break;
         default:
           console.error("Invalid node type:", node.type);
           end = true;
@@ -71,6 +74,7 @@ const RequestContainer = ({ children }) => {
           end = true;
         }
       });
+      console.log("Variables:", variables);
     }
     setOllamaOnTask(null);
     return variables;
@@ -240,6 +244,7 @@ const RequestContainer = ({ children }) => {
       const data = await response.json();
       if (!data || !data.response) {
         console.error("Invalid API response:", data);
+        setOllamaOnTask("force_stop|[Error Occured]");
         return { status: false, variables: variables };
       }
       const title = JSON.parse(data.response).title;
@@ -253,7 +258,78 @@ const RequestContainer = ({ children }) => {
       return { status: true, variables: variables };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
+      setOllamaOnTask("force_stop|[Error Occured]");
+      return { status: false, variables: variables };
+    }
+  };
+  const prompt_generation_node = async (node, variables) => {
+    const processed_system_prompt = replace_variables_in_prompt(
+      node.prompt,
+      variables
+    );
+    const preprocess_messages = (messages) => {
+      let processed_messages = instructions.chat_room_title_generation_prompt;
+
+      for (let i = 0; i < messages.length; i++) {
+        if (messages[i].role === "user") {
+          processed_messages +=
+            messages[i].role + ": " + messages[i].content + "\n\n\n";
+        }
+      }
+      return processed_messages;
+    };
+
+    const processed_prompt =
+      preprocess_messages(variables[node.input]) + processed_system_prompt;
+    setOllamaOnTask(
+      `generate_no_streaming|[${node.model_used} is generating a prompt...]`
+    );
+    try {
+      const request = {
+        model: node.model_used,
+        prompt: processed_prompt,
+        stream: false,
+        format: {
+          type: "object",
+          properties: {
+            prompt: {
+              type: "string",
+            },
+          },
+          required: ["prompt"],
+        },
+      };
+      const response = await fetch(request_url.title_generation.ollama, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(request),
+      });
+      if (!response.ok) {
+        console.error("API request failed:", response.statusText);
+        setOllamaOnTask("force_stop|[Error Occured]");
+        return { status: false, variables: variables };
+      }
+
+      const data = await response.json();
+      if (!data || !data.response) {
+        console.error("Invalid API response:", data);
+        setOllamaOnTask("force_stop|[Error Occured]");
+        return { status: false, variables: variables };
+      }
+      const generated_prompt = JSON.parse(data.response).prompt;
+      if (generated_prompt || generated_prompt.length > 0) {
+        if (node.update_callback) {
+          node.update_callback(generated_prompt);
+        }
+      }
       setOllamaOnTask(null);
+      variables[node.output] = generated_prompt;
+      return { status: true, variables: variables };
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+      setOllamaOnTask("force_stop|[Error Occured]");
       return { status: false, variables: variables };
     }
   };
