@@ -17,6 +17,7 @@ const task_descriptions = {
 const request_url = {
   chat_completion: { ollama: `http://localhost:11434/api/chat` },
   title_generation: { ollama: `http://localhost:11434/api/generate` },
+  image_to_text: { ollama: `http://localhost:11434/api/generate` },
 };
 
 export { task_descriptions, request_url };

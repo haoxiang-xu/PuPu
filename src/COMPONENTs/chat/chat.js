@@ -1300,30 +1300,119 @@ const Chat = () => {
       }
 
       if (inputImages.length > 0) {
-        ollama_image_to_text(inputImages, messages).then((response) => {
+        run({
+          start: {
+            type: "start_node",
+            next_nodes: ["basically_describe_the_images"],
+          },
+          basically_describe_the_images: {
+            type: "image_to_text_node",
+            model_used: "llava:13b",
+            model_provider: "ollama",
+            update_callback: (response) => {},
+            input: "input_images",
+            prompt: "",
+            output: "basic_description_for_images",
+            next_nodes: ["generate_prompt_for_itt_model"],
+          },
+          generate_prompt_for_itt_model: {
+            type: "chat_completion_node",
+            model_used: sectionData.language_model_using,
+            model_provider: "ollama",
+            update_callback: () => {},
+            input: "chat_messages",
+            prompt:
+              "base on the chat message and this image descriptions below ${basic_description_for_images}$ " +
+              "If you think the image descriptions are not enough to answer the user question, " +
+              "Try to generate a prompt for the image to text model, " +
+              "So to let the image to text model to take a closer look at the images and generate a more detailed description for the images",
+            output: "llm_generated_prompt_for_itt_model",
+            next_nodes: ["deeper_look_at_the_images"],
+          },
+          deeper_look_at_the_images: {
+            type: "image_to_text_node",
+            model_used: "llava:13b",
+            model_provider: "ollama",
+            update_callback: (response) => {},
+            input: "input_images",
+            prompt: "",
+            output: "deeper_look_at_the_images",
+            next_nodes: ["chat_completion_node"],
+          },
+          chat_completion_node: {
+            type: "chat_completion_node",
+            model_used: sectionData.language_model_using,
+            model_provider: "ollama",
+            update_callback: (response) => {
+              update_message_on_index(address, index, {
+                role: "assistant",
+                message: response,
+                content: response,
+              });
+            },
+            input: "chat_messages",
+            prompt:
+              "here are the images u have seen ${basic_description_for_images}$ and a deeper description of the images ${deeper_look_at_the_images}$",
+            output: "llm_generated_text",
+            next_nodes:
+              sectionData.n_turns_to_regenerate_title === 0
+                ? ["title_generation_node"]
+                : ["end"],
+          },
+          title_generation_node: {
+            type: "title_generation_node",
+            model_used: sectionData.language_model_using,
+            model_provider: "ollama",
+            update_callback: (response) => {
+              update_title(address, response);
+            },
+            input: "chat_messages",
+            prompt: "assistant: ${llm_generated_text}$",
+            output: "llm_generated_title",
+            next_nodes: ["end"],
+          },
+          end: {
+            type: "end_node",
+            next_nodes: [],
+          },
+          variables: {
+            chat_messages: index === -1 ? messages : messages.slice(0, index),
+            llm_generated_title: "",
+            llm_generated_text: "",
+            basic_description_for_images: "",
+            llm_generated_prompt_for_itt_model: "",
+            deeper_look_at_the_images: "",
+            input_images: inputImages,
+          },
+        }).then(() => {
+          setAwaitResponse(null);
           setInputImages([]);
-          ollama_chat_completion_streaming(
-            sectionData.language_model_using,
-            address,
-            messages,
-            index,
-            update_message_on_index,
-            vision_prompt + response
-          )
-            .then((response) => {
-              setAwaitResponse(null);
-            })
-            .finally(() => {
-              if (sectionData.n_turns_to_regenerate_title === 0) {
-                ollama_update_title_no_streaming(
-                  sectionData.language_model_using,
-                  address,
-                  messages,
-                  update_title
-                );
-              }
-            });
         });
+
+        // ollama_image_to_text(inputImages, messages).then((response) => {
+        //   setInputImages([]);
+        //   ollama_chat_completion_streaming(
+        //     sectionData.language_model_using,
+        //     address,
+        //     messages,
+        //     index,
+        //     update_message_on_index,
+        //     vision_prompt + response
+        //   )
+        //     .then((response) => {
+        //       setAwaitResponse(null);
+        //     })
+        //     .finally(() => {
+        //       if (sectionData.n_turns_to_regenerate_title === 0) {
+        //         ollama_update_title_no_streaming(
+        //           sectionData.language_model_using,
+        //           address,
+        //           messages,
+        //           update_title
+        //         );
+        //       }
+        //     });
+        // });
       } else {
         run({
           start: {
@@ -1344,7 +1433,10 @@ const Chat = () => {
             input: "chat_messages",
             prompt: "",
             output: "llm_generated_text",
-            next_nodes: sectionData.n_turns_to_regenerate_title === 0 ? ["title_generation_node"] : ["end"],
+            next_nodes:
+              sectionData.n_turns_to_regenerate_title === 0
+                ? ["title_generation_node"]
+                : ["end"],
           },
           title_generation_node: {
             type: "title_generation_node",

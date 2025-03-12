@@ -46,6 +46,7 @@ const RequestContainer = ({ children }) => {
         case "text_completion_node":
           break;
         case "image_to_text_node":
+          response = await image_to_text_node(node, variables);
           break;
         case "chat_completion_node":
           response = await chat_completion_node(node, variables);
@@ -255,6 +256,140 @@ const RequestContainer = ({ children }) => {
       setOllamaOnTask(null);
       return { status: false, variables: variables };
     }
+  };
+  const image_to_text_node = async (node, variables) => {
+    const image_to_text = async (
+      base64Image,
+      prompt,
+      model,
+      pervious_responses,
+      call_back_function_wrapper,
+      call_back
+    ) => {
+      const cleanedBase64Image = base64Image
+        .replace(/^data:image\/[a-z]+;base64,/, "")
+        .trim();
+
+      if (!cleanedBase64Image) {
+        console.error("Invalid base64 format:", base64Image);
+        return;
+      }
+
+      const apiUrl = request_url.image_to_text.ollama;
+
+      const requestBody = {
+        model: model,
+        prompt:
+          prompt && prompt.length > 0 ? prompt : vision_prompt.to_image_model,
+        images: [cleanedBase64Image],
+        stream: true,
+      };
+
+      try {
+        const abortController = new AbortController();
+        const signal = abortController.signal;
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(requestBody),
+          signal,
+        });
+        if (!response.body) {
+          console.error("No response body received from Ollama.");
+          return;
+        }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let accumulatedResponse = "";
+        let end = false;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          setOllamaOnTask((prev) => {
+            if (prev && prev.includes("force_stop")) {
+              end = true;
+            }
+            return prev;
+          });
+          if (end) {
+            abortController.abort();
+            break;
+          }
+          const chunk = decoder.decode(value, { stream: true });
+          try {
+            const jsonChunk = JSON.parse(chunk);
+            if (jsonChunk.response) {
+              accumulatedResponse += jsonChunk.response;
+              call_back_function_wrapper(
+                pervious_responses,
+                accumulatedResponse,
+                call_back
+              );
+            }
+            if (jsonChunk.done) break;
+          } catch (error) {
+            console.error("Error parsing stream chunk:", error);
+          }
+        }
+        setOllamaOnTask(null);
+        return accumulatedResponse;
+      } catch (error) {
+        console.error("Fetch error:", error);
+        return null;
+      }
+    };
+    const call_back_function_wrapper = (
+      pervious_responses,
+      current_response,
+      update_callback
+    ) => {
+      let responses = pervious_responses;
+      responses.push(current_response);
+      update_callback(responses.join("\n"));
+    };
+    const processed_prompt = replace_variables_in_prompt(
+      node.prompt,
+      variables
+    );
+    const base64Images = variables[node.input];
+
+    const responses = [];
+    let image_index = 1;
+    let end = false;
+
+    setOllamaOnTask(
+      `image_to_text|[🌋 LLaVA ${task_descriptions.image_to_text[0]}]`
+    );
+    try {
+      for (const base64Image of base64Images) {
+        const text = await image_to_text(
+          base64Image,
+          processed_prompt,
+          node.model_used,
+          [...responses],
+          call_back_function_wrapper,
+          node.update_callback
+        );
+        responses.push(`image ${image_index} description: ${text}`);
+        image_index++;
+        setOllamaOnTask((prev) => {
+          if (prev && prev.includes("force_stop")) {
+            end = true;
+          }
+          return prev;
+        });
+        if (end) break;
+      }
+    } catch (error) {
+      console.error("Error communicating with Ollama:", error);
+      return { status: false, variables: variables };
+    }
+    setOllamaOnTask(null);
+    variables[node.output] = responses.join("\n");
+    return { status: true, variables: variables };
   };
   /* { Node } ========================================================================================= */
 
@@ -581,26 +716,55 @@ const RequestContainer = ({ children }) => {
         model: "llava",
         prompt: vision_prompt.to_image_model + user_message,
         images: [cleanedBase64Image],
-        stream: false,
+        stream: true,
       };
 
       try {
+        const abortController = new AbortController();
+        const signal = abortController.signal;
         const response = await fetch(apiUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(requestBody),
+          signal,
         });
-        const responseText = await response.text();
-
-        try {
-          const data = JSON.parse(responseText);
-          return data.response;
-        } catch (jsonError) {
-          console.error("Response is not valid JSON. Error:", jsonError);
-          return null;
+        if (!response.body) {
+          console.error("No response body received from Ollama.");
+          return;
         }
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let accumulatedResponse = "";
+        let end = false;
+
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          setOllamaOnTask((prev) => {
+            if (prev && prev.includes("force_stop")) {
+              end = true;
+            }
+            return prev;
+          });
+          if (end) {
+            abortController.abort();
+            break;
+          }
+          const chunk = decoder.decode(value, { stream: true });
+          try {
+            const jsonChunk = JSON.parse(chunk);
+            if (jsonChunk.response) {
+              accumulatedResponse += jsonChunk.response;
+            }
+            if (jsonChunk.done) break;
+          } catch (error) {
+            console.error("Error parsing stream chunk:", error);
+          }
+        }
+        setOllamaOnTask(null);
+        return accumulatedResponse;
       } catch (error) {
         console.error("Fetch error:", error);
         return null;

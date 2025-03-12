@@ -192,7 +192,7 @@ _user_defined_node_id_2_: {
     type: "image_to_text_node",
     model_used: "t5-base",
     update_callback: function(),
-    input: "ud_image_1"
+    input: "ud_images_array",
     prompt: "${llm_generated_text}$ prompt",
     output: "itt_generated_text",
     next_nodes: ['end'],
