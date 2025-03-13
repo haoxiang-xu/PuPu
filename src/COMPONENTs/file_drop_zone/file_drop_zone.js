@@ -36,9 +36,9 @@ const FileDropZone = ({
           setInputImages((prev) => [...prev, reader.result]);
         };
         reader.readAsDataURL(file);
-        setOnFileDragOver(false);
       }
     }
+    setOnFileDragOver(false);
   };
 
   return (
