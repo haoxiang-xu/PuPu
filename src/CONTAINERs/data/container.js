@@ -49,35 +49,31 @@ const DataContainer = ({ children }) => {
     vision_model: null,
   });
   useEffect(() => {
-    if (avaliableModels.includes(sectionData.language_model_using)) {
-      return;
-    } else {
+    if (!avaliableModels.includes(sectionData.language_model_using)) {
       setSectionData((prev) => ({
         ...prev,
         language_model_using: null,
       }));
     }
-    for (let model of favouredModels.language_models) {
-      if (avaliableModels.includes(model)) {
-        continue;
+    setFavouredModels((prev) => {
+      let new_favoured_models = { ...prev };
+      if (!new_favoured_models.language_models) {
+        new_favoured_models.language_models = [];
       }
-      setFavouredModels((prev) => ({
-        ...prev,
-        language_models: prev.language_models.filter(
-          (language_model) => language_model !== model
-        ),
-      }));
-    }
-    if (
-      favouredModels.vision_model &&
-      !avaliableModels.includes(favouredModels.vision_model)
-    ) {
-      setFavouredModels((prev) => ({
-        ...prev,
-        vision_model: null,
-      }));
-    }
-  }, [avaliableModels, favouredModels]);
+      for (let model of new_favoured_models.language_models) {
+        if (avaliableModels.includes(model)) {
+          continue;
+        }
+        new_favoured_models.language_models = new_favoured_models.language_models.filter(
+          (name) => name !== model
+        );
+      }
+      if (!avaliableModels.includes(new_favoured_models.vision_model)) {
+        new_favoured_models.vision_model = null;
+      }
+      return new_favoured_models;
+    });
+  }, [avaliableModels]);
   /* { Model Related } ------------------------------------------------------------------------------- */
 
   /* { Local Storage } ------------------------------------------------------------------------------- */
