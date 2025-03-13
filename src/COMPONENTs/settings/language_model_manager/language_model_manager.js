@@ -332,7 +332,7 @@ const ModelTag = ({ model }) => {
   } = useContext(StatusContexts);
   const { favouredModels, setFavouredModels, avaliableModels } =
     useContext(DataContexts);
-  const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
+  const { setItemOnSelect } = useContext(Contexts);
 
   const tagRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);

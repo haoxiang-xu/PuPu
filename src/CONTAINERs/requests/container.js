@@ -437,7 +437,7 @@ const RequestContainer = ({ children }) => {
     let end = false;
 
     setOllamaOnTask(
-      `image_to_text|[🌋 LLaVA ${task_descriptions.image_to_text[0]}]`
+      `image_to_text|[${node.model_used} ${task_descriptions.image_to_text[0]}]`
     );
     try {
       for (const base64Image of base64Images) {

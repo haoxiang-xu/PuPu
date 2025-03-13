@@ -330,7 +330,9 @@ const ModelTag = ({ model }) => {
     load_context_menu,
     unload_context_menu,
   } = useContext(StatusContexts);
-  const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
+  const { favouredModels, setFavouredModels, avaliableModels } =
+    useContext(DataContexts);
+  const { setItemOnSelect } = useContext(Contexts);
 
   const tagRef = useRef(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -387,6 +389,34 @@ const ModelTag = ({ model }) => {
             transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           }}
         ></div>
+      ) : null}
+      {avaliableModels.includes(model) ? (
+        <Icon
+          src={favouredModels.vision_model === model ? "star_1" : "star_0"}
+          style={{
+            transform: "translate(0, -2px)",
+            width: 16,
+            height: 16,
+            display: "inline-block",
+            verticalAlign: "middle",
+            alignContent: "center",
+            margin: "0 6px 0 0",
+            opacity: favouredModels.vision_model === model ? 1 : 0.36,
+          }}
+          onClick={(e) => {
+            if (favouredModels.vision_model === model) {
+              setFavouredModels((prev) => ({
+                ...prev,
+                vision_model: null,
+              }));
+            } else {
+              setFavouredModels((prev) => ({
+                ...prev,
+                vision_model: model,
+              }));
+            }
+          }}
+        />
       ) : null}
       <span
         style={{
@@ -498,8 +528,7 @@ const AvailableModel = () => {
       }
     }
     setPendingDownloadModels(pending_models);
-  }
-  , [ollamaPendingDownloadModels]);
+  }, [ollamaPendingDownloadModels]);
 
   return (
     <>

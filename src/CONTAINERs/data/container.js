@@ -16,7 +16,10 @@ import Side_Menu from "../../COMPONENTs/side_menu/side_menu";
 import Title_Bar from "../../COMPONENTs/title_bar/title_bar";
 import Dialog from "../../COMPONENTs/dialog/dialog";
 
-import { available_large_language_models } from "../../COMPONENTs/settings/ollama";
+import {
+  available_large_language_models,
+  available_vision_models,
+} from "../../COMPONENTs/settings/ollama";
 
 const DataContainer = ({ children }) => {
   const {
@@ -63,6 +66,15 @@ const DataContainer = ({ children }) => {
         language_models: prev.language_models.filter(
           (language_model) => language_model !== model
         ),
+      }));
+    }
+    if (
+      favouredModels.vision_model &&
+      !avaliableModels.includes(favouredModels.vision_model)
+    ) {
+      setFavouredModels((prev) => ({
+        ...prev,
+        vision_model: null,
       }));
     }
   }, [avaliableModels, favouredModels]);
@@ -219,18 +231,21 @@ const DataContainer = ({ children }) => {
     });
     setSectionStarted(false);
   }, [favouredModels]);
-  const load_section_data = useCallback((target_address) => {
-    let section_data = JSON.parse(
-      localStorage.getItem(UNIQUE_KEY + target_address)
-    );
-    if (!avaliableModels.includes(section_data.language_model_using)) {
-      section_data.language_model_using = null;
-    }
-    if (section_data) {
-      setSectionData(section_data);
-      setSectionStarted(true);
-    }
-  }, [avaliableModels]);
+  const load_section_data = useCallback(
+    (target_address) => {
+      let section_data = JSON.parse(
+        localStorage.getItem(UNIQUE_KEY + target_address)
+      );
+      if (!avaliableModels.includes(section_data.language_model_using)) {
+        section_data.language_model_using = null;
+      }
+      if (section_data) {
+        setSectionData(section_data);
+        setSectionStarted(true);
+      }
+    },
+    [avaliableModels]
+  );
   const append_message = (target_address, message) => {
     if (target_address !== sectionData.address) {
       return;
@@ -378,6 +393,47 @@ const DataContainer = ({ children }) => {
     }
     return loaded_images;
   };
+  const get_all_available_language_models = useCallback(() => {
+    const check_is_language_model = (model_name) => {
+      for (let model_family of available_large_language_models) {
+        for (let model of model_family.models) {
+          if (model_name.includes(model.name)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    let all_models = [];
+    for (let model of avaliableModels) {
+      if (check_is_language_model(model)) {
+        all_models.push(model);
+      }
+    }
+
+    return all_models;
+  }, [avaliableModels]);
+  const get_all_available_vision_models = useCallback(() => {
+    const check_is_vision_model = (model_name) => {
+      for (let model_family of available_vision_models) {
+        for (let model of model_family.models) {
+          if (model_name.includes(model.name)) {
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+    let all_models = [];
+    for (let model of avaliableModels) {
+      if (check_is_vision_model(model)) {
+        all_models.push(model);
+      }
+    }
+
+    return all_models;
+  }, [avaliableModels]);
+
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Model Data } ----------------------------------------------------------------------------------- */
@@ -448,6 +504,9 @@ const DataContainer = ({ children }) => {
         trigger_section_mode,
         save_input_images,
         load_saved_images,
+
+        get_all_available_language_models,
+        get_all_available_vision_models,
       }}
     >
       {!ollamaServerStatus ? null : (

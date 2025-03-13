@@ -1221,6 +1221,8 @@ const Chat = () => {
     update_message_on_index,
     append_message,
     save_input_images,
+    favouredModels,
+    get_all_available_vision_models,
   } = useContext(DataContexts);
   const { windowWidth, onSideMenu } = useContext(StatusContexts);
   const {
@@ -1289,6 +1291,12 @@ const Chat = () => {
     (address, messages, index) => {
       setAwaitResponse(index);
 
+      const all_vision_models = get_all_available_vision_models();
+      if (all_vision_models.length === 0) {
+        setAwaitResponse(null);
+        return;
+      }
+
       if (index === -1) {
         append_message(address, {
           role: "assistant",
@@ -1315,7 +1323,7 @@ const Chat = () => {
           },
           basically_describe_the_images: {
             type: "image_to_text_node",
-            model_used: "llava:13b",
+            model_used: favouredModels.vision_model? favouredModels.vision_model : all_vision_models[0],
             model_provider: "ollama",
             update_callback: (response) => {},
             input: "input_images",
@@ -1340,7 +1348,7 @@ const Chat = () => {
           },
           deeper_look_at_the_images: {
             type: "image_to_text_node",
-            model_used: "llava:13b",
+            model_used: favouredModels.vision_model? favouredModels.vision_model : all_vision_models[0],
             model_provider: "ollama",
             update_callback: (response) => {},
             input: "input_images",
@@ -1473,7 +1481,7 @@ const Chat = () => {
         });
       }
     },
-    [inputValue, sectionData.language_model_using, inputImages]
+    [inputValue, sectionData.language_model_using, inputImages, favouredModels]
   );
   useEffect(() => {
     const messages = sectionData.messages || [];
