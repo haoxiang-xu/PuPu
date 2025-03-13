@@ -162,7 +162,7 @@ const CodeSection = ({ language, children }) => {
           backgroundColor: markdown.code_section.backgroundColor,
           paddingTop: 36,
           paddingLeft: 6,
-          borderRadius: default_border_radius,
+          borderRadius: default_border_radius + 1,
           overflowX: "auto",
           overflowY: "hidden",
           maxWidth: "100%",
