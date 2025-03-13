@@ -401,7 +401,6 @@ const ModelTag = ({ model }) => {
             verticalAlign: "middle",
             alignContent: "center",
             margin: "0 6px 0 0",
-            opacity: favouredModels.vision_model === model ? 1 : 0.36,
           }}
           onClick={(e) => {
             if (favouredModels.vision_model === model) {
