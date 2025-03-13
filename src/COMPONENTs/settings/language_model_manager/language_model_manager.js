@@ -330,6 +330,8 @@ const ModelTag = ({ model }) => {
     load_context_menu,
     unload_context_menu,
   } = useContext(StatusContexts);
+  const { favouredModels, setFavouredModels, avaliableModels } =
+    useContext(DataContexts);
   const { ItemOnSelect, setItemOnSelect } = useContext(Contexts);
 
   const tagRef = useRef(null);
@@ -388,6 +390,45 @@ const ModelTag = ({ model }) => {
           }}
         ></div>
       ) : null}
+      {avaliableModels.includes(model) ? (
+        <Icon
+          src={
+            favouredModels.language_models.includes(model) ? "star_1" : "star_0"
+          }
+          style={{
+            transform: "translate(0, -2px)",
+            width: 16,
+            height: 16,
+            display: "inline-block",
+            verticalAlign: "middle",
+            alignContent: "center",
+            margin: "0 6px 0 0",
+            opacity: favouredModels.language_models.includes(model) ? 1 : 0.36,
+          }}
+          onClick={(e) => {
+            if (favouredModels.language_models.includes(model)) {
+              setFavouredModels((prev) => ({
+                ...prev,
+                language_models: prev.language_models.filter(
+                  (item) => item !== model
+                ),
+              }));
+            } else {
+              setFavouredModels((prev) => {
+                let new_favoured_models = [...prev.language_models];
+                if (new_favoured_models.length >= 5) {
+                  new_favoured_models.shift();
+                }
+                new_favoured_models.push(model);
+                return {
+                  ...prev,
+                  language_models: new_favoured_models,
+                };
+              });
+            }
+          }}
+        />
+      ) : null}
       <span
         style={{
           position: "relative",
@@ -445,7 +486,7 @@ const ModelTag = ({ model }) => {
                     },
                   },
                 ],
-                tagRef.current?.getBoundingClientRect().x + tagWidth - 32,
+                tagRef.current?.getBoundingClientRect().x + tagWidth - 10,
                 tagRef.current?.getBoundingClientRect().y + 28
               );
             }}
@@ -456,7 +497,7 @@ const ModelTag = ({ model }) => {
   );
 };
 const AvailableModel = () => {
-  const { avaliableModels } = useContext(DataContexts);
+  const { avaliableModels, favouredModels } = useContext(DataContexts);
   const { ollamaPendingDownloadModels } = useContext(StatusContexts);
 
   const [availableLanguageModels, setAvailableLanguageModels] = useState([]);
@@ -472,13 +513,20 @@ const AvailableModel = () => {
       return false;
     };
     let available_models = [];
-    for (let model of avaliableModels) {
+    for (let model of favouredModels.language_models) {
       if (check_is_language_model(model)) {
         available_models.push(model);
       }
     }
+    for (let model of avaliableModels) {
+      if (!favouredModels.language_models.includes(model)) {
+        if (check_is_language_model(model)) {
+          available_models.push(model);
+        }
+      }
+    }
     setAvailableLanguageModels(available_models);
-  }, [avaliableModels]);
+  }, [avaliableModels, favouredModels]);
   const [pendingDownloadModels, setPendingDownloadModels] = useState([]);
   useEffect(() => {
     const check_is_language_model = (model_name) => {
@@ -494,11 +542,13 @@ const AvailableModel = () => {
     let pending_download_models = [];
     for (let model of ollamaPendingDownloadModels) {
       if (check_is_language_model(model)) {
-        pending_download_models.push(model);
+        if (!favouredModels.language_models.includes(model)) {
+          pending_download_models.push(model);
+        }
       }
     }
     setPendingDownloadModels(pending_download_models);
-  }, [ollamaPendingDownloadModels]);
+  }, [ollamaPendingDownloadModels, favouredModels]);
 
   return (
     <>

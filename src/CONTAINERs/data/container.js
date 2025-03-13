@@ -41,6 +41,10 @@ const DataContainer = ({ children }) => {
 
   /* { Model Related } ------------------------------------------------------------------------------- */
   const [avaliableModels, setAvaliableModels] = useState([]);
+  const [favouredModels, setFavouredModels] = useState({
+    language_models: [],
+    vision_model: null,
+  });
   useEffect(() => {
     if (avaliableModels.includes(sectionData.language_model_using)) {
       return;
@@ -50,7 +54,18 @@ const DataContainer = ({ children }) => {
         language_model_using: null,
       }));
     }
-  }, [avaliableModels]);
+    for (let model of favouredModels.language_models) {
+      if (avaliableModels.includes(model)) {
+        continue;
+      }
+      setFavouredModels((prev) => ({
+        ...prev,
+        language_models: prev.language_models.filter(
+          (language_model) => language_model !== model
+        ),
+      }));
+    }
+  }, [avaliableModels, favouredModels]);
   /* { Model Related } ------------------------------------------------------------------------------- */
 
   /* { Local Storage } ------------------------------------------------------------------------------- */
@@ -59,28 +74,84 @@ const DataContainer = ({ children }) => {
 
   /* { load from local storage } */
   useEffect(() => {
+    const load_from_local_storage = () => {
+      const address_book = JSON.parse(
+        localStorage.getItem(UNIQUE_KEY + "address_book") || "{}"
+      );
+      const favoured_models = JSON.parse(
+        localStorage.getItem(UNIQUE_KEY + "favoured_models") || null
+      );
+      if (favoured_models) {
+        setFavouredModels(favoured_models);
+      } else {
+        setFavouredModels({
+          language_models: [],
+          vision_model: null,
+        });
+      }
+      if (
+        address_book &&
+        address_book.avaliable_addresses &&
+        address_book.avaliable_addresses[0]
+      ) {
+        const section_data = JSON.parse(
+          localStorage.getItem(UNIQUE_KEY + address_book.avaliable_addresses[0])
+        );
+        if (section_data) {
+          setSectionData(section_data);
+          setSectionStarted(true);
+        } else {
+          start_new_section();
+        }
+        setAddressBook(address_book);
+      } else {
+        start_new_section();
+        setAddressBook({ avaliable_addresses: [] });
+      }
+    };
+    const app_initialization = () => {
+      try {
+        load_from_local_storage();
+        ollama_get_version().then((version) => {
+          if (!version) {
+            setOllamaServerStatus(false);
+            return false;
+          } else {
+            setTimeout(() => {
+              setOllamaServerStatus(true);
+            }, 1000);
+            load_models();
+            return true;
+          }
+        });
+      } catch (error) {
+        console.error("Error loading from local storage:", error);
+        localStorage.clear();
+      }
+    };
     app_initialization();
   }, []);
-  const app_initialization = () => {
-    try {
-      load_from_local_storage();
-      ollama_get_version().then((version) => {
-        if (!version) {
-          setOllamaServerStatus(false);
-          return false;
-        } else {
-          setTimeout(() => {
-            setOllamaServerStatus(true);
-          }, 1000);
-          load_models();
-          return true;
-        }
+  /* { save to local storage } */
+  useEffect(() => {
+    const save_to_local_storage = () => {
+      setSectionData((prev) => {
+        localStorage.setItem(UNIQUE_KEY + prev.address, JSON.stringify(prev));
+        return prev;
       });
-    } catch (error) {
-      console.error("Error loading from local storage:", error);
-      localStorage.clear();
-    }
-  };
+      setAddressBook((prev) => {
+        localStorage.setItem(UNIQUE_KEY + "address_book", JSON.stringify(prev));
+        return prev;
+      });
+      setFavouredModels((prev) => {
+        localStorage.setItem(
+          UNIQUE_KEY + "favoured_models",
+          JSON.stringify(prev)
+        );
+        return prev;
+      });
+    };
+    save_to_local_storage();
+  }, [sectionData, addressBook, favouredModels]);
   const check_if_address_existed = (address) => {
     return address in addressBook;
   };
@@ -95,30 +166,6 @@ const DataContainer = ({ children }) => {
     }
     return generated_address;
   };
-  const load_from_local_storage = () => {
-    const address_book = JSON.parse(
-      localStorage.getItem(UNIQUE_KEY + "address_book") || "{}"
-    );
-    if (
-      address_book &&
-      address_book.avaliable_addresses &&
-      address_book.avaliable_addresses[0]
-    ) {
-      const section_data = JSON.parse(
-        localStorage.getItem(UNIQUE_KEY + address_book.avaliable_addresses[0])
-      );
-      if (section_data) {
-        setSectionData(section_data);
-        setSectionStarted(true);
-      } else {
-        start_new_section();
-      }
-      setAddressBook(address_book);
-    } else {
-      start_new_section();
-      setAddressBook({ avaliable_addresses: [] });
-    }
-  };
   const load_models = () => {
     try {
       let selected_model = localStorage.getItem(UNIQUE_KEY + "selected_model");
@@ -131,16 +178,6 @@ const DataContainer = ({ children }) => {
     } catch (error) {
       console.error("Error loading models:", error);
     }
-  };
-  const save_to_local_storage = () => {
-    setSectionData((prev) => {
-      localStorage.setItem(UNIQUE_KEY + prev.address, JSON.stringify(prev));
-      return prev;
-    });
-    setAddressBook((prev) => {
-      localStorage.setItem(UNIQUE_KEY + "address_book", JSON.stringify(prev));
-      return prev;
-    });
   };
   /* { Local Storage } -------------------------------------------------------------------------------- */
 
@@ -158,7 +195,7 @@ const DataContainer = ({ children }) => {
       return false;
     };
     const generated_address = generate_new_address();
-    for (let model of avaliableModels) {
+    for (let model of favouredModels.language_models) {
       if (check_is_language_model(model)) {
         setSectionData({
           address: generated_address,
@@ -181,16 +218,19 @@ const DataContainer = ({ children }) => {
       messages: [],
     });
     setSectionStarted(false);
-  }, [avaliableModels]);
-  const load_section_data = (target_address) => {
-    const section_data = JSON.parse(
+  }, [favouredModels]);
+  const load_section_data = useCallback((target_address) => {
+    let section_data = JSON.parse(
       localStorage.getItem(UNIQUE_KEY + target_address)
     );
+    if (!avaliableModels.includes(section_data.language_model_using)) {
+      section_data.language_model_using = null;
+    }
     if (section_data) {
       setSectionData(section_data);
       setSectionStarted(true);
     }
-  };
+  }, [avaliableModels]);
   const append_message = (target_address, message) => {
     if (target_address !== sectionData.address) {
       return;
@@ -338,9 +378,6 @@ const DataContainer = ({ children }) => {
     }
     return loaded_images;
   };
-  useEffect(() => {
-    save_to_local_storage();
-  }, [sectionData, addressBook]);
   /* { Section Data } --------------------------------------------------------------------------------- */
 
   /* { Model Data } ----------------------------------------------------------------------------------- */
@@ -396,8 +433,9 @@ const DataContainer = ({ children }) => {
         sectionStarted,
         avaliableModels,
         setAvaliableModels,
+        favouredModels,
+        setFavouredModels,
 
-        app_initialization,
         append_message,
         update_lanaguage_model_using,
         delete_address_in_local_storage,

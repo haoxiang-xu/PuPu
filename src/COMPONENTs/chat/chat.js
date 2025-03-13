@@ -551,7 +551,7 @@ const Model_Selector = ({ value, setMenuWidth }) => {
   const sub_component_name = component_name + "_" + "model_selector";
 
   const { messageList } = useContext(ConfigContexts);
-  const { sectionData, avaliableModels, setAvaliableModels } =
+  const { sectionData, avaliableModels, setAvaliableModels, favouredModels } =
     useContext(DataContexts);
   const { ollamaOnTask, componentOnFocus, setComponentOnFocus } =
     useContext(StatusContexts);
@@ -589,13 +589,21 @@ const Model_Selector = ({ value, setMenuWidth }) => {
       return false;
     };
     let available_models = [];
-    for (let model of avaliableModels) {
-      if (check_is_language_model(model)) {
-        available_models.push(model);
+    if (
+      favouredModels &&
+      favouredModels.language_models &&
+      favouredModels.language_models.length !== 0
+    ) {
+      available_models = favouredModels.language_models;
+    } else {
+      for (let model of avaliableModels) {
+        if (check_is_language_model(model)) {
+          available_models.push(model);
+        }
       }
     }
     setAvailableLanguageModels(available_models);
-  }, [avaliableModels]);
+  }, [avaliableModels, favouredModels]);
 
   return (
     <div
