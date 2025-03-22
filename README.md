@@ -45,13 +45,13 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 - If you downloaded the `.deb` file, run the following command in the terminal:
 
 ```bash
-sudo dpkg -i PuPu-0.0.2.deb
+sudo dpkg -i PuPu-0.0.4.deb
 ```
 
 OR
 
 ```bash
-sudo apt install ./PuPu-0.0.2.deb
+sudo apt install ./PuPu-0.0.4.deb
 ```
 
 - Ensuring Proper Sandbox Permissions: <span style="opacity: 0.32">If you encounter an error message about sandbox permissions, you can run the following command:</span>
