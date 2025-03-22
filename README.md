@@ -21,9 +21,13 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 
 ## Table of Contents
 
-- [App installation](#app-installation)
-- [Local Setup](#local-setup)
-- [Deployment](#deployment)
+- [For Users](#for-users)
+  - [App installation](#app-installation)
+- [For Developers](#for-developers)
+  - [Local Setup](#local-setup)
+  - [Deployment](#deployment)
+
+## For Users <a name="for-users"></a>
 
 ### App installation <a name="app-installation"></a>
 
@@ -60,6 +64,8 @@ sudo apt install ./PuPu-0.0.4.deb
 sudo chown root:root /opt/PuPu/chrome-sandbox
 sudo chmod 4755 /opt/PuPu/chrome-sandbox
 ```
+
+## For Developers <a name="for-developers"></a>
 
 ### Local Setup <a name="local-setup"></a>
 
