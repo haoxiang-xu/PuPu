@@ -354,8 +354,8 @@ const ConfigContainer = ({ children }) => {
       } else {
         return {
           vertical: {
-            backgroundColor: `rgba(102, 45, 71, 0.12)`,
-            border: `1px solid rgba(102, 45, 71, 0.4)`,
+            backgroundColor: `rgba(102, 45, 71, 0.24)`,
+            border: `1px solid rgba(102, 45, 71, 0)`,
           },
           horizontal: {
             backgroundColor: `rgba(${RGB.R - 128}, ${RGB.G - 128}, ${

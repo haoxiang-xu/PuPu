@@ -8,7 +8,7 @@ const ScrollingSpace = ({}) => {
     const styleElement = document.createElement("style");
     styleElement.innerHTML = `
     .scrolling-space::-webkit-scrollbar {
-      width: 8px;
+      width: 7px;
     }
     .scrolling-space::-webkit-scrollbar-track {
       background-color: rgb(225, 225, 225, 0);
@@ -39,7 +39,7 @@ const ScrollingSpace = ({}) => {
       display: none;
     }
     .h_2_scrolling-space::-webkit-scrollbar {
-      height: 8px;
+      height: 7px;
     }
     .h_2_scrolling-space::-webkit-scrollbar-track {
       background-color: rgb(225, 225, 225, 0);
