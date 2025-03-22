@@ -10,7 +10,6 @@
 </div>
 <br><br><br>
 
-
 [![Download for Windows][windows-shield]][windows-url]
 [![Download for Mac][macos-shield]][macos-url]
 [![Download for Linux][linux-shield]][linux-url]
@@ -66,6 +65,8 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
 - Install dependencies: <span style="opacity: 0.32">To run the electron app locally, you need to install the dependencies by running the following command:</span>
 
+  - windows might require extra steps to install the node-gyp dependencies, you can follow the instructions [here](./docs/node_gyp_setup_guide.md).
+
 `npm install`
 
 - Rebuild the Electron App: <span style="opacity: 0.32">After installing the dependencies, you need to rebuild the electron app by running the following command:</span>
@@ -91,8 +92,8 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 `npx electron-builder --linux` <span style="opacity: 0.32"> (for linux) </span>
 
 [windows-shield]: https://img.shields.io/badge/download_for_windows-EBDBE2?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
-[windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
+[windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
 [macos-shield]: https://img.shields.io/badge/download_for_mac-EBDBE2?style=for-the-badge&logo=apple&logoColor=000000&labelColor=EBDBE2
-[macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
+[macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
 [linux-shield]: https://img.shields.io/badge/download_for_linux-EBDBE2?style=for-the-badge&logo=linux&logoColor=000000&labelColor=EBDBE2
-[linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.2
+[linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
