@@ -94,7 +94,6 @@ const Context_Menu = ({ x, y, width, options }) => {
       style={{
         transition: "width 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "fixed",
-        maxHeight: (width + 2) * 0.618,
         top: y,
         left: x,
         width: style.width,

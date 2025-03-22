@@ -318,6 +318,8 @@ const ModelTag = ({ model }) => {
   const sub_component_name = "installed_models_section";
 
   const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
+  const { sectionData, update_lanaguage_model_using } =
+    useContext(DataContexts);
   const {
     /* { pending delete models } */
     ollamaPendingDeleteModels,
@@ -329,6 +331,7 @@ const ModelTag = ({ model }) => {
 
     load_context_menu,
     unload_context_menu,
+    setOnDialog,
   } = useContext(StatusContexts);
   const { favouredModels, setFavouredModels, avaliableModels } =
     useContext(DataContexts);
@@ -362,7 +365,16 @@ const ModelTag = ({ model }) => {
       onContextMenu={(e) => {
         e.preventDefault();
         e.stopPropagation();
-        load_context_menu(e, 120, [
+        load_context_menu(e, 140, [
+          {
+            img_src: "chat",
+            label: "Chat",
+            onClick: () => {
+              update_lanaguage_model_using(sectionData.address, model);
+              setOnDialog("");
+              unload_context_menu();
+            },
+          },
           {
             img_src: "delete",
             label: "Delete",
@@ -474,8 +486,17 @@ const ModelTag = ({ model }) => {
               setItemOnSelect(sub_component_name + model);
               load_context_menu(
                 e,
-                120,
+                140,
                 [
+                  {
+                    img_src: "chat",
+                    label: "Chat",
+                    onClick: () => {
+                      update_lanaguage_model_using(sectionData.address, model);
+                      setOnDialog("");
+                      unload_context_menu();
+                    },
+                  },
                   {
                     img_src: "delete",
                     label: "Delete",
