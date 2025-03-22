@@ -1222,6 +1222,7 @@ const Chat = () => {
     append_message,
     save_input_images,
     favouredModels,
+    load_saved_images,
     get_all_available_vision_models,
   } = useContext(DataContexts);
   const { windowWidth, onSideMenu } = useContext(StatusContexts);
@@ -1296,6 +1297,7 @@ const Chat = () => {
         setAwaitResponse(null);
         return;
       }
+      let user_input_base64_images = [];
 
       if (index === -1) {
         append_message(address, {
@@ -1304,6 +1306,7 @@ const Chat = () => {
           content: "",
           expanded: true,
         });
+        user_input_base64_images = inputImages;
       } else if (index < 0 || index >= messages.length) {
         return;
       } else {
@@ -1313,9 +1316,16 @@ const Chat = () => {
           content: "",
           expanded: true,
         });
+        if (messages[index - 1] && messages[index - 1].images) {
+          user_input_base64_images = load_saved_images(
+            address,
+            index - 1,
+            messages[index - 1].images
+          );
+        }
       }
 
-      if (inputImages.length > 0) {
+      if (user_input_base64_images.length > 0) {
         run({
           start: {
             type: "start_node",
@@ -1323,7 +1333,9 @@ const Chat = () => {
           },
           basically_describe_the_images: {
             type: "image_to_text_node",
-            model_used: favouredModels.vision_model? favouredModels.vision_model : all_vision_models[0],
+            model_used: favouredModels.vision_model
+              ? favouredModels.vision_model
+              : all_vision_models[0],
             model_provider: "ollama",
             update_callback: (response) => {},
             input: "input_images",
@@ -1348,7 +1360,9 @@ const Chat = () => {
           },
           deeper_look_at_the_images: {
             type: "image_to_text_node",
-            model_used: favouredModels.vision_model? favouredModels.vision_model : all_vision_models[0],
+            model_used: favouredModels.vision_model
+              ? favouredModels.vision_model
+              : all_vision_models[0],
             model_provider: "ollama",
             update_callback: (response) => {},
             input: "input_images",
@@ -1399,37 +1413,12 @@ const Chat = () => {
             basic_description_for_images: "",
             llm_generated_prompt_for_itt_model: "",
             deeper_look_at_the_images: "",
-            input_images: inputImages,
+            input_images: user_input_base64_images,
           },
         }).then(() => {
           setAwaitResponse(null);
           setInputImages([]);
         });
-
-        // ollama_image_to_text(inputImages, messages).then((response) => {
-        //   setInputImages([]);
-        //   ollama_chat_completion_streaming(
-        //     sectionData.language_model_using,
-        //     address,
-        //     messages,
-        //     index,
-        //     update_message_on_index,
-        //     vision_prompt + response
-        //   )
-        //     .then((response) => {
-        //       setAwaitResponse(null);
-        //     })
-        //     .finally(() => {
-        //       if (sectionData.n_turns_to_regenerate_title === 0) {
-        //         ollama_update_title_no_streaming(
-        //           sectionData.language_model_using,
-        //           address,
-        //           messages,
-        //           update_title
-        //         );
-        //       }
-        //     });
-        // });
       } else {
         run({
           start: {
