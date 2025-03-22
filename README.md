@@ -33,17 +33,23 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 
 ### Windows
 
+[![Download for Windows][windows-shield]][windows-url]
+
 - Download the `.exe` Windows installer [here](windows-url).
 - Run the installer and follow the instructions.
 - Once the installation is complete, you can find the app in the start menu.
 
 ### Mac
 
+[![Download for Mac][macos-shield]][macos-url]
+
 - Download the `.dmg` Mac installer [here](macos-url).
 - Open the downloaded file and drag the app to the Applications folder.
 - Once the installation is complete, you can find the app in the Applications folder.
 
 ### Linux
+
+[![Download for Linux][linux-shield]][linux-url]
 
 - Download the `.deb` or `.AppImage` file [here](linux-url).
 - If you downloaded the `.deb` file, run the following command in the terminal:
