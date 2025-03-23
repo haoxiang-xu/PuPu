@@ -7,7 +7,6 @@
   - [`Data`](#data-container)
 - <span style="font-size: 20px">[`Components`](#components)</span>
   - [`Context Menu`](#context-menu)
-- <span style="font-size: 20px">[`Agent`](#agent)</span>
 
 ## Containers <a name="containers"></a>
 
@@ -69,6 +68,13 @@
 ---
 
 <span style="opacity: 0.32">Request Functions to local remote server.</span>
+
+Collection of functions that send requests to the server. There are 2 types of requests, `single` and `sequential`. The `single` request is a request that is sent once and to just one endpoint. The `sequential` request are set of single requests that are sent to multiple endpoints in a sequence.
+
+To call a `sequential` request, there's only one function should be called, which is `run()` function. The `run()` function will call the `sequential` request functions in a sequence. The parameters of the `run()` function is a JSON object that contains an `Agent`.
+
+To see more about the `Agent` object, please refer to the [Agent Structure](./agent_structure.md) documentation.
+
 
 ### Data Container <a name="data-container"></a>
 
@@ -144,111 +150,3 @@
 
 - `x` <span style="opacity: 0.32">If x is not defined, the menu will be shown at the mouse click position (optional).</span>
 - `y` <span style="opacity: 0.32">If y is not defined, the menu will be shown at the mouse click position (optional).</span>
-
-## Agent <a name="agent"></a>
-
-### Root Components
-```js
-{
-    agent_name: "_user_defined_agent_name_",
-    /* { nodes } ---------------------------- */
-    variables: {
-        ud_text_1: "text",
-        ud_image_1: "Base64image",
-        ud_message_1: "json{}",
-        llm_generated_text: "text",
-        itt_generated_text: "text",
-    },
-}
-```
-
-### `Start Node`
-
-```js
-start: {
-    type: "start_node",
-    next_nodes: ['ud_node_id'],
-}
-```
-
-### Text Completion Node
-
-```js
-_user_defined_node_id_1_: {
-    type: "text_completion_node",
-    model_used: "gpt-3.5-turbo",
-    update_callback: function(),
-    input: "ud_text_1",
-    prompt: "${ud_text_1}$ prompt",
-    output: "llm_generated_text",
-    next_nodes: ['_user_defined_node_id_2_'],
-}
-```
-
-### `Image to Text Node`
-
-```js
-_user_defined_node_id_2_: {
-    type: "image_to_text_node",
-    model_used: "t5-base",
-    update_callback: function(),
-    input: "ud_images_array",
-    prompt: "${llm_generated_text}$ prompt",
-    output: "output_text_variable_name",
-    next_nodes: ['ud_node_id'],
-}
-```
-
-### `Chat Completion Node` 
-
-```js
-chat_completion_node: {
-    type: "chat_completion_node",
-    model_used: "gpt-3.5-turbo",
-    model_provider: "openai",
-    update_callback: function(),
-    input: "ud_message_1",
-    prompt: "${ud_message_1}$ prompt",
-    output: "llm_generated_text",
-    next_nodes: ['_user_defined_node_id_2_'],
-}
-```
-
-### `Title Generation Node`
-
-```js
-title_generation_node: {
-    type: "title_generation_node",
-    model_used: "gpt-3.5-turbo",
-    model_provider: "openai",
-    update_callback: function(),
-    input: "ud_message_1",
-    prompt: "${llm_generated_text}$ prompt",
-    output: "title_generated",
-    next_nodes: ['_user_defined_node_id_1_'],
-}
-```
-
-### `Prompt Generation Node`
-
-```js
-prompt_generation_node: {
-    type: "prompt_generation_node",
-    model_used: "gpt-3.5-turbo",
-    model_provider: "openai",
-    update_callback: function(),
-    prompt: "${llm_generated_text}$ prompt",
-    output: "prompt_generated",
-    next_nodes: ['_user_defined_node_id_1_'],
-}
-
-```
-
-### `End Node`
-
-```js
-end: {
-    type: "end_node",
-    next_nodes: [],
-}
-```

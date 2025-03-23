@@ -26,6 +26,7 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 - [For Developers](#for-developers)
   - [Local Setup](#local-setup)
   - [Deployment](#deployment)
+  - [Further Development](#further-development)
 
 ## For Users <a name="for-users"></a>
 
@@ -77,7 +78,7 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
 - Install dependencies: <span style="opacity: 0.32">To run the electron app locally, you need to install the dependencies by running the following command:</span>
 
-  - windows might require extra steps to install the node-gyp dependencies, you can follow the instructions [here](./docs/node_gyp_setup_guide.md).
+  - windows might require extra steps to install the node-gyp dependencies, you can follow the instructions [here](./docs/setup_guide/node_gyp_setup_guide.md).
 
 `npm install`
 
@@ -102,6 +103,10 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 `npx electron-builder --win` <span style="opacity: 0.32"> (for windows) Notice: Windows might require you to run the command in an administrator shell. </span>
 
 `npx electron-builder --linux` <span style="opacity: 0.32"> (for linux) </span>
+
+### Further Development <a name="further-development"></a>
+
+- To further develop the app, you can refer to the [development guide](./docs/development/development.md).
 
 [windows-shield]: https://img.shields.io/badge/download_for_windows-EBDBE2?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
 [windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
