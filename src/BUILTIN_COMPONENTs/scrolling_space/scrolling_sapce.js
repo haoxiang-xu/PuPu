@@ -2,13 +2,13 @@ import React, { useEffect, useContext } from "react";
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 
 const ScrollingSpace = ({}) => {
-  const { scrollingSapce } = useContext(ConfigContexts);
+  const { scrollingSapce, theme } = useContext(ConfigContexts);
 
   useEffect(() => {
     const styleElement = document.createElement("style");
     styleElement.innerHTML = `
     .scrolling-space::-webkit-scrollbar {
-      width: 7px;
+      width: ${theme === "dark_theme" ? "8px" : "7px"};
     }
     .scrolling-space::-webkit-scrollbar-track {
       background-color: rgb(225, 225, 225, 0);
@@ -39,7 +39,7 @@ const ScrollingSpace = ({}) => {
       display: none;
     }
     .h_2_scrolling-space::-webkit-scrollbar {
-      height: 7px;
+      height: ${theme === "dark_theme" ? "8px" : "7px"};
     }
     .h_2_scrolling-space::-webkit-scrollbar-track {
       background-color: rgb(225, 225, 225, 0);

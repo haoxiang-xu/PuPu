@@ -35,7 +35,7 @@ const ChatContexts = createContext("");
 
 /* { Message List } -------------------------------------------------------------------------------------------------------- */
 const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
-  const { RGB, messageList } = useContext(ConfigContexts);
+  const { RGB, messageList, component } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
   const { update_message } = useContext(ChatContexts);
 
@@ -70,17 +70,17 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "plainTextMode" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "plainTextMode"
-                ? messageList.message_bottom_panel.backgroundColor_onActive
+                ? component.in_text_button.onActive.backgroundColor
                 : onHover === "plainTextMode"
-                ? messageList.message_bottom_panel.backgroundColor_onHover
-                : messageList.message_bottom_panel.backgroundColor,
+                ? component.in_text_button.onHover.backgroundColor
+                : component.in_text_button.backgroundColor,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "plainTextMode"
-                ? messageList.message_bottom_panel.border_onActive
+                ? component.in_text_button.onActive.border
                 : onHover === "plainTextMode"
-                ? messageList.message_bottom_panel.border_onHover
-                : messageList.message_bottom_panel.border,
+                ? component.in_text_button.onHover.border
+                : component.in_text_button.border,
             userSelect: "none",
           }}
           onMouseEnter={() => {
@@ -114,17 +114,17 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
             opacity: onClick === "regenerate" ? 0.72 : 0.5,
             backgroundColor:
               onClick === "regenerate"
-                ? messageList.message_bottom_panel.backgroundColor_onActive
+                ? component.in_text_button.onActive.backgroundColor
                 : onHover === "regenerate"
-                ? messageList.message_bottom_panel.backgroundColor_onHover
-                : messageList.message_bottom_panel.backgroundColor,
+                ? component.in_text_button.onHover.backgroundColor
+                : component.in_text_button.backgroundColor,
             borderRadius: default_border_radius - 1,
             border:
               onClick === "regenerate"
-                ? messageList.message_bottom_panel.border_onActive
+                ? component.in_text_button.onActive.border
                 : onHover === "regenerate"
-                ? messageList.message_bottom_panel.border_onHover
-                : messageList.message_bottom_panel.border,
+                ? component.in_text_button.onHover.border
+                : component.in_text_button.border,
             userSelect: "none",
           }}
           onMouseEnter={() => {
@@ -147,7 +147,63 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
       </div>
     );
   } else {
-    return null;
+    return (
+      <div
+        style={{
+          transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+          position: "absolute",
+          bottom: -4,
+          left: 0,
+          right: 0,
+          height: 32,
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.16)`,
+          opacity: 1,
+          opacity: active ? 1 : 0,
+          pointerEvents: active ? "auto" : "none",
+        }}
+      >
+        <Icon
+          src="edit"
+          style={{
+            transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+            position: "absolute",
+            transform: "translate(0%, -50%)",
+            top: "50%",
+            width: 18,
+            padding: 5,
+            right: 1,
+            opacity: onClick === "edit" ? 0.72 : 0.5,
+            backgroundColor:
+              onClick === "edit"
+                ? component.in_text_button.onActive.backgroundColor
+                : onHover === "edit"
+                ? component.in_text_button.onHover.backgroundColor
+                : component.in_text_button.backgroundColor,
+            borderRadius: default_border_radius - 1,
+            border:
+              onClick === "edit"
+                ? component.in_text_button.onActive.border
+                : onHover === "edit"
+                ? component.in_text_button.onHover.border
+                : component.in_text_button.border,
+            userSelect: "none",
+          }}
+          onMouseEnter={() => {
+            setOnHover("edit");
+          }}
+          onMouseLeave={() => {
+            setOnHover(null);
+            setOnClick(null);
+          }}
+          onMouseDown={() => {
+            setOnClick("edit");
+          }}
+          onMouseUp={() => {
+            setOnClick(null);
+          }}
+        />
+      </div>
+    );
   }
 };
 const Message_Upper_Panel_File_Item = ({ index, imageSrc }) => {
