@@ -7,6 +7,7 @@ The agent structure is a JSON object that defines the structure of the agent. It
 ## Types of Nodes
 
 ### Root Components
+
 ```js
 {
     agent_name: "_user_defined_agent_name_",
@@ -45,7 +46,7 @@ image_to_text_node: {
 }
 ```
 
-### `Chat Completion Node` 
+### `Chat Completion Node`
 
 ```js
 chat_completion_node: {
@@ -88,6 +89,17 @@ prompt_generation_node: {
     next_nodes: ['ud_node_id'],
 }
 
+```
+
+### `Conditional Nodes`
+
+```js
+conditional_node: {
+    type: "conditional_node",
+    input: ["ud_text_1", "ud_text_2"],
+    condition: "equal",
+    next_nodes: ['ud_node_id', 'ud_node_id'], // if true, if false
+}
 ```
 
 ### `End Node`

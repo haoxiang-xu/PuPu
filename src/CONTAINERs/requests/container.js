@@ -18,7 +18,7 @@ const RequestContainer = ({ children }) => {
   const { setOllamaOnTask } = useContext(StatusContexts);
 
   /* { Agent } ======================================================================================== */
-  const run = async (agent) => {
+  const run = async (agent, verbose = false) => {
     let next_node_id_to_run = agent.start.next_nodes[0];
     let variables = agent.variables;
 
@@ -26,7 +26,6 @@ const RequestContainer = ({ children }) => {
 
     while (end === false) {
       const node = agent[next_node_id_to_run];
-      next_node_id_to_run = node.next_nodes[0];
       let response = { status: false, variables: variables };
 
       /* { Stop Conditions } ----------------------- */
@@ -57,6 +56,9 @@ const RequestContainer = ({ children }) => {
         case "prompt_generation_node":
           response = await prompt_generation_node(node, variables);
           break;
+        case "conditional_node":
+          response = await conditional_node(node, variables);
+          break;
         default:
           console.error("Invalid node type:", node.type);
           end = true;
@@ -68,13 +70,23 @@ const RequestContainer = ({ children }) => {
         end = true;
       } else {
         variables = response.variables;
+        next_node_id_to_run = response.next_node_id_to_run;
       }
+      if (verbose) {
+        console.log("\n\n\n--------------------");
+        console.log("Variables:", variables);
+        console.log("Next node ID:", next_node_id_to_run);
+        console.log("--------------------\n\n\n");
+      }
+
       setOllamaOnTask((prev) => {
         if (prev && prev.includes("force_stop")) {
           end = true;
         }
       });
-      console.log("Variables:", variables);
+      if (end) {
+        break;
+      }
     }
     setOllamaOnTask(null);
     return variables;
@@ -149,7 +161,11 @@ const RequestContainer = ({ children }) => {
       });
       if (!response.body) {
         console.error("No response body received from Ollama.");
-        return { status: false, variables: variables };
+        return {
+          status: false,
+          variables: variables,
+          next_node_id_to_run: null,
+        };
       }
       const reader = response.body.getReader();
       const decoder = new TextDecoder("utf-8");
@@ -185,11 +201,15 @@ const RequestContainer = ({ children }) => {
       }
       setOllamaOnTask(null);
       variables[node.output] = accumulatedResponse;
-      return { status: true, variables: variables };
+      return {
+        status: true,
+        variables: variables,
+        next_node_id_to_run: node.next_nodes[0],
+      };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
       setOllamaOnTask(null);
-      return { status: false, variables: variables };
+      return { status: false, variables: variables, next_node_id_to_run: null };
     }
   };
   const title_generation_node = async (node, variables) => {
@@ -238,14 +258,22 @@ const RequestContainer = ({ children }) => {
       });
       if (!response.ok) {
         console.error("API request failed:", response.statusText);
-        return { status: false, variables: variables };
+        return {
+          status: false,
+          variables: variables,
+          next_node_id_to_run: null,
+        };
       }
 
       const data = await response.json();
       if (!data || !data.response) {
         console.error("Invalid API response:", data);
         setOllamaOnTask("force_stop|[Error Occured]");
-        return { status: false, variables: variables };
+        return {
+          status: false,
+          variables: variables,
+          next_node_id_to_run: null,
+        };
       }
       const title = JSON.parse(data.response).title;
       if (title || title.length > 0) {
@@ -255,11 +283,15 @@ const RequestContainer = ({ children }) => {
       }
       setOllamaOnTask(null);
       variables[node.output] = title;
-      return { status: true, variables: variables };
+      return {
+        status: true,
+        variables: variables,
+        next_node_id_to_run: node.next_nodes[0],
+      };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
       setOllamaOnTask("force_stop|[Error Occured]");
-      return { status: false, variables: variables };
+      return { status: false, variables: variables, next_node_id_to_run: null };
     }
   };
   const prompt_generation_node = async (node, variables) => {
@@ -295,8 +327,11 @@ const RequestContainer = ({ children }) => {
             prompt: {
               type: "string",
             },
+            need_extra_prompt: {
+              type: "boolean",
+            },
           },
-          required: ["prompt"],
+          required: ["prompt", "need_extra_prompt"],
         },
       };
       const response = await fetch(request_url.title_generation.ollama, {
@@ -309,16 +344,27 @@ const RequestContainer = ({ children }) => {
       if (!response.ok) {
         console.error("API request failed:", response.statusText);
         setOllamaOnTask("force_stop|[Error Occured]");
-        return { status: false, variables: variables };
+        return {
+          status: false,
+          variables: variables,
+          next_node_id_to_run: null,
+        };
       }
 
       const data = await response.json();
       if (!data || !data.response) {
         console.error("Invalid API response:", data);
         setOllamaOnTask("force_stop|[Error Occured]");
-        return { status: false, variables: variables };
+        return {
+          status: false,
+          variables: variables,
+          next_node_id_to_run: null,
+        };
       }
-      const generated_prompt = JSON.parse(data.response).prompt;
+      let generated_prompt = "";
+      if (JSON.parse(data.response).need_extra_prompt) {
+        generated_prompt = JSON.parse(data.response).prompt;
+      }
       if (generated_prompt || generated_prompt.length > 0) {
         if (node.update_callback) {
           node.update_callback(generated_prompt);
@@ -326,11 +372,15 @@ const RequestContainer = ({ children }) => {
       }
       setOllamaOnTask(null);
       variables[node.output] = generated_prompt;
-      return { status: true, variables: variables };
+      return {
+        status: true,
+        variables: variables,
+        next_node_id_to_run: node.next_nodes[0],
+      };
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
       setOllamaOnTask("force_stop|[Error Occured]");
-      return { status: false, variables: variables };
+      return { status: false, variables: variables, next_node_id_to_run: null };
     }
   };
   const image_to_text_node = async (node, variables) => {
@@ -461,11 +511,40 @@ const RequestContainer = ({ children }) => {
       }
     } catch (error) {
       console.error("Error communicating with Ollama:", error);
-      return { status: false, variables: variables };
+      return { status: false, variables: variables, next_node_id_to_run: null };
     }
     setOllamaOnTask(null);
     variables[node.output] = responses.join("\n");
-    return { status: true, variables: variables };
+    return {
+      status: true,
+      variables: variables,
+      next_node_id_to_run: node.next_nodes[0],
+    };
+  };
+  const conditional_node = async (node, variables) => {
+    switch (node.condition) {
+      case "equal":
+        if (variables[node.input[0]] == variables[node.input[1]]) {
+          return {
+            status: true,
+            variables: variables,
+            next_node_id_to_run: node.next_nodes[0],
+          };
+        } else {
+          return {
+            status: true,
+            variables: variables,
+            next_node_id_to_run: node.next_nodes[1],
+          };
+        }
+      default:
+        console.error("Invalid condition:", node.condition);
+        return {
+          status: false,
+          variables: variables,
+          next_node_id_to_run: null,
+        };
+    }
   };
   /* { Node } ========================================================================================= */
 

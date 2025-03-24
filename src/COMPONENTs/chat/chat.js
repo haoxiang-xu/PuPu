@@ -1353,10 +1353,17 @@ const Chat = () => {
               "base on the chat message and this image descriptions below ${basic_description_for_images}$ " +
               "If you think the image descriptions are not enough to answer the user question, " +
               "Try to generate a prompt for the image to text model, " +
+              "You can reply a prompt here and set need_extra_prompt to true, " +
               "So to let the image to text model to take a closer look at the images and generate a more detailed description for the images, " +
-              "Otherwise you can reply nothing.",
+              "Otherwise you can reply nothing and set need_extra_prompt to false.",
             output: "llm_generated_prompt_for_itt_model",
-            next_nodes: ["deeper_look_at_the_images"],
+            next_nodes: ["is_image_description_enough"],
+          },
+          is_image_description_enough: {
+            type: "conditional_node",
+            condition: "equal",
+            input: ["llm_generated_prompt_for_itt_model", "empty"],
+            next_nodes: ["chat_completion_node", "deeper_look_at_the_images"],
           },
           deeper_look_at_the_images: {
             type: "image_to_text_node",
@@ -1383,7 +1390,7 @@ const Chat = () => {
             },
             input: "chat_messages",
             prompt:
-              "here are the images u have seen ${basic_description_for_images}$ and a deeper description of the images ${deeper_look_at_the_images}$",
+              "here are the images u have seen ${basic_description_for_images}$ ${deeper_look_at_the_images}$",
             output: "llm_generated_text",
             next_nodes:
               sectionData.n_turns_to_regenerate_title === 0
@@ -1414,6 +1421,7 @@ const Chat = () => {
             llm_generated_prompt_for_itt_model: "",
             deeper_look_at_the_images: "",
             input_images: user_input_base64_images,
+            empty: "",
           },
         }).then(() => {
           setAwaitResponse(null);
