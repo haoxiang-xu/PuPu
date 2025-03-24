@@ -533,16 +533,9 @@ const AvailableModel = () => {
       return false;
     };
     let available_models = [];
-    for (let model of favouredModels.language_models) {
+    for (let model of avaliableModels) {
       if (check_is_language_model(model)) {
         available_models.push(model);
-      }
-    }
-    for (let model of avaliableModels) {
-      if (!favouredModels.language_models.includes(model)) {
-        if (check_is_language_model(model)) {
-          available_models.push(model);
-        }
       }
     }
     setAvailableLanguageModels(available_models);
