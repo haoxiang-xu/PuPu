@@ -5,6 +5,7 @@ import React, {
   useCallback,
   useContext,
   createContext,
+  use,
 } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
@@ -19,7 +20,7 @@ import Term from "../terminal/terminal";
 import FileDropZone from "../file_drop_zone/file_drop_zone";
 import TextareaAutosize from "react-textarea-autosize";
 
-import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
+import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/customized_tag";
 import {
   chat_room_title_generation_prompt,
   vision_prompt,
@@ -329,6 +330,9 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
       setEditorHeight(editorRef.current.clientHeight);
     }
   }, [editMode, editMessage]);
+  useEffect(() => {
+    setEditMode(false);
+  }, [targetAddress, message]);
   /* { edit message } */
 
   const [images, setImages] = useState([]);
@@ -350,6 +354,8 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
     } else {
       setStyle({
         plainText: true,
+        maxHeight: 256,
+        overflowY: "hidden",
       });
     }
   }, [role]);

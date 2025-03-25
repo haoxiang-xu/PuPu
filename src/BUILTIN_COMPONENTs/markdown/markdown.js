@@ -16,7 +16,7 @@ import {
 import ReactShowdown from "react-showdown";
 import Icon from "../icon/icon";
 import PulseLoader from "react-spinners/PulseLoader";
-import { LOADING_TAG } from "./const";
+import { LOADING_TAG } from "./customized_tag";
 /* { style } --------------------------------------------------------------------- */
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
@@ -338,6 +338,8 @@ const TextSection = ({ children }) => {
     <span
       style={{
         fontSize: `${default_font_size + 4}px`,
+        maxHeight: 100,
+        overflowY: "hidden",
       }}
     >
       {children}
@@ -429,6 +431,7 @@ const ThinkingSection = ({ index, children }) => {
           left: "44px",
 
           color: span.ignore.color,
+          userSelect: "none",
         }}
       >
         Thought process
@@ -480,9 +483,8 @@ const CustomizedTagSection = ({ tag }) => {
         />
       );
     } else {
-      setComponent(<TagSection>{tag}</TagSection>);
+      setComponent(null);
     }
-
     return () => {
       setComponent(null);
     };
@@ -774,9 +776,6 @@ const Markdown = ({ children, index, style }) => {
 
     const process_content = (raw_content) => {
       const extract_and_merge = (raw_content) => {
-        if (style && style.plainText === true) {
-          return [{ type: "TXT", content: raw_content }];
-        }
         const apply_extract_function = (
           processing_content,
           extract_function
@@ -791,6 +790,10 @@ const Markdown = ({ children, index, style }) => {
           }
           return processing_content;
         };
+        if (style && style.plainText === true) {
+          let processed_content = [{ type: "TXT", content: raw_content }];
+          return processed_content;
+        }
         let processed_content = [];
 
         processed_content = extract_code(raw_content);
@@ -817,6 +820,7 @@ const Markdown = ({ children, index, style }) => {
         return processed_content;
       };
       let processed_content = extract_and_merge(raw_content);
+      // console.log(processed_content);
       for (let i = 0; i < processed_content.length; i++) {
         if (processed_content[i].type === "HTML") {
           processed_content[i].component = (
@@ -888,6 +892,7 @@ const Markdown = ({ children, index, style }) => {
 
   return (
     <div
+      className="scrolling-space"
       style={{
         position: "relative",
 
@@ -896,6 +901,10 @@ const Markdown = ({ children, index, style }) => {
         right: 0,
 
         /* { style } --------------------------------------------------------------------- */
+        maxHeight: style && style.maxHeight ? style.maxHeight : "auto",
+        overflowY: style && style.overflowY ? style.overflowY : "auto",
+        overflowX: "hidden",
+
         padding: `${default_font_size}px`,
         borderRadius: `${default_border_radius + 2}px`,
         backgroundColor:
@@ -907,8 +916,6 @@ const Markdown = ({ children, index, style }) => {
         color: `rgb(${RGB.R + colorOffset.font}, ${RGB.G + colorOffset.font}, ${
           RGB.B + colorOffset.font
         })`,
-
-        overflow: "hidden",
       }}
     >
       {processedContent}
