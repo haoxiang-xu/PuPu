@@ -17,6 +17,7 @@ import Input from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Term from "../terminal/terminal";
 import FileDropZone from "../file_drop_zone/file_drop_zone";
+import TextareaAutosize from "react-textarea-autosize";
 
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/const";
 import {
@@ -34,7 +35,13 @@ const component_name = "chat";
 const ChatContexts = createContext("");
 
 /* { Message List } -------------------------------------------------------------------------------------------------------- */
-const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
+const Message_Bottom_Panel = ({
+  index,
+  active,
+  role,
+  setPlainTextMode,
+  setEditMode,
+}) => {
   const { RGB, messageList, component } = useContext(ConfigContexts);
   const { sectionData } = useContext(DataContexts);
   const { update_message } = useContext(ChatContexts);
@@ -82,6 +89,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
                 ? component.in_text_button.onHover.border
                 : component.in_text_button.border,
             userSelect: "none",
+            cursor: "pointer",
           }}
           onMouseEnter={() => {
             setOnHover("plainTextMode");
@@ -126,6 +134,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
                 ? component.in_text_button.onHover.border
                 : component.in_text_button.border,
             userSelect: "none",
+            cursor: "pointer",
           }}
           onMouseEnter={() => {
             setOnHover("regenerate");
@@ -187,6 +196,7 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
                 ? component.in_text_button.onHover.border
                 : component.in_text_button.border,
             userSelect: "none",
+            cursor: "pointer",
           }}
           onMouseEnter={() => {
             setOnHover("edit");
@@ -201,7 +211,50 @@ const Message_Bottom_Panel = ({ index, active, role, setPlainTextMode }) => {
           onMouseUp={() => {
             setOnClick(null);
           }}
+          onClick={() => {
+            setEditMode(true);
+          }}
         />
+        {/* <Icon
+          src="branch"
+          style={{
+            transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+            position: "absolute",
+            transform: "translate(0%, -50%)",
+            top: "50%",
+            width: 18,
+            padding: 5,
+            right: 26,
+            opacity: onClick === "new_branch" ? 0.72 : 0.5,
+            backgroundColor:
+              onClick === "new_branch"
+                ? component.in_text_button.onActive.backgroundColor
+                : onHover === "new_branch"
+                ? component.in_text_button.onHover.backgroundColor
+                : component.in_text_button.backgroundColor,
+            borderRadius: default_border_radius - 1,
+            border:
+              onClick === "new_branch"
+                ? component.in_text_button.onActive.border
+                : onHover === "new_branch"
+                ? component.in_text_button.onHover.border
+                : component.in_text_button.border,
+            userSelect: "none",
+          }}
+          onMouseEnter={() => {
+            setOnHover("new_branch");
+          }}
+          onMouseLeave={() => {
+            setOnHover(null);
+            setOnClick(null);
+          }}
+          onMouseDown={() => {
+            setOnClick("new_branch");
+          }}
+          onMouseUp={() => {
+            setOnClick(null);
+          }}
+        /> */}
       </div>
     );
   }
@@ -244,14 +297,37 @@ const Message_Upper_Panel = ({ role, index, images }) => {
 };
 const Message = ({ index, role, message, image_addresses, is_last_index }) => {
   const { RGB, colorOffset, boxShadow } = useContext(ConfigContexts);
-  const { sectionData, load_saved_images } = useContext(DataContexts);
-  const { targetAddress } = useContext(StatusContexts);
-  const { awaitResponse } = useContext(ChatContexts);
+  const { sectionData, load_saved_images, update_message_on_index } =
+    useContext(DataContexts);
+  const { targetAddress, awaitResponse } = useContext(ChatContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
   });
   const [onHover, setOnHover] = useState(false);
   const [plainTextMode, setPlainTextMode] = useState(false);
+
+  /* { edit message } */
+  const [editMode, setEditMode] = useState(false);
+  const [editMessage, setEditMessage] = useState(message);
+  const [editorHeight, setEditorHeight] = useState(default_font_size + 2);
+  const editorRef = useRef(null);
+  useEffect(() => {
+    setEditMessage(message);
+  }, [message]);
+  useEffect(() => {
+    if (editMode) {
+      const el = editorRef.current;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }
+  }, [editMode]);
+  useEffect(() => {
+    if (editMode) {
+      setEditorHeight(editorRef.current.clientHeight);
+    }
+  }, [editMode, editMessage]);
+  /* { edit message } */
+
   const [images, setImages] = useState([]);
 
   useEffect(() => {
@@ -321,11 +397,13 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
             <Message_Upper_Panel role={role} index={index} images={images} />
           </div>
         )}
-        {!plainTextMode ? (
+        {!plainTextMode && !editMode ? (
           <Markdown index={index} style={style}>
             {message}
           </Markdown>
-        ) : (
+        ) : null}
+
+        {plainTextMode ? (
           <span
             style={{
               color: `rgba(${RGB.R + colorOffset.font}, ${
@@ -335,24 +413,98 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
           >
             {message}
           </span>
-        )}
+        ) : null}
 
-        <div
-          className="message-bottom-panel"
-          style={{
-            transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
-            position: "absolute",
-            width: "100%",
-            height: 32,
-          }}
-        >
-          <Message_Bottom_Panel
-            index={index}
-            active={onHover && awaitResponse === null}
-            role={role}
-            setPlainTextMode={setPlainTextMode}
-          />
-        </div>
+        {editMode ? (
+          <div
+            className="scrolling-space"
+            type="text"
+            value={editMessage}
+            onChange={(e) => {
+              setEditMessage(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                // update_message_on_index(targetAddress, index, editMessage);
+                setEditMode(false);
+              }
+            }}
+            style={{
+              transition: "height 0.08s cubic-bezier(0.32, 0, 0.32, 1)",
+              position: "relative",
+
+              top: 0,
+              right: 0,
+              width: 328 - default_font_size * 2,
+              height: editorHeight + 24,
+
+              padding: `${
+                default_font_size - 4
+              }px ${default_font_size}px ${default_font_size}px ${default_font_size}px`,
+              borderRadius: `${default_border_radius + 2}px`,
+              backgroundColor:
+                style && style.backgroundColor
+                  ? style.backgroundColor
+                  : `rgb(${RGB.R + colorOffset.middle_ground}, ${
+                      RGB.G + colorOffset.middle_ground
+                    }, ${RGB.B + colorOffset.middle_ground})`,
+
+              overflow: "hidden",
+            }}
+          >
+            <TextareaAutosize
+              ref={editorRef}
+              className="scrolling-space"
+              minRows={1}
+              maxRows={8}
+              value={editMessage}
+              onChange={(e) => {
+                setEditMessage(e.target.value);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  // update_message_on_index(targetAddress, index, editMessage);
+                  setEditMode(false);
+                }
+              }}
+              style={{
+                width: "100%",
+                height: "100%",
+
+                fontSize: default_font_size + 2,
+                fontFamily: "inherit",
+
+                color: `rgb(${RGB.R + colorOffset.font}, ${
+                  RGB.G + colorOffset.font
+                }, ${RGB.B + colorOffset.font})`,
+                backgroundColor: "transparent",
+
+                resize: "none",
+                outline: "none",
+                border: "none",
+                cursor: "default",
+              }}
+            ></TextareaAutosize>
+          </div>
+        ) : (
+          <div
+            className="message-bottom-panel"
+            style={{
+              transition: "opacity 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+              position: "absolute",
+              width: "100%",
+              height: 32,
+            }}
+          >
+            <Message_Bottom_Panel
+              index={index}
+              active={onHover && awaitResponse === null}
+              role={role}
+              setPlainTextMode={setPlainTextMode}
+              setEditMode={setEditMode}
+            />
+          </div>
+        )}
       </div>
     </>
   );

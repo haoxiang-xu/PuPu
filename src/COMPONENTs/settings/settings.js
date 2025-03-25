@@ -70,6 +70,7 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
             boxShadow: "none",
             borderRadius: 4,
             boxSizing: "border-box",
+            cursor: "pointer",
           }}
           onMouseEnter={() => {
             setOnHover(true);
@@ -194,6 +195,7 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
               : "none",
           borderRadius: 4,
           boxSizing: "border-box",
+          cursor: "pointer",
         }}
         onMouseEnter={() => {
           setOnHover(true);

@@ -104,6 +104,7 @@ const CodeSection = ({ language, children }) => {
             border: style.border,
             borderRadius: `${default_border_radius - 5}px`,
             backgroundColor: style.backgroundColor,
+            cursor: "pointer",
           }}
           onMouseEnter={() => setOnHover(true)}
           onMouseLeave={() => {
