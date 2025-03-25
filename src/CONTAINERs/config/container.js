@@ -524,6 +524,11 @@ const ConfigContainer = ({ children }) => {
           width: 2,
           backgroundColor: `rgba(225, 225, 225, 0.32)`,
         },
+        switch: {
+          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
+          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
+          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+        },
         button: {
           border: `1px solid rgba(225, 225, 225, 0)`,
           backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
@@ -544,11 +549,6 @@ const ConfigContainer = ({ children }) => {
             boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
           },
         },
-        switch: {
-          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
-          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
-          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-        },
         in_text_button: {
           backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
             RGB.B + 30
@@ -567,12 +567,32 @@ const ConfigContainer = ({ children }) => {
             border: `1px solid rgba(225, 225, 225, 0.64)`,
           },
         },
+        simplified_button: {
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onHover: {
+            backgroundColor: `rgba(${RGB.R + 36}, ${RGB.G + 36}, ${
+              RGB.B + 36
+            }, 0.64)`,
+          },
+          onActive: {
+            backgroundColor: `rgba(${RGB.R - 12}, ${RGB.G - 12}, ${
+              RGB.B - 8
+            }, 0.64)`,
+          },
+        },
       };
     } else {
       return {
         separator: {
           width: 2,
           backgroundColor: `rgba(0, 0, 0, 0)`,
+        },
+        switch: {
+          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
+          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
         },
         button: {
           border: `1px solid rgba(0, 0, 0, 0)`,
@@ -592,11 +612,6 @@ const ConfigContainer = ({ children }) => {
             boxShadow: "inset 0px 4px 16px rgba(0, 0, 0, 0.08)",
           },
         },
-        switch: {
-          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
-          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-        },
         in_text_button: {
           backgroundColor: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${
             RGB.B - 64
@@ -613,6 +628,19 @@ const ConfigContainer = ({ children }) => {
               RGB.B - 64
             }, 0.64)`,
             border: `1px solid rgba(0, 0, 0, 0.64)`,
+          },
+        },
+        simplified_button: {
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          onActive: {
+            backgroundColor: `rgba(${RGB.R - 50}, ${RGB.G - 50}, ${
+              RGB.B - 50
+            }, 1)`,
+          },
+          onHover: {
+            backgroundColor: `rgba(255, 255, 255, 0.64)`,
           },
         },
       };

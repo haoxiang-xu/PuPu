@@ -296,10 +296,11 @@ const Message_Upper_Panel = ({ role, index, images }) => {
     : null;
 };
 const Message = ({ index, role, message, image_addresses, is_last_index }) => {
-  const { RGB, colorOffset, boxShadow } = useContext(ConfigContexts);
+  const { RGB, colorOffset, component } = useContext(ConfigContexts);
   const { sectionData, load_saved_images, update_message_on_index } =
     useContext(DataContexts);
-  const { targetAddress, awaitResponse } = useContext(ChatContexts);
+  const { targetAddress, awaitResponse, update_message } =
+    useContext(ChatContexts);
   const [style, setStyle] = useState({
     backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
   });
@@ -310,6 +311,8 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
   const [editMode, setEditMode] = useState(false);
   const [editMessage, setEditMessage] = useState(message);
   const [editorHeight, setEditorHeight] = useState(default_font_size + 2);
+  const [onHoverButton, setOnHoverButton] = useState(null);
+  const [onClickButton, setOnClickButton] = useState(null);
   const editorRef = useRef(null);
   useEffect(() => {
     setEditMessage(message);
@@ -436,7 +439,7 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
               top: 0,
               right: 0,
               width: 328 - default_font_size * 2,
-              height: editorHeight + 24,
+              height: editorHeight + 32,
 
               padding: `${
                 default_font_size - 4
@@ -485,6 +488,111 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
                 cursor: "default",
               }}
             ></TextareaAutosize>
+            <div
+              style={{
+                transition: "all 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+                position: "absolute",
+                bottom: 8,
+                right: 8,
+                width: 32,
+                height: 32,
+                cursor: "pointer",
+                borderRadius: 6,
+
+                backgroundColor:
+                  onClickButton === "send"
+                    ? component.simplified_button.onActive.backgroundColor
+                    : onHoverButton === "send"
+                    ? component.simplified_button.onHover.backgroundColor
+                    : component.simplified_button.backgroundColor,
+              }}
+              onMouseEnter={(e) => {
+                setOnHoverButton("send");
+              }}
+              onMouseLeave={(e) => {
+                setOnHoverButton(null);
+              }}
+              onMouseDown={(e) => {
+                setOnClickButton("send");
+              }}
+              onMouseUp={(e) => {
+                setOnClickButton(null);
+              }}
+            >
+              <Icon
+                src="send"
+                style={{
+                  position: "absolute",
+                  top: "50%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                }}
+                onClick={() => {
+                  update_message_on_index(targetAddress, index, {
+                    role: "user",
+                    message: editMessage,
+                    content: editMessage,
+                    images: image_addresses,
+                    expanded: false,
+                  });
+                  setEditMode(false);
+                  update_message(
+                    sectionData.address,
+                    sectionData.messages,
+                    index + 1
+                  );
+                }}
+              />
+            </div>
+            <div
+              style={{
+                transition: "all 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
+                position: "absolute",
+                bottom: 8,
+                right: 40,
+                width: 60,
+                height: 32,
+                cursor: "pointer",
+                borderRadius: 6,
+
+                backgroundColor:
+                  onClickButton === "cancel"
+                    ? component.simplified_button.onActive.backgroundColor
+                    : onHoverButton === "cancel"
+                    ? component.simplified_button.onHover.backgroundColor
+                    : component.simplified_button.backgroundColor,
+              }}
+              onMouseEnter={(e) => {
+                setOnHoverButton("cancel");
+              }}
+              onMouseLeave={(e) => {
+                setOnHoverButton(null);
+              }}
+              onMouseDown={(e) => {
+                setOnClickButton("cancel");
+              }}
+              onMouseUp={(e) => {
+                setOnClickButton(null);
+              }}
+            >
+              <span
+                style={{
+                  position: "absolute",
+                  top: "48%",
+                  left: "50%",
+                  transform: "translate(-50%, -50%)",
+                  color: `rgb(${RGB.R + colorOffset.font}, ${
+                    RGB.G + colorOffset.font
+                  }, ${RGB.B + colorOffset.font})`,
+                  userSelect: "none",
+                }}
+                onClick={() => {
+                  setEditMode(false);
+                }}
+              >
+                cancel
+              </span>
+            </div>
           </div>
         ) : (
           <div
@@ -1491,6 +1599,7 @@ const Chat = () => {
           message: inputValue,
           content: inputValue,
           images: image_keys.length > 0 ? image_keys : null,
+          expanded: false,
         });
         setInputValue("");
       }
