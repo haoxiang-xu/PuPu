@@ -269,6 +269,7 @@ const DataContainer = ({ children }) => {
     });
   };
   const update_message_on_index = (target_address, message_index, message) => {
+    let updated_messages = [];
     setSectionData((prev) => {
       let index = message_index;
       if (index === -1) {
@@ -281,13 +282,14 @@ const DataContainer = ({ children }) => {
       if (target_address !== prev.address) {
         return prev;
       }
-      let updated_messages = [...prev.messages];
+      updated_messages = [...prev.messages];
       updated_messages[index] = message_to_append;
       return {
         ...prev,
         messages: updated_messages,
       };
     });
+    return updated_messages;
   };
   const update_title = (target_address, title) => {
     setAddressBook((prev) => {

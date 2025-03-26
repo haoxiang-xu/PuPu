@@ -534,17 +534,21 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
                   transform: "translate(-50%, -50%)",
                 }}
                 onClick={() => {
-                  update_message_on_index(targetAddress, index, {
-                    role: "user",
-                    message: editMessage,
-                    content: editMessage,
-                    images: image_addresses,
-                    expanded: false,
-                  });
+                  const updated_messages = update_message_on_index(
+                    targetAddress,
+                    index,
+                    {
+                      role: "user",
+                      message: editMessage,
+                      content: editMessage,
+                      images: image_addresses,
+                      expanded: false,
+                    }
+                  );
                   setEditMode(false);
                   update_message(
                     sectionData.address,
-                    sectionData.messages,
+                    updated_messages,
                     index + 1
                   );
                 }}
