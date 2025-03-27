@@ -100,28 +100,33 @@ To see more about the `Agent` object, please refer to the [Agent Structure](./ag
     - [`terminal`](#_)
 
 ```js
-/* [ messages ] structure will be shown below */
-/* [ mode ] "chat" / "terminal" */
+/* [ sectionData ] */
 [
     @: {
         address: `address`,
         n_turns_to_regenerate_title: #,
         last_edit_date: `date_of_last_edit`,
         language_model_using: `language_model`,
-        on_mode: `chat`,
+        on_mode: `chat`, /* [ mode ] "chat" / "terminal" */
         messages: [{`list_of_json_that_stores_messages`}],
     },
 ]
-/* [ content ] same with message, to have this variable is just for different standard APIs */
-/* [ expanded ] for user and asistent this variable indicates different thing, for deepseek models if expanded === false, the thought process will be shown */
-/* [ files ] list of files that are attached to the message */
+/* [ messages ] */
 [
   {
     role: `role_of_sender`,
-    content: `message_content`,
+    content: `message_content`, /* [ content ] same with message, to have this variable is just for different standard APIs */
     message: `message_content`,
     files: [`list_of_files`],
-    expanded: false,
+    expanded: false, /* [ expanded ] for user and asistent this variable indicates different thing, for deepseek models if expanded === false, the thought process will be shown */
+  },
+];
+/* [ files ] */
+[
+  {
+    name: `file_name`,
+    type: `file_type`, /* [ type ] "image" / "pdf" */
+    address: `file_address`,
   },
 ];
 ```
