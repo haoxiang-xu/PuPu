@@ -116,6 +116,9 @@ const create_main_window = () => {
       `file://${path.join(__dirname, "..", "build", "index.html")}`
     );
   }
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: "deny" };
+  });
 };
 /* { create main window } ============================================================================================================== */
 
