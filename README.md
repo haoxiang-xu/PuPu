@@ -80,6 +80,11 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
   - windows might require extra steps to install the node-gyp dependencies, you can follow the instructions [here](./docs/setup_guide/node_gyp_setup_guide.md).
 
+- Create python virtual environment: <span style="opacity: 0.32">To run the backend python child process, you need to create a python virtual environment by running the following command: </span>`python -m venv ./public/child_processes/venv` <span style="opacity: 0.32"> and install the dependencies by running the following command:</span> `pip install -r requirements.txt`
+
+
+
+
 `npm install`
 
 - Rebuild the Electron App: <span style="opacity: 0.32">After installing the dependencies, you need to rebuild the electron app by running the following command:</span>
