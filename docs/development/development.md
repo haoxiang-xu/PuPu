@@ -114,13 +114,13 @@ To see more about the `Agent` object, please refer to the [Agent Structure](./ag
 ]
 /* [ content ] same with message, to have this variable is just for different standard APIs */
 /* [ expanded ] for user and asistent this variable indicates different thing, for deepseek models if expanded === false, the thought process will be shown */
-/* [ image ] a list of image addresses, address is structured as `address_messageIndex_imageIndex` */
+/* [ files ] list of files that are attached to the message */
 [
   {
     role: `role_of_sender`,
     content: `message_content`,
     message: `message_content`,
-    images: [`list_of_images`],
+    files: [`list_of_files`],
     expanded: false,
   },
 ];
