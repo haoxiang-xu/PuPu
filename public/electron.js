@@ -6,7 +6,6 @@ const {
   nativeTheme,
   dialog,
 } = require("electron");
-const { spawn } = require("child_process");
 
 const pty = require("node-pty");
 const fs = require("fs");
@@ -18,7 +17,6 @@ const { minimum_window_size } = require("./constants");
 
 let mainWindow;
 let terminalProcess = null;
-let flaskProcess = null;
 
 /* { flags } */
 let quitting = false;
@@ -146,9 +144,6 @@ app.on("before-quit", () => {
     } catch (error) {
       console.error("Error killing terminal process:", error);
     }
-  }
-  if (flaskProcess) {
-    flaskProcess.kill();
   }
 });
 
@@ -311,32 +306,6 @@ ipcMain.on("terminal-event-handler", (event, input) => {
   }
 });
 /* { node-pty } ======================================================================================================================== */
-
-/* { flask server related } ============================================================================================================ */
-const create_flask_server = () => {
-  let python = "python";
-  if (process.platform === "win32") {
-    python = path.join(
-      __dirname,
-      "child_processes",
-      "venv",
-      "Scripts",
-      "python.exe"
-    );
-  } else {
-    python = path.join(__dirname, "child_processes", "venv", "bin", "python");
-  }
-  const script = path.join(__dirname, "child_processes", "app.py");
-  flaskProcess = spawn(python, [script]);
-
-  flaskProcess.stdout.on("data", (data) => {
-    console.log(`Flask: ${data}`);
-  });
-  flaskProcess.stderr.on("data", (data) => {
-    console.error(`Flask Error: ${data}`);
-  });
-};
-/* { flask server related } ============================================================================================================ */
 
 /* { local data related } ============================================================================================================== */
 ipcMain.handle("select-file", async () => {
