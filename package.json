@@ -51,6 +51,7 @@
     },
     "files": [
       "build/**/*",
+      "public/**/*",
       "public/electron.js",
       "public/preload.js"
     ],
@@ -69,7 +70,20 @@
       ],
       "category": "Utility",
       "icon": "public/logo_256x256.png"
-    }
+    },
+    "extraResources": [
+      {
+        "from": "public/venv",
+        "to": "venv",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "public/child_processes",
+        "to": "child_processes"
+      }
+    ]
   },
   "browserslist": {
     "production": [

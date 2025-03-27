@@ -7,6 +7,7 @@ const {
   dialog,
 } = require("electron");
 
+const { spawn } = require("child_process");
 const pty = require("node-pty");
 const fs = require("fs");
 const axios = require("axios");
@@ -17,6 +18,7 @@ const { minimum_window_size } = require("./constants");
 
 let mainWindow;
 let terminalProcess = null;
+let flaskDataProcess = null;
 
 /* { flags } */
 let quitting = false;
@@ -119,8 +121,8 @@ const create_main_window = () => {
 
 app.whenReady().then(() => {
   create_main_window();
-  create_terminal();
-  create_flask_server();
+  start_terminal();
+  start_flask_data_server();
   register_window_state_event_listeners();
   register_will_navigate_event_listener();
 });
@@ -138,13 +140,8 @@ app.on("activate", () => {
 });
 app.on("before-quit", () => {
   quitting = true;
-  if (terminalProcess) {
-    try {
-      terminalProcess.kill();
-    } catch (error) {
-      console.error("Error killing terminal process:", error);
-    }
-  }
+  stop_terminal();
+  stop_flask_data_server();
 });
 
 /* { window state event listener } ===================================================================================================== */
@@ -234,7 +231,7 @@ const register_will_navigate_event_listener = () => {
 };
 
 /* { node-pty } ======================================================================================================================== */
-const create_terminal = () => {
+const start_terminal = () => {
   if (!terminalProcess) {
     // Set shell based on platform
     const shell =
@@ -272,10 +269,19 @@ const create_terminal = () => {
         );
         terminalProcess = null;
         // Recreate terminal after a short delay
-        setTimeout(create_terminal, 1000);
+        setTimeout(start_terminal, 1000);
       });
     } catch (error) {
       console.error("Failed to create terminal process:", error);
+    }
+  }
+};
+const stop_terminal = () => {
+  if (terminalProcess) {
+    try {
+      terminalProcess.kill();
+    } catch (error) {
+      console.error("Error killing terminal process:", error);
     }
   }
 };
@@ -298,14 +304,43 @@ ipcMain.on("terminal-event-handler", (event, input) => {
     } catch (error) {
       console.error("Error writing to terminal:", error);
       // Try to recreate terminal if write fails
-      create_terminal();
+      start_terminal();
     }
   } else {
     // If no terminal process exists, create one
-    create_terminal();
+    start_terminal();
   }
 });
 /* { node-pty } ======================================================================================================================== */
+
+/* { flask } =========================================================================================================================== */
+const start_flask_data_server = () => {
+  const isDev = !app.isPackaged;
+
+  const scriptPath = isDev
+    ? path.join(__dirname, "child_processes", "data_process.py")
+    : path.join(process.resourcesPath, "child_processes", "data_process.py");
+
+  let pythonPath = "python3";
+  if (process.platform === "win32") {
+    pythonPath = isDev
+      ? path.join(__dirname, "venv", "Scripts", "python.exe")
+      : path.join(process.resourcesPath, "venv", "Scripts", "python.exe");
+  } else {
+    pythonPath = isDev
+      ? path.join(__dirname, "venv", "bin", "python3")
+      : path.join(process.resourcesPath, "venv", "bin", "python3");
+  }
+
+  flaskDataProcess = spawn(pythonPath, [scriptPath]);
+};
+const stop_flask_data_server = () => {
+  if (flaskDataProcess) {
+    flaskDataProcess.kill();
+    flaskDataProcess = null;
+  }
+};
+/* { flask } =========================================================================================================================== */
 
 /* { local data related } ============================================================================================================== */
 ipcMain.handle("select-file", async () => {
