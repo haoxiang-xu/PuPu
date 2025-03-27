@@ -260,11 +260,11 @@ const Message_Bottom_Panel = ({
     );
   }
 };
-const Message_Upper_Panel_File_Item = ({ index, imageSrc }) => {
+const Message_Upper_Panel_File_Item = ({ index, file }) => {
   const { messageList } = useContext(ConfigContexts);
   const { setOnDialog } = useContext(StatusContexts);
 
-  return imageSrc ? (
+  return file ? (
     <div
       style={{
         position: "relative",
@@ -274,11 +274,11 @@ const Message_Upper_Panel_File_Item = ({ index, imageSrc }) => {
         cursor: "pointer",
       }}
       onClick={(e) => {
-        setOnDialog("image_viewer|" + imageSrc);
+        setOnDialog("image_viewer|" + file);
       }}
     >
       <img
-        src={imageSrc}
+        src={file}
         draggable="false"
         style={{
           height: 96,
@@ -289,16 +289,16 @@ const Message_Upper_Panel_File_Item = ({ index, imageSrc }) => {
     </div>
   ) : null;
 };
-const Message_Upper_Panel = ({ role, index, images }) => {
-  return images.length !== 0
-    ? images.map((image, i) => (
-        <Message_Upper_Panel_File_Item key={i} index={index} imageSrc={image} />
+const Message_Upper_Panel = ({ role, index, files }) => {
+  return files.length !== 0
+    ? files.map((file, i) => (
+        <Message_Upper_Panel_File_Item key={i} index={index} file={file} />
       ))
     : null;
 };
-const Message = ({ index, role, message, image_addresses, is_last_index }) => {
+const Message = ({ index, role, message, file_addresses, is_last_index }) => {
   const { RGB, colorOffset, component } = useContext(ConfigContexts);
-  const { sectionData, load_saved_images, update_message_on_index } =
+  const { sectionData, load_saved_files, update_message_on_index } =
     useContext(DataContexts);
   const { targetAddress, awaitResponse, update_message } =
     useContext(ChatContexts);
@@ -335,7 +335,7 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
   }, [targetAddress, message]);
   /* { edit message } */
 
-  const [images, setImages] = useState([]);
+  const [files, setFiles] = useState([]);
 
   useEffect(() => {
     if (sectionData.address !== targetAddress) {
@@ -360,10 +360,10 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
     }
   }, [role]);
   useEffect(() => {
-    if (image_addresses && image_addresses.length !== 0) {
-      setImages(load_saved_images(targetAddress, index, image_addresses));
+    if (file_addresses && file_addresses.length !== 0) {
+      setFiles(load_saved_files(targetAddress, index, file_addresses));
     }
-  }, [image_addresses, index, targetAddress]);
+  }, [file_addresses, index, targetAddress]);
 
   return (
     <>
@@ -387,7 +387,7 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
           setOnHover(false);
         }}
       >
-        {role === "assistant" || !image_addresses ? null : (
+        {role === "assistant" || !file_addresses ? null : (
           <div
             className="h_2_scrolling-space"
             style={{
@@ -403,7 +403,7 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
               overflowY: "hidden",
             }}
           >
-            <Message_Upper_Panel role={role} index={index} images={images} />
+            <Message_Upper_Panel role={role} index={index} files={files} />
           </div>
         )}
         {!plainTextMode && !editMode ? (
@@ -541,7 +541,7 @@ const Message = ({ index, role, message, image_addresses, is_last_index }) => {
                       role: "user",
                       message: editMessage,
                       content: editMessage,
-                      images: image_addresses,
+                      images: file_addresses,
                       expanded: false,
                     }
                   );
@@ -734,7 +734,7 @@ const Message_Scrolling_List = () => {
                 index={index}
                 role={msg.role}
                 message={msg.message}
-                image_addresses={msg.images}
+                file_addresses={msg.files}
                 is_last_index={
                   index === sectionData.messages.length - 1 ? true : false
                 }
@@ -1038,12 +1038,12 @@ const Model_Selector = ({ value, setMenuWidth }) => {
 /* { Model Selector } ------------------------------------------------------------------------------------------------------ */
 
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
-const Input_File_Panel_Item = ({ index, imageSrc }) => {
+const Input_File_Panel_Item = ({ index, file }) => {
   const { messageList } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
-  const { setInputImages } = useContext(ChatContexts);
+  const { setInputFiles } = useContext(ChatContexts);
 
-  return imageSrc ? (
+  return file ? (
     <div
       style={{
         position: "relative",
@@ -1054,7 +1054,7 @@ const Input_File_Panel_Item = ({ index, imageSrc }) => {
       }}
     >
       <img
-        src={imageSrc}
+        src={file}
         draggable="false"
         style={{
           height: 50,
@@ -1080,7 +1080,7 @@ const Input_File_Panel_Item = ({ index, imageSrc }) => {
         }}
         onClick={(e) => {
           e.stopPropagation();
-          setInputImages((prev) => {
+          setInputFiles((prev) => {
             return prev.filter((_, i) => i !== index);
           });
         }}
@@ -1089,7 +1089,7 @@ const Input_File_Panel_Item = ({ index, imageSrc }) => {
   ) : null;
 };
 const Input_File_Panel = ({ value }) => {
-  const { inputHeight, inputImages } = useContext(ChatContexts);
+  const { inputHeight, inputFiles } = useContext(ChatContexts);
 
   return (
     <div
@@ -1104,9 +1104,9 @@ const Input_File_Panel = ({ value }) => {
         height: 50,
       }}
     >
-      {inputImages.length !== 0
-        ? inputImages.map((image, index) => (
-            <Input_File_Panel_Item key={index} index={index} imageSrc={image} />
+      {inputFiles.length !== 0
+        ? inputFiles.map((file, index) => (
+            <Input_File_Panel_Item key={index} index={index} file={file} />
           ))
         : null}
     </div>
@@ -1116,7 +1116,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
   const { messageList } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
   const { trigger_section_mode } = useContext(DataContexts);
-  const { inputHeight, inputImages, setInputImages } = useContext(ChatContexts);
+  const { inputHeight, inputFiles, setInputFiles } = useContext(ChatContexts);
 
   const [onHover, setOnHover] = useState(null);
   const [onClick, setOnClick] = useState(null);
@@ -1133,7 +1133,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
     if (filePaths.length > 0) {
       const filePath = filePaths[0];
       const fileData = await window.dataAPI.readFileAsBase64(filePath);
-      setInputImages((prev) => [...prev, fileData]);
+      setInputFiles((prev) => [...prev, fileData]);
     }
   };
 
@@ -1546,9 +1546,9 @@ const Chat = () => {
     update_title,
     update_message_on_index,
     append_message,
-    save_input_images,
+    save_input_files,
     favouredModels,
-    load_saved_images,
+    load_saved_files,
     get_all_available_vision_models,
   } = useContext(DataContexts);
   const { windowWidth, onSideMenu } = useContext(StatusContexts);
@@ -1560,7 +1560,7 @@ const Chat = () => {
   } = useContext(RequestContexts);
 
   const [inputValue, setInputValue] = useState("");
-  const [inputImages, setInputImages] = useState([]);
+  const [inputFiles, setInputFiles] = useState([]);
   const [inputHeight, setInputHeight] = useState(0);
   const [awaitResponse, setAwaitResponse] = useState(null);
   const [onFileDragOver, setOnFileDragOver] = useState(false);
@@ -1600,21 +1600,21 @@ const Chat = () => {
         awaitResponse === null &&
         sectionData.language_model_using
       ) {
-        let image_keys = [];
-        if (inputImages.length > 0) {
-          image_keys = save_input_images(targetAddress, inputImages);
+        let file_keys = [];
+        if (inputFiles.length > 0) {
+          file_keys = save_input_files(targetAddress, inputFiles);
         }
         append_message(targetAddress, {
           role: "user",
           message: inputValue,
           content: inputValue,
-          images: image_keys.length > 0 ? image_keys : null,
+          files: file_keys.length > 0 ? file_keys : null,
           expanded: false,
         });
         setInputValue("");
       }
     }
-  }, [inputValue, inputImages, awaitResponse, sectionData]);
+  }, [inputValue, inputFiles, awaitResponse, sectionData]);
   const update_message = useCallback(
     (address, messages, index) => {
       setAwaitResponse(index);
@@ -1633,7 +1633,7 @@ const Chat = () => {
           content: "",
           expanded: true,
         });
-        user_input_base64_images = inputImages;
+        user_input_base64_images = inputFiles;
       } else if (index < 0 || index >= messages.length) {
         return;
       } else {
@@ -1644,10 +1644,10 @@ const Chat = () => {
           expanded: true,
         });
         if (messages[index - 1] && messages[index - 1].images) {
-          user_input_base64_images = load_saved_images(
+          user_input_base64_images = load_saved_files(
             address,
             index - 1,
-            messages[index - 1].images
+            messages[index - 1].files
           );
         }
       }
@@ -1752,7 +1752,7 @@ const Chat = () => {
           },
         }).then(() => {
           setAwaitResponse(null);
-          setInputImages([]);
+          setInputFiles([]);
         });
       } else {
         run({
@@ -1805,7 +1805,7 @@ const Chat = () => {
         });
       }
     },
-    [inputValue, sectionData.language_model_using, inputImages, favouredModels]
+    [inputValue, sectionData.language_model_using, inputFiles, favouredModels]
   );
   useEffect(() => {
     const messages = sectionData.messages || [];
@@ -1836,8 +1836,8 @@ const Chat = () => {
         setPreLoadingCompleted,
         inputHeight,
         setInputHeight,
-        inputImages,
-        setInputImages,
+        inputFiles,
+        setInputFiles,
 
         update_message,
       }}
@@ -1883,7 +1883,7 @@ const Chat = () => {
           <FileDropZone
             onFileDragOver={onFileDragOver}
             setOnFileDragOver={setOnFileDragOver}
-            setInputImages={setInputImages}
+            setInputFiles={setInputFiles}
           />
         ) : null}
       </div>

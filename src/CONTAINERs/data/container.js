@@ -362,31 +362,31 @@ const DataContainer = ({ children }) => {
       }
     });
   };
-  const save_input_images = (target_address, images) => {
+  const save_input_files = (target_address, files) => {
     let saved_keys = [];
     setSectionData((prev) => {
       const index_to_save = prev.messages.length - 1;
-      for (let i = 0; i < images.length; i++) {
-        const image = images[i];
-        const image_key = target_address + "_" + (index_to_save + 1) + "_" + i;
-        localStorage.setItem(UNIQUE_KEY + image_key, image);
-        saved_keys.push(image_key);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const file_key = target_address + "_" + (index_to_save + 1) + "_" + i;
+        localStorage.setItem(UNIQUE_KEY + file_key, file);
+        saved_keys.push(file_key);
       }
       return prev;
     });
     return saved_keys;
   };
-  const load_saved_images = (
+  const load_saved_files = (
     target_address,
     message_index,
-    image_addresses
+    file_addresses
   ) => {
     let loaded_images = [];
-    for (let i = 0; i < image_addresses.length; i++) {
-      const image_key = image_addresses[i];
-      const image = localStorage.getItem(UNIQUE_KEY + image_key);
-      if (image) {
-        loaded_images.push(image);
+    for (let i = 0; i < file_addresses.length; i++) {
+      const file_key = file_addresses[i];
+      const file = localStorage.getItem(UNIQUE_KEY + file_key);
+      if (file) {
+        loaded_images.push(file);
       }
     }
     return loaded_images;
@@ -500,8 +500,8 @@ const DataContainer = ({ children }) => {
         update_message_on_index,
         append_message,
         trigger_section_mode,
-        save_input_images,
-        load_saved_images,
+        save_input_files,
+        load_saved_files,
 
         get_all_available_language_models,
         get_all_available_vision_models,

@@ -8,7 +8,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 const FileDropZone = ({
   onFileDragOver,
   setOnFileDragOver,
-  setInputImages,
+  setInputFiles,
 }) => {
   const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
   const [style, setStyle] = useState({
@@ -33,7 +33,7 @@ const FileDropZone = ({
       if (file && file.type.startsWith("image/")) {
         const reader = new FileReader();
         reader.onloadend = () => {
-          setInputImages((prev) => [...prev, reader.result]);
+          setInputFiles((prev) => [...prev, reader.result]);
         };
         reader.readAsDataURL(file);
       }
