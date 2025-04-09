@@ -386,9 +386,63 @@ const RequestContainer = ({ children }) => {
   /* { GitHub APIs } ---------------------------------------------------------------------------------- */
   const github_search_repo_by_keyword = async (keyword) => {
     // returns a list of available repositories
+    const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(keyword)}&sort=stars&order=desc`;
+
+    try {
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          // 'Authorization': 'token YOUR_PERSONAL_ACCESS_TOKEN' // Optional
+        },
+      });
+  
+      if (!response.ok) {
+        throw new Error(`GitHub API error: ${response.status}`);
+      }
+  
+      const data = await response.json();
+      return data.items; // list of repository objects
+    } catch (error) {
+      console.error('Error searching GitHub repos:', error);
+      return [];
+    }
   };
   const github_get_repo_info = async (repo) => {
     // returns the repository information (like language, stars, forks, etc.)
+    // 'repo' should be in the format "owner/repo", e.g. "facebook/react"
+  const url = `https://api.github.com/repos/${repo}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Accept': 'application/vnd.github.v3+json',
+        // 'Authorization': 'token YOUR_PERSONAL_ACCESS_TOKEN' // optional
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`GitHub API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // You can return everything or select specific fields
+    return {
+      name: data.full_name,
+      description: data.description,
+      stars: data.stargazers_count,
+      forks: data.forks_count,
+      language: data.language,
+      license: data.license?.name,
+      topics: data.topics,
+      url: data.html_url,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
+  } catch (error) {
+    console.error('Error fetching repository info:', error);
+    return null;
+  }
   };
   const github_get_repo_readme = async (repo) => {
     // returns the README.md content of the repository
