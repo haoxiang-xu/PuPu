@@ -121,8 +121,8 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(${RGB.R - 22}, ${RGB.G - 22}, ${
             RGB.B - 22
           }, 1)`,
-          backgroundColor_onHover: `rgba(${RGB.R - 16}, ${RGB.G - 16}, ${
-            RGB.B - 16
+          backgroundColor_onHover: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${
+            RGB.B - 8
           }, 1)`,
           boxShadow: "inset 0px 0px 32px rgba(0, 0, 0, 0.04)",
           color: `rgba(${RGB.R - 200}, ${RGB.G - 200}, ${RGB.B - 200}, 0.96)`,
