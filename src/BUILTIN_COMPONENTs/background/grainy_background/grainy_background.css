@@ -1,0 +1,14 @@
+.grainy-background {
+  animation: grainy-background-animation 128s infinite alternate ease-in-out;
+}
+@keyframes grainy-background-animation {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-4%, -4%)rotate(16deg);
+  }
+  100% {
+    transform: translate(4%, 4%) rotate(0deg);
+  }
+}
