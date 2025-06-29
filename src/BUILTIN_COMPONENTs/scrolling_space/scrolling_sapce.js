@@ -1,7 +1,7 @@
-import React, { useEffect, useContext } from "react";
+import { useEffect, useContext } from "react";
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 
-const ScrollingSpace = ({}) => {
+const ScrollingSpace = () => {
   const { scrollingSapce, theme } = useContext(ConfigContexts);
 
   useEffect(() => {
@@ -59,7 +59,7 @@ const ScrollingSpace = ({}) => {
     return () => {
       document.head.removeChild(styleElement);
     };
-  }, [scrollingSapce]);
+  }, [scrollingSapce, theme]);
 };
 
 export default ScrollingSpace;

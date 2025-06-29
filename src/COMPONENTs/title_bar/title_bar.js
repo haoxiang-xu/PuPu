@@ -1,10 +1,10 @@
-import React, { useContext, createContext, useEffect } from "react";
+import React, { useContext, createContext } from "react";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
 const TitleBarContexts = createContext("");
 
-const Control_Panel = ({}) => {
+const ControlPanel = () => {
   const { windowIsMaximized } = useContext(StatusContexts);
   const { handleClose, handleMinimize, handleMaximize } =
     useContext(TitleBarContexts);
@@ -75,7 +75,7 @@ const Control_Panel = ({}) => {
   );
 };
 
-const Title_Bar = ({}) => {
+const TitleBar = () => {
   const handleClose = () => {
     window.windowStateAPI.windowStateEventHandler("close");
   };
@@ -102,10 +102,10 @@ const Title_Bar = ({}) => {
       <TitleBarContexts.Provider
         value={{ handleClose, handleMinimize, handleMaximize }}
       >
-        {window.osInfo.platform !== "darwin" ? <Control_Panel /> : null}
+        {window.osInfo.platform !== "darwin" ? <ControlPanel /> : null}
       </TitleBarContexts.Provider>
     </div>
   );
 };
 
-export default Title_Bar;
+export default TitleBar;

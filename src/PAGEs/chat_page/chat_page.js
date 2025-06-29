@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useContext } from "react";
+import { useState, useRef, useEffect, useContext } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
@@ -12,11 +12,10 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
 import { side_menu_width_threshold } from "../../COMPONENTs/side_menu/constants";
 
-const Chat_Page = ({}) => {
+const ChatPage = ({}) => {
   const { RGB, theme } = useContext(ConfigContexts);
   const { sectionStarted } = useContext(DataContexts);
-  const { windowWidth, componentOnFocus, onSideMenu } =
-    useContext(StatusContexts);
+  const { windowWidth, onSideMenu } = useContext(StatusContexts);
 
   /* { Title } ------------------------------------------------------------------------------ */
   const title_list = [
@@ -302,4 +301,4 @@ const Chat_Page = ({}) => {
   );
 };
 
-export default Chat_Page;
+export default ChatPage;
