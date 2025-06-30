@@ -1,11 +1,10 @@
-import React, {
+import {
   useState,
   useEffect,
   useRef,
   useCallback,
   useContext,
   createContext,
-  use,
 } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
@@ -1643,7 +1642,7 @@ const Chat = () => {
           content: "",
           expanded: true,
         });
-        if (messages[index - 1] && messages[index - 1].images) {
+        if (messages[index - 1] && messages[index - 1].files) {
           user_input_base64_images = load_saved_files(
             address,
             index - 1,

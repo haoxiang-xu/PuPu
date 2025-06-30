@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useState,
-  useCallback,
-  useContext,
-} from "react";
+import { useEffect, useState, useCallback, useContext } from "react";
 import { UNIQUE_KEY, RETITLE_TURNS } from "../root_consts";
 
 import { StatusContexts } from "../status/contexts";
@@ -63,9 +58,8 @@ const DataContainer = ({ children }) => {
         if (avaliableModels.includes(model)) {
           continue;
         }
-        new_favoured_models.language_models = new_favoured_models.language_models.filter(
-          (name) => name !== model
-        );
+        new_favoured_models.language_models =
+          new_favoured_models.language_models.filter((name) => name !== model);
       }
       if (!avaliableModels.includes(new_favoured_models.vision_model)) {
         new_favoured_models.vision_model = null;
@@ -78,6 +72,9 @@ const DataContainer = ({ children }) => {
   /* { Local Storage } ------------------------------------------------------------------------------- */
   const [addressBook, setAddressBook] = useState({ avaliable_addresses: [] });
   const [sectionData, setSectionData] = useState({});
+  // useEffect(() => {
+  //   console.log(sectionData);
+  // }, [sectionData]);
 
   /* { load from local storage } */
   useEffect(() => {
@@ -375,11 +372,7 @@ const DataContainer = ({ children }) => {
     });
     return saved_keys;
   };
-  const load_saved_files = (
-    target_address,
-    message_index,
-    file_addresses
-  ) => {
+  const load_saved_files = (target_address, message_index, file_addresses) => {
     let loaded_images = [];
     for (let i = 0; i < file_addresses.length; i++) {
       const file_key = file_addresses[i];
