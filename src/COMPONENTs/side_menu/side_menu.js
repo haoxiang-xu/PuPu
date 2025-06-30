@@ -162,7 +162,7 @@ const Chat_List_Item = ({ address }) => {
         height: 28,
         margin: "6px 12px 0 12px",
 
-        borderRadius: 5,
+        borderRadius: 7,
         border: containerStyle.border,
         backgroundColor: containerStyle.backgroundColor,
         boxShadow: containerStyle.boxShadow,
@@ -405,7 +405,7 @@ const Chat_List = ({}) => {
           height: 16,
           padding: 4,
 
-          borderRadius: 4,
+          borderRadius: 8,
           backgroundColor: addButtonStyle.backgroundColor,
           border: addButtonStyle.border,
           boxShadow: addButtonStyle.boxShadow,

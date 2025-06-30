@@ -72,9 +72,6 @@ const DataContainer = ({ children }) => {
   /* { Local Storage } ------------------------------------------------------------------------------- */
   const [addressBook, setAddressBook] = useState({ avaliable_addresses: [] });
   const [sectionData, setSectionData] = useState({});
-  // useEffect(() => {
-  //   console.log(sectionData);
-  // }, [sectionData]);
 
   /* { load from local storage } */
   useEffect(() => {

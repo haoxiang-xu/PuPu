@@ -69,7 +69,7 @@ const CodeSection = ({ language, children }) => {
           height: default_font_size + 24,
 
           opacity: 1,
-          borderRadius: `${default_border_radius - 4}px`,
+          borderRadius: `${default_border_radius - 5}px`,
           boxShadow: markdown.code_section.tag_boxShadow,
           backgroundColor: markdown.code_section.tag_backgroundColor,
         }}
@@ -102,7 +102,7 @@ const CodeSection = ({ language, children }) => {
             width: 36,
             padding: `${default_font_size}px ${default_font_size}px ${default_font_size}px ${default_font_size}px`,
             border: style.border,
-            borderRadius: `${default_border_radius - 5}px`,
+            borderRadius: `${default_border_radius - 6}px`,
             backgroundColor: style.backgroundColor,
             cursor: "pointer",
           }}
@@ -163,7 +163,7 @@ const CodeSection = ({ language, children }) => {
           backgroundColor: markdown.code_section.backgroundColor,
           paddingTop: 36,
           paddingLeft: 6,
-          borderRadius: default_border_radius + 1,
+          borderRadius: default_border_radius - 1,
           overflowX: "auto",
           overflowY: "hidden",
           maxWidth: "100%",
