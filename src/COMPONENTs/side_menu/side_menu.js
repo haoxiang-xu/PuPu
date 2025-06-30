@@ -47,7 +47,7 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
       <Icon
         src="sun"
         style={{
-          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(0%, -50%)",
           top: theme === "light_theme" ? "50%" : "200%",
@@ -61,7 +61,7 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
       <Icon
         src="moon"
         style={{
-          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(0%, -50%)",
           top: theme === "light_theme" ? "200%" : "50%",
@@ -74,7 +74,7 @@ const Bottom_Function_Panel_Theme_Switch = ({}) => {
       />
       <div
         style={{
-          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           transform: "translate(0%, -50%)",
           top: "50%",
@@ -95,7 +95,7 @@ const Bottom_Function_Panel = ({ width }) => {
   return (
     <div
       style={{
-        transition: "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        transition: "width 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "absolute",
         bottom: 0,
         left: 0,
@@ -252,7 +252,6 @@ const Chat_List_Item = ({ address }) => {
     >
       <Icon
         src={"more"}
-        
         style={{
           position: "absolute",
           transform: "translate(-50%, -50%)",
@@ -376,8 +375,7 @@ const Chat_List_Item = ({ address }) => {
 const Chat_List = ({}) => {
   const { RGB, sideMenu, component } = useContext(ConfigContexts);
   const { start_new_section, addressBook } = useContext(DataContexts);
-  const { setComponentOnFocus, onSideMenu } =
-    useContext(StatusContexts);
+  const { setComponentOnFocus, onSideMenu } = useContext(StatusContexts);
 
   const [chatRoomItems, setChatRoomItems] = useState([]);
 
@@ -481,7 +479,7 @@ const Chat_List = ({}) => {
       ></Icon>
       <span
         style={{
-          transition: "left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "left 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "fixed",
           top: 46,
           left: onSideMenu ? 14 : -100,
@@ -514,7 +512,6 @@ const Side_Menu = ({}) => {
   const [iconStyle, setIconStyle] = useState({});
   const [menuStyle, setMenuStyle] = useState({
     width: 0,
-    borderRight: "0px solid rgba(255, 255, 255, 0)",
   });
   const [onSelectAddress, setOnSelectAddress] = useState(null);
   const [onRenameAddress, setOnRenameAddress] = useState(null);
@@ -524,7 +521,6 @@ const Side_Menu = ({}) => {
       if (window.innerWidth > side_menu_width_threshold) {
         setMenuStyle({
           width: 300,
-          borderRight: "1px solid rgba(255, 255, 255, 0.12)",
         });
         setIconStyle({
           src: "arrow",
@@ -541,8 +537,7 @@ const Side_Menu = ({}) => {
         });
       } else {
         setMenuStyle({
-          width: 256,
-          borderRight: "1px solid rgba(255, 255, 255, 0.12)",
+          width: 300,
         });
         setIconStyle({
           src: "arrow",
@@ -554,14 +549,13 @@ const Side_Menu = ({}) => {
               : theme === "dark_theme"
               ? 14
               : 21,
-          left: 256 - 16,
+          left: 300 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       }
     } else {
       setMenuStyle({
         width: 0,
-        borderRight: "0px solid rgba(255, 255, 255, 0)",
       });
       if (window.osInfo.platform === "darwin") {
         setIconStyle({
@@ -623,39 +617,27 @@ const Side_Menu = ({}) => {
         <div
           style={{
             transition:
-              "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
+              "width 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
               "opacity 0.36s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
               "background-color 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
               "border-right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "fixed",
 
-            top: theme === "dark_theme" ? 0 : 8,
-            left: theme === "dark_theme" ? 0 : 8,
-            bottom: theme === "dark_theme" ? 0 : 8,
+            top: 0,
+            left: 0,
+            bottom: 0,
 
-            width:
-              theme === "dark_theme"
-                ? menuStyle.width
-                : Math.max(menuStyle.width - 8, 0),
+            width: menuStyle.width,
 
             boxSizing: "border-box",
-            borderRight:
-              theme === "dark_theme"
-                ? onSideMenu && windowWidth <= side_menu_width_threshold
-                  ? sideMenu.border
-                  : "none"
-                : "none",
             scrollBehavior: "smooth",
-            borderRadius: theme === "dark_theme" ? 0 : 12,
+            borderRadius: 0,
 
             backgroundColor:
               onSideMenu && windowWidth > side_menu_width_threshold
                 ? sideMenu.backgroundColor
                 : sideMenu.backgroundColor_onHover,
-            boxShadow:
-              onSideMenu && windowWidth > side_menu_width_threshold
-                ? sideMenu.boxShadow
-                : "none",
+            boxShadow: sideMenu.boxShadow,
             backdropFilter: "blur(36px)",
             WebkitAppRegion: "no-drag",
             opacity: theme === "dark_theme" ? 1 : onSideMenu ? 1 : 0,
@@ -666,34 +648,26 @@ const Side_Menu = ({}) => {
             setOnSelectAddress(null);
           }}
         >
-          {onSideMenu && windowWidth > side_menu_width_threshold ? (
-            <div
-              style={{
-                position: "absolute",
-                top: 16,
-                bottom: 16,
-                right: 0,
-
-                width: component.separator.width,
-                backgroundColor: component.separator.backgroundColor,
-                opacity: 0.32,
-              }}
-            ></div>
-          ) : null}
           <Chat_List />
-          <Bottom_Function_Panel
-            width={
-              theme === "dark_theme"
-                ? menuStyle.width
-                : Math.max(menuStyle.width - 8, 0)
-            }
+          <Bottom_Function_Panel width={menuStyle.width} />
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              bottom: 0,
+              right: -1,
+
+              width: component.separator.width,
+              backgroundColor: component.separator.backgroundColor,
+              opacity: 0.32,
+            }}
           />
         </div>
         <div
           className="icon-container"
           style={{
             transition:
-              "width 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+              "width 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16), left 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "fixed",
             transform: iconStyle.transform,
 

@@ -98,9 +98,9 @@ const ConfigContainer = ({ children }) => {
       if (theme === "dark_theme") {
         return {
           border: "1px solid rgba(255, 255, 255, 0.32)",
-          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
-          backgroundColor_onHover: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
-          boxShadow: "0px 4px 16px rgba(0, 0, 0, 0)",
+          backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 1)`,
+          backgroundColor_onHover: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 1)`,
+          boxShadow: "0px 4px 32px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.72)`,
           borderRadius: 0,
           chat_room_item: {

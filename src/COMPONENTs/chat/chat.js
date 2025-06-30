@@ -369,8 +369,8 @@ const Message = ({ index, role, message, file_addresses, is_last_index }) => {
     <>
       <div
         style={{
-          transition: "margin-left 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
-          transition: "width 0.32s cubic-bezier(0.32, 0, 0.32, 1)",
+          transition: "margin-left 0.48s cubic-bezier(0.32, 0, 0.32, 1)",
+          transition: "width 0.48s cubic-bezier(0.32, 0, 0.32, 1)",
           position: "relative",
           width: role === "user" ? "none" : "100%",
           maxWidth: role === "user" ? 328 : "100%",
@@ -1405,7 +1405,7 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
     <div
       style={{
         transition:
-          "left 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
+          "left 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
           "width 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "fixed",
         transform: "translate(-50%, 0%)",
@@ -1844,7 +1844,7 @@ const Chat = () => {
     >
       <div
         style={{
-          transition: "all 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
           top: 0,
           left: windowWidth > side_menu_width_threshold && onSideMenu ? 300 : 0,

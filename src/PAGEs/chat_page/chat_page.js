@@ -286,7 +286,7 @@ const ChatPage = ({}) => {
       <div
         className="chat-section-wrapper"
         style={{
-          transition: "all 0.32s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "absolute",
 
           top: 6,
