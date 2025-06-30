@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  useContext,
-  createContext,
-} from "react";
+import { useState, useRef, useEffect, useContext, createContext } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
@@ -13,6 +7,7 @@ import { StatusContexts } from "../../CONTAINERs/status/contexts";
 import { side_menu_width_threshold } from "./constants";
 
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import Switch from "../../BUILTIN_COMPONENTs/switch/switch";
 
 const component_name = "side_menu";
 
@@ -22,72 +17,33 @@ const Contexts = createContext();
 const Bottom_Function_Panel_Theme_Switch = ({}) => {
   const { theme, setTheme, component } = useContext(ConfigContexts);
   return (
-    <div
+    <Switch
       style={{
         position: "absolute",
         transform: "translate(0%, -50%)",
         top: "50%",
-        left: 36,
-
-        width: 38,
-        height: 24,
-
-        borderRadius: 32,
-        border: component.switch.border,
+        right: 36,
+        width: 46,
+        height: 26,
+        borderRadius: 16,
+        color: component.switch.toggleBackgroundColor,
         backgroundColor: component.switch.backgroundColor,
-        boxShadow: "inset 0 0 12px rgba(0, 0, 0, 0.16)",
+        border: `1px solid ${component.switch.backgroundColor}`,
         cursor: "pointer",
       }}
-      onClick={() => {
-        setTheme((prev) =>
-          prev === "light_theme" ? "dark_theme" : "light_theme"
-        );
+      on_icon_src="sun"
+      off_icon_src="moon"
+      on={theme === "light_theme"}
+      setOn={() => {
+        setTheme((prevTheme) => {
+          if (prevTheme === "dark_theme") {
+            return "light_theme";
+          } else {
+            return "dark_theme";
+          }
+        });
       }}
-    >
-      <Icon
-        src="sun"
-        style={{
-          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          transform: "translate(0%, -50%)",
-          top: theme === "light_theme" ? "50%" : "200%",
-          left: -28,
-          width: 20,
-          height: 20,
-          userSelect: "none",
-          opacity: 0.8,
-        }}
-      />
-      <Icon
-        src="moon"
-        style={{
-          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          transform: "translate(0%, -50%)",
-          top: theme === "light_theme" ? "200%" : "50%",
-          left: -28,
-          width: 20,
-          height: 20,
-          userSelect: "none",
-          opacity: 0.8,
-        }}
-      />
-      <div
-        style={{
-          transition: "all 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
-          position: "absolute",
-          transform: "translate(0%, -50%)",
-          top: "50%",
-          left: theme === "light_theme" ? 3 : 16,
-
-          width: 19,
-          height: 19,
-
-          borderRadius: 32,
-          backgroundColor: component.switch.toggleBackgroundColor,
-        }}
-      ></div>
-    </div>
+    />
   );
 };
 const Bottom_Function_Panel = ({ width }) => {

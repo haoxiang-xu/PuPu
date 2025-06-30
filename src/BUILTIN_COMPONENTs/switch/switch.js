@@ -1,7 +1,7 @@
 import { useState, useEffect, useContext, useCallback, useMemo } from "react";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
@@ -15,7 +15,7 @@ const MaterialSwitch = ({
   on = false,
   setOn = () => {},
 }) => {
-  const { theme } = useContext(ConfigContext);
+  const { theme } = useContext(ConfigContexts);
   const [switchStyle, setSwitchStyle] = useState({});
   const [highlighterOffset, setHighlighterOffset] = useState(0);
   const [onHover, setOnHover] = useState(false);
@@ -218,7 +218,7 @@ const LightSwitch = ({ style }) => {
     }),
     []
   );
-  const { onThemeMode, setOnThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, setOnThemeMode } = useContext(ConfigContexts);
 
   const preprocess_style = useCallback(() => {
     let reprocessed_style = { ...style };
@@ -251,7 +251,7 @@ const Switch = ({
   on = false,
   setOn = () => {},
 }) => {
-  const { theme } = useContext(ConfigContext);
+  const { theme } = useContext(ConfigContexts);
   const [switchStyle, setSwitchStyle] = useState({});
   const [thumbOffset, setThumbOffset] = useState(0);
   useEffect(() => {
@@ -343,18 +343,18 @@ const Switch = ({
             typeof switchStyle?.height === "number" &&
             typeof switchStyle?.width === "number"
               ? on
-                ? 4
-                : switchStyle?.width - switchStyle?.height + 7 + 4
+                ? 5
+                : switchStyle?.width - switchStyle?.height + 7
               : undefined,
           transform: "translate(0%, -50%)",
 
           height:
             typeof switchStyle?.height === "number"
-              ? switchStyle.height - 14
+              ? switchStyle.height - 10
               : undefined,
           width:
             typeof switchStyle?.height === "number"
-              ? switchStyle.height - 14
+              ? switchStyle.height - 10
               : undefined,
         }}
       />

@@ -525,9 +525,9 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(225, 225, 225, 0.32)`,
         },
         switch: {
-          backgroundColor: `rgba(${99}, ${120}, ${255}, ${0.4})`,
+          backgroundColor: `rgba(${21}, ${70}, ${142}, ${1})`,
           border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
-          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, ${1})`,
         },
         button: {
           border: `1px solid rgba(225, 225, 225, 0)`,
