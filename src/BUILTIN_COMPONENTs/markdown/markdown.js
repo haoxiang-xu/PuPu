@@ -350,7 +350,7 @@ const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
 const ThinkingSection = ({ index, children }) => {
-  const { RGB, colorOffset, markdown, span } = useContext(ConfigContexts);
+  const { RGB, colorOffset, markdown, span, component } = useContext(ConfigContexts);
   const { set_expand_section_message, sectionData } = useContext(DataContexts);
   const [isExpanded, setIsExpanded] = useState(
     sectionData.messages[index].expanded
@@ -364,23 +364,17 @@ const ThinkingSection = ({ index, children }) => {
   useEffect(() => {
     if (onClick) {
       setStyle({
-        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground * 2}, ${
-          RGB.G + colorOffset.middle_ground * 2
-        }, ${RGB.B + colorOffset.middle_ground * 2}, 0.72)`,
-        border: markdown.think_section.border_onActive,
+        backgroundColor: component.global_button.onClick.backgroundColor,
+        border: component.global_button.onClick.border,
       });
     } else if (onHover) {
       setStyle({
-        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
-          RGB.G + colorOffset.middle_ground
-        }, ${RGB.B + colorOffset.middle_ground}, 0.64)`,
-        border: markdown.think_section.border_onHover,
+        backgroundColor: component.global_button.onHover.backgroundColor,
+        border: component.global_button.onHover.border,
       });
     } else {
       setStyle({
-        backgroundColor: `rgba(${RGB.R + colorOffset.middle_ground}, ${
-          RGB.G + colorOffset.middle_ground
-        }, ${RGB.B + colorOffset.middle_ground}, 0)`,
+        backgroundColor: markdown.think_section.backgroundColor,
         border: markdown.think_section.border,
       });
     }

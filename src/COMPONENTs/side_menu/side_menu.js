@@ -345,21 +345,18 @@ const Chat_List = ({}) => {
   useEffect(() => {
     if (addButtonOnClick) {
       setAddButtonStyle({
-        backgroundColor: component.button.onActive.backgroundColor,
-        border: component.button.onActive.border,
-        boxShadow: component.button.onActive.boxShadow,
+        backgroundColor: component.global_button.onClick.backgroundColor,
+        border: component.global_button.onClick.border,
       });
     } else if (addButtonOnHover) {
       setAddButtonStyle({
-        backgroundColor: component.button.onHover.backgroundColor,
-        border: component.button.onHover.border,
-        boxShadow: component.button.onHover.boxShadow,
+        backgroundColor: component.global_button.onHover.backgroundColor,
+        border: component.global_button.onHover.border,
       });
     } else {
       setAddButtonStyle({
-        backgroundColor: component.button.backgroundColor,
-        border: component.button.border,
-        boxShadow: component.button.boxShadow,
+        backgroundColor: component.global_button.backgroundColor,
+        border: component.global_button.border,
       });
     }
   }, [addButtonOnHover, addButtonOnClick]);
@@ -408,7 +405,6 @@ const Chat_List = ({}) => {
           borderRadius: 8,
           backgroundColor: addButtonStyle.backgroundColor,
           border: addButtonStyle.border,
-          boxShadow: addButtonStyle.boxShadow,
 
           opacity: 0.96,
 

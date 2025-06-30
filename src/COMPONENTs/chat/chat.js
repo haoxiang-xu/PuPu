@@ -1372,24 +1372,22 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
       setStyle({
         colorOffset: 64,
         opacity: 1,
-        border: component.button.onActive.border,
-        backgroundColor: component.button.onActive.backgroundColor,
-        boxShadow: component.button.onActive.boxShadow,
+        border: component.global_button.onClick.border,
+        backgroundColor: component.global_button.onClick.backgroundColor,
       });
     } else if (onHover) {
       setStyle({
         colorOffset: 16,
         opacity: 1,
-        border: component.button.onHover.border,
-        backgroundColor: component.button.onHover.backgroundColor,
-        boxShadow: component.button.onHover.boxShadow,
+        border: component.global_button.onHover.border,
+        backgroundColor: component.global_button.onHover.backgroundColor,
       });
     } else {
       setStyle({
         colorOffset: 0,
         opacity: 0,
-        border: component.button.border,
-        backgroundColor: component.button.backgroundColor,
+        border: component.global_button.border,
+        backgroundColor: component.global_button.backgroundColor,
         boxShadow: "none",
       });
     }
@@ -1441,7 +1439,7 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
           fontSize: 16,
           color: color,
 
-          borderRadius: 12,
+          borderRadius: 14,
           backgroundColor: inputBox.backgroundColor,
           backdropFilter: "blur(24px)",
           boxShadow: inputBox.boxShadow,
@@ -1469,7 +1467,7 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
             cursor: "pointer",
 
             padding: 8,
-            borderRadius: 7,
+            borderRadius: 9,
             backgroundColor: style.backgroundColor,
             border: style.border,
             boxShadow: style.boxShadow,
@@ -1509,7 +1507,7 @@ const Input_Box = ({ inputValue, setInputValue, on_input_submit }) => {
             cursor: "pointer",
 
             padding: 8,
-            borderRadius: 7,
+            borderRadius: 9,
             backgroundColor: style.backgroundColor,
             border: style.border,
             boxShadow: style.boxShadow,

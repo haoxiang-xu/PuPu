@@ -99,7 +99,9 @@ const ConfigContainer = ({ children }) => {
         return {
           border: "1px solid rgba(255, 255, 255, 0.32)",
           backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 1)`,
-          backgroundColor_onHover: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 1)`,
+          backgroundColor_onHover: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${
+            RGB.B - 6
+          }, 1)`,
           boxShadow: "0px 4px 32px rgba(0, 0, 0, 0)",
           color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.72)`,
           borderRadius: 0,
@@ -567,6 +569,24 @@ const ConfigContainer = ({ children }) => {
             border: `1px solid rgba(225, 225, 225, 0.64)`,
           },
         },
+        global_button: {
+          onClick: {
+            backgroundColor: `rgba(${RGB.R + 36}, ${RGB.G + 36}, ${
+              RGB.B + 36
+            }, 0.72)`,
+            border: `1px solid rgba(225, 225, 225, 0)`,
+          },
+          onHover: {
+            backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
+              RGB.B + 12
+            }, 0.64)`,
+            border: `1px solid rgba(225, 225, 225, 0.32)`,
+          },
+          backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
+            RGB.B + 30
+          }, 0)`,
+          border: `1px solid rgba(255, 255, 255, 0)`,
+        },
         simplified_button: {
           backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
             RGB.B + 30
@@ -629,6 +649,22 @@ const ConfigContainer = ({ children }) => {
             }, 0.64)`,
             border: `1px solid rgba(0, 0, 0, 0.64)`,
           },
+        },
+        global_button: {
+          onClick: {
+            backgroundColor: `rgba(${RGB.R - 72}, ${RGB.G - 72}, ${
+              RGB.B - 72
+            }, 0.72)`,
+            border: `1px solid rgba(0, 0, 0, 0)`,
+          },
+          onHover: {
+            backgroundColor: `rgba(${RGB.R - 24}, ${RGB.G - 24}, ${
+              RGB.B - 24
+            }, 0.64)`,
+            border: `1px solid rgba(0, 0, 0, 0.32)`,
+          },
+          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
+          border: `1px solid rgba(255, 255, 255, 0)`,
         },
         simplified_button: {
           backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
