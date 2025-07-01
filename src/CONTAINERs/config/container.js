@@ -369,8 +369,8 @@ const ConfigContainer = ({ children }) => {
             backgroundColor_onHover: `rgba(225, 225, 225, 0.08)`,
             backgroundColor_onActive: `rgba(225, 225, 225, 0.16)`,
             border: `1px solid rgba(225, 225, 225, 0)`,
-            border_onHover: `1px solid rgba(225, 225, 225, 0.16)`,
-            border_onActive: `1px solid rgba(225, 225, 225, 0.32)`,
+            border_onHover: `1px solid rgba(225, 225, 225, 0.32)`,
+            border_onActive: `1px solid rgba(225, 225, 225, 0)`,
           },
           think_section: {
             border: `1px solid rgba(225, 225, 225, 0)`,
@@ -398,10 +398,10 @@ const ConfigContainer = ({ children }) => {
           copy_button: {
             backgroundColor: `rgba(0, 0, 0, 0)`,
             backgroundColor_onHover: `rgba(0, 0, 0, 0.08)`,
-            backgroundColor_onActive: `rgba(0, 0, 0, 0.08)`,
+            backgroundColor_onActive: `rgba(0, 0, 0, 0.16)`,
             border: `1px solid rgba(0, 0, 0, 0)`,
-            border_onHover: `1px solid rgba(0, 0, 0, 0.16)`,
-            border_onActive: `1px solid rgba(0, 0, 0, 0.32)`,
+            border_onHover: `1px solid rgba(0, 0, 0, 0.32)`,
+            border_onActive: `1px solid rgba(0, 0, 0, 0)`,
           },
           think_section: {
             border: `1px solid rgba(0, 0, 0, 0)`,
@@ -568,7 +568,7 @@ const ConfigContainer = ({ children }) => {
             backgroundColor: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
               RGB.B + 30
             }, 0.64)`,
-            border: `1px solid rgba(225, 225, 225, 0.64)`,
+            border: `1px solid rgba(225, 225, 225, 0)`,
           },
         },
         global_button: {
@@ -651,7 +651,7 @@ const ConfigContainer = ({ children }) => {
             backgroundColor: `rgba(${RGB.R - 64}, ${RGB.G - 64}, ${
               RGB.B - 64
             }, 0.64)`,
-            border: `1px solid rgba(0, 0, 0, 0.64)`,
+            border: `1px solid rgba(0, 0, 0, 0)`,
           },
         },
         global_button: {
