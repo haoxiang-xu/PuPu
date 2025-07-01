@@ -398,8 +398,8 @@ const Chat_List = ({}) => {
           top: 46,
           right: 16,
 
-          width: 16,
-          height: 16,
+          width: 15,
+          height: 15,
           padding: 4,
 
           borderRadius: 8,
@@ -476,14 +476,8 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top:
-            window.osInfo.platform === "darwin"
-              ? theme === "dark_theme"
-                ? 17
-                : 22
-              : theme === "dark_theme"
-              ? 14
-              : 22,
+          top: window.osInfo.platform === "darwin" ? 17 : 14,
+
           left: 300 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -493,14 +487,7 @@ const Side_Menu = ({}) => {
         });
         setIconStyle({
           src: "arrow",
-          top:
-            window.osInfo.platform === "darwin"
-              ? theme === "dark_theme"
-                ? 17
-                : 21
-              : theme === "dark_theme"
-              ? 14
-              : 21,
+          top: window.osInfo.platform === "darwin" ? 17 : 14,
           left: 300 - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
@@ -558,10 +545,10 @@ const Side_Menu = ({}) => {
             bottom: 0,
 
             backgroundColor:
-              onSideMenu &&
-              windowWidth <= side_menu_width_threshold &&
-              theme === "light_theme"
-                ? "rgba(0, 0, 0, 0.32)"
+              onSideMenu && windowWidth <= side_menu_width_threshold
+                ? theme === "light_theme"
+                  ? "rgba(0, 0, 0, 0.32)"
+                  : "rgba(0, 0, 0, 0.5)"
                 : "rgba(0, 0, 0, 0)",
             pointerEvents: "none",
           }}
@@ -585,10 +572,7 @@ const Side_Menu = ({}) => {
             scrollBehavior: "smooth",
             borderRadius: 0,
 
-            backgroundColor:
-              onSideMenu && windowWidth > side_menu_width_threshold
-                ? sideMenu.backgroundColor
-                : sideMenu.backgroundColor_onHover,
+            backgroundColor: sideMenu.backgroundColor,
             boxShadow: sideMenu.boxShadow,
             backdropFilter: "blur(36px)",
             WebkitAppRegion: "no-drag",

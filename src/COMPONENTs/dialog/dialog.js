@@ -6,7 +6,6 @@ import { DataContexts } from "../../CONTAINERs/data/contexts";
 
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import ScrollingSpace from "../../BUILTIN_COMPONENTs/scrolling_space/scrolling_sapce";
-import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Language_Model_Manager from "../settings/language_model_manager/language_model_manager";
 import Settings from "../settings/settings";
 

@@ -366,7 +366,7 @@ const Storage_Manager = () => {
             border: modelDownloader.border,
             padding: "1px 8px",
             borderRadius: 8,
-            backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+            backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 1)`,
           }}
         >
           {localStorageSize}

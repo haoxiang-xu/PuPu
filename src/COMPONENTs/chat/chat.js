@@ -808,6 +808,7 @@ const Model_Selector_Add_Model_Button = () => {
         style={{
           position: "absolute",
           transform: "translate(-50%, -50%)",
+          height: 16,
           left: "50%",
           top: "50%",
         }}

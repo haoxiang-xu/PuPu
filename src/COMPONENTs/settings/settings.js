@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, createContext } from "react";
+import { useState, useEffect, useContext, createContext } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
@@ -47,19 +47,12 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
           style={{
             transition: "all 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "relative",
-            width:
-              theme === "light_theme"
-                ? `calc(100% - ${12 + left_padding}px)`
-                : `calc(100% - ${4 + left_padding}px)`,
+            width: `calc(100% - ${12 + left_padding}px)`,
             height: 30,
             margin:
-              theme === "light_theme"
-                ? index === 0
-                  ? `6px 6px 0 ${6 + left_padding}px`
-                  : `3px 6px 0 ${6 + left_padding}px`
-                : index === 0
-                ? `3px 2px 0 ${2 + left_padding}px`
-                : `3px 2px 0 ${2 + left_padding}px`,
+              index === 0
+                ? `6px 6px 0 ${6 + left_padding}px`
+                : `6px 6px 0 ${6 + left_padding}px`,
 
             border: onHover
               ? settingPanel.side_menu_item.border_onHover
@@ -68,7 +61,7 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
               ? settingPanel.side_menu_item.backgroundColor_onHover
               : "transparent",
             boxShadow: "none",
-            borderRadius: 4,
+            borderRadius: 6,
             boxSizing: "border-box",
             cursor: "pointer",
           }}
@@ -163,19 +156,12 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
         style={{
           transition: "box-shadow 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
           position: "relative",
-          width:
-            theme === "light_theme"
-              ? `calc(100% - ${12 + left_padding}px)`
-              : `calc(100% - ${4 + left_padding}px)`,
+          width: `calc(100% - ${12 + left_padding}px)`,
           height: 30,
           margin:
-            theme === "light_theme"
-              ? index === 0
-                ? `6px 6px 0 ${6 + left_padding}px`
-                : `3px 6px 0 ${6 + left_padding}px`
-              : index === 0
-              ? `3px 2px 0 ${2 + left_padding}px`
-              : `3px 2px 0 ${2 + left_padding}px`,
+            index === 0
+              ? `6px 6px 0 ${6 + left_padding}px`
+              : `6px 6px 0 ${6 + left_padding}px`,
 
           border:
             selectedMenu === menu_key
@@ -193,7 +179,7 @@ const Submenu_Side_List_Item = ({ index, menu_key, left_padding }) => {
             selectedMenu === menu_key
               ? settingPanel.side_menu_item.boxShadow_onActive
               : "none",
-          borderRadius: 4,
+          borderRadius: 6,
           boxSizing: "border-box",
           cursor: "pointer",
         }}
@@ -259,21 +245,11 @@ const Submenu_Side_List = () => {
         left: 6,
         width: 144,
         bottom: 6,
-        borderRadius: 6,
+        borderRadius: 11,
         border: settingPanel.border,
         backgroundColor: settingPanel.backgroundColor,
       }}
     >
-      <div
-        style={{
-          position: "absolute",
-          top: 12,
-          right: -7,
-          bottom: 12,
-          width: 2,
-          backgroundColor: settingPanel.separator,
-        }}
-      ></div>
       {list_of_setting_menus.root.sub_menus.map((menu_key, index) => (
         <Submenu_Side_List_Item
           key={menu_key}

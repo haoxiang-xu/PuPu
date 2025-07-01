@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { ConfigContexts } from "./contexts";
 
@@ -16,12 +16,18 @@ const ConfigContainer = ({ children }) => {
           R: dark_theme.R,
           G: dark_theme.G,
           B: dark_theme.B,
+          R_secondary: dark_theme.R_secondary,
+          G_secondary: dark_theme.G_secondary,
+          B_secondary: dark_theme.B_secondary,
         };
       } else {
         RGB = {
           R: light_theme.R,
           G: light_theme.G,
           B: light_theme.B,
+          R_secondary: light_theme.R_secondary,
+          G_secondary: light_theme.G_secondary,
+          B_secondary: light_theme.B_secondary,
         };
       }
     }
@@ -106,15 +112,11 @@ const ConfigContainer = ({ children }) => {
           color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.72)`,
           borderRadius: 0,
           chat_room_item: {
-            backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.4)`,
-            backgroundColor_onActive: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.84)`,
-            border_onHover: "1px solid rgba(255, 255, 255, 0.08)",
-            border_onActive: "1px solid rgba(255, 255, 255, 0.16)",
-            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.12)",
+            backgroundColor_onHover: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.5)`,
+            backgroundColor_onActive: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 1)`,
+            border_onHover: "1px solid rgba(255, 255, 255, 0)",
+            border_onActive: "1px solid rgba(255, 255, 255, 0)",
+            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0)",
           },
         };
       } else {
@@ -418,18 +420,14 @@ const ConfigContainer = ({ children }) => {
       if (theme === "dark_theme") {
         return {
           separator: `rgba(225, 225, 225, 0.32)`,
-          backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0)`,
-          border: `1px solid rgba(225, 225, 225, 0)`,
+          backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 1)`,
+          border: `1px solid rgba(225, 225, 225, 0.16)`,
           side_menu_item: {
-            border_onHover: `1px solid rgba(225, 225, 225, 0.16)`,
-            backgroundColor_onHover: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.4)`,
-            border_onActive: `1px solid rgba(225, 225, 225, 0.32)`,
-            backgroundColor_onActive: `rgba(${RGB.R + 30}, ${RGB.G + 30}, ${
-              RGB.B + 30
-            }, 0.84)`,
-            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0.12)",
+            border_onHover: `1px solid rgba(225, 225, 225, 0)`,
+            backgroundColor_onHover: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.5)`,
+            border_onActive: `1px solid rgba(225, 225, 225, 0)`,
+            backgroundColor_onActive: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 1)`,
+            boxShadow_onActive: "0px 8px 12px rgba(0, 0, 0, 0)",
           },
         };
       } else {
@@ -523,12 +521,16 @@ const ConfigContainer = ({ children }) => {
     if (theme && theme === "dark_theme") {
       return {
         separator: {
-          width: 2,
-          backgroundColor: `rgba(225, 225, 225, 0.32)`,
+          width: 1,
+          backgroundColor: `rgba(225, 225, 225, 0.96)`,
         },
         switch: {
-          backgroundColor: `rgba(${21}, ${70}, ${142}, ${1})`,
-          border: `1px solid rgba(${99}, ${120}, ${255}, 0.32)`,
+          backgroundColor: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${
+            RGB.B_secondary
+          }, ${1})`,
+          border: `1px solid rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${
+            RGB.B_secondary
+          }, ${1})`,
           toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, ${1})`,
         },
         button: {
@@ -610,7 +612,9 @@ const ConfigContainer = ({ children }) => {
           backgroundColor: `rgba(0, 0, 0, 0)`,
         },
         switch: {
-          backgroundColor: `rgba(${191}, ${139}, ${135}, ${0.64})`,
+          backgroundColor: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${
+            RGB.B_secondary
+          }, ${0.64})`,
           border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
           toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
         },
