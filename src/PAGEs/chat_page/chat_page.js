@@ -21,9 +21,8 @@ const ChatPage = ({}) => {
   const title_list = [
     "🧠 Ask me anything!",
     "🚀 Your AI assistant is ready!",
-    "🌎 Exploring knowledge with AI",
-    "🛸 Chatting with the future!",
-    "Powered by Ollama",
+    "🌎 Exploring knowledge with Ollama",
+    "🌩️ Powered by Ollama",
   ];
   const [logo_title, setLogoTitle] = useState(title_list[0]);
   const logoTitleRef = useRef(logo_title);

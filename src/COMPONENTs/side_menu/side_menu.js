@@ -156,7 +156,8 @@ const Chat_List_Item = ({ address }) => {
     <div
       ref={tagRef}
       style={{
-        transition: "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
+        transition:
+          "border 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), box-shadow 0.24s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
         position: "relative",
         width: "calc(100% - 24px)",
         height: 28,

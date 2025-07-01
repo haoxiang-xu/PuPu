@@ -338,8 +338,12 @@ const TextSection = ({ children }) => {
     <span
       style={{
         fontSize: `${default_font_size + 4}px`,
-        maxHeight: 100,
-        overflowY: "hidden",
+        display: "-webkit-box",
+        WebkitLineClamp: 10,
+        WebkitBoxOrient: "vertical",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        maxHeight: "100%",
       }}
     >
       {children}
