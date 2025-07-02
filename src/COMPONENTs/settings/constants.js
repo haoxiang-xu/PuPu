@@ -1,6 +1,10 @@
 const list_of_setting_menus = {
   root: {
-    sub_menus: ["models", "local_storage"],
+    sub_menus: ["general", "models", "local_storage"],
+  },
+  general: {
+    title: "general",
+    img_src: "equalizer",
   },
   models: {
     title: "models",

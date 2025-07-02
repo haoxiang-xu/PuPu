@@ -82,6 +82,8 @@ export const iconManifest = {
   chat_: () => import("./SVGs/UI/chat_.svg"),
   vision: () => import("./SVGs/UI/vision.svg"),
   vision_: () => import("./SVGs/UI/vision_.svg"),
+  equalizer: () => import("./SVGs/UI/equalizer.svg"),
+  equalizer_: () => import("./SVGs/UI/equalizer_.svg"),
 
   sun: () => import("./SVGs/UI/sun.svg"),
   sun_: () => import("./SVGs/UI/sun_.svg"),

@@ -19,6 +19,9 @@ const ConfigContainer = ({ children }) => {
           R_secondary: dark_theme.R_secondary,
           G_secondary: dark_theme.G_secondary,
           B_secondary: dark_theme.B_secondary,
+          R_third: dark_theme.R_third,
+          G_third: dark_theme.G_third,
+          B_third: dark_theme.B_third,
         };
       } else {
         RGB = {
@@ -28,6 +31,9 @@ const ConfigContainer = ({ children }) => {
           R_secondary: light_theme.R_secondary,
           G_secondary: light_theme.G_secondary,
           B_secondary: light_theme.B_secondary,
+          R_third: light_theme.R_third,
+          G_third: light_theme.G_third,
+          B_third: light_theme.B_third,
         };
       }
     }
@@ -347,12 +353,8 @@ const ConfigContainer = ({ children }) => {
       if (theme === "dark_theme") {
         return {
           a_color: `rgb(${RGB.R + 128}, ${RGB.G + 128}, ${RGB.B + 128})`,
-          a_backgroundColor: `rgba(${RGB.R + 32}, ${RGB.G + 32}, ${
-            RGB.B + 32
-          }, 0.32)`,
-          a_backgroundColor_onHover: `rgba(${RGB.R + 32}, ${RGB.G + 32}, ${
-            RGB.B + 32
-          }, 0.96)`,
+          a_backgroundColor: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.64)`,
+          a_backgroundColor_onHover: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.96)`,
           code_section: {
             backgroundColor: `rgb(${RGB.R - 6}, ${RGB.G - 5}, ${RGB.B - 5})`,
             tag_backgroundColor: `rgba(${RGB.R + 12}, ${RGB.G + 12}, ${
@@ -384,12 +386,12 @@ const ConfigContainer = ({ children }) => {
       } else {
         return {
           a_color: `rgb(${RGB.R}, ${RGB.G}, ${RGB.B})`,
-          a_backgroundColor: `rgba(${230}, ${168}, ${162}, 0.96)`,
-          a_backgroundColor_onHover: `rgba(${191}, ${139}, ${135}, 0.96)`,
+          a_backgroundColor: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 1)`,
+          a_backgroundColor_onHover: `rgba(${RGB.R_third}, ${RGB.G_third}, ${RGB.B_third}, 0.96)`,
           code_section: {
             backgroundColor: `rgb(${RGB.R - 20}, ${RGB.G - 19}, ${RGB.B - 21})`,
             tag_backgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
-            boxShadow: `inset 0 0px 32px rgba(5, 4, 4, 0.08)`,
+            boxShadow: `inset 0 0px 32px rgba(5, 4, 4, 0)`,
             tag_boxShadow: `0 4px 12px rgba(0, 0, 0, 0.08)`,
             border: `0px solid rgba(0, 0, 0, 0)`,
             scrolling_bar_backgroundColor: `rgba(32, 32, 32, 0.16)`,
@@ -397,10 +399,10 @@ const ConfigContainer = ({ children }) => {
           },
           copy_button: {
             backgroundColor: `rgba(0, 0, 0, 0)`,
-            backgroundColor_onHover: `rgba(0, 0, 0, 0.08)`,
-            backgroundColor_onActive: `rgba(0, 0, 0, 0.16)`,
+            backgroundColor_onHover: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.16)`,
+            backgroundColor_onActive: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.64)`,
             border: `1px solid rgba(0, 0, 0, 0)`,
-            border_onHover: `1px solid rgba(0, 0, 0, 0.32)`,
+            border_onHover: `1px solid rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.64)`,
             border_onActive: `1px solid rgba(0, 0, 0, 0)`,
           },
           think_section: {
@@ -475,7 +477,9 @@ const ConfigContainer = ({ children }) => {
         option_item: {
           backgroundColor: `rgba(${255}, ${255}, ${255}, 0.16)`,
           boxShadow: "none",
-          border: `1px solid rgba(${RGB.R + 64}, ${RGB.G + 64}, ${RGB.B + 64}, 0)`,
+          border: `1px solid rgba(${RGB.R + 64}, ${RGB.G + 64}, ${
+            RGB.B + 64
+          }, 0)`,
           borderRadius: 5,
         },
       };
@@ -612,8 +616,10 @@ const ConfigContainer = ({ children }) => {
         switch: {
           backgroundColor: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${
             RGB.B_secondary
-          }, ${0.64})`,
-          border: `1px solid rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
+          }, ${1})`,
+          border: `1px solid rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${
+            RGB.B_secondary
+          }, ${1})`,
           toggleBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 1)`,
         },
         button: {
