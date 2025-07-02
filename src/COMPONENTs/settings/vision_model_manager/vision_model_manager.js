@@ -542,7 +542,7 @@ const AvailableModel = () => {
 };
 /* { Available Model List } ========================================================================================================================== */
 
-const Vision_Model_Manager = ({ available_models }) => {
+const VisionModelManager = ({ available_models }) => {
   const { modelDownloader } = useContext(ConfigContexts);
   const { unload_context_menu } = useContext(StatusContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
@@ -667,4 +667,4 @@ const Vision_Model_Manager = ({ available_models }) => {
   );
 };
 
-export default Vision_Model_Manager;
+export default VisionModelManager;

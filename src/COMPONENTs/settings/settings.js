@@ -3,10 +3,11 @@ import { useState, useEffect, useContext, createContext } from "react";
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
-import Language_Model_Manager from "./language_model_manager/language_model_manager";
-import Vision_Model_Manager from "./vision_model_manager/vision_model_manager";
+import LanguageModelManager from "./language_model_manager/language_model_manager";
+import VisionModelManager from "./vision_model_manager/vision_model_manager";
+import StorageManager from "./storage_manager/storage_manager";
+import GeneralManager from "./general_manager/general_manager";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
-import { Storage_Manager } from "./storage_manager/storage_manager";
 import { available_large_language_models } from "./ollama";
 import { available_vision_models } from "./ollama";
 import { list_of_setting_menus } from "./constants";
@@ -271,18 +272,21 @@ const Settings = () => {
     switch (selectedMenu) {
       case "language_models":
         setMenu(
-          <Language_Model_Manager
+          <LanguageModelManager
             available_models={available_large_language_models}
           />
         );
         break;
       case "vision_models":
         setMenu(
-          <Vision_Model_Manager available_models={available_vision_models} />
+          <VisionModelManager available_models={available_vision_models} />
         );
         break;
       case "local_storage":
-        setMenu(<Storage_Manager />);
+        setMenu(<StorageManager />);
+        break;
+      case "general":
+        setMenu(<GeneralManager />);
         break;
       default:
         setMenu(<div></div>);

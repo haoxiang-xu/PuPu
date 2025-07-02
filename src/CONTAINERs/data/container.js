@@ -184,6 +184,9 @@ const DataContainer = ({ children }) => {
 
   /* { Section Data } --------------------------------------------------------------------------------- */
   const [sectionStarted, setSectionStarted] = useState(false);
+  useEffect(() => {
+    console.log("Section Data Updated:", sectionData);
+  }, [sectionData]);
   const start_new_section = useCallback(() => {
     const check_is_language_model = (model_name) => {
       for (let model_family of available_large_language_models) {

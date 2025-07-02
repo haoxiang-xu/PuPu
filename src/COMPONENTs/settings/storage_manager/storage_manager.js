@@ -16,7 +16,7 @@ import { StatusContexts } from "../../../CONTAINERs/status/contexts";
 
 const LocalStoragePanelContexts = createContext("");
 
-const Address_Size_Item = ({ index, title, size, address }) => {
+const AddressSizeItem = ({ index, title, size, address }) => {
   const { RGB, colorOffset, modelDownloader } = useContext(ConfigContexts);
   const { delete_local_storage_item, onSelectLabel, setOnSelectLabel } =
     useContext(LocalStoragePanelContexts);
@@ -166,7 +166,7 @@ const Address_Size_Item = ({ index, title, size, address }) => {
     </div>
   );
 };
-const Address_Size_List = ({ addressSizes }) => {
+const AddressSizeList = ({ addressSizes }) => {
   return (
     <div
       className="scrolling-space"
@@ -182,7 +182,7 @@ const Address_Size_List = ({ addressSizes }) => {
       }}
     >
       {addressSizes.map((addressSize, index) => (
-        <Address_Size_Item
+        <AddressSizeItem
           key={index}
           index={index}
           title={addressSize.chat_title}
@@ -193,7 +193,7 @@ const Address_Size_List = ({ addressSizes }) => {
     </div>
   );
 };
-const Storage_Manager = () => {
+const StorageManager = () => {
   const { modelDownloader, settingPanel } = useContext(ConfigContexts);
   const { addressBook, delete_address_in_local_storage } =
     useContext(DataContexts);
@@ -371,10 +371,10 @@ const Storage_Manager = () => {
         >
           {localStorageSize}
         </span>
-        <Address_Size_List addressSizes={addressSizes} />
+        <AddressSizeList addressSizes={addressSizes} />
       </div>
     </LocalStoragePanelContexts.Provider>
   );
 };
 
-export { Storage_Manager };
+export default StorageManager;

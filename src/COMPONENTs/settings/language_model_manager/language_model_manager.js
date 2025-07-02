@@ -576,7 +576,7 @@ const AvailableModel = () => {
 };
 /* { Available Model List } ========================================================================================================================== */
 
-const Language_Model_Manager = ({ available_models }) => {
+const LanguageModelManager = ({ available_models }) => {
   const { modelDownloader } = useContext(ConfigContexts);
   const { unload_context_menu } = useContext(StatusContexts);
   const [ItemOnSelect, setItemOnSelect] = useState(null);
@@ -701,4 +701,4 @@ const Language_Model_Manager = ({ available_models }) => {
   );
 };
 
-export default Language_Model_Manager;
+export default LanguageModelManager;
