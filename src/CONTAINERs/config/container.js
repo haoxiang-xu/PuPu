@@ -115,7 +115,7 @@ const ConfigContainer = ({ children }) => {
             RGB.B - 6
           }, 1)`,
           boxShadow: "0px 4px 32px rgba(0, 0, 0, 0)",
-          color: `rgba(${RGB.R + 200}, ${RGB.G + 200}, ${RGB.B + 200}, 0.72)`,
+          color: `rgba(${255}, ${255}, ${255}, 0.8)`,
           borderRadius: 0,
           chat_room_item: {
             backgroundColor_onHover: `rgba(${RGB.R_secondary}, ${RGB.G_secondary}, ${RGB.B_secondary}, 0.5)`,

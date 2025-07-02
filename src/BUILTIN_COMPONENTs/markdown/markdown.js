@@ -444,10 +444,12 @@ const ThinkingSection = ({ index, children }) => {
           position: "absolute",
           top: "29px",
           left: "29px",
+          height: 18,
+          width: 18,
           transform: isExpanded
             ? "translate(-50%, -50%) rotate(-90deg)"
             : "translate(-50%, -50%) rotate(90deg)",
-          padding: 4,
+          padding: 2,
           borderRadius: default_border_radius - 2,
           backgroundColor: style.backgroundColor,
           border: style.border,

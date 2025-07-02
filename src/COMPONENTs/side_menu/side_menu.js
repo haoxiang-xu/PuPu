@@ -315,7 +315,7 @@ const Chat_List_Item = ({ address }) => {
             overflow: "hidden",
             color: sideMenu.color,
 
-            opacity: 0.9,
+            opacity: 1,
 
             userSelect: "none",
             pointerEvents: "none",
@@ -559,7 +559,6 @@ const Side_Menu = ({}) => {
             transition:
               "width 0.48s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
               "opacity 0.36s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
-              "background-color 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16), " +
               "border-right 0.16s cubic-bezier(0.72, -0.16, 0.2, 1.16)",
             position: "fixed",
 
