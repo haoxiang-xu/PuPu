@@ -399,9 +399,9 @@ const Chat_List = ({}) => {
           top: 46,
           right: 16,
 
-          width: 15,
-          height: 15,
-          padding: 4,
+          width: 12,
+          height: 12,
+          padding: 6,
 
           borderRadius: 8,
           backgroundColor: addButtonStyle.backgroundColor,

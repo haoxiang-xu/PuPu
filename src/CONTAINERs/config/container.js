@@ -308,7 +308,7 @@ const ConfigContainer = ({ children }) => {
       } else {
         return {
           color: `rgba(${0}, ${0}, ${0}, 0.72)`,
-          border: `1px solid rgba(0, 0, 0, 0.16)`,
+          border: `1px solid rgba(0, 0, 0, 0)`,
           progress_bar: {
             backgroundColor: `rgba(${191}, ${139}, ${135}, 0.64)`,
           },

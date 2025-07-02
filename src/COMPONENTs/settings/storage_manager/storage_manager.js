@@ -1,4 +1,4 @@
-import React, {
+import {
   useState,
   useEffect,
   useRef,
@@ -194,7 +194,7 @@ const Address_Size_List = ({ addressSizes }) => {
   );
 };
 const Storage_Manager = () => {
-  const { modelDownloader, RGB } = useContext(ConfigContexts);
+  const { modelDownloader, settingPanel } = useContext(ConfigContexts);
   const { addressBook, delete_address_in_local_storage } =
     useContext(DataContexts);
 
@@ -366,7 +366,7 @@ const Storage_Manager = () => {
             border: modelDownloader.border,
             padding: "1px 8px",
             borderRadius: 8,
-            backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 1)`,
+            backgroundColor: settingPanel.backgroundColor,
           }}
         >
           {localStorageSize}
