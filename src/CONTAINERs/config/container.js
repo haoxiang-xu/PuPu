@@ -409,7 +409,7 @@ const ConfigContainer = ({ children }) => {
             border_onActive: `1px solid rgba(225, 225, 225, 0)`,
           },
           loader: {
-            color: `rgba(0, 0, 0, 0.72)`,
+            color: `rgba(0, 0, 0, 0.32)`,
           },
         };
       }
@@ -468,16 +468,14 @@ const ConfigContainer = ({ children }) => {
   const update_context_menu = (theme, RGB) => {
     if (theme && theme === "dark_theme") {
       return {
-        backgroundColor: `rgba(${RGB.R + 10}, ${RGB.G + 10}, ${RGB.B + 10}, 1)`,
-        border: "1px solid rgba(255, 255, 255, 0.5)",
+        backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 0.5)`,
+        border: "1px solid rgba(255, 255, 255, 0.32)",
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
         borderRadius: 10,
         option_item: {
-          backgroundColor: `rgba(${RGB.R + 50}, ${RGB.G + 50}, ${
-            RGB.B + 50
-          }, 0.64)`,
+          backgroundColor: `rgba(${255}, ${255}, ${255}, 0.16)`,
           boxShadow: "none",
-          border: `1px solid rgba(225, 225, 225, 0.16)`,
+          border: `1px solid rgba(${RGB.R + 64}, ${RGB.G + 64}, ${RGB.B + 64}, 0)`,
           borderRadius: 5,
         },
       };
@@ -489,8 +487,8 @@ const ConfigContainer = ({ children }) => {
         borderRadius: 10,
         option_item: {
           backgroundColor: `rgba(71, 83, 99, 0.16)`,
-          boxShadow: `inset 0px 4px 16px rgba(${191}, ${139}, ${135}, 0.16)`,
-          border: `1px solid rgba(255, 255, 255, 1)`,
+          boxShadow: `inset 0px 4px 16px rgba(${191}, ${139}, ${135}, 0)`,
+          border: `1px solid rgba(255, 255, 255, 0)`,
           borderRadius: 6,
         },
       };

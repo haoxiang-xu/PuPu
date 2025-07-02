@@ -596,7 +596,7 @@ const Side_Menu = ({}) => {
 
               width: component.separator.width,
               backgroundColor: component.separator.backgroundColor,
-              opacity: 0.32,
+              opacity: onSideMenu? 0.32 : 0,
             }}
           />
         </div>

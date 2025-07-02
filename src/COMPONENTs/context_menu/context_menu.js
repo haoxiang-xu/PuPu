@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 
@@ -104,6 +104,7 @@ const Context_Menu = ({ x, y, width, options }) => {
         border: contextMenu.border,
         boxSizing: "border-box",
         boxShadow: contextMenu.boxShadow,
+        backdropFilter: "blur(32px)",
         opacity: style.opacity,
 
         overflowX: "hidden",

@@ -11,6 +11,7 @@
   "dependencies": {
     "axios": "^1.7.9",
     "cra-template": "1.2.0",
+    "ldrs": "^1.1.7",
     "license": "^1.0.3",
     "node-pty": "^1.0.0",
     "react": "^18.3.1",
@@ -98,10 +99,10 @@
     ]
   },
   "devDependencies": {
-    "electron": "^30.5.1",
     "@electron/remote": "^2.1.2",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
+    "electron": "^30.5.1",
     "electron-builder": "^25.1.8"
   },
   "license": "MIT"

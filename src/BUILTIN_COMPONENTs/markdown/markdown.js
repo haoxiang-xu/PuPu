@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useContext } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 /* { import external render libraries } ------------------------------------------------- */
 import Latex from "react-latex-next";
 import "katex/dist/katex.min.css";
@@ -15,7 +15,8 @@ import {
 } from "react-code-blocks";
 import ReactShowdown from "react-showdown";
 import Icon from "../icon/icon";
-import PulseLoader from "react-spinners/PulseLoader";
+import { Bouncy } from "ldrs/react";
+import "ldrs/react/Bouncy.css";
 import { LOADING_TAG } from "./customized_tag";
 /* { style } --------------------------------------------------------------------- */
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
@@ -354,7 +355,8 @@ const HTMLSection = ({ children }) => {
   return <div dangerouslySetInnerHTML={{ __html: children }} />;
 };
 const ThinkingSection = ({ index, children }) => {
-  const { RGB, colorOffset, markdown, span, component } = useContext(ConfigContexts);
+  const { RGB, colorOffset, markdown, span, component } =
+    useContext(ConfigContexts);
   const { set_expand_section_message, sectionData } = useContext(DataContexts);
   const [isExpanded, setIsExpanded] = useState(
     sectionData.messages[index].expanded
@@ -474,11 +476,19 @@ const CustomizedTagSection = ({ tag }) => {
   useEffect(() => {
     if (tag === LOADING_TAG) {
       setComponent(
-        <PulseLoader
-          color={markdown.loader.color}
-          size={7}
-          speedMultiplier={0.8}
-        />
+        <div
+          style={{
+            position: "absolute",
+            top: 4,
+            left: 24,
+            transform: "translate(0%, 0%)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+
+          }}>
+          <Bouncy size="28" speed="1" color={markdown.loader.color} />
+        </div>
       );
     } else {
       setComponent(null);
@@ -486,7 +496,7 @@ const CustomizedTagSection = ({ tag }) => {
     return () => {
       setComponent(null);
     };
-  }, [tag]);
+  }, [tag, markdown]);
 
   return component;
 };
