@@ -59,6 +59,9 @@ const RequestContainer = ({ children }) => {
         case "conditional_node":
           response = await conditional_node(node, variables);
           break;
+        case "pdf_to_text_node":
+          response = await pdf_to_text_node(node, variables);
+          break;
         default:
           console.error("Invalid node type:", node.type);
           end = true;
@@ -518,6 +521,79 @@ const RequestContainer = ({ children }) => {
     return {
       status: true,
       variables: variables,
+      next_node_id_to_run: node.next_nodes[0],
+    };
+  };
+  const pdf_to_text_node = async (node, variables) => {
+    const pdfSources = variables[node.input];
+
+    if (!Array.isArray(pdfSources) || pdfSources.length === 0) {
+      variables[node.output] = "";
+      return {
+        status: true,
+        variables,
+        next_node_id_to_run: node.next_nodes[0],
+      };
+    }
+
+    const statusMessage =
+      task_descriptions.pdf_to_text[
+        Math.floor(Math.random() * task_descriptions.pdf_to_text.length)
+      ];
+
+    const normalizePdfSource = (source) => {
+      if (!source) return null;
+      if (typeof source === "string") return source;
+      if (typeof source === "object" && source.data) return source.data;
+      return null;
+    };
+
+    const collectedTexts = [];
+
+    setOllamaOnTask(`pdf_to_text|[${statusMessage}]`);
+    try {
+      for (const pdf of pdfSources) {
+        const payload = normalizePdfSource(pdf);
+        if (!payload) {
+          console.warn("Skipping invalid PDF payload", pdf);
+          continue;
+        }
+
+        const response = await fetch(request_url.pdf_to_text.local, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ pdf: payload }),
+        });
+
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => ({}));
+          throw new Error(
+            errorPayload.error || `PDF to text request failed (${response.status})`
+          );
+        }
+
+        const data = await response.json();
+        const extractedText = data?.text || "";
+        collectedTexts.push(extractedText);
+
+        if (node.update_callback) {
+          node.update_callback(collectedTexts.join("\n\n"));
+        }
+      }
+    } catch (error) {
+      console.error("Error communicating with PDF reader:", error);
+      setOllamaOnTask("force_stop|[Error Occured]");
+      return { status: false, variables, next_node_id_to_run: null };
+    } finally {
+      setOllamaOnTask(null);
+    }
+
+    variables[node.output] = collectedTexts.join("\n\n");
+    return {
+      status: true,
+      variables,
       next_node_id_to_run: node.next_nodes[0],
     };
   };

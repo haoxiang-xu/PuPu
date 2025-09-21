@@ -349,12 +349,38 @@ const stop_flask_data_server = () => {
 ipcMain.handle("select-file", async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile"],
-    filters: [{ name: "Images", extensions: ["jpg", "png", "jpeg"] }],
+    filters: [
+      {
+        name: "Images & PDF",
+        extensions: ["jpg", "jpeg", "png", "webp", "gif", "bmp", "pdf"],
+      },
+    ],
   });
   return result;
 });
 ipcMain.handle("read-file", async (event, filePath) => {
+  const ext = path.extname(filePath).toLowerCase();
+  const mimeType = (() => {
+    switch (ext) {
+      case ".jpg":
+      case ".jpeg":
+        return "image/jpeg";
+      case ".png":
+        return "image/png";
+      case ".gif":
+        return "image/gif";
+      case ".webp":
+        return "image/webp";
+      case ".bmp":
+        return "image/bmp";
+      case ".pdf":
+        return "application/pdf";
+      default:
+        return "application/octet-stream";
+    }
+  })();
+
   const fileData = fs.readFileSync(filePath, { encoding: "base64" });
-  return `data:image/png;base64,${fileData}`;
+  return `data:${mimeType};base64,${fileData}`;
 });
 /* { local data related } ============================================================================================================== */

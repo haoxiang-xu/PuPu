@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import { useState, useContext, useEffect } from "react";
 // const { ipcRenderer } = window.require("electron"); // Import ipcRenderer for communication
 
 import { ConfigContexts } from "../../CONTAINERs/config/contexts";
@@ -6,7 +6,6 @@ import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 const FileDropZone = ({
-  onFileDragOver,
   setOnFileDragOver,
   setInputFiles,
 }) => {
@@ -30,13 +29,35 @@ const FileDropZone = ({
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      if (file && file.type.startsWith("image/")) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setInputFiles((prev) => [...prev, reader.result]);
-        };
-        reader.readAsDataURL(file);
+      if (!file) {
+        continue;
       }
+
+      const isImage = file.type?.startsWith("image/");
+      const isPDF =
+        file.type === "application/pdf" ||
+        file.name?.toLowerCase().endsWith(".pdf");
+
+      if (!isImage && !isPDF) {
+        continue;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (!reader.result) {
+          return;
+        }
+
+        const fileDescriptor = {
+          data: reader.result,
+          type: isImage ? file.type : "application/pdf",
+          name: file.name,
+          size: file.size,
+        };
+
+        setInputFiles((prev) => [...prev, fileDescriptor]);
+      };
+      reader.readAsDataURL(file);
     }
     setOnFileDragOver(false);
   };

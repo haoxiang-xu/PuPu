@@ -8,6 +8,7 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import ScrollingSpace from "../../BUILTIN_COMPONENTs/scrolling_space/scrolling_sapce";
 import Language_Model_Manager from "../settings/language_model_manager/language_model_manager";
 import Settings from "../settings/settings";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 import { await_Ollama_setup_warning } from "./default_dialogs";
 import { available_large_language_models } from "../../COMPONENTs/settings/ollama";
@@ -135,6 +136,132 @@ const Image_Viewer = ({}) => {
   );
 };
 /* { image_viewer } -------------------------------------------------------------------------------------------------------------- */
+
+/* { pdf_viewer } --------------------------------------------------------------------------------------------------------------- */
+const Pdf_Viewer = ({}) => {
+  const { RGB, colorOffset, dialog } = useContext(ConfigContexts);
+  const { onDialog, setOnDialog } = useContext(StatusContexts);
+
+  const [pdfPayload, setPdfPayload] = useState(null);
+  useEffect(() => {
+    const payload = onDialog.split("|")[1];
+    if (payload !== undefined) {
+      try {
+        const decoded = decodeURIComponent(payload);
+        const parsed = JSON.parse(decoded);
+        setPdfPayload(parsed);
+      } catch (error) {
+        console.error("Failed to parse pdf payload", error);
+        setPdfPayload(null);
+      }
+    }
+  }, [onDialog]);
+
+  if (!pdfPayload) {
+    return null;
+  }
+
+  const handleDownload = (event) => {
+    event.stopPropagation();
+    if (!pdfPayload.data) {
+      return;
+    }
+    const link = document.createElement("a");
+    link.href = pdfPayload.data;
+    link.download = pdfPayload.name || "document.pdf";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        alignItems: "center",
+
+        margin: 64,
+
+        width: "100%",
+        height: "100%",
+
+        backgroundColor: dialog.blurBackgroundColor,
+        backdropFilter: "blur(16px)",
+      }}
+      onClick={(e) => {
+        setOnDialog("");
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+
+          transform: "translate(-50%, -50%)",
+
+          width: "calc(100% - 128px)",
+          height: "calc(100% - 128px)",
+          borderRadius: dialog.borderRadius,
+          border: dialog.border,
+          backgroundColor: dialog.backgroundColor,
+          display: "flex",
+          flexDirection: "column",
+        }}
+        onClick={(event) => {
+          event.stopPropagation();
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 16px",
+            borderBottom: dialog.border,
+            color: `rgba(${RGB.R + colorOffset.font}, ${
+              RGB.G + colorOffset.font
+            }, ${RGB.B + colorOffset.font}, 1)`,
+          }}
+        >
+          <span
+            style={{
+              fontWeight: 600,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              marginRight: 12,
+            }}
+            title={pdfPayload.name}
+          >
+            {pdfPayload.name || "PDF Document"}
+          </span>
+          <Icon
+            src="download"
+            style={{
+              width: 18,
+              height: 18,
+              cursor: "pointer",
+            }}
+            onClick={handleDownload}
+          />
+        </div>
+        <iframe
+          src={pdfPayload.data}
+          title={pdfPayload.name || "PDF preview"}
+          style={{
+            flex: 1,
+            border: "none",
+            borderBottomLeftRadius: dialog.borderRadius,
+            borderBottomRightRadius: dialog.borderRadius,
+            backgroundColor: "#ffffff",
+          }}
+        />
+      </div>
+    </div>
+  );
+};
+/* { pdf_viewer } --------------------------------------------------------------------------------------------------------------- */
 
 /* { setting } ------------------------------------------------------------------------------------------------------------------- */
 const Setting = ({}) => {
@@ -279,6 +406,9 @@ const Dialog = () => {
         break;
       case "image_viewer":
         setDialog(<Image_Viewer />);
+        break;
+      case "pdf_viewer":
+        setDialog(<Pdf_Viewer />);
         break;
       default:
         setDialog(null);

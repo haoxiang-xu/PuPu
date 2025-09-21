@@ -280,6 +280,7 @@ const ConfigContainer = ({ children }) => {
             RGB.B + 12
           }, 0.64)`,
           border: "1px solid rgba(255, 255, 255, 0.32)",
+          borderRadius: 10,
         };
       } else {
         return {
@@ -288,6 +289,7 @@ const ConfigContainer = ({ children }) => {
           }, 0.96)`,
           blurBackgroundColor: `rgba(${RGB.R}, ${RGB.G}, ${RGB.B}, 0.64)`,
           border: `1px solid rgba(0, 0, 0, 0)`,
+          borderRadius: 10,
         };
       }
     }
@@ -308,7 +310,7 @@ const ConfigContainer = ({ children }) => {
       } else {
         return {
           color: `rgba(${0}, ${0}, ${0}, 0.72)`,
-          border: `1px solid rgba(0, 0, 0, 0)`,
+          border: `1px solid rgba(0, 0, 0, 0.16)`,
           progress_bar: {
             backgroundColor: `rgba(${191}, ${139}, ${135}, 0.64)`,
           },
@@ -470,7 +472,7 @@ const ConfigContainer = ({ children }) => {
   const update_context_menu = (theme, RGB) => {
     if (theme && theme === "dark_theme") {
       return {
-        backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 0.5)`,
+        backgroundColor: `rgba(${RGB.R - 8}, ${RGB.G - 8}, ${RGB.B - 6}, 0.32)`,
         border: "1px solid rgba(255, 255, 255, 0.32)",
         boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.16)",
         borderRadius: 10,

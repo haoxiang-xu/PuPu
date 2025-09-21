@@ -365,23 +365,69 @@ const DataContainer = ({ children }) => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const file_key = target_address + "_" + (index_to_save + 1) + "_" + i;
-        localStorage.setItem(UNIQUE_KEY + file_key, file);
-        saved_keys.push(file_key);
+
+        const serializeFile = () => {
+          if (!file) {
+            return null;
+          }
+
+          if (typeof file === "string") {
+            const type = file.startsWith("data:image/")
+              ? file.split(";")[0].replace("data:", "")
+              : "";
+            return JSON.stringify({
+              data: file,
+              type: type,
+              name: `Attachment ${i + 1}`,
+            });
+          }
+
+          return JSON.stringify({
+            data: file.data,
+            type: file.type,
+            name: file.name,
+            size: file.size,
+          });
+        };
+
+        const serialized = serializeFile();
+        if (serialized) {
+          localStorage.setItem(UNIQUE_KEY + file_key, serialized);
+          saved_keys.push(file_key);
+        }
       }
       return prev;
     });
     return saved_keys;
   };
   const load_saved_files = (target_address, message_index, file_addresses) => {
-    let loaded_images = [];
+    let loaded_files = [];
     for (let i = 0; i < file_addresses.length; i++) {
       const file_key = file_addresses[i];
-      const file = localStorage.getItem(UNIQUE_KEY + file_key);
-      if (file) {
-        loaded_images.push(file);
+      const stored = localStorage.getItem(UNIQUE_KEY + file_key);
+      if (!stored) {
+        continue;
+      }
+
+      let parsed = null;
+      try {
+        parsed = JSON.parse(stored);
+      } catch (error) {
+        const type = stored.startsWith("data:image/")
+          ? stored.split(";")[0].replace("data:", "")
+          : "";
+        parsed = {
+          data: stored,
+          type: type,
+          name: `Attachment ${i + 1}`,
+        };
+      }
+
+      if (parsed) {
+        loaded_files.push(parsed);
       }
     }
-    return loaded_images;
+    return loaded_files;
   };
   const get_all_available_language_models = useCallback(() => {
     const check_is_language_model = (model_name) => {

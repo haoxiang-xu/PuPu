@@ -260,33 +260,104 @@ const Message_Bottom_Panel = ({
   }
 };
 const Message_Upper_Panel_File_Item = ({ index, file }) => {
-  const { messageList } = useContext(ConfigContexts);
+  const { messageList, RGB, colorOffset } = useContext(ConfigContexts);
   const { setOnDialog } = useContext(StatusContexts);
 
-  return file ? (
+  if (!file) {
+    return null;
+  }
+
+  const isLegacyString = typeof file === "string";
+  const fileData = isLegacyString ? file : file.data;
+  const inferredType = isLegacyString
+    ? file.startsWith("data:image/")
+      ? file.split(";")[0].replace("data:", "")
+      : ""
+    : file.type;
+  const isImage = inferredType?.startsWith("image/");
+  const isPDF = inferredType === "application/pdf";
+  const displayName = !isLegacyString
+    ? file.name || (isImage ? `Image ${index + 1}` : `File ${index + 1}`)
+    : isImage
+    ? `Image ${index + 1}`
+    : `File ${index + 1}`;
+
+  const handleClick = () => {
+    if (isImage) {
+      setOnDialog("image_viewer|" + fileData);
+    } else if (isPDF) {
+      const payload = encodeURIComponent(
+        JSON.stringify({ data: fileData, name: displayName })
+      );
+      setOnDialog("pdf_viewer|" + payload);
+    }
+  };
+
+  return (
     <div
       style={{
         position: "relative",
         display: "inline-block",
         height: 32,
         marginLeft: 24,
-        cursor: "pointer",
+        cursor: isImage || isPDF ? "pointer" : "default",
       }}
-      onClick={(e) => {
-        setOnDialog("image_viewer|" + file);
-      }}
+      onClick={handleClick}
     >
-      <img
-        src={file}
-        draggable="false"
-        style={{
-          height: 96,
-          borderRadius: 4,
-          userSelect: "none",
-        }}
-      />
+      {isImage ? (
+        <img
+          src={fileData}
+          draggable="false"
+          style={{
+            height: 96,
+            borderRadius: 4,
+            userSelect: "none",
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 96,
+            minWidth: 96,
+            padding: "0 12px",
+            borderRadius: 4,
+            border: messageList.input_images.border,
+            backgroundColor: messageList.input_images.backgroundColor,
+            color: `rgba(${RGB.R + colorOffset.font}, ${
+              RGB.G + colorOffset.font
+            }, ${RGB.B + colorOffset.font}, 1)`,
+            userSelect: "none",
+          }}
+        >
+          <Icon
+            src={isPDF ? "PDF" : "attachment"}
+            style={{
+              width: 32,
+              height: 32,
+              marginBottom: 8,
+            }}
+          />
+          <span
+            style={{
+              fontSize: 12,
+              maxWidth: 120,
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={displayName}
+          >
+            {displayName}
+          </span>
+        </div>
+      )}
     </div>
-  ) : null;
+  );
 };
 const Message_Upper_Panel = ({ role, index, files }) => {
   return files.length !== 0
@@ -1039,11 +1110,30 @@ const Model_Selector = ({ value, setMenuWidth }) => {
 
 /* { Input Panel } --------------------------------------------------------------------------------------------------------- */
 const Input_File_Panel_Item = ({ index, file }) => {
-  const { messageList } = useContext(ConfigContexts);
+  const { messageList, RGB, colorOffset } = useContext(ConfigContexts);
   const { ollamaOnTask } = useContext(StatusContexts);
   const { setInputFiles } = useContext(ChatContexts);
 
-  return file ? (
+  if (!file) {
+    return null;
+  }
+
+  const isLegacyString = typeof file === "string";
+  const fileData = isLegacyString ? file : file.data;
+  const inferredType = isLegacyString
+    ? file.startsWith("data:image/")
+      ? file.split(";")[0].replace("data:", "")
+      : ""
+    : file.type;
+  const isImage = inferredType?.startsWith("image/");
+  const isPDF = inferredType === "application/pdf";
+  const displayName = !isLegacyString
+    ? file.name || (isImage ? `Image ${index + 1}` : `File ${index + 1}`)
+    : isImage
+    ? `Image ${index + 1}`
+    : `File ${index + 1}`;
+
+  return (
     <div
       style={{
         position: "relative",
@@ -1053,15 +1143,57 @@ const Input_File_Panel_Item = ({ index, file }) => {
         opacity: ollamaOnTask !== null ? 0 : 1,
       }}
     >
-      <img
-        src={file}
-        draggable="false"
-        style={{
-          height: 50,
-          borderRadius: 4,
-          border: messageList.input_images.border,
-        }}
-      />
+      {isImage ? (
+        <img
+          src={fileData}
+          draggable="false"
+          style={{
+            height: 50,
+            borderRadius: 4,
+            border: messageList.input_images.border,
+          }}
+        />
+      ) : (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: 50,
+            minWidth: 50,
+            padding: "0 12px",
+            borderRadius: 4,
+            border: messageList.input_images.border,
+            backgroundColor: messageList.input_images.backgroundColor,
+            color: `rgba(${RGB.R + colorOffset.font}, ${
+              RGB.G + colorOffset.font
+            }, ${RGB.B + colorOffset.font}, 1)`,
+          }}
+        >
+          <Icon
+            src={isPDF ? "PDF" : "attachment"}
+            style={{
+              width: 24,
+              height: 24,
+              marginBottom: 4,
+            }}
+          />
+          <span
+            style={{
+              fontSize: 10,
+              maxWidth: 80,
+              textAlign: "center",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+            }}
+            title={displayName}
+          >
+            {displayName}
+          </span>
+        </div>
+      )}
       <Icon
         src="close"
         alt="close"
@@ -1086,7 +1218,7 @@ const Input_File_Panel_Item = ({ index, file }) => {
         }}
       />
     </div>
-  ) : null;
+  );
 };
 const Input_File_Panel = ({ value }) => {
   const { inputHeight, inputFiles } = useContext(ChatContexts);
@@ -1133,7 +1265,18 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
     if (filePaths.length > 0) {
       const filePath = filePaths[0];
       const fileData = await window.dataAPI.readFileAsBase64(filePath);
-      setInputFiles((prev) => [...prev, fileData]);
+      const fileName = filePath.split(/[/\\]/).pop();
+      const typeMatch = /^data:([^;]+);base64/.exec(fileData);
+      const fileType = typeMatch ? typeMatch[1] : "";
+
+      setInputFiles((prev) => [
+        ...prev,
+        {
+          data: fileData,
+          type: fileType,
+          name: fileName,
+        },
+      ]);
     }
   };
 
@@ -1219,7 +1362,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
           onClick={handleSelectImage}
         />
       </div>
-      <div
+      {/* <div
         className="terminal_button"
         style={{
           transition: "border 0.16s cubic-bezier(0.32, 0, 0.32, 1)",
@@ -1283,7 +1426,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
             userSelect: "none",
           }}
         />
-      </div>
+      </div> */}
       {/* <div
         className="github_button"
         style={{
@@ -1589,6 +1732,27 @@ const Chat = () => {
   /* { PreLoading } ================================================================================== */
 
   /* { Input Section } ------------------------------------------------------------------------------- */
+  const getImagePayloads = useCallback((files) => {
+    if (!Array.isArray(files)) {
+      return [];
+    }
+
+    return files
+      .map((file) => {
+        if (!file) {
+          return null;
+        }
+        if (typeof file === "string") {
+          return file.startsWith("data:image/") ? file : null;
+        }
+        if (file.type?.startsWith("image/") && file.data) {
+          return file.data;
+        }
+        return null;
+      })
+      .filter(Boolean);
+  }, []);
+
   const on_input_submit = useCallback(() => {
     if (sectionData.on_mode === "terminal") {
       return;
@@ -1622,7 +1786,7 @@ const Chat = () => {
         setAwaitResponse(null);
         return;
       }
-      let user_input_base64_images = [];
+      let user_input_files = [];
 
       if (index === -1) {
         append_message(address, {
@@ -1631,7 +1795,7 @@ const Chat = () => {
           content: "",
           expanded: true,
         });
-        user_input_base64_images = inputFiles;
+        user_input_files = inputFiles;
       } else if (index < 0 || index >= messages.length) {
         return;
       } else {
@@ -1642,7 +1806,7 @@ const Chat = () => {
           expanded: true,
         });
         if (messages[index - 1] && messages[index - 1].files) {
-          user_input_base64_images = load_saved_files(
+          user_input_files = load_saved_files(
             address,
             index - 1,
             messages[index - 1].files
@@ -1650,7 +1814,81 @@ const Chat = () => {
         }
       }
 
-      if (user_input_base64_images.length > 0) {
+      const image_payloads = getImagePayloads(user_input_files);
+      const pdf_payloads = user_input_files
+        .map((file) => {
+          if (!file) return null;
+          if (typeof file === "string") {
+            return file.startsWith("data:application/pdf") ? file : null;
+          }
+          if (file.type === "application/pdf" && file.data) {
+            return file.data;
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (pdf_payloads.length > 0) {
+        run({
+          start: {
+            type: "start_node",
+            next_nodes: ["basically_describe_the_pdfs"],
+          },
+          basically_describe_the_pdfs: {
+            type: "pdf_to_text_node",
+            update_callback: (response) => {},
+            input: "input_pdfs",
+            prompt: "",
+            output: "basic_description_for_pdfs",
+            next_nodes: ["chat_completion_node"],
+          },
+          chat_completion_node: {
+            type: "chat_completion_node",
+            model_used: sectionData.language_model_using,
+            model_provider: "ollama",
+            update_callback: (response) => {
+              update_message_on_index(address, index, {
+                role: "assistant",
+                message: response,
+                content: response,
+              });
+            },
+            input: "chat_messages",
+            prompt:
+              "here are the pdfs user provided to you: ${basic_description_for_pdfs}$",
+            output: "llm_generated_text",
+            next_nodes:
+              sectionData.n_turns_to_regenerate_title === 0
+                ? ["title_generation_node"]
+                : ["end"],
+          },
+          title_generation_node: {
+            type: "title_generation_node",
+            model_used: sectionData.language_model_using,
+            model_provider: "ollama",
+            update_callback: (response) => {
+              update_title(address, response);
+            },
+            input: "chat_messages",
+            prompt: "assistant: ${llm_generated_text}$",
+            output: "llm_generated_title",
+            next_nodes: ["end"],
+          },
+          end: {
+            type: "end_node",
+            next_nodes: [],
+          },
+          variables: {
+            chat_messages: index === -1 ? messages : messages.slice(0, index),
+            input_pdfs: pdf_payloads,
+            basic_description_for_pdfs: "",
+            llm_generated_text: "",
+          },
+        }).then(() => {
+          setAwaitResponse(null);
+          setInputFiles([]);
+        });
+      } else if (image_payloads.length > 0) {
         run({
           start: {
             type: "start_node",
@@ -1745,7 +1983,7 @@ const Chat = () => {
             basic_description_for_images: "",
             llm_generated_prompt_for_itt_model: "",
             deeper_look_at_the_images: "",
-            input_images: user_input_base64_images,
+            input_images: image_payloads,
             empty: "",
           },
         }).then(() => {
@@ -1800,10 +2038,17 @@ const Chat = () => {
           },
         }).then(() => {
           setAwaitResponse(null);
+          setInputFiles([]);
         });
       }
     },
-    [inputValue, sectionData.language_model_using, inputFiles, favouredModels]
+    [
+      inputValue,
+      sectionData.language_model_using,
+      inputFiles,
+      favouredModels,
+      getImagePayloads,
+    ]
   );
   useEffect(() => {
     const messages = sectionData.messages || [];
