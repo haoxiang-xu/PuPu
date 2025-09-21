@@ -1327,6 +1327,7 @@ const Input_Function_Panel = ({ value, menuWidth }) => {
               ? messageList.input_upper_panel.boxShadow
               : "none",
           userSelect: "none",
+          cursor: "pointer",
         }}
         onMouseEnter={() => {
           setOnHover("attachMode");

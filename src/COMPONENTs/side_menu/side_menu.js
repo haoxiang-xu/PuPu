@@ -4,7 +4,7 @@ import { ConfigContexts } from "../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../CONTAINERs/status/contexts";
 
-import { side_menu_width_threshold } from "./constants";
+import { side_menu_width_threshold, side_menu_default_width } from "./constants";
 
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Switch from "../../BUILTIN_COMPONENTs/switch/switch";
@@ -473,23 +473,23 @@ const Side_Menu = ({}) => {
     if (onSideMenu) {
       if (window.innerWidth > side_menu_width_threshold) {
         setMenuStyle({
-          width: 300,
+          width: side_menu_default_width,
         });
         setIconStyle({
           src: "arrow",
           top: window.osInfo.platform === "darwin" ? 17 : 14,
 
-          left: 300 - 16,
+          left: side_menu_default_width - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       } else {
         setMenuStyle({
-          width: 300,
+          width: side_menu_default_width,
         });
         setIconStyle({
           src: "arrow",
           top: window.osInfo.platform === "darwin" ? 17 : 14,
-          left: 300 - 16,
+          left: side_menu_default_width - 16,
           transform: "translate(-50%, -50%) rotate(180deg)",
         });
       }
