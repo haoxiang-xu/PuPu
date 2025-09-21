@@ -20,10 +20,10 @@ import FileDropZone from "../file_drop_zone/file_drop_zone";
 import TextareaAutosize from "react-textarea-autosize";
 
 import { LOADING_TAG } from "../../BUILTIN_COMPONENTs/markdown/customized_tag";
-import {
-  chat_room_title_generation_prompt,
-  vision_prompt,
-} from "../../CONTAINERs/requests/default_instructions";
+// import {
+//   chat_room_title_generation_prompt,
+//   vision_prompt,
+// } from "../../CONTAINERs/requests/default_instructions";
 import { side_menu_width_threshold } from "../side_menu/constants";
 import { available_large_language_models } from "../settings/ollama";
 

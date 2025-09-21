@@ -1,10 +1,4 @@
-import React, {
-  useState,
-  useRef,
-  useEffect,
-  useMemo,
-  useCallback,
-} from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { throttle } from "lodash";
 /* { Import ICONs } ------------------------------------------------------------------------------------------ */
 import Icon from "../icon/icon";
@@ -12,7 +6,7 @@ import { iconManifest } from "../icon/icon_manifest";
 
 const default_max_tag_width = 128;
 const default_tag_padding_x = 6;
-const default_tag_padding_y = 3;
+// const default_tag_padding_y = 3;
 
 const default_tag_font_size = 14;
 const default_border_radius = 4;
@@ -25,7 +19,6 @@ const more_option_label_font_size = 14;
 /* { Tag types } ================================================================================= */
 const CustomizedTag = ({
   reference,
-  type,
   label,
   label_on_submit,
   style,

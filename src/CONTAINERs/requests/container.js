@@ -1,4 +1,4 @@
-import React, { useState, useContext } from "react";
+import { useState, useContext } from "react";
 
 import { task_descriptions, request_url } from "./constants";
 import {
@@ -12,7 +12,7 @@ import { RequestContexts } from "./contexts";
 import { available_vision_models } from "../../COMPONENTs/settings/ollama";
 
 const RequestContainer = ({ children }) => {
-  const [instructions, setInstructions] = useState({
+  const [instructions] = useState({
     chat_room_title_generation_prompt: chat_room_title_generation_prompt,
   });
   const { setOllamaOnTask } = useContext(StatusContexts);
@@ -1020,21 +1020,21 @@ const RequestContainer = ({ children }) => {
   /* { Ollama APIs } ---------------------------------------------------------------------------------- */
 
   /* { GitHub APIs } ---------------------------------------------------------------------------------- */
-  const github_search_repo_by_keyword = async (keyword) => {
-    // returns a list of available repositories
-  };
-  const github_get_repo_info = async (repo) => {
-    // returns the repository information (like language, stars, forks, etc.)
-  };
-  const github_get_repo_readme = async (repo) => {
-    // returns the README.md content of the repository
-  };
-  const github_get_repo_files = async (repo) => {
-    // returns a root tree of files in the repository
-  };
-  const github_get_repo_file_content = async (repo, file_path) => {
-    // returns the content of the file in the repository
-  };
+  // const github_search_repo_by_keyword = async (keyword) => {
+  //   // returns a list of available repositories
+  // };
+  // const github_get_repo_info = async (repo) => {
+  //   // returns the repository information (like language, stars, forks, etc.)
+  // };
+  // const github_get_repo_readme = async (repo) => {
+  //   // returns the README.md content of the repository
+  // };
+  // const github_get_repo_files = async (repo) => {
+  //   // returns a root tree of files in the repository
+  // };
+  // const github_get_repo_file_content = async (repo, file_path) => {
+  //   // returns the content of the file in the repository
+  // };
   /* { GitHub APIs } ---------------------------------------------------------------------------------- */
 
   return (

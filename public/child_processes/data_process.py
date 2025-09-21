@@ -6,16 +6,8 @@ from contextlib import contextmanager
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-
-try:
-    import pdfplumber  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency
-    pdfplumber = None
-
-try:
-    from PyPDF2 import PdfReader  # type: ignore
-except ImportError:  # pragma: no cover - optional dependency
-    PdfReader = None
+from PyPDF2 import PdfReader
+import pdfplumber
 
 app = Flask(__name__)
 CORS(app)
@@ -100,7 +92,7 @@ def pdf_to_text():
     return jsonify({'text': text}), 200
 
 
-@app.route('/hello', methods=['GET'])
+@app.route('/hello')
 def hello():
     name = request.args.get('name', 'World')
     return jsonify({'message': f'Hello, {name} from Python server!'})

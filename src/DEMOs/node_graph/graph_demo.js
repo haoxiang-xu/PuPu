@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const NodeGraph = () => {
   const canvasRef = useRef(null);
@@ -61,7 +61,6 @@ const NodeGraph = () => {
 
       const node1 = nodes.find((n) => n.id === edge.from.id);
       const node2 = nodes.find((n) => n.id === edge.to.id);
-
 
       const startX = node1.x + edge.from.position.x;
       const startY = node1.y + edge.from.position.y;
@@ -127,7 +126,7 @@ const NodeGraph = () => {
       }
       ctx.stroke();
     });
-  }, [nodes, windowSize]);
+  }, [nodes, edges, windowSize]);
 
   return (
     <>

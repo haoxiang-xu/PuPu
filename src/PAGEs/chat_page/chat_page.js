@@ -12,7 +12,7 @@ import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
 import { side_menu_width_threshold } from "../../COMPONENTs/side_menu/constants";
 
-const ChatPage = ({}) => {
+const ChatPage = () => {
   const { RGB, theme } = useContext(ConfigContexts);
   const { sectionStarted } = useContext(DataContexts);
   const { windowWidth, onSideMenu } = useContext(StatusContexts);
@@ -35,7 +35,7 @@ const ChatPage = ({}) => {
         clearInterval(interval);
       };
     }
-  }, [logo_title, sectionStarted]);
+  }, [logo_title, sectionStarted, title_list, titleSwitch]);
   const titleSwitch = () => {
     if (title_list.includes(logo_title.trim())) {
       let currentIndex = title_list.indexOf(logo_title.trim());
