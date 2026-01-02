@@ -317,13 +317,9 @@ const Message_Upper_Panel_File_Item = ({ index, file }) => {
       ) : (
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
+            position: "relative",
             height: 96,
-            minWidth: 96,
-            padding: "0 12px",
+            width: 60,
             borderRadius: 4,
             border: messageList.input_images.border,
             backgroundColor: messageList.input_images.backgroundColor,
@@ -336,15 +332,23 @@ const Message_Upper_Panel_File_Item = ({ index, file }) => {
           <Icon
             src={isPDF ? "PDF" : "attachment"}
             style={{
-              width: 32,
-              height: 32,
+              position: "absolute",
+              top: "40%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              width: 50,
+              height: 50,
               marginBottom: 8,
             }}
           />
           <span
             style={{
+              position: "absolute",
+              bottom: 4,
+              left: 4,
+
               fontSize: 12,
-              maxWidth: 120,
+              width: "calc(100% - 8px)",
               textAlign: "center",
               whiteSpace: "nowrap",
               overflow: "hidden",
@@ -1156,31 +1160,34 @@ const Input_File_Panel_Item = ({ index, file }) => {
       ) : (
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            height: 50,
-            minWidth: 50,
-            padding: "0 12px",
+            position: "relative",
+            height: 60,
+            width: 50,
             borderRadius: 4,
-            border: messageList.input_images.border,
             backgroundColor: messageList.input_images.backgroundColor,
+            border: messageList.input_images.border,
             color: `rgba(${RGB.R + colorOffset.font}, ${
               RGB.G + colorOffset.font
             }, ${RGB.B + colorOffset.font}, 1)`,
+            backdropFilter: "blur(8px)",
           }}
         >
           <Icon
             src={isPDF ? "PDF" : "attachment"}
             style={{
-              width: 24,
-              height: 24,
-              marginBottom: 4,
+              position: "absolute",
+              top: 3,
+              left: 0,
+              width: 50,
+              height: 40,
             }}
           />
           <span
             style={{
+              position: "absolute",
+              left: 3,
+              bottom: 0,
+              width: "calc(100% - 6px)",
               fontSize: 10,
               maxWidth: 80,
               textAlign: "center",

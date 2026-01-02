@@ -214,8 +214,8 @@ const ConfigContainer = ({ children }) => {
             boxShadow: "0px 4px 16px rgba(0, 0, 0, 0.32)",
           },
           input_images: {
-            backgroundColor: `rgb(0, 0, 0)`,
-            border: `1px solid rgba(225, 225, 225, 0.32)`,
+            backgroundColor: `rgb(0, 0, 0, 0.32)`,
+            border: `1px solid rgba(225, 225, 225, 0)`,
           },
         };
       } else {
@@ -262,8 +262,8 @@ const ConfigContainer = ({ children }) => {
           input_images: {
             backgroundColor: `rgba(${RGB.R - 32}, ${RGB.G - 32}, ${
               RGB.B - 32
-            }, 1)`,
-            border: `1px solid rgba(0, 0, 0, 0.32)`,
+            }, 0.64)`,
+            border: `1px solid rgba(0, 0, 0, 0)`,
           },
         };
       }
