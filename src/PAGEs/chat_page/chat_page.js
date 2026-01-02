@@ -26,16 +26,6 @@ const ChatPage = () => {
   ];
   const [logo_title, setLogoTitle] = useState(title_list[0]);
   const logoTitleRef = useRef(logo_title);
-  useEffect(() => {
-    if (sectionStarted) return;
-    if (title_list.includes(logo_title.trim())) {
-      logoTitleRef.current = logo_title;
-      const interval = setInterval(titleSwitch, 6000);
-      return () => {
-        clearInterval(interval);
-      };
-    }
-  }, [logo_title, sectionStarted, title_list, titleSwitch]);
   const titleSwitch = () => {
     if (title_list.includes(logo_title.trim())) {
       let currentIndex = title_list.indexOf(logo_title.trim());
@@ -48,6 +38,16 @@ const ChatPage = () => {
       textSwitch(title_list[currentIndex], title_list[nextIndex]);
     }
   };
+  useEffect(() => {
+    if (sectionStarted) return;
+    if (title_list.includes(logo_title.trim())) {
+      logoTitleRef.current = logo_title;
+      const interval = setInterval(titleSwitch, 6000);
+      return () => {
+        clearInterval(interval);
+      };
+    }
+  }, [logo_title, sectionStarted, title_list, titleSwitch]);
   const textSwitch = (switchFromText, switchToText) => {
     setLogoTitle(switchFromText);
 
