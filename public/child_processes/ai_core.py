@@ -454,14 +454,18 @@ class LLM_endpoint:
                             for tool_use in tool_uses:
                                 try:
                                     tool_input = json.loads(tool_use["input"])
+                                except json.JSONDecodeError:
+                                    tool_input = tool_use["input"]
+                                
+                                try:
                                     result = self.toolkit.execute(tool_use["name"], tool_input)
                                     output_message = output_message + [
-                                        {"role": "assistant", "content": [{"type": "tool_use", "id": tool_use["id"], "name": tool_use["name"], "input": tool_input}]},
+                                        {"role": "assistant", "content": json.dumps({"tool_use": {"id": tool_use["id"], "name": tool_use["name"], "input": tool_input}}, default=str)},
                                         {"role": "tool", "tool_call_id": tool_use["id"], "content": json.dumps(result, default=str)}
                                     ]
                                 except Exception as e:
                                     output_message = output_message + [
-                                        {"role": "assistant", "content": [{"type": "tool_use", "id": tool_use["id"], "name": tool_use["name"], "input": tool_use["input"]}]},
+                                        {"role": "assistant", "content": json.dumps({"tool_use": {"id": tool_use["id"], "name": tool_use["name"], "input": tool_input}}, default=str)},
                                         {"role": "tool", "tool_call_id": tool_use["id"], "content": json.dumps({"error": str(e)}, default=str)}
                                     ]
                             return output_message
@@ -608,11 +612,11 @@ class LLM_endpoint:
             raise ValueError("error: unexpected termination of gemini stream. ( LLM_endpoints -> gemini_fetch_response )")
         if self.provider == "openai":
             return openai_fetch_response(messages, callback)
-        if self.provider == "ollama":
+        elif self.provider == "ollama":
             return ollama_fetch_response(messages, callback)
-        if self.provider == "anthropic":
+        elif self.provider == "anthropic":
             return anthropic_fetch_response(messages, callback)
-        if self.provider == "gemini":
+        elif self.provider == "gemini":
             return gemini_fetch_response(messages, callback)
         else:
             raise ValueError("error: unsupported provider specified. ( LLM_endpoints -> chat_completions )")
