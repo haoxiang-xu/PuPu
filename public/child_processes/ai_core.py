@@ -146,8 +146,10 @@ class LLM_tool:
                  name: str="", 
                  description: str="", 
                  func: callable=None, 
-                 parameters=[]):
+                 parameters=None):
         def construct_parameters(parameters):
+            if parameters is None:
+                parameters = []
             constructed_parameters = []
             for parameter in parameters:
                 if isinstance(parameter, LLM_tool_parameter):
@@ -193,7 +195,9 @@ class LLM_tool:
             return {"error": "invalid tool arguments type"}
         return self.func(**arguments)
 class LLM_toolkit:
-    def __init__(self, tools: dict={}):
+    def __init__(self, tools: dict=None):
+        if tools is None:
+            tools = {}
         self.tools = tools
     def execute(self, function_name: str, arguments: dict):
         if function_name in self.tools:
@@ -209,10 +213,14 @@ class LLM_toolkit:
 class LLM_endpoint:
     def __init__(self,
                  openai_api_key="",
+                 claude_api_key="",
+                 gemini_api_key="",
                  provider="openai",
                  model="gpt-4.1"):
         self.retrieval_mode = "force_retrieve"  # options: "force_retrieve", "no_retry", "silent_fail", "retry_[?]_times"
         self.openai_api_key = openai_api_key
+        self.claude_api_key = claude_api_key
+        self.gemini_api_key = gemini_api_key
         self.provider = provider
         self.model = model
         self.default_payload = {
@@ -225,7 +233,9 @@ class LLM_endpoint:
         }
         }
         self.toolkit = LLM_toolkit()  
-    def chat_completion(self, messages, payload={}, callback=None, verbose=False):
+    def chat_completion(self, messages, payload=None, callback=None, verbose=False):
+        if payload is None:
+            payload = {}
         def payload_override(custom_payload):
             nonlocal payload
             payload = self.default_payload.get(self.model, {}) or {}
@@ -331,10 +341,279 @@ class LLM_endpoint:
                             callback(full_message)
                         return output_message
             raise ValueError("error: unexpected termination of ollama stream. ( LLM_endpoints -> ollama_fetch_response )")
+        def anthropic_fetch_response(messages, callback):
+            def convert_messages_to_anthropic(messages):
+                """Convert messages to Anthropic format."""
+                anthropic_messages = []
+                for msg in messages:
+                    if isinstance(msg, dict):
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        if role in ["user", "assistant"]:
+                            anthropic_messages.append({"role": role, "content": content})
+                        elif role == "tool":
+                            # Convert tool results to user message with tool_result content
+                            anthropic_messages.append({
+                                "role": "user",
+                                "content": [{
+                                    "type": "tool_result",
+                                    "tool_use_id": msg.get("tool_call_id", ""),
+                                    "content": msg.get("content", "")
+                                }]
+                            })
+                return anthropic_messages
+            
+            def convert_tools_to_anthropic(tools_json):
+                """Convert LLM_toolkit JSON format to Anthropic tools format."""
+                anthropic_tools = []
+                for tool in tools_json:
+                    if tool.get("type") == "function":
+                        anthropic_tool = {
+                            "name": tool["name"],
+                            "description": tool["description"],
+                            "input_schema": tool["parameters"]
+                        }
+                        anthropic_tools.append(anthropic_tool)
+                return anthropic_tools
+            
+            anthropic_messages = convert_messages_to_anthropic(messages)
+            anthropic_tools = convert_tools_to_anthropic(self.toolkit.to_json())
+            
+            headers = {
+                "x-api-key": self.claude_api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            
+            request_body = {
+                "model": self.model,
+                "messages": anthropic_messages,
+                "max_tokens": payload.get("max_tokens", 4096),
+                "stream": True
+            }
+            
+            if anthropic_tools:
+                request_body["tools"] = anthropic_tools
+            
+            if payload.get("temperature") is not None:
+                request_body["temperature"] = payload.get("temperature")
+            if payload.get("top_p") is not None:
+                request_body["top_p"] = payload.get("top_p")
+            
+            collected_chunks = []
+            output_message = messages.copy()
+            tool_uses = []
+            
+            with httpx.stream("POST", "https://api.anthropic.com/v1/messages", json=request_body, headers=headers, timeout=None) as response:
+                if response.status_code >= 400:
+                    detail = response.read().decode()
+                    raise ValueError(f"error: {detail} ( LLM_endpoints -> anthropic_fetch_response )")
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        line = line[6:]  # Remove "data: " prefix
+                    
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    
+                    event_type = data.get("type")
+                    
+                    if event_type == "content_block_start":
+                        content_block = data.get("content_block", {})
+                        if content_block.get("type") == "tool_use":
+                            tool_uses.append({
+                                "id": content_block.get("id"),
+                                "name": content_block.get("name"),
+                                "input": ""
+                            })
+                    
+                    elif event_type == "content_block_delta":
+                        delta = data.get("delta", {})
+                        if delta.get("type") == "text_delta":
+                            text = delta.get("text", "")
+                            collected_chunks.append(text)
+                            if verbose:
+                                clear_output(wait=True)
+                                print("".join(collected_chunks))
+                            if callback is not None:
+                                callback("".join(collected_chunks))
+                        elif delta.get("type") == "input_json_delta":
+                            # Accumulate tool input
+                            if tool_uses:
+                                tool_uses[-1]["input"] += delta.get("partial_json", "")
+                    
+                    elif event_type == "message_delta":
+                        stop_reason = data.get("delta", {}).get("stop_reason")
+                        if stop_reason == "tool_use":
+                            # Execute tool calls
+                            for tool_use in tool_uses:
+                                try:
+                                    tool_input = json.loads(tool_use["input"])
+                                    result = self.toolkit.execute(tool_use["name"], tool_input)
+                                    output_message = output_message + [
+                                        {"role": "assistant", "content": [{"type": "tool_use", "id": tool_use["id"], "name": tool_use["name"], "input": tool_input}]},
+                                        {"role": "tool", "tool_call_id": tool_use["id"], "content": json.dumps(result, default=str)}
+                                    ]
+                                except Exception as e:
+                                    output_message = output_message + [
+                                        {"role": "assistant", "content": [{"type": "tool_use", "id": tool_use["id"], "name": tool_use["name"], "input": tool_use["input"]}]},
+                                        {"role": "tool", "tool_call_id": tool_use["id"], "content": json.dumps({"error": str(e)}, default=str)}
+                                    ]
+                            return output_message
+                    
+                    elif event_type == "message_stop":
+                        full_message = "".join(collected_chunks)
+                        if full_message:
+                            output_message = output_message + [{"role": "assistant", "content": full_message}]
+                            if callback is not None:
+                                callback(full_message)
+                        return output_message
+            
+            raise ValueError("error: unexpected termination of anthropic stream. ( LLM_endpoints -> anthropic_fetch_response )")
+        def gemini_fetch_response(messages, callback):
+            def convert_messages_to_gemini(messages):
+                """Convert messages to Gemini format."""
+                gemini_contents = []
+                for msg in messages:
+                    if isinstance(msg, dict):
+                        role = msg.get("role", "")
+                        content = msg.get("content", "")
+                        
+                        if role == "user":
+                            gemini_contents.append({"role": "user", "parts": [{"text": content}]})
+                        elif role == "assistant":
+                            gemini_contents.append({"role": "model", "parts": [{"text": content}]})
+                        elif role == "tool":
+                            # Convert tool results to function response
+                            gemini_contents.append({
+                                "role": "function",
+                                "parts": [{
+                                    "functionResponse": {
+                                        "name": msg.get("tool_call_id", ""),
+                                        "response": {"content": msg.get("content", "")}
+                                    }
+                                }]
+                            })
+                return gemini_contents
+            
+            def convert_tools_to_gemini(tools_json):
+                """Convert LLM_toolkit JSON format to Gemini tools format."""
+                gemini_tools = []
+                for tool in tools_json:
+                    if tool.get("type") == "function":
+                        gemini_tool = {
+                            "name": tool["name"],
+                            "description": tool["description"],
+                            "parameters": tool["parameters"]
+                        }
+                        gemini_tools.append(gemini_tool)
+                return gemini_tools
+            
+            gemini_contents = convert_messages_to_gemini(messages)
+            gemini_tools = convert_tools_to_gemini(self.toolkit.to_json())
+            
+            # Build API URL with API key
+            api_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:streamGenerateContent?key={self.gemini_api_key}&alt=sse"
+            
+            headers = {
+                "content-type": "application/json"
+            }
+            
+            request_body = {
+                "contents": gemini_contents,
+                "generationConfig": {}
+            }
+            
+            if gemini_tools:
+                request_body["tools"] = [{"functionDeclarations": gemini_tools}]
+            
+            if payload.get("temperature") is not None:
+                request_body["generationConfig"]["temperature"] = payload.get("temperature")
+            if payload.get("top_p") is not None:
+                request_body["generationConfig"]["topP"] = payload.get("top_p")
+            if payload.get("max_tokens") is not None:
+                request_body["generationConfig"]["maxOutputTokens"] = payload.get("max_tokens")
+            
+            collected_chunks = []
+            output_message = messages.copy()
+            function_calls = []
+            
+            with httpx.stream("POST", api_url, json=request_body, headers=headers, timeout=None) as response:
+                if response.status_code >= 400:
+                    detail = response.read().decode()
+                    raise ValueError(f"error: {detail} ( LLM_endpoints -> gemini_fetch_response )")
+                response.raise_for_status()
+                
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        line = line[6:]  # Remove "data: " prefix
+                    
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    
+                    candidates = data.get("candidates", [])
+                    for candidate in candidates:
+                        content = candidate.get("content", {})
+                        parts = content.get("parts", [])
+                        
+                        for part in parts:
+                            if "text" in part:
+                                text = part["text"]
+                                collected_chunks.append(text)
+                                if verbose:
+                                    clear_output(wait=True)
+                                    print("".join(collected_chunks))
+                                if callback is not None:
+                                    callback("".join(collected_chunks))
+                            elif "functionCall" in part:
+                                function_call = part["functionCall"]
+                                function_calls.append(function_call)
+                        
+                        finish_reason = candidate.get("finishReason")
+                        if finish_reason:
+                            if function_calls:
+                                # Execute function calls
+                                for func_call in function_calls:
+                                    try:
+                                        func_name = func_call.get("name")
+                                        func_args = func_call.get("args", {})
+                                        result = self.toolkit.execute(func_name, func_args)
+                                        output_message = output_message + [
+                                            {"role": "assistant", "content": json.dumps({"function_call": func_call}, default=str)},
+                                            {"role": "tool", "tool_call_id": func_name, "content": json.dumps(result, default=str)}
+                                        ]
+                                    except Exception as e:
+                                        output_message = output_message + [
+                                            {"role": "assistant", "content": json.dumps({"function_call": func_call}, default=str)},
+                                            {"role": "tool", "tool_call_id": func_name, "content": json.dumps({"error": str(e)}, default=str)}
+                                        ]
+                                return output_message
+                            else:
+                                full_message = "".join(collected_chunks)
+                                if full_message:
+                                    output_message = output_message + [{"role": "assistant", "content": full_message}]
+                                    if callback is not None:
+                                        callback(full_message)
+                                return output_message
+            
+            raise ValueError("error: unexpected termination of gemini stream. ( LLM_endpoints -> gemini_fetch_response )")
         if self.provider == "openai":
             return openai_fetch_response(messages, callback)
         if self.provider == "ollama":
             return ollama_fetch_response(messages, callback)
+        if self.provider == "anthropic":
+            return anthropic_fetch_response(messages, callback)
+        if self.provider == "gemini":
+            return gemini_fetch_response(messages, callback)
         else:
             raise ValueError("error: unsupported provider specified. ( LLM_endpoints -> chat_completions )")
 # classes --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- #
