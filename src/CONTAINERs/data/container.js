@@ -109,9 +109,9 @@ const DataContainer = ({ children }) => {
         setAddressBook({ avaliable_addresses: [] });
       }
     };
-    const app_initialization = () => {
+    const app_initialization = async () => {
       try {
-        load_from_local_storage();
+        await load_from_local_storage();
         ollama_get_version().then((version) => {
           if (!version) {
             setOllamaServerStatus(false);
@@ -133,20 +133,11 @@ const DataContainer = ({ children }) => {
   /* { save to local storage } */
   useEffect(() => {
     const save_to_local_storage = async () => {
-      setSectionData((prev) => {
-        if (prev.address) {
-          storage.writeSection(prev.address, prev);
-        }
-        return prev;
-      });
-      setAddressBook((prev) => {
-        storage.writeAddressBook(prev);
-        return prev;
-      });
-      setFavouredModels((prev) => {
-        storage.writeFavouredModels(prev);
-        return prev;
-      });
+      if (sectionData.address) {
+        await storage.writeSection(sectionData.address, sectionData);
+      }
+      await storage.writeAddressBook(addressBook);
+      await storage.writeFavouredModels(favouredModels);
     };
     save_to_local_storage();
   }, [sectionData, addressBook, favouredModels]);
