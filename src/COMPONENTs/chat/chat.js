@@ -360,9 +360,11 @@ const Message = ({ index, role, message, file_addresses, is_last_index }) => {
   }, [role]);
   useEffect(() => {
     if (file_addresses && file_addresses.length !== 0) {
-      setFiles(load_saved_files(targetAddress, index, file_addresses));
+      load_saved_files(targetAddress, index, file_addresses).then((files) => {
+        setFiles(files);
+      });
     }
-  }, [file_addresses, index, targetAddress]);
+  }, [file_addresses, index, targetAddress, load_saved_files]);
 
   return (
     <>
@@ -1614,7 +1616,7 @@ const Chat = () => {
     }
   }, [inputValue, inputFiles, awaitResponse, sectionData]);
   const update_message = useCallback(
-    (address, messages, index) => {
+    async (address, messages, index) => {
       setAwaitResponse(index);
 
       const all_vision_models = get_all_available_vision_models();
@@ -1642,7 +1644,7 @@ const Chat = () => {
           expanded: true,
         });
         if (messages[index - 1] && messages[index - 1].files) {
-          user_input_base64_images = load_saved_files(
+          user_input_base64_images = await load_saved_files(
             address,
             index - 1,
             messages[index - 1].files
