@@ -14,6 +14,8 @@ import { ConfigContexts } from "../../../CONTAINERs/config/contexts";
 import { DataContexts } from "../../../CONTAINERs/data/contexts";
 import { StatusContexts } from "../../../CONTAINERs/status/contexts";
 
+import storage from "../../../utils/storage";
+
 const LocalStoragePanelContexts = createContext("");
 
 const Address_Size_Item = ({ index, title, size, address }) => {
@@ -205,35 +207,12 @@ const Storage_Manager = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [onSelectLabel, setOnSelectLabel] = useState("");
 
-  const get_local_storage_size = () => {
-    let totalSize = 0;
-
-    for (let key in localStorage) {
-      if (localStorage.hasOwnProperty(key)) {
-        const itemSize = localStorage[key].length * 2;
-        totalSize += itemSize;
-      }
-    }
-    const totalSizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+  const get_storage_size = async () => {
+    const totalSizeInMB = await storage.getSize();
     return totalSizeInMB;
   };
-  const calculate_chat_messages_size = useCallback(() => {
-    const extractAfter = (str, keyword) => {
-      let start = str.indexOf(keyword);
-      return start !== -1 ? str.substring(start + keyword.length) : null;
-    };
-    const get_largest_storage_items = () => {
-      let items = [];
-      for (let key in localStorage) {
-        if (localStorage.hasOwnProperty(key)) {
-          const size = (localStorage[key].length * 2) / 1024; // KB
-          items.push({ key, size: size });
-        }
-      }
-      items.sort((a, b) => b.size - a.size);
-      return items;
-    };
-    const rawItems = get_largest_storage_items();
+  const calculate_chat_messages_size = useCallback(async () => {
+    const sectionSizes = await storage.getSectionSizes();
     const chatMessages = {};
 
     chatMessages["System Data"] = {
@@ -241,30 +220,25 @@ const Storage_Manager = () => {
       chat_title: "System Data",
     };
 
-    for (let i = 0; i < rawItems.length; i++) {
-      const item = rawItems[i];
-      let processed_key = extractAfter(item.key, UNIQUE_KEY);
-      if (!processed_key) {
-        continue;
-      }
-      processed_key = processed_key.split("_")[0];
+    for (let i = 0; i < sectionSizes.length; i++) {
+      const section = sectionSizes[i];
+      const address = section.address;
       let chat_title = "unknown";
-      if (processed_key in chatMessages) {
-        chatMessages[processed_key].size_in_kb += item.size;
+      
+      if (addressBook.avaliable_addresses.includes(address)) {
+        chat_title = addressBook[address]?.chat_title;
+      }
+      
+      if (chat_title === "unknown") {
+        chatMessages["System Data"].size_in_kb += section.size_in_kb;
       } else {
-        if (addressBook.avaliable_addresses.includes(processed_key)) {
-          chat_title = addressBook[processed_key]?.chat_title;
-        }
-        if (chat_title === "unknown") {
-          chatMessages["System Data"].size_in_kb += item.size;
-        } else {
-          chatMessages[processed_key] = {
-            size_in_kb: item.size,
-            chat_title: chat_title,
-          };
-        }
+        chatMessages[address] = {
+          size_in_kb: section.size_in_kb,
+          chat_title: chat_title,
+        };
       }
     }
+    
     let chatMessagesArray = [];
 
     for (let key in chatMessages) {
@@ -276,21 +250,23 @@ const Storage_Manager = () => {
 
     return chatMessagesArray;
   }, [addressBook]);
-  const delete_local_storage_item = (address) => {
-    for (let key in localStorage) {
-      if (key.includes(address)) {
-        localStorage.removeItem(key);
-      }
-    }
-    delete_address_in_local_storage(address);
-    setLocalStorageSize(get_local_storage_size());
-    setAddressSizes(calculate_chat_messages_size());
+  const delete_local_storage_item = async (address) => {
+    await delete_address_in_local_storage(address);
+    const size = await get_storage_size();
+    setLocalStorageSize(size);
+    const sizes = await calculate_chat_messages_size();
+    setAddressSizes(sizes);
   };
   useEffect(() => {
-    setLocalStorageSize(get_local_storage_size());
-    setAddressSizes(calculate_chat_messages_size());
-    setIsLoaded(true);
-  }, []);
+    const loadStorageData = async () => {
+      const size = await get_storage_size();
+      setLocalStorageSize(size);
+      const sizes = await calculate_chat_messages_size();
+      setAddressSizes(sizes);
+      setIsLoaded(true);
+    };
+    loadStorageData();
+  }, [calculate_chat_messages_size]);
   useEffect(() => {
     if (spanRef.current) {
       setSpanWidth(spanRef.current.offsetWidth);

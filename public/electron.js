@@ -123,6 +123,7 @@ const create_main_window = () => {
 /* { create main window } ============================================================================================================== */
 
 app.whenReady().then(() => {
+  initializeStorage();
   create_main_window();
   start_terminal();
   start_flask_data_server();
@@ -358,3 +359,253 @@ ipcMain.handle("read-file", async (event, filePath) => {
   return `data:image/png;base64,${fileData}`;
 });
 /* { local data related } ============================================================================================================== */
+
+/* { file storage } ==================================================================================================================== */
+const storageDir = path.join(app.getPath("userData"), "storage");
+const sectionsDir = path.join(storageDir, "sections");
+
+// Initialize storage directory
+const initializeStorage = () => {
+  try {
+    if (!fs.existsSync(storageDir)) {
+      fs.mkdirSync(storageDir, { recursive: true });
+    }
+    if (!fs.existsSync(sectionsDir)) {
+      fs.mkdirSync(sectionsDir, { recursive: true });
+    }
+  } catch (error) {
+    console.error("Error initializing storage:", error);
+  }
+};
+
+// Read address book
+ipcMain.handle("storage:read-address-book", async () => {
+  try {
+    const filePath = path.join(storageDir, "address_book.json");
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, "utf8");
+      return JSON.parse(data);
+    }
+    return { avaliable_addresses: [] };
+  } catch (error) {
+    console.error("Error reading address book:", error);
+    return { avaliable_addresses: [] };
+  }
+});
+
+// Write address book
+ipcMain.handle("storage:write-address-book", async (event, data) => {
+  try {
+    const filePath = path.join(storageDir, "address_book.json");
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error writing address book:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Read favoured models
+ipcMain.handle("storage:read-favoured-models", async () => {
+  try {
+    const filePath = path.join(storageDir, "favoured_models.json");
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, "utf8");
+      return JSON.parse(data);
+    }
+    return null;
+  } catch (error) {
+    console.error("Error reading favoured models:", error);
+    return null;
+  }
+});
+
+// Write favoured models
+ipcMain.handle("storage:write-favoured-models", async (event, data) => {
+  try {
+    const filePath = path.join(storageDir, "favoured_models.json");
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error("Error writing favoured models:", error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Read section data
+ipcMain.handle("storage:read-section", async (event, address) => {
+  try {
+    const filePath = path.join(sectionsDir, `${address}.json`);
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, "utf8");
+      return JSON.parse(data);
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error reading section ${address}:`, error);
+    return null;
+  }
+});
+
+// Write section data
+ipcMain.handle("storage:write-section", async (event, address, data) => {
+  try {
+    const filePath = path.join(sectionsDir, `${address}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error(`Error writing section ${address}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Delete section data
+ipcMain.handle("storage:delete-section", async (event, address) => {
+  try {
+    const filePath = path.join(sectionsDir, `${address}.json`);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error(`Error deleting section ${address}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// List all sections
+ipcMain.handle("storage:list-sections", async () => {
+  try {
+    if (!fs.existsSync(sectionsDir)) {
+      return [];
+    }
+    const files = fs.readdirSync(sectionsDir);
+    return files
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => file.replace(".json", ""));
+  } catch (error) {
+    console.error("Error listing sections:", error);
+    return [];
+  }
+});
+
+// Get storage size
+ipcMain.handle("storage:get-size", async () => {
+  try {
+    const getDirectorySize = (dirPath) => {
+      let totalSize = 0;
+      if (!fs.existsSync(dirPath)) {
+        return 0;
+      }
+      const files = fs.readdirSync(dirPath);
+      for (const file of files) {
+        const filePath = path.join(dirPath, file);
+        const stats = fs.statSync(filePath);
+        if (stats.isFile()) {
+          totalSize += stats.size;
+        } else if (stats.isDirectory()) {
+          totalSize += getDirectorySize(filePath);
+        }
+      }
+      return totalSize;
+    };
+
+    const totalSize = getDirectorySize(storageDir);
+    const totalSizeInMB = (totalSize / (1024 * 1024)).toFixed(2);
+    return totalSizeInMB;
+  } catch (error) {
+    console.error("Error getting storage size:", error);
+    return "0.00";
+  }
+});
+
+// Get section sizes
+ipcMain.handle("storage:get-section-sizes", async () => {
+  try {
+    if (!fs.existsSync(sectionsDir)) {
+      return [];
+    }
+    const files = fs.readdirSync(sectionsDir);
+    const sectionSizes = [];
+    
+    for (const file of files) {
+      if (file.endsWith(".json")) {
+        const filePath = path.join(sectionsDir, file);
+        const stats = fs.statSync(filePath);
+        const address = file.replace(".json", "");
+        sectionSizes.push({
+          address: address,
+          size_in_kb: stats.size / 1024,
+        });
+      }
+    }
+    
+    return sectionSizes;
+  } catch (error) {
+    console.error("Error getting section sizes:", error);
+    return [];
+  }
+});
+
+// File storage (for uploaded images)
+const filesDir = path.join(storageDir, "files");
+
+// Initialize files directory
+const initializeFilesDir = () => {
+  try {
+    if (!fs.existsSync(filesDir)) {
+      fs.mkdirSync(filesDir, { recursive: true });
+    }
+  } catch (error) {
+    console.error("Error initializing files directory:", error);
+  }
+};
+
+// Save file
+ipcMain.handle("storage:save-file", async (event, fileKey, fileData) => {
+  try {
+    initializeFilesDir();
+    const filePath = path.join(filesDir, `${fileKey}.txt`);
+    fs.writeFileSync(filePath, fileData, "utf8");
+    return { success: true };
+  } catch (error) {
+    console.error(`Error saving file ${fileKey}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// Load file
+ipcMain.handle("storage:load-file", async (event, fileKey) => {
+  try {
+    const filePath = path.join(filesDir, `${fileKey}.txt`);
+    if (fs.existsSync(filePath)) {
+      const data = fs.readFileSync(filePath, "utf8");
+      return data;
+    }
+    return null;
+  } catch (error) {
+    console.error(`Error loading file ${fileKey}:`, error);
+    return null;
+  }
+});
+
+// Delete files for a section
+ipcMain.handle("storage:delete-section-files", async (event, address) => {
+  try {
+    if (!fs.existsSync(filesDir)) {
+      return { success: true };
+    }
+    const files = fs.readdirSync(filesDir);
+    for (const file of files) {
+      if (file.startsWith(address + "_")) {
+        const filePath = path.join(filesDir, file);
+        fs.unlinkSync(filePath);
+      }
+    }
+    return { success: true };
+  } catch (error) {
+    console.error(`Error deleting files for section ${address}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+/* { file storage } ==================================================================================================================== */

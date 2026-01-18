@@ -15,6 +15,8 @@ import {
   available_vision_models,
 } from "../../COMPONENTs/settings/ollama";
 
+import storage from "../../utils/storage";
+
 const DataContainer = ({ children }) => {
   const {
     setComponentOnFocus,
@@ -75,13 +77,10 @@ const DataContainer = ({ children }) => {
 
   /* { load from local storage } */
   useEffect(() => {
-    const load_from_local_storage = () => {
-      const address_book = JSON.parse(
-        localStorage.getItem(UNIQUE_KEY + "address_book") || "{}"
-      );
-      const favoured_models = JSON.parse(
-        localStorage.getItem(UNIQUE_KEY + "favoured_models") || null
-      );
+    const load_from_local_storage = async () => {
+      const address_book = await storage.readAddressBook();
+      const favoured_models = await storage.readFavouredModels();
+      
       if (favoured_models) {
         setFavouredModels(favoured_models);
       } else {
@@ -95,8 +94,8 @@ const DataContainer = ({ children }) => {
         address_book.avaliable_addresses &&
         address_book.avaliable_addresses[0]
       ) {
-        const section_data = JSON.parse(
-          localStorage.getItem(UNIQUE_KEY + address_book.avaliable_addresses[0])
+        const section_data = await storage.readSection(
+          address_book.avaliable_addresses[0]
         );
         if (section_data) {
           setSectionData(section_data);
@@ -127,27 +126,25 @@ const DataContainer = ({ children }) => {
         });
       } catch (error) {
         console.error("Error loading from local storage:", error);
-        localStorage.clear();
       }
     };
     app_initialization();
   }, []);
   /* { save to local storage } */
   useEffect(() => {
-    const save_to_local_storage = () => {
+    const save_to_local_storage = async () => {
       setSectionData((prev) => {
-        localStorage.setItem(UNIQUE_KEY + prev.address, JSON.stringify(prev));
+        if (prev.address) {
+          storage.writeSection(prev.address, prev);
+        }
         return prev;
       });
       setAddressBook((prev) => {
-        localStorage.setItem(UNIQUE_KEY + "address_book", JSON.stringify(prev));
+        storage.writeAddressBook(prev);
         return prev;
       });
       setFavouredModels((prev) => {
-        localStorage.setItem(
-          UNIQUE_KEY + "favoured_models",
-          JSON.stringify(prev)
-        );
+        storage.writeFavouredModels(prev);
         return prev;
       });
     };
@@ -169,10 +166,6 @@ const DataContainer = ({ children }) => {
   };
   const load_models = () => {
     try {
-      let selected_model = localStorage.getItem(UNIQUE_KEY + "selected_model");
-      if (!selected_model) {
-        selected_model = JSON.parse(selected_model);
-      }
       ollama_list_available_models().then((response) => {
         setAvaliableModels(response);
       });
@@ -221,14 +214,12 @@ const DataContainer = ({ children }) => {
     setSectionStarted(false);
   }, [favouredModels]);
   const load_section_data = useCallback(
-    (target_address) => {
-      let section_data = JSON.parse(
-        localStorage.getItem(UNIQUE_KEY + target_address)
-      );
-      if (!avaliableModels.includes(section_data.language_model_using)) {
-        section_data.language_model_using = null;
-      }
+    async (target_address) => {
+      let section_data = await storage.readSection(target_address);
       if (section_data) {
+        if (!avaliableModels.includes(section_data.language_model_using)) {
+          section_data.language_model_using = null;
+        }
         setSectionData(section_data);
         setSectionStarted(true);
       }
@@ -326,8 +317,9 @@ const DataContainer = ({ children }) => {
       return newAddressBook;
     });
   }, [sectionData, addressBook]);
-  const delete_address_in_local_storage = (target_address) => {
-    localStorage.removeItem(UNIQUE_KEY + target_address);
+  const delete_address_in_local_storage = async (target_address) => {
+    await storage.deleteSection(target_address);
+    await storage.deleteSectionFiles(target_address);
     setAddressBook((prev) => {
       let newAddressBook = { ...prev };
       delete newAddressBook[target_address];
@@ -335,10 +327,7 @@ const DataContainer = ({ children }) => {
       newAddressBook.avaliable_addresses = avaliable_addresses.filter(
         (address) => address !== target_address
       );
-      localStorage.setItem(
-        UNIQUE_KEY + "address_book",
-        JSON.stringify(newAddressBook)
-      );
+      storage.writeAddressBook(newAddressBook);
       return newAddressBook;
     });
     start_new_section();
@@ -362,18 +351,18 @@ const DataContainer = ({ children }) => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const file_key = target_address + "_" + (index_to_save + 1) + "_" + i;
-        localStorage.setItem(UNIQUE_KEY + file_key, file);
+        storage.saveFile(file_key, file);
         saved_keys.push(file_key);
       }
       return prev;
     });
     return saved_keys;
   };
-  const load_saved_files = (target_address, message_index, file_addresses) => {
+  const load_saved_files = async (target_address, message_index, file_addresses) => {
     let loaded_images = [];
     for (let i = 0; i < file_addresses.length; i++) {
       const file_key = file_addresses[i];
-      const file = localStorage.getItem(UNIQUE_KEY + file_key);
+      const file = await storage.loadFile(file_key);
       if (file) {
         loaded_images.push(file);
       }

@@ -47,3 +47,18 @@ contextBridge.exposeInMainWorld("dataAPI", {
   selectFile: () => ipcRenderer.invoke("select-file"),
   readFileAsBase64: (filePath) => ipcRenderer.invoke("read-file", filePath),
 });
+contextBridge.exposeInMainWorld("storageAPI", {
+  readAddressBook: () => ipcRenderer.invoke("storage:read-address-book"),
+  writeAddressBook: (data) => ipcRenderer.invoke("storage:write-address-book", data),
+  readFavouredModels: () => ipcRenderer.invoke("storage:read-favoured-models"),
+  writeFavouredModels: (data) => ipcRenderer.invoke("storage:write-favoured-models", data),
+  readSection: (address) => ipcRenderer.invoke("storage:read-section", address),
+  writeSection: (address, data) => ipcRenderer.invoke("storage:write-section", address, data),
+  deleteSection: (address) => ipcRenderer.invoke("storage:delete-section", address),
+  listSections: () => ipcRenderer.invoke("storage:list-sections"),
+  getSize: () => ipcRenderer.invoke("storage:get-size"),
+  getSectionSizes: () => ipcRenderer.invoke("storage:get-section-sizes"),
+  saveFile: (fileKey, fileData) => ipcRenderer.invoke("storage:save-file", fileKey, fileData),
+  loadFile: (fileKey) => ipcRenderer.invoke("storage:load-file", fileKey),
+  deleteSectionFiles: (address) => ipcRenderer.invoke("storage:delete-section-files", address),
+});
