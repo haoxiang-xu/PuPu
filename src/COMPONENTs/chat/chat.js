@@ -1591,7 +1591,7 @@ const Chat = () => {
   /* { PreLoading } ================================================================================== */
 
   /* { Input Section } ------------------------------------------------------------------------------- */
-  const on_input_submit = useCallback(() => {
+  const on_input_submit = useCallback(async () => {
     if (sectionData.on_mode === "terminal") {
       return;
     } else if (sectionData.on_mode === "chat") {
@@ -1602,7 +1602,7 @@ const Chat = () => {
       ) {
         let file_keys = [];
         if (inputFiles.length > 0) {
-          file_keys = save_input_files(targetAddress, inputFiles);
+          file_keys = await save_input_files(targetAddress, inputFiles);
         }
         append_message(targetAddress, {
           role: "user",
@@ -1614,7 +1614,7 @@ const Chat = () => {
         setInputValue("");
       }
     }
-  }, [inputValue, inputFiles, awaitResponse, sectionData]);
+  }, [inputValue, inputFiles, awaitResponse, sectionData, save_input_files, targetAddress, append_message]);
   const update_message = useCallback(
     async (address, messages, index) => {
       setAwaitResponse(index);

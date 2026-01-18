@@ -311,16 +311,14 @@ const DataContainer = ({ children }) => {
   const delete_address_in_local_storage = async (target_address) => {
     await storage.deleteSection(target_address);
     await storage.deleteSectionFiles(target_address);
-    setAddressBook((prev) => {
-      let newAddressBook = { ...prev };
-      delete newAddressBook[target_address];
-      let avaliable_addresses = newAddressBook.avaliable_addresses || [];
-      newAddressBook.avaliable_addresses = avaliable_addresses.filter(
-        (address) => address !== target_address
-      );
-      storage.writeAddressBook(newAddressBook);
-      return newAddressBook;
-    });
+    const newAddressBook = { ...addressBook };
+    delete newAddressBook[target_address];
+    let avaliable_addresses = newAddressBook.avaliable_addresses || [];
+    newAddressBook.avaliable_addresses = avaliable_addresses.filter(
+      (address) => address !== target_address
+    );
+    await storage.writeAddressBook(newAddressBook);
+    setAddressBook(newAddressBook);
     start_new_section();
   };
   const trigger_section_mode = (mode) => {
@@ -335,18 +333,15 @@ const DataContainer = ({ children }) => {
       }
     });
   };
-  const save_input_files = (target_address, files) => {
+  const save_input_files = async (target_address, files) => {
     let saved_keys = [];
-    setSectionData((prev) => {
-      const index_to_save = prev.messages.length - 1;
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const file_key = target_address + "_" + (index_to_save + 1) + "_" + i;
-        storage.saveFile(file_key, file);
-        saved_keys.push(file_key);
-      }
-      return prev;
-    });
+    const index_to_save = sectionData.messages.length - 1;
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const file_key = target_address + "_" + (index_to_save + 1) + "_" + i;
+      await storage.saveFile(file_key, file);
+      saved_keys.push(file_key);
+    }
     return saved_keys;
   };
   const load_saved_files = async (target_address, message_index, file_addresses) => {
