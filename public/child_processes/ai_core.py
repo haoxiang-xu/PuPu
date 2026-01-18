@@ -404,7 +404,7 @@ class LLM_endpoint:
             output_message = messages.copy()
             tool_uses = []
             
-            with httpx.stream("POST", "https://api.anthropic.com/v1/messages", json=request_body, headers=headers, timeout=None) as response:
+            with httpx.stream("POST", "https://api.anthropic.com/v1/messages", json=request_body, headers=headers, timeout=300.0) as response:
                 if response.status_code >= 400:
                     detail = response.read().decode()
                     raise ValueError(f"error: {detail} ( LLM_endpoints -> anthropic_fetch_response )")
@@ -454,8 +454,13 @@ class LLM_endpoint:
                             for tool_use in tool_uses:
                                 try:
                                     tool_input = json.loads(tool_use["input"])
-                                except json.JSONDecodeError:
-                                    tool_input = tool_use["input"]
+                                except json.JSONDecodeError as e:
+                                    # If JSON parsing fails, return error without executing
+                                    output_message = output_message + [
+                                        {"role": "assistant", "content": json.dumps({"tool_use": {"id": tool_use["id"], "name": tool_use["name"], "input": tool_use["input"]}}, default=str)},
+                                        {"role": "tool", "tool_call_id": tool_use["id"], "content": json.dumps({"error": f"Invalid JSON input: {str(e)}"}, default=str)}
+                                    ]
+                                    continue
                                 
                                 try:
                                     result = self.toolkit.execute(tool_use["name"], tool_input)
@@ -547,7 +552,7 @@ class LLM_endpoint:
             output_message = messages.copy()
             function_calls = []
             
-            with httpx.stream("POST", api_url, json=request_body, headers=headers, timeout=None) as response:
+            with httpx.stream("POST", api_url, json=request_body, headers=headers, timeout=300.0) as response:
                 if response.status_code >= 400:
                     detail = response.read().decode()
                     raise ValueError(f"error: {detail} ( LLM_endpoints -> gemini_fetch_response )")
