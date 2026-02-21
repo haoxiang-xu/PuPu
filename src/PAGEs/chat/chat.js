@@ -1,4 +1,4 @@
-import { useState, useContext, useCallback } from "react";
+import { useState, useContext, useCallback, useEffect } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
@@ -59,7 +59,7 @@ In short, every function in JS *can* be a closure — it becomes one when it ref
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const ChatInterface = () => {
-  const { theme } = useContext(ConfigContext);
+  const { theme, onFragment } = useContext(ConfigContext);
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [inputValue, setInputValue] = useState("");
 
@@ -134,13 +134,14 @@ const ChatInterface = () => {
       style={{
         position: "absolute",
         top: 0,
-        left: 2,
-        right: 2,
+        left: onFragment === "side_menu" ? 320 : 0,
+        right: 0,
         bottom: 0,
         overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         fontFamily: theme?.font?.fontFamily || "inherit",
+        transition: "left 0.3s ease",
       }}
     >
       <ChatMessages

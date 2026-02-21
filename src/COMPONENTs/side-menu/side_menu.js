@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useState, useEffect } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
@@ -19,8 +19,26 @@ const getRuntimePlatform = () => {
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window !== "undefined" ? window.innerWidth : 1200,
+  );
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
+
+  /* ── track window width ───────────────────────────── */
+  useEffect(() => {
+    const handleResize = () => setWindowWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  /* ── auto-close side menu when window is too small ── */
+  useEffect(() => {
+    if (windowWidth < 1000 && onFragment === "side_menu") {
+      // Don't auto-close, just let it overlay
+      console.log("Window width < 1000, side menu in overlay mode");
+    }
+  }, [windowWidth, onFragment]);
 
   return (
     <div
@@ -30,7 +48,7 @@ const SideMenu = () => {
         top: 0,
         left: 0,
         bottom: 0,
-        width: onFragment === "side_menu" ? 300 : 0,
+        width: onFragment === "side_menu" ? 320 : 0,
         backgroundColor: theme?.backgroundColor || "rgba(255,255,255,0.02)",
         borderRight: `1px solid ${theme?.foregroundColor || "rgba(255,255,255,0.06)"}`,
         display: "flex",

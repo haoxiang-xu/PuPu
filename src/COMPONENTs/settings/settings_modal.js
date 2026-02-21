@@ -11,7 +11,7 @@ import { AppearanceSettings } from "./appearance";
 const SETTINGS_PAGES = [
   {
     key: "appearance",
-    icon: "theme",
+    icon: "color",
     label: "Appearance",
     component: AppearanceSettings,
   },
@@ -38,8 +38,8 @@ export const SettingsModal = ({ open, onClose }) => {
       open={open}
       onClose={onClose}
       style={{
-        minWidth: 700,
-        height: 700,
+        minWidth: 600,
+        height: 600,
         padding: 0,
         backgroundColor: isDark ? "#1e1e1e" : "#fff",
         color: isDark ? "#fff" : "#222",
@@ -51,7 +51,7 @@ export const SettingsModal = ({ open, onClose }) => {
       <div
         style={{
           position: "relative",
-          width: 200,
+          width: 140,
           flexShrink: 0,
           backgroundColor: isDark
             ? "rgba(255,255,255,0.03)"
@@ -142,6 +142,7 @@ export const SettingsModal = ({ open, onClose }) => {
           style={{
             fontSize: 22,
             fontWeight: 600,
+            fontFamily: "NunitoSans, sans-serif",
             color: isDark ? "#fff" : "#222",
             padding: "24px 32px 8px",
           }}
