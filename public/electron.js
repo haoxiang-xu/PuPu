@@ -2,8 +2,8 @@ const { app, BrowserWindow, shell, ipcMain } = require("electron");
 const path = require("path");
 
 const DEV_SERVER_URL =
-  process.env.ELECTRON_START_URL || "http://localhost:2907/#/mini";
-const PROD_ENTRY_HASH = "/mini";
+  process.env.ELECTRON_START_URL || "http://localhost:2907/#";
+const PROD_ENTRY_HASH = "/";
 const DEV_SERVER_RETRY_MS = 1200;
 const DARWIN_TRAFFIC_LIGHT_X = 14;
 const DARWIN_TRAFFIC_LIGHT_Y = 18;

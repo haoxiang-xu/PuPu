@@ -4,91 +4,118 @@
 ></link>
 
 <div align="center">
-  <img src="public/assets/logo_low_resolution.png" alt="Mini UI Logo" style="height: 128px">
-  <h1>Mini UI</h1>
-  <p>A starting point for your React Project.</p>
+  <img src="assets/logo.png" alt="PuPu UI" style="height: 128px">
+  <h1>PuPu</h1>
+  <p>A simple and easy to use UI for the Ollama.</p>
 </div>
-<br><br>
+<br><br><br>
 
-<span style="opacity: 0.32">Mini UI is a React project starter template that provides a solid foundation for building modern web applications. It includes essential features such as routing, state management, and a responsive design system, making it easy to kickstart your next project. Instead of using a monolithic framework, Mini UI is standard of large scale React projects, offering a modular and flexible architecture that can be easily extended and customized.</span>
+[![Download for Windows][windows-shield]][windows-url]
+[![Download for Mac][macos-shield]][macos-url]
+[![Download for Linux][linux-shield]][linux-url]
+
+
+PuPu is a lightweight tool that makes it easy to run AI models on your own device. Designed for smooth performance and ease of use, PuPu is perfect for anyone who wants quick access to AI without technical complexity.
+
+<img src="assets/PuPu_UI.png" alt="PuPu UI 3"/>
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
-  - [Setup a Node.js environment with version 23.0.0](#setup-a-nodejs-environment-with-version-2300)
-  - [Setup npm version 11.1.0](#setup-npm)
-- [Run Web / Electron](#run-web--electron)
+- [For Users](#for-users)
+  - [App installation](#app-installation)
+- [For Developers](#for-developers)
+  - [Local Setup](#local-setup)
+  - [Deployment](#deployment)
+  - [Further Development](#further-development)
 
-## Prerequisites <a id="prerequisites"></a>
+## For Users <a name="for-users"></a>
 
-[![Download for Node.js][node-shield]][node-url]
-[![Download for npm][npm-shield]][npm-url]
+### App installation <a name="app-installation"></a>
 
-### Setup a Node.js environment with version 23.0.0 <a id="setup-a-nodejs-environment-with-version-2300"></a>
+### Windows
 
-- [![Download for Node.js][node-shield]][node-url]
+[![Download for Windows][windows-shield]][windows-url]
 
-  Download and install Node.js from the [official website](https://nodejs.org/en/download/). Make sure to use version 23.0.0 or later.
+- Download the `.exe` Windows installer [here](windows-url).
+- Run the installer and follow the instructions.
+- Once the installation is complete, you can find the app in the start menu.
 
-### Setup npm <a id="setup-npm"></a>
+### Mac
 
-- [![Download for npm][npm-shield]][npm-url]
+[![Download for Mac][macos-shield]][macos-url]
 
-  NPM is included with Node.js, so you don't need to install it separately. However, you can check the version of npm installed by running:
+- Download the `.dmg` Mac installer [here](macos-url).
+- Open the downloaded file and drag the app to the Applications folder.
+- Once the installation is complete, you can find the app in the Applications folder.
 
-  ```bash
-  npm -v
-  ```
+### Linux
 
-  If you need to update npm, you can run:
+[![Download for Linux][linux-shield]][linux-url]
 
-  ```bash
-  npm install -g npm@latest
-  ```
+- Download the `.deb` or `.AppImage` file [here](linux-url).
+- If you downloaded the `.deb` file, run the following command in the terminal:
 
-[node-shield]: https://img.shields.io/badge/node.js-23.0.0-339933?style=for-the-badge&logo=node.js&logoColor=&labelColor=EBDBE2&color=339933
-[node-url]: https://nodejs.org/en/download/
-[npm-shield]: https://img.shields.io/badge/npm-11.1.0-CB3837?style=for-the-badge&logo=npm&logoColor=red&labelColor=EBDBE2&color=CB3837
-[npm-url]: https://www.npmjs.com/package/npm
+```bash
+sudo dpkg -i PuPu-0.0.4.deb
+```
 
-## Run Web / Electron <a id="run-web--electron"></a>
+OR
 
-- Install dependencies:
+```bash
+sudo apt install ./PuPu-0.0.4.deb
+```
 
-  ```bash
-  npm install
-  ```
+- Ensuring Proper Sandbox Permissions: <span style="opacity: 0.32">If you encounter an error message about sandbox permissions, you can run the following command:</span>
 
-- Start React Web app:
+```bash
+sudo chown root:root /opt/PuPu/chrome-sandbox
+sudo chmod 4755 /opt/PuPu/chrome-sandbox
+```
 
-  ```bash
-  npm start
-  ```
+## For Developers <a name="for-developers"></a>
 
-- Start Electron app in development mode (starts CRA + Electron together):
+### Local Setup <a name="local-setup"></a>
 
-  ```bash
-  npm run start:electron
-  ```
+- Install dependencies: <span style="opacity: 0.32">To run the electron app locally, you need to install the dependencies by running the following command:</span>
 
-- You can also use the explicit web command:
+  - windows might require extra steps to install the node-gyp dependencies, you can follow the instructions [here](./docs/setup_guide/node_gyp_setup_guide.md).
 
-  ```bash
-  npm run start:web
-  ```
+- Create python virtual environment: <span style="opacity: 0.32">To run the backend python child process, you need to create a python virtual environment by running the following command: </span>`python -m venv ./public/child_processes/venv` <span style="opacity: 0.32"> and install the dependencies by running the following command:</span> `pip install -r requirements.txt`
 
-- Build React Web bundle:
 
-  ```bash
-  npm run build
-  # or: npm run build:web
-  ```
 
-- Build Electron desktop packages:
 
-  ```bash
-  npm run build:electron
-  npm run build:electron:mac
-  npm run build:electron:win
-  npm run build:electron:linux
-  ```
+`npm install`
+
+- Rebuild the Electron App: <span style="opacity: 0.32">After installing the dependencies, you need to rebuild the electron app by running the following command:</span>
+
+`npx electron-rebuild`
+
+- Run the Electron App: <span style="opacity: 0.32">Once the dependencies are installed, you can run the app by running the following command:</span>
+
+`npm start`
+
+- Build the React App: <span style="opacity: 0.32"> In order to build the app for different platforms, you should build the React app first by running the following command:</span>
+
+### Deployment <a name="deployment"></a>
+
+`npm run build`
+
+- Build the Electron App: <span style="opacity: 0.32">Once the React app is built, you can build the electron app for different platforms by running the following command:</span>
+
+`npx electron-builder --mac` <span style="opacity: 0.32"> (for mac) </span>
+
+`npx electron-builder --win` <span style="opacity: 0.32"> (for windows) Notice: Windows might require you to run the command in an administrator shell. </span>
+
+`npx electron-builder --linux` <span style="opacity: 0.32"> (for linux) </span>
+
+### Further Development <a name="further-development"></a>
+
+- To further develop the app, you can refer to the [development guide](./docs/development/development.md).
+
+[windows-shield]: https://img.shields.io/badge/download_for_windows-EBDBE2?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
+[windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
+[macos-shield]: https://img.shields.io/badge/download_for_mac-EBDBE2?style=for-the-badge&logo=apple&logoColor=000000&labelColor=EBDBE2
+[macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
+[linux-shield]: https://img.shields.io/badge/download_for_linux-EBDBE2?style=for-the-badge&logo=linux&logoColor=000000&labelColor=EBDBE2
+[linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
