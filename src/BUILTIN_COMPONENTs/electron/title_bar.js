@@ -144,7 +144,9 @@ const TitleBar = () => {
       }}
     >
       <Button
-        prefix_icon={onFragment === "main" ? "side_menu_left" : "side_menu_close"}
+        prefix_icon={
+          onFragment === "main" ? "side_menu_left" : "side_menu_close"
+        }
         style={{
           position: "absolute",
           top: "50%",
@@ -155,7 +157,8 @@ const TitleBar = () => {
           marginLeft: 12,
           WebkitAppRegion: "no-drag",
         }}
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           if (onFragment === "main") {
             setOnFragment("side_menu");
           } else {

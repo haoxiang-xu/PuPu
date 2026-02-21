@@ -45,7 +45,16 @@ const ChatMessages = ({
                 .findIndex((m) => m.role === "assistant");
 
         return (
-          <div key={msg.id} style={{ width: "60%", margin: "0 auto" }}>
+          <div
+            key={msg.id}
+            style={{
+              width: "70%",
+              maxWidth: 800,
+              margin: "0 auto",
+              padding: "0 20px",
+              boxSizing: "border-box",
+            }}
+          >
             <ChatBubble
               message={msg}
               isLast={isLast}

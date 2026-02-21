@@ -112,6 +112,9 @@ const ConfigContainer = ({ children }) => {
             right: 0,
             bottom: 0,
           }}
+          onClick={() => {
+            setOnFragment("main");
+          }}
         >
           {children}
         </div>

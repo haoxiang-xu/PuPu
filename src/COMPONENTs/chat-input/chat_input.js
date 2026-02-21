@@ -115,7 +115,14 @@ const ChatInput = ({
         alignItems: "center",
       }}
     >
-      <div style={{ width: "60%" }}>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 1000,
+          padding: "0 20px",
+          boxSizing: "border-box",
+        }}
+      >
         <TextField
           textarea_ref={inputRef}
           value={value}
@@ -158,7 +165,7 @@ const ChatInput = ({
               />
             </>
           }
-          style={{ width: "120%", margin: 0, transform: "translateX(-10%)" }}
+          style={{ width: "100%", margin: 0 }}
         />
 
         {/* disclaimer text */}
