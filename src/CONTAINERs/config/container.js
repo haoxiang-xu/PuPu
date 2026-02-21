@@ -12,6 +12,7 @@ import Scrollable from "../../BUILTIN_COMPONENTs/class/scrollable";
 import TitleBar, {
   TOP_BAR_HEIGHT,
 } from "../../BUILTIN_COMPONENTs/electron/title_bar";
+import SideMenu from "../../COMPONENTs/side-menu/side_menu";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -70,6 +71,8 @@ const ConfigContainer = ({ children }) => {
   const runtime_platform = useRuntimePlatform();
   /* { ENVIRONMENT } ===================================================================================================== */
 
+  const [onFragment, setOnFragment] = useState("main");
+
   return (
     <ConfigContext.Provider
       value={{
@@ -85,6 +88,9 @@ const ConfigContainer = ({ children }) => {
         window_size,
         env_browser,
         device_type,
+        /* { OTHERS } =========================================== */
+        onFragment,
+        setOnFragment,
       }}
     >
       <div
@@ -109,6 +115,7 @@ const ConfigContainer = ({ children }) => {
         >
           {children}
         </div>
+        <SideMenu />
       </div>
       <Scrollable />
     </ConfigContext.Provider>

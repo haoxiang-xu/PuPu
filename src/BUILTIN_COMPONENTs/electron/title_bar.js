@@ -23,8 +23,8 @@ const hasElectronWindowControls = () => {
   }
   return Boolean(
     window.runtime?.isElectron === true &&
-      window.windowStateAPI &&
-      typeof window.windowStateAPI.windowStateEventHandler === "function",
+    window.windowStateAPI &&
+    typeof window.windowStateAPI.windowStateEventHandler === "function",
   );
 };
 const WINDOWS_CONTROL_ICONS = {
@@ -34,7 +34,7 @@ const WINDOWS_CONTROL_ICONS = {
   restore: "windows_restore_button",
 };
 const TitleBar = () => {
-  const { theme } = useContext(ConfigContext);
+  const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
   const [windowIsMaximized, setWindowIsMaximized] = useState(false);
 
   const isElectron = hasElectronWindowControls();
@@ -143,11 +143,31 @@ const TitleBar = () => {
         WebkitUserSelect: "none",
       }}
     >
+      <Button
+        prefix_icon={onFragment === "main" ? "side_menu_left" : "side_menu_close"}
+        style={{
+          position: "absolute",
+          top: "50%",
+          transform: "translate(-50%, -50%)",
+          left: isDarwin ? 90 : 14,
+          color: topBarForeground,
+          fontSize: 14,
+          marginLeft: 12,
+          WebkitAppRegion: "no-drag",
+        }}
+        onClick={() => {
+          if (onFragment === "main") {
+            setOnFragment("side_menu");
+          } else {
+            setOnFragment("main");
+          }
+        }}
+      />
       <div
         style={{
           position: "absolute",
           top: "50%",
-          left: isDarwin ? 100 : 14,
+          left: isDarwin ? 125 : 14,
           transform: "translateY(-50%)",
           opacity: 0.84,
           fontFamily: "Jost, sans-serif",
@@ -157,7 +177,7 @@ const TitleBar = () => {
           pointerEvents: "none",
         }}
       >
-        mini ui
+        PuPu
       </div>
 
       {!isDarwin ? (
