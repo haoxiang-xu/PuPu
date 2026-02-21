@@ -1,20 +1,52 @@
-@font-face {
-  font-family: "Hack Nerd Font";
-  src: url("./BUILTIN_COMPONENTs/font/HackNerdFont-Regular.ttf")
-    format("truetype");
-  font-weight: normal;
-  font-style: normal;
-}
 body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hack Nerd Font",
-    "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
-    "Helvetica Neue", sans-serif;
+  padding: 0;
+  font-family: "Jost", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
-    monospace;
+  font-family: "HackNerdFont", monospace;
+}
+
+@font-face {
+  font-family: "Jost";
+  src: url("BUILTIN_COMPONENTs/fonts/Jost/Jost-VariableFont_wght.ttf")
+    format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "Jost";
+  src: url("BUILTIN_COMPONENTs/fonts/Jost/Jost-Italic-VariableFont_wght.ttf")
+    format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+}
+@font-face {
+  font-family: "HackNerdFont";
+  src: url("BUILTIN_COMPONENTs/fonts/HackNerdFont/HackNerdFont-Regular.ttf")
+    format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "NunitoSans";
+  src: url("BUILTIN_COMPONENTs/fonts/NunitoSans/NunitoSans-VariableFont_YTLC,opsz,wdth,wght.ttf")
+    format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "NunitoSans";
+  src: url("BUILTIN_COMPONENTs/fonts/NunitoSans/NunitoSans-Italic-VariableFont_YTLC,opsz,wdth,wght.ttf")
+    format("truetype");
+  font-weight: 200 900;
+  font-style: italic;
 }

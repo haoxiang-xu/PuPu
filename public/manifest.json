@@ -1,6 +1,6 @@
 {
-  "short_name": "PuPu",
-  "name": "PuPu",
+  "short_name": "Mini UI",
+  "name": "Mini UI",
   "icons": [
     {
       "src": "favicon.ico",
@@ -8,12 +8,12 @@
       "type": "image/x-icon"
     },
     {
-      "src": "logo_128x128.png",
+      "src": "logo192.png",
       "type": "image/png",
-      "sizes": "128x128"
+      "sizes": "192x192"
     },
     {
-      "src": "logo_512x512.png",
+      "src": "logo512.png",
       "type": "image/png",
       "sizes": "512x512"
     }

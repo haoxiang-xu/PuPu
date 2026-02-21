@@ -1,52 +1,129 @@
-import React, { useState, useEffect, useRef, useContext, use } from "react";
-import { iconManifest } from "./icon_manifest";
+import { useState, useEffect, useContext, useCallback } from "react";
 
-import { ConfigContexts } from "../../CONTAINERs/config/contexts";
+/* { Constants } ------------------------------------------------------------------------------------------------------------- */
+import { fileTypeSVGs, LogoSVGs, UISVGs } from "./icon_manifest";
+/* { Constants } ------------------------------------------------------------------------------------------------------------- */
 
-const Icon = ({ src, ...props }) => {
-  const { theme } = useContext(ConfigContexts);
+/* { Contexts } -------------------------------------------------------------------------------------------------------------- */
+import { ConfigContext } from "../../CONTAINERs/config/context";
+/* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
-  const [iconSrc, setIconSrc] = useState(null);
-  const [isIconLoaded, setIsIconLoaded] = useState(false);
-  const iconRef = useRef(null);
+const Icon = ({ src, color, ...props }) => {
+  const { theme } = useContext(ConfigContext);
 
-  useEffect(() => {
-    const fetchSVG = async () => {
-      try {
-        let svg = null;
-        if (theme === "dark_theme") {
-          svg = await iconManifest[src]();
-        } else {
-          svg = await iconManifest[src + "_"]();
-        }
-        setIconSrc(svg.default);
-        setIsIconLoaded(true);
-      } catch (error) {
-        console.error(error);
-      }
-    };
-    if (!src) return;
+  const [component, setComponent] = useState(
+    <div className="mini-ui-img-icon" {...props} />,
+  );
+
+  const fetch_icon = useCallback(async () => {
     try {
-      if (src.indexOf("png") == -1) {
-        fetchSVG();
+      let svg = null;
+      if (src in UISVGs) {
+        const SVG = await UISVGs[src];
+        setComponent(
+          <SVG
+            className="mini-ui-svg-icon"
+            fill={color ? color : theme?.icon?.color}
+            style={{ width: "100%", height: "100%", display: "block" }}
+          ></SVG>,
+        );
+      } else if (src in LogoSVGs) {
+        const SVG = await LogoSVGs[src];
+        setComponent(
+          <SVG
+            className="mini-ui-svg-icon"
+            fill={color ? color : theme?.icon?.color}
+            style={{ width: "100%", height: "100%", display: "block" }}
+          ></SVG>,
+        );
+      } else if (src in fileTypeSVGs) {
+        svg = await fileTypeSVGs[src]();
+        setComponent(
+          <img
+            className="mini-ui-img-icon"
+            src={svg.default}
+            alt={src.replace(/_/g, " ")}
+            draggable={false}
+            style={{
+              height: "100%",
+              width: "100%",
+            }}
+          />,
+        );
       } else {
-        setIconSrc(src);
-        setIsIconLoaded(true);
+        svg = await import(`./SVGs/${src}.svg`);
+        setComponent(
+          <img
+            className="mini-ui-img-icon"
+            src={svg.default}
+            alt={src.replace(/_/g, " ")}
+            draggable={false}
+            style={{
+              height: "100%",
+              width: "100%",
+            }}
+          />,
+        );
       }
     } catch (error) {
-      console.error(error);
+      console.error(
+        "[Error occurred while fetching SVG file BUILTIN_COMPONENTs/icon/icon.js]:",
+        error,
+      );
     }
-  }, [src, theme]);
+  }, [src, theme, color]);
+  useEffect(() => {
+    if (!src) return;
+    try {
+      if (
+        src.toLowerCase() === "null" ||
+        src.toLowerCase() === "undefined" ||
+        src.toLowerCase() === "none" ||
+        src === "" ||
+        src.toLowerCase() === "placeholder" ||
+        src.toLowerCase() === "nan"
+      ) {
+        setComponent(<div className="mini-ui-img-icon placeholder" />);
+      } else if (
+        src.indexOf("png") === 1 ||
+        src.indexOf("jpg") === 1 ||
+        src.indexOf("jpeg") === 1
+      ) {
+        setComponent(
+          <img
+            className="mini-ui-img-icon"
+            src={src}
+            alt={src.replace(/_/g, " ")}
+            draggable={false}
+            style={{
+              height: "100%",
+              width: "100%",
+            }}
+          />,
+        );
+      } else {
+        fetch_icon();
+      }
+    } catch (error) {
+      console.error(
+        "[Error occurred while setting icon source BUILTIN_COMPONENTs/icon/icon.js]:",
+        error,
+      );
+    }
+  }, [src, theme, fetch_icon]);
 
-  if (!isIconLoaded) return null;
   return (
-    <img
-      ref={iconRef}
-      src={iconSrc}
-      alt={src}
-      draggable={false}
-      {...props}
-    />
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        ...props.style,
+        color: color,
+      }}
+    >
+      {component}
+    </div>
   );
 };
 

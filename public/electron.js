@@ -1,190 +1,202 @@
-const {
-  app,
-  BrowserWindow,
-  shell,
-  ipcMain,
-  nativeTheme,
-  dialog,
-} = require("electron");
-
-const { spawn } = require("child_process");
-const pty = require("node-pty");
-const fs = require("fs");
-const axios = require("axios");
+const { app, BrowserWindow, shell, ipcMain } = require("electron");
 const path = require("path");
-const os = require("os");
 
-const { minimum_window_size } = require("./constants");
+const DEV_SERVER_URL =
+  process.env.ELECTRON_START_URL || "http://localhost:2907/#/mini";
+const PROD_ENTRY_HASH = "/mini";
+const DEV_SERVER_RETRY_MS = 1200;
+const DARWIN_TRAFFIC_LIGHT_X = 14;
+const DARWIN_TRAFFIC_LIGHT_Y = 18;
 
-let mainWindow;
-let terminalProcess = null;
-let flaskDataProcess = null;
+let mainWindow = null;
+let darwinTrafficLightSyncTimeout = null;
 
-/* { flags } */
-let quitting = false;
-/* { flags } */
+const emitWindowState = () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  mainWindow.webContents.send("window-state-event-listener", {
+    isMaximized: mainWindow.isMaximized() || mainWindow.isFullScreen(),
+  });
+};
 
-/* { create main window } ============================================================================================================== */
-const create_main_window = () => {
-  const checkServerAndLoadURL = (url) => {
-    axios
-      .get(url)
-      .then(() => {
-        mainWindow.loadURL(url);
-      })
-      .catch((error) => {
-        console.error("Server not ready, retrying...", error);
-        setTimeout(() => checkServerAndLoadURL(url), 2000);
-      });
+const syncDarwinTrafficLightPosition = () => {
+  if (
+    process.platform !== "darwin" ||
+    !mainWindow ||
+    mainWindow.isDestroyed()
+  ) {
+    return;
+  }
+
+  if (typeof mainWindow.setWindowButtonPosition !== "function") {
+    return;
+  }
+
+  if (typeof mainWindow.setWindowButtonVisibility === "function") {
+    mainWindow.setWindowButtonVisibility(true);
+  }
+  mainWindow.setWindowButtonPosition({
+    x: DARWIN_TRAFFIC_LIGHT_X,
+    y: DARWIN_TRAFFIC_LIGHT_Y,
+  });
+};
+
+const scheduleDarwinTrafficLightSync = () => {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  if (darwinTrafficLightSyncTimeout) {
+    clearTimeout(darwinTrafficLightSyncTimeout);
+  }
+
+  syncDarwinTrafficLightPosition();
+
+  darwinTrafficLightSyncTimeout = setTimeout(() => {
+    syncDarwinTrafficLightPosition();
+    setTimeout(syncDarwinTrafficLightPosition, 120);
+  }, 16);
+};
+
+const createWindowOptions = () => {
+  const baseWindowOptions = {
+    title: "Mini UI",
+    width: 1280,
+    height: 820,
+    minWidth: 980,
+    minHeight: 620,
+    icon: path.join(__dirname, "favicon.ico"),
+    autoHideMenuBar: true,
+    resizable: true,
+    maximizable: true,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
   };
-  // Initialize the browser window.
-  if (process.platform === "darwin") {
-    mainWindow = new BrowserWindow({
-      title: "PuPu",
-      icon: path.join(__dirname, "favicon.ico"),
-      width: 744,
-      height: 744,
-      minHeight: minimum_window_size.height,
-      minWidth: minimum_window_size.width,
-      webSecurity: true,
-      resizable: true,
-      maximizable: true,
-      webPreferences: {
-        preload: path.join(__dirname, "preload.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-      frame: true,
-      hasShadow: true,
-      titleBarStyle: "hidden",
-      trafficLightPosition: { x: 14, y: 13 },
-      vibrancy: "sidebar",
-      visualEffectState: "active",
-    });
-    app.dock.setIcon(path.join(__dirname, "logo_512x512.png"));
-  } else if (process.platform === "win32") {
-    mainWindow = new BrowserWindow({
-      title: "PuPu",
-      icon: path.join(__dirname, "logo_256x256.ico"),
-      width: 744,
-      height: 744,
-      minHeight: minimum_window_size.height,
-      minWidth: minimum_window_size.width,
-      webSecurity: true,
-      hasShadow: true,
-      transparent: false,
-      resizable: true,
-      maximizable: true,
-      webPreferences: {
-        preload: path.join(__dirname, "preload.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-      titleBarStyle: "hidden",
-      backgroundColor: "#181818",
-      frame: true,
-    });
-  } else {
-    mainWindow = new BrowserWindow({
-      title: "PuPu",
-      icon: path.join(__dirname, "logo_512x512.png"),
-      width: 744,
-      height: 744,
-      minHeight: minimum_window_size.height,
-      minWidth: minimum_window_size.width,
-      webSecurity: true,
-      transparent: true,
-      resizable: true,
-      maximizable: true,
-      webPreferences: {
-        preload: path.join(__dirname, "preload.js"),
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-      frame: false,
-    });
-  }
-  mainWindow.setTitle("PuPu");
 
-  // Load the index.html of the app.
-  const isDev = !app.isPackaged;
-  if (isDev) {
-    checkServerAndLoadURL("http://localhost:3000");
-    mainWindow.webContents.openDevTools();
-  } else {
-    mainWindow.loadURL(
-      `file://${path.join(__dirname, "..", "build", "index.html")}`
-    );
+  if (process.platform === "darwin") {
+    return {
+      ...baseWindowOptions,
+      frame: true,
+      titleBarStyle: "hidden",
+      trafficLightPosition: {
+        x: DARWIN_TRAFFIC_LIGHT_X,
+        y: DARWIN_TRAFFIC_LIGHT_Y,
+      },
+      backgroundColor: "#121212",
+      hasShadow: true,
+    };
   }
-  mainWindow.webContents.setWindowOpenHandler(() => {
+
+  if (process.platform === "win32") {
+    return {
+      ...baseWindowOptions,
+      frame: true,
+      titleBarStyle: "hidden",
+      hasShadow: true,
+      backgroundColor: "#121212",
+    };
+  }
+
+  return {
+    ...baseWindowOptions,
+    frame: true,
+    titleBarStyle: "hidden",
+    backgroundColor: "#121212",
+  };
+};
+
+const loadDevUrlWhenReady = async () => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
+  try {
+    const response = await fetch(DEV_SERVER_URL, { method: "HEAD" });
+    if (response.ok || response.status < 500) {
+      await mainWindow.loadURL(DEV_SERVER_URL);
+      return;
+    }
+  } catch (error) {
+    // Dev server not ready yet. Retry until CRA is available.
+  }
+
+  setTimeout(loadDevUrlWhenReady, DEV_SERVER_RETRY_MS);
+};
+
+const createMainWindow = () => {
+  mainWindow = new BrowserWindow(createWindowOptions());
+
+  if (app.isPackaged) {
+    mainWindow.loadFile(path.join(__dirname, "..", "build", "index.html"), {
+      hash: PROD_ENTRY_HASH,
+    });
+  } else {
+    loadDevUrlWhenReady();
+  }
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (/^https?:/i.test(url)) {
+      shell.openExternal(url);
+    }
     return { action: "deny" };
   });
-};
-/* { create main window } ============================================================================================================== */
 
-app.whenReady().then(() => {
-  create_main_window();
-  start_terminal();
-  start_flask_data_server();
-  register_window_state_event_listeners();
-  register_will_navigate_event_listener();
-});
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
-app.on("activate", () => {
-  if (mainWindow === null) {
-    createWindow();
-  } else {
-    mainWindow.show();
-  }
-});
-app.on("before-quit", () => {
-  quitting = true;
-  stop_terminal();
-  stop_flask_data_server();
-});
-
-/* { window state event listener } ===================================================================================================== */
-const register_window_state_event_listeners = () => {
-  mainWindow.on("maximize", () => {
-    mainWindow.webContents.send("window-state-event-listener", {
-      isMaximized: true,
-    });
-  });
-  mainWindow.on("unmaximize", () => {
-    if (process.platform === "win32") {
-      mainWindow.setBounds({
-        width: mainWindow.getBounds().width,
-        height: mainWindow.getBounds().height,
-      });
-    }
-    mainWindow.webContents.send("window-state-event-listener", {
-      isMaximized: false,
-    });
-  });
-  mainWindow.on("enter-full-screen", () => {
-    mainWindow.webContents.send("window-state-event-listener", {
-      isMaximized: true,
-    });
-  });
-  mainWindow.on("leave-full-screen", () => {
-    mainWindow.webContents.send("window-state-event-listener", {
-      isMaximized: false,
-    });
-  });
-  mainWindow.on("close", (event) => {
-    if (process.platform === "darwin" && !quitting) {
+  mainWindow.webContents.on("will-navigate", (event, url) => {
+    const isLocalAppUrl =
+      url.startsWith("file://") || url.startsWith("http://localhost:2907");
+    if (!isLocalAppUrl) {
       event.preventDefault();
-      mainWindow.hide();
-    } else {
-      mainWindow = null;
+      shell.openExternal(url);
     }
   });
+
+  if (process.platform === "darwin") {
+    mainWindow.webContents.on(
+      "did-finish-load",
+      scheduleDarwinTrafficLightSync,
+    );
+    mainWindow.on("show", scheduleDarwinTrafficLightSync);
+    mainWindow.on("focus", scheduleDarwinTrafficLightSync);
+    mainWindow.on("resize", scheduleDarwinTrafficLightSync);
+    mainWindow.on("leave-full-screen", scheduleDarwinTrafficLightSync);
+  }
+
+  mainWindow.on("maximize", emitWindowState);
+  mainWindow.on("unmaximize", emitWindowState);
+  mainWindow.on("enter-full-screen", emitWindowState);
+  mainWindow.on("leave-full-screen", emitWindowState);
+  mainWindow.once("ready-to-show", () => {
+    emitWindowState();
+    scheduleDarwinTrafficLightSync();
+  });
+
+  mainWindow.on("closed", () => {
+    if (darwinTrafficLightSyncTimeout) {
+      clearTimeout(darwinTrafficLightSyncTimeout);
+      darwinTrafficLightSyncTimeout = null;
+    }
+    mainWindow = null;
+  });
 };
-ipcMain.on("window-state-event-handler", (event, action) => {
+
+ipcMain.on("theme-set-background-color", (_event, color) => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+  if (typeof color === "string" && /^#[0-9a-fA-F]{6,8}$/.test(color)) {
+    mainWindow.setBackgroundColor(color);
+  }
+});
+
+ipcMain.on("window-state-event-handler", (_event, action) => {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
+  }
+
   switch (action) {
     case "close":
       mainWindow.close();
@@ -193,194 +205,46 @@ ipcMain.on("window-state-event-handler", (event, action) => {
       mainWindow.minimize();
       break;
     case "maximize":
-      if (process.platform === "win32") {
-        if (mainWindow.isMaximized()) {
-          mainWindow.unmaximize();
-        } else {
-          mainWindow.maximize();
-        }
-      } else if (process.platform === "linux") {
-        if (mainWindow.isMaximized()) {
-          mainWindow.restore();
-        } else {
-          mainWindow.maximize();
-        }
-      } else if (process.platform === "darwin") {
-        if (mainWindow.isFullScreen()) {
-          mainWindow.setFullScreen(false);
-        } else {
-          mainWindow.setFullScreen(true);
-        }
+      if (process.platform === "darwin") {
+        mainWindow.setFullScreen(!mainWindow.isFullScreen());
+      } else if (mainWindow.isMaximized()) {
+        mainWindow.unmaximize();
+      } else {
+        mainWindow.maximize();
       }
       break;
     default:
       break;
   }
 });
-ipcMain.on("theme-status-handler", (event, theme) => {
-  nativeTheme.themeSource = theme;
-});
-/* { window state event listener } ===================================================================================================== */
 
-/* { 拦截 will-navigate 事件 } */
-const register_will_navigate_event_listener = () => {
-  mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (!url.startsWith("file://")) {
-      // 防止 Electron 内部页面也被拦截
-      event.preventDefault();
-      shell.openExternal(url);
+app.whenReady().then(() => {
+  if (process.platform === "darwin" && app.dock) {
+    const dockIconPath = path.join(__dirname, "logo512.png");
+    try {
+      const { nativeImage } = require("electron");
+      const icon = nativeImage.createFromPath(dockIconPath);
+      if (!icon.isEmpty()) {
+        app.dock.setIcon(icon);
+      }
+    } catch (_) {
+      // Silently ignore if icon cannot be loaded.
+    }
+  }
+
+  createMainWindow();
+
+  app.on("activate", () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createMainWindow();
+    } else if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.show();
     }
   });
-};
+});
 
-/* { node-pty } ======================================================================================================================== */
-const start_terminal = () => {
-  if (!terminalProcess) {
-    // Set shell based on platform
-    const shell =
-      os.platform() === "win32"
-        ? "powershell.exe"
-        : process.env.SHELL || "bash";
-    const args = os.platform() === "win32" ? [] : ["-l"]; // -l for login shell
-
-    try {
-      // Create terminal with proper encoding and environment
-      terminalProcess = pty.spawn(shell, args, {
-        name: "xterm-256color",
-        cols: 80,
-        rows: 30,
-        cwd: os.homedir(), // Use homedir() instead of HOME
-        env: {
-          ...process.env,
-          TERM: "xterm-256color",
-        },
-        encoding: "utf8", // Ensure proper encoding
-      });
-
-      console.log(`Terminal process created with PID: ${terminalProcess.pid}`);
-
-      // Setup data handling immediately
-      terminalProcess.onData((data) => {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send("terminal-event-listener", data);
-        }
-      });
-
-      terminalProcess.onExit(({ exitCode, signal }) => {
-        console.log(
-          `Terminal process exited with code: ${exitCode}, signal: ${signal}`
-        );
-        terminalProcess = null;
-        // Recreate terminal after a short delay
-        setTimeout(start_terminal, 1000);
-      });
-    } catch (error) {
-      console.error("Failed to create terminal process:", error);
-    }
-  }
-};
-const stop_terminal = () => {
-  if (terminalProcess) {
-    try {
-      terminalProcess.kill();
-    } catch (error) {
-      console.error("Error killing terminal process:", error);
-    }
-  }
-};
-// Handle terminal resize events
-ipcMain.on("terminal-resize", (event, { cols, rows }) => {
-  if (terminalProcess) {
-    try {
-      terminalProcess.resize(cols, rows);
-      console.log(`Terminal resized to ${cols}x${rows}`);
-    } catch (error) {
-      console.error("Error resizing terminal:", error);
-    }
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    app.quit();
   }
 });
-// Handle input from the frontend
-ipcMain.on("terminal-event-handler", (event, input) => {
-  if (terminalProcess) {
-    try {
-      terminalProcess.write(input);
-    } catch (error) {
-      console.error("Error writing to terminal:", error);
-      // Try to recreate terminal if write fails
-      start_terminal();
-    }
-  } else {
-    // If no terminal process exists, create one
-    start_terminal();
-  }
-});
-/* { node-pty } ======================================================================================================================== */
-
-/* { flask } =========================================================================================================================== */
-const start_flask_data_server = () => {
-  const isDev = !app.isPackaged;
-
-  const scriptPath = isDev
-    ? path.join(__dirname, "child_processes", "data_process.py")
-    : path.join(process.resourcesPath, "child_processes", "data_process.py");
-
-  let pythonPath = "python3";
-  if (process.platform === "win32") {
-    pythonPath = isDev
-      ? path.join(__dirname, "venv", "Scripts", "python.exe")
-      : path.join(process.resourcesPath, "venv", "Scripts", "python.exe");
-  } else {
-    pythonPath = isDev
-      ? path.join(__dirname, "venv", "bin", "python3")
-      : path.join(process.resourcesPath, "venv", "bin", "python3");
-  }
-
-  flaskDataProcess = spawn(pythonPath, [scriptPath]);
-};
-const stop_flask_data_server = () => {
-  if (flaskDataProcess) {
-    flaskDataProcess.kill();
-    flaskDataProcess = null;
-  }
-};
-/* { flask } =========================================================================================================================== */
-
-/* { local data related } ============================================================================================================== */
-ipcMain.handle("select-file", async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
-    properties: ["openFile"],
-    filters: [
-      {
-        name: "Images & PDF",
-        extensions: ["jpg", "jpeg", "png", "webp", "gif", "bmp", "pdf"],
-      },
-    ],
-  });
-  return result;
-});
-ipcMain.handle("read-file", async (event, filePath) => {
-  const ext = path.extname(filePath).toLowerCase();
-  const mimeType = (() => {
-    switch (ext) {
-      case ".jpg":
-      case ".jpeg":
-        return "image/jpeg";
-      case ".png":
-        return "image/png";
-      case ".gif":
-        return "image/gif";
-      case ".webp":
-        return "image/webp";
-      case ".bmp":
-        return "image/bmp";
-      case ".pdf":
-        return "application/pdf";
-      default:
-        return "application/octet-stream";
-    }
-  })();
-
-  const fileData = fs.readFileSync(filePath, { encoding: "base64" });
-  return `data:${mimeType};base64,${fileData}`;
-});
-/* { local data related } ============================================================================================================== */

@@ -1,29 +1,27 @@
-import { HashRouter } from "react-router-dom";
-
+/* { Containers } -------------------------------------------------------------------------------------------------------------- */
 import ConfigContainer from "./CONTAINERs/config/container";
-import StatusContainer from "./CONTAINERs/status/container";
-import RequestContainer from "./CONTAINERs/requests/container";
-import DataContainer from "./CONTAINERs/data/container";
+import {
+  Router,
+  Routes,
+  Route,
+} from "./BUILTIN_COMPONENTs/mini_react/mini_router";
+/* { Containers } -------------------------------------------------------------------------------------------------------------- */
 
-import Chat_Page from "./PAGEs/chat_page/chat_page";
-// import GraphDemo from "./DEMOs/node_graph/graph_demo";
-// import XTerm from "./DEMOs/x_term/x_term";
+/* { Demos ( remove during production ) } -------------------------------------------------------------------------------------- */
+import DemoPage from "./PAGEs/demo/demo";
+/* { Demos ( remove during production ) } -------------------------------------------------------------------------------------- */
 
 const App = () => {
   return (
-    <div>
-      <HashRouter>
-        <ConfigContainer>
-          <StatusContainer>
-            <RequestContainer>
-              <DataContainer>
-                <Chat_Page />
-              </DataContainer>
-            </RequestContainer>
-          </StatusContainer>
-        </ConfigContainer>
-      </HashRouter>
-    </div>
+    <ConfigContainer>
+      <Router>
+        <Routes>
+          {/* { Demos ( remove during production ) } --------------------------------------------------------------------- */}
+          <Route path="/mini" element={<DemoPage />} />
+          {/* { Demos ( remove during production ) } --------------------------------------------------------------------- */}
+        </Routes>
+      </Router>
+    </ConfigContainer>
   );
 };
 
