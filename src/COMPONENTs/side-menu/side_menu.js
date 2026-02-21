@@ -1,10 +1,27 @@
-import { useContext } from "react";
+import { useContext, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
+import { SettingsModal } from "../settings/settings_modal";
 
+const getRuntimePlatform = () => {
+  if (typeof window === "undefined") {
+    return "web";
+  }
+  if (window.osInfo && typeof window.osInfo.platform === "string") {
+    return window.osInfo.platform;
+  }
+  if (window.runtime && typeof window.runtime.platform === "string") {
+    return window.runtime.platform;
+  }
+  return "web";
+};
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const platform = getRuntimePlatform();
+  const isDarwin = platform === "darwin";
+
   return (
     <div
       style={{
@@ -29,8 +46,8 @@ const SideMenu = () => {
         style={{
           position: "absolute",
           top: 25,
-          transform: "translateY(-50%)",
-          right: 10,
+          transform: "translate(-50%, -50%)",
+          left: isDarwin ? 90 : 14,
           fontSize: 14,
           marginLeft: 12,
           WebkitAppRegion: "no-drag",
@@ -53,6 +70,13 @@ const SideMenu = () => {
           fontSize: 14,
           WebkitAppRegion: "no-drag",
         }}
+        onClick={() => setSettingsOpen(true)}
+      />
+
+      {/* Settings Modal */}
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
     </div>
   );
