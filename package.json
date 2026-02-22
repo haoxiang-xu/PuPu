@@ -77,6 +77,15 @@
       "public/icon.icns",
       "public/logo512.png"
     ],
+    "extraResources": [
+      {
+        "from": "miso_runtime",
+        "to": "miso_runtime",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
     "mac": {
       "target": "dmg",
       "icon": "public/icon.icns"

@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { AppearanceSettings } from "./appearance";
+import { LocalStorageSettings } from "./local_storage";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Settings pages configuration                                                                                               */
@@ -14,6 +15,12 @@ const SETTINGS_PAGES = [
     icon: "color",
     label: "Appearance",
     component: AppearanceSettings,
+  },
+  {
+    key: "local_storage",
+    icon: "data",
+    label: "Local Storage",
+    component: LocalStorageSettings,
   },
   // Future pages can be added here:
   // { key: "general", icon: "settings", label: "General", component: GeneralSettings },
@@ -42,7 +49,7 @@ export const SettingsModal = ({ open, onClose }) => {
         height: 600,
         maxHeight: "80vh",
         padding: 0,
-        backgroundColor: isDark ? "#141414" : "#f0f0f0",
+        backgroundColor: isDark ? "#141414" : "#ffffff",
         color: isDark ? "#fff" : "#222",
         display: "flex",
         overflow: "hidden",
@@ -154,6 +161,7 @@ export const SettingsModal = ({ open, onClose }) => {
 
         {/* Page content */}
         <div
+          className="scrollable"
           style={{
             flex: 1,
             overflowY: "auto",

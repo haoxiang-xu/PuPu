@@ -62,6 +62,7 @@ const ChatInput = ({
   value,
   onChange,
   onSend,
+  sendDisabled = false,
   placeholder = "Message Mini UI Chat...",
   disclaimer,
   showAttachments = true,
@@ -90,12 +91,12 @@ const ChatInput = ({
     (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        if (onSend) {
+        if (!sendDisabled && onSend) {
           onSend();
         }
       }
     },
-    [onSend],
+    [onSend, sendDisabled],
   );
 
   const handleClear = () => {
@@ -160,7 +161,13 @@ const ChatInput = ({
               <Button
                 prefix_icon="arrow_up"
                 onClick={onSend}
-                style={{ color, fontSize: 14, borderRadius: 7 }}
+                disabled={sendDisabled}
+                style={{
+                  color,
+                  fontSize: 14,
+                  borderRadius: 7,
+                  opacity: sendDisabled ? 0.35 : 1,
+                }}
               />
             </>
           }

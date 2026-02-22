@@ -23,19 +23,62 @@ import { ConfigContext } from "./context";
 import available_themes from "../../BUILTIN_COMPONENTs/theme/theme_manifest";
 /* { Data } ------------------------------------------------------------------------------------------------------------------ */
 
+/* { Helpers } ----------------------------------------------------------------------------------------------------------- */
+const SETTINGS_STORAGE_KEY = "settings";
+
+const loadSettingsStorage = () => {
+  try {
+    const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+};
+
+const saveSettingsStorage = (path, data) => {
+  try {
+    const root = loadSettingsStorage() || {};
+    const section = root[path] || {};
+    root[path] = { ...section, ...data };
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+  } catch {}
+};
+
+/* remove legacy top-level keys that were migrated into "settings" */
+const migrateSettingsStorage = () => {
+  try {
+    localStorage.removeItem("appearance");
+  } catch {}
+};
+migrateSettingsStorage();
+/* { Helpers } ----------------------------------------------------------------------------------------------------------- */
+
 const ConfigContainer = ({ children }) => {
   /* { STYLE } =========================================================================================================== */
   /* { global theme } ---------------------------------------------------------------------------------------------------- */
   const system_theme = useSystemTheme();
-  const [syncWithSystemTheme, setSyncWithSystemTheme] = useState(true);
+
+  /* load persisted appearance on first render */
+  const _persisted = loadSettingsStorage();
+  const _persistedThemeMode = _persisted?.appearance?.theme_mode;
+
+  const [syncWithSystemTheme, setSyncWithSystemTheme] = useState(
+    _persistedThemeMode === "sync_with_browser" || _persistedThemeMode == null,
+  );
   const [theme, setTheme] = useState(null);
   const [onThemeMode, setOnThemeMode] = useState(
-    system_theme === "dark_mode" ? "dark_mode" : "light_mode",
+    _persistedThemeMode && _persistedThemeMode !== "sync_with_browser"
+      ? _persistedThemeMode
+      : system_theme === "dark_mode"
+        ? "dark_mode"
+        : "light_mode",
   );
   const [availableThemes, setAvailableThemes] = useState([]);
   const [selectedTheme, setSelectedTheme] = useState(null);
   const initialize_theme = useCallback(() => {
-    setOnThemeMode(system_theme);
+    /* only reset to system theme if no persisted preference */
+    if (!_persistedThemeMode) {
+      setOnThemeMode(system_theme);
+    }
     setAvailableThemes(Object.keys(available_themes));
     setSelectedTheme(Object.keys(available_themes)[0]);
   }, [system_theme]);
@@ -61,6 +104,12 @@ const ConfigContainer = ({ children }) => {
       setOnThemeMode(system_theme);
     }
   }, [syncWithSystemTheme, system_theme]);
+  /* persist appearance preference to localStorage */
+  useEffect(() => {
+    saveSettingsStorage("appearance", {
+      theme_mode: syncWithSystemTheme ? "sync_with_browser" : onThemeMode,
+    });
+  }, [onThemeMode, syncWithSystemTheme]);
   /* { global theme } ---------------------------------------------------------------------------------------------------- */
   /* { STYLE } =========================================================================================================== */
 

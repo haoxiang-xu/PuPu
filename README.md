@@ -80,7 +80,14 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
   - windows might require extra steps to install the node-gyp dependencies, you can follow the instructions [here](./docs/setup_guide/node_gyp_setup_guide.md).
 
-- Create python virtual environment: <span style="opacity: 0.32">To run the backend python child process, you need to create a python virtual environment by running the following command: </span>`python -m venv ./public/child_processes/venv` <span style="opacity: 0.32"> and install the dependencies by running the following command:</span> `pip install -r requirements.txt`
+- Create python virtual environment for Miso sidecar:
+  <span style="opacity: 0.32">To run the Flask backend child process used by Electron, create a virtual environment and install the server dependencies:</span>
+
+`python3 -m venv ./.venv`
+
+`source ./.venv/bin/activate` <span style="opacity: 0.32">(Windows: `.\\.venv\\Scripts\\activate`)</span>
+
+`pip install -r ./miso_runtime/server/requirements.txt`
 
 
 
