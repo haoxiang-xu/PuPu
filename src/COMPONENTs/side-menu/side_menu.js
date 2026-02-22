@@ -32,12 +32,18 @@ const getRuntimePlatform = () => {
 
 export const sideMenuChatTreeAPI = {
   getStore: () => getChatsStore(),
-  createChat: (params = {}) => createChatInSelectedContext(params, { source: "external-ui" }),
-  createFolder: (params = {}) => createFolder(params, { source: "external-ui" }),
-  renameNode: (params = {}) => renameTreeNode(params, { source: "external-ui" }),
-  deleteNodeCascade: (params = {}) => deleteTreeNodeCascade(params, { source: "external-ui" }),
-  selectNode: (params = {}) => selectTreeNode(params, { source: "external-ui" }),
-  applyReorder: (params = {}) => applyExplorerReorder(params, { source: "external-ui" }),
+  createChat: (params = {}) =>
+    createChatInSelectedContext(params, { source: "external-ui" }),
+  createFolder: (params = {}) =>
+    createFolder(params, { source: "external-ui" }),
+  renameNode: (params = {}) =>
+    renameTreeNode(params, { source: "external-ui" }),
+  deleteNodeCascade: (params = {}) =>
+    deleteTreeNodeCascade(params, { source: "external-ui" }),
+  selectNode: (params = {}) =>
+    selectTreeNode(params, { source: "external-ui" }),
+  applyReorder: (params = {}) =>
+    applyExplorerReorder(params, { source: "external-ui" }),
 };
 
 const SideMenu = () => {
@@ -106,11 +112,23 @@ const SideMenu = () => {
   }, []);
 
   const explorerModel = useMemo(() => {
-    return buildExplorerFromTree(chatStore?.tree || {}, chatStore?.chatsById || {}, {
-      selectedNodeId,
-      onSelect: handleSelectNode,
-    });
+    return buildExplorerFromTree(
+      chatStore?.tree || {},
+      chatStore?.chatsById || {},
+      {
+        selectedNodeId,
+        onSelect: handleSelectNode,
+      },
+    );
   }, [chatStore, handleSelectNode, selectedNodeId]);
+
+  const handleNewChat = useCallback(() => {
+    const result = createChatInSelectedContext(
+      { parentFolderId: null },
+      { source: "side-menu" },
+    );
+    setChatStore(result.store);
+  }, []);
 
   return (
     <div
@@ -151,6 +169,19 @@ const SideMenu = () => {
         }}
       />
 
+      <Button
+        prefix_icon="chat_new"
+        style={{
+          position: "absolute",
+          top: 25,
+          transform: "translateY(-50%)",
+          left: isDarwin ? 120 : 44,
+          fontSize: 14,
+          WebkitAppRegion: "no-drag",
+        }}
+        onClick={handleNewChat}
+      />
+
       <div
         style={{
           position: "absolute",
@@ -163,6 +194,21 @@ const SideMenu = () => {
           gap: 0,
         }}
       >
+        <div
+          style={{
+            padding: "4px 4px 6px",
+            fontSize: 11,
+            fontFamily: "Jost",
+            textTransform: "uppercase",
+            letterSpacing: "1.5px",
+            color: theme?.color || "rgba(255,255,255,0.9)",
+            opacity: 0.35,
+            userSelect: "none",
+            flexShrink: 0,
+          }}
+        >
+          Chats
+        </div>
         <div
           style={{
             flex: 1,

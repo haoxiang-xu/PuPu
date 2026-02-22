@@ -40,20 +40,6 @@ const AttachPanel = ({
           style={{ color, fontSize: 14 }}
         />
       )}
-      {onAttachGlobal && (
-        <Button
-          prefix_icon="global"
-          onClick={onAttachGlobal}
-          style={{ color, fontSize: 14 }}
-        />
-      )}
-      {onAttachFile && (
-        <Button
-          prefix_icon="add"
-          onClick={onAttachFile}
-          style={{ color, fontSize: 14 }}
-        />
-      )}
     </div>
   );
 };
