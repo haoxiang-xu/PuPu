@@ -124,7 +124,8 @@ const SideMenu = () => {
 
   const handleNewChat = useCallback(() => {
     const activeChat = chatStore?.chatsById?.[chatStore?.activeChatId];
-    const hasMessages = Array.isArray(activeChat?.messages) && activeChat.messages.length > 0;
+    const hasMessages =
+      Array.isArray(activeChat?.messages) && activeChat.messages.length > 0;
     if (!hasMessages) return;
 
     const result = createChatInSelectedContext(
