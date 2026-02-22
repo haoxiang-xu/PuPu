@@ -1,6 +1,7 @@
 import { useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Select from "../../BUILTIN_COMPONENTs/select/select";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  SettingsRow — label + description + children                                                                               */
@@ -54,7 +55,7 @@ export const SettingsRow = ({ label, description, children }) => {
 /*  SettingsSection — title + grouped rows                                                                                     */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-export const SettingsSection = ({ title, children }) => {
+export const SettingsSection = ({ title, icon, children }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
@@ -63,16 +64,34 @@ export const SettingsSection = ({ title, children }) => {
       {title && (
         <div
           style={{
-            fontSize: 11,
-            fontFamily: theme?.font?.fontFamily || "inherit",
-            textTransform: "uppercase",
-            letterSpacing: "1.5px",
-            color: isDark ? "#fff" : "#222",
-            opacity: 0.35,
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
             padding: "12px 0 4px",
           }}
         >
-          {title}
+          {icon && (
+            <Icon
+              src={icon}
+              style={{
+                width: 20,
+                height: 20,
+                opacity: 0.75,
+              }}
+            />
+          )}
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily: theme?.font?.fontFamily || "inherit",
+              textTransform: "uppercase",
+              letterSpacing: "1.5px",
+              color: isDark ? "#fff" : "#222",
+              opacity: 0.35,
+            }}
+          >
+            {title}
+          </span>
         </div>
       )}
       <div

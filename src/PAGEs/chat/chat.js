@@ -7,20 +7,42 @@ import {
   setChatMessages,
   setChatModel,
   setChatThreadId,
+  subscribeChatsStore,
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 
 const DEFAULT_DISCLAIMER = "AI can make mistakes, please double-check critical information.";
 
+const normalizeModelCatalogPayload = (payload) => {
+  const providers = payload?.providers && typeof payload.providers === "object" ? payload.providers : {};
+  const normalizeList = (list) =>
+    [...new Set((Array.isArray(list) ? list : []).map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b));
+
+  return {
+    activeModel:
+      typeof payload?.activeModel === "string" && payload.activeModel.trim()
+        ? payload.activeModel.trim()
+        : null,
+    providers: {
+      ollama: normalizeList(providers.ollama),
+      openai: normalizeList(providers.openai),
+      anthropic: normalizeList(providers.anthropic),
+    },
+  };
+};
+
 const ChatInterface = () => {
   const { theme, onFragment } = useContext(ConfigContext);
-  const [bootstrappedChat] = useState(() => bootstrapChatsStore());
-  const chatIdRef = useRef(bootstrappedChat.id);
 
-  const [messages, setMessages] = useState(() => bootstrappedChat.messages || []);
-  const [inputValue, setInputValue] = useState(() => bootstrappedChat.draft?.text || "");
+  const [bootstrapped] = useState(() => bootstrapChatsStore());
+  const initialChat = bootstrapped.activeChat;
+
+  const [activeChatId, setActiveChatId] = useState(initialChat.id);
+  const [messages, setMessages] = useState(() => initialChat.messages || []);
+  const [inputValue, setInputValue] = useState(() => initialChat.draft?.text || "");
   const [draftAttachments, setDraftAttachments] = useState(
-    () => bootstrappedChat.draft?.attachments || [],
+    () => initialChat.draft?.attachments || [],
   );
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamError, setStreamError] = useState("");
@@ -30,15 +52,18 @@ const ChatInterface = () => {
     url: null,
     reason: "",
   });
+  const [modelCatalog, setModelCatalog] = useState(() => normalizeModelCatalogPayload(null));
 
+  const activeChatIdRef = useRef(initialChat.id);
   const streamHandleRef = useRef(null);
   const messagePersistTimerRef = useRef(null);
-  const threadIdRef = useRef(bootstrappedChat.threadId || `thread-${Date.now()}`);
+  const threadIdRef = useRef(initialChat.threadId || `thread-${Date.now()}`);
   const modelIdRef = useRef(
-    typeof bootstrappedChat.model?.id === "string" && bootstrappedChat.model.id.trim()
-      ? bootstrappedChat.model.id
+    typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
+      ? initialChat.model.id
       : "miso-unset",
   );
+  const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
 
   const refreshMisoStatus = useCallback(async () => {
     if (!window.misoAPI || typeof window.misoAPI.getStatus !== "function") {
@@ -77,6 +102,29 @@ const ChatInterface = () => {
     }
   }, []);
 
+  const refreshModelCatalog = useCallback(async () => {
+    if (!window.misoAPI || typeof window.misoAPI.getModelCatalog !== "function") {
+      return;
+    }
+
+    try {
+      const payload = await window.misoAPI.getModelCatalog();
+      const normalized = normalizeModelCatalogPayload(payload);
+      setModelCatalog(normalized);
+
+      if ((modelIdRef.current === "miso-unset" || !modelIdRef.current) && normalized.activeModel) {
+        const chatId = activeChatIdRef.current;
+        modelIdRef.current = normalized.activeModel;
+        setSelectedModelId(normalized.activeModel);
+        if (chatId) {
+          setChatModel(chatId, { id: normalized.activeModel }, { source: "chat-page" });
+        }
+      }
+    } catch (_error) {
+      // ignore transient catalog fetch failures
+    }
+  }, []);
+
   useEffect(() => {
     refreshMisoStatus();
 
@@ -88,6 +136,57 @@ const ChatInterface = () => {
       clearInterval(timer);
     };
   }, [refreshMisoStatus]);
+
+  useEffect(() => {
+    refreshModelCatalog();
+
+    const timer = setInterval(() => {
+      refreshModelCatalog();
+    }, 10000);
+
+    return () => {
+      clearInterval(timer);
+    };
+  }, [refreshModelCatalog]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeChatsStore((nextStore, event = {}) => {
+      if (event.source === "chat-page") {
+        return;
+      }
+
+      const nextActiveId = nextStore?.activeChatId;
+      const nextActiveChat = nextActiveId ? nextStore?.chatsById?.[nextActiveId] : null;
+
+      if (!nextActiveId || !nextActiveChat || nextActiveId === activeChatIdRef.current) {
+        return;
+      }
+
+      if (streamHandleRef.current && typeof streamHandleRef.current.cancel === "function") {
+        streamHandleRef.current.cancel();
+      }
+      streamHandleRef.current = null;
+
+      activeChatIdRef.current = nextActiveId;
+      setActiveChatId(nextActiveId);
+      setIsStreaming(false);
+      setStreamError("");
+      setMessages(nextActiveChat.messages || []);
+      setInputValue(nextActiveChat.draft?.text || "");
+      setDraftAttachments(nextActiveChat.draft?.attachments || []);
+
+      threadIdRef.current = nextActiveChat.threadId || `thread-${Date.now()}`;
+      modelIdRef.current =
+        typeof nextActiveChat.model?.id === "string" && nextActiveChat.model.id.trim()
+          ? nextActiveChat.model.id
+          : "miso-unset";
+      setSelectedModelId(modelIdRef.current);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -102,13 +201,27 @@ const ChatInterface = () => {
   }, []);
 
   useEffect(() => {
-    updateChatDraft(chatIdRef.current, {
-      text: inputValue,
-      attachments: draftAttachments,
-    });
+    const chatId = activeChatIdRef.current;
+    if (!chatId) {
+      return;
+    }
+
+    updateChatDraft(
+      chatId,
+      {
+        text: inputValue,
+        attachments: draftAttachments,
+      },
+      { source: "chat-page" },
+    );
   }, [inputValue, draftAttachments]);
 
   useEffect(() => {
+    const chatId = activeChatIdRef.current;
+    if (!chatId) {
+      return;
+    }
+
     if (messagePersistTimerRef.current) {
       clearTimeout(messagePersistTimerRef.current);
       messagePersistTimerRef.current = null;
@@ -117,7 +230,7 @@ const ChatInterface = () => {
     const delay = isStreaming ? 250 : 0;
     messagePersistTimerRef.current = setTimeout(() => {
       messagePersistTimerRef.current = null;
-      setChatMessages(chatIdRef.current, messages);
+      setChatMessages(chatId, messages, { source: "chat-page" });
     }, delay);
 
     return () => {
@@ -129,13 +242,33 @@ const ChatInterface = () => {
   }, [messages, isStreaming]);
 
   useEffect(() => {
-    setChatThreadId(chatIdRef.current, threadIdRef.current);
-    setChatModel(chatIdRef.current, { id: modelIdRef.current });
+    const chatId = activeChatIdRef.current;
+    if (!chatId) {
+      return;
+    }
+
+    setChatThreadId(chatId, threadIdRef.current, { source: "chat-page" });
+    setChatModel(chatId, { id: modelIdRef.current }, { source: "chat-page" });
   }, []);
 
+  const handleSelectModel = useCallback(
+    (modelId) => {
+      const chatId = activeChatIdRef.current;
+      if (!chatId || !modelId || isStreaming) {
+        return;
+      }
+
+      modelIdRef.current = modelId;
+      setSelectedModelId(modelId);
+      setChatModel(chatId, { id: modelId }, { source: "chat-page" });
+    },
+    [isStreaming],
+  );
+
   const sendMessage = useCallback(() => {
+    const chatId = activeChatIdRef.current;
     const text = inputValue.trim();
-    if (!text || isStreaming) {
+    if (!chatId || !text || isStreaming) {
       return;
     }
 
@@ -200,17 +333,21 @@ const ChatInterface = () => {
         threadId: threadIdRef.current,
         message: text,
         history: historyForModel,
+        options: {
+          modelId: modelIdRef.current,
+        },
       },
       {
         onMeta: (meta) => {
           if (meta && typeof meta.thread_id === "string" && meta.thread_id.trim()) {
             threadIdRef.current = meta.thread_id;
-            setChatThreadId(chatIdRef.current, meta.thread_id);
+            setChatThreadId(chatId, meta.thread_id, { source: "chat-page" });
           }
 
           if (meta && typeof meta.model === "string" && meta.model.trim()) {
             modelIdRef.current = meta.model;
-            setChatModel(chatIdRef.current, { id: meta.model });
+            setSelectedModelId(meta.model);
+            setChatModel(chatId, { id: meta.model }, { source: "chat-page" });
           }
         },
         onToken: (delta) => {
@@ -370,6 +507,7 @@ const ChatInterface = () => {
 
   return (
     <div
+      data-chat-id={activeChatId}
       style={{
         position: "absolute",
         top: 0,
@@ -405,8 +543,11 @@ const ChatInterface = () => {
         onAttachFile={handleAttachFile}
         onAttachLink={handleAttachLink}
         onAttachGlobal={handleAttachGlobal}
+        modelCatalog={modelCatalog}
+        selectedModelId={selectedModelId}
+        onSelectModel={handleSelectModel}
+        modelSelectDisabled={isStreaming}
       />
-
     </div>
   );
 };

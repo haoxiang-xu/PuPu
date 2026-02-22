@@ -1,8 +1,21 @@
-import { useContext, useState, useEffect } from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
+import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
+import {
+  applyExplorerReorder,
+  bootstrapChatsStore,
+  buildExplorerFromTree,
+  createChatInSelectedContext,
+  createFolder,
+  deleteTreeNodeCascade,
+  getChatsStore,
+  renameTreeNode,
+  selectTreeNode,
+  subscribeChatsStore,
+} from "../../SERVICEs/chat_storage";
 
 const getRuntimePlatform = () => {
   if (typeof window === "undefined") {
@@ -16,29 +29,88 @@ const getRuntimePlatform = () => {
   }
   return "web";
 };
+
+export const sideMenuChatTreeAPI = {
+  getStore: () => getChatsStore(),
+  createChat: (params = {}) => createChatInSelectedContext(params, { source: "external-ui" }),
+  createFolder: (params = {}) => createFolder(params, { source: "external-ui" }),
+  renameNode: (params = {}) => renameTreeNode(params, { source: "external-ui" }),
+  deleteNodeCascade: (params = {}) => deleteTreeNodeCascade(params, { source: "external-ui" }),
+  selectNode: (params = {}) => selectTreeNode(params, { source: "external-ui" }),
+  applyReorder: (params = {}) => applyExplorerReorder(params, { source: "external-ui" }),
+};
+
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200,
   );
+  const [chatStore, setChatStore] = useState(() => bootstrapChatsStore().store);
+
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
 
-  /* ── track window width ───────────────────────────── */
+  const selectedNodeId = chatStore?.tree?.selectedNodeId || null;
+
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  /* ── auto-close side menu when window is too small ── */
   useEffect(() => {
     if (windowWidth < 1000 && onFragment === "side_menu") {
-      // Don't auto-close, just let it overlay
       console.log("Window width < 1000, side menu in overlay mode");
     }
   }, [windowWidth, onFragment]);
+
+  useEffect(() => {
+    setChatStore(getChatsStore());
+    const unsubscribe = subscribeChatsStore((nextStore) => {
+      setChatStore(nextStore);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return () => {};
+    }
+
+    window.pupuChatTreeAPI = sideMenuChatTreeAPI;
+    return () => {
+      if (window.pupuChatTreeAPI === sideMenuChatTreeAPI) {
+        delete window.pupuChatTreeAPI;
+      }
+    };
+  }, []);
+
+  const handleSelectNode = useCallback((nodeId) => {
+    const next = selectTreeNode({ nodeId }, { source: "side-menu" });
+    setChatStore(next);
+  }, []);
+
+  const handleReorder = useCallback((newData, newRoot) => {
+    const next = applyExplorerReorder(
+      {
+        data: newData,
+        root: newRoot,
+      },
+      { source: "side-menu" },
+    );
+    setChatStore(next);
+  }, []);
+
+  const explorerModel = useMemo(() => {
+    return buildExplorerFromTree(chatStore?.tree || {}, chatStore?.chatsById || {}, {
+      selectedNodeId,
+      onSelect: handleSelectNode,
+    });
+  }, [chatStore, handleSelectNode, selectedNodeId]);
 
   return (
     <div
@@ -78,6 +150,39 @@ const SideMenu = () => {
           }
         }}
       />
+
+      <div
+        style={{
+          position: "absolute",
+          top: 56,
+          left: 12,
+          right: 12,
+          bottom: 58,
+          display: "flex",
+          flexDirection: "column",
+          gap: 0,
+        }}
+      >
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+            borderRadius: 6,
+            WebkitAppRegion: "no-drag",
+          }}
+        >
+          <Explorer
+            data={explorerModel.data}
+            root={explorerModel.root}
+            default_expanded={explorerModel.defaultExpanded}
+            draggable
+            on_reorder={handleReorder}
+            style={{ width: "100%", fontSize: 13 }}
+          />
+        </div>
+      </div>
+
       <Button
         prefix_icon="settings"
         label="Settings"
@@ -91,7 +196,6 @@ const SideMenu = () => {
         onClick={() => setSettingsOpen(true)}
       />
 
-      {/* Settings Modal */}
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}

@@ -52,9 +52,9 @@ const ConfirmDeleteApiKeyModal = ({
       }}
     >
       <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
+        width="36"
+        height="36"
+        viewBox="0 0 36 36"
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
       >
@@ -348,7 +348,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const OpenAISection = () => (
-  <SettingsSection title="OpenAI">
+  <SettingsSection title="OpenAI" icon="open_ai">
     <APIKeyInput
       storage_key="openai_api_key"
       label="API Key"
@@ -358,7 +358,7 @@ const OpenAISection = () => (
 );
 
 const AnthropicSection = () => (
-  <SettingsSection title="Anthropic">
+  <SettingsSection title="Anthropic" icon="Anthropic">
     <APIKeyInput
       storage_key="anthropic_api_key"
       label="API Key"
@@ -373,7 +373,7 @@ const OllamaSection = () => {
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
 
   return (
-    <SettingsSection title="Ollama">
+    <SettingsSection title="Ollama" icon="ollama">
       <p
         style={{
           margin: "4px 0 12px",

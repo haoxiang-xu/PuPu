@@ -4,7 +4,7 @@ from typing import Dict, Iterable, List
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
-from miso_adapter import get_model_name, stream_chat
+from miso_adapter import get_capability_catalog, get_model_name, get_runtime_config, stream_chat
 
 api_blueprint = Blueprint("miso_api", __name__)
 
@@ -44,6 +44,37 @@ def health() -> Response:
             "version": current_app.config.get("MISO_VERSION", "0.1.0-dev"),
             "model": get_model_name(),
             "threaded": True,
+        }
+    )
+
+
+@api_blueprint.get("/models/catalog")
+def models_catalog() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    runtime = get_runtime_config()
+    capabilities = get_capability_catalog()
+
+    return jsonify(
+        {
+            "active": {
+                "provider": runtime.get("provider", "ollama"),
+                "model": runtime.get("model", ""),
+                "model_id": f"{runtime.get('provider', 'ollama')}:{runtime.get('model', '')}",
+            },
+            "providers": {
+                "openai": capabilities.get("openai", []),
+                "anthropic": capabilities.get("anthropic", []),
+                "ollama": capabilities.get("ollama", []),
+            },
         }
     )
 
@@ -90,7 +121,7 @@ def chat_stream() -> Response:
                 "meta",
                 {
                     "thread_id": thread_id,
-                    "model": get_model_name(),
+                    "model": get_model_name(options),
                     "started_at": started_at,
                 },
             )
