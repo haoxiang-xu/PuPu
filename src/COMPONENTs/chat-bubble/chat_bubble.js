@@ -25,56 +25,6 @@ const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
         position: "relative",
       }}
     >
-      {/* ── role label ──────────────────────────────────── */}
-      {!isUser && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            paddingBottom: 6,
-            paddingLeft: 2,
-          }}
-        >
-          <div
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: "50%",
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.06)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-            }}
-          >
-            <Icon
-              src="mini_ui"
-              color={avatarIconColor}
-              style={{
-                width: 12,
-                height: 12,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            />
-          </div>
-          <span
-            style={{
-              fontSize: 12,
-              fontFamily: theme?.font?.fontFamily || "inherit",
-              color: theme?.color || "#222",
-              opacity: 0.45,
-            }}
-          >
-            Assistant
-          </span>
-        </div>
-      )}
-
       {/* ── message content ─────────────────────────────── */}
       <div
         style={{

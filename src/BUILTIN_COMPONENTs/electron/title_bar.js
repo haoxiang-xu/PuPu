@@ -77,7 +77,7 @@ const TitleBar = () => {
   const topBarForeground = theme?.color || "rgba(255, 255, 255, 0.92)";
 
   // Create gradient background (solid at top, transparent at bottom)
-  const gradientBackground = `linear-gradient(180deg, ${topBarBackground} 0%, transparent 100%)`;
+  const gradientBackground = `linear-gradient(180deg, ${topBarBackground} 32%, transparent 100%)`;
 
   const controlButtonStyle = (action) => {
     const onCloseButton = action === "close";

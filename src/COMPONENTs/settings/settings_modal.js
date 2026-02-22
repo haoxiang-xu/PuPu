@@ -40,8 +40,9 @@ export const SettingsModal = ({ open, onClose }) => {
       style={{
         minWidth: 600,
         height: 600,
+        maxHeight: "80vh",
         padding: 0,
-        backgroundColor: isDark ? "#1e1e1e" : "#fff",
+        backgroundColor: isDark ? "#141414" : "#f0f0f0",
         color: isDark ? "#fff" : "#222",
         display: "flex",
         overflow: "hidden",
@@ -55,7 +56,7 @@ export const SettingsModal = ({ open, onClose }) => {
           flexShrink: 0,
           backgroundColor: isDark
             ? "rgba(255,255,255,0.03)"
-            : "rgba(0,0,0,0.025)",
+            : "rgba(0,0,0,0.04)",
           padding: "16px 10px",
           display: "flex",
           flexDirection: "column",

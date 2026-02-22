@@ -106,9 +106,9 @@ const ConfigContainer = ({ children }) => {
         <div
           style={{
             position: "absolute",
-            top: 12,
-            left: 12,
-            right: 12,
+            top: 18,
+            left: 4,
+            right: 4,
             bottom: 0,
           }}
         >

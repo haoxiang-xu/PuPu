@@ -27,7 +27,7 @@ const AttachPanel = ({
         alignItems: "center",
         gap: 2,
         padding: "4px",
-        borderRadius: 14,
+        borderRadius: 7,
         backgroundColor: panelBg,
         boxShadow: focused ? focusShadow : "none",
         transition: "background-color 0.22s ease, box-shadow 0.22s ease",
@@ -37,21 +37,21 @@ const AttachPanel = ({
         <Button
           prefix_icon="link"
           onClick={onAttachLink}
-          style={{ color, fontSize: 14, borderRadius: 10 }}
+          style={{ color, fontSize: 14 }}
         />
       )}
       {onAttachGlobal && (
         <Button
           prefix_icon="global"
           onClick={onAttachGlobal}
-          style={{ color, fontSize: 14, borderRadius: 10 }}
+          style={{ color, fontSize: 14 }}
         />
       )}
       {onAttachFile && (
         <Button
           prefix_icon="add"
           onClick={onAttachFile}
-          style={{ color, fontSize: 14, borderRadius: 10 }}
+          style={{ color, fontSize: 14 }}
         />
       )}
     </div>
@@ -153,18 +153,18 @@ const ChatInput = ({
               {value.length > 0 && (
                 <Button
                   prefix_icon="close"
-                  style={{ color, fontSize: 14, borderRadius: 10 }}
+                  style={{ color, fontSize: 14, borderRadius: 7 }}
                   onClick={handleClear}
                 />
               )}
               <Button
                 prefix_icon="arrow_up"
                 onClick={onSend}
-                style={{ color, fontSize: 14, borderRadius: 10 }}
+                style={{ color, fontSize: 14, borderRadius: 7 }}
               />
             </>
           }
-          style={{ width: "100%", margin: 0, borderRadius: 16 }}
+          style={{ width: "100%", margin: 0, borderRadius: 7 }}
         />
 
         {/* disclaimer text */}
