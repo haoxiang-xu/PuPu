@@ -26,7 +26,7 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "npm run start:web",
+    "start": "npm run start:electron",
     "start:web": "cross-env BROWSER=none PORT=2907 react-scripts start",
     "start:electron": "concurrently -k \"npm run start:web\" \"npm run electron:start\"",
     "electron:start": "electron .",

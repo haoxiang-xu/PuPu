@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { AppearanceSettings } from "./appearance";
+import { ModelProvidersSettings } from "./model_providers";
 import { LocalStorageSettings } from "./local_storage";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -15,6 +16,12 @@ const SETTINGS_PAGES = [
     icon: "color",
     label: "Appearance",
     component: AppearanceSettings,
+  },
+  {
+    key: "model_providers",
+    icon: "tool",
+    label: "Model Providers",
+    component: ModelProvidersSettings,
   },
   {
     key: "local_storage",
@@ -32,7 +39,7 @@ const SETTINGS_PAGES = [
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export const SettingsModal = ({ open, onClose }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedPage, setSelectedPage] = useState("appearance");
 

@@ -4,14 +4,11 @@ import {
   useWindowSize,
   useWebBrowser,
   useDeviceType,
-  useRuntimePlatform,
 } from "../../BUILTIN_COMPONENTs/mini_react/mini_use";
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 import Scrollable from "../../BUILTIN_COMPONENTs/class/scrollable";
-import TitleBar, {
-  TOP_BAR_HEIGHT,
-} from "../../BUILTIN_COMPONENTs/electron/title_bar";
+import TitleBar from "../../BUILTIN_COMPONENTs/electron/title_bar";
 import SideMenu from "../../COMPONENTs/side-menu/side_menu";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
@@ -81,7 +78,7 @@ const ConfigContainer = ({ children }) => {
     }
     setAvailableThemes(Object.keys(available_themes));
     setSelectedTheme(Object.keys(available_themes)[0]);
-  }, [system_theme]);
+  }, [system_theme, _persistedThemeMode]);
   useEffect(() => {
     initialize_theme();
   }, [initialize_theme]);

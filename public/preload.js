@@ -1,5 +1,4 @@
 const { contextBridge, ipcRenderer } = require("electron");
-const { randomUUID } = require("crypto");
 
 const runtimeInfo = {
   isElectron: true,
@@ -9,11 +8,7 @@ const runtimeInfo = {
 const activeMisoStreamCleanups = new Map();
 
 const buildRequestId = () => {
-  try {
-    return randomUUID();
-  } catch (_) {
-    return `miso-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  }
+  return `miso-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
 const cleanupMisoStreamListener = (requestId) => {

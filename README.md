@@ -89,6 +89,17 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
 `pip install -r ./miso_runtime/server/requirements.txt`
 
+- Direct Miso integration source:
+  <span style="opacity: 0.32">PuPu will auto-detect a sibling repo at `../miso` and use it directly. You can override this with `MISO_SOURCE_PATH`.</span>
+
+`export MISO_SOURCE_PATH=/absolute/path/to/miso` <span style="opacity: 0.32">(optional)</span>
+
+`export MISO_PROVIDER=ollama` <span style="opacity: 0.32">(optional: openai / anthropic)</span>
+
+`export MISO_MODEL=deepseek-r1:14b` <span style="opacity: 0.32">(optional)</span>
+
+`export MISO_PYTHON_BIN=/absolute/path/to/python` <span style="opacity: 0.32">(optional, overrides auto-detected `../miso/venv`)</span>
+
 
 
 

@@ -1,6 +1,5 @@
 import { useState, useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
@@ -11,7 +10,6 @@ const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
 
   const isUser = message.role === "user";
   const color = theme?.color || "#222";
-  const avatarIconColor = isDark ? "rgba(255,255,255,0.85)" : undefined;
 
   return (
     <div
