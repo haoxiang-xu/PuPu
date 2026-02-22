@@ -27,9 +27,8 @@ const AttachPanel = ({
         alignItems: "center",
         gap: 2,
         padding: "4px",
-        borderRadius: 7,
+        borderRadius: 14,
         backgroundColor: panelBg,
-        border: focused ? focusBorder : "1px solid transparent",
         boxShadow: focused ? focusShadow : "none",
         transition: "background-color 0.22s ease, box-shadow 0.22s ease",
       }}
@@ -38,21 +37,21 @@ const AttachPanel = ({
         <Button
           prefix_icon="link"
           onClick={onAttachLink}
-          style={{ color, fontSize: 14 }}
+          style={{ color, fontSize: 14, borderRadius: 10 }}
         />
       )}
       {onAttachGlobal && (
         <Button
           prefix_icon="global"
           onClick={onAttachGlobal}
-          style={{ color, fontSize: 14 }}
+          style={{ color, fontSize: 14, borderRadius: 10 }}
         />
       )}
       {onAttachFile && (
         <Button
           prefix_icon="add"
           onClick={onAttachFile}
-          style={{ color, fontSize: 14 }}
+          style={{ color, fontSize: 14, borderRadius: 10 }}
         />
       )}
     </div>
@@ -82,7 +81,7 @@ const ChatInput = ({
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.06)";
   const panelFocusShadow = isDark
-    ? "0 4px 24px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)"
+    ? "0 4px 24px rgba(0,0,0,0.32), 0 1px 3px rgba(0,0,0,0.16)"
     : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)";
 
   const chatActive = value.length > 0 || focused;
@@ -154,18 +153,18 @@ const ChatInput = ({
               {value.length > 0 && (
                 <Button
                   prefix_icon="close"
-                  style={{ color, fontSize: 14 }}
+                  style={{ color, fontSize: 14, borderRadius: 10 }}
                   onClick={handleClear}
                 />
               )}
               <Button
                 prefix_icon="arrow_up"
                 onClick={onSend}
-                style={{ color, fontSize: 14 }}
+                style={{ color, fontSize: 14, borderRadius: 10 }}
               />
             </>
           }
-          style={{ width: "100%", margin: 0 }}
+          style={{ width: "100%", margin: 0, borderRadius: 16 }}
         />
 
         {/* disclaimer text */}
@@ -176,7 +175,7 @@ const ChatInput = ({
               fontSize: 11,
               fontFamily: theme?.font?.fontFamily || "inherit",
               color: theme?.color || "#222",
-              opacity: 0.3,
+              opacity: onThemeMode === "dark_mode" ? 0.3 : 0.4,
               paddingTop: 8,
               userSelect: "none",
               WebkitUserSelect: "none",

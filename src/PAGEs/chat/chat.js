@@ -156,7 +156,7 @@ const ChatInterface = () => {
         onChange={setInputValue}
         onSend={sendMessage}
         placeholder="Message PuPu Chat..."
-        disclaimer="PuPu version 0.1.0"
+        disclaimer="AI can make mistakes, please double-check critical information."
         showAttachments={true}
         onAttachFile={handleAttachFile}
         onAttachLink={handleAttachLink}

@@ -68,7 +68,6 @@ const ConfigContainer = ({ children }) => {
   const window_size = useWindowSize();
   const env_browser = useWebBrowser();
   const device_type = useDeviceType();
-  const runtime_platform = useRuntimePlatform();
   /* { ENVIRONMENT } ===================================================================================================== */
 
   const [onFragment, setOnFragment] = useState("main");
@@ -107,13 +106,10 @@ const ConfigContainer = ({ children }) => {
         <div
           style={{
             position: "absolute",
-            top: runtime_platform === "electron" ? TOP_BAR_HEIGHT : 0,
-            left: 0,
-            right: 0,
+            top: 12,
+            left: 12,
+            right: 12,
             bottom: 0,
-          }}
-          onClick={() => {
-            setOnFragment("main");
           }}
         >
           {children}

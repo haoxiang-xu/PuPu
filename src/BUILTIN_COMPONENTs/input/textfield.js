@@ -364,8 +364,8 @@ const TextField = ({
   const padding = style?.padding ?? tf.padding ?? 12;
 
   /* ghost-specific tokens */
-  const hoverBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
-  const activeBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.10)";
+  const hoverBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
+  const activeBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
   const faintBorder = isDark
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.12)";

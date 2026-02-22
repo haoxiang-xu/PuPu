@@ -76,6 +76,9 @@ const TitleBar = () => {
   const topBarBackground = theme?.backgroundColor || "rgba(22, 22, 24, 0.86)";
   const topBarForeground = theme?.color || "rgba(255, 255, 255, 0.92)";
 
+  // Create gradient background (solid at top, transparent at bottom)
+  const gradientBackground = `linear-gradient(180deg, ${topBarBackground} 0%, transparent 100%)`;
+
   const controlButtonStyle = (action) => {
     const onCloseButton = action === "close";
     const defaultBackgroundColor = onCloseButton
@@ -135,8 +138,9 @@ const TitleBar = () => {
         right: 0,
         height: TOP_BAR_HEIGHT,
         zIndex: 2048,
-        borderBottom: `1px solid ${theme?.foregroundColor || "rgba(255, 255, 255, 0.08)"}`,
-        backgroundColor: topBarBackground,
+        background: gradientBackground,
+
+        WebkitBackdropFilter: "blur(20px)",
         color: topBarForeground,
         WebkitAppRegion: "drag",
         userSelect: "none",
