@@ -66,6 +66,7 @@ const RenameRow = ({ node, value, onChange, onConfirm, onCancel, isDark }) => {
         gap: 4,
         fontSize: 13,
         fontFamily: "Jost, sans-serif",
+        color: isDark ? "#CCC" : "#222",
       }}
     >
       {/* expand-toggle placeholder — keeps alignment */}

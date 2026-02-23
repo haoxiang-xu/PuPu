@@ -1,4 +1,4 @@
-import { useContext, useRef, useState, useCallback, useEffect } from "react";
+import { useContext, useRef, useState, useCallback, useEffect, useMemo } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
@@ -116,6 +116,9 @@ const ChatInput = ({
   const [focused, setFocused] = useState(false);
   const [liveOllamaModels, setLiveOllamaModels] = useState([]);
   const [collapsedGroups, setCollapsedGroups] = useState({});
+  const ollamaProviderModels = modelCatalog?.providers?.ollama;
+  const openaiProviderModels = modelCatalog?.providers?.openai;
+  const anthropicProviderModels = modelCatalog?.providers?.anthropic;
 
   // Fetch live Ollama models
   useEffect(() => {
@@ -140,15 +143,15 @@ const ChatInput = ({
     }));
   }, []);
 
-  // Build grouped select options
-  const modelOptions = (() => {
+  // Build grouped select options with stable reference to avoid hover resets.
+  const modelOptions = useMemo(() => {
     const groups = [];
 
     // Ollama group — prefer live list, fall back to catalog
     const ollamaModels =
       liveOllamaModels.length > 0
         ? liveOllamaModels
-        : modelCatalog?.providers?.ollama || [];
+        : ollamaProviderModels || [];
     if (ollamaModels.length > 0) {
       groups.push({
         group: "Ollama",
@@ -163,7 +166,7 @@ const ChatInput = ({
     }
 
     // OpenAI group
-    const openaiModels = modelCatalog?.providers?.openai || [];
+    const openaiModels = openaiProviderModels || [];
     if (openaiModels.length > 0) {
       groups.push({
         group: "OpenAI",
@@ -178,7 +181,7 @@ const ChatInput = ({
     }
 
     // Anthropic group
-    const anthropicModels = modelCatalog?.providers?.anthropic || [];
+    const anthropicModels = anthropicProviderModels || [];
     if (anthropicModels.length > 0) {
       groups.push({
         group: "Anthropic",
@@ -193,7 +196,13 @@ const ChatInput = ({
     }
 
     return groups;
-  })();
+  }, [
+    liveOllamaModels,
+    ollamaProviderModels,
+    openaiProviderModels,
+    anthropicProviderModels,
+    collapsedGroups,
+  ]);
 
   const color = theme?.color || "#222";
   const panelBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
