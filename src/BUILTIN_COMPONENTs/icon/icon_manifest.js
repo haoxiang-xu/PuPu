@@ -1,5 +1,3 @@
-import { anamorphic } from "three/examples/jsm/tsl/display/AnamorphicNode.js";
-
 const Add = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"

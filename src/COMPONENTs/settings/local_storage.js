@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { SettingsSection } from "./appearance";
+import { api } from "../../SERVICEs/api";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Helpers                                                                                                                    */
@@ -415,28 +416,12 @@ const StorageKeyRow = ({ entry, maxSize, isDark, onDelete }) => {
 /*  Ollama helpers                                                                                                             */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const OLLAMA_BASE = "http://localhost:11434";
-
 const fetchOllamaModels = async () => {
-  const res = await fetch(`${OLLAMA_BASE}/api/tags`, {
-    signal: AbortSignal.timeout(3000),
-  });
-  if (!res.ok) throw new Error("not_running");
-  const json = await res.json();
-  const models = (json.models || []).map((m) => ({
-    name: m.name,
-    size: m.size || 0,
-  }));
-  return models.sort((a, b) => b.size - a.size);
+  return api.ollama.listModels();
 };
 
 const deleteOllamaModel = async (name) => {
-  await fetch(`${OLLAMA_BASE}/api/delete`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-    signal: AbortSignal.timeout(5000),
-  });
+  await api.ollama.deleteModel(name);
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -561,13 +546,14 @@ const OllamaSection = ({ isDark }) => {
   // status: "loading" | "starting" | "ready" | "offline" | "not_found"
   const [status, setStatus] = useState("loading");
   const [models, setModels] = useState([]);
+  const hasOllamaBridge = api.ollama.isBridgeAvailable();
 
   const load = useCallback(async () => {
     setStatus("loading");
 
     /* In Electron, check main-process status first */
-    if (window.ollamaAPI) {
-      const electronStatus = await window.ollamaAPI.getStatus();
+    if (hasOllamaBridge) {
+      const electronStatus = await api.ollama.getStatus();
       if (electronStatus === "not_found") {
         setStatus("not_found");
         return;
@@ -587,18 +573,18 @@ const OllamaSection = ({ isDark }) => {
       setModels([]);
       setStatus("offline");
     }
-  }, []);
+  }, [hasOllamaBridge]);
 
   const handleRestart = useCallback(async () => {
-    if (!window.ollamaAPI) return;
+    if (!hasOllamaBridge) return;
     setStatus("starting");
-    const result = await window.ollamaAPI.restart();
+    const result = await api.ollama.restart();
     if (result === "not_found") {
       setStatus("not_found");
       return;
     }
     await load();
-  }, [load]);
+  }, [hasOllamaBridge, load]);
 
   useEffect(() => {
     load();
@@ -667,7 +653,7 @@ const OllamaSection = ({ isDark }) => {
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {/* Restart button — only in Electron and when not already running */}
-          {window.ollamaAPI &&
+          {hasOllamaBridge &&
             (status === "offline" || status === "starting") && (
               <Button
                 label="Restart"
@@ -775,7 +761,7 @@ const OllamaSection = ({ isDark }) => {
               fontFamily: theme?.font?.fontFamily || "inherit",
             }}
           >
-            {window.ollamaAPI
+            {hasOllamaBridge
               ? "Ollama failed to start. Try restarting it:"
               : "Ollama is not running. Start it with:"}
           </div>

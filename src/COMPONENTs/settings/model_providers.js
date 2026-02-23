@@ -168,7 +168,6 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
   const accentColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)";
   const successColor = "#4CAF50";
-  const dangerColor = "#ef5350";
 
   /* ── persist on save ── */
   const handleSave = useCallback(() => {

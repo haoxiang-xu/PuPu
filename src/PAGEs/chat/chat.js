@@ -10,27 +10,9 @@ import {
   subscribeChatsStore,
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
+import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 
 const DEFAULT_DISCLAIMER = "AI can make mistakes, please double-check critical information.";
-
-const normalizeModelCatalogPayload = (payload) => {
-  const providers = payload?.providers && typeof payload.providers === "object" ? payload.providers : {};
-  const normalizeList = (list) =>
-    [...new Set((Array.isArray(list) ? list : []).map((item) => (typeof item === "string" ? item.trim() : "")).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b));
-
-  return {
-    activeModel:
-      typeof payload?.activeModel === "string" && payload.activeModel.trim()
-        ? payload.activeModel.trim()
-        : null,
-    providers: {
-      ollama: normalizeList(providers.ollama),
-      openai: normalizeList(providers.openai),
-      anthropic: normalizeList(providers.anthropic),
-    },
-  };
-};
 
 const ChatInterface = () => {
   const { theme, onFragment } = useContext(ConfigContext);
@@ -52,7 +34,7 @@ const ChatInterface = () => {
     url: null,
     reason: "",
   });
-  const [modelCatalog, setModelCatalog] = useState(() => normalizeModelCatalogPayload(null));
+  const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
 
   const activeChatIdRef = useRef(initialChat.id);
   const streamHandleRef = useRef(null);
@@ -66,33 +48,33 @@ const ChatInterface = () => {
   const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
 
   const refreshMisoStatus = useCallback(async () => {
-    if (!window.misoAPI || typeof window.misoAPI.getStatus !== "function") {
-      const hasElectronUserAgent =
-        typeof navigator !== "undefined" &&
-        typeof navigator.userAgent === "string" &&
-        navigator.userAgent.includes("Electron");
-      const runtimeHint =
-        hasElectronUserAgent
-          ? "Electron detected, but preload failed to expose misoAPI. Check Electron main/preload console logs."
-          : "Web mode detected. Run the app with Electron (`npm start` or `npm run start:electron`).";
-      setMisoStatus({
-        status: "unavailable",
-        ready: false,
-        url: null,
-        reason: runtimeHint,
-      });
-      return;
-    }
-
     try {
-      const status = await window.misoAPI.getStatus();
+      const status = await api.miso.getStatus();
       setMisoStatus({
         status: status?.status || "unknown",
         ready: Boolean(status?.ready),
         url: status?.url || null,
         reason: status?.reason || "",
       });
-    } catch (_error) {
+    } catch (error) {
+      if (error instanceof FrontendApiError && error.code === "bridge_unavailable") {
+        const hasElectronUserAgent =
+          typeof navigator !== "undefined" &&
+          typeof navigator.userAgent === "string" &&
+          navigator.userAgent.includes("Electron");
+        const runtimeHint =
+          hasElectronUserAgent
+            ? "Electron detected, but preload failed to expose misoAPI. Check Electron main/preload console logs."
+            : "Web mode detected. Run the app with Electron (`npm start` or `npm run start:electron`).";
+        setMisoStatus({
+          status: "unavailable",
+          ready: false,
+          url: null,
+          reason: runtimeHint,
+        });
+        return;
+      }
+
       setMisoStatus({
         status: "error",
         ready: false,
@@ -103,13 +85,8 @@ const ChatInterface = () => {
   }, []);
 
   const refreshModelCatalog = useCallback(async () => {
-    if (!window.misoAPI || typeof window.misoAPI.getModelCatalog !== "function") {
-      return;
-    }
-
     try {
-      const payload = await window.misoAPI.getModelCatalog();
-      const normalized = normalizeModelCatalogPayload(payload);
+      const normalized = await api.miso.getModelCatalog();
       setModelCatalog(normalized);
 
       if ((modelIdRef.current === "miso-unset" || !modelIdRef.current) && normalized.activeModel) {
@@ -272,7 +249,7 @@ const ChatInterface = () => {
       return;
     }
 
-    if (!window.misoAPI || typeof window.misoAPI.startStream !== "function") {
+    if (!api.miso.isBridgeAvailable()) {
       setStreamError("Miso bridge is unavailable in this runtime.");
       return;
     }
@@ -328,121 +305,143 @@ const ChatInterface = () => {
     setStreamError("");
     setIsStreaming(true);
 
-    const streamHandle = window.misoAPI.startStream(
-      {
-        threadId: threadIdRef.current,
-        message: text,
-        history: historyForModel,
-        options: {
-          modelId: modelIdRef.current,
+    let streamHandle = null;
+    try {
+      streamHandle = api.miso.startStream(
+        {
+          threadId: threadIdRef.current,
+          message: text,
+          history: historyForModel,
+          options: {
+            modelId: modelIdRef.current,
+          },
         },
-      },
-      {
-        onMeta: (meta) => {
-          if (meta && typeof meta.thread_id === "string" && meta.thread_id.trim()) {
-            threadIdRef.current = meta.thread_id;
-            setChatThreadId(chatId, meta.thread_id, { source: "chat-page" });
-          }
-
-          if (meta && typeof meta.model === "string" && meta.model.trim()) {
-            modelIdRef.current = meta.model;
-            setSelectedModelId(meta.model);
-            setChatModel(chatId, { id: meta.model }, { source: "chat-page" });
-          }
-        },
-        onToken: (delta) => {
-          const patchTime = Date.now();
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantMessageId
-                ? {
-                    ...message,
-                    content: `${message.content || ""}${delta}`,
-                    updatedAt: patchTime,
-                    status: "streaming",
-                  }
-                : message,
-            ),
-          );
-        },
-        onDone: (done) => {
-          const doneTime = Date.now();
-          const parseUsageNumber = (value) => {
-            const parsed = Number(value);
-            if (Number.isFinite(parsed) && parsed >= 0) {
-              return parsed;
+        {
+          onMeta: (meta) => {
+            if (meta && typeof meta.thread_id === "string" && meta.thread_id.trim()) {
+              threadIdRef.current = meta.thread_id;
+              setChatThreadId(chatId, meta.thread_id, { source: "chat-page" });
             }
-            return undefined;
-          };
-          const parsedUsage = done?.usage && typeof done.usage === "object"
-            ? {
-                promptTokens: parseUsageNumber(done.usage.prompt_tokens ?? done.usage.promptTokens),
-                completionTokens: parseUsageNumber(
-                  done.usage.completion_tokens ?? done.usage.completionTokens,
-                ),
-                completionChars: parseUsageNumber(
-                  done.usage.completion_chars ?? done.usage.completionChars,
-                ),
-              }
-            : null;
-          const usage =
-            parsedUsage &&
-            (parsedUsage.promptTokens != null ||
-              parsedUsage.completionTokens != null ||
-              parsedUsage.completionChars != null)
-              ? parsedUsage
-              : undefined;
 
-          setMessages((prev) =>
-            prev.map((message) =>
-              message.id === assistantMessageId
-                ? {
-                    ...message,
-                    status: "done",
-                    updatedAt: doneTime,
-                    meta: {
-                      ...(message.meta || {}),
-                      ...(usage ? { usage } : {}),
+            if (meta && typeof meta.model === "string" && meta.model.trim()) {
+              modelIdRef.current = meta.model;
+              setSelectedModelId(meta.model);
+              setChatModel(chatId, { id: meta.model }, { source: "chat-page" });
+            }
+          },
+          onToken: (delta) => {
+            const patchTime = Date.now();
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantMessageId
+                  ? {
+                      ...message,
+                      content: `${message.content || ""}${delta}`,
+                      updatedAt: patchTime,
+                      status: "streaming",
+                    }
+                  : message,
+              ),
+            );
+          },
+          onDone: (done) => {
+            const doneTime = Date.now();
+            const parseUsageNumber = (value) => {
+              const parsed = Number(value);
+              if (Number.isFinite(parsed) && parsed >= 0) {
+                return parsed;
+              }
+              return undefined;
+            };
+            const parsedUsage = done?.usage && typeof done.usage === "object"
+              ? {
+                  promptTokens: parseUsageNumber(done.usage.prompt_tokens ?? done.usage.promptTokens),
+                  completionTokens: parseUsageNumber(
+                    done.usage.completion_tokens ?? done.usage.completionTokens,
+                  ),
+                  completionChars: parseUsageNumber(
+                    done.usage.completion_chars ?? done.usage.completionChars,
+                  ),
+                }
+              : null;
+            const usage =
+              parsedUsage &&
+              (parsedUsage.promptTokens != null ||
+                parsedUsage.completionTokens != null ||
+                parsedUsage.completionChars != null)
+                ? parsedUsage
+                : undefined;
+
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantMessageId
+                  ? {
+                      ...message,
+                      status: "done",
+                      updatedAt: doneTime,
+                      meta: {
+                        ...(message.meta || {}),
+                        ...(usage ? { usage } : {}),
+                      },
+                    }
+                  : message,
+              ),
+            );
+            setIsStreaming(false);
+            streamHandleRef.current = null;
+          },
+          onError: (error) => {
+            const errorMessage = error?.message || "Unknown stream error";
+            const errorCode = error?.code || "stream_error";
+            const errorTime = Date.now();
+            setStreamError(errorMessage);
+            setIsStreaming(false);
+            streamHandleRef.current = null;
+
+            setMessages((prev) =>
+              prev.map((message) => {
+                if (message.id !== assistantMessageId) {
+                  return message;
+                }
+
+                return {
+                  ...message,
+                  status: "error",
+                  updatedAt: errorTime,
+                  content: message.content || `[error] ${errorMessage}`,
+                  meta: {
+                    ...(message.meta || {}),
+                    error: {
+                      code: errorCode,
+                      message: errorMessage,
                     },
-                  }
-                : message,
-            ),
-          );
-          setIsStreaming(false);
-          streamHandleRef.current = null;
+                  },
+                };
+              }),
+            );
+          },
         },
-        onError: (error) => {
-          const errorMessage = error?.message || "Unknown stream error";
-          const errorCode = error?.code || "stream_error";
-          const errorTime = Date.now();
-          setStreamError(errorMessage);
-          setIsStreaming(false);
-          streamHandleRef.current = null;
+      );
+    } catch (error) {
+      const errorMessage = error?.message || "Failed to start stream";
+      setStreamError(errorMessage);
+      setIsStreaming(false);
+      streamHandleRef.current = null;
 
-          setMessages((prev) =>
-            prev.map((message) => {
-              if (message.id !== assistantMessageId) {
-                return message;
-              }
-
-              return {
+      setMessages((prev) =>
+        prev.map((message) =>
+          message.id === assistantMessageId
+            ? {
                 ...message,
                 status: "error",
-                updatedAt: errorTime,
-                content: message.content || `[error] ${errorMessage}`,
-                meta: {
-                  ...(message.meta || {}),
-                  error: {
-                    code: errorCode,
-                    message: errorMessage,
-                  },
-                },
-              };
-            }),
-          );
-        },
-      },
-    );
+                updatedAt: Date.now(),
+                content: `[error] ${errorMessage}`,
+              }
+            : message,
+        ),
+      );
+      return;
+    }
 
     streamHandleRef.current = streamHandle;
 
