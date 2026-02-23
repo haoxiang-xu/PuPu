@@ -33,7 +33,11 @@ const AttachPanel = ({
 
   return (
     <div
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) {
+          e.preventDefault();
+        }
+      }}
       style={{
         display: "flex",
         alignItems: "center",
@@ -50,7 +54,6 @@ const AttachPanel = ({
         <div
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => {
-            e.preventDefault();
             e.stopPropagation();
           }}
           style={{ display: "flex", alignItems: "center" }}
