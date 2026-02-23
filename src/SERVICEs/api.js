@@ -172,6 +172,127 @@ const normalizeMisoStatus = (status) => ({
       : null,
 });
 
+const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
+
+const readModelProvidersSettings = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return {};
+  }
+
+  try {
+    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
+    return isObject(root?.model_providers) ? root.model_providers : {};
+  } catch (_error) {
+    return {};
+  }
+};
+
+const parseProviderFromModelValue = (modelValue) => {
+  if (typeof modelValue !== "string" || !modelValue.trim() || !modelValue.includes(":")) {
+    return "";
+  }
+
+  const providerCandidate = modelValue.split(":", 1)[0].trim().toLowerCase();
+  return SUPPORTED_REMOTE_PROVIDERS.has(providerCandidate) ? providerCandidate : "";
+};
+
+const detectProviderFromStreamPayload = (payload) => {
+  if (!isObject(payload)) {
+    return "";
+  }
+
+  const options = isObject(payload.options) ? payload.options : {};
+
+  const providerFromModelId =
+    parseProviderFromModelValue(options.modelId) ||
+    parseProviderFromModelValue(options.model_id) ||
+    parseProviderFromModelValue(options.model) ||
+    parseProviderFromModelValue(payload.modelId) ||
+    parseProviderFromModelValue(payload.model_id) ||
+    parseProviderFromModelValue(payload.model);
+  if (providerFromModelId) {
+    return providerFromModelId;
+  }
+
+  const providerCandidates = [
+    options.provider,
+    options.providerName,
+    payload.provider,
+    payload.providerName,
+  ];
+  for (const candidate of providerCandidates) {
+    if (typeof candidate !== "string") {
+      continue;
+    }
+    const normalized = candidate.trim().toLowerCase();
+    if (SUPPORTED_REMOTE_PROVIDERS.has(normalized)) {
+      return normalized;
+    }
+  }
+
+  return "";
+};
+
+const getStoredProviderApiKey = (provider) => {
+  const settings = readModelProvidersSettings();
+  if (!settings || typeof settings !== "object") {
+    return "";
+  }
+
+  if (provider === "openai") {
+    return typeof settings.openai_api_key === "string"
+      ? settings.openai_api_key.trim()
+      : "";
+  }
+
+  if (provider === "anthropic") {
+    return typeof settings.anthropic_api_key === "string"
+      ? settings.anthropic_api_key.trim()
+      : "";
+  }
+
+  return "";
+};
+
+const injectProviderApiKeyIntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+
+  const provider = detectProviderFromStreamPayload(payload);
+  if (!provider || !SUPPORTED_REMOTE_PROVIDERS.has(provider)) {
+    return payload;
+  }
+
+  const apiKey = getStoredProviderApiKey(provider);
+  if (!apiKey) {
+    return payload;
+  }
+
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  const providerSpecificCamelKey = provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
+  const providerSpecificSnakeKey = `${provider}_api_key`;
+  const hasAnyApiKey = [
+    currentOptions.apiKey,
+    currentOptions.api_key,
+    currentOptions[providerSpecificCamelKey],
+    currentOptions[providerSpecificSnakeKey],
+  ].some((value) => typeof value === "string" && value.trim().length > 0);
+  if (hasAnyApiKey) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    options: {
+      ...currentOptions,
+      apiKey,
+      [providerSpecificCamelKey]: apiKey,
+      [providerSpecificSnakeKey]: apiKey,
+    },
+  };
+};
+
 const retrieveMisoModelList = async (provider = null) => {
   const catalog = await api.miso.getModelCatalog();
   if (typeof provider !== "string" || !provider.trim()) {
@@ -237,7 +358,8 @@ export const api = {
     startStream: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("misoAPI", "startStream");
-        const streamHandle = method(payload, handlers);
+        const normalizedPayload = injectProviderApiKeyIntoPayload(payload);
+        const streamHandle = method(normalizedPayload, handlers);
         if (!isObject(streamHandle) || typeof streamHandle.cancel !== "function") {
           throw new FrontendApiError(
             "invalid_stream_handle",

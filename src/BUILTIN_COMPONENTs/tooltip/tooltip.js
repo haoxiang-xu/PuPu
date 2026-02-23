@@ -747,6 +747,29 @@ const Tooltip = ({
     setIsReady(true);
   }, [isOpen, measure_bubble, update_position, content, style]);
 
+  /* Re-position whenever the tooltip content resizes (e.g. list filter,
+     group collapse) — without this the bubble stays at its original coords
+     until the next unrelated re-render. */
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const el = content_ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return undefined;
+    let rafId = 0;
+    const ro = new ResizeObserver(() => {
+      if (rafId) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = 0;
+        const measured = measure_bubble();
+        if (measured) update_position(measured);
+      });
+    });
+    ro.observe(el);
+    return () => {
+      if (rafId) cancelAnimationFrame(rafId);
+      ro.disconnect();
+    };
+  }, [isOpen, measure_bubble, update_position]);
+
   useEffect(() => {
     if (!isOpen) return undefined;
     let rafId = 0;
@@ -1055,7 +1078,7 @@ const Tooltip = ({
                 top: positionStyle.top,
                 left: positionStyle.left,
                 transform: positionStyle.transform,
-                zIndex: 9999,
+                zIndex: 10000,
                 width: tooltipWidth,
                 height: tooltipHeight,
                 pointerEvents: isReady ? "auto" : "none",

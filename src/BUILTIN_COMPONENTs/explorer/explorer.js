@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import ReactDOM from "react-dom";
+import AnimatedChildren from "../class/animated_children";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -760,69 +761,6 @@ const ExplorerRow = ({
           </div>,
           document.body,
         )}
-    </div>
-  );
-};
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  AnimatedChildren — collapse / expand wrapper                                                                                */
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-const AnimatedChildren = ({ open, skipAnimation, children }) => {
-  const contentRef = useRef(null);
-  const [height, setHeight] = useState(open ? "auto" : 0);
-  const [overflow, setOverflow] = useState(open ? "visible" : "hidden");
-  const isFirstRender = useRef(true);
-
-  useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
-    }
-
-    if (skipAnimation) {
-      setHeight(open ? "auto" : 0);
-      setOverflow(open ? "visible" : "hidden");
-      return;
-    }
-
-    const el = contentRef.current;
-    if (!el) return;
-
-    if (open) {
-      const h = el.scrollHeight;
-      setHeight(h);
-      setOverflow("hidden");
-      const timer = setTimeout(() => {
-        setHeight("auto");
-        setOverflow("visible");
-      }, 280);
-      return () => clearTimeout(timer);
-    } else {
-      const h = el.scrollHeight;
-      setHeight(h);
-      setOverflow("hidden");
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          setHeight(0);
-        });
-      });
-    }
-  }, [open, skipAnimation]);
-
-  return (
-    <div
-      ref={contentRef}
-      style={{
-        height,
-        overflow,
-        transition: skipAnimation
-          ? "none"
-          : "height 0.28s cubic-bezier(0.32, 1, 0.32, 1)",
-        willChange: "height",
-      }}
-    >
-      {children}
     </div>
   );
 };

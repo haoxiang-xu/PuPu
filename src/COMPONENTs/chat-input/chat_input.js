@@ -1,7 +1,9 @@
-import { useContext, useRef, useState, useCallback } from "react";
+import { useContext, useRef, useState, useCallback, useEffect } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
+import { Select } from "../../BUILTIN_COMPONENTs/select/select";
+import api from "../../SERVICEs/api";
 
 /* ── Attachment toolbar (chat input) ── */
 const AttachPanel = ({
@@ -15,17 +17,27 @@ const AttachPanel = ({
   onAttachFile,
   onAttachLink,
   onAttachGlobal,
+  modelOptions,
+  selectedModelId,
+  onSelectModel,
+  onGroupToggle,
+  modelSelectDisabled,
+  isDark,
 }) => {
   let panelBg = "transparent";
   if (active) panelBg = bg || "rgba(128,128,128,0.08)";
   if (focused) panelBg = focusBg || "rgba(255,255,255,0.95)";
 
+  const PILL_HEIGHT = 32;
+  const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+
   return (
     <div
+      onMouseDown={(e) => e.preventDefault()}
       style={{
         display: "flex",
         alignItems: "center",
-        gap: 2,
+        gap: 6,
         padding: "4px",
         borderRadius: 18,
         backgroundColor: panelBg,
@@ -33,6 +45,44 @@ const AttachPanel = ({
         transition: "background-color 0.22s ease, box-shadow 0.22s ease",
       }}
     >
+      {modelOptions && modelOptions.length > 0 && (
+        // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+        <div
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          style={{ display: "flex", alignItems: "center" }}
+        >
+          <Select
+            options={modelOptions}
+            value={selectedModelId || null}
+            set_value={onSelectModel}
+            placeholder="Select model..."
+            filterable={true}
+            filter_mode="panel"
+            search_placeholder="Search models..."
+            disabled={modelSelectDisabled}
+            show_trigger_icon={true}
+            on_group_toggle={onGroupToggle}
+            style={{
+              height: PILL_HEIGHT,
+              maxWidth: 180,
+              fontSize: 12,
+              color,
+              backgroundColor: selectBg,
+              borderRadius: focused ? 999 : 9,
+              outline: "none",
+              padding: "0 10px",
+            }}
+            dropdown_style={{
+              maxWidth: 260,
+              minWidth: 180,
+            }}
+          />
+        </div>
+      )}
       {onAttachLink && (
         <Button
           prefix_icon="link"
@@ -55,11 +105,95 @@ const ChatInput = ({
   onAttachFile,
   onAttachLink,
   onAttachGlobal,
+  modelCatalog,
+  selectedModelId,
+  onSelectModel,
+  modelSelectDisabled = false,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const inputRef = useRef(null);
   const [focused, setFocused] = useState(false);
+  const [liveOllamaModels, setLiveOllamaModels] = useState([]);
+  const [collapsedGroups, setCollapsedGroups] = useState({});
+
+  // Fetch live Ollama models
+  useEffect(() => {
+    let cancelled = false;
+    api.ollama
+      .listModels()
+      .then((models) => {
+        if (!cancelled) {
+          setLiveOllamaModels(models.map((m) => m.name));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const handleGroupToggle = useCallback((groupName) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [groupName]: !prev[groupName],
+    }));
+  }, []);
+
+  // Build grouped select options
+  const modelOptions = (() => {
+    const groups = [];
+
+    // Ollama group — prefer live list, fall back to catalog
+    const ollamaModels =
+      liveOllamaModels.length > 0
+        ? liveOllamaModels
+        : modelCatalog?.providers?.ollama || [];
+    if (ollamaModels.length > 0) {
+      groups.push({
+        group: "Ollama",
+        icon: "ollama",
+        collapsed: !!collapsedGroups["Ollama"],
+        options: ollamaModels.map((name) => ({
+          value: `ollama:${name}`,
+          label: name,
+          trigger_label: name,
+        })),
+      });
+    }
+
+    // OpenAI group
+    const openaiModels = modelCatalog?.providers?.openai || [];
+    if (openaiModels.length > 0) {
+      groups.push({
+        group: "OpenAI",
+        icon: "open_ai",
+        collapsed: !!collapsedGroups["OpenAI"],
+        options: openaiModels.map((name) => ({
+          value: `openai:${name}`,
+          label: name,
+          trigger_label: name,
+        })),
+      });
+    }
+
+    // Anthropic group
+    const anthropicModels = modelCatalog?.providers?.anthropic || [];
+    if (anthropicModels.length > 0) {
+      groups.push({
+        group: "Anthropic",
+        icon: "Anthropic",
+        collapsed: !!collapsedGroups["Anthropic"],
+        options: anthropicModels.map((name) => ({
+          value: `anthropic:${name}`,
+          label: name,
+          trigger_label: name,
+        })),
+      });
+    }
+
+    return groups;
+  })();
 
   const color = theme?.color || "#222";
   const panelBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
@@ -76,6 +210,9 @@ const ChatInput = ({
   const handleKeyDown = useCallback(
     (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
+        // During IME composition (e.g. Chinese/Japanese input), Enter confirms
+        // the candidate word — do not send the message.
+        if (e.nativeEvent?.isComposing || e.isComposing) return;
         e.preventDefault();
         if (!sendDisabled && onSend) {
           onSend();
@@ -112,7 +249,7 @@ const ChatInput = ({
         <FloatingTextField
           textarea_ref={inputRef}
           value={value}
-          min_rows={3}
+          min_rows={4}
           max_display_rows={9}
           set_value={onChange}
           placeholder={placeholder}
@@ -132,6 +269,12 @@ const ChatInput = ({
                 onAttachFile={onAttachFile}
                 onAttachLink={onAttachLink}
                 onAttachGlobal={onAttachGlobal}
+                modelOptions={modelOptions}
+                selectedModelId={selectedModelId}
+                onSelectModel={onSelectModel}
+                onGroupToggle={handleGroupToggle}
+                modelSelectDisabled={modelSelectDisabled}
+                isDark={isDark}
               />
             ) : null
           }

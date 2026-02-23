@@ -246,6 +246,37 @@ def _normalize_messages(history: List[Dict[str, str]], message: str) -> List[Dic
     return messages
 
 
+def _normalize_key_candidate(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def _extract_api_key_from_options(options: Dict[str, object] | None, provider: str) -> str:
+    if not isinstance(options, dict):
+        return ""
+
+    provider = provider.strip().lower()
+    provider_camel_key = "openaiApiKey" if provider == "openai" else "anthropicApiKey"
+    provider_snake_key = f"{provider}_api_key"
+
+    candidates = [
+        options.get(provider_camel_key),
+        options.get(provider_snake_key),
+        options.get("apiKey"),
+        options.get("api_key"),
+        options.get("misoApiKey"),
+        options.get("miso_api_key"),
+    ]
+
+    for candidate in candidates:
+        normalized = _normalize_key_candidate(candidate)
+        if normalized:
+            return normalized
+
+    return ""
+
+
 def _create_agent(options: Dict[str, object] | None = None):
     if _IMPORT_ERROR is not None:
         raise RuntimeError(f"Failed to import miso.broth: {_IMPORT_ERROR}")
@@ -266,11 +297,14 @@ def _create_agent(options: Dict[str, object] | None = None):
     agent.max_iterations = max_iterations
 
     api_key = (
-        os.environ.get("MISO_API_KEY")
-        or os.environ.get("OPENAI_API_KEY")
-        or os.environ.get("ANTHROPIC_API_KEY")
-        or ""
-    ).strip()
+        _extract_api_key_from_options(options, config["provider"])
+        or (
+            os.environ.get("MISO_API_KEY")
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("ANTHROPIC_API_KEY")
+            or ""
+        ).strip()
+    )
 
     if config["provider"] in {"openai", "anthropic"}:
         if not api_key:

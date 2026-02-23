@@ -69,9 +69,9 @@
         "maxHeight": "auto"
       },
       "option": {
-        "height": 36,
-        "padding": "6px 10px",
-        "gap": 8,
+        "height": 28,
+        "padding": "0 10px",
+        "gap": 6,
         "hoverBackgroundColor": "rgba(0, 0, 0, 0.06)",
         "selectedBackgroundColor": "rgba(0, 0, 0, 0.09)",
         "disabledColor": "rgba(0, 0, 0, 0.35)"
@@ -80,6 +80,23 @@
         "backgroundColor": "rgba(0, 0, 0, 0.05)",
         "borderRadius": 5,
         "padding": "6px 10px"
+      },
+      "group": {
+        "headerHeight": 28,
+        "headerPadding": "0 10px",
+        "headerFontSize": 12,
+        "headerColor": "rgba(0, 0, 0, 0.45)",
+        "headerFontWeight": 400,
+        "headerHoverBackgroundColor": "rgba(0, 0, 0, 0.04)",
+        "expandIconSize": 12,
+        "iconSize": 16,
+        "iconGap": 4,
+        "childIndent": 15,
+        "accentBarWidth": 2,
+        "accentBarColor": "rgba(0, 0, 0, 0.07)",
+        "childBarGap": 2,
+        "separatorColor": "rgba(0, 0, 0, 0.06)",
+        "separatorMargin": "3px 10px"
       }
     },
     "code": {
@@ -334,9 +351,9 @@
         "maxHeight": "auto"
       },
       "option": {
-        "height": 36,
-        "padding": "6px 10px",
-        "gap": 8,
+        "height": 28,
+        "padding": "0 10px",
+        "gap": 6,
         "hoverBackgroundColor": "rgba(255, 255, 255, 0.08)",
         "selectedBackgroundColor": "rgba(255, 255, 255, 0.10)",
         "disabledColor": "rgba(255, 255, 255, 0.35)"
@@ -345,6 +362,23 @@
         "backgroundColor": "rgba(255, 255, 255, 0.08)",
         "borderRadius": 5,
         "padding": "6px 10px"
+      },
+      "group": {
+        "headerHeight": 28,
+        "headerPadding": "0 10px",
+        "headerFontSize": 12,
+        "headerColor": "rgba(255, 255, 255, 0.45)",
+        "headerFontWeight": 400,
+        "headerHoverBackgroundColor": "rgba(255, 255, 255, 0.05)",
+        "expandIconSize": 12,
+        "iconSize": 16,
+        "iconGap": 4,
+        "childIndent": 15,
+        "accentBarWidth": 2,
+        "accentBarColor": "rgba(255, 255, 255, 0.07)",
+        "childBarGap": 2,
+        "separatorColor": "rgba(255, 255, 255, 0.06)",
+        "separatorMargin": "3px 10px"
       }
     },
     "code": {

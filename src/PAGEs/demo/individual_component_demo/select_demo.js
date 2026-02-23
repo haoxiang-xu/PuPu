@@ -21,6 +21,49 @@ const SelectDemo = () => {
   const [dialCode, setDialCode] = useState("US");
   const [phone, setPhone] = useState("");
   const [country, setCountry] = useState("US");
+  const [groupedVal, setGroupedVal] = useState(null);
+  const [groupedOptions, setGroupedOptions] = useState([
+    {
+      group: "Fruits",
+      icon: "apple",
+      collapsed: false,
+      options: [
+        { label: "Apple", value: "apple", icon: "apple" },
+        { label: "Banana", value: "banana" },
+        { label: "Cherry", value: "cherry" },
+      ],
+    },
+    {
+      group: "Vegetables",
+      collapsed: false,
+      options: [
+        { label: "Carrot", value: "carrot" },
+        { label: "Broccoli", value: "broccoli" },
+        { label: "Spinach", value: "spinach", disabled: true },
+      ],
+    },
+    {
+      group: "Grains",
+      collapsed: true,
+      options: [
+        { label: "Rice", value: "rice" },
+        { label: "Oats", value: "oats" },
+        { label: "Quinoa", value: "quinoa" },
+      ],
+    },
+    { label: "Water", value: "water" },
+    { label: "Juice", value: "juice" },
+  ]);
+
+  const handleGroupToggle = (groupLabel) => {
+    setGroupedOptions((prev) =>
+      prev.map((item) =>
+        item.group === groupLabel
+          ? { ...item, collapsed: !item.collapsed }
+          : item,
+      ),
+    );
+  };
 
   const code_to_flag = (code) => {
     if (!code || typeof code !== "string") return "";
@@ -260,6 +303,52 @@ const SelectDemo = () => {
         placeholder="City"
         search_placeholder="Filter cities..."
         dropdown_style={{ maxHeight: 220 }}
+      />
+
+      {/* ── Grouped Select demos ── */}
+      <span
+        style={{
+          width: "100%",
+          textAlign: "left",
+          fontSize: "32px",
+          fontFamily: "Jost",
+          color: theme?.color || "black",
+          marginTop: 16,
+          userSelect: "none",
+        }}
+      >
+        Grouped Selects
+      </span>
+      <SinkingSelect
+        options={groupedOptions}
+        value={groupedVal}
+        set_value={setGroupedVal}
+        on_group_toggle={handleGroupToggle}
+        filter_mode="panel"
+        placeholder="Select food..."
+        search_placeholder="Filter..."
+        style={{ width: 280 }}
+        dropdown_style={{ maxHeight: 300 }}
+      />
+      <FloatingSelect
+        options={groupedOptions}
+        value={groupedVal}
+        set_value={setGroupedVal}
+        on_group_toggle={handleGroupToggle}
+        label="Food"
+        filter_mode="trigger"
+        placeholder="Search food..."
+        style={{ width: 280 }}
+        dropdown_style={{ maxHeight: 300 }}
+      />
+      <Select
+        options={groupedOptions}
+        value={groupedVal}
+        set_value={setGroupedVal}
+        on_group_toggle={handleGroupToggle}
+        placeholder="Food"
+        search_placeholder="Filter..."
+        dropdown_style={{ maxHeight: 300 }}
       />
     </div>
   );
