@@ -1,4 +1,11 @@
-import { useContext, useRef, useState, useCallback, useEffect, useMemo } from "react";
+import {
+  useContext,
+  useRef,
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
@@ -101,6 +108,8 @@ const ChatInput = ({
   value,
   onChange,
   onSend,
+  onStop,
+  isStreaming = false,
   sendDisabled = false,
   placeholder = "Message Mini UI Chat...",
   disclaimer,
@@ -292,24 +301,36 @@ const ChatInput = ({
           }
           functional_section={
             <>
-              {value.length > 0 && (
+              {value.length > 0 && !isStreaming && (
                 <Button
                   prefix_icon="close"
                   style={{ color, fontSize: 14, borderRadius: 7 }}
                   onClick={handleClear}
                 />
               )}
-              <Button
-                prefix_icon="arrow_up"
-                onClick={onSend}
-                disabled={sendDisabled}
-                style={{
-                  color,
-                  fontSize: 14,
-                  borderRadius: 7,
-                  opacity: sendDisabled ? 0.35 : 1,
-                }}
-              />
+              {isStreaming ? (
+                <Button
+                  prefix_icon="stop"
+                  onClick={onStop}
+                  style={{
+                    color,
+                    fontSize: 14,
+                    borderRadius: 7,
+                  }}
+                />
+              ) : (
+                <Button
+                  prefix_icon="arrow_up"
+                  onClick={onSend}
+                  disabled={sendDisabled}
+                  style={{
+                    color,
+                    fontSize: 14,
+                    borderRadius: 7,
+                    opacity: sendDisabled ? 0.35 : 1,
+                  }}
+                />
+              )}
             </>
           }
           style={{ width: "100%", margin: 0, borderRadius: 14 }}

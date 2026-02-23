@@ -2,6 +2,7 @@ import { useState, useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
+import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 
 const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -45,6 +46,18 @@ const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
       >
         {isUser ? (
           <span>{message.content}</span>
+        ) : message.status === "streaming" && !message.content ? (
+          <div style={{ padding: "8px 0" }}>
+            <CellSplitSpinner
+              size={28}
+              cells={5}
+              speed={0.9}
+              spread={1}
+              stagger={120}
+              spin={true}
+              spinSpeed={0.6}
+            />
+          </div>
         ) : (
           <Markdown
             markdown={message.content}

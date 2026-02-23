@@ -1,4 +1,11 @@
-import { useState, useContext, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  useState,
+  useContext,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
@@ -13,7 +20,8 @@ import {
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 
-const DEFAULT_DISCLAIMER = "AI can make mistakes, please double-check critical information.";
+const DEFAULT_DISCLAIMER =
+  "AI can make mistakes, please double-check critical information.";
 
 const ChatInterface = () => {
   const { theme, onFragment } = useContext(ConfigContext);
@@ -23,11 +31,13 @@ const ChatInterface = () => {
 
   const [activeChatId, setActiveChatId] = useState(initialChat.id);
   const [messages, setMessages] = useState(() => initialChat.messages || []);
-  const [inputValue, setInputValue] = useState(() => initialChat.draft?.text || "");
+  const [inputValue, setInputValue] = useState(
+    () => initialChat.draft?.text || "",
+  );
   const [draftAttachments, setDraftAttachments] = useState(
     () => initialChat.draft?.attachments || [],
   );
-  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingChatId, setStreamingChatId] = useState(null);
   const [streamError, setStreamError] = useState("");
   const [misoStatus, setMisoStatus] = useState({
     status: "starting",
@@ -39,6 +49,8 @@ const ChatInterface = () => {
 
   const activeChatIdRef = useRef(initialChat.id);
   const streamHandleRef = useRef(null);
+  const streamingChatIdRef = useRef(null);
+  const activeStreamMessagesRef = useRef(null);
   const messagePersistTimerRef = useRef(null);
   const threadIdRef = useRef(initialChat.threadId || `thread-${Date.now()}`);
   const modelIdRef = useRef(
@@ -47,6 +59,10 @@ const ChatInterface = () => {
       : "miso-unset",
   );
   const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
+  const isStreaming = streamingChatId === activeChatId;
+  const hasBackgroundStream = Boolean(
+    streamingChatId && streamingChatId !== activeChatId,
+  );
 
   const refreshMisoStatus = useCallback(async () => {
     try {
@@ -58,15 +74,17 @@ const ChatInterface = () => {
         reason: status?.reason || "",
       });
     } catch (error) {
-      if (error instanceof FrontendApiError && error.code === "bridge_unavailable") {
+      if (
+        error instanceof FrontendApiError &&
+        error.code === "bridge_unavailable"
+      ) {
         const hasElectronUserAgent =
           typeof navigator !== "undefined" &&
           typeof navigator.userAgent === "string" &&
           navigator.userAgent.includes("Electron");
-        const runtimeHint =
-          hasElectronUserAgent
-            ? "Electron detected, but preload failed to expose misoAPI. Check Electron main/preload console logs."
-            : "Web mode detected. Run the app with Electron (`npm start` or `npm run start:electron`).";
+        const runtimeHint = hasElectronUserAgent
+          ? "Electron detected, but preload failed to expose misoAPI. Check Electron main/preload console logs."
+          : "Web mode detected. Run the app with Electron (`npm start` or `npm run start:electron`).";
         setMisoStatus({
           status: "unavailable",
           ready: false,
@@ -90,12 +108,19 @@ const ChatInterface = () => {
       const normalized = await api.miso.getModelCatalog();
       setModelCatalog(normalized);
 
-      if ((modelIdRef.current === "miso-unset" || !modelIdRef.current) && normalized.activeModel) {
+      if (
+        (modelIdRef.current === "miso-unset" || !modelIdRef.current) &&
+        normalized.activeModel
+      ) {
         const chatId = activeChatIdRef.current;
         modelIdRef.current = normalized.activeModel;
         setSelectedModelId(normalized.activeModel);
         if (chatId) {
-          setChatModel(chatId, { id: normalized.activeModel }, { source: "chat-page" });
+          setChatModel(
+            chatId,
+            { id: normalized.activeModel },
+            { source: "chat-page" },
+          );
         }
       }
     } catch (_error) {
@@ -134,20 +159,35 @@ const ChatInterface = () => {
       }
 
       const nextActiveId = nextStore?.activeChatId;
-      const nextActiveChat = nextActiveId ? nextStore?.chatsById?.[nextActiveId] : null;
+      const nextActiveChat = nextActiveId
+        ? nextStore?.chatsById?.[nextActiveId]
+        : null;
+      const currentActiveId = activeChatIdRef.current;
 
-      if (!nextActiveId || !nextActiveChat || nextActiveId === activeChatIdRef.current) {
+      if (
+        !nextActiveId ||
+        !nextActiveChat ||
+        nextActiveId === currentActiveId
+      ) {
         return;
       }
 
-      if (streamHandleRef.current && typeof streamHandleRef.current.cancel === "function") {
-        streamHandleRef.current.cancel();
-      }
-      streamHandleRef.current = null;
-
       activeChatIdRef.current = nextActiveId;
+
+      if (
+        activeStreamMessagesRef.current?.chatId === currentActiveId &&
+        Array.isArray(activeStreamMessagesRef.current?.messages)
+      ) {
+        setChatMessages(
+          currentActiveId,
+          activeStreamMessagesRef.current.messages,
+          {
+            source: "chat-page",
+          },
+        );
+      }
+
       setActiveChatId(nextActiveId);
-      setIsStreaming(false);
       setStreamError("");
       setMessages(nextActiveChat.messages || []);
       setInputValue(nextActiveChat.draft?.text || "");
@@ -155,7 +195,8 @@ const ChatInterface = () => {
 
       threadIdRef.current = nextActiveChat.threadId || `thread-${Date.now()}`;
       modelIdRef.current =
-        typeof nextActiveChat.model?.id === "string" && nextActiveChat.model.id.trim()
+        typeof nextActiveChat.model?.id === "string" &&
+        nextActiveChat.model.id.trim()
           ? nextActiveChat.model.id
           : "miso-unset";
       setSelectedModelId(modelIdRef.current);
@@ -172,9 +213,15 @@ const ChatInterface = () => {
         clearTimeout(messagePersistTimerRef.current);
         messagePersistTimerRef.current = null;
       }
-      if (streamHandleRef.current && typeof streamHandleRef.current.cancel === "function") {
+      if (
+        streamHandleRef.current &&
+        typeof streamHandleRef.current.cancel === "function"
+      ) {
         streamHandleRef.current.cancel();
       }
+      streamHandleRef.current = null;
+      streamingChatIdRef.current = null;
+      activeStreamMessagesRef.current = null;
       cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
   }, []);
@@ -244,10 +291,44 @@ const ChatInterface = () => {
     [isStreaming],
   );
 
+  const handleStop = useCallback(() => {
+    if (
+      streamHandleRef.current &&
+      typeof streamHandleRef.current.cancel === "function"
+    ) {
+      streamHandleRef.current.cancel();
+    }
+    streamHandleRef.current = null;
+    streamingChatIdRef.current = null;
+    activeStreamMessagesRef.current = null;
+    setStreamingChatId(null);
+    // Remove empty assistant placeholder; mark partial ones as stopped
+    setMessages((prev) =>
+      prev
+        .filter(
+          (m) =>
+            !(m.role === "assistant" && m.status === "streaming" && !m.content),
+        )
+        .map((m) =>
+          m.role === "assistant" && m.status === "streaming"
+            ? { ...m, status: "stopped", updatedAt: Date.now() }
+            : m,
+        ),
+    );
+  }, []);
+
   const sendMessage = useCallback(() => {
     const chatId = activeChatIdRef.current;
     const text = inputValue.trim();
-    if (!chatId || !text || isStreaming) {
+    const hasActiveStream = Boolean(
+      streamingChatIdRef.current && streamHandleRef.current,
+    );
+    if (!chatId || !text || hasActiveStream) {
+      if (hasActiveStream && streamingChatIdRef.current !== chatId) {
+        setStreamError(
+          "Another chat is still generating. Switch back to stop it or wait.",
+        );
+      }
       return;
     }
 
@@ -267,7 +348,9 @@ const ChatInterface = () => {
       content: text,
       createdAt: timestamp,
       updatedAt: timestamp,
-      ...(attachmentsForMessage.length > 0 ? { attachments: attachmentsForMessage } : {}),
+      ...(attachmentsForMessage.length > 0
+        ? { attachments: attachmentsForMessage }
+        : {}),
     };
     const assistantPlaceholder = {
       id: assistantMessageId,
@@ -305,7 +388,28 @@ const ChatInterface = () => {
     setInputValue("");
     setDraftAttachments([]);
     setStreamError("");
-    setIsStreaming(true);
+    setStreamingChatId(chatId);
+    streamingChatIdRef.current = chatId;
+    activeStreamMessagesRef.current = {
+      chatId,
+      messages: nextMessages,
+    };
+
+    let streamMessages = nextMessages;
+    const syncStreamMessages = (nextStreamMessages) => {
+      streamMessages = nextStreamMessages;
+      activeStreamMessagesRef.current = {
+        chatId,
+        messages: nextStreamMessages,
+      };
+
+      if (activeChatIdRef.current === chatId) {
+        setMessages(nextStreamMessages);
+        return;
+      }
+
+      setChatMessages(chatId, nextStreamMessages, { source: "chat-page" });
+    };
 
     let streamHandle = null;
     try {
@@ -320,31 +424,38 @@ const ChatInterface = () => {
         },
         {
           onMeta: (meta) => {
-            if (meta && typeof meta.thread_id === "string" && meta.thread_id.trim()) {
-              threadIdRef.current = meta.thread_id;
+            if (
+              meta &&
+              typeof meta.thread_id === "string" &&
+              meta.thread_id.trim()
+            ) {
               setChatThreadId(chatId, meta.thread_id, { source: "chat-page" });
+              if (activeChatIdRef.current === chatId) {
+                threadIdRef.current = meta.thread_id;
+              }
             }
 
             if (meta && typeof meta.model === "string" && meta.model.trim()) {
-              modelIdRef.current = meta.model;
-              setSelectedModelId(meta.model);
               setChatModel(chatId, { id: meta.model }, { source: "chat-page" });
+              if (activeChatIdRef.current === chatId) {
+                modelIdRef.current = meta.model;
+                setSelectedModelId(meta.model);
+              }
             }
           },
           onToken: (delta) => {
             const patchTime = Date.now();
-            setMessages((prev) =>
-              prev.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      content: `${message.content || ""}${delta}`,
-                      updatedAt: patchTime,
-                      status: "streaming",
-                    }
-                  : message,
-              ),
+            const nextStreamMessages = streamMessages.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content: `${message.content || ""}${delta}`,
+                    updatedAt: patchTime,
+                    status: "streaming",
+                  }
+                : message,
             );
+            syncStreamMessages(nextStreamMessages);
           },
           onDone: (done) => {
             const doneTime = Date.now();
@@ -355,17 +466,21 @@ const ChatInterface = () => {
               }
               return undefined;
             };
-            const parsedUsage = done?.usage && typeof done.usage === "object"
-              ? {
-                  promptTokens: parseUsageNumber(done.usage.prompt_tokens ?? done.usage.promptTokens),
-                  completionTokens: parseUsageNumber(
-                    done.usage.completion_tokens ?? done.usage.completionTokens,
-                  ),
-                  completionChars: parseUsageNumber(
-                    done.usage.completion_chars ?? done.usage.completionChars,
-                  ),
-                }
-              : null;
+            const parsedUsage =
+              done?.usage && typeof done.usage === "object"
+                ? {
+                    promptTokens: parseUsageNumber(
+                      done.usage.prompt_tokens ?? done.usage.promptTokens,
+                    ),
+                    completionTokens: parseUsageNumber(
+                      done.usage.completion_tokens ??
+                        done.usage.completionTokens,
+                    ),
+                    completionChars: parseUsageNumber(
+                      done.usage.completion_chars ?? done.usage.completionChars,
+                    ),
+                  }
+                : null;
             const usage =
               parsedUsage &&
               (parsedUsage.promptTokens != null ||
@@ -374,64 +489,70 @@ const ChatInterface = () => {
                 ? parsedUsage
                 : undefined;
 
-            setMessages((prev) =>
-              prev.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      status: "done",
-                      updatedAt: doneTime,
-                      meta: {
-                        ...(message.meta || {}),
-                        ...(usage ? { usage } : {}),
-                      },
-                    }
-                  : message,
-              ),
+            const nextStreamMessages = streamMessages.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    status: "done",
+                    updatedAt: doneTime,
+                    meta: {
+                      ...(message.meta || {}),
+                      ...(usage ? { usage } : {}),
+                    },
+                  }
+                : message,
             );
-            setIsStreaming(false);
+            syncStreamMessages(nextStreamMessages);
             streamHandleRef.current = null;
+            streamingChatIdRef.current = null;
+            activeStreamMessagesRef.current = null;
+            setStreamingChatId(null);
           },
           onError: (error) => {
             const errorMessage = error?.message || "Unknown stream error";
             const errorCode = error?.code || "stream_error";
             const errorTime = Date.now();
-            setStreamError(errorMessage);
-            setIsStreaming(false);
+            if (activeChatIdRef.current === chatId) {
+              setStreamError(errorMessage);
+            }
             streamHandleRef.current = null;
+            streamingChatIdRef.current = null;
+            setStreamingChatId(null);
 
-            setMessages((prev) =>
-              prev.map((message) => {
-                if (message.id !== assistantMessageId) {
-                  return message;
-                }
+            const nextStreamMessages = streamMessages.map((message) => {
+              if (message.id !== assistantMessageId) {
+                return message;
+              }
 
-                return {
-                  ...message,
-                  status: "error",
-                  updatedAt: errorTime,
-                  content: message.content || `[error] ${errorMessage}`,
-                  meta: {
-                    ...(message.meta || {}),
-                    error: {
-                      code: errorCode,
-                      message: errorMessage,
-                    },
+              return {
+                ...message,
+                status: "error",
+                updatedAt: errorTime,
+                content: message.content || `[error] ${errorMessage}`,
+                meta: {
+                  ...(message.meta || {}),
+                  error: {
+                    code: errorCode,
+                    message: errorMessage,
                   },
-                };
-              }),
-            );
+                },
+              };
+            });
+            syncStreamMessages(nextStreamMessages);
+            activeStreamMessagesRef.current = null;
           },
         },
       );
     } catch (error) {
       const errorMessage = error?.message || "Failed to start stream";
       setStreamError(errorMessage);
-      setIsStreaming(false);
       streamHandleRef.current = null;
+      streamingChatIdRef.current = null;
+      activeStreamMessagesRef.current = null;
+      setStreamingChatId(null);
 
-      setMessages((prev) =>
-        prev.map((message) =>
+      setMessages(
+        nextMessages.map((message) =>
           message.id === assistantMessageId
             ? {
                 ...message,
@@ -448,21 +569,20 @@ const ChatInterface = () => {
     streamHandleRef.current = streamHandle;
 
     if (streamHandle?.requestId) {
-      setMessages((prev) =>
-        prev.map((message) =>
-          message.id === assistantMessageId
-            ? {
-                ...message,
-                meta: {
-                  ...(message.meta || {}),
-                  requestId: streamHandle.requestId,
-                },
-              }
-            : message,
-        ),
+      const nextStreamMessages = streamMessages.map((message) =>
+        message.id === assistantMessageId
+          ? {
+              ...message,
+              meta: {
+                ...(message.meta || {}),
+                requestId: streamHandle.requestId,
+              },
+            }
+          : message,
       );
+      syncStreamMessages(nextStreamMessages);
     }
-  }, [draftAttachments, inputValue, isStreaming, messages]);
+  }, [draftAttachments, inputValue, messages]);
 
   const handleEdit = useCallback((message) => {
     console.log("Edit message:", message);
@@ -493,6 +613,9 @@ const ChatInterface = () => {
     if (streamError) {
       return `Miso error: ${streamError}`;
     }
+    if (hasBackgroundStream) {
+      return "Another chat is streaming a response...";
+    }
     if (isStreaming) {
       return "Miso is streaming a response...";
     }
@@ -502,9 +625,10 @@ const ChatInterface = () => {
         : `Connecting to Miso (${misoStatus.status})...`;
     }
     return DEFAULT_DISCLAIMER;
-  }, [streamError, isStreaming, misoStatus]);
+  }, [streamError, hasBackgroundStream, isStreaming, misoStatus]);
 
-  const isSendDisabled = isStreaming || !misoStatus.ready;
+  const isSendDisabled =
+    (!misoStatus.ready && !isStreaming) || hasBackgroundStream;
 
   return (
     <div
@@ -533,6 +657,8 @@ const ChatInterface = () => {
         value={inputValue}
         onChange={setInputValue}
         onSend={sendMessage}
+        onStop={handleStop}
+        isStreaming={isStreaming}
         sendDisabled={isSendDisabled}
         placeholder={
           misoStatus.ready
