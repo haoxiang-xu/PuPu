@@ -1,4 +1,4 @@
-import { useState, useContext } from "react";
+import { memo, useState, useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
@@ -120,4 +120,11 @@ const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
   );
 };
 
-export default ChatBubble;
+const areChatBubblePropsEqual = (previousProps, nextProps) =>
+  previousProps.message === nextProps.message &&
+  previousProps.isLast === nextProps.isLast &&
+  previousProps.onEdit === nextProps.onEdit &&
+  previousProps.onCopy === nextProps.onCopy &&
+  previousProps.onRegenerate === nextProps.onRegenerate;
+
+export default memo(ChatBubble, areChatBubblePropsEqual);

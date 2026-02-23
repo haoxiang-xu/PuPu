@@ -509,6 +509,14 @@ const ChatInterface = () => {
             setStreamingChatId(null);
           },
           onError: (error) => {
+            // If handleStop already cleaned up (streamHandleRef is null), this is
+            // a cancel-triggered callback — skip it to avoid overriding the cleanup.
+            if (
+              streamHandleRef.current === null &&
+              streamingChatIdRef.current === null
+            ) {
+              return;
+            }
             const errorMessage = error?.message || "Unknown stream error";
             const errorCode = error?.code || "stream_error";
             const errorTime = Date.now();
@@ -647,10 +655,15 @@ const ChatInterface = () => {
       }}
     >
       <ChatMessages
+        chatId={activeChatId}
         messages={messages}
+        isStreaming={isStreaming}
         onEdit={handleEdit}
         onCopy={handleCopy}
         onRegenerate={handleRegenerate}
+        initialVisibleCount={12}
+        loadBatchSize={6}
+        topLoadThreshold={80}
       />
 
       <ChatInput
