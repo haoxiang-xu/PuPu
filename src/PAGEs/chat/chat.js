@@ -592,19 +592,6 @@ const ChatInterface = () => {
     }
   }, [draftAttachments, inputValue, messages]);
 
-  const handleEdit = useCallback((message) => {
-    console.log("Edit message:", message);
-  }, []);
-
-  const handleCopy = useCallback((message) => {
-    navigator.clipboard.writeText(message.content);
-    console.log("Copied to clipboard");
-  }, []);
-
-  const handleRegenerate = useCallback((message) => {
-    console.log("Regenerate message:", message);
-  }, []);
-
   const handleAttachFile = useCallback(() => {
     console.log("Attach file");
   }, []);
@@ -658,9 +645,6 @@ const ChatInterface = () => {
         chatId={activeChatId}
         messages={messages}
         isStreaming={isStreaming}
-        onEdit={handleEdit}
-        onCopy={handleCopy}
-        onRegenerate={handleRegenerate}
         initialVisibleCount={12}
         loadBatchSize={6}
         topLoadThreshold={80}

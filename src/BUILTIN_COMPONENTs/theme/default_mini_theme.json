@@ -101,7 +101,7 @@
     },
     "code": {
       "fontFamily": "Menlo, Monaco, Consolas, monospace",
-      "fontSize": 13,
+      "fontSize": 12,
       "lineHeight": 1.5,
       "backgroundColor": "#F5F5F5",
       "borderRadius": 7,
@@ -383,7 +383,7 @@
     },
     "code": {
       "fontFamily": "Menlo, Monaco, Consolas, monospace",
-      "fontSize": 13,
+      "fontSize": 12,
       "lineHeight": 1.5,
       "backgroundColor": "#1E1E1E",
       "borderRadius": 7,

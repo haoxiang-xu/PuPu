@@ -59,14 +59,12 @@ const EmptyChat = () => {
 };
 
 const BOTTOM_FOLLOW_THRESHOLD = 24;
+const PREVIOUS_MESSAGE_EPSILON = 6;
 
 const ChatMessages = ({
   chatId,
   messages = [],
   isStreaming = false,
-  onEdit,
-  onCopy,
-  onRegenerate,
   className = "scrollable",
   initialVisibleCount = 12,
   loadBatchSize = 6,
@@ -76,9 +74,12 @@ const ChatMessages = ({
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
   const messagesRef = useRef(null);
+  const messageNodeRefs = useRef(new Map());
+  const lastScrollTopRef = useRef(0);
   const visibleStartRef = useRef(Math.max(0, messages.length - initialVisibleCount));
   const prependCompensationRef = useRef(null);
   const pendingScrollToBottomRef = useRef("auto");
+  const pendingJumpActionRef = useRef(null);
   const activeChatIdRef = useRef(chatId);
   const [visibleStartIndex, setVisibleStartIndex] = useState(
     () => Math.max(0, messages.length - initialVisibleCount),
@@ -93,15 +94,6 @@ const ChatMessages = ({
     () => messages.slice(safeVisibleStart),
     [messages, safeVisibleStart],
   );
-
-  const lastAssistantIndex = useMemo(() => {
-    for (let index = messages.length - 1; index >= 0; index -= 1) {
-      if (messages[index]?.role === "assistant") {
-        return index;
-      }
-    }
-    return -1;
-  }, [messages]);
 
   const updateIsAtBottom = useCallback((el) => {
     const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
@@ -138,10 +130,15 @@ const ChatMessages = ({
       return;
     }
 
+    const currentScrollTop = el.scrollTop;
+    const isScrollingUp = currentScrollTop < lastScrollTopRef.current - 0.5;
+    lastScrollTopRef.current = currentScrollTop;
+
     updateIsAtBottom(el);
 
     if (
-      el.scrollTop <= topLoadThreshold &&
+      currentScrollTop <= topLoadThreshold &&
+      isScrollingUp &&
       visibleStartRef.current > 0 &&
       !prependCompensationRef.current
     ) {
@@ -156,21 +153,101 @@ const ChatMessages = ({
     }
 
     el.scrollTo({ top: el.scrollHeight, behavior });
+    lastScrollTopRef.current = el.scrollHeight;
     setIsAtBottom(true);
   }, []);
+
+  const scrollToTop = useCallback(
+    (behavior = "smooth") => {
+      const el = messagesRef.current;
+      if (!el) {
+        return;
+      }
+      el.scrollTo({ top: 0, behavior });
+      lastScrollTopRef.current = 0;
+      updateIsAtBottom(el);
+    },
+    [updateIsAtBottom],
+  );
+
+  const getSortedRenderedEntries = useCallback(() => {
+    return [...messageNodeRefs.current.entries()]
+      .filter(([, node]) => node)
+      .sort((a, b) => a[0] - b[0]);
+  }, []);
+
+  const jumpToPreviousRenderedMessage = useCallback(
+    (behavior = "smooth") => {
+      const el = messagesRef.current;
+      if (!el) {
+        return false;
+      }
+
+      const thresholdTop = el.scrollTop - PREVIOUS_MESSAGE_EPSILON;
+      let previousNode = null;
+
+      for (const [, node] of getSortedRenderedEntries()) {
+        if (node.offsetTop < thresholdTop) {
+          previousNode = node;
+          continue;
+        }
+        break;
+      }
+
+      if (!previousNode) {
+        return false;
+      }
+
+      el.scrollTo({
+        top: Math.max(0, previousNode.offsetTop - 12),
+        behavior,
+      });
+      updateIsAtBottom(el);
+      return true;
+    },
+    [getSortedRenderedEntries, updateIsAtBottom],
+  );
 
   const handleBackToBottom = useCallback(() => {
     const nextStart = Math.max(0, messages.length - initialVisibleCount);
     const shouldAdjustWindow = nextStart !== visibleStartRef.current;
     visibleStartRef.current = nextStart;
     if (shouldAdjustWindow) {
-      pendingScrollToBottomRef.current = "smooth";
+      pendingScrollToBottomRef.current = "auto";
       setVisibleStartIndex(nextStart);
       return;
     }
 
-    scrollToBottom("smooth");
+    scrollToBottom("auto");
   }, [initialVisibleCount, messages.length, scrollToBottom]);
+
+  const handleSkipToTop = useCallback(() => {
+    pendingJumpActionRef.current = null;
+    const shouldExpandWindow = visibleStartRef.current !== 0;
+    visibleStartRef.current = 0;
+
+    if (shouldExpandWindow) {
+      pendingJumpActionRef.current = { type: "top", behavior: "smooth" };
+      setVisibleStartIndex(0);
+      return;
+    }
+
+    scrollToTop("smooth");
+  }, [scrollToTop]);
+
+  const handleJumpToPreviousMessage = useCallback(() => {
+    if (jumpToPreviousRenderedMessage("smooth")) {
+      return;
+    }
+
+    if (visibleStartRef.current > 0) {
+      pendingJumpActionRef.current = { type: "previous", behavior: "smooth" };
+      loadOlderMessages();
+      return;
+    }
+
+    scrollToTop("smooth");
+  }, [jumpToPreviousRenderedMessage, loadOlderMessages, scrollToTop]);
 
   useEffect(() => {
     visibleStartRef.current = visibleStartIndex;
@@ -182,6 +259,7 @@ const ChatMessages = ({
     }
 
     activeChatIdRef.current = chatId;
+    lastScrollTopRef.current = 0;
     const nextStart = Math.max(0, messages.length - initialVisibleCount);
     visibleStartRef.current = nextStart;
     setVisibleStartIndex(nextStart);
@@ -195,6 +273,7 @@ const ChatMessages = ({
     }
 
     visibleStartRef.current = 0;
+    lastScrollTopRef.current = 0;
     setVisibleStartIndex(0);
     setIsAtBottom(true);
     pendingScrollToBottomRef.current = "auto";
@@ -202,16 +281,58 @@ const ChatMessages = ({
 
   useLayoutEffect(() => {
     const el = messagesRef.current;
-    if (!el || !prependCompensationRef.current) {
+    if (!el) {
       return;
     }
 
-    const { previousScrollHeight, previousScrollTop } = prependCompensationRef.current;
-    const delta = el.scrollHeight - previousScrollHeight;
-    el.scrollTop = previousScrollTop + delta;
-    prependCompensationRef.current = null;
-    updateIsAtBottom(el);
-  }, [safeVisibleStart, updateIsAtBottom]);
+    if (prependCompensationRef.current) {
+      if (isAtBottom) {
+        scrollToBottom("auto");
+      } else {
+        const { previousScrollHeight, previousScrollTop } = prependCompensationRef.current;
+        const delta = el.scrollHeight - previousScrollHeight;
+        el.scrollTop = previousScrollTop + delta;
+        lastScrollTopRef.current = el.scrollTop;
+      }
+      prependCompensationRef.current = null;
+      updateIsAtBottom(el);
+    }
+
+    const pendingAction = pendingJumpActionRef.current;
+    if (!pendingAction) {
+      return;
+    }
+
+    if (pendingAction.type === "top") {
+      pendingJumpActionRef.current = null;
+      scrollToTop(pendingAction.behavior || "smooth");
+      return;
+    }
+
+    if (pendingAction.type === "previous") {
+      const jumped = jumpToPreviousRenderedMessage(pendingAction.behavior || "smooth");
+      if (jumped) {
+        pendingJumpActionRef.current = null;
+        return;
+      }
+
+      if (visibleStartRef.current > 0) {
+        loadOlderMessages();
+        return;
+      }
+
+      pendingJumpActionRef.current = null;
+      scrollToTop(pendingAction.behavior || "smooth");
+    }
+  }, [
+    isAtBottom,
+    jumpToPreviousRenderedMessage,
+    loadOlderMessages,
+    safeVisibleStart,
+    scrollToBottom,
+    scrollToTop,
+    updateIsAtBottom,
+  ]);
 
   useEffect(() => {
     const el = messagesRef.current;
@@ -280,12 +401,16 @@ const ChatMessages = ({
           >
             {visibleMessages.map((msg, index) => {
               const messageIndex = safeVisibleStart + index;
-              const isLastAssistant =
-                msg.role === "assistant" && messageIndex === lastAssistantIndex;
-
               return (
                 <div
                   key={msg.id}
+                  ref={(node) => {
+                    if (node) {
+                      messageNodeRefs.current.set(messageIndex, node);
+                    } else {
+                      messageNodeRefs.current.delete(messageIndex);
+                    }
+                  }}
                   style={{
                     width: "70%",
                     maxWidth: 800,
@@ -294,13 +419,7 @@ const ChatMessages = ({
                     boxSizing: "border-box",
                   }}
                 >
-                  <ChatBubble
-                    message={msg}
-                    isLast={isLastAssistant}
-                    onEdit={onEdit}
-                    onCopy={onCopy}
-                    onRegenerate={onRegenerate}
-                  />
+                  <ChatBubble message={msg} />
                 </div>
               );
             })}
@@ -342,7 +461,31 @@ const ChatMessages = ({
             }}
           >
             <Button
-              prefix_icon="arrow_down"
+              prefix_icon="skip_up"
+              onClick={handleSkipToTop}
+              style={{
+                color,
+                fontSize: 12,
+                iconSize: 12,
+                borderRadius: 14,
+                paddingVertical: 6,
+                paddingHorizontal: 6,
+              }}
+            />
+            <Button
+              prefix_icon="arrow_up"
+              onClick={handleJumpToPreviousMessage}
+              style={{
+                color,
+                fontSize: 12,
+                iconSize: 12,
+                borderRadius: 14,
+                paddingVertical: 6,
+                paddingHorizontal: 6,
+              }}
+            />
+            <Button
+              prefix_icon="skip_down"
               onClick={handleBackToBottom}
               style={{
                 color,

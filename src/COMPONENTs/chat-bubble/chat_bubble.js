@@ -4,12 +4,20 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 
-const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
+const ChatBubble = ({ message }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [hovered, setHovered] = useState(false);
+  const [assistantRenderMode, setAssistantRenderMode] = useState("markdown");
 
   const isUser = message.role === "user";
+  const isAssistant = message.role === "assistant";
+  const isRawTextMode = assistantRenderMode === "raw_text";
+  const hasAssistantText =
+    isAssistant &&
+    typeof message.content === "string" &&
+    message.content.length > 0;
+  const showAssistantActions = !isUser && hasAssistantText;
   const color = theme?.color || "#222";
 
   return (
@@ -58,6 +66,19 @@ const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
               spinSpeed={0.6}
             />
           </div>
+        ) : isRawTextMode ? (
+          <pre
+            style={{
+              margin: 0,
+              whiteSpace: "pre-wrap",
+              fontFamily: theme?.font?.fontFamily || "inherit",
+              fontSize: 14,
+              lineHeight: 1.6,
+              color: theme?.color || "#222",
+            }}
+          >
+            {message.content}
+          </pre>
         ) : (
           <Markdown
             markdown={message.content}
@@ -70,61 +91,36 @@ const ChatBubble = ({ message, isLast, onEdit, onCopy, onRegenerate }) => {
       </div>
 
       {/* ── hover action bar ────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: isUser ? "flex-end" : "flex-start",
-          gap: 2,
-          paddingTop: 4,
-          opacity: hovered ? 1 : 0,
-          transform: hovered ? "translateY(0)" : "translateY(-4px)",
-          transition:
-            "opacity 0.18s ease, transform 0.18s cubic-bezier(0.25, 1, 0.5, 1)",
-          pointerEvents: hovered ? "auto" : "none",
-        }}
-      >
-        {!isUser && (
-          <>
-            {onCopy && (
-              <Button
-                prefix_icon="draft"
-                onClick={() => onCopy(message)}
-                style={{ color, fontSize: 12, opacity: 0.4 }}
-              />
-            )}
-            {onEdit && (
-              <Button
-                prefix_icon="edit"
-                onClick={() => onEdit(message)}
-                style={{ color, fontSize: 12, opacity: 0.4 }}
-              />
-            )}
-            {isLast && onRegenerate && (
-              <Button
-                prefix_icon="marker"
-                onClick={() => onRegenerate(message)}
-                style={{ color, fontSize: 12, opacity: 0.4 }}
-              />
-            )}
-          </>
-        )}
-        {isUser && onEdit && (
+      {showAssistantActions && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: 2,
+            paddingTop: 4,
+            opacity: hovered ? 1 : 0,
+            transform: hovered ? "translateY(0)" : "translateY(-4px)",
+            transition:
+              "opacity 0.18s ease, transform 0.18s cubic-bezier(0.25, 1, 0.5, 1)",
+            pointerEvents: hovered ? "auto" : "none",
+          }}
+        >
           <Button
-            prefix_icon="edit"
-            onClick={() => onEdit(message)}
-            style={{ color, fontSize: 12, opacity: 0.4 }}
+            prefix_icon={isRawTextMode ? "markdown" : "text"}
+            onClick={() =>
+              setAssistantRenderMode((previousMode) =>
+                previousMode === "markdown" ? "raw_text" : "markdown",
+              )
+            }
+            style={{ color, fontSize: 14, iconSize: 14, opacity: 0.5 }}
           />
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 };
 
 const areChatBubblePropsEqual = (previousProps, nextProps) =>
-  previousProps.message === nextProps.message &&
-  previousProps.isLast === nextProps.isLast &&
-  previousProps.onEdit === nextProps.onEdit &&
-  previousProps.onCopy === nextProps.onCopy &&
-  previousProps.onRegenerate === nextProps.onRegenerate;
+  previousProps.message === nextProps.message;
 
 export default memo(ChatBubble, areChatBubblePropsEqual);
