@@ -37,7 +37,7 @@ const AttachPanel = ({
         <Button
           prefix_icon="link"
           onClick={onAttachLink}
-          style={{ color, fontSize: 14, borderRadius: 16 }}
+          style={{ color, fontSize: 14, borderRadius: focused ? 16 : 9 }}
         />
       )}
     </div>
