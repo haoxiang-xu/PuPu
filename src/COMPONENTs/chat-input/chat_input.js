@@ -31,9 +31,9 @@ const AttachPanel = ({
   modelSelectDisabled,
   isDark,
 }) => {
+  const floating = active || focused;
   let panelBg = "transparent";
-  if (active) panelBg = bg || "rgba(128,128,128,0.08)";
-  if (focused) panelBg = focusBg || "rgba(255,255,255,0.95)";
+  if (floating) panelBg = focusBg || "rgba(255,255,255,0.95)";
 
   const PILL_HEIGHT = 32;
   const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
@@ -41,9 +41,7 @@ const AttachPanel = ({
   return (
     <div
       onMouseDown={(e) => {
-        if (e.target === e.currentTarget) {
-          e.preventDefault();
-        }
+        e.preventDefault();
       }}
       style={{
         display: "flex",
@@ -52,7 +50,7 @@ const AttachPanel = ({
         padding: "4px",
         borderRadius: 18,
         backgroundColor: panelBg,
-        boxShadow: focused ? focusShadow : "none",
+        boxShadow: floating ? focusShadow : "none",
         transition: "background-color 0.22s ease, box-shadow 0.22s ease",
       }}
     >
@@ -61,6 +59,7 @@ const AttachPanel = ({
         <div
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => {
+            e.preventDefault();
             e.stopPropagation();
           }}
           style={{ display: "flex", alignItems: "center" }}
@@ -82,7 +81,7 @@ const AttachPanel = ({
               fontSize: 12,
               color,
               backgroundColor: selectBg,
-              borderRadius: focused ? 999 : 9,
+              borderRadius: floating ? 999 : 9,
               outline: "none",
               padding: "0 10px",
             }}
@@ -97,7 +96,7 @@ const AttachPanel = ({
         <Button
           prefix_icon="link"
           onClick={onAttachLink}
-          style={{ color, fontSize: 14, borderRadius: focused ? 16 : 9 }}
+          style={{ color, fontSize: 14, borderRadius: floating ? 16 : 9 }}
         />
       )}
     </div>

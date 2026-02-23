@@ -8,7 +8,7 @@ import {
   useCallback,
 } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
-import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import logoDark from "./logo_dark_theme.png";
 import logoLight from "./logo_light_theme.png";
@@ -72,8 +72,9 @@ const ChatMessages = ({
   loadBatchSize = 6,
   topLoadThreshold = 80,
 }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const color = theme?.color || "#222";
   const messagesRef = useRef(null);
   const visibleStartRef = useRef(Math.max(0, messages.length - initialVisibleCount));
   const prependCompensationRef = useRef(null);
@@ -307,42 +308,51 @@ const ChatMessages = ({
         )}
       </div>
 
-      {messages.length > 0 && !isAtBottom && (
-        <button
-          type="button"
-          onClick={handleBackToBottom}
-          aria-label="Back to bottom"
+      {messages.length > 0 && (
+        <div
           style={{
             position: "absolute",
-            // Align with the right edge of chat input and sit on its top-right area.
+            // Align to chat input's right edge and keep a visible gap above input.
             right: "max(40px, calc(50% - 480px))",
-            bottom: -16,
-            width: 34,
-            height: 34,
-            padding: 0,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            borderRadius: 999,
-            border: isDark
-              ? "1px solid rgba(255,255,255,0.18)"
-              : "1px solid rgba(0,0,0,0.16)",
-            background: isDark
-              ? "rgba(30,30,30,0.88)"
-              : "rgba(255,255,255,0.92)",
-            color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.8)",
-            fontFamily: "Jost",
-            fontSize: 12,
-            cursor: "pointer",
+            bottom: 22,
             zIndex: 2,
-            boxShadow: isDark
-              ? "0 6px 16px rgba(0,0,0,0.35)"
-              : "0 6px 16px rgba(0,0,0,0.12)",
-            backdropFilter: "blur(6px)",
+            opacity: !isAtBottom ? 1 : 0,
+            transform: !isAtBottom ? "translateY(0)" : "translateY(8px)",
+            transition:
+              "opacity 0.22s ease, transform 0.22s cubic-bezier(0.22, 1, 0.36, 1)",
+            pointerEvents: !isAtBottom ? "auto" : "none",
           }}
         >
-          <Icon src="arrow_down" style={{ width: 14, height: 14 }} />
-        </button>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "4px",
+              borderRadius: 18,
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.06)"
+                : "rgba(0,0,0,0.05)",
+              boxShadow: isDark
+                ? "0 4px 24px rgba(0,0,0,0.32), 0 1px 3px rgba(0,0,0,0.16)"
+                : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)",
+              transition: "background-color 0.22s ease, box-shadow 0.22s ease",
+              backdropFilter: "blur(6px)",
+            }}
+          >
+            <Button
+              prefix_icon="arrow_down"
+              onClick={handleBackToBottom}
+              style={{
+                color,
+                fontSize: 14,
+                borderRadius: 16,
+                paddingVertical: 8,
+                paddingHorizontal: 8,
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );
