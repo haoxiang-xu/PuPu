@@ -65,6 +65,8 @@ const ChatMessages = ({
   chatId,
   messages = [],
   isStreaming = false,
+  onDeleteMessage,
+  onResendMessage,
   className = "scrollable",
   initialVisibleCount = 12,
   loadBatchSize = 6,
@@ -419,7 +421,12 @@ const ChatMessages = ({
                     boxSizing: "border-box",
                   }}
                 >
-                  <ChatBubble message={msg} />
+                  <ChatBubble
+                    message={msg}
+                    onDeleteMessage={onDeleteMessage}
+                    onResendMessage={onResendMessage}
+                    disableActionButtons={isStreaming}
+                  />
                 </div>
               );
             })}

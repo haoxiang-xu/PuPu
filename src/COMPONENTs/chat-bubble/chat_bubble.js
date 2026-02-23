@@ -4,7 +4,12 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 
-const ChatBubble = ({ message }) => {
+const ChatBubble = ({
+  message,
+  onDeleteMessage,
+  onResendMessage,
+  disableActionButtons = false,
+}) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [hovered, setHovered] = useState(false);
@@ -17,7 +22,18 @@ const ChatBubble = ({ message }) => {
     isAssistant &&
     typeof message.content === "string" &&
     message.content.length > 0;
-  const showAssistantActions = !isUser && hasAssistantText;
+  const showAssistantRenderToggle = !isUser && hasAssistantText;
+  const canResendMessage =
+    isUser &&
+    typeof onResendMessage === "function" &&
+    typeof message?.content === "string" &&
+    message.content.trim().length > 0;
+  const canDeleteMessage =
+    typeof onDeleteMessage === "function" &&
+    typeof message?.id === "string" &&
+    message.id.length > 0;
+  const showActionBar =
+    showAssistantRenderToggle || canResendMessage || canDeleteMessage;
   const color = theme?.color || "#222";
 
   return (
@@ -91,11 +107,11 @@ const ChatBubble = ({ message }) => {
       </div>
 
       {/* ── hover action bar ────────────────────────────── */}
-      {showAssistantActions && (
+      {showActionBar && (
         <div
           style={{
             display: "flex",
-            alignItems: "flex-start",
+            alignItems: isUser ? "flex-end" : "flex-start",
             gap: 2,
             paddingTop: 4,
             opacity: hovered ? 1 : 0,
@@ -105,15 +121,34 @@ const ChatBubble = ({ message }) => {
             pointerEvents: hovered ? "auto" : "none",
           }}
         >
-          <Button
-            prefix_icon={isRawTextMode ? "markdown" : "text"}
-            onClick={() =>
-              setAssistantRenderMode((previousMode) =>
-                previousMode === "markdown" ? "raw_text" : "markdown",
-              )
-            }
-            style={{ color, fontSize: 14, iconSize: 14, opacity: 0.5 }}
-          />
+          {showAssistantRenderToggle && (
+            <Button
+              prefix_icon={isRawTextMode ? "markdown" : "text"}
+              disabled={disableActionButtons}
+              onClick={() =>
+                setAssistantRenderMode((previousMode) =>
+                  previousMode === "markdown" ? "raw_text" : "markdown",
+                )
+              }
+              style={{ color, fontSize: 14, iconSize: 14, opacity: 0.5 }}
+            />
+          )}
+          {canResendMessage && (
+            <Button
+              prefix_icon="update"
+              disabled={disableActionButtons}
+              onClick={() => onResendMessage(message)}
+              style={{ color, fontSize: 14, iconSize: 14, opacity: 0.5 }}
+            />
+          )}
+          {canDeleteMessage && (
+            <Button
+              prefix_icon="delete"
+              disabled={disableActionButtons}
+              onClick={() => onDeleteMessage(message)}
+              style={{ color, fontSize: 14, iconSize: 14, opacity: 0.5 }}
+            />
+          )}
         </div>
       )}
     </div>
@@ -121,6 +156,9 @@ const ChatBubble = ({ message }) => {
 };
 
 const areChatBubblePropsEqual = (previousProps, nextProps) =>
-  previousProps.message === nextProps.message;
+  previousProps.message === nextProps.message &&
+  previousProps.onDeleteMessage === nextProps.onDeleteMessage &&
+  previousProps.onResendMessage === nextProps.onResendMessage &&
+  previousProps.disableActionButtons === nextProps.disableActionButtons;
 
 export default memo(ChatBubble, areChatBubblePropsEqual);
