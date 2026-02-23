@@ -304,7 +304,9 @@ const FloatingTextField = ({
           ref={contentRef}
           onMouseDown={(e) => {
             e.stopPropagation();
-            e.preventDefault();
+            if (e.target === e.currentTarget) {
+              e.preventDefault();
+            }
           }}
           onClick={(e) => e.stopPropagation()}
           onFocus={(e) => e.stopPropagation()}

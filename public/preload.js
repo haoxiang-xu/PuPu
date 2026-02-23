@@ -80,6 +80,7 @@ contextBridge.exposeInMainWorld("ollamaAPI", {
 
 contextBridge.exposeInMainWorld("misoAPI", {
   getStatus: () => ipcRenderer.invoke("miso:get-status"),
+  getModelCatalog: () => ipcRenderer.invoke("miso:get-model-catalog"),
   startStream: (payload, handlers = {}) => {
     const requestId = buildRequestId();
     registerMisoStreamListener(requestId, handlers);

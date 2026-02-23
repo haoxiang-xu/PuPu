@@ -121,11 +121,34 @@ export const normalizeModelCatalog = (payload) => {
       ? payload.providers
       : {};
 
+  const activeModelFromFlat =
+    typeof payload?.activeModel === "string" && payload.activeModel.trim()
+      ? payload.activeModel.trim()
+      : null;
+  const activeModelFromActiveId =
+    typeof payload?.active?.model_id === "string" &&
+    payload.active.model_id.trim()
+      ? payload.active.model_id.trim()
+      : null;
+  const activeProvider =
+    typeof payload?.active?.provider === "string" &&
+    payload.active.provider.trim()
+      ? payload.active.provider.trim().toLowerCase()
+      : "";
+  const activeModelName =
+    typeof payload?.active?.model === "string" && payload.active.model.trim()
+      ? payload.active.model.trim()
+      : "";
+  const activeModelFromParts =
+    activeProvider && activeModelName
+      ? `${activeProvider}:${activeModelName}`
+      : activeModelName || null;
+
+  const activeModel =
+    activeModelFromFlat || activeModelFromActiveId || activeModelFromParts || null;
+
   return {
-    activeModel:
-      typeof payload?.activeModel === "string" && payload.activeModel.trim()
-        ? payload.activeModel.trim()
-        : null,
+    activeModel,
     providers: {
       ollama: normalizeStringList(providers.ollama),
       openai: normalizeStringList(providers.openai),
@@ -148,6 +171,17 @@ const normalizeMisoStatus = (status) => ({
       ? status.port
       : null,
 });
+
+const retrieveMisoModelList = async (provider = null) => {
+  const catalog = await api.miso.getModelCatalog();
+  if (typeof provider !== "string" || !provider.trim()) {
+    return catalog.providers;
+  }
+  const providerKey = provider.trim().toLowerCase();
+  return Array.isArray(catalog.providers?.[providerKey])
+    ? catalog.providers[providerKey]
+    : [];
+};
 
 export const api = {
   miso: {
@@ -196,6 +230,9 @@ export const api = {
         );
       }
     },
+
+    retrieveModelList: retrieveMisoModelList,
+    listModels: retrieveMisoModelList,
 
     startStream: (payload, handlers = {}) => {
       try {

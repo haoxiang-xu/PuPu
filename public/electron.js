@@ -67,6 +67,7 @@ const MISO_HEALTH_RETRY_MS = 250;
 const MISO_RESTART_DELAY_MS = 1500;
 const MISO_STREAM_ENDPOINT = "/chat/stream";
 const MISO_HEALTH_ENDPOINT = "/health";
+const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 
 let misoProcess = null;
 let misoPort = null;
@@ -292,6 +293,44 @@ const getMisoStatusPayload = () => ({
   port: misoPort,
   url: misoPort ? `http://${MISO_HOST}:${misoPort}` : null,
 });
+
+const getMisoModelCatalogPayload = async () => {
+  if (misoStatus !== "ready" || !misoPort) {
+    throw new Error("Miso service is not ready");
+  }
+
+  const response = await fetch(`http://${MISO_HOST}:${misoPort}${MISO_MODELS_CATALOG_ENDPOINT}`, {
+    method: "GET",
+    headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+  });
+
+  const bodyText = await response.text();
+  if (!response.ok) {
+    let message = `Miso model catalog request failed (${response.status})`;
+    if (bodyText) {
+      try {
+        const parsed = JSON.parse(bodyText);
+        const serverMessage = parsed?.error?.message || parsed?.message;
+        if (serverMessage) {
+          message = String(serverMessage);
+        }
+      } catch (_) {
+        message = bodyText.slice(0, 200);
+      }
+    }
+    throw new Error(message);
+  }
+
+  if (!bodyText) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(bodyText);
+  } catch (_) {
+    throw new Error("Invalid Miso model catalog response");
+  }
+};
 
 const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
   const target = webContents.fromId(targetWebContentsId);
@@ -864,6 +903,7 @@ ipcMain.handle("ollama-restart", async () => {
 });
 
 ipcMain.handle("miso:get-status", () => getMisoStatusPayload());
+ipcMain.handle("miso:get-model-catalog", async () => getMisoModelCatalogPayload());
 
 ipcMain.on("miso:stream:start", (event, payload) => {
   const requestId = payload?.requestId;
