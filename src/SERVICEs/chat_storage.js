@@ -15,7 +15,8 @@ const storeSubscribers = new Set();
 
 const now = () => Date.now();
 
-const isObject = (value) => value != null && typeof value === "object" && !Array.isArray(value);
+const isObject = (value) =>
+  value != null && typeof value === "object" && !Array.isArray(value);
 
 const clone = (value) => {
   try {
@@ -55,12 +56,15 @@ const unique = (list = []) => {
 };
 
 const sanitizeLabel = (input, fallback = "") => {
-  const raw = String(input ?? "").replace(/\s+/g, " ").trim();
+  const raw = String(input ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   const next = raw || fallback;
   return next.slice(0, MAX_TITLE_CHARS) || fallback;
 };
 
-const generateId = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+const generateId = (prefix) =>
+  `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 const generateFolderId = () => generateId("fld");
 const generateChatId = () => generateId("chat");
 
@@ -90,18 +94,26 @@ const sanitizeAttachment = (attachment) => {
 
   const kind = attachment.kind === "link" ? "link" : "file";
   const fallbackName = kind === "link" ? "link" : "attachment";
-  const name = trimText(String(attachment.name || fallbackName), 300) || fallbackName;
-  const mimeType = attachment.mimeType ? trimText(String(attachment.mimeType), 200) : undefined;
+  const name =
+    trimText(String(attachment.name || fallbackName), 300) || fallbackName;
+  const mimeType = attachment.mimeType
+    ? trimText(String(attachment.mimeType), 200)
+    : undefined;
   const ext = attachment.ext ? trimText(String(attachment.ext), 50) : undefined;
   const source = ["local", "url", "pasted"].includes(attachment.source)
     ? attachment.source
     : kind === "link"
       ? "url"
       : "local";
-  const size = Number.isFinite(Number(attachment.size)) ? Number(attachment.size) : undefined;
+  const size = Number.isFinite(Number(attachment.size))
+    ? Number(attachment.size)
+    : undefined;
 
   const cleaned = {
-    id: typeof attachment.id === "string" && attachment.id.trim() ? attachment.id : generateId("att"),
+    id:
+      typeof attachment.id === "string" && attachment.id.trim()
+        ? attachment.id
+        : generateId("att"),
     kind,
     name,
     source,
@@ -145,7 +157,9 @@ const sanitizeAttachments = (list) => {
 
 const deriveChatTitle = (messages, fallback = DEFAULT_CHAT_TITLE) => {
   if (Array.isArray(messages)) {
-    const userMessage = messages.find((item) => item?.role === "user" && item?.content?.trim());
+    const userMessage = messages.find(
+      (item) => item?.role === "user" && item?.content?.trim(),
+    );
     if (userMessage && typeof userMessage.content === "string") {
       return sanitizeLabel(userMessage.content, fallback);
     }
@@ -163,7 +177,9 @@ const sanitizeModel = (model) => {
   }
 
   const cleaned = {
-    id: trimText(String(model.id || DEFAULT_MODEL_ID), 200).trim() || DEFAULT_MODEL_ID,
+    id:
+      trimText(String(model.id || DEFAULT_MODEL_ID), 200).trim() ||
+      DEFAULT_MODEL_ID,
   };
 
   if (typeof model.provider === "string" && model.provider.trim()) {
@@ -191,11 +207,18 @@ const sanitizeMessage = (message) => {
     return null;
   }
 
-  const createdAt = Number.isFinite(Number(message.createdAt)) ? Number(message.createdAt) : now();
-  const updatedAt = Number.isFinite(Number(message.updatedAt)) ? Number(message.updatedAt) : createdAt;
+  const createdAt = Number.isFinite(Number(message.createdAt))
+    ? Number(message.createdAt)
+    : now();
+  const updatedAt = Number.isFinite(Number(message.updatedAt))
+    ? Number(message.updatedAt)
+    : createdAt;
 
   const cleaned = {
-    id: typeof message.id === "string" && message.id.trim() ? message.id : generateId(role),
+    id:
+      typeof message.id === "string" && message.id.trim()
+        ? message.id
+        : generateId(role),
     role,
     content: trimText(message.content, MAX_TEXT_CHARS),
     createdAt,
@@ -203,7 +226,9 @@ const sanitizeMessage = (message) => {
   };
 
   if (role === "assistant") {
-    cleaned.status = ["streaming", "done", "error", "cancelled"].includes(message.status)
+    cleaned.status = ["streaming", "done", "error", "cancelled"].includes(
+      message.status,
+    )
       ? message.status
       : "done";
   }
@@ -222,7 +247,10 @@ const sanitizeMessage = (message) => {
       meta.model = trimText(message.meta.model, 200);
     }
 
-    if (typeof message.meta.requestId === "string" && message.meta.requestId.trim()) {
+    if (
+      typeof message.meta.requestId === "string" &&
+      message.meta.requestId.trim()
+    ) {
       meta.requestId = trimText(message.meta.requestId, 200);
     }
 
@@ -231,9 +259,12 @@ const sanitizeMessage = (message) => {
       const promptTokens = Number(message.meta.usage.promptTokens);
       const completionTokens = Number(message.meta.usage.completionTokens);
       const completionChars = Number(message.meta.usage.completionChars);
-      if (Number.isFinite(promptTokens) && promptTokens >= 0) usage.promptTokens = promptTokens;
-      if (Number.isFinite(completionTokens) && completionTokens >= 0) usage.completionTokens = completionTokens;
-      if (Number.isFinite(completionChars) && completionChars >= 0) usage.completionChars = completionChars;
+      if (Number.isFinite(promptTokens) && promptTokens >= 0)
+        usage.promptTokens = promptTokens;
+      if (Number.isFinite(completionTokens) && completionTokens >= 0)
+        usage.completionTokens = completionTokens;
+      if (Number.isFinite(completionChars) && completionChars >= 0)
+        usage.completionChars = completionChars;
       if (Object.keys(usage).length > 0) {
         meta.usage = usage;
       }
@@ -242,7 +273,10 @@ const sanitizeMessage = (message) => {
     if (isObject(message.meta.error)) {
       meta.error = {
         code: trimText(String(message.meta.error.code || "unknown"), 100),
-        message: trimText(String(message.meta.error.message || "Unknown error"), 2000),
+        message: trimText(
+          String(message.meta.error.message || "Unknown error"),
+          2000,
+        ),
       };
     }
 
@@ -298,18 +332,24 @@ const computeChatStats = (chat) => ({
 const sanitizeDraft = (draft) => ({
   text: trimText(draft?.text || "", 20000),
   attachments: sanitizeAttachments(draft?.attachments),
-  updatedAt: Number.isFinite(Number(draft?.updatedAt)) ? Number(draft.updatedAt) : now(),
+  updatedAt: Number.isFinite(Number(draft?.updatedAt))
+    ? Number(draft.updatedAt)
+    : now(),
 });
 
 const sanitizeChatSession = (chat, fallbackId) => {
-  const createdAt = Number.isFinite(Number(chat?.createdAt)) ? Number(chat.createdAt) : now();
+  const createdAt = Number.isFinite(Number(chat?.createdAt))
+    ? Number(chat.createdAt)
+    : now();
   const messages = sanitizeMessages(chat?.messages);
   const draft = sanitizeDraft(chat?.draft || {});
   const updatedAt = Number.isFinite(Number(chat?.updatedAt))
     ? Number(chat.updatedAt)
     : Math.max(createdAt, draft.updatedAt);
 
-  const title = sanitizeLabel(chat?.title, "") || deriveChatTitle(messages, DEFAULT_CHAT_TITLE);
+  const title =
+    sanitizeLabel(chat?.title, "") ||
+    deriveChatTitle(messages, DEFAULT_CHAT_TITLE);
 
   const cleaned = {
     id:
@@ -323,7 +363,9 @@ const sanitizeChatSession = (chat, fallbackId) => {
     updatedAt,
     lastMessageAt: computeLastMessageAt(messages, chat?.lastMessageAt),
     threadId:
-      typeof chat?.threadId === "string" && chat.threadId.trim() ? trimText(chat.threadId, 200) : null,
+      typeof chat?.threadId === "string" && chat.threadId.trim()
+        ? trimText(chat.threadId, 200)
+        : null,
     model: sanitizeModel(chat?.model),
     draft,
     messages,
@@ -366,7 +408,9 @@ const createFolderNode = ({ id, label, children = [] } = {}) => {
     entity: "folder",
     type: "folder",
     label: sanitizeLabel(label, DEFAULT_FOLDER_LABEL),
-    children: Array.isArray(children) ? children.filter((v) => typeof v === "string") : [],
+    children: Array.isArray(children)
+      ? children.filter((v) => typeof v === "string")
+      : [],
     createdAt: stamp,
     updatedAt: stamp,
   };
@@ -401,7 +445,11 @@ const createEmptyStoreV2 = () => ({
 });
 
 const sortChatsByUpdatedAt = (chatsById) => {
-  return Object.keys(chatsById).sort((a, b) => Number(chatsById[b]?.updatedAt || 0) - Number(chatsById[a]?.updatedAt || 0));
+  return Object.keys(chatsById).sort(
+    (a, b) =>
+      Number(chatsById[b]?.updatedAt || 0) -
+      Number(chatsById[a]?.updatedAt || 0),
+  );
 };
 
 const makeInitialTreeFromChats = (chatsById, orderedChatIds, activeChatId) => {
@@ -416,11 +464,18 @@ const makeInitialTreeFromChats = (chatsById, orderedChatIds, activeChatId) => {
   for (const chatId of ordered) {
     const preferredId = toChatNodeId(chatId);
     const nodeId = ensureUniqueNodeId(nodesById, preferredId, "chn");
-    nodesById[nodeId] = createChatNode({ id: nodeId, chatId, label: chatsById[chatId].title });
+    nodesById[nodeId] = createChatNode({
+      id: nodeId,
+      chatId,
+      label: chatsById[chatId].title,
+    });
     root.push(nodeId);
   }
 
-  const activeNodeId = root.find((id) => nodesById[id]?.chatId === activeChatId) || root[0] || null;
+  const activeNodeId =
+    root.find((id) => nodesById[id]?.chatId === activeChatId) ||
+    root[0] ||
+    null;
 
   return {
     root,
@@ -445,11 +500,14 @@ const migrateV1ToV2 = (input) => {
   }
 
   const orderFromV1 = Array.isArray(input?.chatOrder)
-    ? input.chatOrder.filter((id) => typeof id === "string" && migrated.chatsById[id])
+    ? input.chatOrder.filter(
+        (id) => typeof id === "string" && migrated.chatsById[id],
+      )
     : [];
 
   const active =
-    typeof input?.activeChatId === "string" && migrated.chatsById[input.activeChatId]
+    typeof input?.activeChatId === "string" &&
+    migrated.chatsById[input.activeChatId]
       ? input.activeChatId
       : orderFromV1[0] || sortChatsByUpdatedAt(migrated.chatsById)[0] || null;
 
@@ -459,13 +517,19 @@ const migrateV1ToV2 = (input) => {
     ...orderFromV1,
     ...sortChatsByUpdatedAt(migrated.chatsById),
   ]);
-  migrated.tree = makeInitialTreeFromChats(migrated.chatsById, orderFromV1, migrated.activeChatId);
+  migrated.tree = makeInitialTreeFromChats(
+    migrated.chatsById,
+    orderFromV1,
+    migrated.activeChatId,
+  );
 
   if (isObject(input?.ui)) {
     migrated.ui = input.ui;
   }
 
-  migrated.updatedAt = Number.isFinite(Number(input?.updatedAt)) ? Number(input.updatedAt) : now();
+  migrated.updatedAt = Number.isFinite(Number(input?.updatedAt))
+    ? Number(input.updatedAt)
+    : now();
   return migrated;
 };
 
@@ -550,7 +614,10 @@ const resolveSelectedParentFolderId = (store, preferredParentFolderId) => {
     return null;
   }
 
-  if (typeof preferredParentFolderId === "string" && preferredParentFolderId.trim()) {
+  if (
+    typeof preferredParentFolderId === "string" &&
+    preferredParentFolderId.trim()
+  ) {
     const node = store.tree.nodesById[preferredParentFolderId];
     if (node && node.entity === "folder") {
       return preferredParentFolderId;
@@ -558,7 +625,9 @@ const resolveSelectedParentFolderId = (store, preferredParentFolderId) => {
     return null;
   }
 
-  const selected = store.tree.selectedNodeId ? store.tree.nodesById[store.tree.selectedNodeId] : null;
+  const selected = store.tree.selectedNodeId
+    ? store.tree.nodesById[store.tree.selectedNodeId]
+    : null;
   if (!selected) {
     return null;
   }
@@ -572,12 +641,22 @@ const resolveSelectedParentFolderId = (store, preferredParentFolderId) => {
   return parent ? parent.parentId : null;
 };
 
-const ensureUniqueLabel = (store, parentFolderId, preferredLabel, excludeNodeId = null) => {
+const ensureUniqueLabel = (
+  store,
+  parentFolderId,
+  preferredLabel,
+  excludeNodeId = null,
+) => {
   const siblings = getSiblingIds(store.tree, parentFolderId);
   const used = new Set(
     siblings
       .filter((nodeId) => nodeId !== excludeNodeId)
-      .map((nodeId) => sanitizeLabel(store.tree.nodesById[nodeId]?.label || "", "").toLowerCase())
+      .map((nodeId) =>
+        sanitizeLabel(
+          store.tree.nodesById[nodeId]?.label || "",
+          "",
+        ).toLowerCase(),
+      )
       .filter(Boolean),
   );
 
@@ -601,9 +680,10 @@ const touchLru = (store, chatId) => {
     return;
   }
 
-  store.lruChatIds = unique([chatId, ...(Array.isArray(store.lruChatIds) ? store.lruChatIds : [])]).filter(
-    (id) => store.chatsById[id],
-  );
+  store.lruChatIds = unique([
+    chatId,
+    ...(Array.isArray(store.lruChatIds) ? store.lruChatIds : []),
+  ]).filter((id) => store.chatsById[id]);
 };
 
 const normalizeLru = (store) => {
@@ -647,7 +727,10 @@ const ensureTreeHasNodeForChat = (store, chatId, options = {}) => {
 
   for (const [nodeId, node] of Object.entries(store.tree.nodesById)) {
     if (node.entity === "chat" && node.chatId === chatId) {
-      node.label = sanitizeLabel(store.chatsById[chatId].title, DEFAULT_CHAT_TITLE);
+      node.label = sanitizeLabel(
+        store.chatsById[chatId].title,
+        DEFAULT_CHAT_TITLE,
+      );
       node.updatedAt = now();
       return nodeId;
     }
@@ -661,7 +744,10 @@ const ensureTreeHasNodeForChat = (store, chatId, options = {}) => {
     label: store.chatsById[chatId].title,
   });
 
-  const parentFolderId = resolveSelectedParentFolderId(store, options.parentFolderId);
+  const parentFolderId = resolveSelectedParentFolderId(
+    store,
+    options.parentFolderId,
+  );
   const siblings = getSiblingIds(store.tree, parentFolderId);
   applySiblingIds(store.tree, parentFolderId, [nodeId, ...siblings]);
 
@@ -690,14 +776,22 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
         children: Array.isArray(rawNode.children)
           ? rawNode.children.filter((id) => typeof id === "string")
           : [],
-        createdAt: Number.isFinite(Number(rawNode.createdAt)) ? Number(rawNode.createdAt) : now(),
-        updatedAt: Number.isFinite(Number(rawNode.updatedAt)) ? Number(rawNode.updatedAt) : now(),
+        createdAt: Number.isFinite(Number(rawNode.createdAt))
+          ? Number(rawNode.createdAt)
+          : now(),
+        updatedAt: Number.isFinite(Number(rawNode.updatedAt))
+          ? Number(rawNode.updatedAt)
+          : now(),
       };
       continue;
     }
 
     const chatId = typeof rawNode.chatId === "string" ? rawNode.chatId : null;
-    if (!chatId || !chatsById[chatId] || provisionalChatNodeByChatId.has(chatId)) {
+    if (
+      !chatId ||
+      !chatsById[chatId] ||
+      provisionalChatNodeByChatId.has(chatId)
+    ) {
       continue;
     }
 
@@ -707,9 +801,16 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
       entity: "chat",
       type: "file",
       chatId,
-      label: sanitizeLabel(chatsById[chatId]?.title || rawNode.label, DEFAULT_CHAT_TITLE),
-      createdAt: Number.isFinite(Number(rawNode.createdAt)) ? Number(rawNode.createdAt) : now(),
-      updatedAt: Number.isFinite(Number(rawNode.updatedAt)) ? Number(rawNode.updatedAt) : now(),
+      label: sanitizeLabel(
+        chatsById[chatId]?.title || rawNode.label,
+        DEFAULT_CHAT_TITLE,
+      ),
+      createdAt: Number.isFinite(Number(rawNode.createdAt))
+        ? Number(rawNode.createdAt)
+        : now(),
+      updatedAt: Number.isFinite(Number(rawNode.updatedAt))
+        ? Number(rawNode.updatedAt)
+        : now(),
     };
   }
 
@@ -751,12 +852,17 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
 
     normalized.nodesById[nodeId] = {
       ...node,
-      label: sanitizeLabel(chatsById[node.chatId]?.title || node.label, DEFAULT_CHAT_TITLE),
+      label: sanitizeLabel(
+        chatsById[node.chatId]?.title || node.label,
+        DEFAULT_CHAT_TITLE,
+      ),
     };
     return nodeId;
   };
 
-  const rawRoot = Array.isArray(treeInput?.root) ? treeInput.root.filter((id) => typeof id === "string") : [];
+  const rawRoot = Array.isArray(treeInput?.root)
+    ? treeInput.root.filter((id) => typeof id === "string")
+    : [];
   for (const nodeId of rawRoot) {
     const walked = walk(nodeId, new Set());
     if (walked) normalized.root.push(walked);
@@ -790,9 +896,14 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
     mappedChatIds.add(chatId);
   }
 
-  const selectedRaw = typeof treeInput?.selectedNodeId === "string" ? treeInput.selectedNodeId : null;
+  const selectedRaw =
+    typeof treeInput?.selectedNodeId === "string"
+      ? treeInput.selectedNodeId
+      : null;
   const activeNodeId = Object.keys(normalized.nodesById).find(
-    (nodeId) => normalized.nodesById[nodeId]?.entity === "chat" && normalized.nodesById[nodeId]?.chatId === activeChatId,
+    (nodeId) =>
+      normalized.nodesById[nodeId]?.entity === "chat" &&
+      normalized.nodesById[nodeId]?.chatId === activeChatId,
   );
 
   normalized.selectedNodeId =
@@ -804,7 +915,9 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
   normalized.expandedFolderIds = Array.isArray(treeInput?.expandedFolderIds)
     ? unique(
         treeInput.expandedFolderIds.filter(
-          (nodeId) => normalized.nodesById[nodeId] && normalized.nodesById[nodeId].entity === "folder",
+          (nodeId) =>
+            normalized.nodesById[nodeId] &&
+            normalized.nodesById[nodeId].entity === "folder",
         ),
       )
     : [];
@@ -813,7 +926,10 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
 };
 
 const normalizeStore = (input) => {
-  const migrated = input?.schemaVersion === CHATS_SCHEMA_VERSION ? input : migrateV1ToV2(input);
+  const migrated =
+    input?.schemaVersion === CHATS_SCHEMA_VERSION
+      ? input
+      : migrateV1ToV2(input);
   const next = createEmptyStoreV2();
 
   if (isObject(migrated?.ui)) {
@@ -832,7 +948,8 @@ const normalizeStore = (input) => {
   }
 
   const rawActiveChatId =
-    typeof migrated?.activeChatId === "string" && next.chatsById[migrated.activeChatId]
+    typeof migrated?.activeChatId === "string" &&
+    next.chatsById[migrated.activeChatId]
       ? migrated.activeChatId
       : null;
 
@@ -842,12 +959,22 @@ const normalizeStore = (input) => {
     ),
   );
 
-  next.tree = sanitizeTree(migrated?.tree, next.chatsById, rawActiveChatId, next.lruChatIds);
+  next.tree = sanitizeTree(
+    migrated?.tree,
+    next.chatsById,
+    rawActiveChatId,
+    next.lruChatIds,
+  );
 
   let activeChatId = rawActiveChatId;
   if (!activeChatId || !next.chatsById[activeChatId]) {
-    const selectedNode = next.tree.selectedNodeId ? next.tree.nodesById[next.tree.selectedNodeId] : null;
-    if (selectedNode?.entity === "chat" && next.chatsById[selectedNode.chatId]) {
+    const selectedNode = next.tree.selectedNodeId
+      ? next.tree.nodesById[next.tree.selectedNodeId]
+      : null;
+    if (
+      selectedNode?.entity === "chat" &&
+      next.chatsById[selectedNode.chatId]
+    ) {
       activeChatId = selectedNode.chatId;
     }
   }
@@ -869,12 +996,20 @@ const normalizeStore = (input) => {
 
   next.activeChatId = activeChatId;
 
-  const activeNodeId = ensureTreeHasNodeForChat(next, activeChatId, { parentFolderId: null });
-  if (!next.tree.selectedNodeId || !next.tree.nodesById[next.tree.selectedNodeId]) {
+  const activeNodeId = ensureTreeHasNodeForChat(next, activeChatId, {
+    parentFolderId: null,
+  });
+  if (
+    !next.tree.selectedNodeId ||
+    !next.tree.nodesById[next.tree.selectedNodeId]
+  ) {
     next.tree.selectedNodeId = activeNodeId || next.tree.root[0] || null;
   }
 
-  if (next.tree.selectedNodeId && !next.tree.nodesById[next.tree.selectedNodeId]) {
+  if (
+    next.tree.selectedNodeId &&
+    !next.tree.nodesById[next.tree.selectedNodeId]
+  ) {
     next.tree.selectedNodeId = activeNodeId || next.tree.root[0] || null;
   }
 
@@ -910,7 +1045,9 @@ const dropLeastRecentlyUsedChats = (store) => {
   let totalBytes = estimateBytes(store);
 
   while (totalBytes > TARGET_TOTAL_BYTES) {
-    const removableChatId = [...store.lruChatIds].reverse().find((chatId) => chatId !== store.activeChatId);
+    const removableChatId = [...store.lruChatIds]
+      .reverse()
+      .find((chatId) => chatId !== store.activeChatId);
     if (!removableChatId) {
       break;
     }
@@ -919,11 +1056,20 @@ const dropLeastRecentlyUsedChats = (store) => {
     totalBytes = estimateBytes(store);
   }
 
-  if (totalBytes > MAX_TOTAL_BYTES && store.activeChatId && store.chatsById[store.activeChatId]) {
+  if (
+    totalBytes > MAX_TOTAL_BYTES &&
+    store.activeChatId &&
+    store.chatsById[store.activeChatId]
+  ) {
     const activeChat = store.chatsById[store.activeChatId];
     if (activeChat.messages.length > MAX_ACTIVE_MESSAGES_WHEN_TRIMMING) {
-      activeChat.messages = activeChat.messages.slice(-MAX_ACTIVE_MESSAGES_WHEN_TRIMMING);
-      activeChat.lastMessageAt = computeLastMessageAt(activeChat.messages, activeChat.lastMessageAt);
+      activeChat.messages = activeChat.messages.slice(
+        -MAX_ACTIVE_MESSAGES_WHEN_TRIMMING,
+      );
+      activeChat.lastMessageAt = computeLastMessageAt(
+        activeChat.messages,
+        activeChat.lastMessageAt,
+      );
       activeChat.updatedAt = now();
       activeChat.stats = computeChatStats(activeChat);
       totalBytes = estimateBytes(store);
@@ -975,7 +1121,8 @@ const writeStore = (store, options = {}) => {
     const fallback = createEmptyStoreV2();
 
     if (finalized.activeChatId && finalized.chatsById[finalized.activeChatId]) {
-      fallback.chatsById[finalized.activeChatId] = finalized.chatsById[finalized.activeChatId];
+      fallback.chatsById[finalized.activeChatId] =
+        finalized.chatsById[finalized.activeChatId];
       fallback.activeChatId = finalized.activeChatId;
       fallback.lruChatIds = [finalized.activeChatId];
       fallback.tree = makeInitialTreeFromChats(
@@ -1042,7 +1189,9 @@ const updateActiveAndSelectedFromChatId = (store, chatId) => {
   }
 
   if (!selectedNodeId) {
-    selectedNodeId = ensureTreeHasNodeForChat(store, chatId, { parentFolderId: null });
+    selectedNodeId = ensureTreeHasNodeForChat(store, chatId, {
+      parentFolderId: null,
+    });
   }
 
   if (selectedNodeId) {
@@ -1074,7 +1223,9 @@ const collectSubtreeNodeIds = (tree, nodeId, bucket = []) => {
 
   bucket.push(nodeId);
   if (node.entity === "folder") {
-    node.children.forEach((childId) => collectSubtreeNodeIds(tree, childId, bucket));
+    node.children.forEach((childId) =>
+      collectSubtreeNodeIds(tree, childId, bucket),
+    );
   }
   return bucket;
 };
@@ -1089,21 +1240,35 @@ const buildTreeNodeLookupByChatId = (tree) => {
   return map;
 };
 
-const sanitizeExplorerLabel = (label, fallback) => sanitizeLabel(label, fallback);
+const sanitizeExplorerLabel = (label, fallback) =>
+  sanitizeLabel(label, fallback);
 
-export const sanitizeExplorerReorderPayload = ({ data, root, currentNodesById }) => {
+export const sanitizeExplorerReorderPayload = ({
+  data,
+  root,
+  currentNodesById,
+}) => {
   const payloadData = isObject(data) ? data : {};
-  const payloadRoot = Array.isArray(root) ? root.filter((id) => typeof id === "string") : [];
+  const payloadRoot = Array.isArray(root)
+    ? root.filter((id) => typeof id === "string")
+    : [];
   const sanitizedNodes = {};
 
   for (const [nodeId, baseNode] of Object.entries(currentNodesById || {})) {
     const payloadNode = payloadData[nodeId];
     if (baseNode.entity === "folder") {
-      const rawChildren = Array.isArray(payloadNode?.children) ? payloadNode.children : baseNode.children;
+      const rawChildren = Array.isArray(payloadNode?.children)
+        ? payloadNode.children
+        : baseNode.children;
       sanitizedNodes[nodeId] = {
         ...baseNode,
         label: sanitizeExplorerLabel(payloadNode?.label, baseNode.label),
-        children: rawChildren.filter((childId) => typeof childId === "string" && currentNodesById[childId] && childId !== nodeId),
+        children: rawChildren.filter(
+          (childId) =>
+            typeof childId === "string" &&
+            currentNodesById[childId] &&
+            childId !== nodeId,
+        ),
       };
       continue;
     }
@@ -1114,7 +1279,9 @@ export const sanitizeExplorerReorderPayload = ({ data, root, currentNodesById })
     };
   }
 
-  const sanitizedRoot = unique(payloadRoot.filter((nodeId) => sanitizedNodes[nodeId]));
+  const sanitizedRoot = unique(
+    payloadRoot.filter((nodeId) => sanitizedNodes[nodeId]),
+  );
   return {
     nodesById: sanitizedNodes,
     root: sanitizedRoot,
@@ -1135,7 +1302,7 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
         entity: "folder",
         label: sanitizeLabel(node.label, DEFAULT_FOLDER_LABEL),
         children: Array.isArray(node.children) ? node.children : [],
-        prefix_icon: "draft",
+        prefix_icon: "folder",
         style: selected
           ? {
               opacity: 1,
@@ -1144,6 +1311,11 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
         on_click: () => {
           if (typeof handlers.onSelect === "function") {
             handlers.onSelect(nodeId);
+          }
+        },
+        on_double_click: () => {
+          if (typeof handlers.onStartRename === "function") {
+            handlers.onStartRename(node);
           }
         },
         on_context_menu: (_node, event) => {
@@ -1155,13 +1327,16 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       continue;
     }
 
-    const title = sanitizeLabel(chatsById?.[node.chatId]?.title || node.label, DEFAULT_CHAT_TITLE);
+    const title = sanitizeLabel(
+      chatsById?.[node.chatId]?.title || node.label,
+      DEFAULT_CHAT_TITLE,
+    );
     data[nodeId] = {
       type: "file",
       entity: "chat",
       chatId: node.chatId,
       label: title,
-      prefix_icon: "edit",
+      prefix_icon: "chat",
       style: selected
         ? {
             opacity: 1,
@@ -1170,6 +1345,11 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       on_click: () => {
         if (typeof handlers.onSelect === "function") {
           handlers.onSelect(nodeId);
+        }
+      },
+      on_double_click: () => {
+        if (typeof handlers.onStartRename === "function") {
+          handlers.onStartRename(node);
         }
       },
       on_context_menu: (_node, event) => {
@@ -1183,12 +1363,18 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
   return {
     data,
     root: [...root],
-    defaultExpanded: Array.isArray(tree?.expandedFolderIds) ? tree.expandedFolderIds : [],
+    defaultExpanded: Array.isArray(tree?.expandedFolderIds)
+      ? tree.expandedFolderIds
+      : [],
   };
 };
 
 export const getChatsStore = () => {
-  const synced = writeStore(readStore(), { emit: false, source: "system", type: "store_bootstrap" });
+  const synced = writeStore(readStore(), {
+    emit: false,
+    source: "system",
+    type: "store_bootstrap",
+  });
   return clone(synced) || createEmptyStoreV2();
 };
 
@@ -1205,9 +1391,10 @@ export const subscribeChatsStore = (listener) => {
 
 export const bootstrapChatsStore = () => {
   const store = getChatsStore();
-  const activeChat = store.activeChatId && store.chatsById[store.activeChatId]
-    ? store.chatsById[store.activeChatId]
-    : null;
+  const activeChat =
+    store.activeChatId && store.chatsById[store.activeChatId]
+      ? store.chatsById[store.activeChatId]
+      : null;
 
   return {
     store,
@@ -1222,7 +1409,10 @@ export const createFolder = (params = {}, options = {}) => {
 
   const next = withStore(
     (store) => {
-      const parentFolderId = resolveSelectedParentFolderId(store, params.parentFolderId);
+      const parentFolderId = resolveSelectedParentFolderId(
+        store,
+        params.parentFolderId,
+      );
       const label = ensureUniqueLabel(
         store,
         parentFolderId,
@@ -1230,7 +1420,11 @@ export const createFolder = (params = {}, options = {}) => {
       );
 
       const folder = createFolderNode({ label });
-      const folderId = ensureUniqueNodeId(store.tree.nodesById, folder.id, "fld");
+      const folderId = ensureUniqueNodeId(
+        store.tree.nodesById,
+        folder.id,
+        "fld",
+      );
       store.tree.nodesById[folderId] = {
         ...folder,
         id: folderId,
@@ -1262,12 +1456,19 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
 
   const next = withStore(
     (store) => {
-      const parentFolderId = resolveSelectedParentFolderId(store, params.parentFolderId);
-      const chat = createChatSession({ title: sanitizeLabel(params.title, DEFAULT_CHAT_TITLE) });
+      const parentFolderId = resolveSelectedParentFolderId(
+        store,
+        params.parentFolderId,
+      );
+      const chat = createChatSession({
+        title: sanitizeLabel(params.title, DEFAULT_CHAT_TITLE),
+      });
       store.chatsById[chat.id] = chat;
       createdChatId = chat.id;
 
-      const nodeId = ensureTreeHasNodeForChat(store, chat.id, { parentFolderId });
+      const nodeId = ensureTreeHasNodeForChat(store, chat.id, {
+        parentFolderId,
+      });
       createdNodeId = nodeId;
       updateActiveAndSelectedFromChatId(store, chat.id);
       store.updatedAt = now();
@@ -1291,7 +1492,8 @@ export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
 
   const next = withStore(
     (store) => {
-      const target = typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
+      const target =
+        typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
       if (!target) {
         store.tree.selectedNodeId = null;
         return store;
@@ -1325,8 +1527,14 @@ export const renameTreeNode = ({ nodeId, label } = {}, options = {}) => {
       const parentById = buildParentIndex(store.tree);
       const parentFolderId = parentById[nodeId]?.parentId || null;
       const node = store.tree.nodesById[nodeId];
-      const fallback = node.entity === "folder" ? DEFAULT_FOLDER_LABEL : DEFAULT_CHAT_TITLE;
-      const nextLabel = ensureUniqueLabel(store, parentFolderId, sanitizeLabel(label, fallback), nodeId);
+      const fallback =
+        node.entity === "folder" ? DEFAULT_FOLDER_LABEL : DEFAULT_CHAT_TITLE;
+      const nextLabel = ensureUniqueLabel(
+        store,
+        parentFolderId,
+        sanitizeLabel(label, fallback),
+        nodeId,
+      );
 
       node.label = nextLabel;
       node.updatedAt = now();
@@ -1334,7 +1542,9 @@ export const renameTreeNode = ({ nodeId, label } = {}, options = {}) => {
       if (node.entity === "chat" && store.chatsById[node.chatId]) {
         store.chatsById[node.chatId].title = nextLabel;
         store.chatsById[node.chatId].updatedAt = now();
-        store.chatsById[node.chatId].stats = computeChatStats(store.chatsById[node.chatId]);
+        store.chatsById[node.chatId].stats = computeChatStats(
+          store.chatsById[node.chatId],
+        );
       }
 
       store.updatedAt = now();
@@ -1375,7 +1585,9 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
         delete store.chatsById[chatId];
       }
 
-      store.lruChatIds = store.lruChatIds.filter((chatId) => !removedChatIds.includes(chatId));
+      store.lruChatIds = store.lruChatIds.filter(
+        (chatId) => !removedChatIds.includes(chatId),
+      );
 
       store.tree.root = store.tree.root.filter((id) => !subtreeSet.has(id));
       for (const node of Object.values(store.tree.nodesById)) {
@@ -1388,7 +1600,8 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
       }
 
       const activeRemoved = removedChatIds.includes(store.activeChatId);
-      const selectedRemoved = store.tree.selectedNodeId && subtreeSet.has(store.tree.selectedNodeId);
+      const selectedRemoved =
+        store.tree.selectedNodeId && subtreeSet.has(store.tree.selectedNodeId);
 
       if (activeRemoved) {
         const fallbackChatId = findFallbackChatIdNearContainer(
@@ -1402,7 +1615,8 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
       if (selectedRemoved) {
         if (store.activeChatId) {
           const map = buildTreeNodeLookupByChatId(store.tree);
-          store.tree.selectedNodeId = map[store.activeChatId] || store.tree.root[0] || null;
+          store.tree.selectedNodeId =
+            map[store.activeChatId] || store.tree.root[0] || null;
         } else {
           store.tree.selectedNodeId = store.tree.root[0] || null;
         }
@@ -1418,7 +1632,9 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
       if (!store.activeChatId || !store.chatsById[store.activeChatId]) {
         const chat = createChatSession();
         store.chatsById[chat.id] = chat;
-        const nodeIdForChat = ensureTreeHasNodeForChat(store, chat.id, { parentFolderId: null });
+        const nodeIdForChat = ensureTreeHasNodeForChat(store, chat.id, {
+          parentFolderId: null,
+        });
         store.activeChatId = chat.id;
         store.tree.selectedNodeId = nodeIdForChat;
       }
@@ -1470,17 +1686,26 @@ const updateChatSessionById = (chatId, updater, options = {}) => {
         return store;
       }
 
-      const existing = sanitizeChatSession(store.chatsById[chatId] || { id: chatId }, chatId);
+      const existing = sanitizeChatSession(
+        store.chatsById[chatId] || { id: chatId },
+        chatId,
+      );
       const candidate = clone(existing) || existing;
-      const updated = typeof updater === "function" ? updater(candidate) : candidate;
+      const updated =
+        typeof updater === "function" ? updater(candidate) : candidate;
       const cleaned = sanitizeChatSession(updated || candidate, chatId);
 
       store.chatsById[chatId] = cleaned;
       touchLru(store, chatId);
 
-      const nodeId = ensureTreeHasNodeForChat(store, chatId, { parentFolderId: null });
+      const nodeId = ensureTreeHasNodeForChat(store, chatId, {
+        parentFolderId: null,
+      });
       if (nodeId && store.tree.nodesById[nodeId]) {
-        store.tree.nodesById[nodeId].label = sanitizeLabel(cleaned.title, DEFAULT_CHAT_TITLE);
+        store.tree.nodesById[nodeId].label = sanitizeLabel(
+          cleaned.title,
+          DEFAULT_CHAT_TITLE,
+        );
         store.tree.nodesById[nodeId].updatedAt = now();
       }
 
@@ -1543,7 +1768,10 @@ export const setChatThreadId = (chatId, threadId, options = {}) => {
     chatId,
     (chat) => ({
       ...chat,
-      threadId: typeof threadId === "string" && threadId.trim() ? threadId.trim() : null,
+      threadId:
+        typeof threadId === "string" && threadId.trim()
+          ? threadId.trim()
+          : null,
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_thread" },
@@ -1584,7 +1812,8 @@ export const setChatTitle = (chatId, title, options = {}) => {
   );
 };
 
-export const createChatMessageAttachment = (attachment) => sanitizeAttachment(attachment);
+export const createChatMessageAttachment = (attachment) =>
+  sanitizeAttachment(attachment);
 
 export const chatsStorageConstants = {
   key: CHATS_STORAGE_KEY,

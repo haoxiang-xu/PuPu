@@ -19,7 +19,7 @@ const SETTINGS_PAGES = [
   },
   {
     key: "model_providers",
-    icon: "tool",
+    icon: "pentagon",
     label: "Model Providers",
     component: ModelProvidersSettings,
   },

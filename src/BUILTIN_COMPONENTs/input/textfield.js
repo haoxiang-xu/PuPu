@@ -68,6 +68,9 @@ const FloatingTextField = ({
   const padding = style?.padding ?? tf.padding ?? 12;
   const baseColor = style?.color || theme?.color || (isDark ? "#CCC" : "#222");
 
+  /* ---- parse border width so we can flush the scrollbar to the outer edge ---- */
+  const borderWidth = parseInt(border, 10) || 1;
+
   const lineHeightPx = Math.round(fontSize * lineHeight);
 
   /* ---- state ---- */
@@ -242,7 +245,7 @@ const FloatingTextField = ({
             position: "absolute",
             top: 0,
             left: 0,
-            right: 0,
+            right: shouldScroll ? -borderWidth : 0,
             bottom: 0,
             boxSizing: "border-box",
             fontFamily,

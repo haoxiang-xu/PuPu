@@ -1,7 +1,7 @@
 import { useContext, useRef, useState, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
-import { TextField } from "../../BUILTIN_COMPONENTs/input/textfield";
+import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 
 /* ── Attachment toolbar (chat input) ── */
 const AttachPanel = ({
@@ -27,7 +27,7 @@ const AttachPanel = ({
         alignItems: "center",
         gap: 2,
         padding: "4px",
-        borderRadius: 7,
+        borderRadius: 18,
         backgroundColor: panelBg,
         boxShadow: focused ? focusShadow : "none",
         transition: "background-color 0.22s ease, box-shadow 0.22s ease",
@@ -37,7 +37,7 @@ const AttachPanel = ({
         <Button
           prefix_icon="link"
           onClick={onAttachLink}
-          style={{ color, fontSize: 14 }}
+          style={{ color, fontSize: 14, borderRadius: 16 }}
         />
       )}
     </div>
@@ -63,7 +63,7 @@ const ChatInput = ({
 
   const color = theme?.color || "#222";
   const panelBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
-  const panelFocusBg = isDark ? "rgba(30,30,30,1)" : "rgba(255,255,255,1)";
+  const panelFocusBg = isDark ? "rgba(30, 30, 30, 1)" : "rgba(255,255,255,1)";
   const panelFocusBorder = isDark
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.06)";
@@ -109,7 +109,7 @@ const ChatInput = ({
           boxSizing: "border-box",
         }}
       >
-        <TextField
+        <FloatingTextField
           textarea_ref={inputRef}
           value={value}
           min_rows={3}
@@ -157,7 +157,7 @@ const ChatInput = ({
               />
             </>
           }
-          style={{ width: "100%", margin: 0, borderRadius: 7 }}
+          style={{ width: "100%", margin: 0, borderRadius: 14 }}
         />
 
         {/* disclaimer text */}
