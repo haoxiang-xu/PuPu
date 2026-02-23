@@ -314,7 +314,8 @@ const ChatMessages = ({
             position: "absolute",
             // Align to chat input's right edge and keep a visible gap above input.
             right: "max(40px, calc(50% - 480px))",
-            bottom: 22,
+            // Match the attach panel's floated distance to the input edge (padding=12).
+            bottom: 12,
             zIndex: 2,
             opacity: !isAtBottom ? 1 : 0,
             transform: !isAtBottom ? "translateY(0)" : "translateY(8px)",
@@ -327,9 +328,9 @@ const ChatMessages = ({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
-              padding: "4px",
-              borderRadius: 18,
+              gap: 4,
+              padding: "3px",
+              borderRadius: 16,
               backgroundColor: isDark
                 ? "rgba(255,255,255,0.06)"
                 : "rgba(0,0,0,0.05)",
@@ -345,10 +346,11 @@ const ChatMessages = ({
               onClick={handleBackToBottom}
               style={{
                 color,
-                fontSize: 14,
-                borderRadius: 16,
-                paddingVertical: 8,
-                paddingHorizontal: 8,
+                fontSize: 12,
+                iconSize: 12,
+                borderRadius: 14,
+                paddingVertical: 6,
+                paddingHorizontal: 6,
               }}
             />
           </div>
