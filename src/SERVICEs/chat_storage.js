@@ -369,6 +369,7 @@ const sanitizeChatSession = (chat, fallbackId) => {
     model: sanitizeModel(chat?.model),
     draft,
     messages,
+    isTransientNewChat: chat?.isTransientNewChat === true,
     stats: {
       messageCount: 0,
       approxBytes: 0,
@@ -396,6 +397,7 @@ const createChatSession = (overrides = {}) => {
         updatedAt: seed,
       },
       messages: [],
+      isTransientNewChat: overrides.isTransientNewChat === true,
     },
     overrides.id,
   );
@@ -1199,6 +1201,65 @@ const updateActiveAndSelectedFromChatId = (store, chatId) => {
   }
 };
 
+const isTransientNewChatPending = (chat) => {
+  if (!isObject(chat) || chat.isTransientNewChat !== true) {
+    return false;
+  }
+
+  return !Array.isArray(chat.messages) || chat.messages.length === 0;
+};
+
+const getCleanupCandidateActiveChatId = (store, preferredNextChatId = null) => {
+  const activeChatId = store.activeChatId;
+  if (!activeChatId || !store.chatsById[activeChatId]) {
+    return null;
+  }
+
+  if (preferredNextChatId && preferredNextChatId === activeChatId) {
+    return null;
+  }
+
+  if (Object.keys(store.chatsById).length <= 1) {
+    return null;
+  }
+
+  const activeChat = store.chatsById[activeChatId];
+  if (!isTransientNewChatPending(activeChat)) {
+    return null;
+  }
+
+  return activeChatId;
+};
+
+const resolveFallbackChatId = (store, preferredChatId = null) => {
+  if (preferredChatId && store.chatsById[preferredChatId]) {
+    return preferredChatId;
+  }
+
+  return firstChatInTree(store.tree) || sortChatsByUpdatedAt(store.chatsById)[0] || null;
+};
+
+const cleanupTransientActiveChat = (store, preferredNextChatId = null) => {
+  const removableChatId = getCleanupCandidateActiveChatId(
+    store,
+    preferredNextChatId,
+  );
+  if (!removableChatId) {
+    return null;
+  }
+
+  removeChatById(store, removableChatId);
+  const fallbackChatId = resolveFallbackChatId(store, preferredNextChatId);
+  if (fallbackChatId) {
+    updateActiveAndSelectedFromChatId(store, fallbackChatId);
+  } else {
+    store.activeChatId = null;
+    store.tree.selectedNodeId = null;
+  }
+
+  return removableChatId;
+};
+
 const findFallbackChatIdNearContainer = (tree, parentFolderId, startIndex) => {
   const siblings = getSiblingIds(tree, parentFolderId);
 
@@ -1460,8 +1521,10 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
         store,
         params.parentFolderId,
       );
+      const initialTitle = sanitizeLabel(params.title, DEFAULT_CHAT_TITLE);
       const chat = createChatSession({
-        title: sanitizeLabel(params.title, DEFAULT_CHAT_TITLE),
+        title: initialTitle,
+        isTransientNewChat: initialTitle === DEFAULT_CHAT_TITLE,
       });
       store.chatsById[chat.id] = chat;
       createdChatId = chat.id;
@@ -1492,8 +1555,12 @@ export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
 
   const next = withStore(
     (store) => {
-      const target =
-        typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
+      let target = typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
+      if (target?.entity === "chat") {
+        cleanupTransientActiveChat(store, target.chatId);
+        target = typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
+      }
+
       if (!target) {
         store.tree.selectedNodeId = null;
         return store;
@@ -1541,6 +1608,7 @@ export const renameTreeNode = ({ nodeId, label } = {}, options = {}) => {
 
       if (node.entity === "chat" && store.chatsById[node.chatId]) {
         store.chatsById[node.chatId].title = nextLabel;
+        store.chatsById[node.chatId].isTransientNewChat = false;
         store.chatsById[node.chatId].updatedAt = now();
         store.chatsById[node.chatId].stats = computeChatStats(
           store.chatsById[node.chatId],
@@ -1755,6 +1823,8 @@ export const setChatMessages = (chatId, messages, options = {}) => {
         ...chat,
         title: nextTitle,
         messages: nextMessages,
+        isTransientNewChat:
+          nextMessages.length > 0 ? false : chat.isTransientNewChat === true,
         lastMessageAt: computeLastMessageAt(nextMessages, chat.lastMessageAt),
         updatedAt: now(),
       };
@@ -1806,10 +1876,33 @@ export const setChatTitle = (chatId, title, options = {}) => {
     (chat) => ({
       ...chat,
       title: sanitizeLabel(title, chat.title || DEFAULT_CHAT_TITLE),
+      isTransientNewChat: false,
       updatedAt: now(),
     }),
     { ...options, type: "chat_rename" },
   );
+};
+
+export const cleanupTransientNewChatOnPageLeave = (options = {}) => {
+  const source = options.source || "unknown";
+  const snapshot = readStore();
+  if (!getCleanupCandidateActiveChatId(snapshot, null)) {
+    return clone(snapshot) || snapshot;
+  }
+
+  const next = withStore(
+    (store) => {
+      cleanupTransientActiveChat(store, null);
+      store.updatedAt = now();
+      return store;
+    },
+    {
+      source,
+      type: "chat_cleanup_transient_new",
+    },
+  );
+
+  return clone(next) || next;
 };
 
 export const createChatMessageAttachment = (attachment) =>

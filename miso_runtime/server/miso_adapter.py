@@ -1,6 +1,7 @@
 import json
 import os
 import queue
+import re
 import sys
 import threading
 from pathlib import Path
@@ -69,6 +70,22 @@ def _provider_default_model(provider: str) -> str:
     return "deepseek-r1:14b"
 
 
+def _normalize_provider_model_name(provider: str, model: str) -> str:
+    normalized_provider = provider.strip().lower()
+    normalized_model = str(model or "").strip()
+    if not normalized_model:
+        return normalized_model
+
+    # Anthropic model names use hyphenated minor versions:
+    # claude-opus-4-6 (not claude-opus-4.6).
+    if normalized_provider == "anthropic":
+        match = re.match(r"^(claude-[a-z0-9-]*-\d+)\.(\d+)(.*)$", normalized_model)
+        if match:
+            return f"{match.group(1)}-{match.group(2)}{match.group(3)}"
+
+    return normalized_model
+
+
 def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
     if not isinstance(options, dict):
         return {}
@@ -127,6 +144,8 @@ def _get_runtime_config(overrides: Dict[str, str] | None = None) -> Dict[str, st
     model_override = (overrides or {}).get("model", "").strip()
     if model_override:
         model = model_override
+
+    model = _normalize_provider_model_name(provider, model)
 
     return {
         "provider": provider,
@@ -196,7 +215,9 @@ def get_capability_catalog() -> Dict[str, List[str]]:
 
             provider = str(capabilities.get("provider", "")).strip().lower()
             if provider in providers:
-                providers[provider].append(model_name)
+                providers[provider].append(
+                    _normalize_provider_model_name(provider, model_name),
+                )
 
         break
 

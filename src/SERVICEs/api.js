@@ -39,11 +39,17 @@ const toFrontendApiError = (
   }
 
   if (error?.name === "AbortError") {
-    return new FrontendApiError("request_timeout", "Request timed out", error, details);
+    return new FrontendApiError(
+      "request_timeout",
+      "Request timed out",
+      error,
+      details,
+    );
   }
 
   const message =
-    (typeof error?.message === "string" && error.message.trim()) || fallbackMessage;
+    (typeof error?.message === "string" && error.message.trim()) ||
+    fallbackMessage;
   return new FrontendApiError(fallbackCode, message, error, details);
 };
 
@@ -109,11 +115,13 @@ const assertBridgeMethod = (bridgeName, methodName) => {
 };
 
 const normalizeStringList = (list) =>
-  [...new Set(
-    (Array.isArray(list) ? list : [])
-      .map((item) => (typeof item === "string" ? item.trim() : ""))
-      .filter(Boolean),
-  )].sort((a, b) => a.localeCompare(b));
+  [
+    ...new Set(
+      (Array.isArray(list) ? list : [])
+        .map((item) => (typeof item === "string" ? item.trim() : ""))
+        .filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
 
 export const normalizeModelCatalog = (payload) => {
   const providers =
@@ -145,7 +153,10 @@ export const normalizeModelCatalog = (payload) => {
       : activeModelName || null;
 
   const activeModel =
-    activeModelFromFlat || activeModelFromActiveId || activeModelFromParts || null;
+    activeModelFromFlat ||
+    activeModelFromActiveId ||
+    activeModelFromParts ||
+    null;
 
   return {
     activeModel,
@@ -188,12 +199,18 @@ const readModelProvidersSettings = () => {
 };
 
 const parseProviderFromModelValue = (modelValue) => {
-  if (typeof modelValue !== "string" || !modelValue.trim() || !modelValue.includes(":")) {
+  if (
+    typeof modelValue !== "string" ||
+    !modelValue.trim() ||
+    !modelValue.includes(":")
+  ) {
     return "";
   }
 
   const providerCandidate = modelValue.split(":", 1)[0].trim().toLowerCase();
-  return SUPPORTED_REMOTE_PROVIDERS.has(providerCandidate) ? providerCandidate : "";
+  return SUPPORTED_REMOTE_PROVIDERS.has(providerCandidate)
+    ? providerCandidate
+    : "";
 };
 
 const detectProviderFromStreamPayload = (payload) => {
@@ -270,7 +287,8 @@ const injectProviderApiKeyIntoPayload = (payload) => {
   }
 
   const currentOptions = isObject(payload.options) ? payload.options : {};
-  const providerSpecificCamelKey = provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
+  const providerSpecificCamelKey =
+    provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
   const providerSpecificSnakeKey = `${provider}_api_key`;
   const hasAnyApiKey = [
     currentOptions.apiKey,
@@ -360,7 +378,10 @@ export const api = {
         const method = assertBridgeMethod("misoAPI", "startStream");
         const normalizedPayload = injectProviderApiKeyIntoPayload(payload);
         const streamHandle = method(normalizedPayload, handlers);
-        if (!isObject(streamHandle) || typeof streamHandle.cancel !== "function") {
+        if (
+          !isObject(streamHandle) ||
+          typeof streamHandle.cancel !== "function"
+        ) {
           throw new FrontendApiError(
             "invalid_stream_handle",
             "Miso bridge returned an invalid stream handle",
@@ -459,10 +480,12 @@ export const api = {
         }
 
         const json = await safeJson(response);
-        const models = (json?.models || []).map((item) => ({
-          name: item?.name,
-          size: item?.size || 0,
-        })).filter((item) => typeof item.name === "string" && item.name.trim());
+        const models = (json?.models || [])
+          .map((item) => ({
+            name: item?.name,
+            size: item?.size || 0,
+          }))
+          .filter((item) => typeof item.name === "string" && item.name.trim());
 
         return models.sort((a, b) => b.size - a.size);
       } catch (error) {
@@ -474,10 +497,161 @@ export const api = {
       }
     },
 
+    searchLibrary: async ({ query = "", category = "" } = {}) => {
+      if (
+        typeof window === "undefined" ||
+        typeof window.ollamaLibraryAPI?.search !== "function"
+      ) {
+        throw new FrontendApiError(
+          "bridge_unavailable",
+          "Ollama library bridge not available",
+        );
+      }
+      const rawHtml = await window.ollamaLibraryAPI.search(query, category);
+      if (typeof rawHtml !== "string") {
+        throw new FrontendApiError(
+          "parse_error",
+          "Unexpected response from library search",
+        );
+      }
+
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(rawHtml, "text/html");
+        const CATEGORY_KEYWORDS = new Set([
+          "embedding",
+          "vision",
+          "tools",
+          "thinking",
+          "code",
+          "cloud",
+        ]);
+        const SIZE_RE = /^\d+(\.\d+)?[kKmMbBxX]$/;
+
+        const models = [];
+        const anchors = doc.querySelectorAll("a[href^='/library/']");
+
+        anchors.forEach((a) => {
+          const href = a.getAttribute("href") || "";
+          // strip community models — official library links are /library/<slug> with one segment
+          const slug = href.replace(/^\/library\//, "");
+          if (!slug || slug.includes("/")) return;
+
+          // description — first <p> inside the card
+          const descEl = a.querySelector("p");
+          const description = descEl ? descEl.textContent.trim() : "";
+
+          // gather all leaf text nodes for tags / sizes
+          const textNodes = Array.from(a.querySelectorAll("span, p"))
+            .map((el) => el.textContent.trim().toLowerCase())
+            .filter(Boolean);
+
+          const tags = [];
+          const sizes = [];
+
+          textNodes.forEach((t) => {
+            if (CATEGORY_KEYWORDS.has(t)) {
+              if (!tags.includes(t)) tags.push(t);
+            } else if (SIZE_RE.test(t)) {
+              if (!sizes.includes(t)) sizes.push(t);
+            }
+          });
+
+          // pulls text — look for text like "1.2M  Pulls" or "54.5M  Pulls"
+          const fullText = a.textContent || "";
+          const pullsMatch = fullText.match(/([\d.]+[kKmMbB])\s+Pulls/i);
+          const pulls = pullsMatch ? pullsMatch[1] : "";
+
+          models.push({ name: slug, description, tags, sizes, pulls });
+        });
+
+        return models;
+      } catch (parseErr) {
+        throw new FrontendApiError(
+          "parse_error",
+          "Failed to parse Ollama library response",
+          parseErr,
+        );
+      }
+    },
+
+    pullModel: async ({ name, onProgress, signal } = {}) => {
+      const modelName = typeof name === "string" ? name.trim() : "";
+      if (!modelName) {
+        throw new FrontendApiError(
+          "invalid_argument",
+          "Model name is required",
+        );
+      }
+
+      const response = await withTimeout(
+        () =>
+          fetch(`${OLLAMA_BASE}/api/pull`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: modelName, stream: true }),
+            signal: signal || undefined,
+          }),
+        60000,
+        "ollama_pull_timeout",
+        "Ollama pull request timed out",
+      );
+
+      if (!response.ok) {
+        throw new FrontendApiError(
+          "ollama_http_error",
+          `Failed to pull model (${response.status})`,
+          null,
+          { status: response.status, model: modelName },
+        );
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new FrontendApiError("stream_error", "No response body stream");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          try {
+            const obj = JSON.parse(trimmed);
+            const status = typeof obj.status === "string" ? obj.status : "";
+            const completed =
+              typeof obj.completed === "number" ? obj.completed : null;
+            const total = typeof obj.total === "number" ? obj.total : null;
+            const percent =
+              completed !== null && total !== null && total > 0
+                ? Math.round((completed / total) * 100)
+                : null;
+            if (typeof onProgress === "function") {
+              onProgress({ status, percent, completed, total });
+            }
+            if (status === "success") return;
+          } catch (_) {
+            // ignore non-JSON lines
+          }
+        }
+      }
+    },
+
     deleteModel: async (name) => {
       const modelName = typeof name === "string" ? name.trim() : "";
       if (!modelName) {
-        throw new FrontendApiError("invalid_argument", "Model name is required");
+        throw new FrontendApiError(
+          "invalid_argument",
+          "Model name is required",
+        );
       }
 
       try {
@@ -513,6 +687,12 @@ export const api = {
   },
 };
 
-export { EMPTY_MODEL_CATALOG, OLLAMA_BASE, withTimeout, safeJson, assertBridgeMethod };
+export {
+  EMPTY_MODEL_CATALOG,
+  OLLAMA_BASE,
+  withTimeout,
+  safeJson,
+  assertBridgeMethod,
+};
 
 export default api;

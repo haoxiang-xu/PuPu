@@ -4,6 +4,7 @@ const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
 const crypto = require("crypto");
 const http = require("http");
+const https = require("https");
 const net = require("net");
 
 /* ─── Ollama auto-start ───────────────────────────────────────────────────── */
@@ -171,7 +172,9 @@ const pickBestPythonCommand = () => {
     return withFlask;
   }
 
-  return uniqueCandidates[0] || (process.platform === "win32" ? "python" : "python3");
+  return (
+    uniqueCandidates[0] || (process.platform === "win32" ? "python" : "python3")
+  );
 };
 
 const getMisoPythonCommand = () => {
@@ -183,12 +186,30 @@ const getMisoPythonCommand = () => {
 
 const getPackagedMisoBinaryPath = () => {
   if (process.platform === "darwin") {
-    return path.join(process.resourcesPath, "miso_runtime", "dist", "macos", "miso-server");
+    return path.join(
+      process.resourcesPath,
+      "miso_runtime",
+      "dist",
+      "macos",
+      "miso-server",
+    );
   }
   if (process.platform === "win32") {
-    return path.join(process.resourcesPath, "miso_runtime", "dist", "windows", "miso-server.exe");
+    return path.join(
+      process.resourcesPath,
+      "miso_runtime",
+      "dist",
+      "windows",
+      "miso-server.exe",
+    );
   }
-  return path.join(process.resourcesPath, "miso_runtime", "dist", "linux", "miso-server");
+  return path.join(
+    process.resourcesPath,
+    "miso_runtime",
+    "dist",
+    "linux",
+    "miso-server",
+  );
 };
 
 const resolveMisoEntrypoint = () => {
@@ -202,7 +223,12 @@ const resolveMisoEntrypoint = () => {
       };
     }
 
-    const packagedScript = path.join(process.resourcesPath, "miso_runtime", "server", "main.py");
+    const packagedScript = path.join(
+      process.resourcesPath,
+      "miso_runtime",
+      "server",
+      "main.py",
+    );
     if (!fs.existsSync(packagedScript)) {
       return null;
     }
@@ -213,7 +239,12 @@ const resolveMisoEntrypoint = () => {
     };
   }
 
-  const devScript = path.join(app.getAppPath(), "miso_runtime", "server", "main.py");
+  const devScript = path.join(
+    app.getAppPath(),
+    "miso_runtime",
+    "server",
+    "main.py",
+  );
   if (!fs.existsSync(devScript)) {
     return null;
   }
@@ -240,7 +271,11 @@ const isPortAvailable = (port) =>
   });
 
 const findAvailableMisoPort = async () => {
-  for (let port = MISO_PORT_RANGE_START; port <= MISO_PORT_RANGE_END; port += 1) {
+  for (
+    let port = MISO_PORT_RANGE_START;
+    port <= MISO_PORT_RANGE_END;
+    port += 1
+  ) {
     // eslint-disable-next-line no-await-in-loop
     if (await isPortAvailable(port)) {
       return port;
@@ -255,10 +290,13 @@ const pingMiso = async () => {
   }
 
   try {
-    const response = await fetch(`http://${MISO_HOST}:${misoPort}${MISO_HEALTH_ENDPOINT}`, {
-      method: "GET",
-      headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
-    });
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_HEALTH_ENDPOINT}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
     return response.ok;
   } catch (_) {
     return false;
@@ -299,10 +337,13 @@ const getMisoModelCatalogPayload = async () => {
     throw new Error("Miso service is not ready");
   }
 
-  const response = await fetch(`http://${MISO_HOST}:${misoPort}${MISO_MODELS_CATALOG_ENDPOINT}`, {
-    method: "GET",
-    headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
-  });
+  const response = await fetch(
+    `http://${MISO_HOST}:${misoPort}${MISO_MODELS_CATALOG_ENDPOINT}`,
+    {
+      method: "GET",
+      headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+    },
+  );
 
   const bodyText = await response.text();
   if (!response.ok) {
@@ -482,7 +523,9 @@ const startMiso = async () => {
     const missingRuntime = misoStatus === "not_found";
     if (!missingRuntime) {
       misoStatus = "error";
-      misoStatusReason = misoStatusReason || `Health check timed out after ${MISO_BOOT_TIMEOUT_MS}ms`;
+      misoStatusReason =
+        misoStatusReason ||
+        `Health check timed out after ${MISO_BOOT_TIMEOUT_MS}ms`;
     }
     stopMiso();
     if (missingRuntime) {
@@ -558,7 +601,10 @@ const streamMisoSseToRenderer = async ({
       break;
     }
 
-    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    buffer += decoder
+      .decode(value, { stream: true })
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n");
 
     let boundaryIndex = buffer.indexOf("\n\n");
     while (boundaryIndex !== -1) {
@@ -568,9 +614,17 @@ const streamMisoSseToRenderer = async ({
       if (block.trim().length > 0) {
         const parsedBlock = parseSseBlock(block);
         const payload = parseSsePayload(parsedBlock.dataText);
-        emitMisoStreamEvent(webContentsId, requestId, parsedBlock.eventName, payload);
+        emitMisoStreamEvent(
+          webContentsId,
+          requestId,
+          parsedBlock.eventName,
+          payload,
+        );
 
-        if (parsedBlock.eventName === "done" || parsedBlock.eventName === "error") {
+        if (
+          parsedBlock.eventName === "done" ||
+          parsedBlock.eventName === "error"
+        ) {
           sawTerminalEvent = true;
           break;
         }
@@ -620,15 +674,18 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
   });
 
   try {
-    const response = await fetch(`http://${MISO_HOST}:${misoPort}${MISO_STREAM_ENDPOINT}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-miso-auth": misoAuthToken,
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_STREAM_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-miso-auth": misoAuthToken,
+        },
+        body: JSON.stringify(payload || {}),
+        signal: controller.signal,
       },
-      body: JSON.stringify(payload || {}),
-      signal: controller.signal,
-    });
+    );
 
     if (!response.ok) {
       const bodyText = await response.text();
@@ -685,7 +742,8 @@ const cancelMisoStream = (requestId) => {
 };
 /* ─── Miso sidecar ─────────────────────────────────────────────────────────── */
 
-const DEV_SERVER_URL = process.env.ELECTRON_START_URL || "http://localhost:2907/#";
+const DEV_SERVER_URL =
+  process.env.ELECTRON_START_URL || "http://localhost:2907/#";
 const PROD_ENTRY_HASH = "/";
 const DEV_SERVER_RETRY_MS = 1200;
 const DARWIN_TRAFFIC_LIGHT_X = 14;
@@ -704,7 +762,11 @@ const emitWindowState = () => {
 };
 
 const syncDarwinTrafficLightPosition = () => {
-  if (process.platform !== "darwin" || !mainWindow || mainWindow.isDestroyed()) {
+  if (
+    process.platform !== "darwin" ||
+    !mainWindow ||
+    mainWindow.isDestroyed()
+  ) {
     return;
   }
 
@@ -825,7 +887,8 @@ const createMainWindow = () => {
   });
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    const isLocalAppUrl = url.startsWith("file://") || url.startsWith("http://localhost:2907");
+    const isLocalAppUrl =
+      url.startsWith("file://") || url.startsWith("http://localhost:2907");
     if (!isLocalAppUrl) {
       event.preventDefault();
       shell.openExternal(url);
@@ -833,7 +896,10 @@ const createMainWindow = () => {
   });
 
   if (process.platform === "darwin") {
-    mainWindow.webContents.on("did-finish-load", scheduleDarwinTrafficLightSync);
+    mainWindow.webContents.on(
+      "did-finish-load",
+      scheduleDarwinTrafficLightSync,
+    );
     mainWindow.on("show", scheduleDarwinTrafficLightSync);
     mainWindow.on("focus", scheduleDarwinTrafficLightSync);
     mainWindow.on("resize", scheduleDarwinTrafficLightSync);
@@ -903,7 +969,40 @@ ipcMain.handle("ollama-restart", async () => {
 });
 
 ipcMain.handle("miso:get-status", () => getMisoStatusPayload());
-ipcMain.handle("miso:get-model-catalog", async () => getMisoModelCatalogPayload());
+ipcMain.handle("miso:get-model-catalog", async () =>
+  getMisoModelCatalogPayload(),
+);
+
+ipcMain.handle(
+  "ollama:library-search",
+  async (_event, { query = "", category = "" } = {}) => {
+    const q = encodeURIComponent(String(query || "").trim());
+    const c = encodeURIComponent(String(category || "").trim());
+    const parts = [];
+    if (q) parts.push(`q=${q}`);
+    if (c) parts.push(`c=${c}`);
+    const url = `https://ollama.com/search${parts.length ? "?" + parts.join("&") : ""}`;
+
+    return new Promise((resolve, reject) => {
+      const req = https.get(
+        url,
+        { headers: { "User-Agent": "Mozilla/5.0", Accept: "text/html" } },
+        (res) => {
+          let data = "";
+          res.on("data", (chunk) => {
+            data += chunk;
+          });
+          res.on("end", () => resolve(data));
+        },
+      );
+      req.setTimeout(12000, () => {
+        req.destroy();
+        reject(new Error("ollama library search timed out"));
+      });
+      req.on("error", reject);
+    });
+  },
+);
 
 ipcMain.on("miso:stream:start", (event, payload) => {
   const requestId = payload?.requestId;

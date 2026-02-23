@@ -172,10 +172,12 @@ export const SettingsModal = ({ open, onClose }) => {
           style={{
             flex: 1,
             overflowY: "auto",
-            padding: "0 32px 24px",
+            padding: "0 0 24px 32px",
           }}
         >
-          <ActivePageComponent />
+          <div style={{ paddingRight: 32 }}>
+            <ActivePageComponent />
+          </div>
         </div>
       </div>
     </Modal>

@@ -4,6 +4,7 @@ import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import {
   bootstrapChatsStore,
+  cleanupTransientNewChatOnPageLeave,
   setChatMessages,
   setChatModel,
   setChatThreadId,
@@ -174,6 +175,7 @@ const ChatInterface = () => {
       if (streamHandleRef.current && typeof streamHandleRef.current.cancel === "function") {
         streamHandleRef.current.cancel();
       }
+      cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
   }, []);
 

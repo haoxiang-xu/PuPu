@@ -78,6 +78,11 @@ contextBridge.exposeInMainWorld("ollamaAPI", {
   restart: () => ipcRenderer.invoke("ollama-restart"),
 });
 
+contextBridge.exposeInMainWorld("ollamaLibraryAPI", {
+  search: (query, category) =>
+    ipcRenderer.invoke("ollama:library-search", { query, category }),
+});
+
 contextBridge.exposeInMainWorld("misoAPI", {
   getStatus: () => ipcRenderer.invoke("miso:get-status"),
   getModelCatalog: () => ipcRenderer.invoke("miso:get-model-catalog"),
