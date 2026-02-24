@@ -24,7 +24,8 @@ const EmptyChat = () => {
   return (
     <div
       style={{
-        flex: 1,
+        width: "100%",
+        minHeight: "100%",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -67,6 +68,7 @@ const ChatMessages = ({
   isStreaming = false,
   onDeleteMessage,
   onResendMessage,
+  onEditMessage,
   className = "scrollable",
   initialVisibleCount = 12,
   loadBatchSize = 6,
@@ -382,7 +384,7 @@ const ChatMessages = ({
         style={{
           height: "100%",
           overflowY: "auto",
-          padding: "20px 0 8px",
+          padding: messages.length === 0 ? "0" : "20px 0 8px",
           position: "relative",
           boxSizing: "border-box",
           scrollBehavior: "auto",
@@ -425,6 +427,7 @@ const ChatMessages = ({
                     message={msg}
                     onDeleteMessage={onDeleteMessage}
                     onResendMessage={onResendMessage}
+                    onEditMessage={onEditMessage}
                     disableActionButtons={isStreaming}
                   />
                 </div>

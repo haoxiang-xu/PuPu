@@ -29,7 +29,8 @@
       "color": "#222222"
     },
     "spinner": {
-      "color": "#CCCCCC"
+      "color": "#CCCCCC",
+      "arcColor": "#2E2E2E"
     },
     "color": "#222222",
     "backgroundColor": "#FFFFFF",
@@ -311,7 +312,8 @@
       "color": "#FFFFFF"
     },
     "spinner": {
-      "color": "#CCCCCC"
+      "color": "#CCCCCC",
+      "arcColor": "#D6D6D6"
     },
     "color": "#CCCCCC",
     "backgroundColor": "#121212",

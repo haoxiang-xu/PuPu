@@ -11,6 +11,10 @@ _BROTH_CLASS = None
 _IMPORT_ERROR = None
 _RESOLVED_MISO_SOURCE = None
 
+_SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
+_ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
+_ALLOWED_INPUT_SOURCE_TYPES = ("url", "base64")
+
 
 def _is_valid_miso_source(path: Path) -> bool:
     return (path / "miso" / "__init__.py").exists() and (path / "miso" / "broth.py").exists()
@@ -166,6 +170,13 @@ def get_model_name(options: Dict[str, object] | None = None) -> str:
     return f"{config['provider']}:{config['model']}"
 
 
+def _default_model_capabilities() -> Dict[str, object]:
+    return {
+        "input_modalities": ["text"],
+        "input_source_types": {},
+    }
+
+
 def _capability_file_candidates() -> List[Path]:
     candidates: List[Path] = []
 
@@ -190,13 +201,7 @@ def _capability_file_candidates() -> List[Path]:
     return unique_candidates
 
 
-def get_capability_catalog() -> Dict[str, List[str]]:
-    providers: Dict[str, List[str]] = {
-        "openai": [],
-        "anthropic": [],
-        "ollama": [],
-    }
-
+def _load_raw_capability_catalog() -> Dict[str, Dict[str, object]]:
     for candidate in _capability_file_candidates():
         if not candidate.exists() or not candidate.is_file():
             continue
@@ -209,22 +214,126 @@ def get_capability_catalog() -> Dict[str, List[str]]:
         if not isinstance(raw, dict):
             continue
 
+        catalog: Dict[str, Dict[str, object]] = {}
         for model_name, capabilities in raw.items():
             if not isinstance(model_name, str) or not isinstance(capabilities, dict):
                 continue
+            catalog[model_name] = capabilities
+        return catalog
 
-            provider = str(capabilities.get("provider", "")).strip().lower()
-            if provider in providers:
-                providers[provider].append(
-                    _normalize_provider_model_name(provider, model_name),
-                )
+    return {}
 
-        break
+
+def _normalize_input_modalities(raw_modalities: object) -> List[str]:
+    modalities = set()
+    if isinstance(raw_modalities, list):
+        for item in raw_modalities:
+            if not isinstance(item, str):
+                continue
+            modality = item.strip().lower()
+            if modality in _ALLOWED_INPUT_MODALITIES:
+                modalities.add(modality)
+
+    ordered = [modality for modality in _ALLOWED_INPUT_MODALITIES if modality in modalities]
+    if not ordered:
+        return ["text"]
+    return ordered
+
+
+def _normalize_source_type_list(raw_source_types: object) -> List[str]:
+    source_types = set()
+    if isinstance(raw_source_types, list):
+        for item in raw_source_types:
+            if not isinstance(item, str):
+                continue
+            source_type = item.strip().lower()
+            if source_type in _ALLOWED_INPUT_SOURCE_TYPES:
+                source_types.add(source_type)
+
+    return [source_type for source_type in _ALLOWED_INPUT_SOURCE_TYPES if source_type in source_types]
+
+
+def _normalize_input_source_types(
+    raw_source_types: object,
+    input_modalities: List[str],
+) -> Dict[str, List[str]]:
+    if not isinstance(raw_source_types, dict):
+        return {}
+
+    allowed_modalities = {modality for modality in input_modalities if modality != "text"}
+    normalized: Dict[str, List[str]] = {}
+
+    for key, value in raw_source_types.items():
+        if not isinstance(key, str):
+            continue
+        modality = key.strip().lower()
+        if modality not in allowed_modalities:
+            continue
+
+        source_types = _normalize_source_type_list(value)
+        if source_types:
+            normalized[modality] = source_types
+
+    return normalized
+
+
+def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[str, object]:
+    input_modalities = _normalize_input_modalities(raw_capabilities.get("input_modalities"))
+    input_source_types = _normalize_input_source_types(
+        raw_capabilities.get("input_source_types"),
+        input_modalities,
+    )
+    return {
+        "input_modalities": input_modalities,
+        "input_source_types": input_source_types,
+    }
+
+
+def get_default_model_capabilities() -> Dict[str, object]:
+    return _default_model_capabilities()
+
+
+def get_capability_catalog() -> Dict[str, List[str]]:
+    providers: Dict[str, List[str]] = {
+        "openai": [],
+        "anthropic": [],
+        "ollama": [],
+    }
+
+    raw_catalog = _load_raw_capability_catalog()
+    for model_name, capabilities in raw_catalog.items():
+        provider = str(capabilities.get("provider", "")).strip().lower()
+        if provider not in providers:
+            continue
+
+        providers[provider].append(
+            _normalize_provider_model_name(provider, model_name),
+        )
 
     for provider_key in providers:
         providers[provider_key] = sorted({name for name in providers[provider_key] if name})
 
     return providers
+
+
+def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
+    catalog: Dict[str, Dict[str, object]] = {}
+
+    raw_catalog = _load_raw_capability_catalog()
+    for model_name, capabilities in raw_catalog.items():
+        provider = str(capabilities.get("provider", "")).strip().lower()
+        if provider not in _SUPPORTED_PROVIDERS:
+            continue
+
+        normalized_model = _normalize_provider_model_name(provider, model_name)
+        if not normalized_model:
+            continue
+
+        model_id = f"{provider}:{normalized_model}"
+        catalog[model_id] = _normalize_model_capabilities(capabilities)
+
+    ordered_model_ids = sorted(catalog)
+    return {model_id: catalog[model_id] for model_id in ordered_model_ids}
 
 
 def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:

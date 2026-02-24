@@ -12,6 +12,7 @@ import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
+  setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
   setChatThreadId,
@@ -22,6 +23,41 @@ import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
+
+const settleStreamingAssistantMessages = (messages) => {
+  if (!Array.isArray(messages)) {
+    return { changed: false, nextMessages: [] };
+  }
+
+  const patchedAt = Date.now();
+  let changed = false;
+  const nextMessages = [];
+
+  for (const message of messages) {
+    const isStreamingAssistant =
+      message?.role === "assistant" && message?.status === "streaming";
+    if (!isStreamingAssistant) {
+      nextMessages.push(message);
+      continue;
+    }
+
+    changed = true;
+    if (!message?.content) {
+      continue;
+    }
+
+    nextMessages.push({
+      ...message,
+      status: "cancelled",
+      updatedAt: patchedAt,
+    });
+  }
+
+  return {
+    changed,
+    nextMessages: changed ? nextMessages : messages,
+  };
+};
 
 const ChatInterface = () => {
   const { theme, onFragment } = useContext(ConfigContext);
@@ -208,6 +244,23 @@ const ChatInterface = () => {
   }, []);
 
   useEffect(() => {
+    const chatsById = bootstrapped?.store?.chatsById || {};
+    for (const [chatId, chat] of Object.entries(chatsById)) {
+      const { changed, nextMessages } = settleStreamingAssistantMessages(
+        chat?.messages,
+      );
+      if (!changed) {
+        continue;
+      }
+
+      setChatMessages(chatId, nextMessages, { source: "chat-page" });
+      if (chatId === activeChatIdRef.current) {
+        setMessages(nextMessages);
+      }
+    }
+  }, [bootstrapped]);
+
+  useEffect(() => {
     return () => {
       if (messagePersistTimerRef.current) {
         clearTimeout(messagePersistTimerRef.current);
@@ -298,23 +351,21 @@ const ChatInterface = () => {
     ) {
       streamHandleRef.current.cancel();
     }
+    const chatId = activeChatIdRef.current;
     streamHandleRef.current = null;
     streamingChatIdRef.current = null;
     activeStreamMessagesRef.current = null;
     setStreamingChatId(null);
-    // Remove empty assistant placeholder; mark partial ones as stopped
-    setMessages((prev) =>
-      prev
-        .filter(
-          (m) =>
-            !(m.role === "assistant" && m.status === "streaming" && !m.content),
-        )
-        .map((m) =>
-          m.role === "assistant" && m.status === "streaming"
-            ? { ...m, status: "stopped", updatedAt: Date.now() }
-            : m,
-        ),
-    );
+    // Remove empty assistant placeholder; mark partial ones as cancelled
+    setMessages((prev) => {
+      const { changed, nextMessages } = settleStreamingAssistantMessages(prev);
+
+      if (chatId && changed) {
+        setChatMessages(chatId, nextMessages, { source: "chat-page" });
+      }
+
+      return nextMessages;
+    });
   }, []);
 
   const startStreamRequest = useCallback(
@@ -537,6 +588,11 @@ const ChatInterface = () => {
               streamingChatIdRef.current = null;
               activeStreamMessagesRef.current = null;
               setStreamingChatId(null);
+              if (activeChatIdRef.current !== chatId) {
+                setChatGeneratedUnread(chatId, true, {
+                  source: "chat-page",
+                });
+              }
             },
             onError: (error) => {
               if (
@@ -707,6 +763,58 @@ const ChatInterface = () => {
     [messages, startStreamRequest],
   );
 
+  const handleEditMessage = useCallback(
+    (message, nextContent) => {
+      const chatId = activeChatIdRef.current;
+      const messageIndex = Array.isArray(messages)
+        ? messages.findIndex((item) => item?.id === message?.id)
+        : -1;
+      const targetMessage =
+        messageIndex >= 0 && messageIndex < messages.length
+          ? messages[messageIndex]
+          : null;
+      const text =
+        typeof nextContent === "string" ? nextContent.trim() : "";
+      const hasActiveStream = Boolean(
+        streamingChatIdRef.current && streamHandleRef.current,
+      );
+      if (
+        !chatId ||
+        messageIndex < 0 ||
+        targetMessage?.role !== "user" ||
+        !text ||
+        hasActiveStream
+      ) {
+        if (hasActiveStream && streamingChatIdRef.current !== chatId) {
+          setStreamError(
+            "Another chat is still generating. Switch back to stop it or wait.",
+          );
+        }
+        return;
+      }
+
+      if (!api.miso.isBridgeAvailable()) {
+        setStreamError("Miso bridge is unavailable in this runtime.");
+        return;
+      }
+
+      const baseMessages = messages.slice(0, messageIndex);
+      const originalAttachments = Array.isArray(targetMessage.attachments)
+        ? targetMessage.attachments
+        : [];
+
+      startStreamRequest({
+        chatId,
+        text,
+        attachmentsForMessage: originalAttachments,
+        baseMessages,
+        clearComposer: false,
+        reuseUserMessage: targetMessage,
+      });
+    },
+    [messages, startStreamRequest],
+  );
+
   const handleAttachFile = useCallback(() => {
     console.log("Attach file");
   }, []);
@@ -789,6 +897,7 @@ const ChatInterface = () => {
         isStreaming={isStreaming}
         onDeleteMessage={handleDeleteMessage}
         onResendMessage={handleResendMessage}
+        onEditMessage={handleEditMessage}
         initialVisibleCount={12}
         loadBatchSize={6}
         topLoadThreshold={80}

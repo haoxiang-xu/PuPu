@@ -15,6 +15,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 import Icon from "../icon/icon";
+import ArcSpinner from "../spinner/arc_spinner";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -497,6 +498,21 @@ const ExplorerRow = ({
   }
 
   const iconSize = Math.round(fontSize * 1.15);
+  const showPrefixSpinner = Boolean(
+    node.is_generating ||
+      (isFolder && node.has_generating_chat_descendant && !isExpanded),
+  );
+  const showUnreadDot = Boolean(
+    !showPrefixSpinner &&
+      (node.has_unread_generated_reply ||
+        (isFolder && node.has_unread_generated_descendant && !isExpanded)),
+  );
+  const unreadDotColor = isDark
+    ? "rgba(10, 186, 181, 0.92)"
+    : "rgba(10, 186, 181, 0.85)";
+  const hasPrefixVisual = Boolean(
+    showPrefixSpinner || showUnreadDot || node.prefix_icon,
+  );
 
   return (
     <div
@@ -578,8 +594,8 @@ const ExplorerRow = ({
         <Icon src={expandIcon} style={{ width: 14, height: 14 }} />
       </span>
 
-      {/* ── prefix icon ──────────────────────────────── */}
-      {node.prefix_icon && (
+      {/* ── prefix icon / generating spinner ─────────── */}
+      {hasPrefixVisual && (
         <span
           style={{
             position: "relative",
@@ -591,10 +607,44 @@ const ExplorerRow = ({
             transition: "opacity 0.15s ease",
           }}
         >
-          <Icon
-            src={node.prefix_icon}
-            style={{ width: iconSize, height: iconSize }}
-          />
+          {showPrefixSpinner ? (
+            <ArcSpinner
+              size={iconSize}
+              stroke_width={2}
+              track_opacity={0.18}
+            />
+          ) : node.prefix_icon ? (
+            <Icon
+              src={node.prefix_icon}
+              style={{ width: iconSize, height: iconSize }}
+            />
+          ) : (
+            <span
+              aria-hidden="true"
+              style={{
+                width: iconSize,
+                height: iconSize,
+              }}
+            />
+          )}
+          {showUnreadDot && (
+            <span
+              aria-hidden="true"
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                backgroundColor: unreadDotColor,
+                boxShadow: isDark
+                  ? "0 0 0 1px rgba(25,25,25,0.95)"
+                  : "0 0 0 1px rgba(255,255,255,0.98)",
+                transform: "translate(18%, -18%)",
+              }}
+            />
+          )}
         </span>
       )}
 
@@ -707,18 +757,53 @@ const ExplorerRow = ({
             >
               <Icon src={expandIcon} style={{ width: 14, height: 14 }} />
             </span>
-            {node.prefix_icon && (
+            {hasPrefixVisual && (
               <span
                 style={{
+                  position: "relative",
                   display: "flex",
                   alignItems: "center",
                   flexShrink: 0,
                 }}
               >
-                <Icon
-                  src={node.prefix_icon}
-                  style={{ width: iconSize, height: iconSize }}
-                />
+                {showPrefixSpinner ? (
+                  <ArcSpinner
+                    size={iconSize}
+                    stroke_width={2}
+                    track_opacity={0.18}
+                  />
+                ) : node.prefix_icon ? (
+                  <Icon
+                    src={node.prefix_icon}
+                    style={{ width: iconSize, height: iconSize }}
+                  />
+                ) : (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      width: iconSize,
+                      height: iconSize,
+                    }}
+                  />
+                )}
+                {showUnreadDot && (
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      right: 0,
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      backgroundColor: unreadDotColor,
+                      boxShadow: isDark
+                        ? "0 0 0 1px rgba(25,25,25,0.95)"
+                        : "0 0 0 1px rgba(255,255,255,0.98)",
+                      transform: "translate(18%, -18%)",
+                    }}
+                  />
+                )}
               </span>
             )}
             {node.prefix && (

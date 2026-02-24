@@ -370,6 +370,7 @@ const sanitizeChatSession = (chat, fallbackId) => {
     draft,
     messages,
     isTransientNewChat: chat?.isTransientNewChat === true,
+    hasUnreadGeneratedReply: chat?.hasUnreadGeneratedReply === true,
     stats: {
       messageCount: 0,
       approxBytes: 0,
@@ -1180,6 +1181,10 @@ const updateActiveAndSelectedFromChatId = (store, chatId) => {
   }
 
   store.activeChatId = chatId;
+  if (store.chatsById[chatId].hasUnreadGeneratedReply) {
+    store.chatsById[chatId].hasUnreadGeneratedReply = false;
+    store.chatsById[chatId].updatedAt = now();
+  }
   touchLru(store, chatId);
 
   let selectedNodeId = null;
@@ -1304,6 +1309,16 @@ const buildTreeNodeLookupByChatId = (tree) => {
 const sanitizeExplorerLabel = (label, fallback) =>
   sanitizeLabel(label, fallback);
 
+const isChatGenerating = (chat) => {
+  if (!Array.isArray(chat?.messages)) {
+    return false;
+  }
+  return chat.messages.some(
+    (message) =>
+      message?.role === "assistant" && message?.status === "streaming",
+  );
+};
+
 export const sanitizeExplorerReorderPayload = ({
   data,
   root,
@@ -1352,18 +1367,110 @@ export const sanitizeExplorerReorderPayload = ({
 export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
   const nodesById = isObject(tree?.nodesById) ? tree.nodesById : {};
   const root = Array.isArray(tree?.root) ? tree.root : [];
+  const chatGeneratingById = {};
+  const chatUnreadGeneratedById = {};
+  for (const [chatId, chat] of Object.entries(chatsById || {})) {
+    chatGeneratingById[chatId] = isChatGenerating(chat);
+    chatUnreadGeneratedById[chatId] = chat?.hasUnreadGeneratedReply === true;
+  }
+
+  const subtreeGeneratingCache = new Map();
+  const hasGeneratingChatInSubtree = (nodeId, path = new Set()) => {
+    if (subtreeGeneratingCache.has(nodeId)) {
+      return subtreeGeneratingCache.get(nodeId);
+    }
+
+    if (path.has(nodeId)) {
+      return false;
+    }
+
+    const node = nodesById[nodeId];
+    if (!node) {
+      subtreeGeneratingCache.set(nodeId, false);
+      return false;
+    }
+
+    if (node.entity === "chat") {
+      const generating = Boolean(chatGeneratingById[node.chatId]);
+      subtreeGeneratingCache.set(nodeId, generating);
+      return generating;
+    }
+
+    if (node.entity !== "folder" || !Array.isArray(node.children)) {
+      subtreeGeneratingCache.set(nodeId, false);
+      return false;
+    }
+
+    path.add(nodeId);
+    let generating = false;
+    for (const childId of node.children) {
+      if (hasGeneratingChatInSubtree(childId, path)) {
+        generating = true;
+        break;
+      }
+    }
+    path.delete(nodeId);
+
+    subtreeGeneratingCache.set(nodeId, generating);
+    return generating;
+  };
+
+  const subtreeUnreadGeneratedCache = new Map();
+  const hasUnreadGeneratedInSubtree = (nodeId, path = new Set()) => {
+    if (subtreeUnreadGeneratedCache.has(nodeId)) {
+      return subtreeUnreadGeneratedCache.get(nodeId);
+    }
+
+    if (path.has(nodeId)) {
+      return false;
+    }
+
+    const node = nodesById[nodeId];
+    if (!node) {
+      subtreeUnreadGeneratedCache.set(nodeId, false);
+      return false;
+    }
+
+    if (node.entity === "chat") {
+      const hasUnread = Boolean(chatUnreadGeneratedById[node.chatId]);
+      subtreeUnreadGeneratedCache.set(nodeId, hasUnread);
+      return hasUnread;
+    }
+
+    if (node.entity !== "folder" || !Array.isArray(node.children)) {
+      subtreeUnreadGeneratedCache.set(nodeId, false);
+      return false;
+    }
+
+    path.add(nodeId);
+    let hasUnread = false;
+    for (const childId of node.children) {
+      if (hasUnreadGeneratedInSubtree(childId, path)) {
+        hasUnread = true;
+        break;
+      }
+    }
+    path.delete(nodeId);
+
+    subtreeUnreadGeneratedCache.set(nodeId, hasUnread);
+    return hasUnread;
+  };
 
   const data = {};
   for (const [nodeId, node] of Object.entries(nodesById)) {
     const selected = handlers.selectedNodeId === nodeId;
 
     if (node.entity === "folder") {
+      const hasGeneratingDescendant = hasGeneratingChatInSubtree(nodeId);
+      const hasUnreadGeneratedDescendant = hasUnreadGeneratedInSubtree(nodeId);
       data[nodeId] = {
         type: "folder",
         entity: "folder",
         label: sanitizeLabel(node.label, DEFAULT_FOLDER_LABEL),
         children: Array.isArray(node.children) ? node.children : [],
         prefix_icon: "folder",
+        has_generating_chat_descendant: hasGeneratingDescendant,
+        has_unread_generated_descendant: hasUnreadGeneratedDescendant,
         style: selected
           ? {
               opacity: 1,
@@ -1392,12 +1499,16 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       chatsById?.[node.chatId]?.title || node.label,
       DEFAULT_CHAT_TITLE,
     );
+    const isGenerating = Boolean(chatGeneratingById[node.chatId]);
+    const hasUnreadGeneratedReply = Boolean(chatUnreadGeneratedById[node.chatId]);
     data[nodeId] = {
       type: "file",
       entity: "chat",
       chatId: node.chatId,
       label: title,
       prefix_icon: "chat",
+      is_generating: isGenerating,
+      has_unread_generated_reply: hasUnreadGeneratedReply,
       style: selected
         ? {
             opacity: 1,
@@ -1830,6 +1941,22 @@ export const setChatMessages = (chatId, messages, options = {}) => {
       };
     },
     { ...options, type: "chat_update_messages" },
+  );
+};
+
+export const setChatGeneratedUnread = (
+  chatId,
+  hasUnread = true,
+  options = {},
+) => {
+  return updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      hasUnreadGeneratedReply: hasUnread === true,
+      updatedAt: now(),
+    }),
+    { ...options, type: "chat_update_generated_unread" },
   );
 };
 

@@ -7,6 +7,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 /* { Components } -------------------------------------------------------------------------------------------------------------- */
 import StringSpinner from "../../../BUILTIN_COMPONENTs/spinner/string_spinner";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
+import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import { CustomizedTooltip } from "../demo";
 /* { Components } -------------------------------------------------------------------------------------------------------------- */
 
@@ -39,6 +40,65 @@ const SpinnerDemo = () => {
       >
         Spinners
       </span>
+      {/* ── ArcSpinner ── */}
+      <CustomizedTooltip
+        code={` 
+\`\`\`js
+<ArcSpinner />
+\`\`\` 
+          `}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 160,
+            height: 160,
+          }}
+        >
+          <ArcSpinner />
+        </div>
+      </CustomizedTooltip>
+      <CustomizedTooltip
+        code={` 
+\`\`\`js
+<ArcSpinner size={56} stroke_width={4} />
+\`\`\` 
+          `}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 160,
+            height: 160,
+          }}
+        >
+          <ArcSpinner size={56} stroke_width={4} />
+        </div>
+      </CustomizedTooltip>
+      <CustomizedTooltip
+        code={` 
+\`\`\`js
+<ArcSpinner size={36} stroke_width={2} />
+\`\`\` 
+          `}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 160,
+            height: 160,
+          }}
+        >
+          <ArcSpinner size={36} stroke_width={2} />
+        </div>
+      </CustomizedTooltip>
+      {/* ── StringSpinner ── */}
       <CustomizedTooltip
         code={` 
 \`\`\`js

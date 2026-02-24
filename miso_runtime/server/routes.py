@@ -4,7 +4,14 @@ from typing import Dict, Iterable, List
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
-from miso_adapter import get_capability_catalog, get_model_name, get_runtime_config, stream_chat
+from miso_adapter import (
+    get_capability_catalog,
+    get_default_model_capabilities,
+    get_model_capability_catalog,
+    get_model_name,
+    get_runtime_config,
+    stream_chat,
+)
 
 api_blueprint = Blueprint("miso_api", __name__)
 
@@ -61,20 +68,27 @@ def models_catalog() -> Response:
         ), 401
 
     runtime = get_runtime_config()
-    capabilities = get_capability_catalog()
+    provider_catalog = get_capability_catalog()
+    model_capabilities = get_model_capability_catalog()
+    active_provider = str(runtime.get("provider", "ollama")).strip().lower() or "ollama"
+    active_model = str(runtime.get("model", "")).strip()
+    active_model_id = f"{active_provider}:{active_model}"
+    active_capabilities = model_capabilities.get(active_model_id) or get_default_model_capabilities()
 
     return jsonify(
         {
             "active": {
-                "provider": runtime.get("provider", "ollama"),
-                "model": runtime.get("model", ""),
-                "model_id": f"{runtime.get('provider', 'ollama')}:{runtime.get('model', '')}",
+                "provider": active_provider,
+                "model": active_model,
+                "model_id": active_model_id,
+                "capabilities": active_capabilities,
             },
             "providers": {
-                "openai": capabilities.get("openai", []),
-                "anthropic": capabilities.get("anthropic", []),
-                "ollama": capabilities.get("ollama", []),
+                "openai": provider_catalog.get("openai", []),
+                "anthropic": provider_catalog.get("anthropic", []),
+                "ollama": provider_catalog.get("ollama", []),
             },
+            "model_capabilities": model_capabilities,
         }
     )
 

@@ -1,9 +1,20 @@
 const OLLAMA_BASE = "http://localhost:11434";
 
 const DEFAULT_TIMEOUT_MS = 5000;
+const ALLOWED_INPUT_MODALITIES = ["text", "image", "pdf"];
+const ALLOWED_INPUT_MODALITY_SET = new Set(ALLOWED_INPUT_MODALITIES);
+const ALLOWED_INPUT_SOURCE_TYPES = ["url", "base64"];
+const ALLOWED_INPUT_SOURCE_TYPE_SET = new Set(ALLOWED_INPUT_SOURCE_TYPES);
+
+const defaultModelInputCapabilities = () => ({
+  input_modalities: ["text"],
+  input_source_types: {},
+});
 
 const EMPTY_MODEL_CATALOG = {
   activeModel: null,
+  activeCapabilities: defaultModelInputCapabilities(),
+  modelCapabilities: {},
   providers: {
     ollama: [],
     openai: [],
@@ -123,11 +134,93 @@ const normalizeStringList = (list) =>
     ),
   ].sort((a, b) => a.localeCompare(b));
 
+const normalizeInputModalities = (inputModalities) => {
+  const normalized = new Set(
+    (Array.isArray(inputModalities) ? inputModalities : [])
+      .map((item) =>
+        typeof item === "string" ? item.trim().toLowerCase() : "",
+      )
+      .filter((item) => ALLOWED_INPUT_MODALITY_SET.has(item)),
+  );
+
+  const ordered = ALLOWED_INPUT_MODALITIES.filter((item) =>
+    normalized.has(item),
+  );
+  return ordered.length > 0 ? ordered : ["text"];
+};
+
+const normalizeInputSourceTypeList = (sourceTypeList) => {
+  const normalized = new Set(
+    (Array.isArray(sourceTypeList) ? sourceTypeList : [])
+      .map((item) =>
+        typeof item === "string" ? item.trim().toLowerCase() : "",
+      )
+      .filter((item) => ALLOWED_INPUT_SOURCE_TYPE_SET.has(item)),
+  );
+  return ALLOWED_INPUT_SOURCE_TYPES.filter((item) => normalized.has(item));
+};
+
+const normalizeInputSourceTypes = (sourceTypes, inputModalities) => {
+  if (!isObject(sourceTypes)) {
+    return {};
+  }
+
+  const activeModalities = new Set(inputModalities);
+  const normalized = {};
+
+  Object.entries(sourceTypes).forEach(([modalityKey, sourceTypeList]) => {
+    const modality =
+      typeof modalityKey === "string" ? modalityKey.trim().toLowerCase() : "";
+    if (!activeModalities.has(modality) || modality === "text") {
+      return;
+    }
+
+    const sourceTypesForModality =
+      normalizeInputSourceTypeList(sourceTypeList);
+    if (sourceTypesForModality.length > 0) {
+      normalized[modality] = sourceTypesForModality;
+    }
+  });
+
+  return normalized;
+};
+
+const normalizeModelInputCapabilities = (capabilities) => {
+  const capabilityPayload = isObject(capabilities) ? capabilities : {};
+  const inputModalities = normalizeInputModalities(
+    capabilityPayload.input_modalities,
+  );
+  const inputSourceTypes = normalizeInputSourceTypes(
+    capabilityPayload.input_source_types,
+    inputModalities,
+  );
+  return {
+    input_modalities: inputModalities,
+    input_source_types: inputSourceTypes,
+  };
+};
+
 export const normalizeModelCatalog = (payload) => {
   const providers =
     payload?.providers && typeof payload.providers === "object"
       ? payload.providers
       : {};
+  const rawModelCapabilities =
+    payload?.model_capabilities && typeof payload.model_capabilities === "object"
+      ? payload.model_capabilities
+      : {};
+  const modelCapabilities = Object.entries(rawModelCapabilities).reduce(
+    (accumulator, [rawModelId, rawCapabilities]) => {
+      if (typeof rawModelId !== "string" || !rawModelId.trim()) {
+        return accumulator;
+      }
+
+      const modelId = rawModelId.trim();
+      accumulator[modelId] = normalizeModelInputCapabilities(rawCapabilities);
+      return accumulator;
+    },
+    {},
+  );
 
   const activeModelFromFlat =
     typeof payload?.activeModel === "string" && payload.activeModel.trim()
@@ -157,9 +250,20 @@ export const normalizeModelCatalog = (payload) => {
     activeModelFromActiveId ||
     activeModelFromParts ||
     null;
+  const hasActiveCapabilitiesPayload = isObject(payload?.active?.capabilities);
+  const activeCapabilities =
+    (hasActiveCapabilitiesPayload
+      ? normalizeModelInputCapabilities(payload.active.capabilities)
+      : null) ||
+    (activeModel && isObject(modelCapabilities[activeModel])
+      ? modelCapabilities[activeModel]
+      : null) ||
+    defaultModelInputCapabilities();
 
   return {
     activeModel,
+    activeCapabilities,
+    modelCapabilities,
     providers: {
       ollama: normalizeStringList(providers.ollama),
       openai: normalizeStringList(providers.openai),
