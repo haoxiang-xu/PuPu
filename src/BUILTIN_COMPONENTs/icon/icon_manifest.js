@@ -103,7 +103,7 @@ const Chat = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M5.76282 17H20V5H4V18.3851L5.76282 17ZM6.45455 19L2 22.5V4C2 3.44772 2.44772 3 3 3H21C21.5523 3 22 3.44772 22 4V18C22 18.5523 21.5523 19 21 19H6.45455Z"></path>
+    <path d="M7.29117 20.8242L2 22L3.17581 16.7088C2.42544 15.3056 2 13.7025 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C10.2975 22 8.6944 21.5746 7.29117 20.8242ZM7.58075 18.711L8.23428 19.0605C9.38248 19.6745 10.6655 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 13.3345 4.32549 14.6175 4.93949 15.7657L5.28896 16.4192L4.63416 19.3658L7.58075 18.711Z"></path>
   </svg>
 );
 const ChatNew = (props) => (
@@ -176,6 +176,22 @@ const Color = (props) => (
     fill="currentColor"
   >
     <path d="M12 2C17.5222 2 22 5.97778 22 10.8889C22 13.9556 19.5111 16.4444 16.4444 16.4444H14.4778C13.5556 16.4444 12.8111 17.1889 12.8111 18.1111C12.8111 18.5333 12.9778 18.9222 13.2333 19.2111C13.5 19.5111 13.6667 19.9 13.6667 20.3333C13.6667 21.2556 12.9 22 12 22C6.47778 22 2 17.5222 2 12C2 6.47778 6.47778 2 12 2ZM10.8111 18.1111C10.8111 16.0843 12.451 14.4444 14.4778 14.4444H16.4444C18.4065 14.4444 20 12.851 20 10.8889C20 7.1392 16.4677 4 12 4C7.58235 4 4 7.58235 4 12C4 16.19 7.2226 19.6285 11.324 19.9718C10.9948 19.4168 10.8111 18.7761 10.8111 18.1111ZM7.5 12C6.67157 12 6 11.3284 6 10.5C6 9.67157 6.67157 9 7.5 9C8.32843 9 9 9.67157 9 10.5C9 11.3284 8.32843 12 7.5 12ZM16.5 12C15.6716 12 15 11.3284 15 10.5C15 9.67157 15.6716 9 16.5 9C17.3284 9 18 9.67157 18 10.5C18 11.3284 17.3284 12 16.5 12ZM12 9C11.1716 9 10.5 8.32843 10.5 7.5C10.5 6.67157 11.1716 6 12 6C12.8284 6 13.5 6.67157 13.5 7.5C13.5 8.32843 12.8284 9 12 9Z"></path>
+  </svg>
+);
+const Copy = (props) => (
+  <svg
+    viewBox="0 0 16 16"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M6 8V3C6 1.89543 6.89543 1 8 1H13C14.1046 1 15 1.89543 15 3V8C15 9.10457 14.1046 10 13 10H8C6.89543 10 6 9.10457 6 8Z"
+      stroke="currentColor"
+    />
+    <path
+      d="M1.5 13.5V7C1.5 6.44772 1.94772 6 2.5 6C3.05228 6 3.5 6.44772 3.5 7V8.5C3.5 10.7091 5.29086 12.5 7.5 12.5H9C9.55228 12.5 10 12.9477 10 13.5C10 14.0523 9.55229 14.5 9 14.5H2.5C1.94772 14.5 1.5 14.0523 1.5 13.5Z"
+      fill="currentColor"
+      stroke="currentColor"
+    />
   </svg>
 );
 const Data = (props) => (
@@ -284,6 +300,15 @@ const Folder = (props) => (
     fill="currentColor"
   >
     <path d="M4 5V19H20V7H11.5858L9.58579 5H4ZM12.4142 5H21C21.5523 5 22 5.44772 22 6V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H10.4142L12.4142 5Z"></path>
+  </svg>
+);
+const FolderNew = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M12.4142 5H21C21.5523 5 22 5.44772 22 6V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H10.4142L12.4142 5ZM4 5V19H20V7H11.5858L9.58579 5H4ZM11 12V9H13V12H16V14H13V17H11V14H8V12H11Z"></path>
   </svg>
 );
 const GitHub = (props) => (
@@ -493,6 +518,23 @@ const Passport = (props) => (
     <path d="M20 2C20.5523 2 21 2.44772 21 3V21C21 21.5523 20.5523 22 20 22H4C3.44772 22 3 21.5523 3 21V3C3 2.44772 3.44772 2 4 2H20ZM19 4H5V20H19V4ZM16 16V18H8V16H16ZM12 6C14.2091 6 16 7.79086 16 10C16 12.2091 14.2091 14 12 14C9.79086 14 8 12.2091 8 10C8 7.79086 9.79086 6 12 6ZM12 8C10.8954 8 10 8.89543 10 10C10 11.1046 10.8954 12 12 12C13.1046 12 14 11.1046 14 10C14 8.89543 13.1046 8 12 8Z"></path>
   </svg>
 );
+const Paste = (props) => (
+  <svg
+    viewBox="0 0 16 16"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M2 12.5V4.5C2 3.39543 2.89543 2.5 4 2.5H4.76072C5.21937 2.5 5.64439 2.25936 5.88036 1.86607C6.3875 1.02083 7.6125 1.02083 8.11964 1.86607C8.35561 2.25936 8.78063 2.5 9.23928 2.5H10C11.1046 2.5 12 3.39543 12 4.5V7C12 7.27614 11.7761 7.5 11.5 7.5C9.29086 7.5 7.5 9.29086 7.5 11.5V13.7222C7.5 14.1518 7.15178 14.5 6.72222 14.5H4C2.89543 14.5 2 13.6046 2 12.5Z"
+      
+      stroke="currentColor"
+    />
+    <path
+      d="M13.5 10H12C10.8954 10 10 10.8954 10 12V13.5C10 14.0523 10.4477 14.5 11 14.5H13.5C14.0523 14.5 14.5 14.0523 14.5 13.5V11C14.5 10.4477 14.0523 10 13.5 10Z"
+      fill="currentColor"
+      stroke="currentColor"
+    />
+  </svg>
+);
 const Pentagon = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -566,6 +608,31 @@ const PuPu = (props) => (
       stroke="currentColor"
       stroke-width="0.5"
       stroke-linecap="round"
+    />
+  </svg>
+);
+const Rename = (props) => (
+  <svg
+    viewBox="0 0 16 16"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path
+      d="M1 10V6C1 5.44772 1.44772 5 2 5H7V11H2C1.44772 11 1 10.5523 1 10Z"
+      fill="currentColor"
+      stroke="currentColor"
+    />
+    <path
+      d="M12 11V5H14C14.5523 5 15 5.44772 15 6L15 10C15 10.5523 14.5523 11 14 11H12Z"
+      fill="currentColor"
+      stroke="currentColor"
+    />
+    <path
+      d="M7.5 14H8.5C9.05228 14 9.5 13.5523 9.5 13V3C9.5 2.44772 9.05228 2 8.5 2H7.5"
+      stroke="currentColor"
+    />
+    <path
+      d="M11.5 2H10.5C9.94772 2 9.5 2.44772 9.5 3V13C9.5 13.5523 9.94772 14 10.5 14H11.5"
+      stroke="currentColor"
     />
   </svg>
 );
@@ -874,6 +941,7 @@ const UISVGs = {
   circle: Circle,
   close: Close,
   color: Color,
+  copy: Copy,
   data: Data,
   delete: Delete,
   delete_input: DeleteInput,
@@ -886,6 +954,7 @@ const UISVGs = {
   eye_open: EyeOpen,
   eye_closed: EyeClosed,
   folder: Folder,
+  folder_new: FolderNew,
   global: Global,
   home: Home,
   key: Key,
@@ -900,6 +969,7 @@ const UISVGs = {
   notification_on: NotificationOn,
   notification_off: NotificationOff,
   passport: Passport,
+  paste: Paste,
   pentagon: Pentagon,
   phone: Phone,
   pin: Pin,
@@ -907,6 +977,7 @@ const UISVGs = {
   poker_diamonds: PokerDiamonds,
   poker_hearts: PokerHearts,
   poker_spades: PokerSpades,
+  rename: Rename,
   satisfied: Satisfied,
   search: Search,
   settings: Settings,

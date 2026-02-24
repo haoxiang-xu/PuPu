@@ -221,7 +221,7 @@ export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
               <Icon
                 src={item.icon}
                 color={textColor}
-                style={{ width: 13, height: 13, flexShrink: 0 }}
+                style={{ width: 16, height: 16, flexShrink: 0 }}
               />
             )}
             {item.label}

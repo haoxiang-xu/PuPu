@@ -246,7 +246,7 @@ const ChatBubble = ({
           )}
           {canEditMessage && (
             <Button
-              prefix_icon="edit"
+              prefix_icon="edit_pen"
               disabled={disableActionButtons}
               onClick={handleStartEdit}
               style={{ color, fontSize: 14, iconSize: 14, opacity: 0.5 }}

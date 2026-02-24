@@ -28,7 +28,7 @@ export const buildSideMenuContextMenuItems = ({
         },
       },
       {
-        icon: "draft",
+        icon: "folder_new",
         label: "New Folder",
         onClick: () => {
           const res = createFolder(
@@ -44,7 +44,7 @@ export const buildSideMenuContextMenuItems = ({
   if (node.entity === "folder") {
     const items = [
       {
-        icon: "edit_box",
+        icon: "chat_new",
         label: "New Chat",
         onClick: () => {
           const res = createChatInSelectedContext(
@@ -55,7 +55,7 @@ export const buildSideMenuContextMenuItems = ({
         },
       },
       {
-        icon: "draft",
+        icon: "folder_new",
         label: "New Folder",
         onClick: () => {
           const res = createFolder(
@@ -67,12 +67,12 @@ export const buildSideMenuContextMenuItems = ({
       },
       { type: "separator" },
       {
-        icon: "edit",
+        icon: "rename",
         label: "Rename",
         onClick: () => handleStartRename(node),
       },
       {
-        icon: "edit",
+        icon: "copy",
         label: "Copy",
         onClick: () =>
           setClipboard({
@@ -85,7 +85,7 @@ export const buildSideMenuContextMenuItems = ({
 
     if (clipboard) {
       items.push({
-        icon: "add",
+        icon: "paste",
         label: "Paste",
         onClick: () => {
           if (clipboard.type === "chat") {
@@ -128,12 +128,12 @@ export const buildSideMenuContextMenuItems = ({
       chatStore?.chatsById?.[node.chatId]?.title || node.label || "Chat";
     return [
       {
-        icon: "edit",
+        icon: "rename",
         label: "Rename",
         onClick: () => handleStartRename(node),
       },
       {
-        icon: "edit",
+        icon: "copy",
         label: "Copy",
         onClick: () =>
           setClipboard({
