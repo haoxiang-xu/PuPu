@@ -107,12 +107,16 @@ const Chat = (props) => (
   </svg>
 );
 const ChatNew = (props) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-  >
-    <path d="M14 3V5H4V18.3851L5.76282 17H20V10H22V18C22 18.5523 21.5523 19 21 19H6.45455L2 22.5V4C2 3.44772 2.44772 3 3 3H14ZM19 3V0H21V3H24V5H21V8H19V5H16V3H19Z"></path>
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M7.29117 20.8242L2 22L3.17581 16.7088C2.42544 15.3056 2 13.7025 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22C10.2975 22 8.6944 21.5746 7.29117 20.8242ZM7.58075 18.711L8.23428 19.0605C9.38248 19.6745 10.6655 20 12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 13.3345 4.32549 14.6175 4.93949 15.7657L5.28896 16.4192L4.63416 19.3658L7.58075 18.711Z"
+      fill="currentColor"
+    />
+    <path
+      d="M8 12H12M12 12H16M12 12V8M12 12V16"
+      stroke="currentColor"
+      stroke-width="2"
+    />
   </svg>
 );
 const Check = (props) => (
@@ -179,10 +183,7 @@ const Color = (props) => (
   </svg>
 );
 const Copy = (props) => (
-  <svg
-    viewBox="0 0 16 16"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M6 8V3C6 1.89543 6.89543 1 8 1H13C14.1046 1 15 1.89543 15 3V8C15 9.10457 14.1046 10 13 10H8C6.89543 10 6 9.10457 6 8Z"
       stroke="currentColor"
@@ -519,13 +520,9 @@ const Passport = (props) => (
   </svg>
 );
 const Paste = (props) => (
-  <svg
-    viewBox="0 0 16 16"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M2 12.5V4.5C2 3.39543 2.89543 2.5 4 2.5H4.76072C5.21937 2.5 5.64439 2.25936 5.88036 1.86607C6.3875 1.02083 7.6125 1.02083 8.11964 1.86607C8.35561 2.25936 8.78063 2.5 9.23928 2.5H10C11.1046 2.5 12 3.39543 12 4.5V7C12 7.27614 11.7761 7.5 11.5 7.5C9.29086 7.5 7.5 9.29086 7.5 11.5V13.7222C7.5 14.1518 7.15178 14.5 6.72222 14.5H4C2.89543 14.5 2 13.6046 2 12.5Z"
-      
       stroke="currentColor"
     />
     <path
@@ -612,10 +609,7 @@ const PuPu = (props) => (
   </svg>
 );
 const Rename = (props) => (
-  <svg
-    viewBox="0 0 16 16"
-    xmlns="http://www.w3.org/2000/svg"
-  >
+  <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path
       d="M1 10V6C1 5.44772 1.44772 5 2 5H7V11H2C1.44772 11 1 10.5523 1 10Z"
       fill="currentColor"
