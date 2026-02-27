@@ -316,6 +316,19 @@ const readModelProvidersSettings = () => {
   }
 };
 
+const readRuntimeSettings = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return {};
+  }
+
+  try {
+    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
+    return isObject(root?.runtime) ? root.runtime : {};
+  } catch (_error) {
+    return {};
+  }
+};
+
 const parseProviderFromModelValue = (modelValue) => {
   if (
     typeof modelValue !== "string" ||
@@ -429,6 +442,42 @@ const injectProviderApiKeyIntoPayload = (payload) => {
   };
 };
 
+const getStoredWorkspaceRoot = () => {
+  const runtimeSettings = readRuntimeSettings();
+  const workspaceRoot = runtimeSettings?.workspace_root;
+  return typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
+};
+
+const injectWorkspaceRootIntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+
+  const configuredWorkspaceRoot = getStoredWorkspaceRoot();
+  if (!configuredWorkspaceRoot) {
+    return payload;
+  }
+
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  const hasExplicitWorkspaceRoot =
+    (typeof currentOptions.workspaceRoot === "string" &&
+      currentOptions.workspaceRoot.trim().length > 0) ||
+    (typeof currentOptions.workspace_root === "string" &&
+      currentOptions.workspace_root.trim().length > 0);
+  if (hasExplicitWorkspaceRoot) {
+    return payload;
+  }
+
+  return {
+    ...payload,
+    options: {
+      ...currentOptions,
+      workspaceRoot: configuredWorkspaceRoot,
+      workspace_root: configuredWorkspaceRoot,
+    },
+  };
+};
+
 const retrieveMisoModelList = async (provider = null) => {
   const catalog = await api.miso.getModelCatalog();
   if (typeof provider !== "string" || !provider.trim()) {
@@ -517,7 +566,10 @@ export const api = {
     startStream: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("misoAPI", "startStream");
-        const normalizedPayload = injectProviderApiKeyIntoPayload(payload);
+        const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
+        const normalizedPayload = injectProviderApiKeyIntoPayload(
+          payloadWithWorkspaceRoot,
+        );
         const streamHandle = method(normalizedPayload, handlers);
         if (
           !isObject(streamHandle) ||

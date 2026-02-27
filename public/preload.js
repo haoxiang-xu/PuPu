@@ -87,6 +87,10 @@ contextBridge.exposeInMainWorld("misoAPI", {
   getStatus: () => ipcRenderer.invoke("miso:get-status"),
   getModelCatalog: () => ipcRenderer.invoke("miso:get-model-catalog"),
   getToolkitCatalog: () => ipcRenderer.invoke("miso:get-toolkit-catalog"),
+  pickWorkspaceRoot: (defaultPath = "") =>
+    ipcRenderer.invoke("miso:pick-workspace-root", { defaultPath }),
+  validateWorkspaceRoot: (path = "") =>
+    ipcRenderer.invoke("miso:validate-workspace-root", { path }),
   startStream: (payload, handlers = {}) => {
     const requestId = buildRequestId();
     registerMisoStreamListener(requestId, handlers);

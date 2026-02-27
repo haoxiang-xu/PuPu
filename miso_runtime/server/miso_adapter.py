@@ -736,6 +736,79 @@ def _extract_api_key_from_options(options: Dict[str, object] | None, provider: s
     return ""
 
 
+def _extract_workspace_root_from_options(options: Dict[str, object] | None) -> str:
+    if not isinstance(options, dict):
+        return ""
+
+    for key in ("workspaceRoot", "workspace_root"):
+        candidate = options.get(key)
+        if isinstance(candidate, str):
+            normalized = candidate.strip()
+            if normalized:
+                return normalized
+    return ""
+
+
+def _resolve_workspace_root(workspace_root: str) -> Path:
+    candidate = Path(workspace_root).expanduser().resolve()
+    if not candidate.exists():
+        raise RuntimeError(f"workspace_root does not exist: {candidate}")
+    if not candidate.is_dir():
+        raise RuntimeError(f"workspace_root is not a directory: {candidate}")
+    return candidate
+
+
+def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
+    workspace_root_raw = _extract_workspace_root_from_options(options)
+    if not workspace_root_raw:
+        return
+
+    if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
+        raise RuntimeError("Agent does not support add_toolkit")
+
+    workspace_root = _resolve_workspace_root(workspace_root_raw)
+
+    try:
+        miso_module = importlib.import_module("miso")
+    except Exception as import_error:
+        raise RuntimeError(
+            f"Failed to import miso for workspace toolkit: {import_error}"
+        ) from import_error
+
+    toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
+    if not callable(toolkit_factory):
+        raise RuntimeError("miso.python_workspace_toolkit is unavailable")
+
+    try:
+        workspace_toolkit = toolkit_factory(
+            workspace_root=str(workspace_root),
+            include_python_runtime=True,
+        )
+    except TypeError:
+        # Backward compatibility for older signatures.
+        workspace_toolkit = toolkit_factory(workspace_root=str(workspace_root))
+
+    agent.add_toolkit(workspace_toolkit)
+
+
+def _content_to_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: List[str] = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") in {"text", "output_text", "input_text"}:
+                text = block.get("text", "")
+                if text:
+                    parts.append(text if isinstance(text, str) else str(text))
+        return "".join(parts)
+    if content is None:
+        return ""
+    return str(content)
+
+
 def _create_agent(options: Dict[str, object] | None = None):
     if _IMPORT_ERROR is not None:
         raise RuntimeError(f"Failed to import miso.broth: {_IMPORT_ERROR}")
@@ -753,6 +826,10 @@ def _create_agent(options: Dict[str, object] | None = None):
         max_iterations = max(1, int(max_iterations_raw))
     except Exception:
         max_iterations = 1
+    if _extract_workspace_root_from_options(options):
+        # Tool-call workflows need at least one extra round to produce
+        # assistant-facing text after tool outputs are injected.
+        max_iterations = max(max_iterations, 2)
     agent.max_iterations = max_iterations
 
     api_key = (
@@ -773,13 +850,23 @@ def _create_agent(options: Dict[str, object] | None = None):
             )
         agent.api_key = api_key
 
+    _attach_workspace_toolkit(agent, options)
+
     return agent
 
 
 def _extract_last_assistant_text(messages: List[Dict[str, Any]]) -> str:
     for item in reversed(messages):
-        if isinstance(item, dict) and item.get("role") == "assistant":
-            return str(item.get("content", ""))
+        if not isinstance(item, dict):
+            continue
+        if item.get("role") == "assistant":
+            text = _content_to_text(item.get("content", "")).strip()
+            if text:
+                return text
+        if item.get("type") == "message":
+            text = _content_to_text(item.get("content", "")).strip()
+            if text:
+                return text
     return ""
 
 

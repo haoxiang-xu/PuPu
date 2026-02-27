@@ -1,6 +1,7 @@
 const {
   app,
   BrowserWindow,
+  dialog,
   shell,
   ipcMain,
   webContents,
@@ -433,6 +434,74 @@ const getMisoToolkitCatalogPayload = async () => {
   }
 };
 
+const expandWorkspacePath = (candidatePath) => {
+  if (typeof candidatePath !== "string") {
+    return "";
+  }
+  const trimmed = candidatePath.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed === "~") {
+    return app.getPath("home");
+  }
+  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+    return path.join(app.getPath("home"), trimmed.slice(2));
+  }
+  return trimmed;
+};
+
+const validateWorkspaceRootPath = (
+  candidatePath,
+  { allowEmpty = false } = {},
+) => {
+  const expanded = expandWorkspacePath(candidatePath);
+  if (!expanded) {
+    return allowEmpty
+      ? { valid: true, resolvedPath: "", reason: "" }
+      : {
+          valid: false,
+          resolvedPath: "",
+          reason: "Workspace root is required.",
+        };
+  }
+
+  const resolvedPath = path.resolve(expanded);
+  if (!fs.existsSync(resolvedPath)) {
+    return {
+      valid: false,
+      resolvedPath: "",
+      reason: `Workspace root does not exist: ${resolvedPath}`,
+    };
+  }
+
+  let stats = null;
+  try {
+    stats = fs.statSync(resolvedPath);
+  } catch (error) {
+    return {
+      valid: false,
+      resolvedPath: "",
+      reason: error?.message || `Unable to access workspace root: ${resolvedPath}`,
+    };
+  }
+
+  if (!stats.isDirectory()) {
+    return {
+      valid: false,
+      resolvedPath: "",
+      reason: `Workspace root is not a directory: ${resolvedPath}`,
+    };
+  }
+
+  return {
+    valid: true,
+    resolvedPath,
+    reason: "",
+  };
+};
+
 const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
   const target = webContents.fromId(targetWebContentsId);
   if (!target || target.isDestroyed()) {
@@ -719,6 +788,40 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
     return;
   }
 
+  const requestPayload =
+    payload && typeof payload === "object" ? { ...payload } : {};
+  const requestOptions =
+    requestPayload.options && typeof requestPayload.options === "object"
+      ? { ...requestPayload.options }
+      : {};
+  const workspaceRootCandidate =
+    typeof requestOptions.workspaceRoot === "string" &&
+    requestOptions.workspaceRoot.trim()
+      ? requestOptions.workspaceRoot
+      : typeof requestOptions.workspace_root === "string" &&
+          requestOptions.workspace_root.trim()
+        ? requestOptions.workspace_root
+        : "";
+
+  if (workspaceRootCandidate) {
+    const validation = validateWorkspaceRootPath(workspaceRootCandidate);
+    if (!validation.valid) {
+      emitMisoStreamEvent(sender.id, requestId, "error", {
+        code: "invalid_workspace_root",
+        message: validation.reason || "Invalid workspace root",
+      });
+      return;
+    }
+
+    requestPayload.options = {
+      ...requestOptions,
+      workspaceRoot: validation.resolvedPath,
+      workspace_root: validation.resolvedPath,
+    };
+  } else {
+    requestPayload.options = requestOptions;
+  }
+
   if (misoActiveStreams.has(requestId)) {
     emitMisoStreamEvent(sender.id, requestId, "error", {
       code: "duplicate_request",
@@ -742,7 +845,7 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
           "Content-Type": "application/json",
           "x-miso-auth": misoAuthToken,
         },
-        body: JSON.stringify(payload || {}),
+        body: JSON.stringify(requestPayload),
         signal: controller.signal,
       },
     );
@@ -1051,6 +1154,48 @@ ipcMain.handle("miso:get-model-catalog", async () =>
 ipcMain.handle("miso:get-toolkit-catalog", async () =>
   getMisoToolkitCatalogPayload(),
 );
+ipcMain.handle(
+  "miso:pick-workspace-root",
+  async (_event, { defaultPath = "" } = {}) => {
+    const validation = validateWorkspaceRootPath(defaultPath, {
+      allowEmpty: true,
+    });
+    const fallbackPath = app.getPath("home");
+    const targetWindow =
+      mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+
+    const dialogResult = await dialog.showOpenDialog(targetWindow, {
+      title: "Select Workspace Root",
+      defaultPath: validation.valid && validation.resolvedPath
+        ? validation.resolvedPath
+        : fallbackPath,
+      properties: ["openDirectory", "createDirectory"],
+    });
+
+    if (
+      dialogResult.canceled ||
+      !Array.isArray(dialogResult.filePaths) ||
+      !dialogResult.filePaths[0]
+    ) {
+      return { canceled: true, path: "" };
+    }
+
+    return {
+      canceled: false,
+      path: String(dialogResult.filePaths[0]),
+    };
+  },
+);
+ipcMain.handle("miso:validate-workspace-root", (_event, { path: rootPath } = {}) => {
+  const validation = validateWorkspaceRootPath(rootPath, {
+    allowEmpty: true,
+  });
+  return {
+    valid: Boolean(validation.valid),
+    resolvedPath: validation.resolvedPath || "",
+    reason: validation.reason || "",
+  };
+});
 
 ipcMain.handle(
   "ollama:library-search",

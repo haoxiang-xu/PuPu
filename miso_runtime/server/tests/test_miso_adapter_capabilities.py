@@ -212,6 +212,168 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(catalog["toolkits"], [])
         self.assertEqual(catalog["count"], 0)
 
+    def test_extract_workspace_root_from_options(self) -> None:
+        self.assertEqual(
+            miso_adapter._extract_workspace_root_from_options(
+                {"workspaceRoot": "  /tmp/a  "}
+            ),
+            "/tmp/a",
+        )
+        self.assertEqual(
+            miso_adapter._extract_workspace_root_from_options(
+                {"workspace_root": "  /tmp/b  "}
+            ),
+            "/tmp/b",
+        )
+        self.assertEqual(
+            miso_adapter._extract_workspace_root_from_options({}),
+            "",
+        )
+
+    def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        with mock.patch.object(miso_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
+            miso_adapter, "_IMPORT_ERROR", None
+        ), mock.patch.object(miso_adapter.importlib, "import_module") as import_module_mock:
+            agent = miso_adapter._create_agent({})
+
+        self.assertEqual(agent.toolkits, [])
+        import_module_mock.assert_not_called()
+
+    def test_create_agent_attaches_workspace_toolkit_when_workspace_root_is_valid(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+            captured["workspace_root"] = workspace_root
+            captured["include_python_runtime"] = include_python_runtime
+            return {
+                "workspace_root": workspace_root,
+                "include_python_runtime": include_python_runtime,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    python_workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent({"workspace_root": tmp})
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+        self.assertEqual(captured["include_python_runtime"], True)
+
+    def test_create_agent_rejects_invalid_workspace_root(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+            return {
+                "workspace_root": workspace_root,
+                "include_python_runtime": include_python_runtime,
+            }
+
+        with mock.patch.object(miso_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
+            miso_adapter, "_IMPORT_ERROR", None
+        ), mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            return_value=SimpleNamespace(python_workspace_toolkit=fake_workspace_toolkit),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                missing = str(Path(tmp) / "missing")
+                with self.assertRaisesRegex(RuntimeError, "workspace_root does not exist"):
+                    miso_adapter._create_agent({"workspaceRoot": missing})
+
+    def test_create_agent_uses_min_two_iterations_when_workspace_root_is_set(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+            return {
+                "workspace_root": workspace_root,
+                "include_python_runtime": include_python_runtime,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter, "_BROTH_CLASS", FakeAgent
+            ), mock.patch.object(
+                miso_adapter, "_IMPORT_ERROR", None
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    python_workspace_toolkit=fake_workspace_toolkit
+                ),
+            ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
+                agent = miso_adapter._create_agent({"workspace_root": tmp})
+
+        self.assertEqual(agent.max_iterations, 2)
+
+    def test_extract_last_assistant_text_handles_structured_content(self) -> None:
+        messages = [
+            {
+                "type": "message",
+                "content": [
+                    {"type": "output_text", "text": "Tool call completed."},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Final answer text"},
+                ],
+            },
+        ]
+        self.assertEqual(
+            miso_adapter._extract_last_assistant_text(messages),
+            "Final answer text",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
