@@ -404,7 +404,7 @@ const ExplorerRow = ({
   );
 
   /* ── visual tokens ─────────────────────────────────── */
-  const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+  const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.5)";
   const activeBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
   const showBg = (hovered || pressed) && !isSource;
 
@@ -465,7 +465,7 @@ const ExplorerRow = ({
       }
 
       if (clickCountRef.current >= 3) {
-        // triple-click → rename (guarded by selected check in on_double_click)
+        // triple-click → trigger row rename behavior
         clickCountRef.current = 0;
         lastClickTimeRef.current = 0;
         if (node.on_double_click) node.on_double_click(node, e);
@@ -584,7 +584,7 @@ const ExplorerRow = ({
           borderRadius: 5,
           backgroundColor: isDark
             ? "rgba(255,255,255,0.10)"
-            : "rgba(0,0,0,0.08)",
+            : "rgba(0,0,0,0.082)",
           opacity: isActive ? 1 : 0,
           transition: "opacity 0.15s ease",
           pointerEvents: "none",
@@ -1128,7 +1128,7 @@ const BackgroundIndicator = React.memo(
           opacity: 0,
           backgroundColor: isDark
             ? "rgba(255,255,255,0.035)"
-            : "rgba(0,0,0,0.022)",
+            : "rgba(0,0,0,0.064)",
           borderRadius: 7,
           pointerEvents: "none",
           zIndex: 0,

@@ -7,6 +7,11 @@ import threading
 from pathlib import Path
 from typing import Dict, Iterable, List
 
+try:
+    import httpx as _httpx
+except ImportError:  # pragma: no cover
+    _httpx = None  # type: ignore
+
 _BROTH_CLASS = None
 _IMPORT_ERROR = None
 _RESOLVED_MISO_SOURCE = None
@@ -293,6 +298,30 @@ def get_default_model_capabilities() -> Dict[str, object]:
     return _default_model_capabilities()
 
 
+def _fetch_ollama_models() -> List[str]:
+    """Query the local Ollama daemon for all installed model names.
+
+    Returns an empty list if Ollama is unreachable or httpx is unavailable.
+    """
+    if _httpx is None:
+        return []
+
+    ollama_host = os.environ.get("OLLAMA_HOST", "http://localhost:11434").rstrip("/")
+    try:
+        response = _httpx.get(f"{ollama_host}/api/tags", timeout=3.0)
+        response.raise_for_status()
+        data = response.json()
+        models = data.get("models") or []
+        names: List[str] = []
+        for entry in models:
+            name = str(entry.get("name") or entry.get("model") or "").strip()
+            if name:
+                names.append(name)
+        return names
+    except Exception:
+        return []
+
+
 def get_capability_catalog() -> Dict[str, List[str]]:
     providers: Dict[str, List[str]] = {
         "openai": [],
@@ -309,6 +338,13 @@ def get_capability_catalog() -> Dict[str, List[str]]:
         providers[provider].append(
             _normalize_provider_model_name(provider, model_name),
         )
+
+    # Merge dynamically discovered Ollama models so all locally installed
+    # models appear as chips regardless of model_capabilities.json.
+    for live_model in _fetch_ollama_models():
+        normalized = _normalize_provider_model_name("ollama", live_model)
+        if normalized:
+            providers["ollama"].append(normalized)
 
     for provider_key in providers:
         providers[provider_key] = sorted({name for name in providers[provider_key] if name})

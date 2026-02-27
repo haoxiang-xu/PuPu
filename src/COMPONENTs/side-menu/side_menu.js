@@ -50,6 +50,9 @@ const SideMenu = () => {
 
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
+  const sideMenuBackgroundColor = isDark
+    ? "#151515"
+    : "rgb(245, 245, 245)";
 
   const selectedNodeId = chatStore?.tree?.selectedNodeId || null;
 
@@ -249,10 +252,7 @@ const SideMenu = () => {
         left: 0,
         bottom: 0,
         width: onFragment === "side_menu" ? 320 : 0,
-        backgroundColor: theme?.backgroundColor || "rgba(255,255,255,0.02)",
-        borderRight: isDark
-          ? "1px solid rgba(255,255,255,0.08)"
-          : "1px solid rgba(0,0,0,0.08)",
+        backgroundColor: sideMenuBackgroundColor,
         display: "flex",
         flexDirection: "column",
         overflow: "hidden",

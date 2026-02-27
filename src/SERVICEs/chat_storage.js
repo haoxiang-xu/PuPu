@@ -576,9 +576,37 @@ const firstChatInSubtree = (tree, nodeId) => {
   return null;
 };
 
+const firstChatNodeIdInSubtree = (tree, nodeId) => {
+  const node = tree.nodesById[nodeId];
+  if (!node) {
+    return null;
+  }
+
+  if (node.entity === "chat") {
+    return nodeId;
+  }
+
+  if (node.entity === "folder") {
+    for (const childId of node.children) {
+      const found = firstChatNodeIdInSubtree(tree, childId);
+      if (found) return found;
+    }
+  }
+
+  return null;
+};
+
 const firstChatInTree = (tree) => {
   for (const rootId of tree.root) {
     const found = firstChatInSubtree(tree, rootId);
+    if (found) return found;
+  }
+  return null;
+};
+
+const firstChatNodeIdInTree = (tree) => {
+  for (const rootId of tree.root) {
+    const found = firstChatNodeIdInSubtree(tree, rootId);
     if (found) return found;
   }
   return null;
@@ -903,6 +931,10 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
     typeof treeInput?.selectedNodeId === "string"
       ? treeInput.selectedNodeId
       : null;
+  const selectedNode =
+    selectedRaw && normalized.nodesById[selectedRaw]
+      ? normalized.nodesById[selectedRaw]
+      : null;
   const activeNodeId = Object.keys(normalized.nodesById).find(
     (nodeId) =>
       normalized.nodesById[nodeId]?.entity === "chat" &&
@@ -910,9 +942,9 @@ const sanitizeTree = (treeInput, chatsById, activeChatId, lruChatIds) => {
   );
 
   normalized.selectedNodeId =
-    (selectedRaw && normalized.nodesById[selectedRaw] && selectedRaw) ||
+    (selectedNode?.entity === "chat" && selectedRaw) ||
     activeNodeId ||
-    normalized.root[0] ||
+    firstChatNodeIdInTree(normalized) ||
     null;
 
   normalized.expandedFolderIds = Array.isArray(treeInput?.expandedFolderIds)
@@ -1006,14 +1038,16 @@ const normalizeStore = (input) => {
     !next.tree.selectedNodeId ||
     !next.tree.nodesById[next.tree.selectedNodeId]
   ) {
-    next.tree.selectedNodeId = activeNodeId || next.tree.root[0] || null;
+    next.tree.selectedNodeId =
+      activeNodeId || firstChatNodeIdInTree(next.tree) || null;
   }
 
   if (
     next.tree.selectedNodeId &&
-    !next.tree.nodesById[next.tree.selectedNodeId]
+    next.tree.nodesById[next.tree.selectedNodeId]?.entity !== "chat"
   ) {
-    next.tree.selectedNodeId = activeNodeId || next.tree.root[0] || null;
+    next.tree.selectedNodeId =
+      activeNodeId || firstChatNodeIdInTree(next.tree) || null;
   }
 
   normalizeLru(next);
@@ -1480,13 +1514,7 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
               opacity: 1,
             }
           : undefined,
-        on_click: () => {
-          if (typeof handlers.onSelect === "function") {
-            handlers.onSelect(nodeId);
-          }
-        },
         on_double_click: () => {
-          if (!selected) return;
           if (typeof handlers.onStartRename === "function") {
             handlers.onStartRename(node);
           }
@@ -1613,7 +1641,6 @@ export const createFolder = (params = {}, options = {}) => {
 
       const siblings = getSiblingIds(store.tree, parentFolderId);
       applySiblingIds(store.tree, parentFolderId, [folderId, ...siblings]);
-      store.tree.selectedNodeId = folderId;
       store.updatedAt = now();
       return store;
     },
@@ -1684,6 +1711,10 @@ export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
 
       if (!target) {
         store.tree.selectedNodeId = null;
+        return store;
+      }
+
+      if (target.entity !== "chat") {
         return store;
       }
 
@@ -1805,9 +1836,9 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
         if (store.activeChatId) {
           const map = buildTreeNodeLookupByChatId(store.tree);
           store.tree.selectedNodeId =
-            map[store.activeChatId] || store.tree.root[0] || null;
+            map[store.activeChatId] || firstChatNodeIdInTree(store.tree) || null;
         } else {
-          store.tree.selectedNodeId = store.tree.root[0] || null;
+          store.tree.selectedNodeId = firstChatNodeIdInTree(store.tree) || null;
         }
       }
 

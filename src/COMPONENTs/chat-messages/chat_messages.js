@@ -379,6 +379,7 @@ const ChatMessages = ({
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
+  const attachPanelBg = isDark ? "rgb(30, 30, 30)" : "rgb(255, 255, 255)";
   const messagesRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
   const lastScrollTopRef = useRef(0);
@@ -748,8 +749,10 @@ const ChatMessages = ({
         <div
           style={{
             position: "absolute",
-            // Align to chat input's right edge and keep a visible gap above input.
-            right: "max(20px, calc(50% - 370px))",
+            // Match ChatInput right inset:
+            // outer padding (20) + inner padding (20) when narrow,
+            // and center-aligned maxWidth(780) inset when wide.
+            right: "max(40px, calc(50% - 370px))",
             // Match the attach panel's floated distance to the input edge (padding=12).
             bottom: 12,
             zIndex: 2,
@@ -767,14 +770,11 @@ const ChatMessages = ({
               gap: 4,
               padding: "3px",
               borderRadius: 16,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.06)"
-                : "rgba(0,0,0,0.05)",
+              backgroundColor: attachPanelBg,
               boxShadow: isDark
                 ? "0 4px 24px rgba(0,0,0,0.32), 0 1px 3px rgba(0,0,0,0.16)"
                 : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)",
               transition: "background-color 0.22s ease, box-shadow 0.22s ease",
-              backdropFilter: "blur(6px)",
             }}
           >
             <Button
