@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PuPu</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        background: #121212;
+        overflow: hidden;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-app-region: drag;
+      }
+
+      .container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        gap: 28px;
+      }
+
+      .logo {
+        font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+        font-size: 28px;
+        font-weight: 300;
+        letter-spacing: 6px;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.75);
+        animation: fadein 0.5s ease both;
+      }
+
+      .spinner {
+        width: 22px;
+        height: 22px;
+        border: 2px solid rgba(255, 255, 255, 0.08);
+        border-top-color: rgba(255, 255, 255, 0.4);
+        border-radius: 50%;
+        opacity: 0;
+        animation:
+          fadein 0.5s ease both,
+          spin 0.85s linear infinite;
+        animation-delay: 0.2s, 0.2s;
+      }
+
+      @keyframes fadein {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="logo">PuPu</div>
+      <div class="spinner"></div>
+    </div>
+  </body>
+</html>

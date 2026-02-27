@@ -1,88 +1,54 @@
 {
-  "name": "pupu",
-  "version": "0.0.5",
-  "author": {
-    "name": "Haoxiang Xu",
-    "email": "haoxiangxu1998@gmail.com"
-  },
-  "description": "",
+  "name": "mini_ui",
+  "version": "0.1.0",
   "private": true,
+  "main": "public/electron.js",
   "homepage": "./",
   "dependencies": {
-    "axios": "^1.7.9",
-    "cra-template": "1.2.0",
-    "license": "^1.0.3",
-    "node-pty": "^1.0.0",
-    "react": "^18.3.1",
-    "react-code-blocks": "^0.1.6",
-    "react-dom": "^18.3.1",
-    "react-latex-next": "^3.0.0",
-    "react-router-dom": "^7.1.5",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/modifiers": "^9.0.0",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "cross-env": "^7.0.3",
+    "highlight.js": "^11.9.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-router-dom": "^7.6.1",
     "react-scripts": "5.0.1",
     "react-showdown": "^2.3.1",
-    "react-spinners": "^0.15.0",
-    "react-textarea-autosize": "^8.5.7",
-    "remixicon": "^4.6.0",
-    "web-vitals": "^4.2.4",
-    "xterm": "^5.3.0",
-    "xterm-addon-fit": "^0.8.0"
+    "react-spring": "^10.0.3",
+    "three": "^0.183.0",
+    "vanilla-tilt": "^1.8.1",
+    "web-vitals": "^2.1.4"
   },
-  "main": "public/electron.js",
   "scripts": {
-    "react-start": "cross-env BROWSER=none PORT=3000 react-scripts start",
-    "electron-start": "electron . --no-sandbox",
-    "start": "concurrently \"npm run react-start\" \"npm run electron-start\"",
-    "build": "react-scripts build",
+    "start": "npm run start:electron",
+    "start:web": "cross-env BROWSER=none PORT=2907 react-scripts start",
+    "start:electron": "concurrently -k \"npm run start:web\" \"npm run electron:start\"",
+    "electron:start": "electron .",
+    "react-start": "npm run start:web",
+    "electron-start": "npm run start:electron",
+    "build": "npm run build:web",
+    "build:web": "react-scripts build",
+    "build:electron": "npm run build:web && electron-builder",
+    "build:electron:mac": "npm run build:web && electron-builder --mac",
+    "build:electron:win": "npm run build:web && electron-builder --win",
+    "build:electron:linux": "npm run build:web && electron-builder --linux",
+    "pack": "npm run build:electron",
+    "pack:mac": "npm run build:electron:mac",
+    "pack:win": "npm run build:electron:win",
+    "pack:linux": "npm run build:electron:linux",
     "test": "react-scripts test",
-    "eject": "react-scripts eject",
-    "postinstall": "npx electron-rebuild -f -w node-pty --verbose"
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
-  },
-  "build": {
-    "appId": "com.haoxiangxu.pupu",
-    "productName": "PuPu",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "build/**/*",
-      "public/**/*",
-      "public/electron.js",
-      "public/preload.js"
-    ],
-    "win": {
-      "target": "nsis",
-      "icon": "public/logo_256x256.ico"
-    },
-    "mac": {
-      "target": "dmg",
-      "icon": "public/favicon.ico"
-    },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "category": "Utility",
-      "icon": "public/logo_256x256.png"
-    },
-    "extraResources": [
-      {
-        "from": "public/venv",
-        "to": "venv",
-        "filter": [
-          "**/*"
-        ]
-      },
-      {
-        "from": "public/child_processes",
-        "to": "child_processes"
-      }
     ]
   },
   "browserslist": {
@@ -97,12 +63,49 @@
       "last 1 safari version"
     ]
   },
-  "devDependencies": {
-    "electron": "^30.5.1",
-    "@electron/remote": "^2.1.2",
-    "concurrently": "^9.1.2",
-    "cross-env": "^7.0.3",
-    "electron-builder": "^25.1.8"
+  "build": {
+    "appId": "com.red.miniui",
+    "productName": "Mini UI",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "build/**/*",
+      "public/electron.js",
+      "public/preload.js",
+      "public/favicon.ico",
+      "public/icon.icns",
+      "public/logo512.png"
+    ],
+    "extraResources": [
+      {
+        "from": "miso_runtime",
+        "to": "miso_runtime",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "public/icon.icns"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "public/favicon.ico"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "public/logo512.png",
+      "category": "Utility"
+    }
   },
-  "license": "MIT"
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "electron": "^40.6.0",
+    "electron-builder": "^26.8.1"
+  }
 }

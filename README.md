@@ -4,7 +4,7 @@
 ></link>
 
 <div align="center">
-  <img src="assets/logo.png" alt="PuPu UI" style="height: 128px">
+  <img src="./public/logo512.png" alt="PuPu UI" style="height: 128px">
   <h1>PuPu</h1>
   <p>A simple and easy to use UI for the Ollama.</p>
 </div>
@@ -17,16 +17,16 @@
 
 PuPu is a lightweight tool that makes it easy to run AI models on your own device. Designed for smooth performance and ease of use, PuPu is perfect for anyone who wants quick access to AI without technical complexity.
 
-<img src="assets/PuPu_UI.png" alt="PuPu UI 3"/>
+<img src="./public/assets/ui_showcase.png" alt="PuPu UI 3"/>
 
 ## Table of Contents
 
 - [For Users](#for-users)
   - [App installation](#app-installation)
 - [For Developers](#for-developers)
+  - [Miso Setup](#miso-setup)
   - [Local Setup](#local-setup)
   - [Deployment](#deployment)
-  - [Further Development](#further-development)
 
 ## For Users <a name="for-users"></a>
 
@@ -74,16 +74,69 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
 ## For Developers <a name="for-developers"></a>
 
+### Miso Setup <a name="miso-setup"></a>
+
+PuPu starts a local Miso sidecar process when running the Electron app.
+
+In development, PuPu looks for a valid Miso source in this order:
+1. `MISO_SOURCE_PATH` (if set)
+2. sibling folder `../miso`
+
+A valid Miso source must contain:
+- `miso/__init__.py`
+- `miso/broth.py`
+
+Recommended setup:
+
+1. Put the Miso repo next to PuPu:
+
+```bash
+# parent folder of PuPu
+cd ..
+git clone <your-miso-repo-url> miso
+cd PuPu
+```
+
+2. Create a Python environment for the PuPu sidecar runtime:
+
+```bash
+python3 -m venv ./.venv
+source ./.venv/bin/activate
+# Windows: .\\.venv\\Scripts\\activate
+pip install -r ./miso_runtime/server/requirements.txt
+```
+
+3. Install dependencies for your Miso repo (inside `../miso`) based on that repo's instructions.
+
+4. Configure Miso runtime environment variables (examples):
+
+```bash
+# optional if your miso repo is already at ../miso
+export MISO_SOURCE_PATH=/absolute/path/to/miso
+
+# optional override for Python executable used to launch miso sidecar
+export MISO_PYTHON_BIN=/absolute/path/to/python
+
+# optional (default: ollama)
+export MISO_PROVIDER=ollama
+
+# optional (provider-specific default will be used if omitted)
+export MISO_MODEL=deepseek-r1:14b
+
+# required when MISO_PROVIDER is openai or anthropic
+export MISO_API_KEY=<your_api_key>
+# or use provider-specific keys:
+# export OPENAI_API_KEY=<your_api_key>
+# export ANTHROPIC_API_KEY=<your_api_key>
+```
+
+Quick checks:
+- If `MISO_PROVIDER=ollama`, ensure Ollama is running and the selected model is installed.
+- Start PuPu with `npm start` and confirm Miso status in the app is `ready`.
+
 ### Local Setup <a name="local-setup"></a>
 
 - Install dependencies: <span style="opacity: 0.32">To run the electron app locally, you need to install the dependencies by running the following command:</span>
-
-  - windows might require extra steps to install the node-gyp dependencies, you can follow the instructions [here](./docs/setup_guide/node_gyp_setup_guide.md).
-
-- Create python virtual environment: <span style="opacity: 0.32">To run the backend python child process, you need to create a python virtual environment by running the following command: </span>`python -m venv ./public/child_processes/venv` <span style="opacity: 0.32"> and install the dependencies by running the following command:</span> `pip install -r requirements.txt`
-
-
-
 
 `npm install`
 
@@ -94,6 +147,11 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 - Run the Electron App: <span style="opacity: 0.32">Once the dependencies are installed, you can run the app by running the following command:</span>
 
 `npm start`
+
+- Browse built-in Mini UI components:
+  <span style="opacity: 0.32">After local startup, open the following page to preview available Mini UI native components:</span>
+
+`http://localhost:2907/mini`
 
 - Build the React App: <span style="opacity: 0.32"> In order to build the app for different platforms, you should build the React app first by running the following command:</span>
 
@@ -108,10 +166,6 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 `npx electron-builder --win` <span style="opacity: 0.32"> (for windows) Notice: Windows might require you to run the command in an administrator shell. </span>
 
 `npx electron-builder --linux` <span style="opacity: 0.32"> (for linux) </span>
-
-### Further Development <a name="further-development"></a>
-
-- To further develop the app, you can refer to the [development guide](./docs/development/development.md).
 
 [windows-shield]: https://img.shields.io/badge/download_for_windows-EBDBE2?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
 [windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3

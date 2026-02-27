@@ -23,4 +23,47 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# ── Python ────────────────────────────────────────────────────────────────────
+
+# bytecode / caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# virtual environments
+.venv/
 venv/
+env/
+ENV/
+.env/
+
+# distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
+MANIFEST
+
+# test & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+
+# type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytype/
+.pyre/
+
+# jupyter
+.ipynb_checkpoints/
+
+# pyinstaller / frozen builds
+*.spec
