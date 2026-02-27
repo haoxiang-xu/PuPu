@@ -15,21 +15,20 @@ import api from "../../SERVICEs/api";
 /* ── Attachment toolbar (chat input) ── */
 const AttachPanel = ({
   color,
-  bg,
   active,
   focused,
   focusBg,
-  focusBorder,
   focusShadow,
   onAttachFile,
   onAttachLink,
-  onAttachGlobal,
   modelOptions,
   selectedModelId,
   onSelectModel,
   onGroupToggle,
   modelSelectDisabled,
   isDark,
+  attachmentsEnabled = true,
+  attachmentsDisabledReason = "",
 }) => {
   const floating = active || focused;
   let panelBg = "transparent";
@@ -37,10 +36,19 @@ const AttachPanel = ({
 
   const PILL_HEIGHT = 32;
   const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+  const isTextEntryTarget = (target) =>
+    Boolean(
+      target &&
+        typeof target.closest === "function" &&
+        target.closest(
+          "input, textarea, [contenteditable]:not([contenteditable='false'])",
+        ),
+    );
 
   return (
     <div
       onMouseDown={(e) => {
+        if (isTextEntryTarget(e.target)) return;
         e.preventDefault();
       }}
       style={{
@@ -59,7 +67,9 @@ const AttachPanel = ({
         <div
           onClick={(e) => e.stopPropagation()}
           onMouseDown={(e) => {
-            e.preventDefault();
+            if (!isTextEntryTarget(e.target)) {
+              e.preventDefault();
+            }
             e.stopPropagation();
           }}
           style={{ display: "flex", alignItems: "center" }}
@@ -92,19 +102,28 @@ const AttachPanel = ({
           />
         </div>
       )}
+      {onAttachFile && (
+        <div
+          title={
+            attachmentsEnabled
+              ? "Attach image or PDF"
+              : attachmentsDisabledReason || "Current model does not support file inputs"
+          }
+        >
+          <Button
+            prefix_icon="add"
+            onClick={onAttachFile}
+            disabled={!attachmentsEnabled}
+            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
+          />
+        </div>
+      )}
       {onAttachLink && (
-        <>
-          <Button
-            prefix_icon="link"
-            onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
-          />
-          <Button
-            prefix_icon="tool"
-            onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
-          />
-        </>
+        <Button
+          prefix_icon="link"
+          onClick={onAttachLink}
+          style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
+        />
       )}
     </div>
   );
@@ -122,11 +141,14 @@ const ChatInput = ({
   showAttachments = true,
   onAttachFile,
   onAttachLink,
-  onAttachGlobal,
   modelCatalog,
   selectedModelId,
   onSelectModel,
   modelSelectDisabled = false,
+  attachments = [],
+  onRemoveAttachment,
+  attachmentsEnabled = true,
+  attachmentsDisabledReason = "",
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -223,16 +245,13 @@ const ChatInput = ({
   ]);
 
   const color = theme?.color || "#222";
-  const panelBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
   const panelFocusBg = isDark ? "rgba(30, 30, 30, 1)" : "rgba(255,255,255,1)";
-  const panelFocusBorder = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.06)";
   const panelFocusShadow = isDark
     ? "0 4px 24px rgba(0,0,0,0.32), 0 1px 3px rgba(0,0,0,0.16)"
     : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)";
 
-  const chatActive = value.length > 0 || focused;
+  const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
+  const chatActive = value.length > 0 || focused || hasAttachments;
 
   const handleKeyDown = useCallback(
     (e) => {
@@ -273,6 +292,80 @@ const ChatInput = ({
           boxSizing: "border-box",
         }}
       >
+        {showAttachments && hasAttachments && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: 6,
+              marginBottom: 8,
+            }}
+          >
+            {attachments.map((attachment, index) => {
+              const attachmentId =
+                typeof attachment?.id === "string" && attachment.id
+                  ? attachment.id
+                  : `attachment-${index}`;
+              const attachmentName =
+                typeof attachment?.name === "string" && attachment.name.trim()
+                  ? attachment.name.trim()
+                  : "attachment";
+              return (
+                <div
+                  key={attachmentId}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 2,
+                    padding: "2px 6px 2px 8px",
+                    borderRadius: 999,
+                    border: isDark
+                      ? "1px solid rgba(255,255,255,0.12)"
+                      : "1px solid rgba(0,0,0,0.14)",
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(0,0,0,0.04)",
+                    maxWidth: "100%",
+                  }}
+                >
+                  <span
+                    title={attachmentName}
+                    style={{
+                      fontSize: 11,
+                      lineHeight: 1.3,
+                      color: isDark
+                        ? "rgba(255,255,255,0.78)"
+                        : "rgba(0,0,0,0.74)",
+                      maxWidth: 260,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {attachmentName}
+                  </span>
+                  {typeof onRemoveAttachment === "function" && (
+                    <Button
+                      prefix_icon="close"
+                      disabled={isStreaming}
+                      onClick={() => onRemoveAttachment(attachmentId)}
+                      style={{
+                        color,
+                        fontSize: 12,
+                        borderRadius: 999,
+                        padding: 2,
+                        iconOnlyPaddingVertical: 1,
+                        iconOnlyPaddingHorizontal: 1,
+                        opacity: isStreaming ? 0.35 : 0.7,
+                      }}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
         <FloatingTextField
           textarea_ref={inputRef}
           value={value}
@@ -287,21 +380,20 @@ const ChatInput = ({
             showAttachments ? (
               <AttachPanel
                 color={color}
-                bg={panelBg}
                 active={chatActive}
                 focused={focused}
                 focusBg={panelFocusBg}
-                focusBorder={panelFocusBorder}
                 focusShadow={panelFocusShadow}
                 onAttachFile={onAttachFile}
                 onAttachLink={onAttachLink}
-                onAttachGlobal={onAttachGlobal}
                 modelOptions={modelOptions}
                 selectedModelId={selectedModelId}
                 onSelectModel={onSelectModel}
                 onGroupToggle={handleGroupToggle}
                 modelSelectDisabled={modelSelectDisabled}
                 isDark={isDark}
+                attachmentsEnabled={attachmentsEnabled}
+                attachmentsDisabledReason={attachmentsDisabledReason}
               />
             ) : null
           }
@@ -383,6 +475,21 @@ const ChatInput = ({
           }
           style={{ width: "100%", margin: 0, borderRadius: 22 }}
         />
+
+        {showAttachments && !attachmentsEnabled && attachmentsDisabledReason && (
+          <div
+            style={{
+              textAlign: "left",
+              fontSize: 11,
+              fontFamily: theme?.font?.fontFamily || "inherit",
+              color: theme?.color || "#222",
+              opacity: onThemeMode === "dark_mode" ? 0.6 : 0.65,
+              paddingTop: 6,
+            }}
+          >
+            {attachmentsDisabledReason}
+          </div>
+        )}
 
         {/* disclaimer text */}
         {disclaimer && (

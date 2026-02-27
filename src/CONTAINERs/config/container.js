@@ -97,6 +97,16 @@ const ConfigContainer = ({ children }) => {
     }
   }, [theme]);
   useEffect(() => {
+    if (!window.themeAPI?.setThemeMode) {
+      return;
+    }
+
+    const themeModeForNativePicker = syncWithSystemTheme
+      ? "sync_with_browser"
+      : onThemeMode;
+    window.themeAPI.setThemeMode(themeModeForNativePicker);
+  }, [onThemeMode, syncWithSystemTheme]);
+  useEffect(() => {
     if (syncWithSystemTheme && system_theme) {
       setOnThemeMode(system_theme);
     }

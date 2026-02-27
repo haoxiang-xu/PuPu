@@ -51,6 +51,8 @@ const ChatBubble = ({
       canEditMessage ||
       canResendMessage ||
       canDeleteMessage);
+  const userAttachments =
+    isUser && Array.isArray(message?.attachments) ? message.attachments : [];
   const color = theme?.color || "#222";
   const isSubmitDisabled = disableActionButtons || editDraft.trim().length === 0;
 
@@ -179,7 +181,63 @@ const ChatBubble = ({
               style={{ width: "100%", margin: 0, borderRadius: 14 }}
             />
           ) : (
-            <span>{message.content}</span>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: userAttachments.length > 0 ? 8 : 0,
+              }}
+            >
+              {typeof message.content === "string" && message.content ? (
+                <span>{message.content}</span>
+              ) : null}
+              {userAttachments.length > 0 && (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 6,
+                  }}
+                >
+                  {userAttachments.map((attachment, index) => {
+                    const attachmentId =
+                      typeof attachment?.id === "string" && attachment.id
+                        ? attachment.id
+                        : `user-attachment-${index}`;
+                    const attachmentName =
+                      typeof attachment?.name === "string" &&
+                      attachment.name.trim()
+                        ? attachment.name.trim()
+                        : "attachment";
+                    return (
+                      <span
+                        key={attachmentId}
+                        title={attachmentName}
+                        style={{
+                          display: "inline-block",
+                          maxWidth: 260,
+                          padding: "2px 8px",
+                          borderRadius: 999,
+                          border: isDark
+                            ? "1px solid rgba(255,255,255,0.16)"
+                            : "1px solid rgba(0,0,0,0.16)",
+                          backgroundColor: isDark
+                            ? "rgba(255,255,255,0.05)"
+                            : "rgba(0,0,0,0.04)",
+                          fontSize: 11,
+                          lineHeight: 1.3,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {attachmentName}
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )
         ) : message.status === "streaming" && !message.content ? (
           <div style={{ padding: "8px 0" }}>

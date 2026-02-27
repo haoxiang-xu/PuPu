@@ -1,4 +1,11 @@
-const { app, BrowserWindow, shell, ipcMain, webContents } = require("electron");
+const {
+  app,
+  BrowserWindow,
+  shell,
+  ipcMain,
+  webContents,
+  nativeTheme,
+} = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn, spawnSync } = require("child_process");
@@ -69,6 +76,7 @@ const MISO_RESTART_DELAY_MS = 1500;
 const MISO_STREAM_ENDPOINT = "/chat/stream";
 const MISO_HEALTH_ENDPOINT = "/health";
 const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
+const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 
 let misoProcess = null;
 let misoPort = null;
@@ -80,6 +88,23 @@ let misoIsStopping = false;
 let appIsQuitting = false;
 
 const misoActiveStreams = new Map();
+
+const THEME_MODE_TO_NATIVE_SOURCE = {
+  dark_mode: "dark",
+  light_mode: "light",
+  sync_with_browser: "system",
+  dark: "dark",
+  light: "light",
+  system: "system",
+};
+
+const normalizeThemeModeToNativeSource = (mode) => {
+  if (typeof mode !== "string") {
+    return "";
+  }
+  const normalizedMode = mode.trim().toLowerCase();
+  return THEME_MODE_TO_NATIVE_SOURCE[normalizedMode] || "";
+};
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -370,6 +395,41 @@ const getMisoModelCatalogPayload = async () => {
     return JSON.parse(bodyText);
   } catch (_) {
     throw new Error("Invalid Miso model catalog response");
+  }
+};
+
+const getMisoToolkitCatalogPayload = async () => {
+  if (misoStatus !== "ready" || !misoPort) {
+    throw new Error("Miso service is not ready");
+  }
+
+  const response = await fetch(
+    `http://${MISO_HOST}:${misoPort}${MISO_TOOLKIT_CATALOG_ENDPOINT}`,
+    {
+      method: "GET",
+      headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+    },
+  );
+
+  const bodyText = await response.text();
+  if (!response.ok) {
+    let message = `Miso toolkit catalog request failed (${response.status})`;
+    if (bodyText) {
+      try {
+        const parsed = JSON.parse(bodyText);
+        const serverMessage = parsed?.error?.message || parsed?.message;
+        if (serverMessage) message = String(serverMessage);
+      } catch (_) {
+        message = bodyText.slice(0, 200);
+      }
+    }
+    throw new Error(message);
+  }
+  if (!bodyText) return {};
+  try {
+    return JSON.parse(bodyText);
+  } catch (_) {
+    throw new Error("Invalid Miso toolkit catalog response");
   }
 };
 
@@ -941,6 +1001,14 @@ ipcMain.on("theme-set-background-color", (_event, color) => {
   }
 });
 
+ipcMain.on("theme-set-mode", (_event, mode) => {
+  const themeSource = normalizeThemeModeToNativeSource(mode);
+  if (!themeSource) {
+    return;
+  }
+  nativeTheme.themeSource = themeSource;
+});
+
 ipcMain.on("window-state-event-handler", (_event, action) => {
   if (!mainWindow || mainWindow.isDestroyed()) {
     return;
@@ -979,6 +1047,9 @@ ipcMain.handle("ollama-restart", async () => {
 ipcMain.handle("miso:get-status", () => getMisoStatusPayload());
 ipcMain.handle("miso:get-model-catalog", async () =>
   getMisoModelCatalogPayload(),
+);
+ipcMain.handle("miso:get-toolkit-catalog", async () =>
+  getMisoToolkitCatalogPayload(),
 );
 
 ipcMain.handle(

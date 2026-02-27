@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
@@ -44,9 +45,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         payload = {
             "gpt-5": {
                 "provider": "openai",
-                "input_modalities": ["pdf", "IMAGE", "video", "text", ""],
+                "input_modalities": ["pdf", "FILE", "IMAGE", "video", "text", ""],
                 "input_source_types": {
                     "image": ["URL", "base64", "ftp", "url"],
+                    "file": ["url", "base64"],
                     "pdf": ["base64", 123, "url"],
                     "text": ["url"],
                     "video": ["url"],
@@ -106,6 +108,109 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 "input_source_types": {},
             },
         )
+
+    def test_normalize_messages_supports_block_history_and_attachments(self) -> None:
+        history = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe this image"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": "abc",
+                        },
+                    },
+                ],
+            },
+            {"role": "assistant", "content": "Looks good."},
+        ]
+        attachments = [
+            {
+                "type": "pdf",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": "pdf-data",
+                    "filename": "demo.pdf",
+                },
+            }
+        ]
+
+        messages = miso_adapter._normalize_messages(history, "", attachments)
+
+        self.assertEqual(messages[0]["role"], "user")
+        self.assertIsInstance(messages[0]["content"], list)
+        self.assertEqual(messages[1], {"role": "assistant", "content": "Looks good."})
+        self.assertEqual(
+            messages[2],
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "pdf",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": "pdf-data",
+                            "filename": "demo.pdf",
+                        },
+                    }
+                ],
+            },
+        )
+
+    def test_get_toolkit_catalog_lists_known_toolkit_exports(self) -> None:
+        class FakeToolkitBase:
+            pass
+
+        class FakeBuiltinToolkit(FakeToolkitBase):
+            pass
+
+        class FakePythonWorkspaceToolkit(FakeToolkitBase):
+            pass
+
+        class FakeMcpToolkit(FakeToolkitBase):
+            pass
+
+        def import_module_side_effect(module_name: str):
+            if module_name == "miso.tool":
+                return SimpleNamespace(toolkit=FakeToolkitBase)
+            if module_name == "miso":
+                return SimpleNamespace(
+                    builtin_toolkit=FakeBuiltinToolkit,
+                    python_workspace_toolkit=FakePythonWorkspaceToolkit,
+                    mcp=FakeMcpToolkit,
+                )
+            raise ImportError(module_name)
+
+        with mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            side_effect=import_module_side_effect,
+        ):
+            catalog = miso_adapter.get_toolkit_catalog()
+
+        names = [entry["name"] for entry in catalog["toolkits"]]
+        self.assertEqual(
+            names,
+            [
+                "toolkit",
+                "builtin_toolkit",
+                "python_workspace_toolkit",
+                "mcp",
+            ],
+        )
+        self.assertEqual(catalog["count"], 4)
+
+    def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
+        with mock.patch.object(miso_adapter, "_resolve_toolkit_base", return_value=None):
+            catalog = miso_adapter.get_toolkit_catalog()
+
+        self.assertEqual(catalog["toolkits"], [])
+        self.assertEqual(catalog["count"], 0)
 
 
 if __name__ == "__main__":

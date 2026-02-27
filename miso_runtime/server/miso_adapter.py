@@ -1,11 +1,15 @@
+import inspect
 import json
+import importlib
 import os
+import pkgutil
 import queue
 import re
+import copy
 import sys
 import threading
 from pathlib import Path
-from typing import Dict, Iterable, List
+from typing import Any, Dict, Iterable, List
 
 try:
     import httpx as _httpx
@@ -19,6 +23,15 @@ _RESOLVED_MISO_SOURCE = None
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
 _ALLOWED_INPUT_SOURCE_TYPES = ("url", "base64")
+_INPUT_MODALITY_ALIAS_MAP = {
+    "file": "pdf",
+}
+_KNOWN_TOOLKIT_EXPORTS = {
+    "toolkit": "core",
+    "builtin_toolkit": "builtin",
+    "python_workspace_toolkit": "builtin",
+    "mcp": "integration",
+}
 
 
 def _is_valid_miso_source(path: Path) -> bool:
@@ -235,7 +248,8 @@ def _normalize_input_modalities(raw_modalities: object) -> List[str]:
         for item in raw_modalities:
             if not isinstance(item, str):
                 continue
-            modality = item.strip().lower()
+            modality_raw = item.strip().lower()
+            modality = _INPUT_MODALITY_ALIAS_MAP.get(modality_raw, modality_raw)
             if modality in _ALLOWED_INPUT_MODALITIES:
                 modalities.add(modality)
 
@@ -271,13 +285,17 @@ def _normalize_input_source_types(
     for key, value in raw_source_types.items():
         if not isinstance(key, str):
             continue
-        modality = key.strip().lower()
+        modality_raw = key.strip().lower()
+        modality = _INPUT_MODALITY_ALIAS_MAP.get(modality_raw, modality_raw)
         if modality not in allowed_modalities:
             continue
 
         source_types = _normalize_source_type_list(value)
         if source_types:
-            normalized[modality] = source_types
+            existing_source_types = normalized.get(modality, [])
+            normalized[modality] = _normalize_source_type_list(
+                [*existing_source_types, *source_types]
+            )
 
     return normalized
 
@@ -372,6 +390,216 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
     return {model_id: catalog[model_id] for model_id in ordered_model_ids}
 
 
+def _resolve_toolkit_base():
+    try:
+        tool_module = importlib.import_module("miso.tool")
+    except Exception:
+        return None
+
+    toolkit_base = getattr(tool_module, "toolkit", None)
+    if isinstance(toolkit_base, type):
+        return toolkit_base
+    return None
+
+
+# ── Tool introspection helpers ────────────────────────────────────────────────
+
+_TOOL_MARKER_ATTRS = ("is_tool", "tool_name", "__tool__", "__tool_metadata__")
+
+
+def _clean_docstring(doc: str) -> str:
+    if not doc:
+        return ""
+    for line in doc.strip().splitlines():
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return ""
+
+
+def _enumerate_toolkit_tools(cls: type) -> List[Dict[str, str]]:
+    """Return [{name, description}] for each tool found in a toolkit class."""
+    tools: List[Dict[str, str]] = []
+    seen_names: set[str] = set()
+
+    # Strategy 1: explicit .tools list/tuple on the class
+    raw_tools = getattr(cls, "tools", None)
+    if isinstance(raw_tools, (list, tuple)):
+        for t in raw_tools:
+            if callable(t):
+                name = getattr(t, "tool_name", None) or getattr(t, "__name__", None) or ""
+                desc = getattr(t, "description", None) or getattr(t, "__doc__", None) or ""
+                if name and name not in seen_names:
+                    seen_names.add(name)
+                    tools.append({"name": str(name), "description": _clean_docstring(str(desc))})
+            elif isinstance(t, str) and t not in seen_names:
+                seen_names.add(t)
+                tools.append({"name": t, "description": ""})
+        if tools:
+            return tools
+
+    # Strategy 2: inspect members for known tool-marker attributes
+    try:
+        members = inspect.getmembers(cls, predicate=callable)
+    except Exception:
+        members = []
+    for attr_name, attr_val in members:
+        if attr_name.startswith("_"):
+            continue
+        underlying = getattr(attr_val, "__func__", attr_val)
+        is_marked = any(
+            hasattr(attr_val, m) or hasattr(underlying, m) for m in _TOOL_MARKER_ATTRS
+        )
+        if is_marked and attr_name not in seen_names:
+            seen_names.add(attr_name)
+            name = (
+                getattr(attr_val, "tool_name", None)
+                or getattr(underlying, "tool_name", None)
+                or attr_name
+            )
+            desc = (
+                getattr(attr_val, "description", None)
+                or getattr(underlying, "description", None)
+                or getattr(attr_val, "__doc__", None)
+                or ""
+            )
+            tools.append({"name": str(name), "description": _clean_docstring(str(desc))})
+    if tools:
+        return tools
+
+    # Strategy 3: fall back to public callables defined in this class's own __dict__
+    for attr_name, attr_val in cls.__dict__.items():
+        if attr_name.startswith("_"):
+            continue
+        if isinstance(attr_val, staticmethod):
+            fn = attr_val.__func__
+        elif isinstance(attr_val, classmethod):
+            fn = attr_val.__func__
+        elif callable(attr_val):
+            fn = attr_val
+        else:
+            continue
+        if attr_name not in seen_names:
+            seen_names.add(attr_name)
+            desc = getattr(fn, "description", None) or getattr(fn, "__doc__", None) or ""
+            tools.append({"name": attr_name, "description": _clean_docstring(str(desc))})
+    return tools
+
+
+def _enumerate_builtin_submodule_toolkits(
+    toolkit_base: type,
+    seen: set[str],
+) -> List[Dict[str, object]]:
+    """Walk miso.builtin_toolkits and return concrete toolkit subclasses."""
+    entries: List[Dict[str, object]] = []
+
+    try:
+        builtin_pkg = importlib.import_module("miso.builtin_toolkits")
+    except Exception:
+        return entries
+
+    pkg_path = getattr(builtin_pkg, "__path__", None)
+    if not pkg_path:
+        return entries
+
+    for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
+        full_name = f"miso.builtin_toolkits.{submodule_name}"
+        try:
+            submodule = importlib.import_module(full_name)
+        except Exception:
+            continue
+
+        for attr_name in dir(submodule):
+            candidate = getattr(submodule, attr_name, None)
+            if not isinstance(candidate, type):
+                continue
+            try:
+                is_sub = issubclass(candidate, toolkit_base)
+            except Exception:
+                continue
+            if not is_sub or candidate is toolkit_base:
+                continue
+
+            class_name = candidate.__name__
+            module_name = str(getattr(candidate, "__module__", full_name))
+            dedupe_key = f"{module_name}:{class_name}"
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+
+            tools = _enumerate_toolkit_tools(candidate)
+            entries.append({
+                "name": submodule_name,
+                "class_name": class_name,
+                "module": module_name,
+                "kind": "builtin",
+                "tools": tools,
+            })
+
+    return entries
+
+
+def get_toolkit_catalog() -> Dict[str, object]:
+    toolkit_base = _resolve_toolkit_base()
+    if toolkit_base is None:
+        return {
+            "toolkits": [],
+            "count": 0,
+            "source": _RESOLVED_MISO_SOURCE or "",
+        }
+
+    entries: List[Dict[str, object]] = []
+    seen: set[str] = set()
+
+    # Mark the abstract base as seen so submodule walker skips it
+    base_module = str(getattr(toolkit_base, "__module__", ""))
+    seen.add(f"{base_module}:{toolkit_base.__name__}")
+
+    # Walk miso.builtin_toolkits for concrete implementations
+    entries.extend(_enumerate_builtin_submodule_toolkits(toolkit_base, seen))
+
+    # Also pick up any top-level miso exports (python_workspace_toolkit, etc.)
+    # that weren't already found via submodule walk
+    try:
+        miso_module = importlib.import_module("miso")
+    except Exception:
+        miso_module = None
+
+    if miso_module is not None:
+        for export_name, kind in _KNOWN_TOOLKIT_EXPORTS.items():
+            if export_name == "toolkit":
+                continue
+            candidate = getattr(miso_module, export_name, None)
+            if not isinstance(candidate, type):
+                continue
+            try:
+                is_sub = issubclass(candidate, toolkit_base)
+            except Exception:
+                continue
+            if not is_sub or candidate is toolkit_base:
+                continue
+            class_name = candidate.__name__
+            module_name = str(getattr(candidate, "__module__", ""))
+            dedupe_key = f"{module_name}:{class_name}"
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            tools = _enumerate_toolkit_tools(candidate)
+            entries.append({
+                "name": export_name,
+                "class_name": class_name,
+                "module": module_name,
+                "kind": kind,
+                "tools": tools,
+            })
+
+    return {
+        "toolkits": entries,
+        "count": len(entries),
+        "source": _RESOLVED_MISO_SOURCE or "",
+    }
+
+
 def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float]:
     payload: Dict[str, float] = {}
 
@@ -392,22 +620,87 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     return payload
 
 
-def _normalize_messages(history: List[Dict[str, str]], message: str) -> List[Dict[str, str]]:
-    messages: List[Dict[str, str]] = []
+def _normalize_history_content(content: object) -> str | List[Dict[str, object]] | None:
+    if isinstance(content, str):
+        trimmed = content.strip()
+        return trimmed if trimmed else None
+
+    if not isinstance(content, list):
+        return None
+
+    normalized_blocks: List[Dict[str, object]] = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        normalized_blocks.append(copy.deepcopy(block))
+
+    if not normalized_blocks:
+        return None
+    return normalized_blocks
+
+
+def _normalize_stream_attachments(
+    attachments: List[Dict[str, object]] | None,
+) -> List[Dict[str, object]]:
+    if not isinstance(attachments, list):
+        return []
+
+    normalized: List[Dict[str, object]] = []
+    for item in attachments:
+        if not isinstance(item, dict):
+            continue
+        normalized.append(copy.deepcopy(item))
+    return normalized
+
+
+def _build_current_user_content(
+    message: str,
+    attachments: List[Dict[str, object]],
+) -> str | List[Dict[str, object]]:
+    normalized_text = message.strip()
+    if not attachments:
+        return normalized_text
+
+    content_blocks: List[Dict[str, object]] = []
+    if normalized_text:
+        content_blocks.append({"type": "text", "text": normalized_text})
+    content_blocks.extend(copy.deepcopy(attachments))
+    return content_blocks
+
+
+def _normalize_messages(
+    history: List[Dict[str, object]],
+    message: str,
+    attachments: List[Dict[str, object]] | None = None,
+) -> List[Dict[str, Any]]:
+    messages: List[Dict[str, Any]] = []
 
     for item in history:
         if not isinstance(item, dict):
             continue
+
         role = str(item.get("role", "")).strip()
-        content = str(item.get("content", ""))
         if role not in {"system", "user", "assistant"}:
             continue
-        if not content.strip():
-            continue
-        messages.append({"role": role, "content": content})
 
-    if not messages or messages[-1].get("role") != "user" or messages[-1].get("content") != message:
-        messages.append({"role": "user", "content": message})
+        normalized_content = _normalize_history_content(item.get("content"))
+        if normalized_content is None:
+            continue
+
+        messages.append({"role": role, "content": normalized_content})
+
+    normalized_attachments = _normalize_stream_attachments(attachments)
+    current_content = _build_current_user_content(message, normalized_attachments)
+
+    if isinstance(current_content, str) and not current_content.strip():
+        return messages
+
+    if (
+        not messages
+        or messages[-1].get("role") != "user"
+        or messages[-1].get("content") != current_content
+    ):
+        messages.append({"role": "user", "content": current_content})
 
     return messages
 
@@ -483,7 +776,7 @@ def _create_agent(options: Dict[str, object] | None = None):
     return agent
 
 
-def _extract_last_assistant_text(messages: List[Dict[str, str]]) -> str:
+def _extract_last_assistant_text(messages: List[Dict[str, Any]]) -> str:
     for item in reversed(messages):
         if isinstance(item, dict) and item.get("role") == "assistant":
             return str(item.get("content", ""))
@@ -493,11 +786,12 @@ def _extract_last_assistant_text(messages: List[Dict[str, str]]) -> str:
 def stream_chat(
     *,
     message: str,
-    history: List[Dict[str, str]],
+    history: List[Dict[str, object]],
+    attachments: List[Dict[str, object]] | None = None,
     options: Dict[str, object],
 ) -> Iterable[str]:
     agent = _create_agent(options)
-    messages = _normalize_messages(history, message)
+    messages = _normalize_messages(history, message, attachments)
     payload = _build_payload(agent.provider, options)
 
     token_queue: "queue.Queue[object]" = queue.Queue()

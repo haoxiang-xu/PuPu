@@ -20,11 +20,87 @@ import {
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
-import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
+const MAX_ATTACHMENT_COUNT = 5;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+const getFileExtension = (name) => {
+  if (typeof name !== "string" || !name.includes(".")) {
+    return "";
+  }
+  const ext = name.split(".").pop();
+  return typeof ext === "string" ? ext.trim().toLowerCase() : "";
+};
+
+const guessMimeTypeFromExtension = (ext) => {
+  if (ext === "pdf") {
+    return "application/pdf";
+  }
+  if (ext === "png") {
+    return "image/png";
+  }
+  if (ext === "jpg" || ext === "jpeg") {
+    return "image/jpeg";
+  }
+  if (ext === "gif") {
+    return "image/gif";
+  }
+  if (ext === "webp") {
+    return "image/webp";
+  }
+  return "";
+};
+
+const parseDataUrl = (value) => {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const match = /^data:([^;]+);base64,(.+)$/i.exec(value);
+  if (!match) {
+    return null;
+  }
+  return {
+    mimeType: match[1].trim().toLowerCase(),
+    data: match[2],
+  };
+};
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () =>
+      reject(new Error(`Failed to read file: ${file?.name || "unknown"}`));
+    reader.readAsDataURL(file);
+  });
+
+const createAttachmentPrompt = (attachments) => {
+  const list = Array.isArray(attachments) ? attachments : [];
+  const hasImage = list.some(
+    (attachment) =>
+      typeof attachment?.mimeType === "string" &&
+      attachment.mimeType.toLowerCase().startsWith("image/"),
+  );
+  const hasPdf = list.some(
+    (attachment) =>
+      typeof attachment?.mimeType === "string" &&
+      attachment.mimeType.toLowerCase() === "application/pdf",
+  );
+
+  if (hasImage && hasPdf) {
+    return "Please analyze the attached image and file.";
+  }
+  if (hasImage) {
+    return "Please analyze the attached image.";
+  }
+  if (hasPdf) {
+    return "Please analyze the attached file.";
+  }
+  return "Please analyze the attached file.";
+};
 
 const settleStreamingAssistantMessages = (messages) => {
   if (!Array.isArray(messages)) {
@@ -111,6 +187,8 @@ const ChatInterface = () => {
   const streamingChatIdRef = useRef(null);
   const activeStreamMessagesRef = useRef(null);
   const messagePersistTimerRef = useRef(null);
+  const attachmentFileInputRef = useRef(null);
+  const attachmentPayloadByChatRef = useRef(new Map());
   const threadIdRef = useRef(initialChat.threadId || `thread-${Date.now()}`);
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
@@ -122,6 +200,48 @@ const ChatInterface = () => {
   const hasBackgroundStream = Boolean(
     streamingChatId && streamingChatId !== activeChatId,
   );
+
+  const activeModelCapabilities = useMemo(() => {
+    const fallbackCapabilities =
+      modelCatalog?.activeCapabilities || EMPTY_MODEL_CATALOG.activeCapabilities;
+    const selectedModel =
+      typeof selectedModelId === "string" && selectedModelId.trim()
+        ? selectedModelId.trim()
+        : null;
+
+    if (
+      selectedModel &&
+      modelCatalog?.modelCapabilities &&
+      typeof modelCatalog.modelCapabilities === "object" &&
+      modelCatalog.modelCapabilities[selectedModel]
+    ) {
+      return modelCatalog.modelCapabilities[selectedModel];
+    }
+
+    if (selectedModel && selectedModel === modelCatalog?.activeModel) {
+      return fallbackCapabilities;
+    }
+
+    return fallbackCapabilities;
+  }, [modelCatalog, selectedModelId]);
+
+  const activeInputModalities = useMemo(() => {
+    const rawModalities = Array.isArray(activeModelCapabilities?.input_modalities)
+      ? activeModelCapabilities.input_modalities
+      : [];
+    return new Set(
+      rawModalities
+        .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+        .filter(Boolean),
+    );
+  }, [activeModelCapabilities]);
+
+  const supportsImageAttachments = activeInputModalities.has("image");
+  const supportsPdfAttachments = activeInputModalities.has("pdf");
+  const attachmentsEnabled = supportsImageAttachments || supportsPdfAttachments;
+  const attachmentsDisabledReason = attachmentsEnabled
+    ? ""
+    : "Current model does not support image or file inputs.";
 
   const refreshMisoStatus = useCallback(async () => {
     try {
@@ -284,6 +404,7 @@ const ChatInterface = () => {
   }, [bootstrapped]);
 
   useEffect(() => {
+    const attachmentPayloadByChat = attachmentPayloadByChatRef.current;
     return () => {
       if (messagePersistTimerRef.current) {
         clearTimeout(messagePersistTimerRef.current);
@@ -298,6 +419,7 @@ const ChatInterface = () => {
       streamHandleRef.current = null;
       streamingChatIdRef.current = null;
       activeStreamMessagesRef.current = null;
+      attachmentPayloadByChat.clear();
       cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
   }, []);
@@ -391,6 +513,174 @@ const ChatInterface = () => {
     });
   }, []);
 
+  const getOrCreateChatAttachmentPayloadMap = useCallback((chatId) => {
+    if (!chatId) {
+      return null;
+    }
+    const existing = attachmentPayloadByChatRef.current.get(chatId);
+    if (existing instanceof Map) {
+      return existing;
+    }
+    const created = new Map();
+    attachmentPayloadByChatRef.current.set(chatId, created);
+    return created;
+  }, []);
+
+  const rememberAttachmentPayloads = useCallback(
+    (chatId, payloadEntries = []) => {
+      const payloadMap = getOrCreateChatAttachmentPayloadMap(chatId);
+      if (!payloadMap || !Array.isArray(payloadEntries)) {
+        return;
+      }
+
+      payloadEntries.forEach((entry) => {
+        if (!entry || typeof entry !== "object") {
+          return;
+        }
+        const attachmentId =
+          typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : "";
+        if (!attachmentId || !entry.payload || typeof entry.payload !== "object") {
+          return;
+        }
+        payloadMap.set(attachmentId, entry.payload);
+      });
+    },
+    [getOrCreateChatAttachmentPayloadMap],
+  );
+
+  const removeAttachmentPayload = useCallback(
+    (chatId, attachmentId) => {
+      if (!chatId || !attachmentId) {
+        return;
+      }
+      const payloadMap = attachmentPayloadByChatRef.current.get(chatId);
+      if (!(payloadMap instanceof Map)) {
+        return;
+      }
+      payloadMap.delete(attachmentId);
+    },
+    [],
+  );
+
+  const resolveAttachmentPayloads = useCallback((chatId, attachments = []) => {
+    const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
+    if (normalizedAttachments.length === 0) {
+      return { payloads: [], missingAttachmentNames: [] };
+    }
+
+    const payloadMap = attachmentPayloadByChatRef.current.get(chatId);
+    const payloads = [];
+    const missingAttachmentNames = [];
+
+    normalizedAttachments.forEach((attachment, index) => {
+      const attachmentId =
+        typeof attachment?.id === "string" && attachment.id.trim()
+          ? attachment.id.trim()
+          : "";
+      const attachmentName =
+        typeof attachment?.name === "string" && attachment.name.trim()
+          ? attachment.name.trim()
+          : `attachment-${index + 1}`;
+      const payload =
+        attachmentId && payloadMap instanceof Map
+          ? payloadMap.get(attachmentId)
+          : null;
+
+      if (payload && typeof payload === "object") {
+        payloads.push(payload);
+      } else {
+        missingAttachmentNames.push(attachmentName);
+      }
+    });
+
+    return { payloads, missingAttachmentNames };
+  }, []);
+
+  const buildHistoryForModel = useCallback(
+    (baseMessages, chatId) => {
+      const normalizedBaseMessages = Array.isArray(baseMessages)
+        ? baseMessages
+        : [];
+      const payloadMap = attachmentPayloadByChatRef.current.get(chatId);
+
+      return normalizedBaseMessages
+        .filter((message) => {
+          if (!message || typeof message !== "object") {
+            return false;
+          }
+          return ["system", "user", "assistant"].includes(message.role);
+        })
+        .map((message) => {
+          const role = message.role;
+          if (role !== "user") {
+            if (typeof message.content !== "string" || !message.content.trim()) {
+              return null;
+            }
+            return {
+              role,
+              content: message.content,
+            };
+          }
+
+          const textContent =
+            typeof message.content === "string" ? message.content.trim() : "";
+          const attachmentMeta = Array.isArray(message.attachments)
+            ? message.attachments
+            : [];
+
+          const contentBlocks = [];
+          if (textContent) {
+            contentBlocks.push({
+              type: "text",
+              text: textContent,
+            });
+          }
+
+          attachmentMeta.forEach((attachment) => {
+            const attachmentId =
+              typeof attachment?.id === "string" && attachment.id.trim()
+                ? attachment.id.trim()
+                : "";
+            if (!attachmentId || !(payloadMap instanceof Map)) {
+              return;
+            }
+            const payload = payloadMap.get(attachmentId);
+            if (payload && typeof payload === "object") {
+              contentBlocks.push(payload);
+            }
+          });
+
+          if (contentBlocks.length === 0) {
+            if (!textContent) {
+              return null;
+            }
+            return {
+              role,
+              content: textContent,
+            };
+          }
+
+          if (
+            contentBlocks.length === 1 &&
+            contentBlocks[0]?.type === "text" &&
+            typeof contentBlocks[0]?.text === "string"
+          ) {
+            return {
+              role,
+              content: contentBlocks[0].text,
+            };
+          }
+
+          return {
+            role,
+            content: contentBlocks,
+          };
+        })
+        .filter(Boolean);
+    },
+    [],
+  );
+
   const startStreamRequest = useCallback(
     ({
       chatId,
@@ -399,15 +689,20 @@ const ChatInterface = () => {
       baseMessages = [],
       clearComposer = false,
       reuseUserMessage = null,
+      missingAttachmentPayloadMode = "block",
     }) => {
-      const promptText = typeof text === "string" ? text.trim() : "";
-      if (!chatId || !promptText) {
-        return false;
-      }
-
+      const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachmentsForMessage)
         ? attachmentsForMessage
         : [];
+      const hasAttachments = normalizedAttachments.length > 0;
+      const promptText =
+        trimmedText || (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
+
+      if (!chatId || (!promptText && !hasAttachments)) {
+        return false;
+      }
+
       const normalizedBaseMessages = Array.isArray(baseMessages)
         ? baseMessages
         : [];
@@ -444,9 +739,29 @@ const ChatInterface = () => {
         userMessageSeed.createdAt = timestamp;
       }
 
+      const { payloads: attachmentPayloads, missingAttachmentNames } =
+        resolveAttachmentPayloads(chatId, normalizedAttachments);
+      let persistedAttachments = normalizedAttachments;
+      let payloadAttachments = attachmentPayloads;
+
+      if (missingAttachmentNames.length > 0) {
+        if (missingAttachmentPayloadMode === "degrade") {
+          persistedAttachments = [];
+          payloadAttachments = [];
+          setStreamError(
+            "Some attachment payloads are unavailable in this session. Resending text only.",
+          );
+        } else {
+          setStreamError(
+            "Some attachment payloads are unavailable. Please re-attach your files and try again.",
+          );
+          return false;
+        }
+      }
+
       const userMessage = { ...userMessageSeed };
-      if (normalizedAttachments.length > 0) {
-        userMessage.attachments = normalizedAttachments;
+      if (persistedAttachments.length > 0) {
+        userMessage.attachments = persistedAttachments;
       } else if ("attachments" in userMessage) {
         delete userMessage.attachments;
       }
@@ -462,23 +777,7 @@ const ChatInterface = () => {
         },
       };
 
-      const historyForModel = [...normalizedBaseMessages, userMessage]
-        .filter((message) => {
-          if (!message || typeof message !== "object") {
-            return false;
-          }
-          if (!["system", "user", "assistant"].includes(message.role)) {
-            return false;
-          }
-          if (typeof message.content !== "string") {
-            return false;
-          }
-          return message.content.trim().length > 0;
-        })
-        .map((message) => ({
-          role: message.role,
-          content: message.content,
-        }));
+      const historyForModel = buildHistoryForModel(normalizedBaseMessages, chatId);
 
       const nextMessages = [
         ...normalizedBaseMessages,
@@ -522,6 +821,7 @@ const ChatInterface = () => {
             threadId: threadIdRef.current,
             message: promptText,
             history: historyForModel,
+            attachments: payloadAttachments,
             options: {
               modelId: modelIdRef.current,
             },
@@ -707,16 +1007,19 @@ const ChatInterface = () => {
 
       return true;
     },
-    [],
+    [buildHistoryForModel, resolveAttachmentPayloads],
   );
 
   const sendMessage = useCallback(() => {
     const chatId = activeChatIdRef.current;
     const text = inputValue.trim();
+    const hasAttachments = Array.isArray(draftAttachments)
+      ? draftAttachments.length > 0
+      : false;
     const hasActiveStream = Boolean(
       streamingChatIdRef.current && streamHandleRef.current,
     );
-    if (!chatId || !text || hasActiveStream) {
+    if (!chatId || (!text && !hasAttachments) || hasActiveStream) {
       if (hasActiveStream && streamingChatIdRef.current !== chatId) {
         setStreamError(
           "Another chat is still generating. Switch back to stop it or wait.",
@@ -730,14 +1033,30 @@ const ChatInterface = () => {
       return;
     }
 
+    if (hasAttachments && !attachmentsEnabled) {
+      setStreamError(
+        attachmentsDisabledReason ||
+          "Current model does not support image or file inputs.",
+      );
+      return;
+    }
+
     startStreamRequest({
       chatId,
       text,
       attachmentsForMessage: draftAttachments,
       baseMessages: messages,
       clearComposer: true,
+      missingAttachmentPayloadMode: "block",
     });
-  }, [draftAttachments, inputValue, messages, startStreamRequest]);
+  }, [
+    attachmentsDisabledReason,
+    attachmentsEnabled,
+    draftAttachments,
+    inputValue,
+    messages,
+    startStreamRequest,
+  ]);
 
   const handleResendMessage = useCallback(
     (message) => {
@@ -777,9 +1096,18 @@ const ChatInterface = () => {
       }
 
       const baseMessages = messages.slice(0, messageIndex);
-      const resendAttachments = Array.isArray(targetMessage.attachments)
+      const sourceAttachments = Array.isArray(targetMessage.attachments)
         ? targetMessage.attachments
         : [];
+      const resendAttachments =
+        sourceAttachments.length > 0 && !attachmentsEnabled
+          ? []
+          : sourceAttachments;
+      if (sourceAttachments.length > 0 && !attachmentsEnabled) {
+        setStreamError(
+          "Current model does not support image/file input. Resending text only.",
+        );
+      }
 
       startStreamRequest({
         chatId,
@@ -788,9 +1116,10 @@ const ChatInterface = () => {
         baseMessages,
         clearComposer: false,
         reuseUserMessage: targetMessage,
+        missingAttachmentPayloadMode: "degrade",
       });
     },
-    [messages, startStreamRequest],
+    [attachmentsEnabled, messages, startStreamRequest],
   );
 
   const handleEditMessage = useCallback(
@@ -828,9 +1157,18 @@ const ChatInterface = () => {
       }
 
       const baseMessages = messages.slice(0, messageIndex);
-      const originalAttachments = Array.isArray(targetMessage.attachments)
+      const sourceAttachments = Array.isArray(targetMessage.attachments)
         ? targetMessage.attachments
         : [];
+      const originalAttachments =
+        sourceAttachments.length > 0 && !attachmentsEnabled
+          ? []
+          : sourceAttachments;
+      if (sourceAttachments.length > 0 && !attachmentsEnabled) {
+        setStreamError(
+          "Current model does not support image/file input. Sending text only.",
+        );
+      }
 
       startStreamRequest({
         chatId,
@@ -839,22 +1177,213 @@ const ChatInterface = () => {
         baseMessages,
         clearComposer: false,
         reuseUserMessage: targetMessage,
+        missingAttachmentPayloadMode: "degrade",
       });
     },
-    [messages, startStreamRequest],
+    [attachmentsEnabled, messages, startStreamRequest],
   );
 
   const handleAttachFile = useCallback(() => {
-    console.log("Attach file");
-  }, []);
+    if (!attachmentsEnabled) {
+      setStreamError(
+        attachmentsDisabledReason ||
+          "Current model does not support image or file inputs.",
+      );
+      return;
+    }
 
-  const handleAttachLink = useCallback(() => {
-    console.log("Attach link");
-  }, []);
+    if (attachmentFileInputRef.current) {
+      attachmentFileInputRef.current.click();
+    }
+  }, [attachmentsDisabledReason, attachmentsEnabled]);
 
-  const handleAttachGlobal = useCallback(() => {
-    console.log("Attach global");
-  }, []);
+  const handleFileInputChange = useCallback(
+    async (event) => {
+      const chatId = activeChatIdRef.current;
+      const rawFiles = Array.from(event?.target?.files || []);
+      if (event?.target) {
+        event.target.value = "";
+      }
+      if (!chatId || rawFiles.length === 0) {
+        return;
+      }
+
+      if (!attachmentsEnabled) {
+        setStreamError(
+          attachmentsDisabledReason ||
+            "Current model does not support image or file inputs.",
+        );
+        return;
+      }
+
+      const currentAttachmentCount = Array.isArray(draftAttachments)
+        ? draftAttachments.length
+        : 0;
+      if (currentAttachmentCount >= MAX_ATTACHMENT_COUNT) {
+        setStreamError(
+          `You can attach up to ${MAX_ATTACHMENT_COUNT} files per message.`,
+        );
+        return;
+      }
+
+      const remainingSlots = MAX_ATTACHMENT_COUNT - currentAttachmentCount;
+      const files = rawFiles.slice(0, remainingSlots);
+      const warnings = [];
+      if (rawFiles.length > remainingSlots) {
+        warnings.push(
+          `Only ${remainingSlots} additional attachment(s) were accepted.`,
+        );
+      }
+
+      const attachmentEntries = [];
+      const payloadEntries = [];
+
+      for (const file of files) {
+        const fileSize = Number(file?.size) || 0;
+        const fileName =
+          typeof file?.name === "string" && file.name.trim()
+            ? file.name.trim()
+            : "attachment";
+        const ext = getFileExtension(fileName);
+        const fallbackMimeType = guessMimeTypeFromExtension(ext);
+        const mimeTypeRaw =
+          typeof file?.type === "string" && file.type.trim()
+            ? file.type.trim().toLowerCase()
+            : fallbackMimeType;
+        const isPdf = mimeTypeRaw === "application/pdf" || ext === "pdf";
+        const isImage = mimeTypeRaw.startsWith("image/");
+
+        if (!isPdf && !isImage) {
+          warnings.push(`Skipped "${fileName}": only images and PDFs are supported.`);
+          continue;
+        }
+
+        if (fileSize <= 0 || fileSize > MAX_ATTACHMENT_BYTES) {
+          warnings.push(
+            `Skipped "${fileName}": file size must be between 1 byte and ${Math.floor(MAX_ATTACHMENT_BYTES / (1024 * 1024))}MB.`,
+          );
+          continue;
+        }
+
+        if (isPdf && !supportsPdfAttachments) {
+          warnings.push(`Skipped "${fileName}": current model does not support PDF input.`);
+          continue;
+        }
+
+        if (isImage && !supportsImageAttachments) {
+          warnings.push(`Skipped "${fileName}": current model does not support image input.`);
+          continue;
+        }
+
+        let parsedDataUrl = null;
+        try {
+          const dataUrl = await readFileAsDataUrl(file);
+          parsedDataUrl = parseDataUrl(dataUrl);
+        } catch (_error) {
+          parsedDataUrl = null;
+        }
+
+        if (!parsedDataUrl || !parsedDataUrl.data) {
+          warnings.push(`Skipped "${fileName}": failed to read file data.`);
+          continue;
+        }
+
+        const normalizedMimeType = isPdf
+          ? "application/pdf"
+          : parsedDataUrl.mimeType || mimeTypeRaw || fallbackMimeType;
+        if (!isPdf && !normalizedMimeType.startsWith("image/")) {
+          warnings.push(`Skipped "${fileName}": invalid image format.`);
+          continue;
+        }
+
+        const attachmentId = `att-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        const attachmentMeta = {
+          id: attachmentId,
+          kind: "file",
+          name: fileName,
+          source: "local",
+          mimeType: normalizedMimeType,
+          ext: ext || undefined,
+          size: fileSize,
+          createdAt: Date.now(),
+        };
+
+        const attachmentPayload = isPdf
+          ? {
+              type: "pdf",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: parsedDataUrl.data,
+                filename: fileName,
+              },
+            }
+          : {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: normalizedMimeType,
+                data: parsedDataUrl.data,
+              },
+            };
+
+        attachmentEntries.push(attachmentMeta);
+        payloadEntries.push({
+          id: attachmentId,
+          payload: attachmentPayload,
+        });
+      }
+
+      if (attachmentEntries.length > 0) {
+        rememberAttachmentPayloads(chatId, payloadEntries);
+        setDraftAttachments((previous) => {
+          const current = Array.isArray(previous) ? previous : [];
+          return [...current, ...attachmentEntries];
+        });
+      }
+
+      if (attachmentEntries.length === 0) {
+        setStreamError(
+          warnings[0] || "No compatible attachments were selected.",
+        );
+        return;
+      }
+
+      if (warnings.length > 0) {
+        setStreamError(warnings[0]);
+        return;
+      }
+
+      setStreamError("");
+    },
+    [
+      attachmentsDisabledReason,
+      attachmentsEnabled,
+      draftAttachments,
+      rememberAttachmentPayloads,
+      supportsImageAttachments,
+      supportsPdfAttachments,
+    ],
+  );
+
+  const handleRemoveDraftAttachment = useCallback(
+    (attachmentId) => {
+      const chatId = activeChatIdRef.current;
+      const normalizedAttachmentId =
+        typeof attachmentId === "string" ? attachmentId.trim() : "";
+      if (!normalizedAttachmentId) {
+        return;
+      }
+
+      setDraftAttachments((previous) =>
+        previous.filter(
+          (attachment) => attachment?.id !== normalizedAttachmentId,
+        ),
+      );
+      removeAttachmentPayload(chatId, normalizedAttachmentId);
+    },
+    [removeAttachmentPayload],
+  );
 
   const handleDeleteMessage = useCallback((message) => {
     if (!message || typeof message.id !== "string" || !message.id) {
@@ -976,8 +1505,10 @@ const ChatInterface = () => {
     disclaimer: effectiveDisclaimer,
     showAttachments: true,
     onAttachFile: handleAttachFile,
-    onAttachLink: handleAttachLink,
-    onAttachGlobal: handleAttachGlobal,
+    attachments: draftAttachments,
+    onRemoveAttachment: handleRemoveDraftAttachment,
+    attachmentsEnabled,
+    attachmentsDisabledReason,
     modelCatalog,
     selectedModelId,
     onSelectModel: handleSelectModel,
@@ -1000,6 +1531,14 @@ const ChatInterface = () => {
         transition: "left 0.3s ease",
       }}
     >
+      <input
+        ref={attachmentFileInputRef}
+        type="file"
+        accept="image/*,.pdf,application/pdf"
+        multiple
+        style={{ display: "none" }}
+        onChange={handleFileInputChange}
+      />
       {isEmpty ? (
         /* ── Hero: logo → greeting → input → suggestion chips ── */
         <div

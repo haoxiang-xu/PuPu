@@ -3,6 +3,9 @@ const OLLAMA_BASE = "http://localhost:11434";
 const DEFAULT_TIMEOUT_MS = 5000;
 const ALLOWED_INPUT_MODALITIES = ["text", "image", "pdf"];
 const ALLOWED_INPUT_MODALITY_SET = new Set(ALLOWED_INPUT_MODALITIES);
+const INPUT_MODALITY_ALIAS_MAP = {
+  file: "pdf",
+};
 const ALLOWED_INPUT_SOURCE_TYPES = ["url", "base64"];
 const ALLOWED_INPUT_SOURCE_TYPE_SET = new Set(ALLOWED_INPUT_SOURCE_TYPES);
 
@@ -137,9 +140,13 @@ const normalizeStringList = (list) =>
 const normalizeInputModalities = (inputModalities) => {
   const normalized = new Set(
     (Array.isArray(inputModalities) ? inputModalities : [])
-      .map((item) =>
-        typeof item === "string" ? item.trim().toLowerCase() : "",
-      )
+      .map((item) => {
+        if (typeof item !== "string") {
+          return "";
+        }
+        const normalizedItem = item.trim().toLowerCase();
+        return INPUT_MODALITY_ALIAS_MAP[normalizedItem] || normalizedItem;
+      })
       .filter((item) => ALLOWED_INPUT_MODALITY_SET.has(item)),
   );
 
@@ -169,16 +176,22 @@ const normalizeInputSourceTypes = (sourceTypes, inputModalities) => {
   const normalized = {};
 
   Object.entries(sourceTypes).forEach(([modalityKey, sourceTypeList]) => {
-    const modality =
+    const modalityRaw =
       typeof modalityKey === "string" ? modalityKey.trim().toLowerCase() : "";
+    const modality = INPUT_MODALITY_ALIAS_MAP[modalityRaw] || modalityRaw;
     if (!activeModalities.has(modality) || modality === "text") {
       return;
     }
 
-    const sourceTypesForModality =
-      normalizeInputSourceTypeList(sourceTypeList);
+    const sourceTypesForModality = normalizeInputSourceTypeList(sourceTypeList);
     if (sourceTypesForModality.length > 0) {
-      normalized[modality] = sourceTypesForModality;
+      const existingSourceTypes = Array.isArray(normalized[modality])
+        ? normalized[modality]
+        : [];
+      normalized[modality] = normalizeInputSourceTypeList([
+        ...existingSourceTypes,
+        ...sourceTypesForModality,
+      ]);
     }
   });
 
@@ -206,7 +219,8 @@ export const normalizeModelCatalog = (payload) => {
       ? payload.providers
       : {};
   const rawModelCapabilities =
-    payload?.model_capabilities && typeof payload.model_capabilities === "object"
+    payload?.model_capabilities &&
+    typeof payload.model_capabilities === "object"
       ? payload.model_capabilities
       : {};
   const modelCapabilities = Object.entries(rawModelCapabilities).reduce(
@@ -470,6 +484,29 @@ export const api = {
           error,
           "miso_model_catalog_failed",
           "Failed to query Miso model catalog",
+        );
+      }
+    },
+
+    getToolkitCatalog: async () => {
+      if (!hasBridgeMethod("misoAPI", "getToolkitCatalog")) {
+        return { toolkits: [], count: 0, source: "" };
+      }
+
+      try {
+        const method = assertBridgeMethod("misoAPI", "getToolkitCatalog");
+        const payload = await withTimeout(
+          () => method(),
+          6000,
+          "miso_toolkit_catalog_timeout",
+          "Miso toolkit catalog request timed out",
+        );
+        return payload || { toolkits: [], count: 0, source: "" };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "miso_toolkit_catalog_failed",
+          "Failed to query Miso toolkit catalog",
         );
       }
     },

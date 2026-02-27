@@ -6,6 +6,7 @@ import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
+import { ToolkitModal } from "../toolkit/toolkit_modal";
 import {
   applyExplorerReorder,
   bootstrapChatsStore,
@@ -33,6 +34,7 @@ const SideMenu = () => {
     useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [toolkitOpen, setToolkitOpen] = useState(false);
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200,
@@ -378,6 +380,21 @@ const SideMenu = () => {
             boxShadow: "none",
           }}
         />
+        <Button
+          prefix_icon="tool"
+          label="Tools"
+          onClick={() => setToolkitOpen(true)}
+          style={{
+            width: "100%",
+            justifyContent: "flex-start",
+            fontSize: 14,
+            padding: "5px 8px",
+            borderRadius: 6,
+            marginBottom: 2,
+            WebkitAppRegion: "no-drag",
+            iconSize: 18,
+          }}
+        />
         <div
           style={{
             padding: "4px 4px 6px",
@@ -450,6 +467,8 @@ const SideMenu = () => {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
       />
+
+      <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
 
       <ContextMenu
         visible={contextMenu.visible}

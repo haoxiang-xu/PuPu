@@ -97,6 +97,76 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             },
         )
 
+    def test_chat_stream_allows_attachments_without_message(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat",
+            return_value=iter(["hello"]),
+        ) as stream_chat_mock:
+            response = self.client.post(
+                "/chat/stream",
+                json={
+                    "message": "",
+                    "history": [
+                        {
+                            "role": "user",
+                            "content": "Previous question",
+                        }
+                    ],
+                    "attachments": [
+                        {
+                            "type": "pdf",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "application/pdf",
+                                "data": "abc",
+                                "filename": "demo.pdf",
+                            },
+                        }
+                    ],
+                    "options": {
+                        "modelId": "openai:gpt-5",
+                    },
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("event: token", payload_text)
+        stream_chat_mock.assert_called_once()
+        self.assertEqual(stream_chat_mock.call_args.kwargs["message"], "")
+        self.assertEqual(
+            stream_chat_mock.call_args.kwargs["attachments"],
+            [
+                {
+                    "type": "pdf",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "application/pdf",
+                        "data": "abc",
+                        "filename": "demo.pdf",
+                    },
+                }
+            ],
+        )
+
+    def test_chat_stream_requires_message_or_attachments(self) -> None:
+        response = self.client.post(
+            "/chat/stream",
+            json={
+                "message": "  ",
+                "attachments": [],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "invalid_request")
+        self.assertEqual(
+            payload["error"]["message"],
+            "message or attachments is required",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

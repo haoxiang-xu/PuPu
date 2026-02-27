@@ -86,6 +86,7 @@ contextBridge.exposeInMainWorld("ollamaLibraryAPI", {
 contextBridge.exposeInMainWorld("misoAPI", {
   getStatus: () => ipcRenderer.invoke("miso:get-status"),
   getModelCatalog: () => ipcRenderer.invoke("miso:get-model-catalog"),
+  getToolkitCatalog: () => ipcRenderer.invoke("miso:get-toolkit-catalog"),
   startStream: (payload, handlers = {}) => {
     const requestId = buildRequestId();
     registerMisoStreamListener(requestId, handlers);
@@ -115,6 +116,9 @@ contextBridge.exposeInMainWorld("misoAPI", {
 contextBridge.exposeInMainWorld("themeAPI", {
   setBackgroundColor: (color) => {
     ipcRenderer.send("theme-set-background-color", color);
+  },
+  setThemeMode: (mode) => {
+    ipcRenderer.send("theme-set-mode", mode);
   },
 });
 
