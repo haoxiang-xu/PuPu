@@ -493,7 +493,8 @@ export const api = {
   miso: {
     isBridgeAvailable: () =>
       hasBridgeMethod("misoAPI", "getStatus") &&
-      hasBridgeMethod("misoAPI", "startStream"),
+      hasBridgeMethod("misoAPI", "startStream") &&
+      hasBridgeMethod("misoAPI", "startStreamV2"),
 
     getStatus: async () => {
       try {
@@ -566,7 +567,8 @@ export const api = {
     startStream: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("misoAPI", "startStream");
-        const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
+        const payloadWithWorkspaceRoot =
+          injectWorkspaceRootIntoPayload(payload);
         const normalizedPayload = injectProviderApiKeyIntoPayload(
           payloadWithWorkspaceRoot,
         );
@@ -604,6 +606,34 @@ export const api = {
         method(requestId);
       } catch (_error) {
         // cancellation is best-effort
+      }
+    },
+
+    startStreamV2: (payload, handlers = {}) => {
+      try {
+        const method = assertBridgeMethod("misoAPI", "startStreamV2");
+        const payloadWithWorkspaceRoot =
+          injectWorkspaceRootIntoPayload(payload);
+        const normalizedPayload = injectProviderApiKeyIntoPayload(
+          payloadWithWorkspaceRoot,
+        );
+        const streamHandle = method(normalizedPayload, handlers);
+        if (
+          !isObject(streamHandle) ||
+          typeof streamHandle.cancel !== "function"
+        ) {
+          throw new FrontendApiError(
+            "invalid_stream_handle",
+            "Miso bridge returned an invalid stream handle",
+          );
+        }
+        return streamHandle;
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "miso_stream_v2_start_failed",
+          "Failed to start Miso v2 stream",
+        );
       }
     },
   },

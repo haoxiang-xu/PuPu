@@ -4,6 +4,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import CellSplitSpinner from "../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
+import TraceChain from "./trace_chain";
 
 const ChatBubble = ({
   message,
@@ -11,6 +12,7 @@ const ChatBubble = ({
   onResendMessage,
   onEditMessage,
   disableActionButtons = false,
+  traceFrames = [],
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -54,7 +56,8 @@ const ChatBubble = ({
   const userAttachments =
     isUser && Array.isArray(message?.attachments) ? message.attachments : [];
   const color = theme?.color || "#222";
-  const isSubmitDisabled = disableActionButtons || editDraft.trim().length === 0;
+  const isSubmitDisabled =
+    disableActionButtons || editDraft.trim().length === 0;
 
   useEffect(() => {
     if (!isEditing) {
@@ -118,6 +121,17 @@ const ChatBubble = ({
         position: "relative",
       }}
     >
+      {" "}
+      {/* ── trace chain (assistant only) ─────────────── */}
+      {isAssistant && traceFrames.length > 0 && (
+        <TraceChain frames={traceFrames} status={message.status} />
+      )}
+      {/* ── streaming thinking indicator (no frames yet) ─ */}
+      {isAssistant &&
+        traceFrames.length === 0 &&
+        message.status === "streaming" && (
+          <TraceChain frames={[]} status={message.status} />
+        )}
       {/* ── message content ─────────────────────────────── */}
       <div
         style={{
@@ -274,7 +288,6 @@ const ChatBubble = ({
           />
         )}
       </div>
-
       {/* ── hover action bar ────────────────────────────── */}
       {showActionBar && (
         <div
@@ -337,6 +350,7 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
   previousProps.onDeleteMessage === nextProps.onDeleteMessage &&
   previousProps.onResendMessage === nextProps.onResendMessage &&
   previousProps.onEditMessage === nextProps.onEditMessage &&
-  previousProps.disableActionButtons === nextProps.disableActionButtons;
+  previousProps.disableActionButtons === nextProps.disableActionButtons &&
+  previousProps.traceFrames === nextProps.traceFrames;
 
 export default memo(ChatBubble, areChatBubblePropsEqual);

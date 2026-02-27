@@ -390,6 +390,9 @@ const ChatMessages = ({
                   onResendMessage={onResendMessage}
                   onEditMessage={onEditMessage}
                   disableActionButtons={isStreaming}
+                  traceFrames={
+                    Array.isArray(msg.traceFrames) ? msg.traceFrames : []
+                  }
                 />
               </div>
             );

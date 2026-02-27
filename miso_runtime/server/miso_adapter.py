@@ -8,6 +8,7 @@ import re
 import copy
 import sys
 import threading
+import time
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -32,6 +33,7 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "python_workspace_toolkit": "builtin",
     "mcp": "integration",
 }
+_DEFAULT_MAX_ITERATIONS = 6
 
 
 def _is_valid_miso_source(path: Path) -> bool:
@@ -53,6 +55,181 @@ def _candidate_miso_sources() -> List[Path]:
     return candidates
 
 
+def _apply_broth_runtime_patches(broth_cls: Any) -> None:
+    """Apply PuPu compatibility patches to upstream Broth runtime."""
+    if not isinstance(broth_cls, type):
+        return
+
+    patch_marker = "_pupu_anthropic_tool_result_patch_v1"
+    if getattr(broth_cls, patch_marker, False):
+        return
+
+    original_execute_tool_calls = getattr(broth_cls, "_execute_tool_calls", None)
+    original_build_observation_messages = getattr(
+        broth_cls, "_build_observation_messages", None
+    )
+    original_inject_observation = getattr(broth_cls, "_inject_observation", None)
+    if not (
+        callable(original_execute_tool_calls)
+        and callable(original_build_observation_messages)
+        and callable(original_inject_observation)
+    ):
+        return
+
+    def _patched_execute_tool_calls(
+        self,
+        *,
+        tool_calls: List[Any],
+        run_id: str,
+        iteration: int,
+        callback,
+    ):
+        if getattr(self, "provider", "") != "anthropic":
+            return original_execute_tool_calls(
+                self,
+                tool_calls=tool_calls,
+                run_id=run_id,
+                iteration=iteration,
+                callback=callback,
+            )
+
+        result_messages: List[Dict[str, Any]] = []
+        # Anthropic enforces strict tool_use/tool_result adjacency. Running the
+        # optional observation sub-pass can introduce synthetic follow-up prompts
+        # that break this contract, so keep observation disabled for Anthropic.
+        should_observe = False
+        anthropic_tool_results: List[Dict[str, Any]] = []
+
+        for tool_call in tool_calls:
+            self._emit(
+                callback,
+                "tool_call",
+                run_id,
+                iteration=iteration,
+                tool_name=tool_call.name,
+                call_id=tool_call.call_id,
+                arguments=tool_call.arguments,
+            )
+
+            tool_result = self._execute_from_toolkits(tool_call.name, tool_call.arguments)
+            content = json.dumps(tool_result, default=str, ensure_ascii=False)
+
+            anthropic_tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": tool_call.call_id,
+                    "content": content,
+                }
+            )
+
+            self._emit(
+                callback,
+                "tool_result",
+                run_id,
+                iteration=iteration,
+                tool_name=tool_call.name,
+                call_id=tool_call.call_id,
+                result=tool_result,
+            )
+
+        if anthropic_tool_results:
+            result_messages.append(
+                {
+                    "role": "user",
+                    "content": anthropic_tool_results,
+                }
+            )
+
+        return result_messages, should_observe
+
+    def _patched_build_observation_messages(
+        self,
+        full_messages: List[Dict[str, Any]],
+        tool_messages: List[Dict[str, Any]],
+    ):
+        observe_messages = original_build_observation_messages(
+            self,
+            full_messages,
+            tool_messages,
+        )
+        if getattr(self, "provider", "") != "anthropic":
+            return observe_messages
+
+        if len(observe_messages) < 2:
+            return observe_messages
+
+        prompt_message = observe_messages[-1]
+        tool_result_message = observe_messages[-2]
+        if not (
+            isinstance(prompt_message, dict)
+            and isinstance(tool_result_message, dict)
+            and prompt_message.get("role") == "user"
+            and tool_result_message.get("role") == "user"
+        ):
+            return observe_messages
+
+        prompt_text = prompt_message.get("content")
+        tool_result_content = tool_result_message.get("content")
+        if not (isinstance(prompt_text, str) and isinstance(tool_result_content, list)):
+            return observe_messages
+
+        has_tool_result = any(
+            isinstance(block, dict) and block.get("type") == "tool_result"
+            for block in tool_result_content
+        )
+        if not has_tool_result:
+            return observe_messages
+
+        merged_tool_result_message = copy.deepcopy(tool_result_message)
+        merged_blocks = merged_tool_result_message.get("content")
+        if not isinstance(merged_blocks, list):
+            return observe_messages
+        merged_blocks.append(
+            {
+                "type": "text",
+                "text": prompt_text,
+            }
+        )
+        return [*observe_messages[:-2], merged_tool_result_message]
+
+    def _patched_inject_observation(
+        self,
+        tool_message: Dict[str, Any],
+        observation: str,
+    ):
+        if getattr(self, "provider", "") == "anthropic":
+            content = tool_message.get("content")
+            if isinstance(content, list):
+                for index in range(len(content) - 1, -1, -1):
+                    block = content[index]
+                    if not (isinstance(block, dict) and block.get("type") == "tool_result"):
+                        continue
+
+                    existing = block.get("content", "")
+                    try:
+                        parsed = (
+                            json.loads(existing)
+                            if isinstance(existing, str) and existing.strip()
+                            else {}
+                        )
+                        if not isinstance(parsed, dict):
+                            parsed = {"result": parsed}
+                        parsed["observation"] = observation
+                        block["content"] = json.dumps(parsed, default=str, ensure_ascii=False)
+                    except Exception:
+                        suffix = f"\n[OBSERVATION] {observation}"
+                        base = existing if isinstance(existing, str) else str(existing)
+                        block["content"] = f"{base}{suffix}" if base else suffix.strip()
+                    return
+
+        return original_inject_observation(self, tool_message, observation)
+
+    setattr(broth_cls, "_execute_tool_calls", _patched_execute_tool_calls)
+    setattr(broth_cls, "_build_observation_messages", _patched_build_observation_messages)
+    setattr(broth_cls, "_inject_observation", _patched_inject_observation)
+    setattr(broth_cls, patch_marker, True)
+
+
 def _load_broth_class() -> None:
     global _BROTH_CLASS, _IMPORT_ERROR, _RESOLVED_MISO_SOURCE
 
@@ -69,6 +246,7 @@ def _load_broth_class() -> None:
         try:
             from miso import broth as Broth  # type: ignore
 
+            _apply_broth_runtime_patches(Broth)
             _BROTH_CLASS = Broth
             _RESOLVED_MISO_SOURCE = source_str
             _IMPORT_ERROR = None
@@ -749,6 +927,22 @@ def _extract_workspace_root_from_options(options: Dict[str, object] | None) -> s
     return ""
 
 
+def _extract_max_iterations_from_options(options: Dict[str, object] | None) -> int | None:
+    if not isinstance(options, dict):
+        return None
+
+    candidate = options.get("maxIterations")
+    if candidate is None:
+        candidate = options.get("max_iterations")
+
+    try:
+        parsed = int(candidate)  # type: ignore[arg-type]
+    except Exception:
+        return None
+
+    return max(1, parsed)
+
+
 def _resolve_workspace_root(workspace_root: str) -> Path:
     candidate = Path(workspace_root).expanduser().resolve()
     if not candidate.exists():
@@ -821,11 +1015,16 @@ def _create_agent(options: Dict[str, object] | None = None):
     agent.provider = config["provider"]
     agent.model = config["model"]
 
-    max_iterations_raw = os.environ.get("MISO_MAX_ITERATIONS", "1").strip()
-    try:
-        max_iterations = max(1, int(max_iterations_raw))
-    except Exception:
-        max_iterations = 1
+    max_iterations = _extract_max_iterations_from_options(options)
+    if max_iterations is None:
+        max_iterations_raw = os.environ.get("MISO_MAX_ITERATIONS", "").strip()
+        if max_iterations_raw:
+            try:
+                max_iterations = max(1, int(max_iterations_raw))
+            except Exception:
+                max_iterations = _DEFAULT_MAX_ITERATIONS
+        else:
+            max_iterations = _DEFAULT_MAX_ITERATIONS
     if _extract_workspace_root_from_options(options):
         # Tool-call workflows need at least one extra round to produce
         # assistant-facing text after tool outputs are injected.
@@ -938,3 +1137,77 @@ def stream_chat(
             final_text = _extract_last_assistant_text(output_holder.get("messages") or [])
         if final_text:
             yield final_text
+
+
+def stream_chat_events(
+    *,
+    message: str,
+    history: List[Dict[str, object]],
+    attachments: List[Dict[str, object]] | None = None,
+    options: Dict[str, object],
+) -> Iterable[Dict[str, Any]]:
+    agent = _create_agent(options)
+    messages = _normalize_messages(history, message, attachments)
+    payload = _build_payload(agent.provider, options)
+
+    event_queue: "queue.Queue[object]" = queue.Queue()
+    done_marker = object()
+    output_holder: Dict[str, object] = {
+        "error": None,
+        "messages": None,
+        "seen_final_message": False,
+        "last_run_id": "",
+        "last_iteration": 0,
+    }
+
+    def on_event(event: Dict[str, Any]) -> None:
+        if not isinstance(event, dict):
+            return
+        if event.get("type") == "final_message":
+            output_holder["seen_final_message"] = True
+        run_id = event.get("run_id")
+        if isinstance(run_id, str):
+            output_holder["last_run_id"] = run_id
+        iteration = event.get("iteration")
+        if isinstance(iteration, int):
+            output_holder["last_iteration"] = iteration
+        event_queue.put(event)
+
+    def run_agent() -> None:
+        try:
+            messages_out, _bundle = agent.run(
+                messages=messages,
+                payload=payload,
+                callback=on_event,
+                max_iterations=agent.max_iterations,
+            )
+            output_holder["messages"] = messages_out
+        except Exception as run_error:  # pragma: no cover
+            output_holder["error"] = run_error
+        finally:
+            event_queue.put(done_marker)
+
+    worker = threading.Thread(target=run_agent, name="miso-runner-events", daemon=True)
+    worker.start()
+
+    while True:
+        item = event_queue.get()
+        if item is done_marker:
+            break
+        if isinstance(item, dict):
+            yield item
+
+    error = output_holder.get("error")
+    if error is not None:
+        raise RuntimeError(str(error))
+
+    if not output_holder.get("seen_final_message"):
+        final_text = _extract_last_assistant_text(output_holder.get("messages") or [])
+        if final_text:
+            yield {
+                "type": "final_message",
+                "run_id": output_holder.get("last_run_id", ""),
+                "iteration": output_holder.get("last_iteration", 0),
+                "timestamp": time.time(),
+                "content": final_text,
+            }

@@ -67,6 +67,105 @@ const registerMisoStreamListener = (requestId, handlers = {}) => {
   activeMisoStreamCleanups.set(requestId, cleanup);
 };
 
+const registerMisoStreamV2Listener = (requestId, handlers = {}) => {
+  const listener = (_event, envelope = {}) => {
+    if (envelope.requestId !== requestId) {
+      return;
+    }
+
+    const eventName = envelope.event;
+    const data = envelope.data || {};
+
+    // v2: all SSE events arrive as "frame" with data being the full frame object
+    if (eventName === "frame") {
+      const frameType = data.type;
+      const payload = data.payload || {};
+
+      // Forward the full frame for trace display
+      if (typeof handlers.onFrame === "function") {
+        handlers.onFrame(data);
+      }
+
+      if (frameType === "stream_started") {
+        if (typeof handlers.onMeta === "function") {
+          // thread_id is on the outer frame, not the inner payload
+          handlers.onMeta({
+            thread_id: data.thread_id,
+            model: payload.model,
+            ...payload,
+          });
+        }
+        return;
+      }
+
+      if (frameType === "token_delta") {
+        const delta = typeof payload.delta === "string" ? payload.delta : "";
+        if (typeof handlers.onToken === "function") {
+          handlers.onToken(delta);
+        }
+        return;
+      }
+
+      if (frameType === "done") {
+        if (typeof handlers.onDone === "function") {
+          handlers.onDone(payload);
+        }
+        cleanupMisoStreamListener(requestId);
+        return;
+      }
+
+      if (frameType === "error") {
+        if (typeof handlers.onError === "function") {
+          handlers.onError({
+            code: payload.code || "unknown",
+            message: payload.message || "Unknown stream error",
+          });
+        }
+        cleanupMisoStreamListener(requestId);
+        return;
+      }
+
+      return;
+    }
+
+    // Transport-level error (not a frame)
+    if (eventName === "error") {
+      if (typeof handlers.onError === "function") {
+        handlers.onError({
+          code: data.code || "unknown",
+          message: data.message || "Unknown stream error",
+        });
+      }
+      cleanupMisoStreamListener(requestId);
+      return;
+    }
+
+    // Synthetic done from electron (fallback when server closed without done frame)
+    if (eventName === "done") {
+      if (data.cancelled) {
+        // Cancelled - treat as error
+        if (typeof handlers.onError === "function") {
+          handlers.onError({
+            code: "cancelled",
+            message: "Stream was cancelled",
+          });
+        }
+      } else if (typeof handlers.onDone === "function") {
+        handlers.onDone(data);
+      }
+      cleanupMisoStreamListener(requestId);
+    }
+  };
+
+  ipcRenderer.on("miso:stream:event", listener);
+
+  const cleanup = () => {
+    ipcRenderer.removeListener("miso:stream:event", listener);
+  };
+
+  activeMisoStreamCleanups.set(requestId, cleanup);
+};
+
 contextBridge.exposeInMainWorld("runtime", runtimeInfo);
 
 contextBridge.exposeInMainWorld("osInfo", {
@@ -114,6 +213,23 @@ contextBridge.exposeInMainWorld("misoAPI", {
     }
     ipcRenderer.send("miso:stream:cancel", { requestId });
     cleanupMisoStreamListener(requestId);
+  },
+  startStreamV2: (payload, handlers = {}) => {
+    const requestId = buildRequestId();
+    registerMisoStreamV2Listener(requestId, handlers);
+
+    ipcRenderer.send("miso:stream:start-v2", {
+      requestId,
+      payload,
+    });
+
+    return {
+      requestId,
+      cancel: () => {
+        ipcRenderer.send("miso:stream:cancel", { requestId });
+        cleanupMisoStreamListener(requestId);
+      },
+    };
   },
 });
 

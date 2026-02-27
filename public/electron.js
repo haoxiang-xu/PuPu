@@ -75,6 +75,7 @@ const MISO_BOOT_TIMEOUT_MS = 10000;
 const MISO_HEALTH_RETRY_MS = 250;
 const MISO_RESTART_DELAY_MS = 1500;
 const MISO_STREAM_ENDPOINT = "/chat/stream";
+const MISO_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const MISO_HEALTH_ENDPOINT = "/health";
 const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
@@ -483,7 +484,8 @@ const validateWorkspaceRootPath = (
     return {
       valid: false,
       resolvedPath: "",
-      reason: error?.message || `Unable to access workspace root: ${resolvedPath}`,
+      reason:
+        error?.message || `Unable to access workspace root: ${resolvedPath}`,
     };
   }
 
@@ -752,7 +754,10 @@ const streamMisoSseToRenderer = async ({
 
         if (
           parsedBlock.eventName === "done" ||
-          parsedBlock.eventName === "error"
+          parsedBlock.eventName === "error" ||
+          // v2: all events are "frame"; detect terminal type from parsed payload
+          (parsedBlock.eventName === "frame" &&
+            (payload?.type === "done" || payload?.type === "error"))
         ) {
           sawTerminalEvent = true;
           break;
@@ -775,7 +780,12 @@ const streamMisoSseToRenderer = async ({
   }
 };
 
-const startMisoStream = async ({ requestId, payload, sender }) => {
+const startMisoStream = async ({
+  requestId,
+  payload,
+  sender,
+  endpoint = MISO_STREAM_ENDPOINT,
+}) => {
   if (typeof requestId !== "string" || !requestId.trim()) {
     return;
   }
@@ -837,18 +847,15 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
   });
 
   try {
-    const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_STREAM_ENDPOINT}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-miso-auth": misoAuthToken,
-        },
-        body: JSON.stringify(requestPayload),
-        signal: controller.signal,
+    const response = await fetch(`http://${MISO_HOST}:${misoPort}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-miso-auth": misoAuthToken,
       },
-    );
+      body: JSON.stringify(requestPayload),
+      signal: controller.signal,
+    });
 
     if (!response.ok) {
       const bodyText = await response.text();
@@ -894,6 +901,9 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
     misoActiveStreams.delete(requestId);
   }
 };
+
+const startMisoStreamV2 = (args) =>
+  startMisoStream({ ...args, endpoint: MISO_STREAM_V2_ENDPOINT });
 
 const cancelMisoStream = (requestId) => {
   const streamState = misoActiveStreams.get(requestId);
@@ -1166,9 +1176,10 @@ ipcMain.handle(
 
     const dialogResult = await dialog.showOpenDialog(targetWindow, {
       title: "Select Workspace Root",
-      defaultPath: validation.valid && validation.resolvedPath
-        ? validation.resolvedPath
-        : fallbackPath,
+      defaultPath:
+        validation.valid && validation.resolvedPath
+          ? validation.resolvedPath
+          : fallbackPath,
       properties: ["openDirectory", "createDirectory"],
     });
 
@@ -1186,16 +1197,19 @@ ipcMain.handle(
     };
   },
 );
-ipcMain.handle("miso:validate-workspace-root", (_event, { path: rootPath } = {}) => {
-  const validation = validateWorkspaceRootPath(rootPath, {
-    allowEmpty: true,
-  });
-  return {
-    valid: Boolean(validation.valid),
-    resolvedPath: validation.resolvedPath || "",
-    reason: validation.reason || "",
-  };
-});
+ipcMain.handle(
+  "miso:validate-workspace-root",
+  (_event, { path: rootPath } = {}) => {
+    const validation = validateWorkspaceRootPath(rootPath, {
+      allowEmpty: true,
+    });
+    return {
+      valid: Boolean(validation.valid),
+      resolvedPath: validation.resolvedPath || "",
+      reason: validation.reason || "",
+    };
+  },
+);
 
 ipcMain.handle(
   "ollama:library-search",
@@ -1232,6 +1246,16 @@ ipcMain.on("miso:stream:start", (event, payload) => {
   const requestId = payload?.requestId;
   const requestPayload = payload?.payload || {};
   void startMisoStream({
+    requestId,
+    payload: requestPayload,
+    sender: event.sender,
+  });
+});
+
+ipcMain.on("miso:stream:start-v2", (event, payload) => {
+  const requestId = payload?.requestId;
+  const requestPayload = payload?.payload || {};
+  void startMisoStreamV2({
     requestId,
     payload: requestPayload,
     sender: event.sender,

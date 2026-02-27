@@ -269,6 +269,51 @@ const sanitizeMessage = (message) => {
     )
       ? message.status
       : "done";
+
+    if (Array.isArray(message.traceFrames) && message.traceFrames.length > 0) {
+      // Persist the thinking-chain frames (tool calls, reasoning, observations, errors).
+      // Each frame is a plain object; we keep only the fields needed for display to
+      // avoid bloating localStorage with large raw server payloads.
+      cleaned.traceFrames = message.traceFrames
+        .map((frame) => {
+          if (!isObject(frame)) return null;
+          const f = {
+            seq: Number.isFinite(Number(frame.seq)) ? Number(frame.seq) : 0,
+            ts: Number.isFinite(Number(frame.ts)) ? Number(frame.ts) : 0,
+            type: trimText(String(frame.type || ""), 64),
+            stage: trimText(String(frame.stage || ""), 64),
+          };
+          if (Number.isFinite(Number(frame.iteration))) {
+            f.iteration = Number(frame.iteration);
+          }
+          if (isObject(frame.payload)) {
+            // Deep-clone payload; trim known large string fields to cap storage size.
+            const p = clone(frame.payload);
+            if (p) {
+              if (typeof p.content === "string")
+                p.content = trimText(p.content, 8000);
+              if (typeof p.text === "string") p.text = trimText(p.text, 8000);
+              if (typeof p.message === "string")
+                p.message = trimText(p.message, 2000);
+              if (typeof p.reasoning === "string")
+                p.reasoning = trimText(p.reasoning, 8000);
+              if (typeof p.observation === "string")
+                p.observation = trimText(p.observation, 8000);
+              if (typeof p.result === "string")
+                p.result = trimText(p.result, 8000);
+              if (typeof p.delta === "string")
+                p.delta = trimText(p.delta, 2000);
+              f.payload = p;
+            }
+          }
+          return f;
+        })
+        .filter(Boolean);
+
+      if (cleaned.traceFrames.length === 0) {
+        delete cleaned.traceFrames;
+      }
+    }
   }
 
   if (role === "user" && Array.isArray(message.attachments)) {
@@ -799,11 +844,14 @@ const snapshotSubtreeForCopy = (store, sourceNodeId) => {
   };
 };
 
-const insertNodeIntoParent = (store, parentFolderId, nodeId, prepend = false) => {
+const insertNodeIntoParent = (
+  store,
+  parentFolderId,
+  nodeId,
+  prepend = false,
+) => {
   const siblings = getSiblingIds(store.tree, parentFolderId);
-  const nextSiblings = prepend
-    ? [nodeId, ...siblings]
-    : [...siblings, nodeId];
+  const nextSiblings = prepend ? [nodeId, ...siblings] : [...siblings, nodeId];
   applySiblingIds(store.tree, parentFolderId, nextSiblings);
 };
 
@@ -1645,9 +1693,9 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       ? Number(chat.lastMessageAt)
       : isValidTimestamp(chat?.updatedAt)
         ? Number(chat.updatedAt)
-      : isValidTimestamp(node.updatedAt)
-        ? Number(node.updatedAt)
-        : null;
+        : isValidTimestamp(node.updatedAt)
+          ? Number(node.updatedAt)
+          : null;
     const updatedAgo = formatRelativeAgeShort(lastUpdatedAt, relativeNow);
     data[nodeId] = {
       type: "file",
@@ -1844,7 +1892,10 @@ export const createChatWithMessagesInSelectedContext = (
               ? false
               : baseChat.isTransientNewChat === true,
           hasUnreadGeneratedReply: false,
-          lastMessageAt: computeLastMessageAt(nextMessages, baseChat.lastMessageAt),
+          lastMessageAt: computeLastMessageAt(
+            nextMessages,
+            baseChat.lastMessageAt,
+          ),
           updatedAt: now(),
         },
         baseChat.id,
@@ -2010,10 +2061,14 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
         return null;
       };
 
-      duplicatedNodeId = cloneFromSnapshot(snapshot.rootNodeId, parentFolderId, {
-        prepend: true,
-        overrideLabel: params.label,
-      });
+      duplicatedNodeId = cloneFromSnapshot(
+        snapshot.rootNodeId,
+        parentFolderId,
+        {
+          prepend: true,
+          overrideLabel: params.label,
+        },
+      );
       store.updatedAt = now();
       return store;
     },
@@ -2169,7 +2224,9 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
         if (store.activeChatId) {
           const map = buildTreeNodeLookupByChatId(store.tree);
           store.tree.selectedNodeId =
-            map[store.activeChatId] || firstChatNodeIdInTree(store.tree) || null;
+            map[store.activeChatId] ||
+            firstChatNodeIdInTree(store.tree) ||
+            null;
         } else {
           store.tree.selectedNodeId = firstChatNodeIdInTree(store.tree) || null;
         }
