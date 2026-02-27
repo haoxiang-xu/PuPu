@@ -133,4 +133,53 @@ describe("side_menu_context_menu_items root paste", () => {
       ]),
     );
   });
+
+  test("root paste chat falls back to latest store when clipboard messages is empty", () => {
+    const source = createChatInSelectedContext(
+      { title: "Fallback Source", parentFolderId: null },
+      { source: "test" },
+    );
+    setChatMessages(
+      source.chatId,
+      [{ role: "user", content: "fallback content" }],
+      { source: "test" },
+    );
+
+    const before = getChatsStore();
+    const beforeCount = Object.keys(before.chatsById).length;
+    const setChatStore = jest.fn();
+    const items = buildSideMenuContextMenuItems({
+      node: null,
+      clipboard: {
+        type: "chat",
+        chatId: source.chatId,
+        label: "Fallback Source",
+        messages: [],
+      },
+      chatStore: before,
+      setChatStore,
+      handleStartRename: jest.fn(),
+      setClipboard: jest.fn(),
+      setConfirmDelete: jest.fn(),
+    });
+    const pasteItem = items.find((item) => item?.label === "Paste");
+
+    expect(pasteItem).toBeTruthy();
+    pasteItem.onClick();
+    expect(setChatStore).toHaveBeenCalled();
+
+    const after = getChatsStore();
+    expect(Object.keys(after.chatsById).length).toBe(beforeCount + 1);
+
+    const copiedChatId = Object.keys(after.chatsById).find(
+      (chatId) =>
+        !before.chatsById[chatId] && after.chatsById[chatId]?.title === "Copy of Fallback Source",
+    );
+    expect(copiedChatId).toBeTruthy();
+    expect(after.chatsById[copiedChatId].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: "user", content: "fallback content" }),
+      ]),
+    );
+  });
 });

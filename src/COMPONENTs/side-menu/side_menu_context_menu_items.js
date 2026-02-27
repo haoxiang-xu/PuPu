@@ -1,9 +1,9 @@
 import {
   createChatInSelectedContext,
+  createChatWithMessagesInSelectedContext,
   createFolder,
   duplicateTreeNodeSubtree,
   getChatsStore,
-  setChatMessages,
 } from "../../SERVICEs/chat_storage";
 
 export const buildSideMenuContextMenuItems = ({
@@ -22,18 +22,22 @@ export const buildSideMenuContextMenuItems = ({
 
     if (clipboard.type === "chat") {
       const latestStore = getChatsStore();
-      const msgs = Array.isArray(clipboard.messages)
+      const clipboardMessages = Array.isArray(clipboard.messages)
         ? clipboard.messages
-        : latestStore?.chatsById?.[clipboard.chatId]?.messages || [];
-      const res = createChatInSelectedContext(
+        : null;
+      const msgs =
+        clipboardMessages && clipboardMessages.length > 0
+          ? clipboardMessages
+          : latestStore?.chatsById?.[clipboard.chatId]?.messages || [];
+      const res = createChatWithMessagesInSelectedContext(
         {
           title: `Copy of ${clipboard.label}`,
           parentFolderId,
+          messages: msgs,
         },
         { source: "side-menu" },
       );
-      setChatMessages(res.chatId, msgs, { source: "side-menu" });
-      setChatStore(getChatsStore());
+      setChatStore(res?.store || getChatsStore());
       return;
     }
 

@@ -353,11 +353,14 @@ const ChatInterface = () => {
         : null;
       const currentActiveId = activeChatIdRef.current;
 
-      if (
-        !nextActiveId ||
-        !nextActiveChat ||
-        nextActiveId === currentActiveId
-      ) {
+      if (!nextActiveId || !nextActiveChat) {
+        return;
+      }
+
+      if (nextActiveId === currentActiveId) {
+        if (event.type === "chat_update_messages") {
+          setMessages(nextActiveChat.messages || []);
+        }
         return;
       }
 

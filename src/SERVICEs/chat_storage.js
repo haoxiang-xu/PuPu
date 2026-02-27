@@ -1810,6 +1810,70 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
   };
 };
 
+export const createChatWithMessagesInSelectedContext = (
+  params = {},
+  options = {},
+) => {
+  const source = options.source || "unknown";
+  let createdChatId = null;
+  let createdNodeId = null;
+
+  const next = withStore(
+    (store) => {
+      const parentFolderId = resolveSelectedParentFolderId(
+        store,
+        params.parentFolderId,
+      );
+      const initialTitle = sanitizeLabel(params.title, DEFAULT_CHAT_TITLE);
+      const baseChat = createChatSession({
+        title: initialTitle,
+        isTransientNewChat: initialTitle === DEFAULT_CHAT_TITLE,
+      });
+      const nextMessages = sanitizeMessages(params.messages);
+      const nextTitle =
+        !baseChat.title || baseChat.title === DEFAULT_CHAT_TITLE
+          ? deriveChatTitle(nextMessages, DEFAULT_CHAT_TITLE)
+          : baseChat.title;
+      const finalizedChat = sanitizeChatSession(
+        {
+          ...baseChat,
+          title: nextTitle,
+          messages: nextMessages,
+          isTransientNewChat:
+            nextMessages.length > 0
+              ? false
+              : baseChat.isTransientNewChat === true,
+          hasUnreadGeneratedReply: false,
+          lastMessageAt: computeLastMessageAt(nextMessages, baseChat.lastMessageAt),
+          updatedAt: now(),
+        },
+        baseChat.id,
+      );
+
+      store.chatsById[finalizedChat.id] = finalizedChat;
+      createdChatId = finalizedChat.id;
+
+      const nodeId = ensureTreeHasNodeForChat(store, finalizedChat.id, {
+        parentFolderId,
+      });
+      createdNodeId = nodeId;
+      updateActiveAndSelectedFromChatId(store, finalizedChat.id);
+      store.updatedAt = now();
+      return store;
+    },
+    {
+      source,
+      type: "chat_create_with_messages",
+    },
+  );
+
+  return {
+    chatId: createdChatId,
+    nodeId: createdNodeId,
+    store: clone(next) || next,
+  };
+};
+
 export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
   const source = options.source || "unknown";
   let duplicatedNodeId = null;

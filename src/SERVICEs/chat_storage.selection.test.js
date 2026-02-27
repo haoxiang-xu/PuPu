@@ -2,6 +2,7 @@ import {
   buildExplorerFromTree,
   chatsStorageConstants,
   createChatInSelectedContext,
+  createChatWithMessagesInSelectedContext,
   createFolder,
   duplicateTreeNodeSubtree,
   getChatsStore,
@@ -149,6 +150,30 @@ describe("chat_storage folder selection behavior", () => {
     expect(after.chatsById[copiedNestedChatNode.chatId].messages).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ role: "user", content: "nested message" }),
+      ]),
+    );
+  });
+
+  test("createChatWithMessagesInSelectedContext creates active chat with seeded messages", () => {
+    const before = getChatsStore();
+    const beforeCount = Object.keys(before.chatsById).length;
+    const result = createChatWithMessagesInSelectedContext(
+      {
+        title: "Copy Seeded",
+        parentFolderId: null,
+        messages: [{ role: "user", content: "seeded content" }],
+      },
+      { source: "test" },
+    );
+    const after = result.store;
+
+    expect(Object.keys(after.chatsById).length).toBe(beforeCount + 1);
+    expect(after.activeChatId).toBe(result.chatId);
+    expect(after.tree.selectedNodeId).toBe(result.nodeId);
+    expect(after.chatsById[result.chatId].title).toBe("Copy Seeded");
+    expect(after.chatsById[result.chatId].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: "user", content: "seeded content" }),
       ]),
     );
   });
