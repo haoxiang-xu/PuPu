@@ -1235,13 +1235,9 @@ const ChatInterface = () => {
     }
   }, [attachmentsDisabledReason, attachmentsEnabled]);
 
-  const handleFileInputChange = useCallback(
-    async (event) => {
+  const processFiles = useCallback(
+    async (rawFiles) => {
       const chatId = activeChatIdRef.current;
-      const rawFiles = Array.from(event?.target?.files || []);
-      if (event?.target) {
-        event.target.value = "";
-      }
       if (!chatId || rawFiles.length === 0) {
         return;
       }
@@ -1415,6 +1411,17 @@ const ChatInterface = () => {
     ],
   );
 
+  const handleFileInputChange = useCallback(
+    async (event) => {
+      const rawFiles = Array.from(event?.target?.files || []);
+      if (event?.target) {
+        event.target.value = "";
+      }
+      await processFiles(rawFiles);
+    },
+    [processFiles],
+  );
+
   const handleRemoveDraftAttachment = useCallback(
     (attachmentId) => {
       const chatId = activeChatIdRef.current;
@@ -1564,6 +1571,7 @@ const ChatInterface = () => {
     disclaimer: effectiveDisclaimer,
     showAttachments: true,
     onAttachFile: handleAttachFile,
+    onDropFiles: processFiles,
     attachments: draftAttachments,
     onRemoveAttachment: handleRemoveDraftAttachment,
     attachmentsEnabled,

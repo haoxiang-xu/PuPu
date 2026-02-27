@@ -30,6 +30,7 @@ const FloatingTextField = ({
   disabled = false,
   content_section,
   functional_section,
+  force_content_active = false,
   on_focus = () => {},
   on_blur = () => {},
   on_key_down = () => {},
@@ -157,7 +158,7 @@ const FloatingTextField = ({
   const shouldScroll = maxH !== Infinity && contentHeight >= maxH;
 
   /* ---- content section "active" = floated above the input ---- */
-  const contentActive = hasValue || focused;
+  const contentActive = force_content_active || hasValue || focused;
 
   /* If min_rows > 1, the content section rests at the first-line center, else vertically centered */
   const contentRestTop = min_rows > 1 ? padding + lineHeightPx / 2 : minH / 2;
