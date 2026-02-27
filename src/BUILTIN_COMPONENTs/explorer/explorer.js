@@ -381,7 +381,9 @@ const ExplorerRow = ({
   registerRowRef,
   onDragStart,
   onHoverRow,
+  activeNodeId,
 }) => {
+  const isActive = !isSource && activeNodeId != null && node.id === activeNodeId;
   const isFolder = getNodeType(node) === "folder";
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -554,6 +556,24 @@ const ExplorerRow = ({
         ...node.style,
       }}
     >
+      {/* ── active (selected) background ──────────────── */}
+      <span
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 0,
+          left: depth * INDENT + 3,
+          right: 3,
+          borderRadius: 5,
+          backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+          opacity: isActive ? 1 : 0,
+          transition: "opacity 0.15s ease",
+          pointerEvents: "none",
+          zIndex: 0,
+        }}
+      />
+
       {/* ── hover / press background ─────────────────── */}
       <span
         aria-hidden="true"
@@ -869,6 +889,7 @@ const ExplorerBranch = ({
   registerRowRef,
   onDragStart,
   onHoverRow,
+  activeNodeId,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -895,6 +916,7 @@ const ExplorerBranch = ({
           registerRowRef={registerRowRef}
           onDragStart={onDragStart}
           onHoverRow={onHoverRow}
+          activeNodeId={activeNodeId}
         />
         {isFolder && (
           <AnimatedChildren open={isOpen} skipAnimation={isDragging}>
@@ -933,6 +955,7 @@ const ExplorerBranch = ({
                   registerRowRef={registerRowRef}
                   onDragStart={onDragStart}
                   onHoverRow={onHoverRow}
+                  activeNodeId={activeNodeId}
                 />
               )}
             </div>
@@ -1113,6 +1136,7 @@ const Explorer = ({
   draggable = false,
   on_reorder,
   style,
+  active_node_id,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1534,6 +1558,7 @@ const Explorer = ({
         registerRowRef={registerRowRef}
         onDragStart={handleRowDragStart}
         onHoverRow={handleHoverRow}
+        activeNodeId={active_node_id}
       />
 
       {/* ── drop indicator ──────────────────────────── */}

@@ -20,6 +20,7 @@ import {
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
+import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -59,8 +60,22 @@ const settleStreamingAssistantMessages = (messages) => {
   };
 };
 
+/* ─────────────────────────────────────────────────────────────────────────────
+   Hero layout constants
+───────────────────────────────────────────────────────────────────────────── */
+const _PuPuSVG = LogoSVGs.pupu;
+const _OllamaSVG = LogoSVGs.ollama;
+const _OpenAISVG = LogoSVGs.open_ai;
+const _AnthropicSVG = LogoSVGs.Anthropic;
+
+const PROVIDER_ICON = {
+  ollama: _OllamaSVG,
+  openai: _OpenAISVG,
+  anthropic: _AnthropicSVG,
+};
+
 const ChatInterface = () => {
-  const { theme, onFragment } = useContext(ConfigContext);
+  const { theme, onFragment, onThemeMode } = useContext(ConfigContext);
 
   const [bootstrapped] = useState(() => bootstrapChatsStore());
   const initialChat = bootstrapped.activeChat;
@@ -510,14 +525,20 @@ const ChatInterface = () => {
                 typeof meta.thread_id === "string" &&
                 meta.thread_id.trim()
               ) {
-                setChatThreadId(chatId, meta.thread_id, { source: "chat-page" });
+                setChatThreadId(chatId, meta.thread_id, {
+                  source: "chat-page",
+                });
                 if (activeChatIdRef.current === chatId) {
                   threadIdRef.current = meta.thread_id;
                 }
               }
 
               if (meta && typeof meta.model === "string" && meta.model.trim()) {
-                setChatModel(chatId, { id: meta.model }, { source: "chat-page" });
+                setChatModel(
+                  chatId,
+                  { id: meta.model },
+                  { source: "chat-page" },
+                );
                 if (activeChatIdRef.current === chatId) {
                   modelIdRef.current = meta.model;
                   setSelectedModelId(meta.model);
@@ -558,7 +579,8 @@ const ChatInterface = () => {
                           done.usage.completionTokens,
                       ),
                       completionChars: parseUsageNumber(
-                        done.usage.completion_chars ?? done.usage.completionChars,
+                        done.usage.completion_chars ??
+                          done.usage.completionChars,
                       ),
                     }
                   : null;
@@ -773,8 +795,7 @@ const ChatInterface = () => {
         messageIndex >= 0 && messageIndex < messages.length
           ? messages[messageIndex]
           : null;
-      const text =
-        typeof nextContent === "string" ? nextContent.trim() : "";
+      const text = typeof nextContent === "string" ? nextContent.trim() : "";
       const hasActiveStream = Boolean(
         streamingChatIdRef.current && streamHandleRef.current,
       );
@@ -875,6 +896,42 @@ const ChatInterface = () => {
   const isSendDisabled =
     (!misoStatus.ready && !isStreaming) || hasBackgroundStream;
 
+  const isEmpty = messages.length === 0;
+  const isDark = onThemeMode === "dark_mode";
+
+  // Inject hero keyframes once
+  useEffect(() => {
+    const styleId = "pupu-hero-keyframes";
+    if (!document.getElementById(styleId)) {
+      const el = document.createElement("style");
+      el.id = styleId;
+      el.textContent =
+        "@keyframes heroRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}";
+      document.head.appendChild(el);
+    }
+  }, []);
+
+  const sharedChatInputProps = {
+    value: inputValue,
+    onChange: setInputValue,
+    onSend: sendMessage,
+    onStop: handleStop,
+    isStreaming,
+    sendDisabled: isSendDisabled,
+    placeholder: misoStatus.ready
+      ? "Message PuPu Chat..."
+      : `Miso unavailable (${misoStatus.status})${misoStatus.reason ? `: ${misoStatus.reason}` : ""}`,
+    disclaimer: effectiveDisclaimer,
+    showAttachments: true,
+    onAttachFile: handleAttachFile,
+    onAttachLink: handleAttachLink,
+    onAttachGlobal: handleAttachGlobal,
+    modelCatalog,
+    selectedModelId,
+    onSelectModel: handleSelectModel,
+    modelSelectDisabled: isStreaming,
+  };
+
   return (
     <div
       data-chat-id={activeChatId}
@@ -891,40 +948,223 @@ const ChatInterface = () => {
         transition: "left 0.3s ease",
       }}
     >
-      <ChatMessages
-        chatId={activeChatId}
-        messages={messages}
-        isStreaming={isStreaming}
-        onDeleteMessage={handleDeleteMessage}
-        onResendMessage={handleResendMessage}
-        onEditMessage={handleEditMessage}
-        initialVisibleCount={12}
-        loadBatchSize={6}
-        topLoadThreshold={80}
-      />
+      {isEmpty ? (
+        /* ── Hero: logo → greeting → input → suggestion chips ── */
+        <div
+          key={activeChatId}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 0 80px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              width: "100%",
+              maxWidth: 780,
+              padding: "0 24px",
+              boxSizing: "border-box",
+              gap: 0,
+            }}
+          >
+            {/* Logo */}
+            <div
+              style={{
+                animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+                animationDelay: "0ms",
+                color: isDark
+                  ? "rgba(255,255,255,0.82)"
+                  : "rgba(20,20,40,0.72)",
+                display: "flex",
+                marginBottom: 20,
+              }}
+            >
+              <_PuPuSVG style={{ width: 42, height: 42 }} />
+            </div>
 
-      <ChatInput
-        value={inputValue}
-        onChange={setInputValue}
-        onSend={sendMessage}
-        onStop={handleStop}
-        isStreaming={isStreaming}
-        sendDisabled={isSendDisabled}
-        placeholder={
-          misoStatus.ready
-            ? "Message PuPu Chat..."
-            : `Miso unavailable (${misoStatus.status})${misoStatus.reason ? `: ${misoStatus.reason}` : ""}`
-        }
-        disclaimer={effectiveDisclaimer}
-        showAttachments={true}
-        onAttachFile={handleAttachFile}
-        onAttachLink={handleAttachLink}
-        onAttachGlobal={handleAttachGlobal}
-        modelCatalog={modelCatalog}
-        selectedModelId={selectedModelId}
-        onSelectModel={handleSelectModel}
-        modelSelectDisabled={isStreaming}
-      />
+            {/* Greeting */}
+            <div
+              style={{
+                animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+                animationDelay: "55ms",
+                fontSize: 22,
+                fontWeight: 600,
+                letterSpacing: "-0.3px",
+                color: isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.78)",
+                marginBottom: 28,
+                textAlign: "center",
+                fontFamily: theme?.font?.fontFamily || "inherit",
+              }}
+            >
+              How can I help you today?
+            </div>
+
+            {/* Input */}
+            <div
+              style={{
+                animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+                animationDelay: "100ms",
+                width: "100%",
+                marginBottom: 14,
+              }}
+            >
+              <ChatInput {...sharedChatInputProps} />
+            </div>
+
+            {/* Model chips */}
+            {(() => {
+              const p = modelCatalog?.providers || {};
+              const chips = [
+                ...(p.ollama || []).map((m) => ({
+                  id: `ollama:${m}`,
+                  label: m,
+                  provider: "ollama",
+                })),
+                ...(p.openai || []).map((m) => ({
+                  id: `openai:${m}`,
+                  label: m,
+                  provider: "openai",
+                })),
+                ...(p.anthropic || []).map((m) => ({
+                  id: `anthropic:${m}`,
+                  label: m,
+                  provider: "anthropic",
+                })),
+              ];
+              if (chips.length === 0) return null;
+              return (
+                <div
+                  style={{
+                    animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+                    animationDelay: "145ms",
+                    display: "flex",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    justifyContent: "center",
+                    maxWidth: 720,
+                  }}
+                >
+                  {chips.map((c) => {
+                    const active = selectedModelId === c.id;
+                    const IconComp = PROVIDER_ICON[c.provider];
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => handleSelectModel(c.id)}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          padding: "6px 13px",
+                          borderRadius: 20,
+                          fontSize: 12.5,
+                          fontWeight: active ? 550 : 450,
+                          fontFamily: theme?.font?.fontFamily || "inherit",
+                          cursor: "pointer",
+                          outline: "none",
+                          whiteSpace: "nowrap",
+                          transition:
+                            "background 0.18s, border-color 0.18s, color 0.18s, transform 0.22s cubic-bezier(0.34,1.56,0.64,1), box-shadow 0.18s",
+                          color: active
+                            ? isDark
+                              ? "rgba(255,255,255,0.88)"
+                              : "rgba(0,0,0,0.80)"
+                            : isDark
+                              ? "rgba(255,255,255,0.45)"
+                              : "rgba(0,0,0,0.42)",
+                          background: active
+                            ? isDark
+                              ? "rgba(255,255,255,0.09)"
+                              : "rgba(255,255,255,0.92)"
+                            : isDark
+                              ? "rgba(255,255,255,0.04)"
+                              : "rgba(0,0,0,0.03)",
+                          border: active
+                            ? isDark
+                              ? "1px solid rgba(255,255,255,0.16)"
+                              : "1px solid rgba(0,0,0,0.13)"
+                            : isDark
+                              ? "1px solid rgba(255,255,255,0.08)"
+                              : "1px solid rgba(0,0,0,0.09)",
+                          transform: active
+                            ? "translateY(-3px)"
+                            : "translateY(0)",
+                          boxShadow: active
+                            ? isDark
+                              ? "0 6px 16px rgba(0,0,0,0.40), 0 2px 4px rgba(0,0,0,0.25)"
+                              : "0 6px 16px rgba(0,0,0,0.10), 0 2px 4px rgba(0,0,0,0.07)"
+                            : "none",
+                        }}
+                        onMouseEnter={(e) => {
+                          if (active) return;
+                          e.currentTarget.style.background = isDark
+                            ? "rgba(255,255,255,0.08)"
+                            : "rgba(0,0,0,0.06)";
+                          e.currentTarget.style.borderColor = isDark
+                            ? "rgba(255,255,255,0.15)"
+                            : "rgba(0,0,0,0.14)";
+                          e.currentTarget.style.color = isDark
+                            ? "rgba(255,255,255,0.75)"
+                            : "rgba(0,0,0,0.70)";
+                        }}
+                        onMouseLeave={(e) => {
+                          if (active) return;
+                          e.currentTarget.style.background = isDark
+                            ? "rgba(255,255,255,0.04)"
+                            : "rgba(0,0,0,0.03)";
+                          e.currentTarget.style.borderColor = isDark
+                            ? "rgba(255,255,255,0.08)"
+                            : "rgba(0,0,0,0.09)";
+                          e.currentTarget.style.color = isDark
+                            ? "rgba(255,255,255,0.45)"
+                            : "rgba(0,0,0,0.42)";
+                        }}
+                      >
+                        {IconComp && (
+                          <span
+                            style={{
+                              width: 13,
+                              height: 13,
+                              display: "flex",
+                              alignItems: "center",
+                              flexShrink: 0,
+                              opacity: active ? 0.9 : 0.5,
+                            }}
+                          >
+                            <IconComp style={{ width: 13, height: 13 }} />
+                          </span>
+                        )}
+                        {c.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      ) : (
+        /* ── Normal chat layout ─────────────────────────────────────── */
+        <>
+          <ChatMessages
+            chatId={activeChatId}
+            messages={messages}
+            isStreaming={isStreaming}
+            onDeleteMessage={handleDeleteMessage}
+            onResendMessage={handleResendMessage}
+            onEditMessage={handleEditMessage}
+            initialVisibleCount={12}
+            loadBatchSize={6}
+            topLoadThreshold={80}
+          />
+          <ChatInput {...sharedChatInputProps} />
+        </>
+      )}
     </div>
   );
 };

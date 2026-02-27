@@ -344,6 +344,7 @@ const SideMenu = () => {
             draggable
             on_reorder={handleReorder}
             style={{ width: "100%", fontSize: 13 }}
+            active_node_id={selectedNodeId}
           />
         </div>
       </div>

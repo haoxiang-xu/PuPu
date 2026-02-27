@@ -261,7 +261,7 @@ const ChatInput = ({
       <div
         style={{
           width: "100%",
-          maxWidth: 1000,
+          maxWidth: 780,
           padding: "0 20px",
           boxSizing: "border-box",
         }}
@@ -269,7 +269,7 @@ const ChatInput = ({
         <FloatingTextField
           textarea_ref={inputRef}
           value={value}
-          min_rows={4}
+          min_rows={5}
           max_display_rows={9}
           set_value={onChange}
           placeholder={placeholder}
