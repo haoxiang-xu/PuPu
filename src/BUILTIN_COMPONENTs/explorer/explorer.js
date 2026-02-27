@@ -404,7 +404,7 @@ const ExplorerRow = ({
   );
 
   /* ── visual tokens ─────────────────────────────────── */
-  const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.5)";
+  const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
   const activeBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
   const showBg = (hovered || pressed) && !isSource;
 

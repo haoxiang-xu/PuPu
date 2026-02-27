@@ -246,7 +246,10 @@ const FloatingTextField = ({
             top: 0,
             left: 0,
             right: shouldScroll ? -borderWidth : 0,
-            bottom: 0,
+            bottom:
+              shouldScroll && functional_section && funcHeight > 0
+                ? padding + funcHeight
+                : 0,
             boxSizing: "border-box",
             fontFamily,
             fontSize,
@@ -561,7 +564,10 @@ const TextField = ({
             top: 0,
             left: 0,
             right: 0,
-            bottom: 0,
+            bottom:
+              shouldScroll && functional_section && funcHeight > 0
+                ? padding + funcHeight + 4
+                : 0,
             boxSizing: "border-box",
             fontFamily,
             fontSize,

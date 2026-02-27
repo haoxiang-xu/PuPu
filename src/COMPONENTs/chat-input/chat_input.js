@@ -48,7 +48,7 @@ const AttachPanel = ({
         alignItems: "center",
         gap: 6,
         padding: "4px",
-        borderRadius: 18,
+        borderRadius: 22,
         backgroundColor: panelBg,
         boxShadow: floating ? focusShadow : "none",
         transition: "background-color 0.22s ease, box-shadow 0.22s ease",
@@ -81,7 +81,7 @@ const AttachPanel = ({
               fontSize: 12,
               color,
               backgroundColor: selectBg,
-              borderRadius: floating ? 999 : 9,
+              borderRadius: floating ? 999 : 14,
               outline: "none",
               padding: "0 10px",
             }}
@@ -97,12 +97,12 @@ const AttachPanel = ({
           <Button
             prefix_icon="link"
             onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 16 : 9 }}
+            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 14 }}
           />
           <Button
             prefix_icon="tool"
             onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 16 : 9 }}
+            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 14 }}
           />
         </>
       )}
@@ -306,22 +306,50 @@ const ChatInput = ({
             ) : null
           }
           functional_section={
-            <>
+            <div
+              style={{
+                margin: -6,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
               {value.length > 0 && !isStreaming && (
                 <Button
                   prefix_icon="close"
-                  style={{ color, fontSize: 14, borderRadius: 7 }}
+                  style={{
+                    color,
+                    padding: 6,
+                    fontSize: 18,
+                    borderRadius: 22,
+                    iconOnlyPaddingVertical: 4,
+                    iconOnlyPaddingHorizontal: 4,
+                  }}
                   onClick={handleClear}
                 />
               )}
               {isStreaming ? (
                 <Button
-                  prefix_icon="stop"
+                  prefix_icon="pause"
                   onClick={onStop}
                   style={{
-                    color,
-                    fontSize: 14,
-                    borderRadius: 7,
+                    root: {
+                      background: isDark
+                        ? "rgba(255,255,255,0.88)"
+                        : "rgba(28,28,28,0.86)",
+                      color: isDark ? "#111" : "#eee",
+                      padding: 6,
+                      fontSize: 18,
+                      borderRadius: 22,
+                      iconOnlyPaddingVertical: 4,
+                      iconOnlyPaddingHorizontal: 4,
+                    },
+                    hoverBackgroundColor: isDark
+                      ? "rgba(0,0,0,0.07)"
+                      : "rgba(255,255,255,0.09)",
+                    activeBackgroundColor: isDark
+                      ? "rgba(0,0,0,0.14)"
+                      : "rgba(255,255,255,0.18)",
                   }}
                 />
               ) : (
@@ -330,16 +358,30 @@ const ChatInput = ({
                   onClick={onSend}
                   disabled={sendDisabled}
                   style={{
-                    color,
-                    fontSize: 14,
-                    borderRadius: 7,
-                    opacity: sendDisabled ? 0.35 : 1,
+                    root: {
+                      background: isDark
+                        ? "rgba(255,255,255,0.88)"
+                        : "rgba(28,28,28,0.86)",
+                      color: isDark ? "#111" : "#eee",
+                      padding: 6,
+                      fontSize: 18,
+                      borderRadius: 22,
+                      opacity: sendDisabled ? 0.35 : 1,
+                      iconOnlyPaddingVertical: 4,
+                      iconOnlyPaddingHorizontal: 4,
+                    },
+                    hoverBackgroundColor: isDark
+                      ? "rgba(0,0,0,0.07)"
+                      : "rgba(255,255,255,0.09)",
+                    activeBackgroundColor: isDark
+                      ? "rgba(0,0,0,0.14)"
+                      : "rgba(255,255,255,0.18)",
                   }}
                 />
               )}
-            </>
+            </div>
           }
-          style={{ width: "100%", margin: 0, borderRadius: 14 }}
+          style={{ width: "100%", margin: 0, borderRadius: 22 }}
         />
 
         {/* disclaimer text */}
