@@ -11,355 +11,6 @@ import ChatBubble from "../chat-bubble/chat_bubble";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  AnimatedOrb — Curl-noise particle flow field rendered as a ·░▒▓ ink-trail character field                                  */
-/*  ~440 particles stream along a time-evolving divergence-free vector field (curl of Perlin noise).                           */
-/*  Each particle deposits ink that decays per frame, producing flowing luminous streams.                                      */
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-export const AnimatedOrb = ({ isDark }) => {
-  const containerRef = useRef(null);
-  const canvasRef = useRef(null);
-  const rafRef = useRef(null);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    const canvas = canvasRef.current;
-    if (!canvas || !container) return;
-
-    /* ── constants ── */
-    const CELL = 13; // char grid cell px
-    const FONT_SIZE = 10;
-    const N_PARTICLES = 440;
-    const SPEED = 2.6; // px per frame
-    const INK_DEPOSIT = 0.6;
-    const INK_DECAY = 0.93; // trail half-life ≈ 10 frames
-    const NOISE_SCALE = 0.0036;
-    const TIME_SPEED = 0.38; // how fast the field evolves (noise units/s)
-    const CHARS = ["\u00b7", "\u2591", "\u2592", "\u2593"];
-    const THRESH = [0.055, 0.26, 0.54, 0.78];
-
-    /* ── Perlin noise (classic, 4 gradients) ── */
-    const fade = (t) => t * t * t * (t * (t * 6 - 15) + 10);
-    const lerp = (a, b, t) => a + (b - a) * t;
-    const grad2 = (h, x, y) => {
-      switch (h & 3) {
-        case 0:
-          return x + y;
-        case 1:
-          return -x + y;
-        case 2:
-          return x - y;
-        default:
-          return -x - y;
-      }
-    };
-    /* deterministic permutation table */
-    const P = new Uint8Array(512);
-    for (let i = 0; i < 256; i++) P[i] = i;
-    for (let i = 255; i > 0; i--) {
-      const j = Math.floor((Math.sin(i * 127.1 + 311.7) * 0.5 + 0.5) * (i + 1));
-      const tmp = P[i];
-      P[i] = P[j & 255];
-      P[j & 255] = tmp;
-    }
-    for (let i = 0; i < 256; i++) P[i + 256] = P[i];
-
-    const noise2 = (x, y) => {
-      const xi = Math.floor(x) & 255,
-        yi = Math.floor(y) & 255;
-      const xf = x - Math.floor(x),
-        yf = y - Math.floor(y);
-      const u = fade(xf),
-        v = fade(yf);
-      return lerp(
-        lerp(
-          grad2(P[P[xi] + yi], xf, yf),
-          grad2(P[P[xi + 1] + yi], xf - 1, yf),
-          u,
-        ),
-        lerp(
-          grad2(P[P[xi] + yi + 1], xf, yf - 1),
-          grad2(P[P[xi + 1] + yi + 1], xf - 1, yf - 1),
-          u,
-        ),
-        v,
-      );
-    };
-
-    /* ── curl of noise field = divergence-free 2D velocity ── */
-    /* curl2D(f) = (∂f/∂y, −∂f/∂x)  → particles never bunch or thin out */
-    const curlAt = (px, py, tOffset) => {
-      const eps = 1.2;
-      const s = NOISE_SCALE;
-      /* use tOffset as a z-slice through a 3D noise volume */
-      const dn_dy =
-        (noise2(px * s, (py + eps) * s + tOffset) -
-          noise2(px * s, (py - eps) * s + tOffset)) /
-        (2 * eps);
-      const dn_dx =
-        (noise2((px + eps) * s, py * s + tOffset * 0.7) -
-          noise2((px - eps) * s, py * s + tOffset * 0.7)) /
-        (2 * eps);
-      /* normalise → constant speed */
-      const vx = dn_dy,
-        vy = -dn_dx;
-      const mag = Math.sqrt(vx * vx + vy * vy) || 1;
-      return { vx: (vx / mag) * SPEED, vy: (vy / mag) * SPEED };
-    };
-
-    /* ── state ── */
-    let W = 0,
-      H = 0,
-      COLS = 0,
-      ROWS = 0;
-    let ctx = null;
-    let ink = null;
-    let envCache = null;
-    let particles = null;
-    let tSec = 0; // simulation time in seconds
-
-    const spawnParticle = () => ({
-      x: W * (0.05 + Math.random() * 0.9),
-      y: H * (0.05 + Math.random() * 0.9),
-      life: 90 + Math.random() * 130,
-    });
-
-    const buildEnv = () => {
-      envCache = new Float32Array(COLS * ROWS);
-      const cx = COLS * 0.5,
-        cy = ROWS * 0.5;
-      const rx = COLS * 0.47,
-        ry = ROWS * 0.47;
-      for (let r = 0; r < ROWS; r++)
-        for (let c = 0; c < COLS; c++) {
-          const dx = (c - cx) / rx,
-            dy = (r - cy) / ry;
-          envCache[r * COLS + c] = Math.max(
-            0,
-            Math.min(
-              1,
-              1 -
-                Math.pow(Math.max(0, Math.sqrt(dx * dx + dy * dy) - 0.06), 1.9),
-            ),
-          );
-        }
-    };
-
-    const resize = () => {
-      const dpr = window.devicePixelRatio || 1;
-      W = container.offsetWidth;
-      H = container.offsetHeight;
-      if (!W || !H) return;
-      canvas.width = Math.round(W * dpr);
-      canvas.height = Math.round(H * dpr);
-      canvas.style.width = W + "px";
-      canvas.style.height = H + "px";
-      ctx = canvas.getContext("2d");
-      ctx.scale(dpr, dpr);
-      COLS = Math.ceil(W / CELL);
-      ROWS = Math.ceil(H / CELL);
-      ink = new Float32Array(COLS * ROWS);
-      envCache = null;
-      particles = Array.from({ length: N_PARTICLES }, spawnParticle);
-    };
-
-    resize();
-
-    const cr = isDark ? 99 : 76;
-    const cg = isDark ? 102 : 55;
-    const cb = 241;
-    const maxAlpha = isDark ? 0.72 : 0.54;
-
-    const DT = 1 / 60;
-
-    const draw = () => {
-      if (!ctx || !ink || !W) {
-        rafRef.current = requestAnimationFrame(draw);
-        return;
-      }
-      if (!envCache || envCache.length !== COLS * ROWS) buildEnv();
-
-      tSec += DT;
-      const tOff = tSec * TIME_SPEED;
-
-      /* 1 — decay ink */
-      for (let i = 0; i < ink.length; i++) ink[i] *= INK_DECAY;
-
-      /* 2 — advance particles & stamp ink */
-      for (let p = 0; p < particles.length; p++) {
-        const pt = particles[p];
-        const { vx, vy } = curlAt(pt.x, pt.y, tOff);
-        pt.x += vx;
-        pt.y += vy;
-        pt.life--;
-
-        if (
-          pt.life <= 0 ||
-          pt.x < -CELL * 2 ||
-          pt.x > W + CELL * 2 ||
-          pt.y < -CELL * 2 ||
-          pt.y > H + CELL * 2
-        ) {
-          particles[p] = spawnParticle();
-          continue;
-        }
-
-        /* bilinear splat over 2×2 neighbourhood */
-        const gc = pt.x / CELL,
-          gr = pt.y / CELL;
-        const c0 = Math.floor(gc),
-          r0 = Math.floor(gr);
-        const fx = gc - c0,
-          fy = gr - r0;
-        for (let dr = 0; dr <= 1; dr++) {
-          for (let dc = 0; dc <= 1; dc++) {
-            const cc = c0 + dc,
-              rr = r0 + dr;
-            if (cc >= 0 && cc < COLS && rr >= 0 && rr < ROWS) {
-              const w = (dc === 0 ? 1 - fx : fx) * (dr === 0 ? 1 - fy : fy);
-              ink[rr * COLS + cc] = Math.min(
-                1,
-                ink[rr * COLS + cc] + INK_DEPOSIT * w,
-              );
-            }
-          }
-        }
-      }
-
-      /* 3 — render character grid */
-      ctx.clearRect(0, 0, W, H);
-      ctx.font = `${FONT_SIZE}px "Courier New", Menlo, monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-
-      for (let row = 0; row < ROWS; row++) {
-        const py = row * CELL + CELL / 2;
-        for (let col = 0; col < COLS; col++) {
-          const iv = ink[row * COLS + col];
-          if (iv < THRESH[0]) continue;
-          const env = envCache[row * COLS + col];
-          if (env < 0.02) continue;
-
-          let ci = 0;
-          for (let ti = THRESH.length - 1; ti >= 0; ti--)
-            if (iv >= THRESH[ti]) {
-              ci = ti;
-              break;
-            }
-
-          const alpha = iv * env * maxAlpha;
-          if (alpha < 0.012) continue;
-
-          ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha.toFixed(2)})`;
-          ctx.fillText(CHARS[ci], col * CELL + CELL / 2, py);
-        }
-      }
-
-      rafRef.current = requestAnimationFrame(draw);
-    };
-
-    rafRef.current = requestAnimationFrame(draw);
-
-    const ro = new ResizeObserver(resize);
-    ro.observe(container);
-
-    return () => {
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      ro.disconnect();
-    };
-  }, [isDark]);
-
-  return (
-    <div
-      ref={containerRef}
-      style={{
-        position: "absolute",
-        inset: 0,
-        overflow: "hidden",
-        pointerEvents: "none",
-        userSelect: "none",
-      }}
-    >
-      <canvas
-        ref={canvasRef}
-        style={{ display: "block", pointerEvents: "none" }}
-      />
-    </div>
-  );
-};
-
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  EmptyChat — shown when there are no messages                                                                               */
-/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-
-const EmptyChat = () => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
-  const isDark = onThemeMode === "dark_mode";
-
-  return (
-    <div
-      style={{
-        width: "100%",
-        minHeight: "100%",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 0,
-        userSelect: "none",
-        pointerEvents: "none",
-        padding: "0 0 72px",
-        boxSizing: "border-box",
-        position: "relative",
-      }}
-    >
-      {/* Ambient glow */}
-      <div
-        style={{
-          position: "absolute",
-          inset: 0,
-          background: isDark
-            ? "radial-gradient(ellipse 72% 52% at 50% 28%, rgba(99,102,241,0.09) 0%, transparent 68%)"
-            : "radial-gradient(ellipse 72% 52% at 50% 28%, rgba(99,102,241,0.055) 0%, transparent 68%)",
-          pointerEvents: "none",
-        }}
-      />
-      {/* Character-field background — absolute, fills whole empty area */}
-      <AnimatedOrb isDark={isDark} />
-      <span
-        style={{
-          fontSize: 27,
-          fontFamily: "HackNerdFont",
-          letterSpacing: "-0.3px",
-          margin: "0 0 10px",
-          textAlign: "center",
-          color: isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.82)",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        How can I help you today?
-      </span>
-      <div
-        style={{
-          fontSize: 13.5,
-          fontFamily: theme?.font?.fontFamily || "inherit",
-          fontWeight: 400,
-          letterSpacing: "0.1px",
-          textAlign: "center",
-          color: isDark ? "rgba(255,255,255,0.36)" : "rgba(0,0,0,0.36)",
-          position: "relative",
-          zIndex: 1,
-        }}
-      >
-        Local AI &nbsp;·&nbsp; Fast &nbsp;·&nbsp; Private &nbsp;·&nbsp; Runs
-        entirely on your device
-      </div>
-    </div>
-  );
-};
-
 const BOTTOM_FOLLOW_THRESHOLD = 24;
 const PREVIOUS_MESSAGE_EPSILON = 6;
 const TOP_EDGE_THRESHOLD = 2;
@@ -703,51 +354,47 @@ const ChatMessages = ({
           scrollBehavior: "auto",
         }}
       >
-        {messages.length === 0 ? (
-          <EmptyChat />
-        ) : (
-          <div
-            style={{
-              width: "100%",
-              minHeight: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: 20,
-            }}
-          >
-            {visibleMessages.map((msg, index) => {
-              const messageIndex = safeVisibleStart + index;
-              return (
-                <div
-                  key={msg.id}
-                  ref={(node) => {
-                    if (node) {
-                      messageNodeRefs.current.set(messageIndex, node);
-                    } else {
-                      messageNodeRefs.current.delete(messageIndex);
-                    }
-                  }}
-                  style={{
-                    width: "100%",
-                    maxWidth: 680,
-                    margin: "0 auto",
-                    padding: "0 20px",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  <ChatBubble
-                    message={msg}
-                    onDeleteMessage={onDeleteMessage}
-                    onResendMessage={onResendMessage}
-                    onEditMessage={onEditMessage}
-                    disableActionButtons={isStreaming}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div
+          style={{
+            width: "100%",
+            minHeight: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 20,
+          }}
+        >
+          {visibleMessages.map((msg, index) => {
+            const messageIndex = safeVisibleStart + index;
+            return (
+              <div
+                key={msg.id}
+                ref={(node) => {
+                  if (node) {
+                    messageNodeRefs.current.set(messageIndex, node);
+                  } else {
+                    messageNodeRefs.current.delete(messageIndex);
+                  }
+                }}
+                style={{
+                  width: "100%",
+                  maxWidth: 680,
+                  margin: "0 auto",
+                  padding: "0 20px",
+                  boxSizing: "border-box",
+                }}
+              >
+                <ChatBubble
+                  message={msg}
+                  onDeleteMessage={onDeleteMessage}
+                  onResendMessage={onResendMessage}
+                  onEditMessage={onEditMessage}
+                  disableActionButtons={isStreaming}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       {messages.length > 0 && (
