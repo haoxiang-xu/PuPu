@@ -74,6 +74,14 @@ const PROVIDER_ICON = {
   anthropic: _AnthropicSVG,
 };
 
+const HERO_PHRASES = [
+  "How can I help you today?",
+  "What would you like to explore?",
+  "Ask me anything.",
+  "What's on your mind?",
+  "Ready to dive in?",
+];
+
 const ChatInterface = () => {
   const { theme, onFragment, onThemeMode } = useContext(ConfigContext);
 
@@ -899,6 +907,50 @@ const ChatInterface = () => {
   const isEmpty = messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
 
+  /* ── typewriter greeting ── */
+  const [heroText, setHeroText] = useState(HERO_PHRASES[0]);
+  const [heroCursor, setHeroCursor] = useState(true);
+  const heroPhraseRef = useRef(0);
+  const heroCharRef = useRef(HERO_PHRASES[0].length);
+  const heroDeletingRef = useRef(false);
+
+  useEffect(() => {
+    let timer;
+    const tick = () => {
+      const phrase = HERO_PHRASES[heroPhraseRef.current];
+      if (!heroDeletingRef.current) {
+        if (heroCharRef.current < phrase.length) {
+          heroCharRef.current += 1;
+          setHeroText(phrase.slice(0, heroCharRef.current));
+          timer = setTimeout(tick, 52 + Math.random() * 32);
+        } else {
+          timer = setTimeout(() => {
+            heroDeletingRef.current = true;
+            tick();
+          }, 2000);
+        }
+      } else {
+        if (heroCharRef.current > 0) {
+          heroCharRef.current -= 1;
+          setHeroText(phrase.slice(0, heroCharRef.current));
+          timer = setTimeout(tick, 26 + Math.random() * 16);
+        } else {
+          heroDeletingRef.current = false;
+          heroPhraseRef.current =
+            (heroPhraseRef.current + 1) % HERO_PHRASES.length;
+          timer = setTimeout(tick, 380);
+        }
+      }
+    };
+    timer = setTimeout(tick, 1400);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setHeroCursor((v) => !v), 530);
+    return () => clearInterval(id);
+  }, []);
+
   // Inject hero keyframes once
   useEffect(() => {
     const styleId = "pupu-hero-keyframes";
@@ -972,20 +1024,6 @@ const ChatInterface = () => {
               gap: 0,
             }}
           >
-            {/* Logo */}
-            <div
-              style={{
-                animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-                animationDelay: "0ms",
-                color: isDark
-                  ? "rgba(255,255,255,0.82)"
-                  : "rgba(20,20,40,0.72)",
-                display: "flex",
-                marginBottom: 20,
-              }}
-            >
-              <Icon src={"pupu"} style={{ width: 42, height: 42 }} />
-            </div>
 
             {/* Greeting */}
             <div
@@ -1001,7 +1039,22 @@ const ChatInterface = () => {
                 fontFamily: "HackNerdFont",
               }}
             >
-              How can I help you today?
+              {heroText}
+              <span
+                style={{
+                  display: "inline-block",
+                  width: "2px",
+                  height: "1em",
+                  marginLeft: "3px",
+                  verticalAlign: "text-bottom",
+                  borderRadius: "1px",
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.72)"
+                    : "rgba(0,0,0,0.62)",
+                  opacity: heroCursor ? 1 : 0,
+                  transition: "opacity 0.08s",
+                }}
+              />
             </div>
 
             {/* Input */}
