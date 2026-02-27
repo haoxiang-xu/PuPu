@@ -330,7 +330,7 @@ const ChatInput = ({
               )}
               {isStreaming ? (
                 <Button
-                  prefix_icon="pause"
+                  prefix_icon="stop_mini_filled"
                   onClick={onStop}
                   style={{
                     root: {
