@@ -362,6 +362,7 @@ const EmptyChat = () => {
 
 const BOTTOM_FOLLOW_THRESHOLD = 24;
 const PREVIOUS_MESSAGE_EPSILON = 6;
+const TOP_EDGE_THRESHOLD = 2;
 
 const ChatMessages = ({
   chatId,
@@ -393,6 +394,7 @@ const ChatMessages = ({
     Math.max(0, messages.length - initialVisibleCount),
   );
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [isAtTop, setIsAtTop] = useState(true);
 
   const safeVisibleStart = Math.max(
     0,
@@ -406,6 +408,7 @@ const ChatMessages = ({
   const updateIsAtBottom = useCallback((el) => {
     const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
     setIsAtBottom(distance <= BOTTOM_FOLLOW_THRESHOLD);
+    setIsAtTop(el.scrollTop <= TOP_EDGE_THRESHOLD);
   }, []);
 
   const loadOlderMessages = useCallback(() => {
@@ -463,6 +466,7 @@ const ChatMessages = ({
     el.scrollTo({ top: el.scrollHeight, behavior });
     lastScrollTopRef.current = el.scrollHeight;
     setIsAtBottom(true);
+    setIsAtTop(false);
   }, []);
 
   const scrollToTop = useCallback(
@@ -572,6 +576,7 @@ const ChatMessages = ({
     visibleStartRef.current = nextStart;
     setVisibleStartIndex(nextStart);
     setIsAtBottom(true);
+    setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
   }, [chatId, initialVisibleCount, messages.length]);
 
@@ -584,6 +589,7 @@ const ChatMessages = ({
     lastScrollTopRef.current = 0;
     setVisibleStartIndex(0);
     setIsAtBottom(true);
+    setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
   }, [messages.length]);
 
@@ -776,30 +782,34 @@ const ChatMessages = ({
               transition: "background-color 0.22s ease, box-shadow 0.22s ease",
             }}
           >
-            <Button
-              prefix_icon="skip_up"
-              onClick={handleSkipToTop}
-              style={{
-                color,
-                fontSize: 12,
-                iconSize: 12,
-                borderRadius: 14,
-                paddingVertical: 6,
-                paddingHorizontal: 6,
-              }}
-            />
-            <Button
-              prefix_icon="arrow_up"
-              onClick={handleJumpToPreviousMessage}
-              style={{
-                color,
-                fontSize: 12,
-                iconSize: 12,
-                borderRadius: 14,
-                paddingVertical: 6,
-                paddingHorizontal: 6,
-              }}
-            />
+            {!isAtTop && (
+              <>
+                <Button
+                  prefix_icon="skip_up"
+                  onClick={handleSkipToTop}
+                  style={{
+                    color,
+                    fontSize: 12,
+                    iconSize: 12,
+                    borderRadius: 14,
+                    paddingVertical: 6,
+                    paddingHorizontal: 6,
+                  }}
+                />
+                <Button
+                  prefix_icon="arrow_up"
+                  onClick={handleJumpToPreviousMessage}
+                  style={{
+                    color,
+                    fontSize: 12,
+                    iconSize: 12,
+                    borderRadius: 14,
+                    paddingVertical: 6,
+                    paddingHorizontal: 6,
+                  }}
+                />
+              </>
+            )}
             <Button
               prefix_icon="skip_down"
               onClick={handleBackToBottom}

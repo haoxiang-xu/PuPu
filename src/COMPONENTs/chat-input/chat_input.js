@@ -93,11 +93,18 @@ const AttachPanel = ({
         </div>
       )}
       {onAttachLink && (
-        <Button
-          prefix_icon="link"
-          onClick={onAttachLink}
-          style={{ color, fontSize: 14, borderRadius: floating ? 16 : 9 }}
-        />
+        <>
+          <Button
+            prefix_icon="link"
+            onClick={onAttachLink}
+            style={{ color, fontSize: 14, borderRadius: floating ? 16 : 9 }}
+          />
+          <Button
+            prefix_icon="tool"
+            onClick={onAttachLink}
+            style={{ color, fontSize: 14, borderRadius: floating ? 16 : 9 }}
+          />
+        </>
       )}
     </div>
   );
