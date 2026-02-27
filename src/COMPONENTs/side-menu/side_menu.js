@@ -394,6 +394,7 @@ const SideMenu = () => {
           Chats
         </div>
         <div
+          className="scrollable"
           style={{
             flex: 1,
             minHeight: 0,
