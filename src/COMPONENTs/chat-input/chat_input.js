@@ -476,21 +476,6 @@ const ChatInput = ({
           style={{ width: "100%", margin: 0, borderRadius: 22 }}
         />
 
-        {showAttachments && !attachmentsEnabled && attachmentsDisabledReason && (
-          <div
-            style={{
-              textAlign: "left",
-              fontSize: 11,
-              fontFamily: theme?.font?.fontFamily || "inherit",
-              color: theme?.color || "#222",
-              opacity: onThemeMode === "dark_mode" ? 0.6 : 0.65,
-              paddingTop: 6,
-            }}
-          >
-            {attachmentsDisabledReason}
-          </div>
-        )}
-
         {/* disclaimer text */}
         {disclaimer && (
           <div

@@ -1,6 +1,7 @@
 import {
   createChatInSelectedContext,
   createFolder,
+  duplicateTreeNodeSubtree,
   getChatsStore,
   setChatMessages,
 } from "../../SERVICEs/chat_storage";
@@ -14,8 +15,43 @@ export const buildSideMenuContextMenuItems = ({
   setClipboard,
   setConfirmDelete,
 }) => {
+  const pasteFromClipboard = (parentFolderId) => {
+    if (!clipboard) {
+      return;
+    }
+
+    if (clipboard.type === "chat") {
+      const latestStore = getChatsStore();
+      const msgs = Array.isArray(clipboard.messages)
+        ? clipboard.messages
+        : latestStore?.chatsById?.[clipboard.chatId]?.messages || [];
+      const res = createChatInSelectedContext(
+        {
+          title: `Copy of ${clipboard.label}`,
+          parentFolderId,
+        },
+        { source: "side-menu" },
+      );
+      setChatMessages(res.chatId, msgs, { source: "side-menu" });
+      setChatStore(getChatsStore());
+      return;
+    }
+
+    if (clipboard.type === "folder") {
+      const res = duplicateTreeNodeSubtree(
+        {
+          sourceNodeId: clipboard.nodeId,
+          label: `Copy of ${clipboard.label}`,
+          parentFolderId,
+        },
+        { source: "side-menu" },
+      );
+      setChatStore(res?.store || getChatsStore());
+    }
+  };
+
   if (!node) {
-    return [
+    const items = [
       {
         icon: "chat_new",
         label: "New Chat",
@@ -39,6 +75,17 @@ export const buildSideMenuContextMenuItems = ({
         },
       },
     ];
+
+    if (clipboard) {
+      items.push({ type: "separator" });
+      items.push({
+        icon: "paste",
+        label: "Paste",
+        onClick: () => pasteFromClipboard(null),
+      });
+    }
+
+    return items;
   }
 
   if (node.entity === "folder") {
@@ -87,29 +134,7 @@ export const buildSideMenuContextMenuItems = ({
       items.push({
         icon: "paste",
         label: "Paste",
-        onClick: () => {
-          if (clipboard.type === "chat") {
-            const msgs = chatStore?.chatsById?.[clipboard.chatId]?.messages || [];
-            const res = createChatInSelectedContext(
-              {
-                title: `Copy of ${clipboard.label}`,
-                parentFolderId: node.id,
-              },
-              { source: "side-menu" },
-            );
-            setChatMessages(res.chatId, msgs, { source: "side-menu" });
-            setChatStore(getChatsStore());
-          } else {
-            const res = createFolder(
-              {
-                label: `Copy of ${clipboard.label}`,
-                parentFolderId: node.id,
-              },
-              { source: "side-menu" },
-            );
-            setChatStore(res?.store || getChatsStore());
-          }
-        },
+        onClick: () => pasteFromClipboard(node.id),
       });
     }
 
@@ -140,6 +165,7 @@ export const buildSideMenuContextMenuItems = ({
             type: "chat",
             chatId: node.chatId,
             label: chatTitle,
+            messages: chatStore?.chatsById?.[node.chatId]?.messages || [],
           }),
       },
       { type: "separator" },

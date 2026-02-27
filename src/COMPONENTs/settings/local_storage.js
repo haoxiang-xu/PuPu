@@ -4,6 +4,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { SettingsSection } from "./appearance";
 import { api } from "../../SERVICEs/api";
+import { listAttachmentEntries } from "../../SERVICEs/attachment_storage";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Helpers                                                                                                                    */
@@ -302,12 +303,19 @@ const StorageBar = ({ ratio, isDark }) => (
 /*  StorageKeyRow — single key row                                                                                             */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const StorageKeyRow = ({ entry, maxSize, isDark, onDelete }) => {
+const StorageKeyRow = ({
+  entry,
+  maxSize,
+  isDark,
+  onDelete,
+  attachmentCount = null,
+}) => {
   const [hovered, setHovered] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const ratio = maxSize > 0 ? entry.size / maxSize : 0;
 
   const isSettings = entry.key === "settings";
+  const isChats = entry.key === "chats";
 
   return (
     <>
@@ -352,16 +360,44 @@ const StorageKeyRow = ({ entry, maxSize, isDark, onDelete }) => {
           style={{
             flex: 1,
             minWidth: 0,
-            fontSize: 12,
-            fontFamily: "'SF Mono', 'Fira Code', monospace",
-            color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
             overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
           }}
-          title={entry.key}
         >
-          {entry.key}
+          <span
+            style={{
+              fontSize: 12,
+              fontFamily: "'SF Mono', 'Fira Code', monospace",
+              color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              flexShrink: 1,
+            }}
+            title={entry.key}
+          >
+            {entry.key}
+          </span>
+          {isChats && attachmentCount !== null && (
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: 10,
+                padding: "1px 6px",
+                borderRadius: 99,
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.07)"
+                  : "rgba(0,0,0,0.06)",
+                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {attachmentCount} cached{" "}
+              {attachmentCount === 1 ? "file" : "files"}
+            </span>
+          )}
         </div>
 
         {/* Bar + size */}
@@ -817,7 +853,12 @@ const OllamaSection = ({ isDark }) => {
 /*  ConfirmClearAll — inline confirmation prompt                                                                               */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const ConfirmClearAll = ({ isDark, onConfirm, onCancel }) => (
+const ConfirmClearAll = ({
+  isDark,
+  onConfirm,
+  onCancel,
+  label = "Clear all?",
+}) => (
   <div
     style={{
       display: "flex",
@@ -838,7 +879,7 @@ const ConfirmClearAll = ({ isDark, onConfirm, onCancel }) => (
         color: isDark ? "rgba(255,120,120,0.9)" : "rgba(180,40,40,0.9)",
       }}
     >
-      Clear all local storage?
+      {label}
     </span>
     <Button
       label="Cancel"
@@ -880,10 +921,18 @@ export const LocalStorageSettings = () => {
   const isDark = onThemeMode === "dark_mode";
 
   const [entries, setEntries] = useState([]);
+  const [attachmentCount, setAttachmentCount] = useState(null);
+  const [attachmentTotalSize, setAttachmentTotalSize] = useState(0);
   const [confirmClear, setConfirmClear] = useState(false);
 
   const refresh = useCallback(() => {
     setEntries(readLocalStorageEntries());
+    listAttachmentEntries()
+      .then((all) => {
+        setAttachmentCount(all.length);
+        setAttachmentTotalSize(all.reduce((s, e) => s + e.sizeBytes, 0));
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -994,6 +1043,7 @@ export const LocalStorageSettings = () => {
           <div style={{ paddingBottom: 8 }}>
             <ConfirmClearAll
               isDark={isDark}
+              label="Clear all local storage?"
               onConfirm={handleClearAll}
               onCancel={() => setConfirmClear(false)}
             />
@@ -1022,6 +1072,7 @@ export const LocalStorageSettings = () => {
                 maxSize={maxSize}
                 isDark={isDark}
                 onDelete={handleDelete}
+                attachmentCount={entry.key === "chats" ? attachmentCount : null}
               />
             ))}
           </div>

@@ -20,6 +20,11 @@ import {
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
+import {
+  saveAttachmentPayload,
+  loadAttachmentPayload,
+  deleteAttachmentPayload,
+} from "../../SERVICEs/attachment_storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
 const DEFAULT_DISCLAIMER =
@@ -203,7 +208,8 @@ const ChatInterface = () => {
 
   const activeModelCapabilities = useMemo(() => {
     const fallbackCapabilities =
-      modelCatalog?.activeCapabilities || EMPTY_MODEL_CATALOG.activeCapabilities;
+      modelCatalog?.activeCapabilities ||
+      EMPTY_MODEL_CATALOG.activeCapabilities;
     const selectedModel =
       typeof selectedModelId === "string" && selectedModelId.trim()
         ? selectedModelId.trim()
@@ -226,12 +232,16 @@ const ChatInterface = () => {
   }, [modelCatalog, selectedModelId]);
 
   const activeInputModalities = useMemo(() => {
-    const rawModalities = Array.isArray(activeModelCapabilities?.input_modalities)
+    const rawModalities = Array.isArray(
+      activeModelCapabilities?.input_modalities,
+    )
       ? activeModelCapabilities.input_modalities
       : [];
     return new Set(
       rawModalities
-        .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+        .map((item) =>
+          typeof item === "string" ? item.trim().toLowerCase() : "",
+        )
         .filter(Boolean),
     );
   }, [activeModelCapabilities]);
@@ -538,8 +548,14 @@ const ChatInterface = () => {
           return;
         }
         const attachmentId =
-          typeof entry.id === "string" && entry.id.trim() ? entry.id.trim() : "";
-        if (!attachmentId || !entry.payload || typeof entry.payload !== "object") {
+          typeof entry.id === "string" && entry.id.trim()
+            ? entry.id.trim()
+            : "";
+        if (
+          !attachmentId ||
+          !entry.payload ||
+          typeof entry.payload !== "object"
+        ) {
           return;
         }
         payloadMap.set(attachmentId, entry.payload);
@@ -548,19 +564,16 @@ const ChatInterface = () => {
     [getOrCreateChatAttachmentPayloadMap],
   );
 
-  const removeAttachmentPayload = useCallback(
-    (chatId, attachmentId) => {
-      if (!chatId || !attachmentId) {
-        return;
-      }
-      const payloadMap = attachmentPayloadByChatRef.current.get(chatId);
-      if (!(payloadMap instanceof Map)) {
-        return;
-      }
-      payloadMap.delete(attachmentId);
-    },
-    [],
-  );
+  const removeAttachmentPayload = useCallback((chatId, attachmentId) => {
+    if (!chatId || !attachmentId) {
+      return;
+    }
+    const payloadMap = attachmentPayloadByChatRef.current.get(chatId);
+    if (!(payloadMap instanceof Map)) {
+      return;
+    }
+    payloadMap.delete(attachmentId);
+  }, []);
 
   const resolveAttachmentPayloads = useCallback((chatId, attachments = []) => {
     const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
@@ -596,93 +609,90 @@ const ChatInterface = () => {
     return { payloads, missingAttachmentNames };
   }, []);
 
-  const buildHistoryForModel = useCallback(
-    (baseMessages, chatId) => {
-      const normalizedBaseMessages = Array.isArray(baseMessages)
-        ? baseMessages
-        : [];
-      const payloadMap = attachmentPayloadByChatRef.current.get(chatId);
+  const buildHistoryForModel = useCallback((baseMessages, chatId) => {
+    const normalizedBaseMessages = Array.isArray(baseMessages)
+      ? baseMessages
+      : [];
+    const payloadMap = attachmentPayloadByChatRef.current.get(chatId);
 
-      return normalizedBaseMessages
-        .filter((message) => {
-          if (!message || typeof message !== "object") {
-            return false;
+    return normalizedBaseMessages
+      .filter((message) => {
+        if (!message || typeof message !== "object") {
+          return false;
+        }
+        return ["system", "user", "assistant"].includes(message.role);
+      })
+      .map((message) => {
+        const role = message.role;
+        if (role !== "user") {
+          if (typeof message.content !== "string" || !message.content.trim()) {
+            return null;
           }
-          return ["system", "user", "assistant"].includes(message.role);
-        })
-        .map((message) => {
-          const role = message.role;
-          if (role !== "user") {
-            if (typeof message.content !== "string" || !message.content.trim()) {
-              return null;
-            }
-            return {
-              role,
-              content: message.content,
-            };
-          }
-
-          const textContent =
-            typeof message.content === "string" ? message.content.trim() : "";
-          const attachmentMeta = Array.isArray(message.attachments)
-            ? message.attachments
-            : [];
-
-          const contentBlocks = [];
-          if (textContent) {
-            contentBlocks.push({
-              type: "text",
-              text: textContent,
-            });
-          }
-
-          attachmentMeta.forEach((attachment) => {
-            const attachmentId =
-              typeof attachment?.id === "string" && attachment.id.trim()
-                ? attachment.id.trim()
-                : "";
-            if (!attachmentId || !(payloadMap instanceof Map)) {
-              return;
-            }
-            const payload = payloadMap.get(attachmentId);
-            if (payload && typeof payload === "object") {
-              contentBlocks.push(payload);
-            }
-          });
-
-          if (contentBlocks.length === 0) {
-            if (!textContent) {
-              return null;
-            }
-            return {
-              role,
-              content: textContent,
-            };
-          }
-
-          if (
-            contentBlocks.length === 1 &&
-            contentBlocks[0]?.type === "text" &&
-            typeof contentBlocks[0]?.text === "string"
-          ) {
-            return {
-              role,
-              content: contentBlocks[0].text,
-            };
-          }
-
           return {
             role,
-            content: contentBlocks,
+            content: message.content,
           };
-        })
-        .filter(Boolean);
-    },
-    [],
-  );
+        }
+
+        const textContent =
+          typeof message.content === "string" ? message.content.trim() : "";
+        const attachmentMeta = Array.isArray(message.attachments)
+          ? message.attachments
+          : [];
+
+        const contentBlocks = [];
+        if (textContent) {
+          contentBlocks.push({
+            type: "text",
+            text: textContent,
+          });
+        }
+
+        attachmentMeta.forEach((attachment) => {
+          const attachmentId =
+            typeof attachment?.id === "string" && attachment.id.trim()
+              ? attachment.id.trim()
+              : "";
+          if (!attachmentId || !(payloadMap instanceof Map)) {
+            return;
+          }
+          const payload = payloadMap.get(attachmentId);
+          if (payload && typeof payload === "object") {
+            contentBlocks.push(payload);
+          }
+        });
+
+        if (contentBlocks.length === 0) {
+          if (!textContent) {
+            return null;
+          }
+          return {
+            role,
+            content: textContent,
+          };
+        }
+
+        if (
+          contentBlocks.length === 1 &&
+          contentBlocks[0]?.type === "text" &&
+          typeof contentBlocks[0]?.text === "string"
+        ) {
+          return {
+            role,
+            content: contentBlocks[0].text,
+          };
+        }
+
+        return {
+          role,
+          content: contentBlocks,
+        };
+      })
+      .filter(Boolean);
+  }, []);
 
   const startStreamRequest = useCallback(
-    ({
+    async ({
       chatId,
       text,
       attachmentsForMessage = [],
@@ -697,7 +707,8 @@ const ChatInterface = () => {
         : [];
       const hasAttachments = normalizedAttachments.length > 0;
       const promptText =
-        trimmedText || (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
+        trimmedText ||
+        (hasAttachments ? createAttachmentPrompt(normalizedAttachments) : "");
 
       if (!chatId || (!promptText && !hasAttachments)) {
         return false;
@@ -739,6 +750,23 @@ const ChatInterface = () => {
         userMessageSeed.createdAt = timestamp;
       }
 
+      // Hydrate in-memory Map from IndexedDB for any missing payloads
+      const payloadMap = getOrCreateChatAttachmentPayloadMap(chatId);
+      const idsToHydrate = [
+        ...normalizedAttachments,
+        ...normalizedBaseMessages.flatMap((m) =>
+          m.role === "user" && Array.isArray(m.attachments)
+            ? m.attachments
+            : [],
+        ),
+      ];
+      for (const att of idsToHydrate) {
+        if (att?.id && !payloadMap.has(att.id)) {
+          const hydratedPayload = await loadAttachmentPayload(att.id);
+          if (hydratedPayload) payloadMap.set(att.id, hydratedPayload);
+        }
+      }
+
       const { payloads: attachmentPayloads, missingAttachmentNames } =
         resolveAttachmentPayloads(chatId, normalizedAttachments);
       let persistedAttachments = normalizedAttachments;
@@ -777,7 +805,10 @@ const ChatInterface = () => {
         },
       };
 
-      const historyForModel = buildHistoryForModel(normalizedBaseMessages, chatId);
+      const historyForModel = buildHistoryForModel(
+        normalizedBaseMessages,
+        chatId,
+      );
 
       const nextMessages = [
         ...normalizedBaseMessages,
@@ -1007,7 +1038,11 @@ const ChatInterface = () => {
 
       return true;
     },
-    [buildHistoryForModel, resolveAttachmentPayloads],
+    [
+      buildHistoryForModel,
+      getOrCreateChatAttachmentPayloadMap,
+      resolveAttachmentPayloads,
+    ],
   );
 
   const sendMessage = useCallback(() => {
@@ -1254,7 +1289,9 @@ const ChatInterface = () => {
         const isImage = mimeTypeRaw.startsWith("image/");
 
         if (!isPdf && !isImage) {
-          warnings.push(`Skipped "${fileName}": only images and PDFs are supported.`);
+          warnings.push(
+            `Skipped "${fileName}": only images and PDFs are supported.`,
+          );
           continue;
         }
 
@@ -1266,12 +1303,16 @@ const ChatInterface = () => {
         }
 
         if (isPdf && !supportsPdfAttachments) {
-          warnings.push(`Skipped "${fileName}": current model does not support PDF input.`);
+          warnings.push(
+            `Skipped "${fileName}": current model does not support PDF input.`,
+          );
           continue;
         }
 
         if (isImage && !supportsImageAttachments) {
-          warnings.push(`Skipped "${fileName}": current model does not support image input.`);
+          warnings.push(
+            `Skipped "${fileName}": current model does not support image input.`,
+          );
           continue;
         }
 
@@ -1336,6 +1377,11 @@ const ChatInterface = () => {
 
       if (attachmentEntries.length > 0) {
         rememberAttachmentPayloads(chatId, payloadEntries);
+        payloadEntries.forEach(({ id, payload }, i) => {
+          saveAttachmentPayload(id, payload, attachmentEntries[i]?.name).catch(
+            () => {},
+          );
+        });
         setDraftAttachments((previous) => {
           const current = Array.isArray(previous) ? previous : [];
           return [...current, ...attachmentEntries];
@@ -1381,6 +1427,7 @@ const ChatInterface = () => {
         ),
       );
       removeAttachmentPayload(chatId, normalizedAttachmentId);
+      deleteAttachmentPayload(normalizedAttachmentId).catch(() => {});
     },
     [removeAttachmentPayload],
   );
@@ -1427,8 +1474,17 @@ const ChatInterface = () => {
         ? `Miso ${misoStatus.status}: ${misoStatus.reason}`
         : `Connecting to Miso (${misoStatus.status})...`;
     }
+    if (attachmentsDisabledReason) {
+      return attachmentsDisabledReason;
+    }
     return DEFAULT_DISCLAIMER;
-  }, [streamError, hasBackgroundStream, isStreaming, misoStatus]);
+  }, [
+    attachmentsDisabledReason,
+    streamError,
+    hasBackgroundStream,
+    isStreaming,
+    misoStatus,
+  ]);
 
   const isSendDisabled =
     (!misoStatus.ready && !isStreaming) || hasBackgroundStream;
@@ -1563,7 +1619,6 @@ const ChatInterface = () => {
               gap: 0,
             }}
           >
-
             {/* Greeting */}
             <div
               style={{

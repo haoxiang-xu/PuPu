@@ -744,6 +744,69 @@ const ensureUniqueLabel = (
   }
 };
 
+const snapshotSubtreeForCopy = (store, sourceNodeId) => {
+  const nodesById = {};
+  const chatsById = {};
+
+  const walk = (nodeId, path = new Set()) => {
+    const node = store.tree.nodesById[nodeId];
+    if (!node || path.has(nodeId)) {
+      return null;
+    }
+
+    const nextPath = new Set(path);
+    nextPath.add(nodeId);
+
+    if (node.entity === "folder") {
+      const nextChildren = [];
+      const rawChildren = Array.isArray(node.children) ? node.children : [];
+      for (const childId of rawChildren) {
+        const walked = walk(childId, nextPath);
+        if (walked) {
+          nextChildren.push(walked);
+        }
+      }
+      nodesById[nodeId] = {
+        entity: "folder",
+        label: sanitizeLabel(node.label, DEFAULT_FOLDER_LABEL),
+        children: nextChildren,
+      };
+      return nodeId;
+    }
+
+    if (node.entity === "chat" && node.chatId && store.chatsById[node.chatId]) {
+      nodesById[nodeId] = {
+        entity: "chat",
+        chatId: node.chatId,
+        label: sanitizeLabel(node.label, DEFAULT_CHAT_TITLE),
+      };
+      chatsById[node.chatId] = clone(store.chatsById[node.chatId]);
+      return nodeId;
+    }
+
+    return null;
+  };
+
+  const rootNodeId = walk(sourceNodeId, new Set());
+  if (!rootNodeId || !nodesById[rootNodeId]) {
+    return null;
+  }
+
+  return {
+    rootNodeId,
+    nodesById,
+    chatsById,
+  };
+};
+
+const insertNodeIntoParent = (store, parentFolderId, nodeId, prepend = false) => {
+  const siblings = getSiblingIds(store.tree, parentFolderId);
+  const nextSiblings = prepend
+    ? [nodeId, ...siblings]
+    : [...siblings, nodeId];
+  applySiblingIds(store.tree, parentFolderId, nextSiblings);
+};
+
 const touchLru = (store, chatId) => {
   if (!chatId || !store.chatsById[chatId]) {
     return;
@@ -1743,6 +1806,161 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
   return {
     chatId: createdChatId,
     nodeId: createdNodeId,
+    store: clone(next) || next,
+  };
+};
+
+export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
+  const source = options.source || "unknown";
+  let duplicatedNodeId = null;
+
+  const next = withStore(
+    (store) => {
+      const sourceNodeId =
+        typeof params.sourceNodeId === "string" ? params.sourceNodeId : null;
+      if (!sourceNodeId || !store.tree.nodesById[sourceNodeId]) {
+        return store;
+      }
+
+      const parentFolderId = resolveSelectedParentFolderId(
+        store,
+        params.parentFolderId,
+      );
+      const snapshot = snapshotSubtreeForCopy(store, sourceNodeId);
+      if (!snapshot) {
+        return store;
+      }
+
+      const cloneFromSnapshot = (
+        snapshotNodeId,
+        destinationParentFolderId,
+        cloneOptions = {},
+      ) => {
+        const snapshotNode = snapshot.nodesById[snapshotNodeId];
+        if (!snapshotNode) {
+          return null;
+        }
+
+        if (snapshotNode.entity === "folder") {
+          const fallbackLabel =
+            snapshotNodeId === snapshot.rootNodeId
+              ? `Copy of ${snapshotNode.label || DEFAULT_FOLDER_LABEL}`
+              : snapshotNode.label;
+          const preferredLabel = sanitizeLabel(
+            cloneOptions.overrideLabel ?? fallbackLabel,
+            DEFAULT_FOLDER_LABEL,
+          );
+          const label = ensureUniqueLabel(
+            store,
+            destinationParentFolderId,
+            preferredLabel,
+          );
+          const folder = createFolderNode({ label });
+          const folderId = ensureUniqueNodeId(
+            store.tree.nodesById,
+            folder.id,
+            "fld",
+          );
+
+          store.tree.nodesById[folderId] = {
+            ...folder,
+            id: folderId,
+            children: [],
+          };
+          insertNodeIntoParent(
+            store,
+            destinationParentFolderId,
+            folderId,
+            cloneOptions.prepend === true,
+          );
+
+          for (const childSnapshotId of snapshotNode.children) {
+            cloneFromSnapshot(childSnapshotId, folderId, { prepend: false });
+          }
+          return folderId;
+        }
+
+        if (snapshotNode.entity === "chat") {
+          const sourceChat = snapshot.chatsById[snapshotNode.chatId];
+          if (!sourceChat) {
+            return null;
+          }
+
+          const initialTitle = sanitizeLabel(
+            cloneOptions.overrideLabel ??
+              snapshotNode.label ??
+              sourceChat.title ??
+              DEFAULT_CHAT_TITLE,
+            DEFAULT_CHAT_TITLE,
+          );
+          const copiedChat = createChatSession({
+            title: initialTitle,
+            isTransientNewChat: initialTitle === DEFAULT_CHAT_TITLE,
+          });
+          const copiedMessages = sanitizeMessages(sourceChat.messages);
+          const copiedTitle =
+            !copiedChat.title || copiedChat.title === DEFAULT_CHAT_TITLE
+              ? deriveChatTitle(copiedMessages, DEFAULT_CHAT_TITLE)
+              : copiedChat.title;
+          const finalizedChat = sanitizeChatSession(
+            {
+              ...copiedChat,
+              title: copiedTitle,
+              threadId: null,
+              messages: copiedMessages,
+              isTransientNewChat:
+                copiedMessages.length > 0
+                  ? false
+                  : copiedChat.isTransientNewChat === true,
+              hasUnreadGeneratedReply: false,
+              lastMessageAt: computeLastMessageAt(
+                copiedMessages,
+                copiedChat.lastMessageAt,
+              ),
+              updatedAt: now(),
+            },
+            copiedChat.id,
+          );
+          store.chatsById[finalizedChat.id] = finalizedChat;
+
+          const preferredNodeId = toChatNodeId(finalizedChat.id);
+          const chatNodeId = ensureUniqueNodeId(
+            store.tree.nodesById,
+            preferredNodeId,
+            "chn",
+          );
+          store.tree.nodesById[chatNodeId] = createChatNode({
+            id: chatNodeId,
+            chatId: finalizedChat.id,
+            label: finalizedChat.title,
+          });
+          insertNodeIntoParent(
+            store,
+            destinationParentFolderId,
+            chatNodeId,
+            cloneOptions.prepend === true,
+          );
+          return chatNodeId;
+        }
+
+        return null;
+      };
+
+      duplicatedNodeId = cloneFromSnapshot(snapshot.rootNodeId, parentFolderId, {
+        prepend: true,
+        overrideLabel: params.label,
+      });
+      store.updatedAt = now();
+      return store;
+    },
+    {
+      source,
+      type: "tree_duplicate_subtree",
+    },
+  );
+
+  return {
+    nodeId: duplicatedNodeId,
     store: clone(next) || next,
   };
 };

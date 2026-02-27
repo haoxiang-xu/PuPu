@@ -1,8 +1,11 @@
 import {
   buildExplorerFromTree,
   chatsStorageConstants,
+  createChatInSelectedContext,
   createFolder,
+  duplicateTreeNodeSubtree,
   getChatsStore,
+  setChatMessages,
   selectTreeNode,
 } from "./chat_storage";
 
@@ -72,6 +75,81 @@ describe("chat_storage folder selection behavior", () => {
     expect(hydrated.tree.selectedNodeId).not.toBe(created.folderId);
     expect(hydrated.tree.nodesById[hydrated.tree.selectedNodeId]?.entity).toBe(
       "chat",
+    );
+  });
+
+  test("duplicateTreeNodeSubtree copies a folder with nested subitems", () => {
+    const sourceFolder = createFolder({ label: "Source" }, { source: "test" });
+    const childFolder = createFolder(
+      { label: "Child", parentFolderId: sourceFolder.folderId },
+      { source: "test" },
+    );
+    const topChat = createChatInSelectedContext(
+      { title: "Top Chat", parentFolderId: sourceFolder.folderId },
+      { source: "test" },
+    );
+    setChatMessages(
+      topChat.chatId,
+      [{ role: "user", content: "top message" }],
+      { source: "test" },
+    );
+    const nestedChat = createChatInSelectedContext(
+      { title: "Nested Chat", parentFolderId: childFolder.folderId },
+      { source: "test" },
+    );
+    setChatMessages(
+      nestedChat.chatId,
+      [{ role: "user", content: "nested message" }],
+      { source: "test" },
+    );
+
+    const before = getChatsStore();
+    const copied = duplicateTreeNodeSubtree(
+      {
+        sourceNodeId: sourceFolder.folderId,
+        parentFolderId: null,
+        label: "Copy of Source",
+      },
+      { source: "test" },
+    );
+    const after = copied.store;
+
+    expect(after.activeChatId).toBe(before.activeChatId);
+    expect(after.tree.selectedNodeId).toBe(before.tree.selectedNodeId);
+
+    const copiedRoot = after.tree.nodesById[copied.nodeId];
+    expect(copiedRoot?.entity).toBe("folder");
+    expect(copiedRoot?.label).toBe("Copy of Source");
+    expect(copiedRoot?.children?.length).toBe(2);
+
+    const copiedTopChatNodeId = copiedRoot.children.find(
+      (id) => after.tree.nodesById[id]?.entity === "chat",
+    );
+    const copiedChildFolderId = copiedRoot.children.find(
+      (id) => after.tree.nodesById[id]?.entity === "folder",
+    );
+    expect(copiedTopChatNodeId).toBeTruthy();
+    expect(copiedChildFolderId).toBeTruthy();
+
+    const copiedTopChatNode = after.tree.nodesById[copiedTopChatNodeId];
+    const copiedChildFolder = after.tree.nodesById[copiedChildFolderId];
+    expect(copiedTopChatNode.chatId).not.toBe(topChat.chatId);
+    expect(copiedChildFolder.children.length).toBe(1);
+
+    const copiedNestedChatNode =
+      after.tree.nodesById[copiedChildFolder.children[0]];
+    expect(copiedNestedChatNode.entity).toBe("chat");
+    expect(copiedNestedChatNode.chatId).not.toBe(nestedChat.chatId);
+
+    expect(after.chatsById[copiedTopChatNode.chatId].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: "user", content: "top message" }),
+      ]),
+    );
+    expect(after.chatsById[copiedNestedChatNode.chatId].messages).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: "user", content: "nested message" }),
+      ]),
     );
   });
 });
