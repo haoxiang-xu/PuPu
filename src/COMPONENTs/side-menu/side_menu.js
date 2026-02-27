@@ -1,10 +1,4 @@
-import {
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
+import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";

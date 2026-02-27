@@ -383,7 +383,8 @@ const ExplorerRow = ({
   onHoverRow,
   activeNodeId,
 }) => {
-  const isActive = !isSource && activeNodeId != null && node.id === activeNodeId;
+  const isActive =
+    !isSource && activeNodeId != null && node.id === activeNodeId;
   const isFolder = getNodeType(node) === "folder";
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -447,19 +448,35 @@ const ExplorerRow = ({
   }, [showFull]);
 
   /* ── event handlers ────────────────────────────────── */
+  const CLICK_WINDOW_MS = 320;
+  const lastClickTimeRef = useRef(0);
+  const clickCountRef = useRef(0);
+
   const handleClick = useCallback(
     (e) => {
+      const now = Date.now();
+      const elapsed = now - lastClickTimeRef.current;
+      lastClickTimeRef.current = now;
+
+      if (elapsed < CLICK_WINDOW_MS) {
+        clickCountRef.current += 1;
+      } else {
+        clickCountRef.current = 1;
+      }
+
+      if (clickCountRef.current >= 3) {
+        // triple-click → rename (guarded by selected check in on_double_click)
+        clickCountRef.current = 0;
+        lastClickTimeRef.current = 0;
+        if (node.on_double_click) node.on_double_click(node, e);
+        return;
+      }
+
+      // single / second click — respond immediately
       if (isFolder) onToggle(node.id);
       if (node.on_click) node.on_click(node, e);
     },
     [isFolder, node, onToggle],
-  );
-
-  const handleDoubleClick = useCallback(
-    (e) => {
-      if (node.on_double_click) node.on_double_click(node, e);
-    },
-    [node],
   );
 
   const handleContextMenu = useCallback(
@@ -502,12 +519,12 @@ const ExplorerRow = ({
   const iconSize = Math.round(fontSize * 1.15);
   const showPrefixSpinner = Boolean(
     node.is_generating ||
-      (isFolder && node.has_generating_chat_descendant && !isExpanded),
+    (isFolder && node.has_generating_chat_descendant && !isExpanded),
   );
   const showUnreadDot = Boolean(
     !showPrefixSpinner &&
-      (node.has_unread_generated_reply ||
-        (isFolder && node.has_unread_generated_descendant && !isExpanded)),
+    (node.has_unread_generated_reply ||
+      (isFolder && node.has_unread_generated_descendant && !isExpanded)),
   );
   const unreadDotColor = isDark
     ? "rgba(10, 186, 181, 0.92)"
@@ -520,7 +537,6 @@ const ExplorerRow = ({
     <div
       ref={combinedRef}
       onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
       onContextMenu={handleContextMenu}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => {
@@ -566,7 +582,9 @@ const ExplorerRow = ({
           left: depth * INDENT + 3,
           right: 3,
           borderRadius: 5,
-          backgroundColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)",
+          backgroundColor: isDark
+            ? "rgba(255,255,255,0.10)"
+            : "rgba(0,0,0,0.08)",
           opacity: isActive ? 1 : 0,
           transition: "opacity 0.15s ease",
           pointerEvents: "none",
@@ -628,11 +646,7 @@ const ExplorerRow = ({
           }}
         >
           {showPrefixSpinner ? (
-            <ArcSpinner
-              size={iconSize}
-              stroke_width={2}
-              track_opacity={0.18}
-            />
+            <ArcSpinner size={iconSize} stroke_width={2} track_opacity={0.18} />
           ) : node.prefix_icon ? (
             <Icon
               src={node.prefix_icon}

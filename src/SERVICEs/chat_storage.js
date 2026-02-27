@@ -1241,7 +1241,11 @@ const resolveFallbackChatId = (store, preferredChatId = null) => {
     return preferredChatId;
   }
 
-  return firstChatInTree(store.tree) || sortChatsByUpdatedAt(store.chatsById)[0] || null;
+  return (
+    firstChatInTree(store.tree) ||
+    sortChatsByUpdatedAt(store.chatsById)[0] ||
+    null
+  );
 };
 
 const cleanupTransientActiveChat = (store, preferredNextChatId = null) => {
@@ -1482,6 +1486,7 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
           }
         },
         on_double_click: () => {
+          if (!selected) return;
           if (typeof handlers.onStartRename === "function") {
             handlers.onStartRename(node);
           }
@@ -1500,7 +1505,9 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       DEFAULT_CHAT_TITLE,
     );
     const isGenerating = Boolean(chatGeneratingById[node.chatId]);
-    const hasUnreadGeneratedReply = Boolean(chatUnreadGeneratedById[node.chatId]);
+    const hasUnreadGeneratedReply = Boolean(
+      chatUnreadGeneratedById[node.chatId],
+    );
     data[nodeId] = {
       type: "file",
       entity: "chat",
@@ -1520,6 +1527,7 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
         }
       },
       on_double_click: () => {
+        if (!selected) return;
         if (typeof handlers.onStartRename === "function") {
           handlers.onStartRename(node);
         }
@@ -1666,10 +1674,12 @@ export const selectTreeNode = ({ nodeId } = {}, options = {}) => {
 
   const next = withStore(
     (store) => {
-      let target = typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
+      let target =
+        typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
       if (target?.entity === "chat") {
         cleanupTransientActiveChat(store, target.chatId);
-        target = typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
+        target =
+          typeof nodeId === "string" ? store.tree.nodesById[nodeId] : null;
       }
 
       if (!target) {
