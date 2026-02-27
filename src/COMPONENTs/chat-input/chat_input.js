@@ -195,9 +195,13 @@ const AttachPanel = ({
             }
           >
             <Button
-              prefix_icon="add"
+              prefix_icon="attachment"
               onClick={onAttachFile}
               disabled={!attachmentsEnabled}
+              style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
+            />
+            <Button
+              prefix_icon="hammer"
               style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
             />
           </div>

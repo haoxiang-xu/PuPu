@@ -15,6 +15,13 @@ const SECTIONS = [
   { key: "mcp", icon: "mcp", label: "MCP" },
 ];
 
+const BASE_TOOLKIT_IDENTIFIERS = new Set([
+  "base",
+  "toolkit",
+  "builtin_toolkit",
+  "base_toolkit",
+]);
+
 const KIND_CONFIG = {
   core: {
     label: "Core",
@@ -51,6 +58,27 @@ const toDisplayName = (toolkit) => {
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
     .trim();
+};
+
+const isBuiltinToolkit = (toolkit) =>
+  String(toolkit?.kind || "")
+    .trim()
+    .toLowerCase() === "builtin";
+
+const isBaseToolkit = (toolkit) => {
+  const candidates = [toolkit?.name, toolkit?.class_name, toolkit?.module]
+    .map((value) =>
+      typeof value === "string" ? value.trim().toLowerCase() : "",
+    )
+    .filter(Boolean);
+
+  return candidates.some(
+    (value) =>
+      BASE_TOOLKIT_IDENTIFIERS.has(value) ||
+      value.endsWith(".toolkit") ||
+      value.endsWith(".builtin_toolkit") ||
+      value.endsWith(".base_toolkit"),
+  );
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -360,29 +388,20 @@ const ToolkitsPage = ({ isDark }) => {
     );
   }
 
-  if (toolkits.length === 0) {
+  const visibleToolkits = toolkits.filter(
+    (toolkit) => isBuiltinToolkit(toolkit) && !isBaseToolkit(toolkit),
+  );
+
+  if (visibleToolkits.length === 0) {
     return (
       <PlaceholderBlock
         icon="tool"
-        title="No toolkits found"
-        subtitle="No toolkits were registered in the connected Miso runtime."
+        title="No built-in toolkits found"
+        subtitle="No visible built-in toolkits were registered in the connected Miso runtime."
         isDark={isDark}
       />
     );
   }
-
-  /* Group by kind: builtin first, then core, then integration, then rest */
-  const kindOrder = ["builtin", "core", "integration"];
-  const groups = {};
-  for (const tk of toolkits) {
-    const k = tk.kind || "other";
-    if (!groups[k]) groups[k] = [];
-    groups[k].push(tk);
-  }
-  const sortedKinds = [
-    ...kindOrder.filter((k) => groups[k]),
-    ...Object.keys(groups).filter((k) => !kindOrder.includes(k)),
-  ];
 
   return (
     <div>
@@ -419,17 +438,10 @@ const ToolkitsPage = ({ isDark }) => {
         </div>
       )}
 
-      {sortedKinds.map((kind) => {
-        const kc = kindConfig(kind);
-        return (
-          <div key={kind}>
-            <SectionLabel isDark={isDark}>{kc.label}</SectionLabel>
-            {groups[kind].map((tk, idx) => (
-              <ToolkitCard key={idx} toolkit={tk} isDark={isDark} />
-            ))}
-          </div>
-        );
-      })}
+      <SectionLabel isDark={isDark}>Built-in</SectionLabel>
+      {visibleToolkits.map((tk, idx) => (
+        <ToolkitCard key={idx} toolkit={tk} isDark={isDark} />
+      ))}
     </div>
   );
 };
