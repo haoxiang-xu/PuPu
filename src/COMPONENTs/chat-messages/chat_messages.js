@@ -327,11 +327,10 @@ const EmptyChat = () => {
       />
       {/* Character-field background — absolute, fills whole empty area */}
       <AnimatedOrb isDark={isDark} />
-      <div
+      <span
         style={{
           fontSize: 27,
-          fontFamily: "Jost, sans-serif",
-          fontWeight: 700,
+          fontFamily: "HackNerdFont",
           letterSpacing: "-0.3px",
           margin: "0 0 10px",
           textAlign: "center",
@@ -341,7 +340,7 @@ const EmptyChat = () => {
         }}
       >
         How can I help you today?
-      </div>
+      </span>
       <div
         style={{
           fontSize: 13.5,

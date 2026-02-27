@@ -158,7 +158,7 @@ export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
         border,
         borderRadius: 8,
         boxShadow: shadow,
-        padding: "4px 0",
+        padding: "4px",
         minWidth: menuW,
         userSelect: "none",
       }}
@@ -203,12 +203,12 @@ export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
               display: "flex",
               alignItems: "center",
               gap: 8,
-              padding: "6px 14px",
+              padding: "8px",
               cursor: "pointer",
               fontSize: 13,
               fontFamily: "Jost",
               color: textColor,
-              borderRadius: 0,
+              borderRadius: 6,
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = hoverBg;

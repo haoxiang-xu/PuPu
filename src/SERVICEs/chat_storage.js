@@ -14,6 +14,44 @@ const DEFAULT_FOLDER_LABEL = "New Folder";
 const storeSubscribers = new Set();
 
 const now = () => Date.now();
+const MINUTE_MS = 60 * 1000;
+const HOUR_MS = 60 * MINUTE_MS;
+const DAY_MS = 24 * HOUR_MS;
+const WEEK_MS = 7 * DAY_MS;
+const MONTH_MS = 30 * DAY_MS;
+const YEAR_MS = 365 * DAY_MS;
+
+const formatRelativeAgeShort = (value, referenceNow = now()) => {
+  const targetMs = Number(value);
+  if (!Number.isFinite(targetMs) || targetMs <= 0) {
+    return "";
+  }
+
+  const baseMs = Number.isFinite(Number(referenceNow))
+    ? Number(referenceNow)
+    : now();
+  const elapsed = Math.max(0, baseMs - targetMs);
+
+  if (elapsed < HOUR_MS) {
+    return `${Math.floor(elapsed / MINUTE_MS)}m`;
+  }
+  if (elapsed < DAY_MS) {
+    return `${Math.floor(elapsed / HOUR_MS)}h`;
+  }
+  if (elapsed < WEEK_MS) {
+    return `${Math.floor(elapsed / DAY_MS)}d`;
+  }
+  if (elapsed < MONTH_MS) {
+    return `${Math.floor(elapsed / WEEK_MS)}w`;
+  }
+  if (elapsed < YEAR_MS) {
+    return `${Math.floor(elapsed / MONTH_MS)}mo`;
+  }
+  return `${Math.floor(elapsed / YEAR_MS)}y`;
+};
+
+const isValidTimestamp = (value) =>
+  Number.isFinite(Number(value)) && Number(value) > 0;
 
 const isObject = (value) =>
   value != null && typeof value === "object" && !Array.isArray(value);
@@ -1405,6 +1443,9 @@ export const sanitizeExplorerReorderPayload = ({
 export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
   const nodesById = isObject(tree?.nodesById) ? tree.nodesById : {};
   const root = Array.isArray(tree?.root) ? tree.root : [];
+  const relativeNow = Number.isFinite(Number(handlers.relativeNow))
+    ? Number(handlers.relativeNow)
+    : now();
   const chatGeneratingById = {};
   const chatUnreadGeneratedById = {};
   for (const [chatId, chat] of Object.entries(chatsById || {})) {
@@ -1532,15 +1573,25 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       chatsById?.[node.chatId]?.title || node.label,
       DEFAULT_CHAT_TITLE,
     );
+    const chat = chatsById?.[node.chatId];
     const isGenerating = Boolean(chatGeneratingById[node.chatId]);
     const hasUnreadGeneratedReply = Boolean(
       chatUnreadGeneratedById[node.chatId],
     );
+    const lastUpdatedAt = isValidTimestamp(chat?.lastMessageAt)
+      ? Number(chat.lastMessageAt)
+      : isValidTimestamp(chat?.updatedAt)
+        ? Number(chat.updatedAt)
+      : isValidTimestamp(node.updatedAt)
+        ? Number(node.updatedAt)
+        : null;
+    const updatedAgo = formatRelativeAgeShort(lastUpdatedAt, relativeNow);
     data[nodeId] = {
       type: "file",
       entity: "chat",
       chatId: node.chatId,
       label: title,
+      postfix: updatedAgo || undefined,
       prefix_icon: "chat",
       is_generating: isGenerating,
       has_unread_generated_reply: hasUnreadGeneratedReply,

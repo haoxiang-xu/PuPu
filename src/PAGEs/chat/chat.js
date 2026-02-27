@@ -20,7 +20,8 @@ import {
   updateChatDraft,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
-import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -63,7 +64,6 @@ const settleStreamingAssistantMessages = (messages) => {
 /* ─────────────────────────────────────────────────────────────────────────────
    Hero layout constants
 ───────────────────────────────────────────────────────────────────────────── */
-const _PuPuSVG = LogoSVGs.pupu;
 const _OllamaSVG = LogoSVGs.ollama;
 const _OpenAISVG = LogoSVGs.open_ai;
 const _AnthropicSVG = LogoSVGs.Anthropic;
@@ -984,7 +984,7 @@ const ChatInterface = () => {
                 marginBottom: 20,
               }}
             >
-              <_PuPuSVG style={{ width: 42, height: 42 }} />
+              <Icon src={"pupu"} style={{ width: 42, height: 42 }} />
             </div>
 
             {/* Greeting */}
@@ -998,7 +998,7 @@ const ChatInterface = () => {
                 color: isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.78)",
                 marginBottom: 28,
                 textAlign: "center",
-                fontFamily: theme?.font?.fontFamily || "inherit",
+                fontFamily: "HackNerdFont",
               }}
             >
               How can I help you today?

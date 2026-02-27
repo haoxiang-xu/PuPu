@@ -31,6 +31,7 @@ const SideMenu = () => {
     useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200,
   );
@@ -60,6 +61,14 @@ const SideMenu = () => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setRelativeNow(Date.now());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -169,6 +178,7 @@ const SideMenu = () => {
       chatStore?.chatsById || {},
       {
         selectedNodeId,
+        relativeNow,
         onSelect: handleSelectNode,
         onContextMenu: handleContextMenu,
         onStartRename: handleStartRename,
@@ -178,6 +188,7 @@ const SideMenu = () => {
     chatStore,
     handleSelectNode,
     selectedNodeId,
+    relativeNow,
     handleContextMenu,
     handleStartRename,
   ]);
