@@ -815,6 +815,7 @@ const createWindowOptions = () => {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     },
   };
 
@@ -829,6 +830,7 @@ const createWindowOptions = () => {
       },
       backgroundColor: "#121212",
       hasShadow: true,
+      show: false,
     };
   }
 
@@ -839,6 +841,7 @@ const createWindowOptions = () => {
       titleBarStyle: "hidden",
       hasShadow: true,
       backgroundColor: "#121212",
+      show: false,
     };
   }
 
@@ -847,6 +850,7 @@ const createWindowOptions = () => {
     frame: true,
     titleBarStyle: "hidden",
     backgroundColor: "#121212",
+    show: false,
   };
 };
 
@@ -871,13 +875,21 @@ const loadDevUrlWhenReady = async () => {
 const createMainWindow = () => {
   mainWindow = new BrowserWindow(createWindowOptions());
 
-  if (app.isPackaged) {
-    mainWindow.loadFile(path.join(__dirname, "..", "build", "index.html"), {
-      hash: PROD_ENTRY_HASH,
-    });
-  } else {
-    loadDevUrlWhenReady();
-  }
+  // Show loading screen first — swapped out once the real app finishes loading
+  mainWindow.loadFile(path.join(__dirname, "loading.html"));
+
+  mainWindow.once("ready-to-show", () => {
+    mainWindow.show();
+    emitWindowState();
+    scheduleDarwinTrafficLightSync();
+    if (app.isPackaged) {
+      mainWindow.loadFile(path.join(__dirname, "..", "build", "index.html"), {
+        hash: PROD_ENTRY_HASH,
+      });
+    } else {
+      loadDevUrlWhenReady();
+    }
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/i.test(url)) {
@@ -910,10 +922,6 @@ const createMainWindow = () => {
   mainWindow.on("unmaximize", emitWindowState);
   mainWindow.on("enter-full-screen", emitWindowState);
   mainWindow.on("leave-full-screen", emitWindowState);
-  mainWindow.once("ready-to-show", () => {
-    emitWindowState();
-    scheduleDarwinTrafficLightSync();
-  });
 
   mainWindow.on("closed", () => {
     if (darwinTrafficLightSyncTimeout) {

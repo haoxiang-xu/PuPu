@@ -81,7 +81,7 @@ const AttachPanel = ({
               fontSize: 12,
               color,
               backgroundColor: selectBg,
-              borderRadius: floating ? 999 : 14,
+              borderRadius: floating ? 999 : 16,
               outline: "none",
               padding: "0 10px",
             }}
@@ -97,12 +97,12 @@ const AttachPanel = ({
           <Button
             prefix_icon="link"
             onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 14 }}
+            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
           />
           <Button
             prefix_icon="tool"
             onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 14 }}
+            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
           />
         </>
       )}
