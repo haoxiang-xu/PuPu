@@ -2,6 +2,8 @@ import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
+import { Input } from "../../BUILTIN_COMPONENTs/input/input";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
 import {
@@ -48,12 +50,11 @@ const SideMenu = () => {
     node: null,
   });
   const [renaming, setRenaming] = useState({ nodeId: null, value: "" });
+  const [searchQuery, setSearchQuery] = useState("");
 
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
-  const sideMenuBackgroundColor = isDark
-    ? "#151515"
-    : "rgb(245, 245, 245)";
+  const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
 
   const selectedNodeId = chatStore?.tree?.selectedNodeId || null;
 
@@ -254,6 +255,20 @@ const SideMenu = () => {
     isDark,
   ]);
 
+  const { filteredData, filteredRoot } = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return { filteredData: null, filteredRoot: null };
+    const matchingData = {};
+    const matchingRoot = [];
+    for (const [id, node] of Object.entries(explorerData)) {
+      if (node.type === "file" && node.label?.toLowerCase().includes(q)) {
+        matchingData[id] = { ...node, postfix: node.postfix };
+        matchingRoot.push(id);
+      }
+    }
+    return { filteredData: matchingData, filteredRoot: matchingRoot };
+  }, [searchQuery, explorerData]);
+
   return (
     <div
       style={{
@@ -317,6 +332,52 @@ const SideMenu = () => {
           gap: 0,
         }}
       >
+        <Input
+          prefix_icon="search"
+          no_separator
+          value={searchQuery}
+          set_value={setSearchQuery}
+          placeholder="Search..."
+          postfix_component={
+            searchQuery ? (
+              <div
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSearchQuery("");
+                }}
+              >
+                <Icon
+                  src="delete_input"
+                  style={{ width: 18, height: 18 }}
+                  color={theme?.color || (isDark ? "#CCC" : "#444")}
+                />
+              </div>
+            ) : undefined
+          }
+          style={{
+            fontSize: 12,
+            height: 32,
+            flexShrink: 0,
+            marginBottom: 4,
+            borderRadius: 6,
+            WebkitAppRegion: "no-drag",
+            color: theme?.color || (isDark ? "#CCC" : "#222"),
+            outline: {
+              onFocus: isDark
+                ? "1px solid rgba(255,255,255,0.18)"
+                : "1px solid rgba(0,0,0,0.18)",
+              onBlur: isDark
+                ? "1px solid rgba(255,255,255,0.06)"
+                : "1px solid rgba(0,0,0,0.08)",
+            },
+            boxShadow: "none",
+          }}
+        />
         <div
           style={{
             padding: "4px 4px 6px",
@@ -342,15 +403,32 @@ const SideMenu = () => {
           }}
           onContextMenu={handleBackgroundContextMenu}
         >
-          <Explorer
-            data={explorerData}
-            root={explorerModel.root}
-            default_expanded={explorerModel.defaultExpanded}
-            draggable
-            on_reorder={handleReorder}
-            style={{ width: "100%", fontSize: 13 }}
-            active_node_id={selectedNodeId}
-          />
+          {filteredRoot && filteredRoot.length === 0 ? (
+            <div
+              style={{
+                padding: "12px 8px",
+                fontSize: 12,
+                fontFamily: "Jost, sans-serif",
+                color: theme?.color || (isDark ? "#CCC" : "#444"),
+                opacity: 0.4,
+                userSelect: "none",
+              }}
+            >
+              No chats found
+            </div>
+          ) : (
+            <Explorer
+              data={filteredRoot ? filteredData : explorerData}
+              root={filteredRoot ?? explorerModel.root}
+              default_expanded={
+                filteredRoot ? true : explorerModel.defaultExpanded
+              }
+              draggable={!filteredRoot}
+              on_reorder={handleReorder}
+              style={{ width: "100%", fontSize: 13 }}
+              active_node_id={selectedNodeId}
+            />
+          )}
         </div>
       </div>
 
