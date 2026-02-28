@@ -1,5 +1,5 @@
 {
-  "name": "mini_ui",
+  "name": "PuPu",
   "version": "0.1.0",
   "private": true,
   "main": "public/electron.js",
@@ -64,8 +64,8 @@
     ]
   },
   "build": {
-    "appId": "com.red.miniui",
-    "productName": "Mini UI",
+    "appId": "com.red.pupu",
+    "productName": "PuPu",
     "directories": {
       "output": "dist"
     },
