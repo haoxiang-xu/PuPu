@@ -36,6 +36,7 @@
     "build:web": "react-scripts build",
     "build:miso": "bash ./miso_runtime/scripts/build_miso_server.sh",
     "build:miso:mac": "bash ./miso_runtime/scripts/build_miso_server.sh macos",
+    "build:miso:mac:intel": "MISO_TARGET_ARCH=x86_64 bash ./miso_runtime/scripts/build_miso_server.sh macos",
     "build:miso:linux": "bash ./miso_runtime/scripts/build_miso_server.sh linux",
     "build:miso:win": "bash ./miso_runtime/scripts/build_miso_server.sh windows",
     "build:electron": "npm run build:miso && npm run build:web && electron-builder",
