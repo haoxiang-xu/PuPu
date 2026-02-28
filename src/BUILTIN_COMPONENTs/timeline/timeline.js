@@ -12,7 +12,7 @@ import ArcSpinner from "../spinner/arc_spinner";
 /* ── layout constants ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
 const TRACK_WIDTH = 24; // px — width of the left column (line + point)
 const LINE_WIDTH = 1; // px — connecting line stroke width
-const TITLE_LINE_H = 20; // px — explicit line-height of title text
+const TITLE_LINE_H = 18; // px — explicit line-height of title text
 const TITLE_CY = TITLE_LINE_H / 2; // 10px — vertical center of first title line
 
 // Point radii — used to align the vertical center of each point with TITLE_CY
@@ -104,10 +104,11 @@ const TimelineNode = ({
   onToggle,
   prevStatus, // null for first item; used to color the top line segment
   tl,
+  isPassThrough, // true for collapsed intermediate nodes
 }) => {
   const { title, span, details, body, point, status = "pending" } = item;
 
-  /* ── resolve point element ── */
+  /* ── resolve point element (must be before any early return) ── */
   const pointEl = useMemo(() => {
     if (point === "start") return <DotStart tl={tl} />;
     if (point === "end") return <DotEnd status={status} tl={tl} />;
@@ -122,6 +123,8 @@ const TimelineNode = ({
     if (point != null && typeof point !== "string") return point;
     return <DotDefault status={status} tl={tl} />;
   }, [point, status, tl]);
+
+  /* ── pass-through: hide the circle dot, keep content ── */
 
   /* ── top-line height: aligns point center with first title-line center ── */
   const topLineH = Math.max(0, TITLE_CY - getPointRadius(point));
@@ -161,32 +164,36 @@ const TimelineNode = ({
               left: "50%",
               transform: "translateX(-50%)",
               width: LINE_WIDTH,
-              height: Math.max(0, topLineH - 3),
+              height: isPassThrough ? topLineH : Math.max(0, topLineH - 3),
               background: topLineColor,
               transition: "background 0.3s",
             }}
           />
         )}
-        {/* point — centered horizontally, top at topLineH */}
-        <div
-          style={{
-            position: "absolute",
-            top: topLineH,
-            left: "50%",
-            transform: "translateX(-50%)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {pointEl}
-        </div>
+        {/* point — hidden for pass-through nodes */}
+        {!isPassThrough && (
+          <div
+            style={{
+              position: "absolute",
+              top: topLineH,
+              left: "50%",
+              transform: "translateX(-50%)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {pointEl}
+          </div>
+        )}
         {/* bottom line segment */}
         {index !== total - 1 && (
           <div
             style={{
               position: "absolute",
-              top: topLineH + getPointRadius(point) * 2 + 3,
+              top: isPassThrough
+                ? topLineH
+                : topLineH + getPointRadius(point) * 2 + 3,
               left: "50%",
               transform: "translateX(-50%)",
               bottom: 0,
@@ -204,7 +211,7 @@ const TimelineNode = ({
           flex: 1,
           minWidth: 0,
           paddingLeft: 14,
-          paddingBottom: index === total - 1 ? 4 : 22,
+          paddingBottom: index === total - 1 ? 2 : 14,
         }}
       >
         {/* title + detail + spacer + span row */}
@@ -303,7 +310,7 @@ const TimelineNode = ({
         {body != null && (
           <div
             style={{
-              marginTop: 5,
+              marginTop: 3,
               fontSize: tl.fontSize ?? "12px",
               color: tl.spanColor ?? "rgba(0,0,0,0.45)",
               lineHeight: 1.6,
@@ -321,8 +328,8 @@ const TimelineNode = ({
           <AnimatedChildren open={isExpanded}>
             <div
               style={{
-                marginTop: 8,
-                padding: "10px 12px",
+                marginTop: 5,
+                padding: "8px 10px",
                 borderRadius: 8,
                 background: tl.detailsBackground ?? "rgba(0,0,0,0.025)",
                 fontSize: tl.fontSize ?? "13px",
@@ -401,18 +408,26 @@ const Timeline = ({
 
   return (
     <div style={{ display: "flex", flexDirection: "column", ...style }}>
-      {items.map((item, i) => (
-        <TimelineNode
-          key={i}
-          item={item}
-          index={i}
-          total={items.length}
-          isExpanded={expandedSet.has(i)}
-          onToggle={() => handleToggle(i)}
-          prevStatus={i > 0 ? (items[i - 1].status ?? "pending") : null}
-          tl={tl}
-        />
-      ))}
+      {items.map((item, i) => {
+        const isFirst = i === 0;
+        const isLast = i === items.length - 1;
+        const isActive = (item.status ?? "pending") === "active";
+        const isPreset = item.point === "start" || item.point === "end";
+        const isPassThrough = !isFirst && !isLast && !isActive && !isPreset;
+        return (
+          <TimelineNode
+            key={i}
+            item={item}
+            index={i}
+            total={items.length}
+            isExpanded={expandedSet.has(i)}
+            onToggle={() => handleToggle(i)}
+            prevStatus={i > 0 ? (items[i - 1].status ?? "pending") : null}
+            tl={tl}
+            isPassThrough={isPassThrough}
+          />
+        );
+      })}
     </div>
   );
 };
