@@ -41,6 +41,7 @@
     "build:miso:win": "bash ./miso_runtime/scripts/build_miso_server.sh windows",
     "build:electron": "npm run build:miso && npm run build:web && electron-builder",
     "build:electron:mac": "npm run build:miso:mac && npm run build:web && electron-builder --mac --arm64",
+    "build:electron:mac:intel": "npm run build:miso:mac:intel && npm run build:web && electron-builder --mac --x64",
     "build:electron:win": "npm run build:miso:win && npm run build:web && electron-builder --win",
     "build:electron:linux": "npm run build:miso:linux && npm run build:web && electron-builder --linux",
     "pack": "npm run build:electron",
