@@ -7,8 +7,7 @@ import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 
 export const RenameRow = ({
   node,
-  value,
-  onChange,
+  initialValue,
   onConfirm,
   onCancel,
   isDark,
@@ -22,6 +21,10 @@ export const RenameRow = ({
       inputRef.current.select();
     }
   }, []);
+
+  const handleConfirm = () => {
+    onConfirm(inputRef.current?.value ?? "");
+  };
 
   return (
     <div
@@ -56,12 +59,11 @@ export const RenameRow = ({
 
       <input
         ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
+        defaultValue={initialValue}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
             e.preventDefault();
-            onConfirm();
+            handleConfirm();
           }
           if (e.key === "Escape") {
             e.preventDefault();
@@ -90,7 +92,7 @@ export const RenameRow = ({
       <button
         onMouseDown={(e) => {
           e.preventDefault();
-          onConfirm();
+          handleConfirm();
         }}
         style={{
           background: "none",

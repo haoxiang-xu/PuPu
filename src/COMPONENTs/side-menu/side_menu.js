@@ -158,18 +158,21 @@ const SideMenu = () => {
     [chatStore, closeContextMenu],
   );
 
-  const handleConfirmRename = useCallback(() => {
-    if (!renaming.nodeId) return;
-    const trimmed = renaming.value.trim();
-    if (trimmed) {
-      const next = renameTreeNode(
-        { nodeId: renaming.nodeId, label: trimmed },
-        { source: "side-menu" },
-      );
-      setChatStore(next);
-    }
-    setRenaming({ nodeId: null, value: "" });
-  }, [renaming]);
+  const handleConfirmRename = useCallback(
+    (newValue) => {
+      if (!renaming.nodeId) return;
+      const trimmed = (newValue ?? renaming.value).trim();
+      if (trimmed) {
+        const next = renameTreeNode(
+          { nodeId: renaming.nodeId, label: trimmed },
+          { source: "side-menu" },
+        );
+        setChatStore(next);
+      }
+      setRenaming({ nodeId: null, value: "" });
+    },
+    [renaming],
+  );
 
   const handleCancelRename = useCallback(() => {
     setRenaming({ nodeId: null, value: "" });
@@ -240,8 +243,7 @@ const SideMenu = () => {
         component: ({ node }) => (
           <RenameRow
             node={node}
-            value={renaming.value}
-            onChange={(v) => setRenaming((r) => ({ ...r, value: v }))}
+            initialValue={renaming.value}
             onConfirm={handleConfirmRename}
             onCancel={handleCancelRename}
             isDark={isDark}
@@ -251,7 +253,8 @@ const SideMenu = () => {
     };
   }, [
     explorerModel.data,
-    renaming,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    renaming.nodeId,
     handleConfirmRename,
     handleCancelRename,
     isDark,
