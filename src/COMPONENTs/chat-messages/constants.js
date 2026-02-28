@@ -1,0 +1,3 @@
+export const BOTTOM_FOLLOW_THRESHOLD = 24;
+export const PREVIOUS_MESSAGE_EPSILON = 6;
+export const TOP_EDGE_THRESHOLD = 2;
