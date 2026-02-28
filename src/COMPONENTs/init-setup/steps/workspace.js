@@ -125,8 +125,8 @@ const WorkspaceStep = ({ onNext }) => {
           maxWidth: 360,
         }}
       >
-        PuPu saves your chats and files here. Choose a folder you have full
-        access to.
+        This is PuPu's playground — PuPu can create and delete files here.
+        Choose a folder you have full access to.
       </div>
 
       {/* Divider */}
