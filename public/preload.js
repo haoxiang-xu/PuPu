@@ -194,6 +194,12 @@ contextBridge.exposeInMainWorld("misoAPI", {
     ipcRenderer.invoke("miso:pick-workspace-root", { defaultPath }),
   validateWorkspaceRoot: (path = "") =>
     ipcRenderer.invoke("miso:validate-workspace-root", { path }),
+  getRuntimeDirSize: (dirPath = "") =>
+    ipcRenderer.invoke("miso:get-runtime-dir-size", { dirPath }),
+  deleteRuntimeEntry: (dirPath, entryName) =>
+    ipcRenderer.invoke("miso:delete-runtime-entry", { dirPath, entryName }),
+  clearRuntimeDir: (dirPath) =>
+    ipcRenderer.invoke("miso:clear-runtime-dir", { dirPath }),
   startStream: (payload, handlers = {}) => {
     const requestId = buildRequestId();
     registerMisoStreamListener(requestId, handlers);

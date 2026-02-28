@@ -1,13 +1,16 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { SettingsSection } from "../appearance";
 import { listAttachmentEntries } from "../../../SERVICEs/attachment_storage";
 import { fetchOllamaModels } from "./utils/ollama_models";
 import { formatBytes, readLocalStorageEntries } from "./utils/storage_metrics";
 import StorageKeyRow from "./components/storage_key_row";
+import StorageBar from "./components/storage_bar";
 import OllamaModelRow from "./components/ollama_model_row";
 import ConfirmClearAll from "./components/confirm_clear_all";
+import ConfirmDeleteModal from "./components/confirm_delete_modal";
 import { api } from "../../../SERVICEs/api";
 
 const OllamaSection = ({ isDark }) => {
@@ -273,6 +276,404 @@ const OllamaSection = ({ isDark }) => {
   );
 };
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  RuntimeSection                                                                                                             */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const _FILE_TYPE_ICON_KEYS = new Set([
+  "JS",
+  "TS",
+  "HTML",
+  "CSS",
+  "IPYNB",
+  "JSON",
+  "PY",
+  "JAVA",
+  "C",
+  "CPP",
+  "CS",
+  "PHP",
+  "SQL",
+  "SWIFT",
+  "PNG",
+  "SVG",
+  "TXT",
+  "PDF",
+  "DOCX",
+  "XLSX",
+  "PPTX",
+  "ENV",
+  "MD",
+  "MARKDOWN",
+  "DS_STORE",
+  "GITIGNORE",
+  "DOCKERIGNORE",
+  "ZIP",
+]);
+
+const _getFileIconSrc = (name, isDir) => {
+  if (isDir) return "folder";
+  // dotfiles: .gitignore → GITIGNORE, .DS_Store → DS_STORE
+  if (name.startsWith(".")) {
+    const ext = name.slice(1).replace(/\./g, "_").toUpperCase();
+    return _FILE_TYPE_ICON_KEYS.has(ext) ? ext : null;
+  }
+  const parts = name.split(".");
+  if (parts.length < 2) return null;
+  const ext = parts[parts.length - 1].toUpperCase();
+  return _FILE_TYPE_ICON_KEYS.has(ext) ? ext : null;
+};
+
+const RuntimeFileRow = ({ entry, maxSize, isDark, onDelete }) => {
+  const [hovered, setHovered] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const ratio = maxSize > 0 ? entry.size / maxSize : 0;
+  const iconSrc = _getFileIconSrc(entry.name, entry.isDir);
+
+  return (
+    <>
+      <ConfirmDeleteModal
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          onDelete(entry.name);
+        }}
+        target={entry.name}
+        isDark={isDark}
+      />
+      <div
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          padding: "9px 0",
+          borderBottom: `1px solid ${
+            isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
+          }`,
+        }}
+      >
+        {/* file-type / folder icon */}
+        <div style={{ width: 14, height: 14, flexShrink: 0 }}>
+          {iconSrc && (
+            <Icon
+              src={iconSrc}
+              color={isDark ? "rgba(255,255,255,0.65)" : "rgba(0,0,0,0.60)"}
+            />
+          )}
+        </div>
+
+        {/* name */}
+        <span
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12,
+            fontFamily: "'SF Mono', 'Fira Code', monospace",
+            color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.70)",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+          title={entry.name}
+        >
+          {entry.name}
+        </span>
+
+        {/* bar + size */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexShrink: 0,
+          }}
+        >
+          <StorageBar ratio={ratio} isDark={isDark} />
+          <span
+            style={{
+              fontSize: 11,
+              width: 60,
+              textAlign: "right",
+              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {formatBytes(entry.size)}
+          </span>
+        </div>
+
+        {/* delete button */}
+        <div style={{ opacity: hovered ? 1 : 0, transition: "opacity 0.15s" }}>
+          <Button
+            prefix_icon="delete"
+            onClick={() => setConfirmOpen(true)}
+            style={{
+              paddingVertical: 4,
+              paddingHorizontal: 4,
+              borderRadius: 5,
+              opacity: 0.55,
+              hoverBackgroundColor: isDark
+                ? "rgba(255,80,80,0.15)"
+                : "rgba(220,50,50,0.10)",
+              content: { icon: { width: 11, height: 11 } },
+            }}
+          />
+        </div>
+      </div>
+    </>
+  );
+};
+
+const SETTINGS_STORAGE_KEY = "settings";
+const _isObject = (v) =>
+  v != null && typeof v === "object" && !Array.isArray(v);
+const readRuntimeWorkspaceRoot = () => {
+  try {
+    const parsed = JSON.parse(
+      window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}",
+    );
+    const root = _isObject(parsed) ? parsed : {};
+    const runtime = _isObject(root.runtime) ? root.runtime : {};
+    return typeof runtime.workspace_root === "string"
+      ? runtime.workspace_root.trim()
+      : "";
+  } catch {
+    return "";
+  }
+};
+
+const RuntimeSection = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
+  const hasApi =
+    typeof window !== "undefined" &&
+    typeof window.misoAPI?.getRuntimeDirSize === "function";
+
+  const [status, setStatus] = useState("loading");
+  const [entries, setEntries] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [workspacePath, setWorkspacePath] = useState("");
+
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!hasApi) {
+      setStatus("unavailable");
+      return;
+    }
+    const wp = readRuntimeWorkspaceRoot();
+    setWorkspacePath(wp);
+    if (!wp) {
+      setStatus("no_path");
+      return;
+    }
+    setStatus("loading");
+    try {
+      const result = await window.misoAPI.getRuntimeDirSize(wp);
+      if (result && Array.isArray(result.entries)) {
+        if (result.error === "not_found") {
+          setStatus("not_found");
+        } else {
+          setEntries(result.entries);
+          setTotal(result.total || 0);
+          setStatus("ready");
+        }
+      } else {
+        setStatus("unavailable");
+      }
+    } catch {
+      setStatus("unavailable");
+    }
+  }, [hasApi]);
+
+  const handleDelete = useCallback(
+    async (entryName) => {
+      const wp = readRuntimeWorkspaceRoot();
+      if (!wp) return;
+      try {
+        await window.misoAPI.deleteRuntimeEntry(wp, entryName);
+      } catch {}
+      setEntries((prev) => prev.filter((e) => e.name !== entryName));
+      setTotal((prev) => {
+        const removed = entries.find((e) => e.name === entryName);
+        return removed ? Math.max(prev - removed.size, 0) : prev;
+      });
+    },
+    [entries],
+  );
+
+  const handleClearAll = useCallback(async () => {
+    setConfirmClearAll(false);
+    const wp = readRuntimeWorkspaceRoot();
+    if (!wp) return;
+    try {
+      await window.misoAPI.clearRuntimeDir(wp);
+    } catch {}
+    setEntries([]);
+    setTotal(0);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const maxSize = entries.length > 0 ? entries[0].size : 1;
+
+  const statusPill = (label, amber = false) => (
+    <span
+      style={{
+        fontSize: 11,
+        padding: "3px 8px",
+        borderRadius: 99,
+        backgroundColor: amber
+          ? isDark
+            ? "rgba(255,160,0,0.12)"
+            : "rgba(200,120,0,0.08)"
+          : isDark
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(0,0,0,0.05)",
+        color: amber
+          ? isDark
+            ? "rgba(255,180,60,0.85)"
+            : "rgba(160,90,0,0.85)"
+          : isDark
+            ? "rgba(255,255,255,0.45)"
+            : "rgba(0,0,0,0.40)",
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {label}
+    </span>
+  );
+
+  return (
+    <SettingsSection title="Runtime">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 0 6px",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {status === "ready" && (
+            <>
+              {statusPill(
+                `${entries.length} ${entries.length === 1 ? "item" : "items"}`,
+              )}
+              {statusPill(`${formatBytes(total)} total`)}
+            </>
+          )}
+          {status === "loading" && statusPill("loading…")}
+          {status === "no_path" && statusPill("not configured", true)}
+          {status === "not_found" && statusPill("not found", true)}
+          {status === "unavailable" && statusPill("unavailable", true)}
+        </div>
+
+        {hasApi && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Button
+              label="Reload"
+              onClick={load}
+              style={{
+                fontSize: 12,
+                paddingVertical: 5,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                opacity: 0.45,
+              }}
+            />
+            {status === "ready" && entries.length > 0 && !confirmClearAll && (
+              <Button
+                label="Clear all"
+                onClick={() => setConfirmClearAll(true)}
+                style={{
+                  fontSize: 12,
+                  paddingVertical: 5,
+                  paddingHorizontal: 10,
+                  borderRadius: 6,
+                  opacity: 0.55,
+                  hoverBackgroundColor: isDark
+                    ? "rgba(220,50,50,0.15)"
+                    : "rgba(220,50,50,0.09)",
+                }}
+              />
+            )}
+          </div>
+        )}
+      </div>
+
+      {confirmClearAll && (
+        <div style={{ paddingBottom: 8 }}>
+          <ConfirmClearAll
+            isDark={isDark}
+            label="Delete all files in the workspace root?"
+            onConfirm={handleClearAll}
+            onCancel={() => setConfirmClearAll(false)}
+          />
+        </div>
+      )}
+
+      {(status === "unavailable" ||
+        status === "no_path" ||
+        status === "not_found") && (
+        <div
+          style={{
+            margin: "4px 0 12px",
+            padding: "12px 14px",
+            borderRadius: 8,
+            backgroundColor: isDark
+              ? "rgba(255,160,0,0.08)"
+              : "rgba(200,120,0,0.06)",
+            border: `1px solid ${isDark ? "rgba(255,160,0,0.18)" : "rgba(200,120,0,0.15)"}`,
+            fontSize: 12,
+            color: isDark ? "rgba(255,180,60,0.85)" : "rgba(140,80,0,0.9)",
+            fontFamily: theme?.font?.fontFamily || "inherit",
+          }}
+        >
+          {status === "no_path" &&
+            "No workspace root configured in Runtime settings."}
+          {status === "not_found" && `Path not found: ${workspacePath}`}
+          {status === "unavailable" &&
+            "Runtime size is only available in the desktop app."}
+        </div>
+      )}
+
+      {status === "ready" && entries.length === 0 && (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "32px 0",
+            fontSize: 13,
+            color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+            fontFamily: theme?.font?.fontFamily || "inherit",
+          }}
+        >
+          No files found
+        </div>
+      )}
+
+      {status === "ready" && entries.length > 0 && (
+        <div>
+          {entries.map((entry) => (
+            <RuntimeFileRow
+              key={entry.name}
+              entry={entry}
+              maxSize={maxSize}
+              isDark={isDark}
+              onDelete={handleDelete}
+            />
+          ))}
+        </div>
+      )}
+    </SettingsSection>
+  );
+};
+
 export const LocalStorageSettings = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -429,6 +830,7 @@ export const LocalStorageSettings = () => {
       </SettingsSection>
 
       <OllamaSection isDark={isDark} />
+      <RuntimeSection isDark={isDark} />
     </div>
   );
 };

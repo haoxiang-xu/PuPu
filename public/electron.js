@@ -1244,6 +1244,83 @@ ipcMain.handle(
   },
 );
 
+/* ─── miso runtime directory size ─────────────────────────────────────────── */
+const _getDirSize = (dirPath) => {
+  let total = 0;
+  try {
+    for (const entry of fs.readdirSync(dirPath)) {
+      const full = path.join(dirPath, entry);
+      try {
+        const stat = fs.statSync(full);
+        total += stat.isDirectory() ? _getDirSize(full) : stat.size;
+      } catch {}
+    }
+  } catch {}
+  return total;
+};
+
+ipcMain.handle("miso:get-runtime-dir-size", (_event, { dirPath = "" } = {}) => {
+  const targetDir =
+    typeof dirPath === "string" && dirPath.trim() ? dirPath.trim() : null;
+
+  if (!targetDir || !fs.existsSync(targetDir)) {
+    return {
+      entries: [],
+      total: 0,
+      error: targetDir ? "not_found" : "no_path",
+    };
+  }
+
+  let total = 0;
+  const entries = [];
+
+  for (const name of fs.readdirSync(targetDir)) {
+    const full = path.join(targetDir, name);
+    try {
+      const stat = fs.statSync(full);
+      const size = stat.isDirectory() ? _getDirSize(full) : stat.size;
+      entries.push({ name, size, isDir: stat.isDirectory() });
+      total += size;
+    } catch {}
+  }
+
+  entries.sort((a, b) => b.size - a.size);
+  return { entries, total };
+});
+
+ipcMain.handle(
+  "miso:delete-runtime-entry",
+  (_event, { dirPath = "", entryName = "" } = {}) => {
+    const dir = typeof dirPath === "string" ? dirPath.trim() : "";
+    const name =
+      typeof entryName === "string" ? path.basename(entryName.trim()) : "";
+    if (!dir || !name || name === "." || name === "..")
+      return { ok: false, error: "invalid" };
+    const full = path.join(dir, name);
+    if (!full.startsWith(dir + path.sep) && full !== dir)
+      return { ok: false, error: "invalid" };
+    try {
+      fs.rmSync(full, { recursive: true, force: true });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  },
+);
+
+ipcMain.handle("miso:clear-runtime-dir", (_event, { dirPath = "" } = {}) => {
+  const dir = typeof dirPath === "string" ? dirPath.trim() : "";
+  if (!dir || !fs.existsSync(dir)) return { ok: false, error: "not_found" };
+  try {
+    for (const name of fs.readdirSync(dir)) {
+      fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.on("miso:stream:start", (event, payload) => {
   const requestId = payload?.requestId;
   const requestPayload = payload?.payload || {};
