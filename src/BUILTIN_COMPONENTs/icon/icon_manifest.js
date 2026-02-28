@@ -287,6 +287,15 @@ const Email = (props) => (
     <path d="M3 3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3ZM20 7.23792L12.0718 14.338L4 7.21594V19H20V7.23792ZM4.51146 5L12.0619 11.662L19.501 5H4.51146Z"></path>
   </svg>
 );
+const Error = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM11 15V17H13V15H11ZM11 7V13H13V7H11Z"></path>
+  </svg>
+);
 const EyeOpen = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -1000,6 +1009,7 @@ const UISVGs = {
   edit_pen: EditPen,
   education: Education,
   email: Email,
+  error: Error,
   eye_open: EyeOpen,
   eye_closed: EyeClosed,
   folder: Folder,

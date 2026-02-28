@@ -10,7 +10,7 @@ import api from "../../SERVICEs/api";
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const SECTIONS = [
-  { key: "toolkits", icon: "tool", label: "Toolkits" },
+  { key: "toolkits", icon: "hammer", label: "Toolkits" },
   { key: "skills", icon: "education", label: "Skills" },
   { key: "mcp", icon: "mcp", label: "MCP" },
 ];
@@ -137,7 +137,7 @@ const ToolkitCard = ({ toolkit, isDark }) => {
             flexShrink: 0,
           }}
         >
-          <Icon src="tool" style={{ width: 17, height: 17 }} color={kc.color} />
+          <Icon src="hammer" style={{ width: 17, height: 17 }} color={kc.color} />
         </div>
 
         {/* Name + module */}
@@ -380,7 +380,7 @@ const ToolkitsPage = ({ isDark }) => {
   if (error) {
     return (
       <PlaceholderBlock
-        icon="tool"
+        icon="hammer"
         title="Miso not connected"
         subtitle="Start the Miso runtime to load your tool catalog."
         isDark={isDark}
@@ -395,7 +395,7 @@ const ToolkitsPage = ({ isDark }) => {
   if (visibleToolkits.length === 0) {
     return (
       <PlaceholderBlock
-        icon="tool"
+        icon="hammer"
         title="No built-in toolkits found"
         subtitle="No visible built-in toolkits were registered in the connected Miso runtime."
         isDark={isDark}
@@ -551,7 +551,7 @@ export const ToolkitModal = ({ open, onClose }) => {
   const renderContent = () => {
     if (selectedSection === "toolkits") return <ToolkitsPage isDark={isDark} />;
     return (
-      <ComingSoonPage icon={activeSection?.icon || "tool"} isDark={isDark} />
+      <ComingSoonPage icon={activeSection?.icon || "hammer"} isDark={isDark} />
     );
   };
 

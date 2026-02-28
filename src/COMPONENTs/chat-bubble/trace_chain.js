@@ -1,8 +1,10 @@
-import { memo, useState, useContext } from "react";
+import { memo, useState, useContext, useMemo } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
+import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
+import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
+import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 
-/* ─── constants ──────────────────────────────────────────────────────────── */
+/* ─── constants & helpers ────────────────────────────────────────────────── */
 
 const DISPLAY_FRAME_TYPES = new Set([
   "reasoning",
@@ -12,9 +14,7 @@ const DISPLAY_FRAME_TYPES = new Set([
   "error",
 ]);
 
-/* ─── helpers ────────────────────────────────────────────────────────────── */
-
-const formatDuration = (ms) => {
+const formatDelta = (ms) => {
   if (!Number.isFinite(ms) || ms < 0) return "";
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(1)}s`;
@@ -32,419 +32,375 @@ const extractText = (payload) => {
   );
 };
 
-/* ─── sub-components ─────────────────────────────────────────────────────── */
+const toKVPairs = (data) => {
+  if (data === undefined || data === null) return [];
+  if (typeof data !== "object") return [{ key: "value", value: String(data) }];
+  return Object.entries(data).map(([k, v]) => ({
+    key: k,
+    value: typeof v === "object" ? JSON.stringify(v) : String(v),
+  }));
+};
 
-const CollapsibleJson = ({ data, label, isDark, color }) => {
-  const [open, setOpen] = useState(false);
-  if (data === undefined || data === null) return null;
-  const text = JSON.stringify(data, null, 2);
+/* ─── KVPanel ────────────────────────────────────────────────────────────── */
 
+const MAX_PREVIEW = 300;
+
+const KVPanel = ({ sections, isDark, color }) => {
+  const [expanded, setExpanded] = useState({});
   return (
-    <div style={{ marginTop: 2 }}>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        style={{
-          background: "none",
-          border: "none",
-          padding: "0",
-          cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 4,
-          color,
-          fontSize: 11,
-          opacity: 0.45,
-          fontFamily: "inherit",
-          lineHeight: 1,
-        }}
-      >
-        <span
-          style={{
-            fontSize: 8,
-            display: "inline-block",
-            transition: "transform 0.18s ease",
-            transform: open ? "rotate(90deg)" : "rotate(0deg)",
-          }}
-        >
-          ▶
-        </span>
-        <span
-          style={{
-            fontFamily: "Menlo, Monaco, Consolas, monospace",
-            letterSpacing: 0.2,
-          }}
-        >
-          {label}
-        </span>
-      </button>
-      {open && (
-        <pre
-          style={{
-            margin: "4px 0 0 0",
-            padding: "6px 10px",
-            borderRadius: 5,
-            background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
-            fontFamily: "Menlo, Monaco, Consolas, monospace",
-            fontSize: 11,
-            lineHeight: 1.65,
-            color,
-            opacity: 0.8,
-            overflowX: "auto",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-all",
-          }}
-        >
-          {text}
-        </pre>
-      )}
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {sections.map((section, si) => (
+        <div key={si}>
+          {section.heading && (
+            <div
+              style={{
+                fontSize: 9,
+                letterSpacing: 0.9,
+                textTransform: "uppercase",
+                color,
+                opacity: 0.28,
+                fontFamily: "Menlo, Monaco, Consolas, monospace",
+                marginBottom: 3,
+                marginTop: si > 0 ? 7 : 2,
+                userSelect: "none",
+              }}
+            >
+              {section.heading}
+            </div>
+          )}
+          {section.pairs.map(({ key, value }, pi) => {
+            const id = `${si}-${pi}`;
+            const isLong = value.length > MAX_PREVIEW;
+            const isOpen = expanded[id];
+            const display =
+              isLong && !isOpen ? value.slice(0, MAX_PREVIEW) + "…" : value;
+            return (
+              <div
+                key={pi}
+                style={{
+                  display: "flex",
+                  gap: 10,
+                  alignItems: "flex-start",
+                  minHeight: 18,
+                }}
+              >
+                <span
+                  style={{
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    fontSize: 10.5,
+                    color,
+                    opacity: 0.3,
+                    flexShrink: 0,
+                    minWidth: 52,
+                    paddingTop: 1,
+                    userSelect: "none",
+                  }}
+                >
+                  {key}
+                </span>
+                <span
+                  style={{
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    fontSize: 10.5,
+                    color,
+                    opacity: 0.68,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-all",
+                    lineHeight: 1.58,
+                  }}
+                >
+                  {display}
+                  {isLong && !isOpen && (
+                    <button
+                      onClick={() => setExpanded((e) => ({ ...e, [id]: true }))}
+                      style={{
+                        marginLeft: 5,
+                        background: "none",
+                        border: "none",
+                        padding: 0,
+                        cursor: "pointer",
+                        fontSize: 9.5,
+                        color,
+                        opacity: 0.35,
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      show more
+                    </button>
+                  )}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      ))}
     </div>
   );
 };
 
-const ToolCallBlock = ({ callFrame, resultFrame, isDark, color }) => {
-  const toolName = callFrame.payload?.tool_name || "tool";
-  const args = callFrame.payload?.arguments;
-  const callId = callFrame.payload?.call_id;
-  const result = resultFrame?.payload?.result;
-  const duration =
-    resultFrame && callFrame.ts && resultFrame.ts
-      ? resultFrame.ts - callFrame.ts
-      : null;
+/* ─── ToolTitle ─────────────────────────────────────────────────────────── */
 
-  return (
-    <div
-      style={{
-        marginBottom: 6,
-        paddingLeft: 2,
-      }}
+/* tag pill shown as the timeline title for tool_call */
+const ToolTag = ({ name, isDark }) => (
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      padding: "1px 7px",
+      borderRadius: 5,
+      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
+      fontFamily: "Menlo, Monaco, Consolas, monospace",
+      fontSize: "0.82em",
+      letterSpacing: 0.1,
+      color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.65)",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+    }}
+  >
+    {name}
+  </span>
+);
+
+/* hollow circle point marker for tool_call */
+const HammerPoint = ({ isDark }) => (
+  <div
+    style={{
+      width: 10,
+      height: 10,
+      borderRadius: "50%",
+      background: "transparent",
+      border: `1px solid ${isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.22)"}`,
+      flexShrink: 0,
+      boxSizing: "border-box",
+    }}
+  />
+);
+
+/* ─── ErrorPoint ─────────────────────────────────────────────────────────── */
+
+const ErrorPoint = () => (
+  <div
+    style={{
+      width: 16,
+      height: 16,
+      flexShrink: 0,
+      color: "#ef4444",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+    }}
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      width="16"
+      height="16"
     >
-      {/* tool header row */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 7,
-          flexWrap: "wrap",
-        }}
-      >
-        {/* tool name badge */}
-        <span
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 4,
-            padding: "2px 8px",
-            borderRadius: 4,
-            background: isDark
-              ? "rgba(99,102,241,0.14)"
-              : "rgba(99,102,241,0.07)",
-            border: isDark
-              ? "1px solid rgba(99,102,241,0.22)"
-              : "1px solid rgba(99,102,241,0.16)",
-            color: isDark ? "#a5b4fc" : "#4f46e5",
-            fontFamily: "Menlo, Monaco, Consolas, monospace",
-            fontSize: 11,
-            fontWeight: 500,
-            letterSpacing: 0.2,
-            lineHeight: 1.5,
-          }}
-        >
-          <span style={{ fontSize: 10, opacity: 0.7 }}>⚙</span>
-          {toolName}
-        </span>
-        {duration != null && (
-          <span
-            style={{
-              fontSize: 10,
-              opacity: 0.38,
-              color,
-              letterSpacing: 0.3,
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-            }}
-          >
-            {formatDuration(duration)}
-          </span>
-        )}
-      </div>
+      <path d="M12 22C6.47715 22 2 17.5228 2 12C2 6.47715 6.47715 2 12 2C17.5228 2 22 6.47715 22 12C22 17.5228 17.5228 22 12 22ZM11 15V17H13V15H11ZM11 7V13H13V7H11Z" />
+    </svg>
+  </div>
+);
 
-      {/* collapsible args / result */}
-      <div style={{ marginTop: 4, paddingLeft: 4 }}>
-        <CollapsibleJson
-          data={args}
-          label="args"
-          isDark={isDark}
-          color={color}
-        />
-        <CollapsibleJson
-          data={result}
-          label="result"
-          isDark={isDark}
-          color={color}
-        />
-      </div>
-    </div>
-  );
-};
-
-const ErrorBlock = ({ frame, isDark }) => {
-  const msg = frame.payload?.message || "Unknown error";
-  return (
-    <div
-      style={{
-        marginBottom: 6,
-        padding: "7px 11px",
-        borderRadius: 6,
-        background: isDark ? "rgba(239,68,68,0.08)" : "rgba(239,68,68,0.06)",
-        border: isDark
-          ? "1px solid rgba(239,68,68,0.18)"
-          : "1px solid rgba(239,68,68,0.15)",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 10,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-          marginBottom: 3,
-          fontWeight: 600,
-          color: isDark ? "#f87171" : "#dc2626",
-          opacity: 0.8,
-        }}
-      >
-        Error
-      </div>
-      <div
-        style={{
-          fontSize: 12,
-          lineHeight: 1.6,
-          color: isDark ? "#fca5a5" : "#b91c1c",
-          fontFamily: "Menlo, Monaco, Consolas, monospace",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-          opacity: 0.85,
-        }}
-      >
-        {msg}
-      </div>
-    </div>
-  );
-};
-
-const TextBlock = ({ frame, label, isDark, color }) => {
-  const text = extractText(frame.payload);
-  if (!text) return null;
-
-  return (
-    <div
-      style={{
-        marginBottom: 6,
-        padding: "7px 11px",
-        borderRadius: "0 6px 6px 0",
-        background: isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.028)",
-        borderLeft: `2px solid ${
-          isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)"
-        }`,
-      }}
-    >
-      <div
-        style={{
-          fontSize: 10,
-          opacity: 0.38,
-          color,
-          letterSpacing: 0.5,
-          textTransform: "uppercase",
-          marginBottom: 3,
-          fontWeight: 600,
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: 12.5,
-          lineHeight: 1.62,
-          color,
-          opacity: 0.7,
-          fontStyle: "italic",
-          whiteSpace: "pre-wrap",
-          wordBreak: "break-word",
-        }}
-      >
-        {text}
-      </div>
-    </div>
-  );
-};
-
-/* ─── main component ─────────────────────────────────────────────────────── */
+/* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
 const TraceChain = ({ frames = [], status }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
+  const [bodyOpen, setBodyOpen] = useState(true);
 
   const isStreaming = status === "streaming";
 
-  // Collect display frames and timing
   const displayFrames = frames.filter((f) => DISPLAY_FRAME_TYPES.has(f.type));
   const startFrame = frames.find((f) => f.type === "stream_started");
   const doneFrame = frames.find((f) => f.type === "done");
   const duration =
     startFrame && doneFrame ? doneFrame.ts - startFrame.ts : null;
 
-  // Step count: number of tool_calls + reasoning blocks
   const stepCount = displayFrames.filter(
     (f) => f.type === "tool_call" || f.type === "reasoning",
   ).length;
-
   const hasError = displayFrames.some((f) => f.type === "error");
 
-  // Build call_id → result frame map
-  const toolResultByCallId = new Map();
-  for (const frame of displayFrames) {
-    if (frame.type === "tool_result" && frame.payload?.call_id) {
-      toolResultByCallId.set(frame.payload.call_id, frame);
+  const toolResultByCallId = useMemo(() => {
+    const m = new Map();
+    for (const frame of frames) {
+      if (frame.type === "tool_result" && frame.payload?.call_id) {
+        m.set(frame.payload.call_id, frame);
+      }
     }
-  }
+    return m;
+  }, [frames]);
 
-  // Auto-expand when an error arrives
-  // (no-op: always expanded)
+  const timelineItems = useMemo(() => {
+    const items = [];
+    const renderedCallIds = new Set();
+    let prevTs = startFrame?.ts ?? null;
 
-  // Nothing to show
-  if (displayFrames.length === 0 && !isStreaming) return null;
+    for (const frame of displayFrames) {
+      const delta =
+        prevTs != null && frame.ts != null ? frame.ts - prevTs : null;
+      if (frame.ts != null) prevTs = frame.ts;
+      const spanText =
+        delta != null && delta > 0 ? `+${formatDelta(delta)}` : null;
 
-  const headerLabelStyle = {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
+      if (frame.type === "reasoning" || frame.type === "observation") {
+        const text = extractText(frame.payload);
+        const isObs = frame.type === "observation";
+        items.push({
+          key: `${frame.seq}-${frame.type}`,
+          title: isObs ? "Observation" : "Reasoning",
+          span: spanText,
+          status: "done",
+          body: !isObs && text ? text : undefined,
+          details: isObs && text ? (
+            <Markdown
+              style={{
+                fontSize: "12px",
+                lineHeight: 1.65,
+                color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
+              }}
+            >
+              {text}
+            </Markdown>
+          ) : undefined,
+        });
+      } else if (frame.type === "tool_call") {
+        const callId = frame.payload?.call_id;
+        if (callId && renderedCallIds.has(callId)) continue;
+        if (callId) renderedCallIds.add(callId);
+
+        const toolName = frame.payload?.tool_name || "tool";
+        const args = frame.payload?.arguments;
+        const resultFrame = callId ? toolResultByCallId.get(callId) : null;
+        const result = resultFrame?.payload?.result;
+        const internalDelta =
+          resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
+
+        const sections = [];
+        if (internalDelta != null)
+          sections.push({
+            pairs: [{ key: "took", value: formatDelta(internalDelta) }],
+          });
+        const argPairs = toKVPairs(args);
+        if (argPairs.length)
+          sections.push({ heading: "args", pairs: argPairs });
+        const resPairs = toKVPairs(result);
+        if (resPairs.length)
+          sections.push({ heading: "result", pairs: resPairs });
+
+        items.push({
+          key: `${frame.seq}-tool`,
+          title: <ToolTag name={toolName} isDark={isDark} />,
+          span: spanText,
+          status: "done",
+          point: <HammerPoint isDark={isDark} />,
+          details:
+            sections.length > 0 ? (
+              <KVPanel sections={sections} isDark={isDark} color={color} />
+            ) : undefined,
+        });
+      } else if (frame.type === "error") {
+        const msg = frame.payload?.message || "Unknown error";
+        const code = frame.payload?.code;
+        const pairs = [
+          ...(code != null ? [{ key: "code", value: String(code) }] : []),
+          { key: "message", value: msg },
+        ];
+        items.push({
+          key: `${frame.seq}-error`,
+          title: "Error",
+          span: spanText,
+          status: "done",
+          point: <ErrorPoint />,
+          details: (
+            <KVPanel
+              sections={[{ pairs }]}
+              isDark={isDark}
+              color={isDark ? "#f87171" : "#dc2626"}
+            />
+          ),
+        });
+      }
+    }
+
+    if (isStreaming) {
+      items.push({
+        key: "__streaming__",
+        title: "Thinking…",
+        span: null,
+        status: "active",
+        point: "loading",
+      });
+    }
+
+    return items;
+  }, [
+    displayFrames,
+    isStreaming,
+    startFrame,
+    toolResultByCallId,
+    isDark,
     color,
-    opacity: 0.5,
-    fontSize: 12,
-    fontFamily: theme?.font?.fontFamily || "inherit",
-    letterSpacing: 0.1,
-    userSelect: "none",
-    marginBottom: 6,
-  };
+  ]);
+
+  if (timelineItems.length === 0) return null;
 
   return (
     <div style={{ marginBottom: 10 }}>
-      {/* ── header label ─────────────────────────────── */}
-      <div style={headerLabelStyle}>
-        {isStreaming && !doneFrame ? (
-          <>
-            <ArcSpinner
-              size={11}
-              stroke_width={2}
-              color={isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.3)"}
-              track_opacity={0.08}
-            />
-            <span>Thinking…</span>
-          </>
-        ) : hasError ? (
-          <span
-            style={{ color: isDark ? "#f87171" : "#dc2626", opacity: 0.75 }}
-          >
-            {stepCount > 0
-              ? `Failed after ${stepCount} step${stepCount !== 1 ? "s" : ""}`
-              : "Failed"}
-            {duration ? ` · ${formatDuration(duration)}` : ""}
-          </span>
-        ) : (
-          <span>
-            {stepCount > 0
-              ? `Used ${stepCount} step${stepCount !== 1 ? "s" : ""}`
-              : "Process"}
-            {duration ? ` · ${formatDuration(duration)}` : ""}
-          </span>
-        )}
-      </div>
-
-      {/* ── body (always visible) ───────────────────────── */}
+      {/* collapsible header */}
       <div
+        onClick={() => setBodyOpen((o) => !o)}
         style={{
-          paddingLeft: 12,
-          paddingBottom: 2,
-          borderLeft: `1.5px solid ${
-            isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.07)"
-          }`,
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          cursor: "pointer",
+          userSelect: "none",
+          marginBottom: bodyOpen ? 6 : 0,
         }}
       >
-        {(() => {
-          const rendered = [];
-          const renderedCallIds = new Set();
-
-          for (const frame of displayFrames) {
-            if (frame.type === "reasoning" || frame.type === "observation") {
-              rendered.push(
-                <TextBlock
-                  key={`${frame.seq}-${frame.type}`}
-                  frame={frame}
-                  label={
-                    frame.type === "reasoning" ? "Reasoning" : "Observation"
-                  }
-                  isDark={isDark}
-                  color={color}
-                />,
-              );
-            } else if (frame.type === "tool_call") {
-              const callId = frame.payload?.call_id;
-              if (!callId || renderedCallIds.has(callId)) continue;
-              renderedCallIds.add(callId);
-              const resultFrame = toolResultByCallId.get(callId) || null;
-              rendered.push(
-                <ToolCallBlock
-                  key={`${frame.seq}-tool`}
-                  callFrame={frame}
-                  resultFrame={resultFrame}
-                  isDark={isDark}
-                  color={color}
-                />,
-              );
-            } else if (frame.type === "error") {
-              rendered.push(
-                <ErrorBlock
-                  key={`${frame.seq}-error`}
-                  frame={frame}
-                  isDark={isDark}
-                />,
-              );
-            }
-            // tool_result rendered inside ToolCallBlock; others skipped
-          }
-
-          return rendered;
-        })()}
-
-        {/* streaming-in-progress indicator */}
-        {isStreaming && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 5,
-              opacity: 0.35,
-              marginTop: displayFrames.length > 0 ? 6 : 0,
-              paddingBottom: 2,
-            }}
-          >
-            <ArcSpinner
-              size={9}
-              stroke_width={2}
-              color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)"}
-              track_opacity={0.0}
-            />
-            <span
-              style={{
-                fontSize: 11,
-                color,
-                fontFamily: theme?.font?.fontFamily || "inherit",
-              }}
-            >
-              Running…
-            </span>
-          </div>
-        )}
+        <span
+          style={{
+            fontSize: 6.5,
+            color,
+            opacity: 0.25,
+            display: "inline-block",
+            transition: "transform 0.2s ease",
+            transform: bodyOpen ? "rotate(90deg)" : "rotate(0deg)",
+          }}
+        >
+          ▶
+        </span>
+        <span
+          style={{
+            fontSize: 11.5,
+            color,
+            opacity: 0.38,
+            fontFamily: theme?.font?.fontFamily || "inherit",
+            letterSpacing: 0.1,
+          }}
+        >
+          {isStreaming && !doneFrame
+            ? "Thinking…"
+            : hasError
+              ? (stepCount > 0
+                  ? `Failed after ${stepCount} step${stepCount !== 1 ? "s" : ""}`
+                  : "Failed") + (duration ? ` · ${formatDelta(duration)}` : "")
+              : (stepCount > 0
+                  ? `Used ${stepCount} step${stepCount !== 1 ? "s" : ""}`
+                  : "Processing") +
+                (duration ? ` · ${formatDelta(duration)}` : "")}
+        </span>
       </div>
+
+      {/* Timeline */}
+      <AnimatedChildren open={bodyOpen}>
+        <div style={{ paddingLeft: 2, paddingBottom: 2 }}>
+          <Timeline items={timelineItems} style={{ fontSize: 13 }} />
+        </div>
+      </AnimatedChildren>
     </div>
   );
 };

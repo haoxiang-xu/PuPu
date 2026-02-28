@@ -280,6 +280,19 @@
       "border": "1px solid rgba(0, 0, 0, 0.06)",
       "shadow": "0 8px 32px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04)",
       "shadowActive": "0 16px 48px rgba(0,0,0,0.12), 0 4px 14px rgba(0,0,0,0.06)"
+    },
+    "timeline": {
+      "lineColor": "rgba(0,0,0,0.12)",
+      "lineDoneColor": "rgba(0,0,0,0.18)",
+      "pointColor": "rgba(10,186,181,1)",
+      "pointDoneColor": "rgba(0,0,0,0.22)",
+      "pointPendingColor": "rgba(0,0,0,0.18)",
+      "titleColor": "#222222",
+      "spanColor": "rgba(0,0,0,0.45)",
+      "detailsBackground": "rgba(0,0,0,0.025)",
+      "seeDetailsColor": "rgba(0,0,0,0.35)",
+      "fontSize": "13px",
+      "titleFontSize": "14px"
     }
   },
   "dark_mode": {
@@ -563,6 +576,19 @@
       "border": "1px solid rgba(255, 255, 255, 0.06)",
       "shadow": "0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)",
       "shadowActive": "0 16px 48px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.35)"
+    },
+    "timeline": {
+      "lineColor": "rgba(255,255,255,0.12)",
+      "lineDoneColor": "rgba(255,255,255,0.15)",
+      "pointColor": "rgba(10,186,181,1)",
+      "pointDoneColor": "rgba(255,255,255,0.22)",
+      "pointPendingColor": "rgba(255,255,255,0.18)",
+      "titleColor": "#CCCCCC",
+      "spanColor": "rgba(255,255,255,0.45)",
+      "detailsBackground": "rgba(255,255,255,0.03)",
+      "seeDetailsColor": "rgba(255,255,255,0.35)",
+      "fontSize": "13px",
+      "titleFontSize": "14px"
     }
   }
 }
