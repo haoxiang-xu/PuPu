@@ -19,6 +19,8 @@ EOF
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_OS="${1:-}"
 TARGET_ARCH="${2:-${MISO_TARGET_ARCH:-}}"
+MIN_PYTHON_MAJOR=3
+MIN_PYTHON_MINOR=10
 
 if [[ -z "$TARGET_OS" ]]; then
   case "$(uname -s)" in
@@ -91,6 +93,41 @@ if [[ "${MISO_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
     -r "$ROOT_DIR/miso_runtime/server/requirements.txt" \
     -r "$MISO_SOURCE_PATH/requirements.txt" \
     pyinstaller
+fi
+
+# Validate the resolved Python runtime early to avoid confusing startup failures.
+"$VENV_PY" - <<PY
+import sys
+
+major, minor = sys.version_info[:2]
+if (major, minor) < (${MIN_PYTHON_MAJOR}, ${MIN_PYTHON_MINOR}):
+    print(
+        f"Unsupported Python version: {sys.version.split()[0]} "
+        f"(required: >=${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR})"
+    )
+    raise SystemExit(1)
+
+print(f"Using Python: {sys.version.split()[0]} ({sys.executable})")
+PY
+
+if ! "$VENV_PY" - <<'PY'
+import importlib.util
+required_modules = ["flask", "openai", "anthropic", "PyInstaller"]
+missing = [name for name in required_modules if importlib.util.find_spec(name) is None]
+if missing:
+    print("Missing required Python modules in build environment:", ", ".join(missing))
+    raise SystemExit(1)
+PY
+then
+  echo ""
+  echo "Dependency check failed."
+  if [[ "${MISO_BUILD_SKIP_INSTALL:-0}" == "1" ]]; then
+    echo "MISO_BUILD_SKIP_INSTALL=1 is set, but required modules are missing."
+    echo "Either unset MISO_BUILD_SKIP_INSTALL or install dependencies into: $VENV_DIR"
+  else
+    echo "Please ensure pip install completed successfully in: $VENV_DIR"
+  fi
+  exit 1
 fi
 
 DIST_DIR="$ROOT_DIR/miso_runtime/dist/$TARGET_OS"
