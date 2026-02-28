@@ -254,17 +254,18 @@ const TraceChain = ({ frames = [], status }) => {
           span: spanText,
           status: "done",
           body: !isObs && text ? text : undefined,
-          details: isObs && text ? (
-            <Markdown
-              style={{
-                fontSize: "12px",
-                lineHeight: 1.65,
-                color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
-              }}
-            >
-              {text}
-            </Markdown>
-          ) : undefined,
+          details:
+            isObs && text ? (
+              <Markdown
+                style={{
+                  fontSize: "12px",
+                  lineHeight: 1.65,
+                  color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
+                }}
+              >
+                {text}
+              </Markdown>
+            ) : undefined,
         });
       } else if (frame.type === "tool_call") {
         const callId = frame.payload?.call_id;
