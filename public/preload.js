@@ -179,6 +179,14 @@ contextBridge.exposeInMainWorld("osInfo", {
 contextBridge.exposeInMainWorld("ollamaAPI", {
   getStatus: () => ipcRenderer.invoke("ollama-get-status"),
   restart: () => ipcRenderer.invoke("ollama-restart"),
+  install: () => ipcRenderer.invoke("ollama:install"),
+  onInstallProgress: (callback) => {
+    if (typeof callback !== "function") return () => {};
+    const listener = (_event, pct) => callback(pct);
+    ipcRenderer.on("ollama:install-progress", listener);
+    return () =>
+      ipcRenderer.removeListener("ollama:install-progress", listener);
+  },
 });
 
 contextBridge.exposeInMainWorld("ollamaLibraryAPI", {

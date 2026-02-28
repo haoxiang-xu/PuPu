@@ -1152,6 +1152,74 @@ ipcMain.handle("app:get-version", () => app.getVersion());
 
 ipcMain.handle("ollama-get-status", () => ollamaStatus);
 
+ipcMain.handle("ollama:install", async (event) => {
+  const platform = process.platform;
+  let downloadUrl;
+  let fileName;
+
+  if (platform === "darwin") {
+    downloadUrl =
+      "https://github.com/ollama/ollama/releases/latest/download/Ollama-darwin.zip";
+    fileName = "Ollama-darwin.zip";
+  } else if (platform === "win32") {
+    downloadUrl =
+      "https://github.com/ollama/ollama/releases/latest/download/OllamaSetup.exe";
+    fileName = "OllamaSetup.exe";
+  } else {
+    /* Linux — open releases page */
+    shell.openExternal("https://github.com/ollama/ollama/releases/latest");
+    return { opened: true };
+  }
+
+  const destPath = path.join(app.getPath("downloads"), fileName);
+
+  return new Promise((resolve, reject) => {
+    const doDownload = (url, redirectCount = 0) => {
+      if (redirectCount > 5) return reject(new Error("Too many redirects"));
+      const mod = url.startsWith("https") ? https : http;
+      mod
+        .get(url, { headers: { "User-Agent": "PuPu-App" } }, (res) => {
+          if (
+            res.statusCode >= 300 &&
+            res.statusCode < 400 &&
+            res.headers.location
+          ) {
+            return doDownload(res.headers.location, redirectCount + 1);
+          }
+          if (res.statusCode !== 200) {
+            return reject(new Error(`HTTP ${res.statusCode}`));
+          }
+
+          const total = parseInt(res.headers["content-length"] || "0", 10);
+          let downloaded = 0;
+          const dest = fs.createWriteStream(destPath);
+
+          res.on("data", (chunk) => {
+            downloaded += chunk.length;
+            if (total > 0) {
+              const pct = Math.round((downloaded / total) * 100);
+              try {
+                event.sender.send("ollama:install-progress", pct);
+              } catch {}
+            }
+          });
+
+          res.pipe(dest);
+          dest.on("finish", () => {
+            try {
+              event.sender.send("ollama:install-progress", 100);
+            } catch {}
+            shell.openPath(destPath);
+            resolve({ path: destPath });
+          });
+          dest.on("error", reject);
+        })
+        .on("error", reject);
+    };
+    doDownload(downloadUrl);
+  });
+});
+
 ipcMain.handle("ollama-restart", async () => {
   stopOllama();
   ollamaStatus = "checking";

@@ -643,6 +643,31 @@ export const api = {
       hasBridgeMethod("ollamaAPI", "getStatus") &&
       hasBridgeMethod("ollamaAPI", "restart"),
 
+    install: async () => {
+      try {
+        const method = assertBridgeMethod("ollamaAPI", "install");
+        return await withTimeout(
+          () => method(),
+          120000,
+          "ollama_install_timeout",
+          "Ollama download timed out",
+        );
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "ollama_install_failed",
+          "Ollama download failed",
+        );
+      }
+    },
+
+    onInstallProgress: (callback) => {
+      if (typeof window.ollamaAPI?.onInstallProgress === "function") {
+        return window.ollamaAPI.onInstallProgress(callback);
+      }
+      return () => {};
+    },
+
     getStatus: async () => {
       try {
         const method = assertBridgeMethod("ollamaAPI", "getStatus");
