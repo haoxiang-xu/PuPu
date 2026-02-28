@@ -55,6 +55,48 @@ def _candidate_miso_sources() -> List[Path]:
     return candidates
 
 
+def _resolve_miso_source_from_module(miso_module: Any) -> str:
+    module_file = getattr(miso_module, "__file__", "")
+    if not isinstance(module_file, str) or not module_file.strip():
+        return ""
+
+    try:
+        module_path = Path(module_file).resolve()
+        package_dir = module_path.parent
+        if package_dir.name != "miso":
+            return ""
+
+        has_broth = any(package_dir.glob("broth.py*"))
+        if has_broth:
+            return str(package_dir.parent)
+    except Exception:
+        return ""
+
+    return ""
+
+
+def _packaged_miso_module_dir() -> Path | None:
+    try:
+        miso_module = importlib.import_module("miso")
+    except Exception:
+        return None
+
+    module_file = getattr(miso_module, "__file__", "")
+    if not isinstance(module_file, str) or not module_file.strip():
+        return None
+
+    try:
+        module_path = Path(module_file).resolve()
+        package_dir = module_path.parent
+    except Exception:
+        return None
+
+    if package_dir.name != "miso":
+        return None
+
+    return package_dir
+
+
 def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     """Apply PuPu compatibility patches to upstream Broth runtime."""
     if not isinstance(broth_cls, type):
@@ -254,6 +296,22 @@ def _load_broth_class() -> None:
         except Exception as import_error:  # pragma: no cover
             errors.append(f"import failed at {source_root}: {import_error}")
 
+    # Fallback for packaged runtime (for example PyInstaller onefile), where
+    # miso modules are bundled and importable without an external source tree.
+    try:
+        miso_module = importlib.import_module("miso")
+        Broth = getattr(miso_module, "broth", None)
+        if not isinstance(Broth, type):
+            raise RuntimeError("miso.broth is unavailable")
+
+        _apply_broth_runtime_patches(Broth)
+        _BROTH_CLASS = Broth
+        _RESOLVED_MISO_SOURCE = _resolve_miso_source_from_module(miso_module)
+        _IMPORT_ERROR = None
+        return
+    except Exception as import_error:
+        errors.append(f"runtime import failed: {import_error}")
+
     _BROTH_CLASS = None
     _RESOLVED_MISO_SOURCE = None
     _IMPORT_ERROR = RuntimeError("; ".join(errors) if errors else "miso source not found")
@@ -378,6 +436,10 @@ def _capability_file_candidates() -> List[Path]:
 
     if _RESOLVED_MISO_SOURCE:
         candidates.append(Path(_RESOLVED_MISO_SOURCE) / "miso" / "model_capabilities.json")
+
+    packaged_miso_dir = _packaged_miso_module_dir()
+    if packaged_miso_dir is not None:
+        candidates.append(packaged_miso_dir / "model_capabilities.json")
 
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[2]

@@ -34,6 +34,7 @@ __pycache__/
 
 # virtual environments
 .venv/
+.venv-miso-build/
 venv/
 env/
 ENV/

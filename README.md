@@ -134,6 +134,28 @@ Quick checks:
 - If `MISO_PROVIDER=ollama`, ensure Ollama is running and the selected model is installed.
 - Start PuPu with `npm start` and confirm Miso status in the app is `ready`.
 
+#### Build packaged Miso sidecar (release)
+
+For packaged apps, build a standalone `miso-server` binary first:
+
+```bash
+# macOS arm64
+npm run build:miso:mac
+```
+
+Output path:
+
+```bash
+miso_runtime/dist/macos/miso-server
+```
+
+Notes:
+- The script is `miso_runtime/scripts/build_miso_server.sh`.
+- Default Miso source is `../miso`. Override with `MISO_SOURCE_PATH` when needed.
+- First run creates `./.venv-miso-build` and installs build dependencies.
+- First run needs network access to install `pyinstaller` and Python deps.
+- If deps are already prepared, run with `MISO_BUILD_SKIP_INSTALL=1`.
+
 ### Local Setup <a name="local-setup"></a>
 
 - Install dependencies: <span style="opacity: 0.32">To run the electron app locally, you need to install the dependencies by running the following command:</span>
@@ -153,19 +175,50 @@ Quick checks:
 
 `http://localhost:2907/mini`
 
-- Build the React App: <span style="opacity: 0.32"> In order to build the app for different platforms, you should build the React app first by running the following command:</span>
-
 ### Deployment <a name="deployment"></a>
 
-`npm run build`
+Simple release flow (macOS arm64):
 
-- Build the Electron App: <span style="opacity: 0.32">Once the React app is built, you can build the electron app for different platforms by running the following command:</span>
+1. Make sure Miso source exists at `../miso`.
+   - Or set a custom path:
 
-`npx electron-builder --mac` <span style="opacity: 0.32"> (for mac) </span>
+```bash
+export MISO_SOURCE_PATH=/absolute/path/to/miso
+```
 
-`npx electron-builder --win` <span style="opacity: 0.32"> (for windows) Notice: Windows might require you to run the command in an administrator shell. </span>
+2. Install dependencies:
 
-`npx electron-builder --linux` <span style="opacity: 0.32"> (for linux) </span>
+```bash
+npm install
+```
+
+3. Build release package:
+
+```bash
+npm run build:electron:mac
+```
+
+This single command will:
+- build `miso-server` (`miso_runtime/dist/macos/miso-server`)
+- build the web app
+- build the macOS arm64 installer
+
+Output files:
+- `dist/PuPu-<version>-arm64.dmg`
+- `dist/mac-arm64/PuPu.app`
+
+Quick check:
+
+```bash
+test -f "dist/mac-arm64/PuPu.app/Contents/Resources/miso_runtime/dist/macos/miso-server" && echo "miso bundled"
+```
+
+Other platforms (run on matching OS host):
+
+```bash
+npm run build:electron:win
+npm run build:electron:linux
+```
 
 [windows-shield]: https://img.shields.io/badge/download_for_windows-000000?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
 [windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3

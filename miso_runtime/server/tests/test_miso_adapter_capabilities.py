@@ -523,6 +523,102 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "Final answer text",
         )
 
+    def test_load_broth_class_falls_back_to_runtime_import_when_sources_invalid(self) -> None:
+        class FakeBroth:
+            pass
+
+        original_broth = miso_adapter._BROTH_CLASS
+        original_import_error = miso_adapter._IMPORT_ERROR
+        original_source = miso_adapter._RESOLVED_MISO_SOURCE
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                source_root = Path(temp_dir)
+                package_dir = source_root / "miso"
+                package_dir.mkdir(parents=True, exist_ok=True)
+                (package_dir / "__init__.py").write_text("", encoding="utf-8")
+                (package_dir / "broth.py").write_text("", encoding="utf-8")
+
+                fake_module = SimpleNamespace(
+                    broth=FakeBroth,
+                    __file__=str(package_dir / "__init__.py"),
+                )
+
+                with mock.patch.object(
+                    miso_adapter,
+                    "_candidate_miso_sources",
+                    return_value=[Path("/tmp/invalid-miso-source")],
+                ), mock.patch.object(
+                    miso_adapter,
+                    "_is_valid_miso_source",
+                    return_value=False,
+                ), mock.patch.object(
+                    miso_adapter.importlib,
+                    "import_module",
+                    return_value=fake_module,
+                ):
+                    miso_adapter._load_broth_class()
+
+                self.assertIs(miso_adapter._BROTH_CLASS, FakeBroth)
+                self.assertIsNone(miso_adapter._IMPORT_ERROR)
+                self.assertEqual(
+                    miso_adapter._RESOLVED_MISO_SOURCE,
+                    str(source_root.resolve()),
+                )
+        finally:
+            miso_adapter._BROTH_CLASS = original_broth
+            miso_adapter._IMPORT_ERROR = original_import_error
+            miso_adapter._RESOLVED_MISO_SOURCE = original_source
+
+    def test_load_broth_class_reports_runtime_import_failure(self) -> None:
+        original_broth = miso_adapter._BROTH_CLASS
+        original_import_error = miso_adapter._IMPORT_ERROR
+        original_source = miso_adapter._RESOLVED_MISO_SOURCE
+        try:
+            with mock.patch.object(
+                miso_adapter,
+                "_candidate_miso_sources",
+                return_value=[Path("/tmp/invalid-miso-source")],
+            ), mock.patch.object(
+                miso_adapter,
+                "_is_valid_miso_source",
+                return_value=False,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                side_effect=ImportError("runtime missing"),
+            ):
+                miso_adapter._load_broth_class()
+
+            self.assertIsNone(miso_adapter._BROTH_CLASS)
+            self.assertIsNone(miso_adapter._RESOLVED_MISO_SOURCE)
+            self.assertIsNotNone(miso_adapter._IMPORT_ERROR)
+            error_text = str(miso_adapter._IMPORT_ERROR)
+            self.assertIn("invalid source: /tmp/invalid-miso-source", error_text)
+            self.assertIn("runtime import failed: runtime missing", error_text)
+        finally:
+            miso_adapter._BROTH_CLASS = original_broth
+            miso_adapter._IMPORT_ERROR = original_import_error
+            miso_adapter._RESOLVED_MISO_SOURCE = original_source
+
+    def test_capability_file_candidates_include_packaged_module_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            package_dir = Path(temp_dir) / "miso"
+            package_dir.mkdir(parents=True, exist_ok=True)
+            module_file = package_dir / "__init__.pyc"
+            module_file.write_text("", encoding="utf-8")
+            capability_file = package_dir / "model_capabilities.json"
+            capability_file.write_text("{}", encoding="utf-8")
+
+            fake_module = SimpleNamespace(__file__=str(module_file))
+            with mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=fake_module,
+            ):
+                candidates = miso_adapter._capability_file_candidates()
+
+            self.assertIn(capability_file.resolve(), candidates)
+
 
 if __name__ == "__main__":
     unittest.main()
