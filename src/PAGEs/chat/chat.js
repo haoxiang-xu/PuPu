@@ -201,6 +201,11 @@ const ChatInterface = () => {
       : "miso-unset",
   );
   const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
+  const [selectedToolkits, setSelectedToolkits] = useState([]);
+  const selectedToolkitsRef = useRef([]);
+  useEffect(() => {
+    selectedToolkitsRef.current = selectedToolkits;
+  }, [selectedToolkits]);
   const isStreaming = streamingChatId === activeChatId;
   const hasBackgroundStream = Boolean(
     streamingChatId && streamingChatId !== activeChatId,
@@ -859,6 +864,9 @@ const ChatInterface = () => {
             attachments: payloadAttachments,
             options: {
               modelId: modelIdRef.current,
+              ...(selectedToolkitsRef.current.length > 0 && {
+                toolkits: selectedToolkitsRef.current,
+              }),
             },
             trace_level: "full",
           },
@@ -1626,6 +1634,8 @@ const ChatInterface = () => {
     selectedModelId,
     onSelectModel: handleSelectModel,
     modelSelectDisabled: isStreaming,
+    selectedToolkits,
+    onToolkitsChange: setSelectedToolkits,
   };
 
   return (

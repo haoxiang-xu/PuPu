@@ -12,6 +12,258 @@ import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import { Select } from "../../BUILTIN_COMPONENTs/select/select";
 import api from "../../SERVICEs/api";
 
+/* ── ToolPickerPopover ── */
+const BASE_TOOLKIT_IDS = new Set([
+  "base",
+  "toolkit",
+  "builtin_toolkit",
+  "base_toolkit",
+]);
+
+const ToolPickerPopover = ({
+  selected,
+  onChange,
+  onClose,
+  anchorEl,
+  isDark,
+}) => {
+  const [toolkits, setToolkits] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setIsReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  useEffect(() => {
+    api.miso
+      .getToolkitCatalog()
+      .then(({ toolkits: list = [] }) => {
+        setToolkits(
+          list.filter(
+            (tk) =>
+              (tk.kind === "builtin" || tk.kind === "core") &&
+              !BASE_TOOLKIT_IDS.has((tk.class_name || "").toLowerCase()) &&
+              !BASE_TOOLKIT_IDS.has((tk.name || "").toLowerCase()),
+          ),
+        );
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const onMouseDown = (e) => {
+      if (
+        ref.current &&
+        !ref.current.contains(e.target) &&
+        anchorEl &&
+        !anchorEl.contains(e.target)
+      ) {
+        onClose();
+      }
+    };
+    window.addEventListener("mousedown", onMouseDown);
+    return () => window.removeEventListener("mousedown", onMouseDown);
+  }, [anchorEl, onClose]);
+
+  const toggle = (className) => {
+    onChange(
+      selected.includes(className)
+        ? selected.filter((c) => c !== className)
+        : [...selected, className],
+    );
+  };
+
+  const bg = isDark ? "rgb(28,28,28)" : "rgb(255,255,255)";
+  const border = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.09)"; // kept for internal dividers
+  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
+  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const checkColor = "rgba(10,186,181,1)";
+  const hoverBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        position: "absolute",
+        bottom: "calc(100% + 6px)",
+        left: 0,
+        zIndex: 99,
+        background: bg,
+        borderRadius: 10,
+        boxShadow: isDark
+          ? "0 8px 32px rgba(0,0,0,0.45)"
+          : "0 8px 32px rgba(0,0,0,0.12)",
+        minWidth: 260,
+        maxWidth: 340,
+        overflow: "hidden",
+        padding: "6px 0",
+        opacity: isReady ? 1 : 0,
+        transform: isReady ? "scale(1)" : "scale(0.95)",
+        transformOrigin: "bottom left",
+        transition: "opacity 120ms ease, transform 120ms ease",
+        willChange: "transform, opacity",
+      }}
+    >
+      <div
+        style={{
+          padding: "6px 14px 8px",
+          fontSize: 10,
+          letterSpacing: "0.9px",
+          textTransform: "uppercase",
+          color: mutedColor,
+          userSelect: "none",
+          WebkitUserSelect: "none",
+        }}
+      >
+        Toolkits
+      </div>
+
+      {loading ? (
+        <div style={{ padding: "10px 14px", fontSize: 12, color: mutedColor }}>
+          Loading…
+        </div>
+      ) : toolkits.length === 0 ? (
+        <div style={{ padding: "10px 14px", fontSize: 12, color: mutedColor }}>
+          No toolkits available
+        </div>
+      ) : (
+        <div style={{ maxHeight: 280, overflowY: "auto" }}>
+          {toolkits.map((tk) => {
+            const checked = selected.includes(tk.class_name);
+            return (
+              <div
+                key={tk.class_name}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  toggle(tk.class_name);
+                }}
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: 10,
+                  padding: "7px 14px",
+                  cursor: "pointer",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.background = hoverBg)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.background = "transparent")
+                }
+              >
+                {/* checkbox */}
+                <div
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 3,
+                    border: checked
+                      ? `2px solid ${checkColor}`
+                      : `2px solid ${isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.25)"}`,
+                    background: checked ? checkColor : "transparent",
+                    flexShrink: 0,
+                    marginTop: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transition: "all 0.12s",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {checked && (
+                    <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+                      <path
+                        d="M1.5 4L3.5 6L6.5 2"
+                        stroke="white"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                  )}
+                </div>
+                {/* text */}
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 500,
+                      color: textColor,
+                      fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    }}
+                  >
+                    {tk.class_name}
+                  </div>
+                  {tk.tools && tk.tools.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        flexWrap: "wrap",
+                        gap: 4,
+                        marginTop: 3,
+                      }}
+                    >
+                      {tk.tools.slice(0, 5).map((t) => (
+                        <span
+                          key={t.name}
+                          style={{
+                            fontSize: 9.5,
+                            color: mutedColor,
+                            fontFamily: "Menlo, Monaco, Consolas, monospace",
+                          }}
+                        >
+                          {t.name}
+                        </span>
+                      ))}
+                      {tk.tools.length > 5 && (
+                        <span style={{ fontSize: 9.5, color: mutedColor }}>
+                          +{tk.tools.length - 5}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {selected.length > 0 && (
+        <div
+          style={{
+            borderTop: `1px solid ${border}`,
+            padding: "6px 14px",
+          }}
+        >
+          <button
+            onMouseDown={(e) => {
+              e.preventDefault();
+              onChange([]);
+            }}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              cursor: "pointer",
+              fontSize: 11,
+              color: mutedColor,
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+            }}
+          >
+            clear all
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+/* ── ToolPickerPopover ── */
+
 /* ── Attachment toolbar (chat input) ── */
 const AttachPanel = ({
   color,
@@ -32,7 +284,11 @@ const AttachPanel = ({
   attachments = [],
   onRemoveAttachment,
   isStreaming = false,
+  selectedToolkits = [],
+  onToolkitsChange,
 }) => {
+  const [toolPickerOpen, setToolPickerOpen] = useState(false);
+  const toolBtnRef = useRef(null);
   const floating = active || focused;
   let panelBg = "transparent";
   if (floating) panelBg = focusBg || "rgba(255,255,255,0.95)";
@@ -186,24 +442,73 @@ const AttachPanel = ({
           </div>
         )}
         {onAttachFile && (
-          <div
-            title={
-              attachmentsEnabled
-                ? "Attach image or PDF"
-                : attachmentsDisabledReason ||
-                  "Current model does not support file inputs"
-            }
-          >
-            <Button
-              prefix_icon="attachment"
-              onClick={onAttachFile}
-              disabled={!attachmentsEnabled}
-              style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
-            />
-            <Button
-              prefix_icon="tool"
-              style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
-            />
+          <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+            <div
+              title={
+                attachmentsEnabled
+                  ? "Attach image or PDF"
+                  : attachmentsDisabledReason ||
+                    "Current model does not support file inputs"
+              }
+            >
+              <Button
+                prefix_icon="attachment"
+                onClick={onAttachFile}
+                disabled={!attachmentsEnabled}
+                style={{
+                  color,
+                  fontSize: 14,
+                  borderRadius: floating ? 22 : 16,
+                }}
+              />
+            </div>
+            {/* Tool picker button */}
+            <div ref={toolBtnRef} style={{ position: "relative" }}>
+              <Button
+                prefix_icon="tool"
+                title="Select toolkits"
+                onClick={() => setToolPickerOpen((v) => !v)}
+                style={{
+                  color:
+                    selectedToolkits.length > 0 ? "rgba(10,186,181,1)" : color,
+                  fontSize: 14,
+                  borderRadius: floating ? 22 : 16,
+                }}
+              />
+              {selectedToolkits.length > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    minWidth: 13,
+                    height: 13,
+                    borderRadius: 999,
+                    background: "rgba(10,186,181,1)",
+                    color: "#fff",
+                    fontSize: 8,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 2px",
+                    pointerEvents: "none",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {selectedToolkits.length}
+                </span>
+              )}
+              {toolPickerOpen && (
+                <ToolPickerPopover
+                  selected={selectedToolkits}
+                  onChange={onToolkitsChange || (() => {})}
+                  onClose={() => setToolPickerOpen(false)}
+                  anchorEl={toolBtnRef.current}
+                  isDark={isDark}
+                />
+              )}
+            </div>
           </div>
         )}
         {onAttachLink && (
@@ -239,6 +544,8 @@ const ChatInput = ({
   attachmentsEnabled = true,
   attachmentsDisabledReason = "",
   onDropFiles = null,
+  selectedToolkits = [],
+  onToolkitsChange,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -487,6 +794,8 @@ const ChatInput = ({
                   attachments={attachments}
                   onRemoveAttachment={onRemoveAttachment}
                   isStreaming={isStreaming}
+                  selectedToolkits={selectedToolkits}
+                  onToolkitsChange={onToolkitsChange}
                 />
               ) : null
             }

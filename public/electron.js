@@ -1148,6 +1148,8 @@ ipcMain.on("window-state-event-handler", (_event, action) => {
   }
 });
 
+ipcMain.handle("app:get-version", () => app.getVersion());
+
 ipcMain.handle("ollama-get-status", () => ollamaStatus);
 
 ipcMain.handle("ollama-restart", async () => {

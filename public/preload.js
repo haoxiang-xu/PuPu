@@ -168,6 +168,10 @@ const registerMisoStreamV2Listener = (requestId, handlers = {}) => {
 
 contextBridge.exposeInMainWorld("runtime", runtimeInfo);
 
+contextBridge.exposeInMainWorld("appInfoAPI", {
+  getVersion: () => ipcRenderer.invoke("app:get-version"),
+});
+
 contextBridge.exposeInMainWorld("osInfo", {
   platform: process.platform,
 });
