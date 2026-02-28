@@ -7,6 +7,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Components } --------------------------------------------------------------------------------------------------------- */
 import AnimatedChildren from "../class/animated_children";
 import ArcSpinner from "../spinner/arc_spinner";
+import Icon from "../icon/icon";
 /* { Components } --------------------------------------------------------------------------------------------------------- */
 
 /* ── layout constants ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -266,25 +267,17 @@ const TimelineNode = ({
                 }}
               >
                 {isExpanded ? "hide" : "detail"}
-                <svg
-                  width="8"
-                  height="8"
-                  viewBox="0 0 10 10"
-                  fill="none"
+                <Icon
+                  src="arrow_down"
+                  color="currentColor"
                   style={{
+                    width: 14,
+                    height: 14,
                     transition: "transform 0.22s cubic-bezier(0.32,1,0.32,1)",
                     transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
                     flexShrink: 0,
                   }}
-                >
-                  <path
-                    d="M2 3.5 L5 6.5 L8 3.5"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
+                />
               </button>
             )}
             {/* spacer pushes span to the right */}
@@ -374,7 +367,7 @@ const Timeline = ({
   on_expand_change = () => {},
   style,
 }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { theme } = useContext(ConfigContext);
   const tl = useMemo(() => theme?.timeline ?? {}, [theme]);
 
   /* ── controlled / uncontrolled expanded state ── */

@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
 import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -362,18 +363,20 @@ const TraceChain = ({ frames = [], status }) => {
           marginBottom: bodyOpen ? 6 : 0,
         }}
       >
-        <span
+        <Icon
+          src="arrow_right"
+          color={color}
           style={{
-            fontSize: 6.5,
-            color,
+            width: 16,
+            height: 16,
             opacity: 0.25,
-            display: "inline-block",
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
             transition: "transform 0.2s ease",
             transform: bodyOpen ? "rotate(90deg)" : "rotate(0deg)",
           }}
-        >
-          ▶
-        </span>
+        />
         <span
           style={{
             fontSize: 11.5,
