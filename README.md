@@ -4,18 +4,23 @@
 ></link>
 
 <div align="center">
-  <img src="./public/logo512.png" alt="PuPu UI" style="height: 128px">
+  <img src="./public/logo512.png" alt="PuPu" style="height: 128px">
   <h1>PuPu</h1>
-  <p>A simple and easy to use UI for the Ollama.</p>
+  <p>Local AI, beautifully simple.</p>
+  <br>
+  <a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0">
+    <img src="./public/assets/download_mac.svg" alt="Download for Mac" />
+  </a>&nbsp;&nbsp;
+  <a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0">
+    <img src="./public/assets/download_windows.svg" alt="Download for Windows" />
+  </a>&nbsp;&nbsp;
+  <a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0">
+    <img src="./public/assets/download_linux.svg" alt="Download for Linux" />
+  </a>
 </div>
-<br><br><br>
+<br><br>
 
-[![Download for Windows][windows-shield]][windows-url]
-[![Download for Mac][macos-shield]][macos-url]
-[![Download for Linux][linux-shield]][linux-url]
-
-
-PuPu is a lightweight tool that makes it easy to run AI models on your own device. Designed for smooth performance and ease of use, PuPu is perfect for anyone who wants quick access to AI without technical complexity.
+PuPu is a lightweight desktop client for running AI models locally. Designed for smooth performance and privacy, it brings AI to your fingertips — no cloud, no complexity.
 
 <img src="./public/assets/ui_showcase.png" alt="PuPu UI 3"/>
 
@@ -34,35 +39,35 @@ PuPu is a lightweight tool that makes it easy to run AI models on your own devic
 
 ### Windows
 
-[![Download for Windows][windows-shield]][windows-url]
+<a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
 
-- Download the `.exe` Windows installer [here](windows-url).
+- Download the `.exe` Windows installer [here](https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0).
 - Run the installer and follow the instructions.
 - Once the installation is complete, you can find the app in the start menu.
 
 ### Mac
 
-[![Download for Mac][macos-shield]][macos-url]
+<a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0"><img src="./public/assets/download_mac.svg" alt="Download for Mac" /></a>
 
-- Download the `.dmg` Mac installer [here](macos-url).
+- Download the `.dmg` Mac installer [here](https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0).
 - Open the downloaded file and drag the app to the Applications folder.
 - Once the installation is complete, you can find the app in the Applications folder.
 
 ### Linux
 
-[![Download for Linux][linux-shield]][linux-url]
+<a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0"><img src="./public/assets/download_linux.svg" alt="Download for Linux" /></a>
 
-- Download the `.deb` or `.AppImage` file [here](linux-url).
+- Download the `.deb` or `.AppImage` file [here](https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0).
 - If you downloaded the `.deb` file, run the following command in the terminal:
 
 ```bash
-sudo dpkg -i PuPu-0.0.4.deb
+sudo dpkg -i PuPu-0.1.0.deb
 ```
 
 OR
 
 ```bash
-sudo apt install ./PuPu-0.0.4.deb
+sudo apt install ./PuPu-0.1.0.deb
 ```
 
 - Ensuring Proper Sandbox Permissions: <span style="opacity: 0.32">If you encounter an error message about sandbox permissions, you can run the following command:</span>
@@ -79,10 +84,12 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 PuPu starts a local Miso sidecar process when running the Electron app.
 
 In development, PuPu looks for a valid Miso source in this order:
+
 1. `MISO_SOURCE_PATH` (if set)
 2. sibling folder `../miso`
 
 A valid Miso source must contain:
+
 - `miso/__init__.py`
 - `miso/broth.py`
 
@@ -131,6 +138,7 @@ export MISO_API_KEY=<your_api_key>
 ```
 
 Quick checks:
+
 - If `MISO_PROVIDER=ollama`, ensure Ollama is running and the selected model is installed.
 - Start PuPu with `npm start` and confirm Miso status in the app is `ready`.
 
@@ -150,6 +158,7 @@ miso_runtime/dist/macos/miso-server
 ```
 
 Notes:
+
 - The script is `miso_runtime/scripts/build_miso_server.sh`.
 - Default Miso source is `../miso`. Override with `MISO_SOURCE_PATH` when needed.
 - First run creates `./.venv-miso-build` and installs build dependencies.
@@ -199,11 +208,13 @@ npm run build:electron:mac
 ```
 
 This single command will:
+
 - build `miso-server` (`miso_runtime/dist/macos/miso-server`)
 - build the web app
 - build the macOS arm64 installer
 
 Output files:
+
 - `dist/PuPu-<version>-arm64.dmg`
 - `dist/mac-arm64/PuPu.app`
 
@@ -219,10 +230,3 @@ Other platforms (run on matching OS host):
 npm run build:electron:win
 npm run build:electron:linux
 ```
-
-[windows-shield]: https://img.shields.io/badge/download_for_windows-000000?style=for-the-badge&logo=windows&logoColor=FFFFFF&labelColor=FFFFFF
-[windows-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
-[macos-shield]: https://img.shields.io/badge/download_for_mac-000000?style=for-the-badge&logo=apple&logoColor=000000&labelColor=FFFFFF
-[macos-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
-[linux-shield]: https://img.shields.io/badge/download_for_linux-000000?style=for-the-badge&logo=linux&logoColor=000000&labelColor=FFFFFF
-[linux-url]: https://github.com/haoxiang-xu/PuPu/releases/tag/v0.0.3
