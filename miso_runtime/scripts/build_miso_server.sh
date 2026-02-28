@@ -122,6 +122,8 @@ PYINSTALLER_ARGS=(
   --workpath "$BUILD_DIR"
   --specpath "$SPEC_DIR"
   --collect-submodules miso
+  --collect-submodules openai
+  --collect-submodules anthropic
   --collect-data miso
   --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}miso"
   --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}miso"
@@ -131,6 +133,8 @@ PYINSTALLER_ARGS=(
   --hidden-import miso.response_format
   --hidden-import miso.media
   --hidden-import miso.mcp
+  --hidden-import openai
+  --hidden-import anthropic
 )
 
 if [[ -n "$TARGET_ARCH" ]]; then
