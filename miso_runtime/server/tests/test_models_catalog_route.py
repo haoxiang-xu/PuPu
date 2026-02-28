@@ -1,5 +1,6 @@
 import sys
 import unittest
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -155,6 +156,111 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             "/chat/stream",
             json={
                 "message": "  ",
+                "attachments": [],
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "invalid_request")
+        self.assertEqual(
+            payload["error"]["message"],
+            "message or attachments is required",
+        )
+
+    def test_chat_stream_v2_emits_trace_frames(self) -> None:
+        mocked_events = iter(
+            [
+                {
+                    "type": "run_started",
+                    "run_id": "run-1",
+                    "iteration": 0,
+                    "timestamp": 1700000000.0,
+                    "provider": "openai",
+                    "model": "gpt-5",
+                },
+                {
+                    "type": "tool_call",
+                    "run_id": "run-1",
+                    "iteration": 0,
+                    "timestamp": 1700000000.1,
+                    "tool_name": "read_file",
+                    "call_id": "call-1",
+                    "arguments": {"path": "/tmp/demo.txt"},
+                },
+                {
+                    "type": "tool_result",
+                    "run_id": "run-1",
+                    "iteration": 0,
+                    "timestamp": 1700000000.2,
+                    "tool_name": "read_file",
+                    "call_id": "call-1",
+                    "result": {"content": "demo"},
+                },
+                {
+                    "type": "token_delta",
+                    "run_id": "run-1",
+                    "iteration": 1,
+                    "timestamp": 1700000000.3,
+                    "delta": "hello",
+                },
+                {
+                    "type": "final_message",
+                    "run_id": "run-1",
+                    "iteration": 1,
+                    "timestamp": 1700000000.4,
+                    "content": "hello",
+                },
+            ]
+        )
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=mocked_events,
+        ):
+            response = self.client.post(
+                "/chat/stream/v2",
+                json={
+                    "message": "hello",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                    "trace_level": "minimal",
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("event: frame", payload_text)
+
+        frames = []
+        for block in payload_text.split("\n\n"):
+            lines = [line for line in block.splitlines() if line.strip()]
+            event_name = ""
+            data_text = ""
+            for line in lines:
+                if line.startswith("event:"):
+                    event_name = line.split(":", 1)[1].strip()
+                if line.startswith("data:"):
+                    data_text = line.split(":", 1)[1].strip()
+            if event_name == "frame" and data_text:
+                frames.append(json.loads(data_text))
+
+        self.assertGreaterEqual(len(frames), 2)
+        event_types = [frame.get("type") for frame in frames]
+        self.assertIn("stream_started", event_types)
+        self.assertIn("run_started", event_types)
+        self.assertIn("tool_call", event_types)
+        self.assertIn("tool_result", event_types)
+        self.assertIn("token_delta", event_types)
+        self.assertIn("final_message", event_types)
+        self.assertIn("done", event_types)
+
+    def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
+        response = self.client.post(
+            "/chat/stream/v2",
+            json={
+                "message": " ",
                 "attachments": [],
             },
         )

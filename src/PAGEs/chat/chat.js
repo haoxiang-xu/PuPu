@@ -201,6 +201,11 @@ const ChatInterface = () => {
       : "miso-unset",
   );
   const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
+  const [selectedToolkits, setSelectedToolkits] = useState([]);
+  const selectedToolkitsRef = useRef([]);
+  useEffect(() => {
+    selectedToolkitsRef.current = selectedToolkits;
+  }, [selectedToolkits]);
   const isStreaming = streamingChatId === activeChatId;
   const hasBackgroundStream = Boolean(
     streamingChatId && streamingChatId !== activeChatId,
@@ -803,6 +808,7 @@ const ChatInterface = () => {
         createdAt: timestamp,
         updatedAt: timestamp,
         status: "streaming",
+        traceFrames: [],
         meta: {
           model: modelIdRef.current,
         },
@@ -850,7 +856,7 @@ const ChatInterface = () => {
 
       let streamHandle = null;
       try {
-        streamHandle = api.miso.startStream(
+        streamHandle = api.miso.startStreamV2(
           {
             threadId: threadIdRef.current,
             message: promptText,
@@ -858,9 +864,49 @@ const ChatInterface = () => {
             attachments: payloadAttachments,
             options: {
               modelId: modelIdRef.current,
+              ...(selectedToolkitsRef.current.length > 0 && {
+                toolkits: selectedToolkitsRef.current,
+              }),
             },
+            trace_level: "full",
           },
           {
+            onFrame: (frame) => {
+              if (!frame || frame.type === "token_delta") return;
+              const patchTime = Date.now();
+
+              // final_message carries the complete reply text
+              if (frame.type === "final_message") {
+                const finalContent =
+                  typeof frame.payload?.content === "string"
+                    ? frame.payload.content
+                    : "";
+                const nextStreamMessages = streamMessages.map((message) =>
+                  message.id === assistantMessageId
+                    ? {
+                        ...message,
+                        content: finalContent,
+                        updatedAt: patchTime,
+                        traceFrames: [...(message.traceFrames || []), frame],
+                      }
+                    : message,
+                );
+                syncStreamMessages(nextStreamMessages);
+                return;
+              }
+
+              // All other frames go into the trace timeline
+              const nextStreamMessages = streamMessages.map((message) =>
+                message.id === assistantMessageId
+                  ? {
+                      ...message,
+                      updatedAt: patchTime,
+                      traceFrames: [...(message.traceFrames || []), frame],
+                    }
+                  : message,
+              );
+              syncStreamMessages(nextStreamMessages);
+            },
             onMeta: (meta) => {
               if (
                 meta &&
@@ -887,19 +933,9 @@ const ChatInterface = () => {
                 }
               }
             },
-            onToken: (delta) => {
-              const patchTime = Date.now();
-              const nextStreamMessages = streamMessages.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      content: `${message.content || ""}${delta}`,
-                      updatedAt: patchTime,
-                      status: "streaming",
-                    }
-                  : message,
-              );
-              syncStreamMessages(nextStreamMessages);
+            onToken: (_delta) => {
+              // token_delta is not used directly — final reply comes from
+              // the final_message frame via onFrame above.
             },
             onDone: (done) => {
               const doneTime = Date.now();
@@ -980,11 +1016,29 @@ const ChatInterface = () => {
                   return message;
                 }
 
+                const hasTrace =
+                  Array.isArray(message.traceFrames) &&
+                  message.traceFrames.length > 0;
+
+                const errorFrame = {
+                  seq: (message.traceFrames?.length || 0) + 1,
+                  ts: errorTime,
+                  type: "error",
+                  stage: "stream",
+                  payload: { code: errorCode, message: errorMessage },
+                };
+
                 return {
                   ...message,
                   status: "error",
                   updatedAt: errorTime,
-                  content: message.content || `[error] ${errorMessage}`,
+                  // Only set content text fallback when there is no trace
+                  content: hasTrace
+                    ? message.content
+                    : message.content || `[error] ${errorMessage}`,
+                  traceFrames: hasTrace
+                    ? [...message.traceFrames, errorFrame]
+                    : message.traceFrames,
                   meta: {
                     ...(message.meta || {}),
                     error: {
@@ -1580,6 +1634,8 @@ const ChatInterface = () => {
     selectedModelId,
     onSelectModel: handleSelectModel,
     modelSelectDisabled: isStreaming,
+    selectedToolkits,
+    onToolkitsChange: setSelectedToolkits,
   };
 
   return (

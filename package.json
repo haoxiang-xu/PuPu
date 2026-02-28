@@ -1,5 +1,5 @@
 {
-  "name": "mini_ui",
+  "name": "PuPu",
   "version": "0.1.0",
   "private": true,
   "main": "public/electron.js",
@@ -34,10 +34,14 @@
     "electron-start": "npm run start:electron",
     "build": "npm run build:web",
     "build:web": "react-scripts build",
-    "build:electron": "npm run build:web && electron-builder",
-    "build:electron:mac": "npm run build:web && electron-builder --mac",
-    "build:electron:win": "npm run build:web && electron-builder --win",
-    "build:electron:linux": "npm run build:web && electron-builder --linux",
+    "build:miso": "bash ./miso_runtime/scripts/build_miso_server.sh",
+    "build:miso:mac": "bash ./miso_runtime/scripts/build_miso_server.sh macos",
+    "build:miso:linux": "bash ./miso_runtime/scripts/build_miso_server.sh linux",
+    "build:miso:win": "bash ./miso_runtime/scripts/build_miso_server.sh windows",
+    "build:electron": "npm run build:miso && npm run build:web && electron-builder",
+    "build:electron:mac": "npm run build:miso:mac && npm run build:web && electron-builder --mac --arm64",
+    "build:electron:win": "npm run build:miso:win && npm run build:web && electron-builder --win",
+    "build:electron:linux": "npm run build:miso:linux && npm run build:web && electron-builder --linux",
     "pack": "npm run build:electron",
     "pack:mac": "npm run build:electron:mac",
     "pack:win": "npm run build:electron:win",
@@ -64,8 +68,8 @@
     ]
   },
   "build": {
-    "appId": "com.red.miniui",
-    "productName": "Mini UI",
+    "appId": "com.red.pupu",
+    "productName": "PuPu",
     "directories": {
       "output": "dist"
     },

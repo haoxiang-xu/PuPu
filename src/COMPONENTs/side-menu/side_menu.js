@@ -7,17 +7,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
 import { ToolkitModal } from "../toolkit/toolkit_modal";
-import {
-  applyExplorerReorder,
-  bootstrapChatsStore,
-  buildExplorerFromTree,
-  createChatInSelectedContext,
-  deleteTreeNodeCascade,
-  getChatsStore,
-  renameTreeNode,
-  selectTreeNode,
-  subscribeChatsStore,
-} from "../../SERVICEs/chat_storage";
+import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
   ConfirmDeleteModal,
   ContextMenu,
@@ -26,6 +16,9 @@ import {
 import { sideMenuChatTreeAPI } from "./side_menu_api";
 import { getRuntimePlatform } from "./side_menu_utils";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
+import { useChatTreeStore } from "./hooks/use_chat_tree_store";
+import { useSideMenuActions } from "./hooks/use_side_menu_actions";
+import { filter_explorer_data } from "./utils/filter_explorer_data";
 
 export { sideMenuChatTreeAPI };
 
@@ -39,7 +32,6 @@ const SideMenu = () => {
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200,
   );
-  const [chatStore, setChatStore] = useState(() => bootstrapChatsStore().store);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -54,11 +46,11 @@ const SideMenu = () => {
   const [renaming, setRenaming] = useState({ nodeId: null, value: "" });
   const [searchQuery, setSearchQuery] = useState("");
 
+  const { chatStore, setChatStore, selectedNodeId } = useChatTreeStore();
+
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
   const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
-
-  const selectedNodeId = chatStore?.tree?.selectedNodeId || null;
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -81,17 +73,6 @@ const SideMenu = () => {
   }, [windowWidth, onFragment]);
 
   useEffect(() => {
-    setChatStore(getChatsStore());
-    const unsubscribe = subscribeChatsStore((nextStore) => {
-      setChatStore(nextStore);
-    });
-
-    return () => {
-      unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
     if (typeof window === "undefined") {
       return () => {};
     }
@@ -102,22 +83,6 @@ const SideMenu = () => {
         delete window.pupuChatTreeAPI;
       }
     };
-  }, []);
-
-  const handleSelectNode = useCallback((nodeId) => {
-    const next = selectTreeNode({ nodeId }, { source: "side-menu" });
-    setChatStore(next);
-  }, []);
-
-  const handleReorder = useCallback((newData, newRoot) => {
-    const next = applyExplorerReorder(
-      {
-        data: newData,
-        root: newRoot,
-      },
-      { source: "side-menu" },
-    );
-    setChatStore(next);
   }, []);
 
   const closeContextMenu = useCallback(
@@ -146,34 +111,22 @@ const SideMenu = () => {
     });
   }, []);
 
-  const handleStartRename = useCallback(
-    (storeNode) => {
-      const label =
-        chatStore?.chatsById?.[storeNode.chatId]?.title ||
-        storeNode.label ||
-        "";
-      closeContextMenu();
-      setRenaming({ nodeId: storeNode.id, value: label });
-    },
-    [chatStore, closeContextMenu],
-  );
-
-  const handleConfirmRename = useCallback(() => {
-    if (!renaming.nodeId) return;
-    const trimmed = renaming.value.trim();
-    if (trimmed) {
-      const next = renameTreeNode(
-        { nodeId: renaming.nodeId, label: trimmed },
-        { source: "side-menu" },
-      );
-      setChatStore(next);
-    }
-    setRenaming({ nodeId: null, value: "" });
-  }, [renaming]);
-
-  const handleCancelRename = useCallback(() => {
-    setRenaming({ nodeId: null, value: "" });
-  }, []);
+  const {
+    handleSelectNode,
+    handleReorder,
+    handleStartRename,
+    handleConfirmRename,
+    handleCancelRename,
+    handleNewChat,
+    handleDelete,
+  } = useSideMenuActions({
+    chatStore,
+    setChatStore,
+    closeContextMenu,
+    renaming,
+    setRenaming,
+    setConfirmDelete,
+  });
 
   const explorerModel = useMemo(() => {
     return buildExplorerFromTree(
@@ -196,25 +149,6 @@ const SideMenu = () => {
     handleStartRename,
   ]);
 
-  const handleNewChat = useCallback(() => {
-    const activeChat = chatStore?.chatsById?.[chatStore?.activeChatId];
-    const hasMessages =
-      Array.isArray(activeChat?.messages) && activeChat.messages.length > 0;
-    if (!hasMessages) return;
-
-    const result = createChatInSelectedContext(
-      { parentFolderId: null },
-      { source: "side-menu" },
-    );
-    setChatStore(result.store);
-  }, [chatStore]);
-
-  const handleDelete = useCallback((node) => {
-    deleteTreeNodeCascade({ nodeId: node.id }, { source: "side-menu" });
-    setChatStore(getChatsStore());
-    setConfirmDelete({ open: false, node: null });
-  }, []);
-
   const contextMenuItems = useMemo(
     () =>
       buildSideMenuContextMenuItems({
@@ -226,7 +160,7 @@ const SideMenu = () => {
         setClipboard,
         setConfirmDelete,
       }),
-    [contextMenu.node, clipboard, chatStore, handleStartRename],
+    [contextMenu.node, clipboard, chatStore, handleStartRename, setChatStore],
   );
 
   const explorerData = useMemo(() => {
@@ -240,8 +174,7 @@ const SideMenu = () => {
         component: ({ node }) => (
           <RenameRow
             node={node}
-            value={renaming.value}
-            onChange={(v) => setRenaming((r) => ({ ...r, value: v }))}
+            initialValue={renaming.value}
             onConfirm={handleConfirmRename}
             onCancel={handleCancelRename}
             isDark={isDark}
@@ -251,25 +184,17 @@ const SideMenu = () => {
     };
   }, [
     explorerModel.data,
-    renaming,
+    renaming.nodeId,
+    renaming.value,
     handleConfirmRename,
     handleCancelRename,
     isDark,
   ]);
 
-  const { filteredData, filteredRoot } = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return { filteredData: null, filteredRoot: null };
-    const matchingData = {};
-    const matchingRoot = [];
-    for (const [id, node] of Object.entries(explorerData)) {
-      if (node.type === "file" && node.label?.toLowerCase().includes(q)) {
-        matchingData[id] = { ...node, postfix: node.postfix };
-        matchingRoot.push(id);
-      }
-    }
-    return { filteredData: matchingData, filteredRoot: matchingRoot };
-  }, [searchQuery, explorerData]);
+  const { filteredData, filteredRoot } = useMemo(
+    () => filter_explorer_data(explorerData, searchQuery),
+    [explorerData, searchQuery],
+  );
 
   return (
     <div
@@ -288,9 +213,7 @@ const SideMenu = () => {
       }}
     >
       <Button
-        prefix_icon={
-          onFragment === "main" ? "side_menu_left" : "side_menu_close"
-        }
+        prefix_icon={onFragment === "main" ? "side_menu_left" : "side_menu_close"}
         style={{
           position: "absolute",
           top: 25,
@@ -392,7 +315,7 @@ const SideMenu = () => {
             borderRadius: 6,
             marginBottom: 2,
             WebkitAppRegion: "no-drag",
-            iconSize: 18,
+            iconSize: 16,
           }}
         />
         <div
@@ -438,9 +361,7 @@ const SideMenu = () => {
             <Explorer
               data={filteredRoot ? filteredData : explorerData}
               root={filteredRoot ?? explorerModel.root}
-              default_expanded={
-                filteredRoot ? true : explorerModel.defaultExpanded
-              }
+              default_expanded={filteredRoot ? true : explorerModel.defaultExpanded}
               draggable={!filteredRoot}
               on_reorder={handleReorder}
               style={{ width: "100%", fontSize: 13 }}
@@ -463,10 +384,7 @@ const SideMenu = () => {
         onClick={() => setSettingsOpen(true)}
       />
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
       <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
 

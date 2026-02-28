@@ -10,11 +10,16 @@ import {
 import Scrollable from "../../BUILTIN_COMPONENTs/class/scrollable";
 import TitleBar from "../../BUILTIN_COMPONENTs/electron/title_bar";
 import SideMenu from "../../COMPONENTs/side-menu/side_menu";
+import InitSetupModal from "../../COMPONENTs/init-setup/init_setup_modal";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "./context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
+
+/* { Init Setup } ------------------------------------------------------------------------------------------------------------ */
+import { isSetupComplete } from "../../COMPONENTs/init-setup/init_setup_storage";
+/* { Init Setup } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Data } ------------------------------------------------------------------------------------------------------------------ */
 import available_themes from "../../BUILTIN_COMPONENTs/theme/theme_manifest";
@@ -128,6 +133,10 @@ const ConfigContainer = ({ children }) => {
 
   const [onFragment, setOnFragment] = useState("main");
 
+  /* { Init Setup } ============================================ */
+  const [showInitSetup, setShowInitSetup] = useState(() => !isSetupComplete());
+  /* { Init Setup } ============================================ */
+
   return (
     <ConfigContext.Provider
       value={{
@@ -171,6 +180,10 @@ const ConfigContainer = ({ children }) => {
           {children}
         </div>
         <SideMenu />
+        <InitSetupModal
+          open={showInitSetup}
+          onClose={() => setShowInitSetup(false)}
+        />
       </div>
       <Scrollable />
     </ConfigContext.Provider>

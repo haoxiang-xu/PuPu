@@ -1,6 +1,7 @@
 const {
   app,
   BrowserWindow,
+  dialog,
   shell,
   ipcMain,
   webContents,
@@ -74,6 +75,7 @@ const MISO_BOOT_TIMEOUT_MS = 10000;
 const MISO_HEALTH_RETRY_MS = 250;
 const MISO_RESTART_DELAY_MS = 1500;
 const MISO_STREAM_ENDPOINT = "/chat/stream";
+const MISO_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const MISO_HEALTH_ENDPOINT = "/health";
 const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
@@ -433,6 +435,75 @@ const getMisoToolkitCatalogPayload = async () => {
   }
 };
 
+const expandWorkspacePath = (candidatePath) => {
+  if (typeof candidatePath !== "string") {
+    return "";
+  }
+  const trimmed = candidatePath.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed === "~") {
+    return app.getPath("home");
+  }
+  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
+    return path.join(app.getPath("home"), trimmed.slice(2));
+  }
+  return trimmed;
+};
+
+const validateWorkspaceRootPath = (
+  candidatePath,
+  { allowEmpty = false } = {},
+) => {
+  const expanded = expandWorkspacePath(candidatePath);
+  if (!expanded) {
+    return allowEmpty
+      ? { valid: true, resolvedPath: "", reason: "" }
+      : {
+          valid: false,
+          resolvedPath: "",
+          reason: "Workspace root is required.",
+        };
+  }
+
+  const resolvedPath = path.resolve(expanded);
+  if (!fs.existsSync(resolvedPath)) {
+    return {
+      valid: false,
+      resolvedPath: "",
+      reason: `Workspace root does not exist: ${resolvedPath}`,
+    };
+  }
+
+  let stats = null;
+  try {
+    stats = fs.statSync(resolvedPath);
+  } catch (error) {
+    return {
+      valid: false,
+      resolvedPath: "",
+      reason:
+        error?.message || `Unable to access workspace root: ${resolvedPath}`,
+    };
+  }
+
+  if (!stats.isDirectory()) {
+    return {
+      valid: false,
+      resolvedPath: "",
+      reason: `Workspace root is not a directory: ${resolvedPath}`,
+    };
+  }
+
+  return {
+    valid: true,
+    resolvedPath,
+    reason: "",
+  };
+};
+
 const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
   const target = webContents.fromId(targetWebContentsId);
   if (!target || target.isDestroyed()) {
@@ -683,7 +754,10 @@ const streamMisoSseToRenderer = async ({
 
         if (
           parsedBlock.eventName === "done" ||
-          parsedBlock.eventName === "error"
+          parsedBlock.eventName === "error" ||
+          // v2: all events are "frame"; detect terminal type from parsed payload
+          (parsedBlock.eventName === "frame" &&
+            (payload?.type === "done" || payload?.type === "error"))
         ) {
           sawTerminalEvent = true;
           break;
@@ -706,7 +780,12 @@ const streamMisoSseToRenderer = async ({
   }
 };
 
-const startMisoStream = async ({ requestId, payload, sender }) => {
+const startMisoStream = async ({
+  requestId,
+  payload,
+  sender,
+  endpoint = MISO_STREAM_ENDPOINT,
+}) => {
   if (typeof requestId !== "string" || !requestId.trim()) {
     return;
   }
@@ -717,6 +796,40 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
       message: "Miso service is not ready",
     });
     return;
+  }
+
+  const requestPayload =
+    payload && typeof payload === "object" ? { ...payload } : {};
+  const requestOptions =
+    requestPayload.options && typeof requestPayload.options === "object"
+      ? { ...requestPayload.options }
+      : {};
+  const workspaceRootCandidate =
+    typeof requestOptions.workspaceRoot === "string" &&
+    requestOptions.workspaceRoot.trim()
+      ? requestOptions.workspaceRoot
+      : typeof requestOptions.workspace_root === "string" &&
+          requestOptions.workspace_root.trim()
+        ? requestOptions.workspace_root
+        : "";
+
+  if (workspaceRootCandidate) {
+    const validation = validateWorkspaceRootPath(workspaceRootCandidate);
+    if (!validation.valid) {
+      emitMisoStreamEvent(sender.id, requestId, "error", {
+        code: "invalid_workspace_root",
+        message: validation.reason || "Invalid workspace root",
+      });
+      return;
+    }
+
+    requestPayload.options = {
+      ...requestOptions,
+      workspaceRoot: validation.resolvedPath,
+      workspace_root: validation.resolvedPath,
+    };
+  } else {
+    requestPayload.options = requestOptions;
   }
 
   if (misoActiveStreams.has(requestId)) {
@@ -734,18 +847,15 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
   });
 
   try {
-    const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_STREAM_ENDPOINT}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-miso-auth": misoAuthToken,
-        },
-        body: JSON.stringify(payload || {}),
-        signal: controller.signal,
+    const response = await fetch(`http://${MISO_HOST}:${misoPort}${endpoint}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-miso-auth": misoAuthToken,
       },
-    );
+      body: JSON.stringify(requestPayload),
+      signal: controller.signal,
+    });
 
     if (!response.ok) {
       const bodyText = await response.text();
@@ -791,6 +901,9 @@ const startMisoStream = async ({ requestId, payload, sender }) => {
     misoActiveStreams.delete(requestId);
   }
 };
+
+const startMisoStreamV2 = (args) =>
+  startMisoStream({ ...args, endpoint: MISO_STREAM_V2_ENDPOINT });
 
 const cancelMisoStream = (requestId) => {
   const streamState = misoActiveStreams.get(requestId);
@@ -1035,7 +1148,77 @@ ipcMain.on("window-state-event-handler", (_event, action) => {
   }
 });
 
+ipcMain.handle("app:get-version", () => app.getVersion());
+
 ipcMain.handle("ollama-get-status", () => ollamaStatus);
+
+ipcMain.handle("ollama:install", async (event) => {
+  const platform = process.platform;
+  let downloadUrl;
+  let fileName;
+
+  if (platform === "darwin") {
+    downloadUrl =
+      "https://github.com/ollama/ollama/releases/latest/download/Ollama-darwin.zip";
+    fileName = "Ollama-darwin.zip";
+  } else if (platform === "win32") {
+    downloadUrl =
+      "https://github.com/ollama/ollama/releases/latest/download/OllamaSetup.exe";
+    fileName = "OllamaSetup.exe";
+  } else {
+    /* Linux — open releases page */
+    shell.openExternal("https://github.com/ollama/ollama/releases/latest");
+    return { opened: true };
+  }
+
+  const destPath = path.join(app.getPath("downloads"), fileName);
+
+  return new Promise((resolve, reject) => {
+    const doDownload = (url, redirectCount = 0) => {
+      if (redirectCount > 5) return reject(new Error("Too many redirects"));
+      const mod = url.startsWith("https") ? https : http;
+      mod
+        .get(url, { headers: { "User-Agent": "PuPu-App" } }, (res) => {
+          if (
+            res.statusCode >= 300 &&
+            res.statusCode < 400 &&
+            res.headers.location
+          ) {
+            return doDownload(res.headers.location, redirectCount + 1);
+          }
+          if (res.statusCode !== 200) {
+            return reject(new Error(`HTTP ${res.statusCode}`));
+          }
+
+          const total = parseInt(res.headers["content-length"] || "0", 10);
+          let downloaded = 0;
+          const dest = fs.createWriteStream(destPath);
+
+          res.on("data", (chunk) => {
+            downloaded += chunk.length;
+            if (total > 0) {
+              const pct = Math.round((downloaded / total) * 100);
+              try {
+                event.sender.send("ollama:install-progress", pct);
+              } catch {}
+            }
+          });
+
+          res.pipe(dest);
+          dest.on("finish", () => {
+            try {
+              event.sender.send("ollama:install-progress", 100);
+            } catch {}
+            shell.openPath(destPath);
+            resolve({ path: destPath });
+          });
+          dest.on("error", reject);
+        })
+        .on("error", reject);
+    };
+    doDownload(downloadUrl);
+  });
+});
 
 ipcMain.handle("ollama-restart", async () => {
   stopOllama();
@@ -1050,6 +1233,52 @@ ipcMain.handle("miso:get-model-catalog", async () =>
 );
 ipcMain.handle("miso:get-toolkit-catalog", async () =>
   getMisoToolkitCatalogPayload(),
+);
+ipcMain.handle(
+  "miso:pick-workspace-root",
+  async (_event, { defaultPath = "" } = {}) => {
+    const validation = validateWorkspaceRootPath(defaultPath, {
+      allowEmpty: true,
+    });
+    const fallbackPath = app.getPath("home");
+    const targetWindow =
+      mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+
+    const dialogResult = await dialog.showOpenDialog(targetWindow, {
+      title: "Select Workspace Root",
+      defaultPath:
+        validation.valid && validation.resolvedPath
+          ? validation.resolvedPath
+          : fallbackPath,
+      properties: ["openDirectory", "createDirectory"],
+    });
+
+    if (
+      dialogResult.canceled ||
+      !Array.isArray(dialogResult.filePaths) ||
+      !dialogResult.filePaths[0]
+    ) {
+      return { canceled: true, path: "" };
+    }
+
+    return {
+      canceled: false,
+      path: String(dialogResult.filePaths[0]),
+    };
+  },
+);
+ipcMain.handle(
+  "miso:validate-workspace-root",
+  (_event, { path: rootPath } = {}) => {
+    const validation = validateWorkspaceRootPath(rootPath, {
+      allowEmpty: true,
+    });
+    return {
+      valid: Boolean(validation.valid),
+      resolvedPath: validation.resolvedPath || "",
+      reason: validation.reason || "",
+    };
+  },
 );
 
 ipcMain.handle(
@@ -1083,10 +1312,97 @@ ipcMain.handle(
   },
 );
 
+/* ─── miso runtime directory size ─────────────────────────────────────────── */
+const _getDirSize = (dirPath) => {
+  let total = 0;
+  try {
+    for (const entry of fs.readdirSync(dirPath)) {
+      const full = path.join(dirPath, entry);
+      try {
+        const stat = fs.statSync(full);
+        total += stat.isDirectory() ? _getDirSize(full) : stat.size;
+      } catch {}
+    }
+  } catch {}
+  return total;
+};
+
+ipcMain.handle("miso:get-runtime-dir-size", (_event, { dirPath = "" } = {}) => {
+  const targetDir =
+    typeof dirPath === "string" && dirPath.trim() ? dirPath.trim() : null;
+
+  if (!targetDir || !fs.existsSync(targetDir)) {
+    return {
+      entries: [],
+      total: 0,
+      error: targetDir ? "not_found" : "no_path",
+    };
+  }
+
+  let total = 0;
+  const entries = [];
+
+  for (const name of fs.readdirSync(targetDir)) {
+    const full = path.join(targetDir, name);
+    try {
+      const stat = fs.statSync(full);
+      const size = stat.isDirectory() ? _getDirSize(full) : stat.size;
+      entries.push({ name, size, isDir: stat.isDirectory() });
+      total += size;
+    } catch {}
+  }
+
+  entries.sort((a, b) => b.size - a.size);
+  return { entries, total };
+});
+
+ipcMain.handle(
+  "miso:delete-runtime-entry",
+  (_event, { dirPath = "", entryName = "" } = {}) => {
+    const dir = typeof dirPath === "string" ? dirPath.trim() : "";
+    const name =
+      typeof entryName === "string" ? path.basename(entryName.trim()) : "";
+    if (!dir || !name || name === "." || name === "..")
+      return { ok: false, error: "invalid" };
+    const full = path.join(dir, name);
+    if (!full.startsWith(dir + path.sep) && full !== dir)
+      return { ok: false, error: "invalid" };
+    try {
+      fs.rmSync(full, { recursive: true, force: true });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message };
+    }
+  },
+);
+
+ipcMain.handle("miso:clear-runtime-dir", (_event, { dirPath = "" } = {}) => {
+  const dir = typeof dirPath === "string" ? dirPath.trim() : "";
+  if (!dir || !fs.existsSync(dir)) return { ok: false, error: "not_found" };
+  try {
+    for (const name of fs.readdirSync(dir)) {
+      fs.rmSync(path.join(dir, name), { recursive: true, force: true });
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 ipcMain.on("miso:stream:start", (event, payload) => {
   const requestId = payload?.requestId;
   const requestPayload = payload?.payload || {};
   void startMisoStream({
+    requestId,
+    payload: requestPayload,
+    sender: event.sender,
+  });
+});
+
+ipcMain.on("miso:stream:start-v2", (event, payload) => {
+  const requestId = payload?.requestId;
+  const requestPayload = payload?.payload || {};
+  void startMisoStreamV2({
     requestId,
     payload: requestPayload,
     sender: event.sender,

@@ -5,6 +5,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { AppearanceSettings } from "./appearance";
 import { ModelProvidersSettings } from "./model_providers";
 import { LocalStorageSettings } from "./local_storage";
+import { RuntimeSettings } from "./runtime";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Settings pages configuration                                                                                               */
@@ -22,6 +23,12 @@ const SETTINGS_PAGES = [
     icon: "pentagon",
     label: "Model Providers",
     component: ModelProvidersSettings,
+  },
+  {
+    key: "runtime",
+    icon: "terminal",
+    label: "Runtime",
+    component: RuntimeSettings,
   },
   {
     key: "local_storage",
