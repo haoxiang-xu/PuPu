@@ -4,12 +4,13 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  build_miso_server.sh [macos|linux|windows]
+  build_miso_server.sh [macos|linux|windows] [x86_64|arm64|universal2]
 
 Environment variables:
   MISO_SOURCE_PATH      Path to miso source repo (default: ../miso)
   MISO_PYTHON_BIN       Python executable to create build venv (default: python3)
   MISO_BUILD_VENV       Build venv path (default: ./.venv-miso-build)
+  MISO_TARGET_ARCH      macOS target arch for PyInstaller
   MISO_BUILD_SKIP_INSTALL
                         Set to 1 to skip pip install step
 EOF
@@ -17,6 +18,7 @@ EOF
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_OS="${1:-}"
+TARGET_ARCH="${2:-${MISO_TARGET_ARCH:-}}"
 
 if [[ -z "$TARGET_OS" ]]; then
   case "$(uname -s)" in
@@ -35,6 +37,19 @@ if [[ "$TARGET_OS" != "macos" && "$TARGET_OS" != "linux" && "$TARGET_OS" != "win
   echo "Unsupported target: $TARGET_OS"
   usage
   exit 1
+fi
+
+if [[ -n "$TARGET_ARCH" ]]; then
+  if [[ "$TARGET_OS" != "macos" ]]; then
+    echo "TARGET_ARCH is only supported for macos builds. Current target: $TARGET_OS"
+    usage
+    exit 1
+  fi
+  if [[ "$TARGET_ARCH" != "x86_64" && "$TARGET_ARCH" != "arm64" && "$TARGET_ARCH" != "universal2" ]]; then
+    echo "Unsupported macOS target arch: $TARGET_ARCH"
+    usage
+    exit 1
+  fi
 fi
 
 MISO_SOURCE_PATH="${MISO_SOURCE_PATH:-"$ROOT_DIR/../miso"}"
@@ -98,25 +113,31 @@ fi
 export MISO_SOURCE_PATH
 export PYTHONPATH="$MISO_SOURCE_PATH${PYTHONPATH:+$PYTHONPATH_SEP$PYTHONPATH}"
 
-"$VENV_PY" -m PyInstaller \
-  --clean \
-  --noconfirm \
-  --onefile \
-  --name miso-server \
-  --distpath "$DIST_DIR" \
-  --workpath "$BUILD_DIR" \
-  --specpath "$SPEC_DIR" \
-  --collect-submodules miso \
-  --collect-data miso \
-  --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}miso" \
-  --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}miso" \
-  --hidden-import miso \
-  --hidden-import miso.broth \
-  --hidden-import miso.tool \
-  --hidden-import miso.response_format \
-  --hidden-import miso.media \
-  --hidden-import miso.mcp \
-  "$ENTRYPOINT"
+PYINSTALLER_ARGS=(
+  --clean
+  --noconfirm
+  --onefile
+  --name miso-server
+  --distpath "$DIST_DIR"
+  --workpath "$BUILD_DIR"
+  --specpath "$SPEC_DIR"
+  --collect-submodules miso
+  --collect-data miso
+  --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}miso"
+  --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}miso"
+  --hidden-import miso
+  --hidden-import miso.broth
+  --hidden-import miso.tool
+  --hidden-import miso.response_format
+  --hidden-import miso.media
+  --hidden-import miso.mcp
+)
+
+if [[ -n "$TARGET_ARCH" ]]; then
+  PYINSTALLER_ARGS+=(--target-arch "$TARGET_ARCH")
+fi
+
+"$VENV_PY" -m PyInstaller "${PYINSTALLER_ARGS[@]}" "$ENTRYPOINT"
 
 if [[ "$TARGET_OS" != "windows" && -f "$DIST_DIR/miso-server" ]]; then
   chmod +x "$DIST_DIR/miso-server"
