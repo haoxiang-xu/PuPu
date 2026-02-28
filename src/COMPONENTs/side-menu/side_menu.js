@@ -381,7 +381,7 @@ const SideMenu = () => {
           }}
         />
         <Button
-          prefix_icon="hammer"
+          prefix_icon="tool"
           label="Tools"
           onClick={() => setToolkitOpen(true)}
           style={{
@@ -392,7 +392,7 @@ const SideMenu = () => {
             borderRadius: 6,
             marginBottom: 2,
             WebkitAppRegion: "no-drag",
-            iconSize: 14,
+            iconSize: 16,
           }}
         />
         <div

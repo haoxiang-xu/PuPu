@@ -201,7 +201,7 @@ const AttachPanel = ({
               style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
             />
             <Button
-              prefix_icon="hammer"
+              prefix_icon="tool"
               style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
             />
           </div>
