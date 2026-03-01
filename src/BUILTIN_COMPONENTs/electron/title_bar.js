@@ -34,7 +34,7 @@ const WINDOWS_CONTROL_ICONS = {
   restore: "windows_restore_button",
 };
 const TitleBar = () => {
-  const { theme, onFragment, setOnFragment } = useContext(ConfigContext);
+  const { theme, onFragment, setOnFragment, onThemeMode } = useContext(ConfigContext);
   const [windowIsMaximized, setWindowIsMaximized] = useState(false);
 
   const isElectron = hasElectronWindowControls();
@@ -81,9 +81,12 @@ const TitleBar = () => {
 
   const controlButtonStyle = (action) => {
     const onCloseButton = action === "close";
-    const defaultBackgroundColor = onCloseButton
-      ? "rgba(255, 255, 255, 0.06)"
-      : "rgba(255, 255, 255, 0.14)";
+    const isDark = onThemeMode === "dark_mode";
+    const defaultBackgroundColor = isDark
+      ? "transparent"
+      : onCloseButton
+        ? "rgba(255, 255, 255, 0.06)"
+        : "rgba(255, 255, 255, 0.14)";
     return {
       root: {
         width: 30,
@@ -174,7 +177,7 @@ const TitleBar = () => {
         style={{
           position: "absolute",
           top: "50%",
-          left: isDarwin ? 125 : 14,
+          left: isDarwin ? 125 : 54,
           transform: "translateY(-50%)",
           opacity: 0.84,
           fontFamily: "Jost, sans-serif",
