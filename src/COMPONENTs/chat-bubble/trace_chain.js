@@ -12,6 +12,7 @@ const DISPLAY_FRAME_TYPES = new Set([
   "observation",
   "tool_call",
   "tool_result",
+  "final_message",
   "error",
 ]);
 
@@ -205,7 +206,7 @@ const ErrorPoint = () => (
 
 /* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
-const TraceChain = ({ frames = [], status }) => {
+const TraceChain = ({ frames = [], status, streamingContent = "" }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
@@ -213,7 +214,77 @@ const TraceChain = ({ frames = [], status }) => {
 
   const isStreaming = status === "streaming";
 
-  const displayFrames = frames.filter((f) => DISPLAY_FRAME_TYPES.has(f.type));
+  // Identify which final_message frames are "intermediate" (not the very last
+  // one when the stream is finished). During streaming every final_message is
+  // considered intermediate because more content may follow. Once done, all
+  // but the last final_message are intermediate — the last one is rendered by
+  // the normal AssistantMessageBody bubble instead.
+  const intermediateFinalMessageSeqs = useMemo(() => {
+    const hasToolCall = frames.some((frame) => frame?.type === "tool_call");
+    if (!hasToolCall) {
+      return new Set();
+    }
+
+    const finalMessageFrames = frames
+      .filter(
+        (frame) =>
+          frame?.type === "final_message" &&
+          typeof frame.payload?.content === "string" &&
+          frame.payload.content.trim().length > 0,
+      )
+      .sort((left, right) => {
+        const leftSeq = Number(left?.seq);
+        const rightSeq = Number(right?.seq);
+        const leftHasSeq = Number.isFinite(leftSeq);
+        const rightHasSeq = Number.isFinite(rightSeq);
+        if (leftHasSeq && rightHasSeq && leftSeq !== rightSeq) {
+          return leftSeq - rightSeq;
+        }
+
+        const leftTs = Number(left?.ts);
+        const rightTs = Number(right?.ts);
+        const leftHasTs = Number.isFinite(leftTs);
+        const rightHasTs = Number.isFinite(rightTs);
+        if (leftHasTs && rightHasTs && leftTs !== rightTs) {
+          return leftTs - rightTs;
+        }
+
+        return 0;
+      });
+
+    if (finalMessageFrames.length === 0) {
+      return new Set();
+    }
+
+    // While streaming, show ALL final_messages in the timeline (more may come).
+    // Once done, keep all except the very last one (which lives in the bubble).
+    const included = isStreaming
+      ? finalMessageFrames
+      : finalMessageFrames.slice(0, -1);
+
+    return new Set(
+      included
+        .map((frame) => Number(frame.seq))
+        .filter((seq) => Number.isFinite(seq)),
+    );
+  }, [frames, isStreaming]);
+
+  const displayFrames = useMemo(
+    () =>
+      frames.filter((frame) => {
+        if (!DISPLAY_FRAME_TYPES.has(frame.type)) {
+          return false;
+        }
+
+        if (frame.type !== "final_message") {
+          return true;
+        }
+
+        const seq = Number(frame.seq);
+        return Number.isFinite(seq) && intermediateFinalMessageSeqs.has(seq);
+      }),
+    [frames, intermediateFinalMessageSeqs],
+  );
   const startFrame = frames.find((f) => f.type === "stream_started");
   const doneFrame = frames.find((f) => f.type === "done");
   const duration =
@@ -324,23 +395,70 @@ const TraceChain = ({ frames = [], status }) => {
             />
           ),
         });
+      } else if (frame.type === "final_message") {
+        const content =
+          typeof frame.payload?.content === "string"
+            ? frame.payload.content.trim()
+            : "";
+        if (!content) continue;
+        items.push({
+          key: `${frame.seq}-final-message`,
+          title: "Response",
+          span: spanText,
+          status: "done",
+          body: (
+            <div style={{ fontFamily: "inherit" }}>
+              <Markdown
+                markdown={content}
+                options={{
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}
+              />
+            </div>
+          ),
+        });
       }
     }
 
     if (isStreaming) {
-      items.push({
-        key: "__streaming__",
-        title: "Thinking…",
-        span: null,
-        status: "active",
-        point: "loading",
-      });
+      const liveContent =
+        typeof streamingContent === "string" ? streamingContent.trim() : "";
+      if (liveContent) {
+        items.push({
+          key: "__streaming_content__",
+          title: "Response",
+          span: null,
+          status: "active",
+          point: "loading",
+          body: (
+            <div style={{ fontFamily: "inherit" }}>
+              <Markdown
+                markdown={liveContent}
+                options={{
+                  fontSize: 13,
+                  lineHeight: 1.6,
+                }}
+              />
+            </div>
+          ),
+        });
+      } else {
+        items.push({
+          key: "__streaming__",
+          title: "Thinking…",
+          span: null,
+          status: "active",
+          point: "loading",
+        });
+      }
     }
 
     return items;
   }, [
     displayFrames,
     isStreaming,
+    streamingContent,
     startFrame,
     toolResultByCallId,
     isDark,
