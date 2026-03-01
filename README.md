@@ -6,7 +6,7 @@
 <div align="center">
   <img src="./public/logo512.png" alt="PuPu" style="height: 128px">
   <h1>PuPu</h1>
-  <p>Local AI, beautifully simple.</p>
+  <p>Your AI, your way — beautifully simple.</p>
   <br>
   <a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0">
     <img src="./public/assets/download_mac.svg" alt="Download for Mac" />
@@ -20,12 +20,33 @@
 </div>
 <br><br>
 
-PuPu is a lightweight desktop client for running AI models locally. Designed for smooth performance and privacy, it brings AI to your fingertips — no cloud, no complexity.
+PuPu is a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. Whether you prefer running models on your own machine or connecting to providers like OpenAI and Anthropic, PuPu gives you a unified, elegant interface — your AI, your rules.
 
 <img src="./public/assets/ui_showcase.png" alt="PuPu UI 3"/>
 
+## Features
+
+### 🖥️ Multi-Platform Support
+
+Runs natively on **macOS**, **Windows**, and **Linux**. Connect to local models via Ollama or use cloud providers like OpenAI and Anthropic — all from the same beautiful interface.
+
+### 📂 Workspace & Local File Access
+
+Attach a workspace and let AI read, edit, and manage your local files directly. PuPu bridges the gap between your AI conversations and your actual project files.
+
+### 💬 Advanced Chat Management
+
+Organize conversations with ease — pin, search, and manage multiple chat sessions. A refined chat experience designed for productivity, not clutter.
+
+### 🔮 Roadmap
+
+- **Agent Builder** — Create custom AI agents tailored to your workflows
+- **Agent Teams & Skills** — Orchestrate multiple agents working together with specialized capabilities
+- **MCP Integration** — Connect to the Model Context Protocol ecosystem for extended tool use and context sharing
+
 ## Table of Contents
 
+- [Features](#features)
 - [For Users](#for-users)
   - [App installation](#app-installation)
 - [For Developers](#for-developers)
