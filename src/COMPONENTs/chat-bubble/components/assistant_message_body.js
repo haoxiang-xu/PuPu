@@ -1,8 +1,16 @@
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 
-const AssistantMessageBody = ({ message, isRawTextMode, theme }) => {
+const AssistantMessageBody = ({
+  message,
+  isRawTextMode,
+  theme,
+  hasTraceFrames = false,
+}) => {
+  // When timeline is already visible (has trace frames), skip the spinner —
+  // the TraceChain "Thinking…" indicator is enough.
   if (message.status === "streaming" && !message.content) {
+    if (hasTraceFrames) return null;
     return (
       <div style={{ padding: "8px 0" }}>
         <CellSplitSpinner

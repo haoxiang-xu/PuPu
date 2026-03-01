@@ -83,56 +83,74 @@ const ChatBubble = ({
       }}
     >
       {isAssistant && traceFrames.length > 0 && (
-        <TraceChain frames={traceFrames} status={message.status} />
+        <TraceChain
+          frames={traceFrames}
+          status={message.status}
+          streamingContent={
+            message.status === "streaming" ? message.content : ""
+          }
+        />
       )}
-      {isAssistant && traceFrames.length === 0 && message.status === "streaming" && (
-        <TraceChain frames={[]} status={message.status} />
-      )}
-
-      <div
-        style={{
-          maxWidth: isUser ? "75%" : "100%",
-          width: isUser && isEditing ? "100%" : undefined,
-          padding: isUser ? (isEditing ? 0 : "10px 16px") : "0 2px",
-          borderRadius: isUser ? (isEditing ? 0 : 16) : 0,
-          ...(isUser && !isEditing
-            ? {
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.08)"
-                  : "rgba(0,0,0,0.05)",
-              }
-            : {}),
-          fontSize: 14,
-          fontFamily: theme?.font?.fontFamily || "inherit",
-          color: theme?.color || "#222",
-          lineHeight: 1.6,
-          wordBreak: "break-word",
-        }}
-      >
-        {isUser ? (
-          <UserMessageBody
-            message={message}
-            isDark={isDark}
-            isEditing={isEditing}
-            userAttachments={userAttachments}
-            editTextareaRef={editTextareaRef}
-            editDraft={editDraft}
-            setEditDraft={setEditDraft}
-            handleEditKeyDown={handleEditKeyDown}
-            handleCancelEdit={handleCancelEdit}
-            handleSubmitEdit={handleSubmitEdit}
-            isSubmitDisabled={isSubmitDisabled}
-            disableActionButtons={disableActionButtons}
-            color={color}
-          />
-        ) : (
-          <AssistantMessageBody
-            message={message}
-            isRawTextMode={isRawTextMode}
-            theme={theme}
-          />
+      {isAssistant &&
+        traceFrames.length === 0 &&
+        message.status === "streaming" && (
+          <TraceChain frames={[]} status={message.status} />
         )}
-      </div>
+
+      {/* Hide the assistant bubble body entirely when streaming with
+          an active trace timeline (intermediate + streaming content shows
+          in the timeline; the bubble only shows the final result). */}
+      {!(
+        isAssistant &&
+        traceFrames.length > 0 &&
+        message.status === "streaming"
+      ) && (
+        <div
+          style={{
+            maxWidth: isUser ? "75%" : "100%",
+            width: isUser && isEditing ? "100%" : undefined,
+            padding: isUser ? (isEditing ? 0 : "10px 16px") : "0 2px",
+            borderRadius: isUser ? (isEditing ? 0 : 16) : 0,
+            ...(isUser && !isEditing
+              ? {
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.05)",
+                }
+              : {}),
+            fontSize: 14,
+            fontFamily: theme?.font?.fontFamily || "inherit",
+            color: theme?.color || "#222",
+            lineHeight: 1.6,
+            wordBreak: "break-word",
+          }}
+        >
+          {isUser ? (
+            <UserMessageBody
+              message={message}
+              isDark={isDark}
+              isEditing={isEditing}
+              userAttachments={userAttachments}
+              editTextareaRef={editTextareaRef}
+              editDraft={editDraft}
+              setEditDraft={setEditDraft}
+              handleEditKeyDown={handleEditKeyDown}
+              handleCancelEdit={handleCancelEdit}
+              handleSubmitEdit={handleSubmitEdit}
+              isSubmitDisabled={isSubmitDisabled}
+              disableActionButtons={disableActionButtons}
+              color={color}
+            />
+          ) : (
+            <AssistantMessageBody
+              message={message}
+              isRawTextMode={isRawTextMode}
+              theme={theme}
+              hasTraceFrames={traceFrames.length > 0}
+            />
+          )}
+        </div>
+      )}
 
       <MessageActionBar
         showActionBar={showActionBar}

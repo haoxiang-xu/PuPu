@@ -895,6 +895,57 @@ const ChatInterface = () => {
                 return;
               }
 
+              // On tool_call, capture any intermediate streamed content
+              // as a synthetic final_message trace frame (if not already
+              // captured by a real final_message), then clear content so
+              // intermediate text lives only in the trace timeline.
+              if (frame.type === "tool_call") {
+                const nextStreamMessages = streamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+
+                  const currentContent =
+                    typeof message.content === "string"
+                      ? message.content.trim()
+                      : "";
+                  const existingFrames = message.traceFrames || [];
+
+                  // Check whether the current content was already captured
+                  // by a real final_message frame.
+                  const alreadyCaptured =
+                    !currentContent ||
+                    existingFrames.some(
+                      (f) =>
+                        f.type === "final_message" &&
+                        typeof f.payload?.content === "string" &&
+                        f.payload.content.trim() === currentContent,
+                    );
+
+                  const syntheticFrame = alreadyCaptured
+                    ? []
+                    : [
+                        {
+                          seq:
+                            (Number.isFinite(Number(frame.seq))
+                              ? Number(frame.seq)
+                              : 0) - 0.5,
+                          ts: patchTime,
+                          type: "final_message",
+                          stage: "model",
+                          payload: { content: currentContent },
+                        },
+                      ];
+
+                  return {
+                    ...message,
+                    content: "",
+                    updatedAt: patchTime,
+                    traceFrames: [...existingFrames, ...syntheticFrame, frame],
+                  };
+                });
+                syncStreamMessages(nextStreamMessages);
+                return;
+              }
+
               // All other frames go into the trace timeline
               const nextStreamMessages = streamMessages.map((message) =>
                 message.id === assistantMessageId
@@ -933,9 +984,22 @@ const ChatInterface = () => {
                 }
               }
             },
-            onToken: (_delta) => {
-              // token_delta is not used directly — final reply comes from
-              // the final_message frame via onFrame above.
+            onToken: (delta) => {
+              if (typeof delta !== "string" || !delta) {
+                return;
+              }
+
+              const patchTime = Date.now();
+              const nextStreamMessages = streamMessages.map((message) =>
+                message.id === assistantMessageId
+                  ? {
+                      ...message,
+                      content: `${typeof message.content === "string" ? message.content : ""}${delta}`,
+                      updatedAt: patchTime,
+                    }
+                  : message,
+              );
+              syncStreamMessages(nextStreamMessages);
             },
             onDone: (done) => {
               const doneTime = Date.now();
