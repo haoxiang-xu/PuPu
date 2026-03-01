@@ -129,8 +129,11 @@ cd PuPu
 
 ```bash
 python3 -m venv ./.venv
+# Mac/Linux:
 source ./.venv/bin/activate
-# Windows: .\\.venv\\Scripts\\activate
+# Windows: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+.\.venv\Scripts\activate
+
 pip install -r ./miso_runtime/server/requirements.txt
 ```
 
@@ -207,10 +210,11 @@ Notes:
 
 ### Deployment <a name="deployment"></a>
 
-Simple release flow (macOS arm64):
+Build on the target OS host.
 
-1. Make sure Miso source exists at `../miso`.
-   - Or set a custom path:
+#### Common prerequisites
+
+1. Make sure Miso source exists at `../miso`, or set custom path:
 
 ```bash
 export MISO_SOURCE_PATH=/absolute/path/to/miso
@@ -222,32 +226,61 @@ export MISO_SOURCE_PATH=/absolute/path/to/miso
 npm install
 ```
 
-3. Build release package:
+3. Optional cleanup before rebuilding:
+
+```bash
+# macOS / Linux
+rm -rf dist
+```
+
+```powershell
+# Windows
+Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
+```
+
+#### macOS (arm64)
 
 ```bash
 npm run build:electron:mac
 ```
-
-This single command will:
-
-- build `miso-server` (`miso_runtime/dist/macos/miso-server`)
-- build the web app
-- build the macOS arm64 installer
 
 Output files:
 
 - `dist/PuPu-<version>-arm64.dmg`
 - `dist/mac-arm64/PuPu.app`
 
-Quick check:
+#### Windows
 
-```bash
-test -f "dist/mac-arm64/PuPu.app/Contents/Resources/miso_runtime/dist/macos/miso-server" && echo "miso bundled"
+Use **Command Prompt or PowerShell as Administrator** for Windows packaging.
+
+Unsigned local build (recommended for development):
+
+```powershell
+npm run pack:win:unsigned
 ```
 
-Other platforms (run on matching OS host):
+Signed release build:
+
+```powershell
+$env:WIN_CSC_LINK="C:\path\to\codesign.pfx"
+$env:WIN_CSC_KEY_PASSWORD="your_password"
+npm run pack:win
+```
+
+Output files:
+
+- `dist/PuPu Setup <version>.exe`
+- `dist/win-unpacked/PuPu.exe`
+
+If you see `Cannot create symbolic link : A required privilege is not held by the client`, clear cache and rebuild in an Administrator shell:
+
+```powershell
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign"
+npm run pack:win
+```
+
+#### Linux
 
 ```bash
-npm run build:electron:win
 npm run build:electron:linux
 ```

@@ -996,7 +996,9 @@ const createWindowOptions = () => {
     height: 820,
     minWidth: 980,
     minHeight: 620,
-    icon: path.join(__dirname, "favicon.ico"),
+    icon: fs.existsSync(path.join(__dirname, "icon-win.ico"))
+      ? path.join(__dirname, "icon-win.ico")
+      : path.join(__dirname, "favicon.ico"),
     autoHideMenuBar: true,
     resizable: true,
     maximizable: true,
