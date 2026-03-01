@@ -361,7 +361,13 @@ const getMisoStatusPayload = () => ({
 
 const getMisoModelCatalogPayload = async () => {
   if (misoStatus !== "ready" || !misoPort) {
-    throw new Error("Miso service is not ready");
+    const reasonSuffix =
+      typeof misoStatusReason === "string" && misoStatusReason.trim()
+        ? `, reason=${misoStatusReason.trim()}`
+        : "";
+    throw new Error(
+      `Miso service is not ready (status=${misoStatus}${reasonSuffix})`,
+    );
   }
 
   const response = await fetch(
@@ -402,7 +408,13 @@ const getMisoModelCatalogPayload = async () => {
 
 const getMisoToolkitCatalogPayload = async () => {
   if (misoStatus !== "ready" || !misoPort) {
-    throw new Error("Miso service is not ready");
+    const reasonSuffix =
+      typeof misoStatusReason === "string" && misoStatusReason.trim()
+        ? `, reason=${misoStatusReason.trim()}`
+        : "";
+    throw new Error(
+      `Miso service is not ready (status=${misoStatus}${reasonSuffix})`,
+    );
   }
 
   const response = await fetch(
@@ -791,9 +803,13 @@ const startMisoStream = async ({
   }
 
   if (misoStatus !== "ready" || !misoPort) {
+    const reasonSuffix =
+      typeof misoStatusReason === "string" && misoStatusReason.trim()
+        ? `: ${misoStatusReason.trim()}`
+        : "";
     emitMisoStreamEvent(sender.id, requestId, "error", {
       code: "miso_not_ready",
-      message: "Miso service is not ready",
+      message: `Miso service is not ready (${misoStatus})${reasonSuffix}`,
     });
     return;
   }
