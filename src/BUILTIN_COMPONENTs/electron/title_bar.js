@@ -198,13 +198,13 @@ const TitleBar = () => {
             right: 10,
             transform: "translateY(-50%)",
             display: "flex",
-            gap: 6,
+            gap: 1,
             WebkitAppRegion: "no-drag",
           }}
         >
           <Button
             prefix_icon={WINDOWS_CONTROL_ICONS.minimize}
-            style={controlButtonStyle("minimize")}
+            style={{...controlButtonStyle("minimize"), borderRadius: "1px"}}
             onClick={() => runWindowAction("minimize")}
           />
           <Button
@@ -213,12 +213,12 @@ const TitleBar = () => {
                 ? WINDOWS_CONTROL_ICONS.restore
                 : WINDOWS_CONTROL_ICONS.maximize
             }
-            style={controlButtonStyle("maximize")}
+            style={{...controlButtonStyle("maximize"), borderRadius: "1px"}}
             onClick={() => runWindowAction("maximize")}
           />
           <Button
             prefix_icon={WINDOWS_CONTROL_ICONS.close}
-            style={controlButtonStyle("close")}
+            style={{...controlButtonStyle("close"), borderRadius: "1px"}}
             onClick={() => runWindowAction("close")}
           />
         </div>
