@@ -202,7 +202,10 @@ const ChatInterface = () => {
   );
   const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
   const [selectedToolkits, setSelectedToolkits] = useState([]);
+  const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
+    useState({});
   const selectedToolkitsRef = useRef([]);
+  const confirmationIdByCallIdRef = useRef(new Map());
   useEffect(() => {
     selectedToolkitsRef.current = selectedToolkits;
   }, [selectedToolkits]);
@@ -438,6 +441,7 @@ const ChatInterface = () => {
       streamingChatIdRef.current = null;
       activeStreamMessagesRef.current = null;
       attachmentPayloadByChat.clear();
+      confirmationIdByCallIdRef.current.clear();
       cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
   }, []);
@@ -519,6 +523,8 @@ const ChatInterface = () => {
     streamingChatIdRef.current = null;
     activeStreamMessagesRef.current = null;
     setStreamingChatId(null);
+    confirmationIdByCallIdRef.current.clear();
+    setToolConfirmationUiStateById({});
     // Remove empty assistant placeholder; mark partial ones as cancelled
     setMessages((prev) => {
       const { changed, nextMessages } = settleStreamingAssistantMessages(prev);
@@ -530,6 +536,110 @@ const ChatInterface = () => {
       return nextMessages;
     });
   }, []);
+
+  const clearResolvedToolConfirmationByCallId = useCallback((callId) => {
+    if (typeof callId !== "string" || !callId.trim()) {
+      return;
+    }
+    const confirmationId = confirmationIdByCallIdRef.current.get(callId);
+    if (!confirmationId) {
+      return;
+    }
+
+    confirmationIdByCallIdRef.current.delete(callId);
+    setToolConfirmationUiStateById((previous) => {
+      if (!previous || !previous[confirmationId]) {
+        return previous;
+      }
+      const next = { ...previous };
+      delete next[confirmationId];
+      return next;
+    });
+  }, []);
+
+  const clearAllPendingToolConfirmations = useCallback(() => {
+    const activeConfirmationIds = [
+      ...new Set(confirmationIdByCallIdRef.current.values()),
+    ];
+    confirmationIdByCallIdRef.current.clear();
+    if (activeConfirmationIds.length === 0) {
+      return;
+    }
+
+    setToolConfirmationUiStateById((previous) => {
+      const next = { ...previous };
+      let changed = false;
+      activeConfirmationIds.forEach((confirmationId) => {
+        if (confirmationId && next[confirmationId]) {
+          delete next[confirmationId];
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+  }, []);
+
+  const handleToolConfirmationDecision = useCallback(
+    async ({ confirmationId, approved }) => {
+      const normalizedConfirmationId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedConfirmationId) {
+        return;
+      }
+
+      let shouldSubmit = false;
+      setToolConfirmationUiStateById((previous) => {
+        const current = previous[normalizedConfirmationId] || {};
+        if (
+          current.status === "submitting" ||
+          current.status === "submitted"
+        ) {
+          return previous;
+        }
+        shouldSubmit = true;
+        return {
+          ...previous,
+          [normalizedConfirmationId]: {
+            status: "submitting",
+            error: "",
+          },
+        };
+      });
+
+      if (!shouldSubmit) {
+        return;
+      }
+
+      try {
+        await api.miso.respondToolConfirmation({
+          confirmation_id: normalizedConfirmationId,
+          approved: Boolean(approved),
+          reason: "",
+        });
+        setToolConfirmationUiStateById((previous) => ({
+          ...previous,
+          [normalizedConfirmationId]: {
+            ...(previous[normalizedConfirmationId] || {}),
+            status: "submitted",
+            error: "",
+          },
+        }));
+      } catch (error) {
+        const errorMessage =
+          (typeof error?.message === "string" && error.message) ||
+          "Failed to submit confirmation";
+        setToolConfirmationUiStateById((previous) => ({
+          ...previous,
+          [normalizedConfirmationId]: {
+            ...(previous[normalizedConfirmationId] || {}),
+            status: "error",
+            error: errorMessage,
+          },
+        }));
+      }
+    },
+    [],
+  );
 
   const getOrCreateChatAttachmentPayloadMap = useCallback((chatId) => {
     if (!chatId) {
@@ -734,6 +844,9 @@ const ChatInterface = () => {
           ? reuseUserMessage
           : null;
 
+      confirmationIdByCallIdRef.current.clear();
+      setToolConfirmationUiStateById({});
+
       const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
 
@@ -874,6 +987,40 @@ const ChatInterface = () => {
             onFrame: (frame) => {
               if (!frame || frame.type === "token_delta") return;
               const patchTime = Date.now();
+
+              if (frame.type === "tool_confirmation_request") {
+                const callId =
+                  typeof frame.payload?.call_id === "string"
+                    ? frame.payload.call_id
+                    : "";
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id
+                    : "";
+                if (callId && confirmationId) {
+                  confirmationIdByCallIdRef.current.set(callId, confirmationId);
+                  setToolConfirmationUiStateById((previous) =>
+                    previous[confirmationId]
+                      ? previous
+                      : {
+                          ...previous,
+                          [confirmationId]: {
+                            status: "idle",
+                            error: "",
+                          },
+                        },
+                  );
+                }
+              } else if (
+                frame.type === "tool_confirmed" ||
+                frame.type === "tool_denied"
+              ) {
+                const callId =
+                  typeof frame.payload?.call_id === "string"
+                    ? frame.payload.call_id
+                    : "";
+                clearResolvedToolConfirmationByCallId(callId);
+              }
 
               // final_message carries the complete reply text
               if (frame.type === "final_message") {
@@ -1052,6 +1199,7 @@ const ChatInterface = () => {
               streamingChatIdRef.current = null;
               activeStreamMessagesRef.current = null;
               setStreamingChatId(null);
+              clearAllPendingToolConfirmations();
               if (activeChatIdRef.current !== chatId) {
                 setChatGeneratedUnread(chatId, true, {
                   source: "chat-page",
@@ -1074,6 +1222,7 @@ const ChatInterface = () => {
               streamHandleRef.current = null;
               streamingChatIdRef.current = null;
               setStreamingChatId(null);
+              clearAllPendingToolConfirmations();
 
               const nextStreamMessages = streamMessages.map((message) => {
                 if (message.id !== assistantMessageId) {
@@ -1161,6 +1310,8 @@ const ChatInterface = () => {
     },
     [
       buildHistoryForModel,
+      clearAllPendingToolConfirmations,
+      clearResolvedToolConfirmationByCallId,
       getOrCreateChatAttachmentPayloadMap,
       resolveAttachmentPayloads,
     ],
@@ -1936,6 +2087,8 @@ const ChatInterface = () => {
             onDeleteMessage={handleDeleteMessage}
             onResendMessage={handleResendMessage}
             onEditMessage={handleEditMessage}
+            onToolConfirmationDecision={handleToolConfirmationDecision}
+            toolConfirmationUiStateById={toolConfirmationUiStateById}
             initialVisibleCount={12}
             loadBatchSize={6}
             topLoadThreshold={80}

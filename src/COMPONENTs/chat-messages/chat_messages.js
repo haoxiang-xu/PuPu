@@ -11,6 +11,8 @@ const ChatMessages = ({
   onDeleteMessage,
   onResendMessage,
   onEditMessage,
+  onToolConfirmationDecision,
+  toolConfirmationUiStateById = {},
   className = "scrollable",
   initialVisibleCount = 12,
   loadBatchSize = 6,
@@ -97,6 +99,8 @@ const ChatMessages = ({
                   onDeleteMessage={onDeleteMessage}
                   onResendMessage={onResendMessage}
                   onEditMessage={onEditMessage}
+                  onToolConfirmationDecision={onToolConfirmationDecision}
+                  toolConfirmationUiStateById={toolConfirmationUiStateById}
                   disableActionButtons={isStreaming}
                   traceFrames={
                     Array.isArray(msg.traceFrames) ? msg.traceFrames : []

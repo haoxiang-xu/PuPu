@@ -561,6 +561,57 @@ export const api = {
       }
     },
 
+    respondToolConfirmation: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("misoAPI", "respondToolConfirmation");
+        const confirmationIdRaw = payload?.confirmation_id;
+        const confirmationId =
+          typeof confirmationIdRaw === "string" ? confirmationIdRaw.trim() : "";
+        if (!confirmationId) {
+          throw new FrontendApiError(
+            "invalid_confirmation_request",
+            "confirmation_id is required",
+          );
+        }
+
+        const reasonRaw = payload?.reason;
+        const requestPayload = {
+          confirmation_id: confirmationId,
+          approved: Boolean(payload?.approved),
+          reason:
+            typeof reasonRaw === "string"
+              ? reasonRaw
+              : String(reasonRaw || ""),
+        };
+
+        const modifiedArguments = payload?.modified_arguments;
+        if (modifiedArguments != null) {
+          if (!isObject(modifiedArguments)) {
+            throw new FrontendApiError(
+              "invalid_confirmation_request",
+              "modified_arguments must be an object when provided",
+            );
+          }
+          requestPayload.modified_arguments = modifiedArguments;
+        }
+
+        const response = await withTimeout(
+          () => method(requestPayload),
+          10000,
+          "miso_tool_confirmation_timeout",
+          "Tool confirmation request timed out",
+        );
+
+        return isObject(response) ? response : { status: "ok" };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "miso_tool_confirmation_failed",
+          "Failed to submit tool confirmation",
+        );
+      }
+    },
+
     retrieveModelList: retrieveMisoModelList,
     listModels: retrieveMisoModelList,
 

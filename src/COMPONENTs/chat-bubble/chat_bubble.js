@@ -11,6 +11,8 @@ const ChatBubble = ({
   onDeleteMessage,
   onResendMessage,
   onEditMessage,
+  onToolConfirmationDecision,
+  toolConfirmationUiStateById = {},
   disableActionButtons = false,
   traceFrames = [],
 }) => {
@@ -86,6 +88,8 @@ const ChatBubble = ({
         <TraceChain
           frames={traceFrames}
           status={message.status}
+          onToolConfirmationDecision={onToolConfirmationDecision}
+          toolConfirmationUiStateById={toolConfirmationUiStateById}
           streamingContent={
             message.status === "streaming" ? message.content : ""
           }
@@ -178,6 +182,10 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
   previousProps.onDeleteMessage === nextProps.onDeleteMessage &&
   previousProps.onResendMessage === nextProps.onResendMessage &&
   previousProps.onEditMessage === nextProps.onEditMessage &&
+  previousProps.onToolConfirmationDecision ===
+    nextProps.onToolConfirmationDecision &&
+  previousProps.toolConfirmationUiStateById ===
+    nextProps.toolConfirmationUiStateById &&
   previousProps.disableActionButtons === nextProps.disableActionButtons &&
   previousProps.traceFrames === nextProps.traceFrames;
 

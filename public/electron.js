@@ -76,6 +76,7 @@ const MISO_HEALTH_RETRY_MS = 250;
 const MISO_RESTART_DELAY_MS = 1500;
 const MISO_STREAM_ENDPOINT = "/chat/stream";
 const MISO_STREAM_V2_ENDPOINT = "/chat/stream/v2";
+const MISO_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const MISO_HEALTH_ENDPOINT = "/health";
 const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
@@ -444,6 +445,82 @@ const getMisoToolkitCatalogPayload = async () => {
     return JSON.parse(bodyText);
   } catch (_) {
     throw new Error("Invalid Miso toolkit catalog response");
+  }
+};
+
+const submitMisoToolConfirmation = async (payload = {}) => {
+  if (misoStatus !== "ready" || !misoPort) {
+    const reasonSuffix =
+      typeof misoStatusReason === "string" && misoStatusReason.trim()
+        ? `, reason=${misoStatusReason.trim()}`
+        : "";
+    throw new Error(
+      `Miso service is not ready (status=${misoStatus}${reasonSuffix})`,
+    );
+  }
+
+  const confirmationIdRaw = payload?.confirmation_id;
+  const confirmationId =
+    typeof confirmationIdRaw === "string" ? confirmationIdRaw.trim() : "";
+  if (!confirmationId) {
+    throw new Error("confirmation_id is required");
+  }
+
+  const reasonRaw = payload?.reason;
+  const requestBody = {
+    confirmation_id: confirmationId,
+    approved: Boolean(payload?.approved),
+    reason: typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
+  };
+
+  const modifiedArguments = payload?.modified_arguments;
+  if (modifiedArguments != null) {
+    const isObject =
+      typeof modifiedArguments === "object" &&
+      !Array.isArray(modifiedArguments);
+    if (!isObject) {
+      throw new Error("modified_arguments must be an object");
+    }
+    requestBody.modified_arguments = modifiedArguments;
+  }
+
+  const response = await fetch(
+    `http://${MISO_HOST}:${misoPort}${MISO_TOOL_CONFIRMATION_ENDPOINT}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+      },
+      body: JSON.stringify(requestBody),
+    },
+  );
+
+  const bodyText = await response.text();
+  if (!response.ok) {
+    let message = `Miso tool confirmation request failed (${response.status})`;
+    if (bodyText) {
+      try {
+        const parsed = JSON.parse(bodyText);
+        const serverMessage = parsed?.error?.message || parsed?.message;
+        if (serverMessage) {
+          message = String(serverMessage);
+        }
+      } catch (_) {
+        message = bodyText.slice(0, 200);
+      }
+    }
+    throw new Error(message);
+  }
+
+  if (!bodyText) {
+    return { status: "ok" };
+  }
+
+  try {
+    return JSON.parse(bodyText);
+  } catch (_) {
+    throw new Error("Invalid Miso tool confirmation response");
   }
 };
 
@@ -1251,6 +1328,9 @@ ipcMain.handle("miso:get-model-catalog", async () =>
 );
 ipcMain.handle("miso:get-toolkit-catalog", async () =>
   getMisoToolkitCatalogPayload(),
+);
+ipcMain.handle("miso:tool-confirmation", async (_event, payload = {}) =>
+  submitMisoToolConfirmation(payload),
 );
 ipcMain.handle(
   "miso:pick-workspace-root",

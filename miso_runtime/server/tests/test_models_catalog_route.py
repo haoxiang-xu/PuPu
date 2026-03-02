@@ -168,6 +168,75 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             "message or attachments is required",
         )
 
+    def test_chat_tool_confirmation_accepts_pending_confirmation(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "submit_tool_confirmation",
+            return_value=True,
+        ) as submit_mock:
+            response = self.client.post(
+                "/chat/tool/confirmation",
+                json={
+                    "confirmation_id": "confirm-1",
+                    "approved": True,
+                    "reason": "looks good",
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), {"status": "ok"})
+        submit_mock.assert_called_once_with(
+            confirmation_id="confirm-1",
+            approved=True,
+            reason="looks good",
+            modified_arguments=None,
+        )
+
+    def test_chat_tool_confirmation_returns_not_found_when_missing(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "submit_tool_confirmation",
+            return_value=False,
+        ):
+            response = self.client.post(
+                "/chat/tool/confirmation",
+                json={
+                    "confirmation_id": "missing-id",
+                    "approved": False,
+                },
+            )
+
+        self.assertEqual(response.status_code, 404)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "not_found")
+
+    def test_chat_tool_confirmation_validates_payload(self) -> None:
+        missing_id_response = self.client.post(
+            "/chat/tool/confirmation",
+            json={
+                "approved": True,
+            },
+        )
+        self.assertEqual(missing_id_response.status_code, 400)
+        self.assertEqual(
+            missing_id_response.get_json()["error"]["message"],
+            "confirmation_id is required",
+        )
+
+        invalid_modified_arguments_response = self.client.post(
+            "/chat/tool/confirmation",
+            json={
+                "confirmation_id": "confirm-2",
+                "approved": True,
+                "modified_arguments": "not-a-dict",
+            },
+        )
+        self.assertEqual(invalid_modified_arguments_response.status_code, 400)
+        self.assertEqual(
+            invalid_modified_arguments_response.get_json()["error"]["message"],
+            "modified_arguments must be an object when provided",
+        )
+
     def test_chat_stream_v2_emits_trace_frames(self) -> None:
         mocked_events = iter(
             [

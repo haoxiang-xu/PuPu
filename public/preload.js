@@ -198,6 +198,8 @@ contextBridge.exposeInMainWorld("misoAPI", {
   getStatus: () => ipcRenderer.invoke("miso:get-status"),
   getModelCatalog: () => ipcRenderer.invoke("miso:get-model-catalog"),
   getToolkitCatalog: () => ipcRenderer.invoke("miso:get-toolkit-catalog"),
+  respondToolConfirmation: (payload = {}) =>
+    ipcRenderer.invoke("miso:tool-confirmation", payload),
   pickWorkspaceRoot: (defaultPath = "") =>
     ipcRenderer.invoke("miso:pick-workspace-root", { defaultPath }),
   validateWorkspaceRoot: (path = "") =>
