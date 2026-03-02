@@ -1298,6 +1298,19 @@ ipcMain.handle(
     };
   },
 );
+ipcMain.handle(
+  "miso:open-runtime-folder",
+  async (_event, { path: folderPath = "" } = {}) => {
+    const validation = validateWorkspaceRootPath(folderPath, {
+      allowEmpty: false,
+    });
+    if (!validation.valid) {
+      return { ok: false, error: validation.reason || "Invalid path" };
+    }
+    const result = await shell.openPath(validation.resolvedPath);
+    return { ok: result === "", error: result || null };
+  },
+);
 
 ipcMain.handle(
   "ollama:library-search",
