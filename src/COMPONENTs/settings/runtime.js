@@ -91,10 +91,15 @@ export const RuntimeSettings = () => {
   const [info, setInfo] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isBrowsing, setIsBrowsing] = useState(false);
+  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
   const browseSupported =
     typeof window !== "undefined" &&
     typeof window.misoAPI?.pickWorkspaceRoot === "function";
+
+  const openFolderSupported =
+    typeof window !== "undefined" &&
+    typeof window.misoAPI?.openRuntimeFolder === "function";
 
   const isDirty = useMemo(
     () => workspaceRoot.trim() !== savedWorkspaceRoot.trim(),
@@ -158,6 +163,25 @@ export const RuntimeSettings = () => {
     }
   }, [browseSupported, workspaceRoot, savedWorkspaceRoot]);
 
+  const handleOpenFolder = useCallback(async () => {
+    const folderPath = savedWorkspaceRoot.trim();
+
+    setIsOpeningFolder(true);
+    setError("");
+    setInfo("");
+
+    try {
+      const response = await window.misoAPI.openRuntimeFolder(folderPath);
+      if (!response?.ok) {
+        setError(response?.error || "Failed to open folder.");
+      }
+    } catch (error) {
+      setError(error?.message || "Failed to open folder.");
+    } finally {
+      setIsOpeningFolder(false);
+    }
+  }, [savedWorkspaceRoot]);
+
   return (
     <div>
       <SettingsSection title="Miso Workspace" icon="terminal">
@@ -185,7 +209,7 @@ export const RuntimeSettings = () => {
             <Button
               label={isBrowsing ? "Browsing..." : "Browse"}
               onClick={handleBrowse}
-              disabled={!browseSupported || isBrowsing || isSaving}
+              disabled={!browseSupported || isBrowsing || isSaving || isOpeningFolder}
               style={{
                 fontSize: 13,
                 paddingVertical: 7,
@@ -196,7 +220,7 @@ export const RuntimeSettings = () => {
             <Button
               label={isSaving ? "Saving..." : "Save"}
               onClick={handleSave}
-              disabled={isSaving || isBrowsing || !isDirty}
+              disabled={isSaving || isBrowsing || isOpeningFolder || !isDirty}
               style={{
                 fontSize: 13,
                 paddingVertical: 7,
@@ -207,7 +231,24 @@ export const RuntimeSettings = () => {
             <Button
               label="Clear"
               onClick={handleClear}
-              disabled={isSaving || isBrowsing || !savedWorkspaceRoot.trim()}
+              disabled={isSaving || isBrowsing || isOpeningFolder || !savedWorkspaceRoot.trim()}
+              style={{
+                fontSize: 13,
+                paddingVertical: 7,
+                paddingHorizontal: 14,
+                borderRadius: 7,
+              }}
+            />
+            <Button
+              label={isOpeningFolder ? "Opening..." : "Open Folder"}
+              onClick={handleOpenFolder}
+              disabled={
+                !openFolderSupported ||
+                isOpeningFolder ||
+                isBrowsing ||
+                isSaving ||
+                !savedWorkspaceRoot.trim()
+              }
               style={{
                 fontSize: 13,
                 paddingVertical: 7,

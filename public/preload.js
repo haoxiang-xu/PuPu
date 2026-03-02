@@ -202,6 +202,8 @@ contextBridge.exposeInMainWorld("misoAPI", {
     ipcRenderer.invoke("miso:pick-workspace-root", { defaultPath }),
   validateWorkspaceRoot: (path = "") =>
     ipcRenderer.invoke("miso:validate-workspace-root", { path }),
+  openRuntimeFolder: (path = "") =>
+    ipcRenderer.invoke("miso:open-runtime-folder", { path }),
   getRuntimeDirSize: (dirPath = "") =>
     ipcRenderer.invoke("miso:get-runtime-dir-size", { dirPath }),
   deleteRuntimeEntry: (dirPath, entryName) =>
