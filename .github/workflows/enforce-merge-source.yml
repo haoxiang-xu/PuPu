@@ -1,0 +1,22 @@
+name: Enforce Merge Source
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  check-source-branch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check if source branch is dev
+        run: |
+          if [ "${{ github.head_ref }}" != "dev" ]; then
+            echo "❌ Only the 'dev' branch is allowed to merge into 'main'."
+            echo "Current source branch: ${{ github.head_ref }}"
+            exit 1
+          else
+            echo "✅ Source branch is 'dev'. Merge allowed."
+          fi
