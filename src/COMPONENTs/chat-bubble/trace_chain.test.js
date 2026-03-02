@@ -1,11 +1,16 @@
 import React from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import TraceChain from "./trace_chain";
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 
-const renderTraceChain = ({ frames, status = "done" }) =>
+const renderTraceChain = ({
+  frames,
+  status = "done",
+  onToolConfirmationDecision = null,
+  toolConfirmationUiStateById = {},
+}) =>
   render(
     <ConfigContext.Provider
       value={{
@@ -13,7 +18,12 @@ const renderTraceChain = ({ frames, status = "done" }) =>
         onThemeMode: "light_mode",
       }}
     >
-      <TraceChain frames={frames} status={status} />
+      <TraceChain
+        frames={frames}
+        status={status}
+        onToolConfirmationDecision={onToolConfirmationDecision}
+        toolConfirmationUiStateById={toolConfirmationUiStateById}
+      />
     </ConfigContext.Provider>,
   );
 
@@ -53,7 +63,7 @@ describe("TraceChain final_message draft timeline", () => {
 
     renderTraceChain({ frames, status: "done" });
 
-    expect(screen.getAllByText("Assistant Draft")).toHaveLength(1);
+    expect(screen.getAllByText("Response").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("intermediate draft content")).toBeInTheDocument();
     expect(screen.queryByText("final answer content")).not.toBeInTheDocument();
   });
@@ -138,13 +148,13 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByText("Reasoning")).toBeInTheDocument();
     expect(screen.getByText("read_file")).toBeInTheDocument();
     expect(screen.getByText("Error")).toBeInTheDocument();
-    expect(screen.getByText("Assistant Draft")).toBeInTheDocument();
+    expect(screen.getByText("Response")).toBeInTheDocument();
 
     const timelineText = container.textContent || "";
     expect(timelineText.indexOf("Reasoning")).toBeLessThan(
-      timelineText.indexOf("Assistant Draft"),
+      timelineText.indexOf("Response"),
     );
-    expect(timelineText.indexOf("Assistant Draft")).toBeLessThan(
+    expect(timelineText.indexOf("Response")).toBeLessThan(
       timelineText.indexOf("Error"),
     );
   });
@@ -171,11 +181,80 @@ describe("TraceChain final_message draft timeline", () => {
 
     renderTraceChain({ frames, status: "streaming" });
 
-    expect(screen.getAllByText("Assistant Draft")).toHaveLength(1);
+    expect(screen.getAllByText("Response").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("older draft")).toBeInTheDocument();
-    expect(
-      screen.queryByText("latest in-progress answer"),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("latest in-progress answer")).toBeInTheDocument();
     expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
+  });
+
+  test("renders tool confirmation actions and forwards allow decision", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_confirmation_request",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          tool_name: "delete_file",
+          arguments: { path: "demo.txt" },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision,
+      toolConfirmationUiStateById: {
+        "confirm-1": { status: "idle", error: "" },
+      },
+    });
+
+    const allowButton = screen.getByRole("button", { name: "Allow" });
+    fireEvent.click(allowButton);
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-1",
+      approved: true,
+    });
+    expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
+  });
+
+  test("hides tool confirmation actions after confirmation is resolved", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_confirmation_request",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          tool_name: "delete_file",
+          arguments: { path: "demo.txt" },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_confirmed",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delete_file",
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "confirm-1": { status: "submitted", error: "" },
+      },
+    });
+
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
   });
 });

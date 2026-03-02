@@ -10,6 +10,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 const DISPLAY_FRAME_TYPES = new Set([
   "reasoning",
   "observation",
+  "tool_confirmation_request",
   "tool_call",
   "tool_result",
   "final_message",
@@ -206,7 +207,13 @@ const ErrorPoint = () => (
 
 /* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
-const TraceChain = ({ frames = [], status, streamingContent = "" }) => {
+const TraceChain = ({
+  frames = [],
+  status,
+  streamingContent = "",
+  onToolConfirmationDecision,
+  toolConfirmationUiStateById = {},
+}) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
@@ -305,6 +312,21 @@ const TraceChain = ({ frames = [], status, streamingContent = "" }) => {
     return m;
   }, [frames]);
 
+  const confirmationStatusByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (!frame?.payload?.call_id) {
+        continue;
+      }
+      if (frame.type === "tool_confirmed") {
+        map.set(frame.payload.call_id, "approved");
+      } else if (frame.type === "tool_denied") {
+        map.set(frame.payload.call_id, "denied");
+      }
+    }
+    return map;
+  }, [frames]);
+
   const timelineItems = useMemo(() => {
     const items = [];
     const renderedCallIds = new Set();
@@ -337,6 +359,174 @@ const TraceChain = ({ frames = [], status, streamingContent = "" }) => {
               >
                 {text}
               </Markdown>
+            ) : undefined,
+        });
+      } else if (frame.type === "tool_confirmation_request") {
+        const callId =
+          typeof frame.payload?.call_id === "string" ? frame.payload.call_id : "";
+        const toolName =
+          typeof frame.payload?.tool_name === "string"
+            ? frame.payload.tool_name
+            : "tool";
+        const confirmationId =
+          typeof frame.payload?.confirmation_id === "string"
+            ? frame.payload.confirmation_id
+            : "";
+        const description =
+          typeof frame.payload?.description === "string"
+            ? frame.payload.description.trim()
+            : "";
+        const args = frame.payload?.arguments;
+        const confirmationResult = callId
+          ? confirmationStatusByCallId.get(callId)
+          : "";
+
+        const confirmationUiState =
+          confirmationId && toolConfirmationUiStateById
+            ? toolConfirmationUiStateById[confirmationId] || {}
+            : {};
+        const uiStatus =
+          typeof confirmationUiState?.status === "string"
+            ? confirmationUiState.status
+            : "idle";
+        const uiError =
+          typeof confirmationUiState?.error === "string"
+            ? confirmationUiState.error
+            : "";
+
+        const isResolved =
+          confirmationResult === "approved" || confirmationResult === "denied";
+        const isSubmitting =
+          uiStatus === "submitting" || uiStatus === "submitted";
+
+        let statusLabel = "Pending";
+        if (confirmationResult === "approved") {
+          statusLabel = "Approved";
+        } else if (confirmationResult === "denied") {
+          statusLabel = "Denied";
+        } else if (isSubmitting) {
+          statusLabel = "Submitting...";
+        } else if (uiError) {
+          statusLabel = "Failed to submit";
+        }
+
+        const canTakeAction =
+          !isResolved &&
+          !isSubmitting &&
+          confirmationId &&
+          typeof onToolConfirmationDecision === "function";
+
+        const statusColor = isResolved
+          ? confirmationResult === "approved"
+            ? isDark
+              ? "rgba(110,231,183,0.95)"
+              : "rgba(5,150,105,0.95)"
+            : isDark
+              ? "rgba(252,165,165,0.95)"
+              : "rgba(220,38,38,0.95)"
+          : isDark
+            ? "rgba(255,255,255,0.6)"
+            : "rgba(0,0,0,0.52)";
+
+        const argsPairs = toKVPairs(args);
+        const detailsSections = [];
+        if (description) {
+          detailsSections.push({
+            heading: "description",
+            pairs: [{ key: "text", value: description }],
+          });
+        }
+        if (argsPairs.length) {
+          detailsSections.push({
+            heading: "args",
+            pairs: argsPairs,
+          });
+        }
+        if (uiError) {
+          detailsSections.push({
+            heading: "error",
+            pairs: [{ key: "message", value: uiError }],
+          });
+        }
+
+        const actionButtonBaseStyle = {
+          border: "none",
+          borderRadius: 6,
+          padding: "4px 10px",
+          cursor: "pointer",
+          fontSize: 11.5,
+          lineHeight: 1.4,
+          fontFamily: "Menlo, Monaco, Consolas, monospace",
+        };
+
+        items.push({
+          key: `${frame.seq}-tool-confirmation`,
+          title: "Tool Confirmation",
+          span: spanText,
+          status: isResolved ? "done" : "active",
+          point: isResolved ? <HammerPoint isDark={isDark} /> : "loading",
+          body: (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              <ToolTag name={toolName} isDark={isDark} />
+              <span
+                style={{
+                  fontSize: 11.5,
+                  color: statusColor,
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                }}
+              >
+                {statusLabel}
+              </span>
+              {canTakeAction && (
+                <>
+                  <button
+                    onClick={() =>
+                      onToolConfirmationDecision({
+                        confirmationId,
+                        approved: true,
+                      })
+                    }
+                    style={{
+                      ...actionButtonBaseStyle,
+                      color: isDark ? "rgba(209,250,229,0.95)" : "#065f46",
+                      backgroundColor: isDark
+                        ? "rgba(16,185,129,0.22)"
+                        : "rgba(16,185,129,0.16)",
+                    }}
+                  >
+                    Allow
+                  </button>
+                  <button
+                    onClick={() =>
+                      onToolConfirmationDecision({
+                        confirmationId,
+                        approved: false,
+                      })
+                    }
+                    style={{
+                      ...actionButtonBaseStyle,
+                      color: isDark ? "rgba(254,202,202,0.98)" : "#991b1b",
+                      backgroundColor: isDark
+                        ? "rgba(239,68,68,0.2)"
+                        : "rgba(239,68,68,0.14)",
+                    }}
+                  >
+                    Deny
+                  </button>
+                </>
+              )}
+            </div>
+          ),
+          details:
+            detailsSections.length > 0 ? (
+              <KVPanel sections={detailsSections} isDark={isDark} color={color} />
             ) : undefined,
         });
       } else if (frame.type === "tool_call") {
@@ -461,6 +651,9 @@ const TraceChain = ({ frames = [], status, streamingContent = "" }) => {
     streamingContent,
     startFrame,
     toolResultByCallId,
+    confirmationStatusByCallId,
+    onToolConfirmationDecision,
+    toolConfirmationUiStateById,
     isDark,
     color,
   ]);

@@ -9,6 +9,7 @@ import copy
 import sys
 import threading
 import time
+import uuid as _uuid
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
 
@@ -34,6 +35,151 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "mcp": "integration",
 }
 _DEFAULT_MAX_ITERATIONS = 6
+_CONFIRMATION_TIMEOUT_SECONDS = 300
+_CONFIRMATION_REQUIRED_TOOL_NAMES = {
+    "write_file",
+    "delete_file",
+    "move_file",
+    "terminal_exec",
+}
+_pending_confirmations: Dict[str, Dict[str, Any]] = {}
+_pending_confirmations_lock = threading.Lock()
+
+
+def _normalize_tool_confirmation_response(raw: object) -> Dict[str, Any]:
+    approved = True
+    reason = ""
+    modified_arguments: Dict[str, Any] | None = None
+
+    if isinstance(raw, bool):
+        approved = raw
+    elif isinstance(raw, dict):
+        approved = bool(raw.get("approved", True))
+        reason_raw = raw.get("reason", "")
+        reason = reason_raw if isinstance(reason_raw, str) else str(reason_raw or "")
+        modified_raw = raw.get("modified_arguments")
+        if isinstance(modified_raw, dict):
+            modified_arguments = modified_raw
+    else:
+        approved_attr = getattr(raw, "approved", raw)
+        approved = bool(approved_attr)
+        reason_attr = getattr(raw, "reason", "")
+        reason = reason_attr if isinstance(reason_attr, str) else str(reason_attr or "")
+        modified_attr = getattr(raw, "modified_arguments", None)
+        if isinstance(modified_attr, dict):
+            modified_arguments = modified_attr
+
+    return {
+        "approved": approved,
+        "reason": reason,
+        "modified_arguments": modified_arguments,
+    }
+
+
+def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, Any]:
+    payload: Dict[str, Any] = {}
+    if isinstance(request_obj, dict):
+        payload = dict(request_obj)
+    else:
+        to_dict = getattr(request_obj, "to_dict", None)
+        if callable(to_dict):
+            try:
+                raw_payload = to_dict()
+                if isinstance(raw_payload, dict):
+                    payload = dict(raw_payload)
+            except Exception:
+                payload = {}
+
+    if not payload:
+        payload = {
+            "tool_name": getattr(request_obj, "tool_name", ""),
+            "call_id": getattr(request_obj, "call_id", ""),
+            "arguments": getattr(request_obj, "arguments", {}),
+            "description": getattr(request_obj, "description", ""),
+        }
+
+    payload["type"] = "tool_confirmation_request"
+
+    if not isinstance(payload.get("tool_name"), str):
+        payload["tool_name"] = str(payload.get("tool_name", "") or "")
+    if not isinstance(payload.get("call_id"), str):
+        payload["call_id"] = str(payload.get("call_id", "") or "")
+
+    arguments = payload.get("arguments")
+    payload["arguments"] = arguments if isinstance(arguments, dict) else {}
+
+    description = payload.get("description", "")
+    payload["description"] = description if isinstance(description, str) else str(description or "")
+
+    return payload
+
+
+def submit_tool_confirmation(
+    confirmation_id: str,
+    approved: bool,
+    reason: str = "",
+    modified_arguments: Dict[str, Any] | None = None,
+) -> bool:
+    normalized_id = confirmation_id.strip() if isinstance(confirmation_id, str) else ""
+    if not normalized_id:
+        return False
+
+    with _pending_confirmations_lock:
+        pending = _pending_confirmations.get(normalized_id)
+        if pending is None:
+            return False
+
+        pending["response"] = {
+            "approved": bool(approved),
+            "reason": reason if isinstance(reason, str) else str(reason or ""),
+            "modified_arguments": modified_arguments if isinstance(modified_arguments, dict) else None,
+        }
+        event = pending.get("event")
+        if isinstance(event, threading.Event):
+            event.set()
+
+    return True
+
+
+def _make_tool_confirm_callback(
+    emit_event,
+    timeout_seconds: int = _CONFIRMATION_TIMEOUT_SECONDS,
+):
+    safe_timeout_seconds = max(1, int(timeout_seconds))
+
+    def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
+        confirmation_id = str(_uuid.uuid4())
+        waiter = {"event": threading.Event(), "response": None}
+
+        with _pending_confirmations_lock:
+            _pending_confirmations[confirmation_id] = waiter
+
+        try:
+            request_payload = _build_tool_confirmation_request_payload(request_obj)
+            request_payload["confirmation_id"] = confirmation_id
+            emit_event(request_payload)
+            waiter["event"].wait(timeout=safe_timeout_seconds)
+        except Exception as callback_error:
+            return {
+                "approved": False,
+                "reason": f"Failed to request confirmation: {callback_error}",
+                "modified_arguments": None,
+            }
+        finally:
+            with _pending_confirmations_lock:
+                _pending_confirmations.pop(confirmation_id, None)
+
+        response = waiter.get("response")
+        if isinstance(response, dict):
+            return _normalize_tool_confirmation_response(response)
+
+        return {
+            "approved": False,
+            "reason": "Confirmation timed out",
+            "modified_arguments": None,
+        }
+
+    return on_tool_confirm
 
 
 def _is_valid_miso_source(path: Path) -> bool:
@@ -118,6 +264,18 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     ):
         return
 
+    try:
+        execute_tool_calls_params = inspect.signature(original_execute_tool_calls).parameters
+        original_supports_on_tool_confirm = (
+            "on_tool_confirm" in execute_tool_calls_params
+            or any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in execute_tool_calls_params.values()
+            )
+        )
+    except Exception:
+        original_supports_on_tool_confirm = True
+
     def _patched_execute_tool_calls(
         self,
         *,
@@ -125,14 +283,20 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         run_id: str,
         iteration: int,
         callback,
+        on_tool_confirm=None,
     ):
         if getattr(self, "provider", "") != "anthropic":
+            original_kwargs = {
+                "tool_calls": tool_calls,
+                "run_id": run_id,
+                "iteration": iteration,
+                "callback": callback,
+            }
+            if original_supports_on_tool_confirm:
+                original_kwargs["on_tool_confirm"] = on_tool_confirm
             return original_execute_tool_calls(
                 self,
-                tool_calls=tool_calls,
-                run_id=run_id,
-                iteration=iteration,
-                callback=callback,
+                **original_kwargs,
             )
 
         result_messages: List[Dict[str, Any]] = []
@@ -153,7 +317,57 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 arguments=tool_call.arguments,
             )
 
-            tool_result = self._execute_from_toolkits(tool_call.name, tool_call.arguments)
+            tool_obj = self._find_tool(tool_call.name)
+            effective_arguments = tool_call.arguments
+            denied = False
+            deny_reason = ""
+
+            if (
+                tool_obj is not None
+                and bool(getattr(tool_obj, "requires_confirmation", False))
+                and on_tool_confirm is not None
+            ):
+                confirmation_request = {
+                    "tool_name": tool_call.name,
+                    "call_id": tool_call.call_id,
+                    "arguments": tool_call.arguments if isinstance(tool_call.arguments, dict) else {},
+                    "description": str(getattr(tool_obj, "description", "") or ""),
+                }
+                raw_response = on_tool_confirm(confirmation_request)
+                response = _normalize_tool_confirmation_response(raw_response)
+
+                if not response["approved"]:
+                    denied = True
+                    deny_reason = str(response.get("reason", "") or "")
+                    self._emit(
+                        callback,
+                        "tool_denied",
+                        run_id,
+                        iteration=iteration,
+                        tool_name=tool_call.name,
+                        call_id=tool_call.call_id,
+                        reason=deny_reason,
+                    )
+                else:
+                    if response.get("modified_arguments") is not None:
+                        effective_arguments = response["modified_arguments"]
+                    self._emit(
+                        callback,
+                        "tool_confirmed",
+                        run_id,
+                        iteration=iteration,
+                        tool_name=tool_call.name,
+                        call_id=tool_call.call_id,
+                    )
+
+            if denied:
+                tool_result = {
+                    "denied": True,
+                    "tool": tool_call.name,
+                    "reason": deny_reason or "User denied execution.",
+                }
+            else:
+                tool_result = self._execute_from_toolkits(tool_call.name, effective_arguments)
             content = json.dumps(tool_result, default=str, ensure_ascii=False)
 
             anthropic_tool_results.append(
@@ -1014,6 +1228,21 @@ def _resolve_workspace_root(workspace_root: str) -> Path:
     return candidate
 
 
+def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
+    tools = getattr(workspace_toolkit, "tools", None)
+    if not isinstance(tools, dict):
+        return
+
+    for tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES:
+        tool_obj = tools.get(tool_name)
+        if tool_obj is None:
+            continue
+        try:
+            tool_obj.requires_confirmation = True
+        except Exception:
+            continue
+
+
 def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
     workspace_root_raw = _extract_workspace_root_from_options(options)
     if not workspace_root_raw:
@@ -1044,6 +1273,7 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
         # Backward compatibility for older signatures.
         workspace_toolkit = toolkit_factory(workspace_root=str(workspace_root))
 
+    _mark_workspace_tools_for_confirmation(workspace_toolkit)
     agent.add_toolkit(workspace_toolkit)
 
 
@@ -1235,14 +1465,29 @@ def stream_chat_events(
             output_holder["last_iteration"] = iteration
         event_queue.put(event)
 
+    confirm_cb = _make_tool_confirm_callback(
+        lambda event: event_queue.put(event),
+        timeout_seconds=_CONFIRMATION_TIMEOUT_SECONDS,
+    )
+
     def run_agent() -> None:
         try:
-            messages_out, _bundle = agent.run(
-                messages=messages,
-                payload=payload,
-                callback=on_event,
-                max_iterations=agent.max_iterations,
-            )
+            run_kwargs: Dict[str, Any] = {
+                "messages": messages,
+                "payload": payload,
+                "callback": on_event,
+                "max_iterations": agent.max_iterations,
+            }
+
+            try:
+                run_params = inspect.signature(agent.run).parameters
+            except Exception:
+                run_params = {}
+
+            if "on_tool_confirm" in run_params:
+                run_kwargs["on_tool_confirm"] = confirm_cb
+
+            messages_out, _bundle = agent.run(**run_kwargs)
             output_holder["messages"] = messages_out
         except Exception as run_error:  # pragma: no cover
             output_holder["error"] = run_error

@@ -1,6 +1,8 @@
 import json
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -197,13 +199,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(
             names,
             [
-                "toolkit",
                 "builtin_toolkit",
                 "python_workspace_toolkit",
                 "mcp",
             ],
         )
-        self.assertEqual(catalog["count"], 4)
+        self.assertEqual(catalog["count"], 3)
 
     def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
         with mock.patch.object(miso_adapter, "_resolve_toolkit_base", return_value=None):
@@ -243,6 +244,81 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             miso_adapter._extract_max_iterations_from_options({"maxIterations": "abc"})
         )
         self.assertIsNone(miso_adapter._extract_max_iterations_from_options({}))
+
+    def test_make_tool_confirm_callback_round_trip_with_submit(self) -> None:
+        emitted_events = []
+        confirm_cb = miso_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            timeout_seconds=2,
+        )
+        response_holder: dict[str, object] = {}
+
+        def invoke_callback() -> None:
+            response_holder["value"] = confirm_cb(
+                SimpleNamespace(
+                    tool_name="delete_file",
+                    call_id="call-1",
+                    arguments={"path": "tmp.txt"},
+                    description="Delete a file",
+                )
+            )
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertTrue(emitted_events)
+        request_event = emitted_events[0]
+        self.assertEqual(request_event.get("type"), "tool_confirmation_request")
+        confirmation_id = request_event.get("confirmation_id")
+        self.assertIsInstance(confirmation_id, str)
+
+        submitted = miso_adapter.submit_tool_confirmation(
+            confirmation_id=confirmation_id,
+            approved=True,
+            reason="approved",
+        )
+        self.assertTrue(submitted)
+
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+
+        result = response_holder.get("value")
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["approved"], True)
+        self.assertEqual(result["reason"], "approved")
+
+    def test_make_tool_confirm_callback_times_out_to_denied_response(self) -> None:
+        confirm_cb = miso_adapter._make_tool_confirm_callback(
+            lambda _event: None,
+            timeout_seconds=1,
+        )
+
+        started = time.time()
+        result = confirm_cb(
+            {
+                "tool_name": "delete_file",
+                "call_id": "call-timeout",
+                "arguments": {"path": "tmp.txt"},
+                "description": "Delete a file",
+            }
+        )
+        elapsed = time.time() - started
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result.get("approved"), False)
+        self.assertIn("timed out", str(result.get("reason", "")).lower())
+        self.assertLess(elapsed, 2.5)
+
+    def test_submit_tool_confirmation_returns_false_for_unknown_id(self) -> None:
+        submitted = miso_adapter.submit_tool_confirmation(
+            confirmation_id="unknown-confirmation-id",
+            approved=True,
+        )
+        self.assertFalse(submitted)
 
     def test_apply_broth_runtime_patches_batches_anthropic_tool_results(self) -> None:
         class FakeBroth:
@@ -343,6 +419,87 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         self.assertTrue(agent.used_original_execute)
 
+    def test_apply_broth_runtime_patches_anthropic_confirmation_gate(self) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "anthropic"
+                self.executed_arguments = []
+                self.events = []
+
+            def _execute_tool_calls(self, **_kwargs):
+                return [{"role": "tool", "content": "original"}], False
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
+                self.events.append((event_type, iteration, extra))
+
+            def _find_tool(self, _name):
+                return SimpleNamespace(
+                    observe=False,
+                    requires_confirmation=True,
+                    description="dangerous",
+                )
+
+            def _execute_from_toolkits(self, name, arguments):
+                self.executed_arguments.append((name, arguments))
+                return {"ok": True, "arguments": arguments}
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+
+        agent = FakeBroth()
+        denied_messages, _ = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-deny",
+                    name="delete_file",
+                    arguments={"path": "a.txt"},
+                )
+            ],
+            run_id="run-1",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda _req: {"approved": False, "reason": "no"},
+        )
+
+        self.assertEqual(agent.executed_arguments, [])
+        denied_events = [event for event in agent.events if event[0] == "tool_denied"]
+        self.assertEqual(len(denied_events), 1)
+        denied_content = denied_messages[0]["content"][0]["content"]
+        denied_result = json.loads(denied_content)
+        self.assertEqual(denied_result["denied"], True)
+
+        approved_messages, _ = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-approve",
+                    name="move_file",
+                    arguments={"source": "a.txt", "destination": "b.txt"},
+                )
+            ],
+            run_id="run-2",
+            iteration=1,
+            callback=None,
+            on_tool_confirm=lambda _req: {
+                "approved": True,
+                "modified_arguments": {"source": "x.txt", "destination": "y.txt"},
+            },
+        )
+
+        self.assertEqual(
+            agent.executed_arguments[-1],
+            ("move_file", {"source": "x.txt", "destination": "y.txt"}),
+        )
+        confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
+        self.assertEqual(len(confirmed_events), 1)
+        approved_content = approved_messages[0]["content"][0]["content"]
+        approved_result = json.loads(approved_content)
+        self.assertEqual(approved_result["ok"], True)
+
     def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -404,6 +561,54 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
         self.assertEqual(captured["include_python_runtime"], True)
+
+    def test_create_agent_marks_selected_workspace_tools_requires_confirmation(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        class FakeTool:
+            def __init__(self):
+                self.requires_confirmation = False
+
+        toolkit_instance = SimpleNamespace(
+            tools={
+                "write_file": FakeTool(),
+                "delete_file": FakeTool(),
+                "move_file": FakeTool(),
+                "terminal_exec": FakeTool(),
+                "read_file": FakeTool(),
+            }
+        )
+
+        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+            return toolkit_instance
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter, "_BROTH_CLASS", FakeAgent
+            ), mock.patch.object(
+                miso_adapter, "_IMPORT_ERROR", None
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    python_workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                _agent = miso_adapter._create_agent({"workspace_root": tmp})
+
+        self.assertTrue(toolkit_instance.tools["write_file"].requires_confirmation)
+        self.assertTrue(toolkit_instance.tools["delete_file"].requires_confirmation)
+        self.assertTrue(toolkit_instance.tools["move_file"].requires_confirmation)
+        self.assertTrue(toolkit_instance.tools["terminal_exec"].requires_confirmation)
+        self.assertFalse(toolkit_instance.tools["read_file"].requires_confirmation)
 
     def test_create_agent_rejects_invalid_workspace_root(self) -> None:
         class FakeAgent:
@@ -502,6 +707,53 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             agent = miso_adapter._create_agent({"maxIterations": 5})
 
         self.assertEqual(agent.max_iterations, 5)
+
+    def test_stream_chat_events_passes_on_tool_confirm_to_agent_run(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.received_on_tool_confirm = False
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+            ):
+                self.received_on_tool_confirm = callable(on_tool_confirm)
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return [{"role": "assistant", "content": "done"}], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(
+            miso_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ):
+            events = list(
+                miso_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={},
+                )
+            )
+
+        self.assertTrue(fake_agent.received_on_tool_confirm)
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
 
     def test_extract_last_assistant_text_handles_structured_content(self) -> None:
         messages = [

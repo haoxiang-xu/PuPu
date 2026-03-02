@@ -11,6 +11,7 @@ from miso_adapter import (
     get_model_name,
     get_runtime_config,
     get_toolkit_catalog,
+    submit_tool_confirmation,
     stream_chat,
     stream_chat_events,
 )
@@ -36,6 +37,9 @@ _TRACE_STAGE_BY_EVENT_TYPE = {
     "token_delta": "model",
     "final_message": "model",
     "tool_call": "tool",
+    "tool_confirmation_request": "tool",
+    "tool_confirmed": "tool",
+    "tool_denied": "tool",
     "tool_result": "tool",
     "error": "stream",
     "done": "stream",
@@ -315,6 +319,69 @@ def toolkits_catalog() -> Response:
         ), 401
 
     return jsonify(get_toolkit_catalog())
+
+
+@api_blueprint.post("/chat/tool/confirmation")
+def chat_tool_confirmation() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    payload = request.get_json(silent=True) or {}
+    confirmation_id_raw = payload.get("confirmation_id")
+    confirmation_id = (
+        confirmation_id_raw.strip()
+        if isinstance(confirmation_id_raw, str)
+        else ""
+    )
+    if not confirmation_id:
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "confirmation_id is required",
+                }
+            }
+        ), 400
+
+    approved = bool(payload.get("approved", False))
+    reason_raw = payload.get("reason", "")
+    reason = reason_raw if isinstance(reason_raw, str) else str(reason_raw or "")
+
+    modified_arguments = payload.get("modified_arguments")
+    if modified_arguments is not None and not isinstance(modified_arguments, dict):
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "modified_arguments must be an object when provided",
+                }
+            }
+        ), 400
+
+    found = submit_tool_confirmation(
+        confirmation_id=confirmation_id,
+        approved=approved,
+        reason=reason,
+        modified_arguments=modified_arguments,
+    )
+    if not found:
+        return jsonify(
+            {
+                "error": {
+                    "code": "not_found",
+                    "message": "No pending confirmation found for this ID",
+                }
+            }
+        ), 404
+
+    return jsonify({"status": "ok"})
 
 
 @api_blueprint.post("/chat/stream")
