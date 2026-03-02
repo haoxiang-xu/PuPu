@@ -37,6 +37,7 @@ const ChatInput = ({
 
   const { modelOptions, handleGroupToggle } = useChatInputModels({
     model_catalog: modelCatalog,
+    selected_model_id: selectedModelId,
   });
 
   const { isDragging, handleDragOver, handleDragLeave, handleDrop } =
