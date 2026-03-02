@@ -22,9 +22,9 @@
 
 PuPu is a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. Whether you prefer running models on your own machine or connecting to providers like OpenAI and Anthropic, PuPu gives you a unified, elegant interface — your AI, your rules.
 
-please start project balabala
+please star the repo if you find it interesting! ⭐
 
-<img src="./public/assets/v0.1.0-release/ui_showcase_1.png" alt="PuPu UI 3"/>
+<img src="./public/assets/v0.1.0-release/social_preview.png" alt="PuPu UI 1"/>
 
 ## Features
 
@@ -45,6 +45,8 @@ Organize conversations with ease — pin, search, and manage multiple chat sessi
 - **Agent Builder** — Create custom AI agents tailored to your workflows
 - **Agent Teams & Skills** — Orchestrate multiple agents working together with specialized capabilities
 - **MCP Integration** — Connect to the Model Context Protocol ecosystem for extended tool use and context sharing
+
+<img src="./public/assets/v0.1.0-release/ui_showcase_1.png" alt="PuPu UI 2"/>
 
 ## Table of Contents
 
