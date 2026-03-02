@@ -172,6 +172,26 @@ contextBridge.exposeInMainWorld("appInfoAPI", {
   getVersion: () => ipcRenderer.invoke("app:get-version"),
 });
 
+contextBridge.exposeInMainWorld("appUpdateAPI", {
+  checkAndDownload: () => ipcRenderer.invoke("update:check-and-download"),
+  installNow: () => ipcRenderer.invoke("update:install-now"),
+  getState: () => ipcRenderer.invoke("update:get-state"),
+  onStateChange: (callback) => {
+    if (typeof callback !== "function") {
+      return () => {};
+    }
+
+    const listener = (_event, payload) => {
+      callback(payload || {});
+    };
+    ipcRenderer.on("update:state-changed", listener);
+
+    return () => {
+      ipcRenderer.removeListener("update:state-changed", listener);
+    };
+  },
+});
+
 contextBridge.exposeInMainWorld("osInfo", {
   platform: process.platform,
 });

@@ -6,6 +6,7 @@ import { AppearanceSettings } from "./appearance";
 import { ModelProvidersSettings } from "./model_providers";
 import { LocalStorageSettings } from "./local_storage";
 import { RuntimeSettings } from "./runtime";
+import { AppUpdateSettings } from "./app_update";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Settings pages configuration                                                                                               */
@@ -29,6 +30,12 @@ const SETTINGS_PAGES = [
     icon: "terminal",
     label: "Runtime",
     component: RuntimeSettings,
+  },
+  {
+    key: "app_update",
+    icon: "update",
+    label: "App Update",
+    component: AppUpdateSettings,
   },
   {
     key: "local_storage",
