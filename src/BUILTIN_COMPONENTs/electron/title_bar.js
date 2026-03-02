@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../input/button";
+import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 
 const TOP_BAR_HEIGHT = 50;
 
@@ -23,8 +24,7 @@ const hasElectronWindowControls = () => {
   }
   return Boolean(
     window.runtime?.isElectron === true &&
-    window.windowStateAPI &&
-    typeof window.windowStateAPI.windowStateEventHandler === "function",
+    windowStateBridge.isActionAvailable(),
   );
 };
 const WINDOWS_CONTROL_ICONS = {
@@ -42,15 +42,13 @@ const TitleBar = () => {
   const isDarwin = platform === "darwin";
 
   useEffect(() => {
-    if (!isElectron || !window.windowStateAPI) {
+    if (!isElectron) {
       return undefined;
     }
 
-    const cleanup = window.windowStateAPI.windowStateEventListener(
-      ({ isMaximized }) => {
-        setWindowIsMaximized(Boolean(isMaximized));
-      },
-    );
+    const cleanup = windowStateBridge.onWindowStateChange(({ isMaximized }) => {
+      setWindowIsMaximized(Boolean(isMaximized));
+    });
 
     return () => {
       if (typeof cleanup === "function") {
@@ -64,13 +62,7 @@ const TitleBar = () => {
   }
 
   const runWindowAction = (action) => {
-    if (
-      !window.windowStateAPI ||
-      typeof window.windowStateAPI.windowStateEventHandler !== "function"
-    ) {
-      return;
-    }
-    window.windowStateAPI.windowStateEventHandler(action);
+    windowStateBridge.sendWindowAction(action);
   };
 
   const topBarBackground = theme?.backgroundColor || "rgba(22, 22, 24, 0.86)";

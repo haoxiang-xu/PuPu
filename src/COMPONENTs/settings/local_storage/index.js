@@ -12,6 +12,7 @@ import OllamaModelRow from "./components/ollama_model_row";
 import ConfirmClearAll from "./components/confirm_clear_all";
 import ConfirmDeleteModal from "./components/confirm_delete_modal";
 import { api } from "../../../SERVICEs/api";
+import { runtimeBridge } from "../../../SERVICEs/bridges/miso_bridge";
 
 const OllamaSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
@@ -447,9 +448,7 @@ const readRuntimeWorkspaceRoot = () => {
 
 const RuntimeSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
-  const hasApi =
-    typeof window !== "undefined" &&
-    typeof window.misoAPI?.getRuntimeDirSize === "function";
+  const hasApi = runtimeBridge.isRuntimeStorageAvailable();
 
   const [status, setStatus] = useState("loading");
   const [entries, setEntries] = useState([]);
@@ -471,7 +470,7 @@ const RuntimeSection = ({ isDark }) => {
     }
     setStatus("loading");
     try {
-      const result = await window.misoAPI.getRuntimeDirSize(wp);
+      const result = await runtimeBridge.getRuntimeDirSize(wp);
       if (result && Array.isArray(result.entries)) {
         if (result.error === "not_found") {
           setStatus("not_found");
@@ -493,7 +492,7 @@ const RuntimeSection = ({ isDark }) => {
       const wp = readRuntimeWorkspaceRoot();
       if (!wp) return;
       try {
-        await window.misoAPI.deleteRuntimeEntry(wp, entryName);
+        await runtimeBridge.deleteRuntimeEntry(wp, entryName);
       } catch {}
       setEntries((prev) => prev.filter((e) => e.name !== entryName));
       setTotal((prev) => {
@@ -509,7 +508,7 @@ const RuntimeSection = ({ isDark }) => {
     const wp = readRuntimeWorkspaceRoot();
     if (!wp) return;
     try {
-      await window.misoAPI.clearRuntimeDir(wp);
+      await runtimeBridge.clearRuntimeDir(wp);
     } catch {}
     setEntries([]);
     setTotal(0);

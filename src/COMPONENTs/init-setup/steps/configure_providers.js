@@ -9,6 +9,7 @@ import {
   readModelProviders,
   writeModelProviders,
 } from "../../settings/model_providers/storage";
+import { ollamaBridge } from "../../../SERVICEs/bridges/ollama_bridge";
 
 /* ── shared sub-components ──────────────────────────────────────────────────── */
 const StatusBadge = ({ status, label }) => {
@@ -146,7 +147,7 @@ const OllamaSubStep = ({ isDark }) => {
   useEffect(() => {
     const check = async () => {
       try {
-        const s = await window.ollamaAPI?.getStatus?.();
+        const s = await ollamaBridge.getStatus();
         setOllamaStatus(s || "not_found");
       } catch {
         setOllamaStatus("not_found");
@@ -156,8 +157,7 @@ const OllamaSubStep = ({ isDark }) => {
   }, []);
 
   useEffect(() => {
-    if (!window.ollamaAPI?.onInstallProgress) return;
-    const unsub = window.ollamaAPI.onInstallProgress((pct) => {
+    const unsub = ollamaBridge.onInstallProgress((pct) => {
       setInstallProgress(pct);
       if (pct >= 100) {
         setInstallDone(true);
@@ -171,7 +171,7 @@ const OllamaSubStep = ({ isDark }) => {
     setInstallError(null);
     setInstallProgress(0);
     try {
-      await window.ollamaAPI?.install?.();
+      await ollamaBridge.install();
     } catch (e) {
       setInstallError(e?.message || "Download failed");
       setInstallProgress(null);
@@ -181,7 +181,7 @@ const OllamaSubStep = ({ isDark }) => {
   const handleRecheck = async () => {
     setOllamaStatus("checking");
     try {
-      const s = await window.ollamaAPI?.getStatus?.();
+      const s = await ollamaBridge.getStatus();
       setOllamaStatus(s || "not_found");
     } catch {
       setOllamaStatus("not_found");

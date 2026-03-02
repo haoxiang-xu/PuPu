@@ -88,8 +88,10 @@
     ],
     "files": [
       "build/**/*",
+      "electron/**/*",
       "public/electron.js",
       "public/preload.js",
+      "public/loading.html",
       "public/favicon.ico",
       "public/icon-win.ico",
       "public/icon.icns",

@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { SettingsSection } from "./appearance";
+import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
 
 const SETTINGS_STORAGE_KEY = "settings";
 
@@ -51,17 +52,12 @@ const validateWorkspaceRoot = async (workspaceRoot) => {
     return { valid: true, resolvedPath: "", reason: "" };
   }
 
-  const method =
-    typeof window !== "undefined" && typeof window.misoAPI?.validateWorkspaceRoot === "function"
-      ? window.misoAPI.validateWorkspaceRoot
-      : null;
-
-  if (!method) {
+  if (!runtimeBridge.isWorkspaceValidationAvailable()) {
     return { valid: true, resolvedPath: trimmed, reason: "" };
   }
 
   try {
-    const response = await method(trimmed);
+    const response = await runtimeBridge.validateWorkspaceRoot(trimmed);
     const valid = Boolean(response?.valid);
     const resolvedPath =
       typeof response?.resolvedPath === "string" ? response.resolvedPath.trim() : "";
@@ -94,12 +90,10 @@ export const RuntimeSettings = () => {
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
   const browseSupported =
-    typeof window !== "undefined" &&
-    typeof window.misoAPI?.pickWorkspaceRoot === "function";
+    runtimeBridge.isWorkspacePickerAvailable();
 
   const openFolderSupported =
-    typeof window !== "undefined" &&
-    typeof window.misoAPI?.openRuntimeFolder === "function";
+    runtimeBridge.isOpenRuntimeFolderAvailable();
 
   const isDirty = useMemo(
     () => workspaceRoot.trim() !== savedWorkspaceRoot.trim(),
@@ -150,7 +144,7 @@ export const RuntimeSettings = () => {
     setInfo("");
 
     try {
-      const response = await window.misoAPI.pickWorkspaceRoot(
+      const response = await runtimeBridge.pickWorkspaceRoot(
         workspaceRoot.trim() || savedWorkspaceRoot.trim(),
       );
       if (!response?.canceled && typeof response?.path === "string" && response.path.trim()) {
@@ -171,7 +165,7 @@ export const RuntimeSettings = () => {
     setInfo("");
 
     try {
-      const response = await window.misoAPI.openRuntimeFolder(folderPath);
+      const response = await runtimeBridge.openRuntimeFolder(folderPath);
       if (!response?.ok) {
         setError(response?.error || "Failed to open folder.");
       }
@@ -299,4 +293,3 @@ export const RuntimeSettings = () => {
     </div>
   );
 };
-
