@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../../../../SERVICEs/api";
+import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
 import pull_store from "../pull_store";
 
 export const useOllamaLibrary = () => {
@@ -76,6 +77,10 @@ export const useOllamaLibrary = () => {
         },
       })
       .then(() => {
+        emitModelCatalogRefresh({
+          reason: "ollama_pull_completed",
+          model: fullName,
+        });
         delete pull_store.refs[key];
         pull_store.delete(key);
         api.ollama

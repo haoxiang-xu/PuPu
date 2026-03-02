@@ -25,12 +25,14 @@ import {
   loadAttachmentPayload,
   deleteAttachmentPayload,
 } from "../../SERVICEs/attachment_storage";
+import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const STREAM_TRACE_LEVEL = "minimal";
 
 const getFileExtension = (name) => {
   if (typeof name !== "string" || !name.includes(".")) {
@@ -338,16 +340,19 @@ const ChatInterface = () => {
   }, [refreshMisoStatus]);
 
   useEffect(() => {
-    refreshModelCatalog();
+    if (!misoStatus.ready) {
+      return undefined;
+    }
 
-    const timer = setInterval(() => {
+    refreshModelCatalog();
+    const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
-    }, 10000);
+    });
 
     return () => {
-      clearInterval(timer);
+      unsubscribeModelCatalogRefresh();
     };
-  }, [refreshModelCatalog]);
+  }, [misoStatus.ready, refreshModelCatalog]);
 
   useEffect(() => {
     const unsubscribe = subscribeChatsStore((nextStore, event = {}) => {
@@ -981,7 +986,7 @@ const ChatInterface = () => {
                 toolkits: selectedToolkitsRef.current,
               }),
             },
-            trace_level: "full",
+            trace_level: STREAM_TRACE_LEVEL,
           },
           {
             onFrame: (frame) => {
