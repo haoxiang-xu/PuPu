@@ -22,7 +22,9 @@
 
 PuPu is a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. Whether you prefer running models on your own machine or connecting to providers like OpenAI and Anthropic, PuPu gives you a unified, elegant interface — your AI, your rules.
 
-<img src="./public/assets/ui_showcase.png" alt="PuPu UI 3"/>
+please start project balabala
+
+<img src="./public/assets/v0.1.0-release/ui_showcase_1.png" alt="PuPu UI 3"/>
 
 ## Features
 
