@@ -1259,6 +1259,30 @@ def _extract_workspace_root_from_options(options: Dict[str, object] | None) -> s
     return ""
 
 
+def _should_enable_tools(options: Dict[str, object] | None) -> bool:
+    """Return True when the caller explicitly requests tool-enabled mode.
+
+    The frontend sends ``options.toolkits`` (a non-empty list) when the user
+    selects toolkits in the tool picker.  When the list is absent or empty we
+    should *not* attach any toolkits to the agent so that providers which do
+    not support tool calling (e.g. some Ollama models) never receive a
+    ``tools`` parameter.
+    """
+    if not isinstance(options, dict):
+        return False
+
+    toolkits = options.get("toolkits")
+    if isinstance(toolkits, list) and len(toolkits) > 0:
+        return True
+
+    # Also honour an explicit boolean flag if provided.
+    enable_tools = options.get("enable_tools") or options.get("enableTools")
+    if enable_tools is True:
+        return True
+
+    return False
+
+
 def _extract_max_iterations_from_options(options: Dict[str, object] | None) -> int | None:
     if not isinstance(options, dict):
         return None
@@ -1302,6 +1326,9 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
 def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
     workspace_root_raw = _extract_workspace_root_from_options(options)
     if not workspace_root_raw:
+        return
+
+    if not _should_enable_tools(options):
         return
 
     if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
@@ -1373,7 +1400,7 @@ def _create_agent(options: Dict[str, object] | None = None):
                 max_iterations = _DEFAULT_MAX_ITERATIONS
         else:
             max_iterations = _DEFAULT_MAX_ITERATIONS
-    if _extract_workspace_root_from_options(options):
+    if _extract_workspace_root_from_options(options) and _should_enable_tools(options):
         # Tool-call workflows need at least one extra round to produce
         # assistant-facing text after tool outputs are injected.
         max_iterations = max(max_iterations, 2)

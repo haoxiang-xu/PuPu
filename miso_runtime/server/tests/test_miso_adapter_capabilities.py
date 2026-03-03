@@ -628,11 +628,43 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     python_workspace_toolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent({"workspace_root": tmp})
+                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
 
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
         self.assertEqual(captured["include_python_runtime"], True)
+
+    def test_create_agent_skips_toolkit_when_toolkits_option_absent(self) -> None:
+        """When options has workspace_root but no toolkits key, toolkit should NOT be attached."""
+
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+            return {"workspace_root": workspace_root}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter, "_BROTH_CLASS", FakeAgent
+            ), mock.patch.object(
+                miso_adapter, "_IMPORT_ERROR", None
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    python_workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent({"workspace_root": tmp})
+
+        self.assertEqual(len(agent.toolkits), 0)
 
     def test_create_agent_marks_selected_workspace_tools_requires_confirmation(self) -> None:
         class FakeAgent:
@@ -674,7 +706,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     python_workspace_toolkit=fake_workspace_toolkit
                 ),
             ):
-                _agent = miso_adapter._create_agent({"workspace_root": tmp})
+                _agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
 
         self.assertTrue(toolkit_instance.tools["write_file"].requires_confirmation)
         self.assertTrue(toolkit_instance.tools["delete_file"].requires_confirmation)
@@ -709,7 +741,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 missing = str(Path(tmp) / "missing")
                 with self.assertRaisesRegex(RuntimeError, "workspace_root does not exist"):
-                    miso_adapter._create_agent({"workspaceRoot": missing})
+                    miso_adapter._create_agent({"workspaceRoot": missing, "toolkits": ["python_workspace_toolkit"]})
 
     def test_create_agent_uses_min_two_iterations_when_workspace_root_is_set(self) -> None:
         class FakeAgent:
@@ -740,7 +772,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     python_workspace_toolkit=fake_workspace_toolkit
                 ),
             ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
-                agent = miso_adapter._create_agent({"workspace_root": tmp})
+                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
 
         self.assertEqual(agent.max_iterations, 2)
 

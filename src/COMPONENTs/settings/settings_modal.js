@@ -33,8 +33,8 @@ const SETTINGS_PAGES = [
   },
   {
     key: "app_update",
-    icon: "update",
-    label: "App Update",
+    icon: "download_cloud",
+    label: "Update",
     component: AppUpdateSettings,
   },
   {

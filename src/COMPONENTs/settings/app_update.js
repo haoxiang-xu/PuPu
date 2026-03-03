@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
+import { SemiSwitch } from "../../BUILTIN_COMPONENTs/input/switch";
 import { api } from "../../SERVICEs/api";
 import { SettingsRow, SettingsSection } from "./appearance";
 
@@ -23,6 +24,7 @@ export const AppUpdateSettings = () => {
   const isDark = onThemeMode === "dark_mode";
   const updateBridgeAvailable = api.appUpdate.isBridgeAvailable();
   const [actionPending, setActionPending] = useState(false);
+  const [autoUpdte, setAutoUpdte] = useState(false);
   const [updateState, setUpdateState] = useState({
     stage: "idle",
     currentVersion: "",
@@ -192,7 +194,18 @@ export const AppUpdateSettings = () => {
 
   return (
     <div>
-      <SettingsSection title="App Update" icon="update">
+      <SettingsSection title="udpate" icon="update">
+        <SettingsRow
+          label="auto updte"
+          description="Automatically check for app updates"
+        >
+          <SemiSwitch
+            on={autoUpdte}
+            set_on={setAutoUpdte}
+            style={{ width: 56, height: 28 }}
+          />
+        </SettingsRow>
+
         <SettingsRow
           label="Current Version"
           description="Installed application version"
