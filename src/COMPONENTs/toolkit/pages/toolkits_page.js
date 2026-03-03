@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import api from "../../../SERVICEs/api";
 import SectionLabel from "../components/section_label";
 import ToolkitCard from "../components/toolkit_card";
@@ -11,7 +10,6 @@ const ToolkitsPage = ({ isDark }) => {
   const [loading, setLoading] = useState(true);
   const [toolkits, setToolkits] = useState([]);
   const [error, setError] = useState(null);
-  const [source, setSource] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -24,7 +22,6 @@ const ToolkitsPage = ({ isDark }) => {
         if (cancelled) return;
         const list = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
         setToolkits(list);
-        setSource(payload?.source || "");
       })
       .catch((err) => {
         if (cancelled) return;
