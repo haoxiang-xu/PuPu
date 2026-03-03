@@ -15,6 +15,7 @@ import {
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
+  setChatSelectedToolkits,
   setChatThreadId,
   subscribeChatsStore,
   updateChatDraft,
@@ -204,7 +205,9 @@ const ChatInterface = () => {
       : "miso-unset",
   );
   const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
-  const [selectedToolkits, setSelectedToolkits] = useState([]);
+  const [selectedToolkits, setSelectedToolkits] = useState(
+    () => initialChat.selectedToolkits || [],
+  );
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
   const selectedToolkitsRef = useRef([]);
@@ -401,6 +404,7 @@ const ChatInterface = () => {
       setMessages(nextActiveChat.messages || []);
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
+      setSelectedToolkits(nextActiveChat.selectedToolkits || []);
 
       threadIdRef.current = nextActiveChat.threadId || `thread-${Date.now()}`;
       modelIdRef.current =
@@ -517,6 +521,15 @@ const ChatInterface = () => {
     setChatThreadId(chatId, threadIdRef.current, { source: "chat-page" });
     setChatModel(chatId, { id: modelIdRef.current }, { source: "chat-page" });
   }, []);
+
+  useEffect(() => {
+    const chatId = activeChatIdRef.current;
+    if (!chatId) {
+      return;
+    }
+
+    setChatSelectedToolkits(chatId, selectedToolkits, { source: "chat-page" });
+  }, [selectedToolkits]);
 
   const handleSelectModel = useCallback(
     (modelId) => {
