@@ -69,39 +69,6 @@ const ToolkitsPage = ({ isDark }) => {
 
   return (
     <div>
-      {source && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            marginBottom: 16,
-            padding: "8px 12px",
-            borderRadius: 8,
-            background: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
-            border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)"}`,
-          }}
-        >
-          <Icon
-            src="link"
-            style={{ width: 13, height: 13, flexShrink: 0 }}
-            color={isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)"}
-          />
-          <span
-            style={{
-              fontSize: 11,
-              fontFamily: "'JetBrains Mono', 'Fira Mono', monospace",
-              color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {source}
-          </span>
-        </div>
-      )}
-
       <SectionLabel isDark={isDark}>Built-in</SectionLabel>
       {visibleToolkits.map((tk, idx) => (
         <ToolkitCard key={idx} toolkit={tk} isDark={isDark} />

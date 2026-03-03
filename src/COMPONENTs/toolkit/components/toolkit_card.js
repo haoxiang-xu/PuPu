@@ -48,18 +48,6 @@ const ToolkitCard = ({ toolkit, isDark }) => {
           >
             {displayName}
           </div>
-          <div
-            style={{
-              fontSize: 11,
-              fontFamily: "'JetBrains Mono', 'Fira Mono', monospace",
-              color: isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.35)",
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {toolkit.module || toolkit.name}
-          </div>
         </div>
 
         <div
