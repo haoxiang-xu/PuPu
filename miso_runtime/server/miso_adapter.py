@@ -248,7 +248,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     if not isinstance(broth_cls, type):
         return
 
-    patch_marker = "_pupu_anthropic_tool_result_patch_v1"
+    patch_marker = "_pupu_tool_confirmation_contract_patch_v2"
     if getattr(broth_cls, patch_marker, False):
         return
 
@@ -285,6 +285,66 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         callback,
         on_tool_confirm=None,
     ):
+        emitted_confirmation_events: set[tuple[str, bool]] = set()
+
+        def _emit_tool_confirmation_event(
+            *,
+            approved: bool,
+            tool_name: str,
+            call_id: str,
+            reason: str = "",
+        ) -> None:
+            normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
+            normalized_call_id = call_id if isinstance(call_id, str) else str(call_id or "")
+            decision_key = None
+            if normalized_call_id:
+                decision_key = (normalized_call_id, bool(approved))
+                if decision_key in emitted_confirmation_events:
+                    return
+
+            if decision_key is not None:
+                emitted_confirmation_events.add(decision_key)
+
+            if approved:
+                self._emit(
+                    callback,
+                    "tool_confirmed",
+                    run_id,
+                    iteration=iteration,
+                    tool_name=normalized_tool_name,
+                    call_id=normalized_call_id,
+                )
+                return
+
+            self._emit(
+                callback,
+                "tool_denied",
+                run_id,
+                iteration=iteration,
+                tool_name=normalized_tool_name,
+                call_id=normalized_call_id,
+                reason=reason if isinstance(reason, str) else str(reason or ""),
+            )
+
+        def _on_tool_confirm_with_event(request_obj: object) -> Dict[str, Any]:
+            if on_tool_confirm is None:
+                return {
+                    "approved": True,
+                    "reason": "",
+                    "modified_arguments": None,
+                }
+
+            raw_response = on_tool_confirm(request_obj)
+            response = _normalize_tool_confirmation_response(raw_response)
+            request_payload = _build_tool_confirmation_request_payload(request_obj)
+            _emit_tool_confirmation_event(
+                approved=bool(response.get("approved", True)),
+                tool_name=str(request_payload.get("tool_name", "") or ""),
+                call_id=str(request_payload.get("call_id", "") or ""),
+                reason=str(response.get("reason", "") or ""),
+            )
+            return response
+
         if getattr(self, "provider", "") != "anthropic":
             original_kwargs = {
                 "tool_calls": tool_calls,
@@ -293,7 +353,9 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "callback": callback,
             }
             if original_supports_on_tool_confirm:
-                original_kwargs["on_tool_confirm"] = on_tool_confirm
+                original_kwargs["on_tool_confirm"] = (
+                    _on_tool_confirm_with_event if on_tool_confirm is not None else None
+                )
             return original_execute_tool_calls(
                 self,
                 **original_kwargs,
@@ -339,25 +401,19 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 if not response["approved"]:
                     denied = True
                     deny_reason = str(response.get("reason", "") or "")
-                    self._emit(
-                        callback,
-                        "tool_denied",
-                        run_id,
-                        iteration=iteration,
-                        tool_name=tool_call.name,
-                        call_id=tool_call.call_id,
+                    _emit_tool_confirmation_event(
+                        approved=False,
+                        tool_name=str(tool_call.name or ""),
+                        call_id=str(tool_call.call_id or ""),
                         reason=deny_reason,
                     )
                 else:
                     if response.get("modified_arguments") is not None:
                         effective_arguments = response["modified_arguments"]
-                    self._emit(
-                        callback,
-                        "tool_confirmed",
-                        run_id,
-                        iteration=iteration,
-                        tool_name=tool_call.name,
-                        call_id=tool_call.call_id,
+                    _emit_tool_confirmation_event(
+                        approved=True,
+                        tool_name=str(tool_call.name or ""),
+                        call_id=str(tool_call.call_id or ""),
                     )
 
             if denied:

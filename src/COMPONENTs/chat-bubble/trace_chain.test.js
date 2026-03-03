@@ -257,4 +257,42 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
     expect(screen.getByText("Approved")).toBeInTheDocument();
   });
+
+  test("shows submitted status when confirmation event is missing but UI is resolved", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_confirmation_request",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          tool_name: "terminal_exec",
+          arguments: { cmd: "pwd" },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "terminal_exec",
+          result: { ok: true },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "confirm-1": { status: "submitted", error: "", resolved: true },
+      },
+    });
+
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
+    expect(screen.getByText("Submitted")).toBeInTheDocument();
+  });
 });

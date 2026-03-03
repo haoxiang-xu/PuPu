@@ -500,6 +500,78 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         approved_result = json.loads(approved_content)
         self.assertEqual(approved_result["ok"], True)
 
+    def test_apply_broth_runtime_patches_non_anthropic_confirmation_events(self) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+                self.used_original_execute = False
+                self.events = []
+
+            def _execute_tool_calls(
+                self,
+                *,
+                tool_calls,
+                run_id,
+                iteration,
+                callback,
+                on_tool_confirm=None,
+            ):
+                self.used_original_execute = True
+                if on_tool_confirm is not None and tool_calls:
+                    request = {
+                        "tool_name": tool_calls[0].name,
+                        "call_id": tool_calls[0].call_id,
+                        "arguments": tool_calls[0].arguments,
+                        "description": "dangerous",
+                    }
+                    on_tool_confirm(request)
+                    on_tool_confirm(request)
+                return [{"role": "tool", "content": "original"}], False
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
+                self.events.append((event_type, iteration, extra))
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+        tool_calls = [
+            SimpleNamespace(
+                call_id="call-openai-1",
+                name="terminal_exec",
+                arguments={"cmd": "pwd"},
+            )
+        ]
+
+        _messages, _observe = agent._execute_tool_calls(
+            tool_calls=tool_calls,
+            run_id="run-openai-1",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda _req: {"approved": True},
+        )
+        confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
+        self.assertEqual(len(confirmed_events), 1)
+        self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
+        self.assertTrue(agent.used_original_execute)
+
+        agent.events = []
+        _messages, _observe = agent._execute_tool_calls(
+            tool_calls=tool_calls,
+            run_id="run-openai-2",
+            iteration=1,
+            callback=None,
+            on_tool_confirm=lambda _req: {"approved": False, "reason": "denied"},
+        )
+        denied_events = [event for event in agent.events if event[0] == "tool_denied"]
+        self.assertEqual(len(denied_events), 1)
+        self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
+        self.assertEqual(denied_events[0][2].get("reason"), "denied")
+
     def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
         class FakeAgent:
             def __init__(self):

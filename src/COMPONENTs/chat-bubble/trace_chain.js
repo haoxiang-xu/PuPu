@@ -393,17 +393,20 @@ const TraceChain = ({
           typeof confirmationUiState?.error === "string"
             ? confirmationUiState.error
             : "";
+        const uiResolved = confirmationUiState?.resolved === true;
 
         const isResolved =
           confirmationResult === "approved" || confirmationResult === "denied";
         const isSubmitting =
-          uiStatus === "submitting" || uiStatus === "submitted";
+          !uiResolved && (uiStatus === "submitting" || uiStatus === "submitted");
 
         let statusLabel = "Pending";
         if (confirmationResult === "approved") {
           statusLabel = "Approved";
         } else if (confirmationResult === "denied") {
           statusLabel = "Denied";
+        } else if (uiResolved) {
+          statusLabel = "Submitted";
         } else if (isSubmitting) {
           statusLabel = "Submitting...";
         } else if (uiError) {
@@ -412,6 +415,7 @@ const TraceChain = ({
 
         const canTakeAction =
           !isResolved &&
+          !uiResolved &&
           !isSubmitting &&
           confirmationId &&
           typeof onToolConfirmationDecision === "function";
