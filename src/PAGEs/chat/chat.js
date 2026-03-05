@@ -211,6 +211,9 @@ const ChatInterface = () => {
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
   const selectedToolkitsRef = useRef([]);
+  const systemPromptOverridesRef = useRef(
+    initialChat.systemPromptOverrides || {},
+  );
   const confirmationIdByCallIdRef = useRef(new Map());
   const confirmationCallIdByIdRef = useRef(new Map());
   const confirmationFollowupSignalByIdRef = useRef(new Map());
@@ -380,6 +383,12 @@ const ChatInterface = () => {
       if (nextActiveId === currentActiveId) {
         if (event.type === "chat_update_messages") {
           setMessages(nextActiveChat.messages || []);
+          return;
+        }
+
+        if (event.type === "chat_update_system_prompt_overrides") {
+          systemPromptOverridesRef.current =
+            nextActiveChat.systemPromptOverrides || {};
         }
         return;
       }
@@ -405,6 +414,8 @@ const ChatInterface = () => {
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
+      systemPromptOverridesRef.current =
+        nextActiveChat.systemPromptOverrides || {};
 
       threadIdRef.current = nextActiveChat.threadId || `thread-${Date.now()}`;
       modelIdRef.current =
@@ -1162,6 +1173,14 @@ const ChatInterface = () => {
 
       let streamHandle = null;
       try {
+        const rawSystemPromptOverrides = systemPromptOverridesRef.current;
+        const systemPromptOverrides =
+          rawSystemPromptOverrides &&
+          typeof rawSystemPromptOverrides === "object" &&
+          !Array.isArray(rawSystemPromptOverrides)
+            ? rawSystemPromptOverrides
+            : {};
+
         streamHandle = api.miso.startStreamV2(
           {
             threadId: threadIdRef.current,
@@ -1172,6 +1191,11 @@ const ChatInterface = () => {
               modelId: modelIdRef.current,
               ...(selectedToolkitsRef.current.length > 0 && {
                 toolkits: selectedToolkitsRef.current,
+              }),
+              ...(Object.keys(systemPromptOverrides).length > 0 && {
+                system_prompt_v2: {
+                  overrides: systemPromptOverrides,
+                },
               }),
             },
             trace_level: STREAM_TRACE_LEVEL,

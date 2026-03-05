@@ -42,6 +42,26 @@ _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "move_file",
     "terminal_exec",
 }
+_SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
+_SYSTEM_PROMPT_V2_SECTION_ORDER = (
+    "personality",
+    "rules",
+    "style",
+    "output_format",
+    "context",
+    "constraints",
+)
+_SYSTEM_PROMPT_V2_SECTION_TITLES = {
+    "personality": "Personality",
+    "rules": "Rules",
+    "style": "Style",
+    "output_format": "Output Format",
+    "context": "Context",
+    "constraints": "Constraints",
+}
+_SYSTEM_PROMPT_V2_SECTION_ALIASES = {
+    "personally": "personality",
+}
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
 
@@ -1130,6 +1150,142 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     return payload
 
 
+def _normalize_system_prompt_v2_section_key(raw_key: object) -> str:
+    if not isinstance(raw_key, str):
+        return ""
+    normalized = raw_key.strip().lower()
+    normalized = _SYSTEM_PROMPT_V2_SECTION_ALIASES.get(normalized, normalized)
+    if normalized in _SYSTEM_PROMPT_V2_SECTION_ORDER:
+        return normalized
+    return ""
+
+
+def _sanitize_system_prompt_v2_section_value(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    trimmed = value.strip()
+    if not trimmed:
+        return ""
+    return trimmed[:_SYSTEM_PROMPT_V2_MAX_SECTION_CHARS]
+
+
+def _sanitize_system_prompt_v2_defaults(raw_sections: object) -> Dict[str, str]:
+    if not isinstance(raw_sections, dict):
+        return {}
+
+    sanitized: Dict[str, str] = {}
+    for key, value in raw_sections.items():
+        normalized_key = _normalize_system_prompt_v2_section_key(key)
+        if not normalized_key:
+            continue
+        normalized_value = _sanitize_system_prompt_v2_section_value(value)
+        if normalized_value:
+            sanitized[normalized_key] = normalized_value
+    return sanitized
+
+
+def _sanitize_system_prompt_v2_overrides(
+    raw_sections: object,
+) -> Dict[str, str | None]:
+    if not isinstance(raw_sections, dict):
+        return {}
+
+    sanitized: Dict[str, str | None] = {}
+    for key, value in raw_sections.items():
+        normalized_key = _normalize_system_prompt_v2_section_key(key)
+        if not normalized_key:
+            continue
+        if value is None:
+            sanitized[normalized_key] = None
+            continue
+        if isinstance(value, str):
+            sanitized[normalized_key] = _sanitize_system_prompt_v2_section_value(value)
+    return sanitized
+
+
+def _extract_system_prompt_v2_options(options: Dict[str, object] | None) -> Dict[str, object]:
+    if not isinstance(options, dict):
+        return {}
+
+    raw_system_prompt = options.get("system_prompt_v2")
+    if not isinstance(raw_system_prompt, dict):
+        raw_system_prompt = options.get("systemPromptV2")
+    if not isinstance(raw_system_prompt, dict):
+        return {}
+
+    enabled_raw = raw_system_prompt.get("enabled")
+    enabled = enabled_raw if isinstance(enabled_raw, bool) else True
+    defaults = _sanitize_system_prompt_v2_defaults(raw_system_prompt.get("defaults"))
+    overrides = _sanitize_system_prompt_v2_overrides(raw_system_prompt.get("overrides"))
+
+    return {
+        "enabled": enabled,
+        "defaults": defaults,
+        "overrides": overrides,
+    }
+
+
+def _merge_system_prompt_v2_sections(
+    defaults: Dict[str, str],
+    overrides: Dict[str, str | None],
+) -> Dict[str, str]:
+    merged: Dict[str, str] = {}
+    for section_name in _SYSTEM_PROMPT_V2_SECTION_ORDER:
+        if section_name in overrides:
+            override_value = overrides.get(section_name)
+            # None is an explicit clear: do not inherit defaults.
+            if override_value is None:
+                continue
+            # Empty string inherits defaults.
+            if isinstance(override_value, str) and override_value:
+                merged[section_name] = override_value
+                continue
+        default_value = defaults.get(section_name)
+        if isinstance(default_value, str) and default_value:
+            merged[section_name] = default_value
+    return merged
+
+
+def _compile_system_prompt_v2_text(sections: Dict[str, str]) -> str:
+    blocks: List[str] = []
+    for section_name in _SYSTEM_PROMPT_V2_SECTION_ORDER:
+        section_value = sections.get(section_name)
+        if not isinstance(section_value, str) or not section_value:
+            continue
+        section_title = _SYSTEM_PROMPT_V2_SECTION_TITLES.get(section_name, section_name)
+        blocks.append(f"[{section_title}]\n{section_value}")
+    return "\n\n".join(blocks).strip()
+
+
+def _build_system_prompt_v2_text_from_options(options: Dict[str, object] | None) -> str:
+    normalized = _extract_system_prompt_v2_options(options)
+    if not normalized:
+        return ""
+
+    if normalized.get("enabled") is not True:
+        return ""
+
+    defaults = normalized.get("defaults")
+    overrides = normalized.get("overrides")
+    merged = _merge_system_prompt_v2_sections(
+        defaults if isinstance(defaults, dict) else {},
+        overrides if isinstance(overrides, dict) else {},
+    )
+    if not merged:
+        return ""
+    return _compile_system_prompt_v2_text(merged)
+
+
+def _prepend_system_message(
+    messages: List[Dict[str, Any]],
+    system_prompt_text: str,
+) -> List[Dict[str, Any]]:
+    text = system_prompt_text.strip()
+    if not text:
+        return messages
+    return [{"role": "system", "content": text}, *messages]
+
+
 def _normalize_history_content(content: object) -> str | List[Dict[str, object]] | None:
     if isinstance(content, str):
         trimmed = content.strip()
@@ -1523,6 +1679,9 @@ def stream_chat_events(
 ) -> Iterable[Dict[str, Any]]:
     agent = _create_agent(options)
     messages = _normalize_messages(history, message, attachments)
+    system_prompt_text = _build_system_prompt_v2_text_from_options(options)
+    if system_prompt_text:
+        messages = _prepend_system_message(messages, system_prompt_text)
     payload = _build_payload(agent.provider, options)
 
     event_queue: "queue.Queue[object]" = queue.Queue()

@@ -552,7 +552,13 @@ def chat_stream_v2() -> Response:
                     for key, value in raw_event.items()
                     if key not in {"type", "run_id", "iteration", "timestamp"}
                 }
-                sanitized_payload = _sanitize_trace_value(payload_data, trace_level)
+                # Skip trace sanitization for display-critical events whose
+                # content must arrive intact (final_message carries the full
+                # reply text and token_delta carries incremental chunks).
+                if event_type in ("final_message", "token_delta"):
+                    sanitized_payload = payload_data
+                else:
+                    sanitized_payload = _sanitize_trace_value(payload_data, trace_level)
 
                 delta = raw_event.get("delta")
                 if event_type == "token_delta" and isinstance(delta, str):

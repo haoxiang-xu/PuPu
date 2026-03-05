@@ -342,6 +342,49 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             "message or attachments is required",
         )
 
+    def test_chat_stream_v2_accepts_system_prompt_v2_options(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=iter(
+                [
+                    {
+                        "type": "final_message",
+                        "run_id": "run-1",
+                        "iteration": 0,
+                        "timestamp": 1700000000.0,
+                        "content": "hello",
+                    }
+                ]
+            ),
+        ) as stream_mock:
+            response = self.client.post(
+                "/chat/stream/v2",
+                json={
+                    "message": "hello",
+                    "options": {
+                        "modelId": "openai:gpt-5",
+                        "system_prompt_v2": {
+                            "enabled": True,
+                            "defaults": {
+                                "personality": "Helpful",
+                                "rules": "No hallucinations",
+                            },
+                            "overrides": {
+                                "personally": "Direct",
+                            },
+                        },
+                    },
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("event: frame", payload_text)
+        stream_mock.assert_called_once()
+        options = stream_mock.call_args.kwargs.get("options", {})
+        self.assertIn("system_prompt_v2", options)
+
 
 if __name__ == "__main__":
     unittest.main()

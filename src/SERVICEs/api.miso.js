@@ -11,6 +11,71 @@ import {
 } from "./api.shared";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
+const SYSTEM_PROMPT_V2_SECTION_LIMIT = 2000;
+const SYSTEM_PROMPT_V2_SECTION_KEYS = [
+  "personality",
+  "rules",
+  "style",
+  "output_format",
+  "context",
+  "constraints",
+];
+const DEFAULT_GLOBAL_SYSTEM_PROMPT_V2_RULES = [
+  "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
+  "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
+].join("\n");
+
+const normalizeSystemPromptV2SectionKey = (rawKey) => {
+  if (typeof rawKey !== "string") {
+    return "";
+  }
+  const normalized = rawKey.trim().toLowerCase();
+  const aliased = normalized === "personally" ? "personality" : normalized;
+  return SYSTEM_PROMPT_V2_SECTION_KEYS.includes(aliased) ? aliased : "";
+};
+
+const normalizeSystemPromptV2SectionValue = (rawValue) => {
+  if (typeof rawValue !== "string") {
+    return "";
+  }
+  const trimmed = rawValue.trim();
+  return trimmed.slice(0, SYSTEM_PROMPT_V2_SECTION_LIMIT);
+};
+
+const sanitizeSystemPromptV2Sections = (
+  rawSections,
+  { allowNull = false, keepEmptyStrings = false } = {},
+) => {
+  if (!isObject(rawSections)) {
+    return {};
+  }
+
+  const sanitized = {};
+  Object.entries(rawSections).forEach(([rawKey, rawValue]) => {
+    const key = normalizeSystemPromptV2SectionKey(rawKey);
+    if (!key) {
+      return;
+    }
+
+    if (rawValue == null) {
+      if (allowNull) {
+        sanitized[key] = null;
+      }
+      return;
+    }
+
+    if (typeof rawValue !== "string") {
+      return;
+    }
+
+    const value = normalizeSystemPromptV2SectionValue(rawValue);
+    if (value || keepEmptyStrings) {
+      sanitized[key] = value;
+    }
+  });
+
+  return sanitized;
+};
 
 const readModelProvidersSettings = () => {
   if (typeof window === "undefined" || !window.localStorage) {
@@ -157,6 +222,25 @@ const getStoredWorkspaceRoot = () => {
   return typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
 };
 
+const getStoredSystemPromptV2Config = () => {
+  const runtimeSettings = readRuntimeSettings();
+  const rawConfig = runtimeSettings?.system_prompt_v2;
+  if (!isObject(rawConfig)) {
+    return {
+      enabled: true,
+      sections: {
+        rules: DEFAULT_GLOBAL_SYSTEM_PROMPT_V2_RULES,
+      },
+    };
+  }
+
+  const sections = sanitizeSystemPromptV2Sections(rawConfig.sections);
+  return {
+    enabled: rawConfig.enabled === true,
+    sections,
+  };
+};
+
 const injectWorkspaceRootIntoPayload = (payload) => {
   if (!isObject(payload)) {
     return payload;
@@ -183,6 +267,58 @@ const injectWorkspaceRootIntoPayload = (payload) => {
       ...currentOptions,
       workspaceRoot: configuredWorkspaceRoot,
       workspace_root: configuredWorkspaceRoot,
+    },
+  };
+};
+
+const injectSystemPromptV2IntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+
+  const storedConfig = getStoredSystemPromptV2Config();
+  if (!storedConfig) {
+    return payload;
+  }
+
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  const rawExistingPromptConfig = isObject(currentOptions.system_prompt_v2)
+    ? currentOptions.system_prompt_v2
+    : isObject(currentOptions.systemPromptV2)
+      ? currentOptions.systemPromptV2
+      : {};
+
+  const explicitEnabled =
+    typeof rawExistingPromptConfig.enabled === "boolean"
+      ? rawExistingPromptConfig.enabled
+      : storedConfig.enabled;
+  const overrides = sanitizeSystemPromptV2Sections(
+    rawExistingPromptConfig.overrides,
+    {
+      allowNull: true,
+      keepEmptyStrings: true,
+    },
+  );
+
+  const nextPromptConfig = {
+    enabled: explicitEnabled,
+    defaults: storedConfig.sections,
+  };
+  if (Object.keys(overrides).length > 0) {
+    nextPromptConfig.overrides = overrides;
+  }
+
+  const restOptions = {
+    ...currentOptions,
+  };
+  delete restOptions.system_prompt_v2;
+  delete restOptions.systemPromptV2;
+
+  return {
+    ...payload,
+    options: {
+      ...restOptions,
+      system_prompt_v2: nextPromptConfig,
     },
   };
 };
@@ -358,8 +494,10 @@ export const createMisoApi = () => {
       try {
         const method = assertBridgeMethod("misoAPI", "startStreamV2");
         const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
+        const payloadWithSystemPromptV2 =
+          injectSystemPromptV2IntoPayload(payloadWithWorkspaceRoot);
         const normalizedPayload = injectProviderApiKeyIntoPayload(
-          payloadWithWorkspaceRoot,
+          payloadWithSystemPromptV2,
         );
         const streamHandle = method(normalizedPayload, handlers);
         if (

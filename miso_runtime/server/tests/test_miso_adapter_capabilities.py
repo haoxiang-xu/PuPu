@@ -164,6 +164,49 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             },
         )
 
+    def test_build_system_prompt_v2_text_from_options_normalizes_alias_and_merge(self) -> None:
+        prompt_text = miso_adapter._build_system_prompt_v2_text_from_options(
+            {
+                "system_prompt_v2": {
+                    "enabled": True,
+                    "defaults": {
+                        "personally": " Helpful and concise. ",
+                        "rules": "Never fabricate facts.",
+                        "context": "Project: PuPu",
+                    },
+                    "overrides": {
+                        "rules": "Always ask clarifying questions when blocked.",
+                        "personality": "",
+                        "context": None,
+                    },
+                }
+            }
+        )
+
+        self.assertEqual(
+            prompt_text,
+            "\n\n".join(
+                [
+                    "[Personality]\nHelpful and concise.",
+                    "[Rules]\nAlways ask clarifying questions when blocked.",
+                ]
+            ),
+        )
+
+    def test_build_system_prompt_v2_text_from_options_skips_when_disabled(self) -> None:
+        prompt_text = miso_adapter._build_system_prompt_v2_text_from_options(
+            {
+                "system_prompt_v2": {
+                    "enabled": False,
+                    "defaults": {
+                        "personality": "Should not appear.",
+                    },
+                }
+            }
+        )
+
+        self.assertEqual(prompt_text, "")
+
     def test_get_toolkit_catalog_lists_known_toolkit_exports(self) -> None:
         class FakeToolkitBase:
             pass
@@ -818,6 +861,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.provider = "openai"
                 self.max_iterations = 3
                 self.received_on_tool_confirm = False
+                self.last_messages = []
 
             def run(
                 self,
@@ -828,6 +872,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 on_tool_confirm=None,
             ):
                 self.received_on_tool_confirm = callable(on_tool_confirm)
+                self.last_messages = list(messages or [])
                 if callable(callback):
                     callback(
                         {
@@ -852,12 +897,24 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     message="hello",
                     history=[],
                     attachments=[],
-                    options={},
+                    options={
+                        "systemPromptV2": {
+                            "enabled": True,
+                            "defaults": {
+                                "personally": "You are pragmatic.",
+                                "rules": "Be concise.",
+                            },
+                        }
+                    },
                 )
             )
 
         self.assertTrue(fake_agent.received_on_tool_confirm)
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertGreaterEqual(len(fake_agent.last_messages), 1)
+        self.assertEqual(fake_agent.last_messages[0].get("role"), "system")
+        self.assertIn("[Personality]", fake_agent.last_messages[0].get("content", ""))
+        self.assertIn("[Rules]", fake_agent.last_messages[0].get("content", ""))
 
     def test_extract_last_assistant_text_handles_structured_content(self) -> None:
         messages = [
