@@ -62,6 +62,10 @@ _SYSTEM_PROMPT_V2_SECTION_TITLES = {
 _SYSTEM_PROMPT_V2_SECTION_ALIASES = {
     "personally": "personality",
 }
+_SYSTEM_PROMPT_V2_BUILTIN_RULES = [
+    "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
+    "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
+]
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
 
@@ -1257,6 +1261,17 @@ def _compile_system_prompt_v2_text(sections: Dict[str, str]) -> str:
     return "\n\n".join(blocks).strip()
 
 
+def _inject_builtin_rules(sections: Dict[str, str]) -> Dict[str, str]:
+    """Prepend built-in rules to the rules section (if any), or create it."""
+    builtin_text = "\n".join(_SYSTEM_PROMPT_V2_BUILTIN_RULES)
+    existing_rules = sections.get("rules", "")
+    if existing_rules:
+        combined = builtin_text + "\n" + existing_rules
+    else:
+        combined = builtin_text
+    return {**sections, "rules": combined}
+
+
 def _build_system_prompt_v2_text_from_options(options: Dict[str, object] | None) -> str:
     normalized = _extract_system_prompt_v2_options(options)
     if not normalized:
@@ -1271,6 +1286,7 @@ def _build_system_prompt_v2_text_from_options(options: Dict[str, object] | None)
         defaults if isinstance(defaults, dict) else {},
         overrides if isinstance(overrides, dict) else {},
     )
+    merged = _inject_builtin_rules(merged)
     if not merged:
         return ""
     return _compile_system_prompt_v2_text(merged)

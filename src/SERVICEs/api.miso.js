@@ -20,11 +20,6 @@ const SYSTEM_PROMPT_V2_SECTION_KEYS = [
   "context",
   "constraints",
 ];
-const DEFAULT_GLOBAL_SYSTEM_PROMPT_V2_RULES = [
-  "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
-  "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
-].join("\n");
-
 const normalizeSystemPromptV2SectionKey = (rawKey) => {
   if (typeof rawKey !== "string") {
     return "";
@@ -223,21 +218,9 @@ const getStoredWorkspaceRoot = () => {
 };
 
 const getStoredSystemPromptV2Config = () => {
-  const runtimeSettings = readRuntimeSettings();
-  const rawConfig = runtimeSettings?.system_prompt_v2;
-  if (!isObject(rawConfig)) {
-    return {
-      enabled: true,
-      sections: {
-        rules: DEFAULT_GLOBAL_SYSTEM_PROMPT_V2_RULES,
-      },
-    };
-  }
-
-  const sections = sanitizeSystemPromptV2Sections(rawConfig.sections);
   return {
-    enabled: rawConfig.enabled === true,
-    sections,
+    enabled: true,
+    sections: {},
   };
 };
 
@@ -413,9 +396,7 @@ export const createMisoApi = () => {
           confirmation_id: confirmationId,
           approved: Boolean(payload?.approved),
           reason:
-            typeof reasonRaw === "string"
-              ? reasonRaw
-              : String(reasonRaw || ""),
+            typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
         };
 
         const modifiedArguments = payload?.modified_arguments;
@@ -449,7 +430,8 @@ export const createMisoApi = () => {
     startStream: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("misoAPI", "startStream");
-        const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
+        const payloadWithWorkspaceRoot =
+          injectWorkspaceRootIntoPayload(payload);
         const normalizedPayload = injectProviderApiKeyIntoPayload(
           payloadWithWorkspaceRoot,
         );
@@ -493,9 +475,11 @@ export const createMisoApi = () => {
     startStreamV2: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("misoAPI", "startStreamV2");
-        const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
-        const payloadWithSystemPromptV2 =
-          injectSystemPromptV2IntoPayload(payloadWithWorkspaceRoot);
+        const payloadWithWorkspaceRoot =
+          injectWorkspaceRootIntoPayload(payload);
+        const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
+          payloadWithWorkspaceRoot,
+        );
         const normalizedPayload = injectProviderApiKeyIntoPayload(
           payloadWithSystemPromptV2,
         );
