@@ -113,6 +113,7 @@ const AttachPanel = ({
               dropdown_style={{
                 maxWidth: 260,
                 minWidth: 180,
+                maxHeight: 240,
               }}
             />
           </div>

@@ -72,6 +72,18 @@ const ChatBubble = ({
     isUser && Array.isArray(message?.attachments) ? message.attachments : [];
   const color = theme?.color || "#222";
 
+  // Only consider tool / reasoning activity as worthy of the full trace
+  // chain UI.  Infrastructure frames like stream_started, final_message,
+  // done etc. should NOT cause the trace chain to take over the bubble.
+  const hasToolActivity = traceFrames.some(
+    (f) =>
+      f.type === "tool_call" ||
+      f.type === "tool_confirmation_request" ||
+      f.type === "tool_result" ||
+      f.type === "reasoning" ||
+      f.type === "observation",
+  );
+
   return (
     <div
       onMouseEnter={() => setHovered(true)}
@@ -84,7 +96,7 @@ const ChatBubble = ({
         position: "relative",
       }}
     >
-      {isAssistant && traceFrames.length > 0 && (
+      {isAssistant && hasToolActivity && (
         <TraceChain
           frames={traceFrames}
           status={message.status}
@@ -95,20 +107,14 @@ const ChatBubble = ({
           }
         />
       )}
-      {isAssistant &&
-        traceFrames.length === 0 &&
-        message.status === "streaming" && (
-          <TraceChain frames={[]} status={message.status} />
-        )}
+      {isAssistant && !hasToolActivity && message.status === "streaming" && (
+        <TraceChain frames={[]} status={message.status} />
+      )}
 
       {/* Hide the assistant bubble body entirely when streaming with
           an active trace timeline (intermediate + streaming content shows
           in the timeline; the bubble only shows the final result). */}
-      {!(
-        isAssistant &&
-        traceFrames.length > 0 &&
-        message.status === "streaming"
-      ) && (
+      {!(isAssistant && hasToolActivity && message.status === "streaming") && (
         <div
           style={{
             maxWidth: isUser ? "75%" : "100%",
@@ -150,7 +156,7 @@ const ChatBubble = ({
               message={message}
               isRawTextMode={isRawTextMode}
               theme={theme}
-              hasTraceFrames={traceFrames.length > 0}
+              hasTraceFrames={hasToolActivity}
             />
           )}
         </div>

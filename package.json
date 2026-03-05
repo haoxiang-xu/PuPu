@@ -23,7 +23,8 @@
     "react-spring": "^10.0.3",
     "three": "^0.183.0",
     "vanilla-tilt": "^1.8.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^2.1.4",
+    "electron-updater": "^6.6.2"
   },
   "scripts": {
     "start": "npm run start:electron",
@@ -77,10 +78,20 @@
     "directories": {
       "output": "dist"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "haoxiang-xu",
+        "repo": "PuPu",
+        "releaseType": "release"
+      }
+    ],
     "files": [
       "build/**/*",
+      "electron/**/*",
       "public/electron.js",
       "public/preload.js",
+      "public/loading.html",
       "public/favicon.ico",
       "public/icon-win.ico",
       "public/icon.icns",
@@ -96,11 +107,21 @@
       }
     ],
     "mac": {
-      "target": "dmg",
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "icon": "public/icon.icns"
     },
     "win": {
-      "target": "nsis",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
       "icon": "public/icon-win.ico"
     },
     "linux": {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import { deleteOllamaModel } from "../utils/ollama_models";
+import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
 import { formatBytes } from "../utils/storage_metrics";
 import ConfirmDeleteModal from "./confirm_delete_modal";
 import StorageBar from "./storage_bar";
@@ -16,6 +17,10 @@ const OllamaModelRow = ({ model, maxSize, isDark, onDelete }) => {
     setDeleting(true);
     try {
       await deleteOllamaModel(model.name);
+      emitModelCatalogRefresh({
+        reason: "ollama_delete_completed",
+        model: model.name,
+      });
       onDelete(model.name);
     } catch {
       setDeleting(false);

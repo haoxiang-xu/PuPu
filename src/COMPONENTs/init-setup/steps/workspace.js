@@ -5,6 +5,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
+import { runtimeBridge } from "../../../SERVICEs/bridges/miso_bridge";
 
 const readWorkspaceRoot = () => {
   try {
@@ -46,14 +47,20 @@ const WorkspaceStep = ({ onNext }) => {
     const timer = setTimeout(async () => {
       setValidating(true);
       try {
-        const result = await window.misoAPI?.validateWorkspaceRoot?.(path);
+        if (!runtimeBridge.isWorkspaceValidationAvailable()) {
+          if (!cancelled) {
+            setValidation({ valid: false, message: "Invalid path" });
+          }
+          return;
+        }
+        const result = await runtimeBridge.validateWorkspaceRoot(path);
         if (!cancelled) {
           if (result?.valid) {
             setValidation({ valid: true, message: "Valid workspace path" });
           } else {
             setValidation({
               valid: false,
-              message: result?.message || "Invalid path",
+              message: result?.message || result?.reason || "Invalid path",
             });
           }
         }
@@ -71,8 +78,11 @@ const WorkspaceStep = ({ onNext }) => {
   }, [path]);
 
   const handleBrowse = useCallback(async () => {
+    if (!runtimeBridge.isWorkspacePickerAvailable()) {
+      return;
+    }
     try {
-      const result = await window.misoAPI?.pickWorkspaceRoot?.(path);
+      const result = await runtimeBridge.pickWorkspaceRoot(path);
       if (result?.path) {
         setPath(result.path);
         writeWorkspaceRoot(result.path);

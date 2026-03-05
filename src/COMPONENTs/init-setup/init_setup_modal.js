@@ -280,7 +280,6 @@ const InitSetupModal = ({ open, onClose }) => {
   const textColor = isDark ? "#ffffff" : "#222222";
   const skipColor = isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.22)";
   const skipHoverColor = isDark ? "rgba(255,255,255,0.48)" : "rgba(0,0,0,0.42)";
-  const dividerColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.07)";
 
   const handleFinish = () => {
     markSetupComplete();

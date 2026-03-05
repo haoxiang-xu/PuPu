@@ -6,6 +6,17 @@ const TARGET_TOTAL_BYTES = Math.floor(4.2 * 1024 * 1024);
 const MAX_ACTIVE_MESSAGES_WHEN_TRIMMING = 200;
 const MAX_TEXT_CHARS = 100000;
 const MAX_TITLE_CHARS = 120;
+const MAX_TOOLKIT_ID_CHARS = 200;
+const MAX_SELECTED_TOOLKITS = 50;
+const MAX_SYSTEM_PROMPT_SECTION_CHARS = 2000;
+const SYSTEM_PROMPT_SECTION_KEYS = [
+  "personality",
+  "rules",
+  "style",
+  "output_format",
+  "context",
+  "constraints",
+];
 
 const DEFAULT_MODEL_ID = "miso-unset";
 const DEFAULT_CHAT_TITLE = "New Chat";
@@ -235,6 +246,59 @@ const sanitizeModel = (model) => {
   return cleaned;
 };
 
+const sanitizeSelectedToolkits = (selectedToolkits) => {
+  if (!Array.isArray(selectedToolkits)) {
+    return [];
+  }
+
+  return unique(
+    selectedToolkits
+      .map((item) =>
+        typeof item === "string" ? trimText(item.trim(), MAX_TOOLKIT_ID_CHARS) : "",
+      )
+      .filter(Boolean),
+  ).slice(0, MAX_SELECTED_TOOLKITS);
+};
+
+const normalizeSystemPromptSectionKey = (rawKey) => {
+  if (typeof rawKey !== "string") {
+    return "";
+  }
+  const normalized = rawKey.trim().toLowerCase();
+  const aliased = normalized === "personally" ? "personality" : normalized;
+  return SYSTEM_PROMPT_SECTION_KEYS.includes(aliased) ? aliased : "";
+};
+
+const sanitizeSystemPromptOverrides = (value) => {
+  if (!isObject(value)) {
+    return {};
+  }
+
+  const cleaned = {};
+  Object.entries(value).forEach(([rawKey, rawValue]) => {
+    const key = normalizeSystemPromptSectionKey(rawKey);
+    if (!key) {
+      return;
+    }
+
+    if (rawValue === null) {
+      cleaned[key] = null;
+      return;
+    }
+
+    if (typeof rawValue !== "string") {
+      return;
+    }
+
+    const trimmed = trimText(rawValue, MAX_SYSTEM_PROMPT_SECTION_CHARS).trim();
+    if (trimmed) {
+      cleaned[key] = trimmed;
+    }
+  });
+
+  return cleaned;
+};
+
 const sanitizeMessage = (message) => {
   if (!isObject(message)) {
     return null;
@@ -407,6 +471,8 @@ const computeChatStats = (chat) => ({
   approxBytes: estimateBytes({
     threadId: chat.threadId,
     model: chat.model,
+    selectedToolkits: chat.selectedToolkits,
+    systemPromptOverrides: chat.systemPromptOverrides,
     draft: chat.draft,
     messages: chat.messages,
   }),
@@ -450,6 +516,10 @@ const sanitizeChatSession = (chat, fallbackId) => {
         ? trimText(chat.threadId, 200)
         : null,
     model: sanitizeModel(chat?.model),
+    selectedToolkits: sanitizeSelectedToolkits(chat?.selectedToolkits),
+    systemPromptOverrides: sanitizeSystemPromptOverrides(
+      chat?.systemPromptOverrides,
+    ),
     draft,
     messages,
     isTransientNewChat: chat?.isTransientNewChat === true,
@@ -475,6 +545,10 @@ const createChatSession = (overrides = {}) => {
       lastMessageAt: null,
       threadId: overrides.threadId || null,
       model: overrides.model || { id: DEFAULT_MODEL_ID },
+      selectedToolkits: sanitizeSelectedToolkits(overrides.selectedToolkits),
+      systemPromptOverrides: sanitizeSystemPromptOverrides(
+        overrides.systemPromptOverrides,
+      ),
       draft: {
         text: "",
         attachments: [],
@@ -2022,6 +2096,9 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
               ...copiedChat,
               title: copiedTitle,
               threadId: null,
+              selectedToolkits: sanitizeSelectedToolkits(
+                sourceChat.selectedToolkits,
+              ),
               messages: copiedMessages,
               isTransientNewChat:
                 copiedMessages.length > 0
@@ -2415,6 +2492,30 @@ export const setChatModel = (chatId, model, options = {}) => {
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_model" },
+  );
+};
+
+export const setChatSelectedToolkits = (chatId, selectedToolkits, options = {}) => {
+  return updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      selectedToolkits: sanitizeSelectedToolkits(selectedToolkits),
+      updatedAt: now(),
+    }),
+    { ...options, type: "chat_update_toolkits" },
+  );
+};
+
+export const setChatSystemPromptOverrides = (chatId, systemPromptOverrides, options = {}) => {
+  return updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      systemPromptOverrides: sanitizeSystemPromptOverrides(systemPromptOverrides),
+      updatedAt: now(),
+    }),
+    { ...options, type: "chat_update_system_prompt_overrides" },
   );
 };
 

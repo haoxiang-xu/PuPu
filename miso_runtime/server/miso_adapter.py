@@ -42,6 +42,30 @@ _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "move_file",
     "terminal_exec",
 }
+_SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
+_SYSTEM_PROMPT_V2_SECTION_ORDER = (
+    "personality",
+    "rules",
+    "style",
+    "output_format",
+    "context",
+    "constraints",
+)
+_SYSTEM_PROMPT_V2_SECTION_TITLES = {
+    "personality": "Personality",
+    "rules": "Rules",
+    "style": "Style",
+    "output_format": "Output Format",
+    "context": "Context",
+    "constraints": "Constraints",
+}
+_SYSTEM_PROMPT_V2_SECTION_ALIASES = {
+    "personally": "personality",
+}
+_SYSTEM_PROMPT_V2_BUILTIN_RULES = [
+    "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
+    "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
+]
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
 
@@ -248,7 +272,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     if not isinstance(broth_cls, type):
         return
 
-    patch_marker = "_pupu_anthropic_tool_result_patch_v1"
+    patch_marker = "_pupu_tool_confirmation_contract_patch_v2"
     if getattr(broth_cls, patch_marker, False):
         return
 
@@ -285,6 +309,66 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         callback,
         on_tool_confirm=None,
     ):
+        emitted_confirmation_events: set[tuple[str, bool]] = set()
+
+        def _emit_tool_confirmation_event(
+            *,
+            approved: bool,
+            tool_name: str,
+            call_id: str,
+            reason: str = "",
+        ) -> None:
+            normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
+            normalized_call_id = call_id if isinstance(call_id, str) else str(call_id or "")
+            decision_key = None
+            if normalized_call_id:
+                decision_key = (normalized_call_id, bool(approved))
+                if decision_key in emitted_confirmation_events:
+                    return
+
+            if decision_key is not None:
+                emitted_confirmation_events.add(decision_key)
+
+            if approved:
+                self._emit(
+                    callback,
+                    "tool_confirmed",
+                    run_id,
+                    iteration=iteration,
+                    tool_name=normalized_tool_name,
+                    call_id=normalized_call_id,
+                )
+                return
+
+            self._emit(
+                callback,
+                "tool_denied",
+                run_id,
+                iteration=iteration,
+                tool_name=normalized_tool_name,
+                call_id=normalized_call_id,
+                reason=reason if isinstance(reason, str) else str(reason or ""),
+            )
+
+        def _on_tool_confirm_with_event(request_obj: object) -> Dict[str, Any]:
+            if on_tool_confirm is None:
+                return {
+                    "approved": True,
+                    "reason": "",
+                    "modified_arguments": None,
+                }
+
+            raw_response = on_tool_confirm(request_obj)
+            response = _normalize_tool_confirmation_response(raw_response)
+            request_payload = _build_tool_confirmation_request_payload(request_obj)
+            _emit_tool_confirmation_event(
+                approved=bool(response.get("approved", True)),
+                tool_name=str(request_payload.get("tool_name", "") or ""),
+                call_id=str(request_payload.get("call_id", "") or ""),
+                reason=str(response.get("reason", "") or ""),
+            )
+            return response
+
         if getattr(self, "provider", "") != "anthropic":
             original_kwargs = {
                 "tool_calls": tool_calls,
@@ -293,7 +377,9 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "callback": callback,
             }
             if original_supports_on_tool_confirm:
-                original_kwargs["on_tool_confirm"] = on_tool_confirm
+                original_kwargs["on_tool_confirm"] = (
+                    _on_tool_confirm_with_event if on_tool_confirm is not None else None
+                )
             return original_execute_tool_calls(
                 self,
                 **original_kwargs,
@@ -339,25 +425,19 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 if not response["approved"]:
                     denied = True
                     deny_reason = str(response.get("reason", "") or "")
-                    self._emit(
-                        callback,
-                        "tool_denied",
-                        run_id,
-                        iteration=iteration,
-                        tool_name=tool_call.name,
-                        call_id=tool_call.call_id,
+                    _emit_tool_confirmation_event(
+                        approved=False,
+                        tool_name=str(tool_call.name or ""),
+                        call_id=str(tool_call.call_id or ""),
                         reason=deny_reason,
                     )
                 else:
                     if response.get("modified_arguments") is not None:
                         effective_arguments = response["modified_arguments"]
-                    self._emit(
-                        callback,
-                        "tool_confirmed",
-                        run_id,
-                        iteration=iteration,
-                        tool_name=tool_call.name,
-                        call_id=tool_call.call_id,
+                    _emit_tool_confirmation_event(
+                        approved=True,
+                        tool_name=str(tool_call.name or ""),
+                        call_id=str(tool_call.call_id or ""),
                     )
 
             if denied:
@@ -1074,6 +1154,154 @@ def _build_payload(provider: str, options: Dict[str, object]) -> Dict[str, float
     return payload
 
 
+def _normalize_system_prompt_v2_section_key(raw_key: object) -> str:
+    if not isinstance(raw_key, str):
+        return ""
+    normalized = raw_key.strip().lower()
+    normalized = _SYSTEM_PROMPT_V2_SECTION_ALIASES.get(normalized, normalized)
+    if normalized in _SYSTEM_PROMPT_V2_SECTION_ORDER:
+        return normalized
+    return ""
+
+
+def _sanitize_system_prompt_v2_section_value(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    trimmed = value.strip()
+    if not trimmed:
+        return ""
+    return trimmed[:_SYSTEM_PROMPT_V2_MAX_SECTION_CHARS]
+
+
+def _sanitize_system_prompt_v2_defaults(raw_sections: object) -> Dict[str, str]:
+    if not isinstance(raw_sections, dict):
+        return {}
+
+    sanitized: Dict[str, str] = {}
+    for key, value in raw_sections.items():
+        normalized_key = _normalize_system_prompt_v2_section_key(key)
+        if not normalized_key:
+            continue
+        normalized_value = _sanitize_system_prompt_v2_section_value(value)
+        if normalized_value:
+            sanitized[normalized_key] = normalized_value
+    return sanitized
+
+
+def _sanitize_system_prompt_v2_overrides(
+    raw_sections: object,
+) -> Dict[str, str | None]:
+    if not isinstance(raw_sections, dict):
+        return {}
+
+    sanitized: Dict[str, str | None] = {}
+    for key, value in raw_sections.items():
+        normalized_key = _normalize_system_prompt_v2_section_key(key)
+        if not normalized_key:
+            continue
+        if value is None:
+            sanitized[normalized_key] = None
+            continue
+        if isinstance(value, str):
+            sanitized[normalized_key] = _sanitize_system_prompt_v2_section_value(value)
+    return sanitized
+
+
+def _extract_system_prompt_v2_options(options: Dict[str, object] | None) -> Dict[str, object]:
+    if not isinstance(options, dict):
+        return {}
+
+    raw_system_prompt = options.get("system_prompt_v2")
+    if not isinstance(raw_system_prompt, dict):
+        raw_system_prompt = options.get("systemPromptV2")
+    if not isinstance(raw_system_prompt, dict):
+        return {}
+
+    enabled_raw = raw_system_prompt.get("enabled")
+    enabled = enabled_raw if isinstance(enabled_raw, bool) else True
+    defaults = _sanitize_system_prompt_v2_defaults(raw_system_prompt.get("defaults"))
+    overrides = _sanitize_system_prompt_v2_overrides(raw_system_prompt.get("overrides"))
+
+    return {
+        "enabled": enabled,
+        "defaults": defaults,
+        "overrides": overrides,
+    }
+
+
+def _merge_system_prompt_v2_sections(
+    defaults: Dict[str, str],
+    overrides: Dict[str, str | None],
+) -> Dict[str, str]:
+    merged: Dict[str, str] = {}
+    for section_name in _SYSTEM_PROMPT_V2_SECTION_ORDER:
+        if section_name in overrides:
+            override_value = overrides.get(section_name)
+            # None is an explicit clear: do not inherit defaults.
+            if override_value is None:
+                continue
+            # Empty string inherits defaults.
+            if isinstance(override_value, str) and override_value:
+                merged[section_name] = override_value
+                continue
+        default_value = defaults.get(section_name)
+        if isinstance(default_value, str) and default_value:
+            merged[section_name] = default_value
+    return merged
+
+
+def _compile_system_prompt_v2_text(sections: Dict[str, str]) -> str:
+    blocks: List[str] = []
+    for section_name in _SYSTEM_PROMPT_V2_SECTION_ORDER:
+        section_value = sections.get(section_name)
+        if not isinstance(section_value, str) or not section_value:
+            continue
+        section_title = _SYSTEM_PROMPT_V2_SECTION_TITLES.get(section_name, section_name)
+        blocks.append(f"[{section_title}]\n{section_value}")
+    return "\n\n".join(blocks).strip()
+
+
+def _inject_builtin_rules(sections: Dict[str, str]) -> Dict[str, str]:
+    """Prepend built-in rules to the rules section (if any), or create it."""
+    builtin_text = "\n".join(_SYSTEM_PROMPT_V2_BUILTIN_RULES)
+    existing_rules = sections.get("rules", "")
+    if existing_rules:
+        combined = builtin_text + "\n" + existing_rules
+    else:
+        combined = builtin_text
+    return {**sections, "rules": combined}
+
+
+def _build_system_prompt_v2_text_from_options(options: Dict[str, object] | None) -> str:
+    normalized = _extract_system_prompt_v2_options(options)
+    if not normalized:
+        return ""
+
+    if normalized.get("enabled") is not True:
+        return ""
+
+    defaults = normalized.get("defaults")
+    overrides = normalized.get("overrides")
+    merged = _merge_system_prompt_v2_sections(
+        defaults if isinstance(defaults, dict) else {},
+        overrides if isinstance(overrides, dict) else {},
+    )
+    merged = _inject_builtin_rules(merged)
+    if not merged:
+        return ""
+    return _compile_system_prompt_v2_text(merged)
+
+
+def _prepend_system_message(
+    messages: List[Dict[str, Any]],
+    system_prompt_text: str,
+) -> List[Dict[str, Any]]:
+    text = system_prompt_text.strip()
+    if not text:
+        return messages
+    return [{"role": "system", "content": text}, *messages]
+
+
 def _normalize_history_content(content: object) -> str | List[Dict[str, object]] | None:
     if isinstance(content, str):
         trimmed = content.strip()
@@ -1203,6 +1431,30 @@ def _extract_workspace_root_from_options(options: Dict[str, object] | None) -> s
     return ""
 
 
+def _should_enable_tools(options: Dict[str, object] | None) -> bool:
+    """Return True when the caller explicitly requests tool-enabled mode.
+
+    The frontend sends ``options.toolkits`` (a non-empty list) when the user
+    selects toolkits in the tool picker.  When the list is absent or empty we
+    should *not* attach any toolkits to the agent so that providers which do
+    not support tool calling (e.g. some Ollama models) never receive a
+    ``tools`` parameter.
+    """
+    if not isinstance(options, dict):
+        return False
+
+    toolkits = options.get("toolkits")
+    if isinstance(toolkits, list) and len(toolkits) > 0:
+        return True
+
+    # Also honour an explicit boolean flag if provided.
+    enable_tools = options.get("enable_tools") or options.get("enableTools")
+    if enable_tools is True:
+        return True
+
+    return False
+
+
 def _extract_max_iterations_from_options(options: Dict[str, object] | None) -> int | None:
     if not isinstance(options, dict):
         return None
@@ -1246,6 +1498,9 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
 def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
     workspace_root_raw = _extract_workspace_root_from_options(options)
     if not workspace_root_raw:
+        return
+
+    if not _should_enable_tools(options):
         return
 
     if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
@@ -1317,7 +1572,7 @@ def _create_agent(options: Dict[str, object] | None = None):
                 max_iterations = _DEFAULT_MAX_ITERATIONS
         else:
             max_iterations = _DEFAULT_MAX_ITERATIONS
-    if _extract_workspace_root_from_options(options):
+    if _extract_workspace_root_from_options(options) and _should_enable_tools(options):
         # Tool-call workflows need at least one extra round to produce
         # assistant-facing text after tool outputs are injected.
         max_iterations = max(max_iterations, 2)
@@ -1440,6 +1695,9 @@ def stream_chat_events(
 ) -> Iterable[Dict[str, Any]]:
     agent = _create_agent(options)
     messages = _normalize_messages(history, message, attachments)
+    system_prompt_text = _build_system_prompt_v2_text_from_options(options)
+    if system_prompt_text:
+        messages = _prepend_system_message(messages, system_prompt_text)
     payload = _build_payload(agent.provider, options)
 
     event_queue: "queue.Queue[object]" = queue.Queue()

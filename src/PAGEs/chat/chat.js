@@ -15,6 +15,7 @@ import {
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
+  setChatSelectedToolkits,
   setChatThreadId,
   subscribeChatsStore,
   updateChatDraft,
@@ -25,12 +26,15 @@ import {
   loadAttachmentPayload,
   deleteAttachmentPayload,
 } from "../../SERVICEs/attachment_storage";
+import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const STREAM_TRACE_LEVEL = "minimal";
+const TOOL_CONFIRMATION_EVENT_FALLBACK_TIMEOUT_MS = 12_000;
 
 const getFileExtension = (name) => {
   if (typeof name !== "string" || !name.includes(".")) {
@@ -201,11 +205,19 @@ const ChatInterface = () => {
       : "miso-unset",
   );
   const [selectedModelId, setSelectedModelId] = useState(modelIdRef.current);
-  const [selectedToolkits, setSelectedToolkits] = useState([]);
+  const [selectedToolkits, setSelectedToolkits] = useState(
+    () => initialChat.selectedToolkits || [],
+  );
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
   const selectedToolkitsRef = useRef([]);
+  const systemPromptOverridesRef = useRef(
+    initialChat.systemPromptOverrides || {},
+  );
   const confirmationIdByCallIdRef = useRef(new Map());
+  const confirmationCallIdByIdRef = useRef(new Map());
+  const confirmationFollowupSignalByIdRef = useRef(new Map());
+  const confirmationResolveTimerByIdRef = useRef(new Map());
   useEffect(() => {
     selectedToolkitsRef.current = selectedToolkits;
   }, [selectedToolkits]);
@@ -338,16 +350,19 @@ const ChatInterface = () => {
   }, [refreshMisoStatus]);
 
   useEffect(() => {
-    refreshModelCatalog();
+    if (!misoStatus.ready) {
+      return undefined;
+    }
 
-    const timer = setInterval(() => {
+    refreshModelCatalog();
+    const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
-    }, 10000);
+    });
 
     return () => {
-      clearInterval(timer);
+      unsubscribeModelCatalogRefresh();
     };
-  }, [refreshModelCatalog]);
+  }, [misoStatus.ready, refreshModelCatalog]);
 
   useEffect(() => {
     const unsubscribe = subscribeChatsStore((nextStore, event = {}) => {
@@ -368,6 +383,12 @@ const ChatInterface = () => {
       if (nextActiveId === currentActiveId) {
         if (event.type === "chat_update_messages") {
           setMessages(nextActiveChat.messages || []);
+          return;
+        }
+
+        if (event.type === "chat_update_system_prompt_overrides") {
+          systemPromptOverridesRef.current =
+            nextActiveChat.systemPromptOverrides || {};
         }
         return;
       }
@@ -392,6 +413,9 @@ const ChatInterface = () => {
       setMessages(nextActiveChat.messages || []);
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
+      setSelectedToolkits(nextActiveChat.selectedToolkits || []);
+      systemPromptOverridesRef.current =
+        nextActiveChat.systemPromptOverrides || {};
 
       threadIdRef.current = nextActiveChat.threadId || `thread-${Date.now()}`;
       modelIdRef.current =
@@ -426,6 +450,12 @@ const ChatInterface = () => {
 
   useEffect(() => {
     const attachmentPayloadByChat = attachmentPayloadByChatRef.current;
+    const confirmationIdByCallId = confirmationIdByCallIdRef.current;
+    const confirmationCallIdById = confirmationCallIdByIdRef.current;
+    const confirmationFollowupSignalById =
+      confirmationFollowupSignalByIdRef.current;
+    const confirmationResolveTimerById =
+      confirmationResolveTimerByIdRef.current;
     return () => {
       if (messagePersistTimerRef.current) {
         clearTimeout(messagePersistTimerRef.current);
@@ -441,7 +471,13 @@ const ChatInterface = () => {
       streamingChatIdRef.current = null;
       activeStreamMessagesRef.current = null;
       attachmentPayloadByChat.clear();
-      confirmationIdByCallIdRef.current.clear();
+      confirmationIdByCallId.clear();
+      confirmationCallIdById.clear();
+      confirmationFollowupSignalById.clear();
+      confirmationResolveTimerById.forEach((timerId) => {
+        clearTimeout(timerId);
+      });
+      confirmationResolveTimerById.clear();
       cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
   }, []);
@@ -497,6 +533,15 @@ const ChatInterface = () => {
     setChatModel(chatId, { id: modelIdRef.current }, { source: "chat-page" });
   }, []);
 
+  useEffect(() => {
+    const chatId = activeChatIdRef.current;
+    if (!chatId) {
+      return;
+    }
+
+    setChatSelectedToolkits(chatId, selectedToolkits, { source: "chat-page" });
+  }, [selectedToolkits]);
+
   const handleSelectModel = useCallback(
     (modelId) => {
       const chatId = activeChatIdRef.current;
@@ -524,6 +569,12 @@ const ChatInterface = () => {
     activeStreamMessagesRef.current = null;
     setStreamingChatId(null);
     confirmationIdByCallIdRef.current.clear();
+    confirmationCallIdByIdRef.current.clear();
+    confirmationFollowupSignalByIdRef.current.clear();
+    confirmationResolveTimerByIdRef.current.forEach((timerId) => {
+      clearTimeout(timerId);
+    });
+    confirmationResolveTimerByIdRef.current.clear();
     setToolConfirmationUiStateById({});
     // Remove empty assistant placeholder; mark partial ones as cancelled
     setMessages((prev) => {
@@ -537,31 +588,166 @@ const ChatInterface = () => {
     });
   }, []);
 
-  const clearResolvedToolConfirmationByCallId = useCallback((callId) => {
-    if (typeof callId !== "string" || !callId.trim()) {
-      return;
-    }
-    const confirmationId = confirmationIdByCallIdRef.current.get(callId);
-    if (!confirmationId) {
+  const clearConfirmationResolutionTimer = useCallback((confirmationId) => {
+    const normalizedId =
+      typeof confirmationId === "string" ? confirmationId.trim() : "";
+    if (!normalizedId) {
       return;
     }
 
-    confirmationIdByCallIdRef.current.delete(callId);
-    setToolConfirmationUiStateById((previous) => {
-      if (!previous || !previous[confirmationId]) {
-        return previous;
-      }
-      const next = { ...previous };
-      delete next[confirmationId];
-      return next;
-    });
+    const timerId = confirmationResolveTimerByIdRef.current.get(normalizedId);
+    if (timerId != null) {
+      clearTimeout(timerId);
+    }
+    confirmationResolveTimerByIdRef.current.delete(normalizedId);
   }, []);
+
+  const resolveSubmittedConfirmationFromSignal = useCallback(
+    (confirmationId) => {
+      const normalizedId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedId) {
+        return;
+      }
+      clearConfirmationResolutionTimer(normalizedId);
+
+      setToolConfirmationUiStateById((previous) => {
+        const current = previous[normalizedId];
+        if (!current || current.resolved === true) {
+          return previous;
+        }
+
+        const currentStatus =
+          typeof current.status === "string" ? current.status : "idle";
+        const isPendingSubmission =
+          currentStatus === "submitting" || currentStatus === "submitted";
+        if (!isPendingSubmission) {
+          return previous;
+        }
+
+        return {
+          ...previous,
+          [normalizedId]: {
+            ...current,
+            status: "submitted",
+            resolved: true,
+            error: "",
+          },
+        };
+      });
+    },
+    [clearConfirmationResolutionTimer],
+  );
+
+  const markConfirmationFollowupSignalByCallId = useCallback(
+    (callId) => {
+      const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
+      if (!normalizedCallId) {
+        return;
+      }
+
+      const confirmationId =
+        confirmationIdByCallIdRef.current.get(normalizedCallId);
+      if (!confirmationId) {
+        return;
+      }
+      confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
+      resolveSubmittedConfirmationFromSignal(confirmationId);
+    },
+    [resolveSubmittedConfirmationFromSignal],
+  );
+
+  const markAllPendingConfirmationFollowupSignals = useCallback(() => {
+    confirmationIdByCallIdRef.current.forEach((confirmationId) => {
+      if (confirmationId) {
+        confirmationFollowupSignalByIdRef.current.set(confirmationId, true);
+        resolveSubmittedConfirmationFromSignal(confirmationId);
+      }
+    });
+  }, [resolveSubmittedConfirmationFromSignal]);
+
+  const scheduleConfirmationResolutionFallback = useCallback(
+    (confirmationId) => {
+      const normalizedId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedId) {
+        return;
+      }
+
+      clearConfirmationResolutionTimer(normalizedId);
+      const timerId = setTimeout(() => {
+        confirmationResolveTimerByIdRef.current.delete(normalizedId);
+
+        setToolConfirmationUiStateById((previous) => {
+          const current = previous[normalizedId];
+          if (!current || current.resolved === true) {
+            return previous;
+          }
+
+          const currentStatus =
+            typeof current.status === "string" ? current.status : "idle";
+          const isPendingSubmission =
+            currentStatus === "submitting" || currentStatus === "submitted";
+          if (!isPendingSubmission) {
+            return previous;
+          }
+
+          return {
+            ...previous,
+            [normalizedId]: {
+              ...current,
+              status: "submitted",
+              resolved: true,
+              error: "",
+            },
+          };
+        });
+      }, TOOL_CONFIRMATION_EVENT_FALLBACK_TIMEOUT_MS);
+
+      confirmationResolveTimerByIdRef.current.set(normalizedId, timerId);
+    },
+    [clearConfirmationResolutionTimer],
+  );
+
+  const clearResolvedToolConfirmationByCallId = useCallback(
+    (callId) => {
+      if (typeof callId !== "string" || !callId.trim()) {
+        return;
+      }
+      const confirmationId = confirmationIdByCallIdRef.current.get(callId);
+      if (!confirmationId) {
+        return;
+      }
+
+      confirmationIdByCallIdRef.current.delete(callId);
+      confirmationCallIdByIdRef.current.delete(confirmationId);
+      confirmationFollowupSignalByIdRef.current.delete(confirmationId);
+      clearConfirmationResolutionTimer(confirmationId);
+      setToolConfirmationUiStateById((previous) => {
+        if (!previous || !previous[confirmationId]) {
+          return previous;
+        }
+        const next = { ...previous };
+        delete next[confirmationId];
+        return next;
+      });
+    },
+    [clearConfirmationResolutionTimer],
+  );
 
   const clearAllPendingToolConfirmations = useCallback(() => {
     const activeConfirmationIds = [
-      ...new Set(confirmationIdByCallIdRef.current.values()),
+      ...new Set([
+        ...confirmationIdByCallIdRef.current.values(),
+        ...confirmationCallIdByIdRef.current.keys(),
+      ]),
     ];
     confirmationIdByCallIdRef.current.clear();
+    confirmationCallIdByIdRef.current.clear();
+    confirmationFollowupSignalByIdRef.current.clear();
+    activeConfirmationIds.forEach((confirmationId) => {
+      clearConfirmationResolutionTimer(confirmationId);
+    });
     if (activeConfirmationIds.length === 0) {
       return;
     }
@@ -577,7 +763,7 @@ const ChatInterface = () => {
       });
       return changed ? next : previous;
     });
-  }, []);
+  }, [clearConfirmationResolutionTimer]);
 
   const handleToolConfirmationDecision = useCallback(
     async ({ confirmationId, approved }) => {
@@ -590,10 +776,7 @@ const ChatInterface = () => {
       let shouldSubmit = false;
       setToolConfirmationUiStateById((previous) => {
         const current = previous[normalizedConfirmationId] || {};
-        if (
-          current.status === "submitting" ||
-          current.status === "submitted"
-        ) {
+        if (current.status === "submitting" || current.status === "submitted") {
           return previous;
         }
         shouldSubmit = true;
@@ -602,6 +785,7 @@ const ChatInterface = () => {
           [normalizedConfirmationId]: {
             status: "submitting",
             error: "",
+            resolved: false,
           },
         };
       });
@@ -616,15 +800,28 @@ const ChatInterface = () => {
           approved: Boolean(approved),
           reason: "",
         });
+        if (
+          confirmationFollowupSignalByIdRef.current.get(
+            normalizedConfirmationId,
+          ) !== true
+        ) {
+          confirmationFollowupSignalByIdRef.current.set(
+            normalizedConfirmationId,
+            false,
+          );
+        }
         setToolConfirmationUiStateById((previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
             status: "submitted",
             error: "",
+            resolved: false,
           },
         }));
+        scheduleConfirmationResolutionFallback(normalizedConfirmationId);
       } catch (error) {
+        clearConfirmationResolutionTimer(normalizedConfirmationId);
         const errorMessage =
           (typeof error?.message === "string" && error.message) ||
           "Failed to submit confirmation";
@@ -634,11 +831,12 @@ const ChatInterface = () => {
             ...(previous[normalizedConfirmationId] || {}),
             status: "error",
             error: errorMessage,
+            resolved: false,
           },
         }));
       }
     },
-    [],
+    [clearConfirmationResolutionTimer, scheduleConfirmationResolutionFallback],
   );
 
   const getOrCreateChatAttachmentPayloadMap = useCallback((chatId) => {
@@ -845,6 +1043,12 @@ const ChatInterface = () => {
           : null;
 
       confirmationIdByCallIdRef.current.clear();
+      confirmationCallIdByIdRef.current.clear();
+      confirmationFollowupSignalByIdRef.current.clear();
+      confirmationResolveTimerByIdRef.current.forEach((timerId) => {
+        clearTimeout(timerId);
+      });
+      confirmationResolveTimerByIdRef.current.clear();
       setToolConfirmationUiStateById({});
 
       const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -969,6 +1173,14 @@ const ChatInterface = () => {
 
       let streamHandle = null;
       try {
+        const rawSystemPromptOverrides = systemPromptOverridesRef.current;
+        const systemPromptOverrides =
+          rawSystemPromptOverrides &&
+          typeof rawSystemPromptOverrides === "object" &&
+          !Array.isArray(rawSystemPromptOverrides)
+            ? rawSystemPromptOverrides
+            : {};
+
         streamHandle = api.miso.startStreamV2(
           {
             threadId: threadIdRef.current,
@@ -980,8 +1192,13 @@ const ChatInterface = () => {
               ...(selectedToolkitsRef.current.length > 0 && {
                 toolkits: selectedToolkitsRef.current,
               }),
+              ...(Object.keys(systemPromptOverrides).length > 0 && {
+                system_prompt_v2: {
+                  overrides: systemPromptOverrides,
+                },
+              }),
             },
-            trace_level: "full",
+            trace_level: STREAM_TRACE_LEVEL,
           },
           {
             onFrame: (frame) => {
@@ -999,6 +1216,17 @@ const ChatInterface = () => {
                     : "";
                 if (callId && confirmationId) {
                   confirmationIdByCallIdRef.current.set(callId, confirmationId);
+                  confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                  if (
+                    confirmationFollowupSignalByIdRef.current.get(
+                      confirmationId,
+                    ) !== true
+                  ) {
+                    confirmationFollowupSignalByIdRef.current.set(
+                      confirmationId,
+                      false,
+                    );
+                  }
                   setToolConfirmationUiStateById((previous) =>
                     previous[confirmationId]
                       ? previous
@@ -1007,6 +1235,7 @@ const ChatInterface = () => {
                           [confirmationId]: {
                             status: "idle",
                             error: "",
+                            resolved: false,
                           },
                         },
                   );
@@ -1020,6 +1249,14 @@ const ChatInterface = () => {
                     ? frame.payload.call_id
                     : "";
                 clearResolvedToolConfirmationByCallId(callId);
+              } else if (frame.type === "tool_result") {
+                const callId =
+                  typeof frame.payload?.call_id === "string"
+                    ? frame.payload.call_id
+                    : "";
+                markConfirmationFollowupSignalByCallId(callId);
+              } else if (frame.type === "error" || frame.type === "done") {
+                markAllPendingConfirmationFollowupSignals();
               }
 
               // final_message carries the complete reply text
@@ -1313,6 +1550,8 @@ const ChatInterface = () => {
       clearAllPendingToolConfirmations,
       clearResolvedToolConfirmationByCallId,
       getOrCreateChatAttachmentPayloadMap,
+      markAllPendingConfirmationFollowupSignals,
+      markConfirmationFollowupSignalByCallId,
       resolveAttachmentPayloads,
     ],
   );

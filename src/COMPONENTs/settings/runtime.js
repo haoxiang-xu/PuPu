@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { SettingsSection } from "./appearance";
+import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
 
 const SETTINGS_STORAGE_KEY = "settings";
 
@@ -15,7 +16,9 @@ const readSettingsRoot = () => {
   }
 
   try {
-    const parsed = JSON.parse(window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}");
+    const parsed = JSON.parse(
+      window.localStorage.getItem(SETTINGS_STORAGE_KEY) || "{}",
+    );
     return isObject(parsed) ? parsed : {};
   } catch (_error) {
     return {};
@@ -51,20 +54,17 @@ const validateWorkspaceRoot = async (workspaceRoot) => {
     return { valid: true, resolvedPath: "", reason: "" };
   }
 
-  const method =
-    typeof window !== "undefined" && typeof window.misoAPI?.validateWorkspaceRoot === "function"
-      ? window.misoAPI.validateWorkspaceRoot
-      : null;
-
-  if (!method) {
+  if (!runtimeBridge.isWorkspaceValidationAvailable()) {
     return { valid: true, resolvedPath: trimmed, reason: "" };
   }
 
   try {
-    const response = await method(trimmed);
+    const response = await runtimeBridge.validateWorkspaceRoot(trimmed);
     const valid = Boolean(response?.valid);
     const resolvedPath =
-      typeof response?.resolvedPath === "string" ? response.resolvedPath.trim() : "";
+      typeof response?.resolvedPath === "string"
+        ? response.resolvedPath.trim()
+        : "";
     const reason = typeof response?.reason === "string" ? response.reason : "";
     return {
       valid,
@@ -93,13 +93,9 @@ export const RuntimeSettings = () => {
   const [isBrowsing, setIsBrowsing] = useState(false);
   const [isOpeningFolder, setIsOpeningFolder] = useState(false);
 
-  const browseSupported =
-    typeof window !== "undefined" &&
-    typeof window.misoAPI?.pickWorkspaceRoot === "function";
+  const browseSupported = runtimeBridge.isWorkspacePickerAvailable();
 
-  const openFolderSupported =
-    typeof window !== "undefined" &&
-    typeof window.misoAPI?.openRuntimeFolder === "function";
+  const openFolderSupported = runtimeBridge.isOpenRuntimeFolderAvailable();
 
   const isDirty = useMemo(
     () => workspaceRoot.trim() !== savedWorkspaceRoot.trim(),
@@ -150,10 +146,14 @@ export const RuntimeSettings = () => {
     setInfo("");
 
     try {
-      const response = await window.misoAPI.pickWorkspaceRoot(
+      const response = await runtimeBridge.pickWorkspaceRoot(
         workspaceRoot.trim() || savedWorkspaceRoot.trim(),
       );
-      if (!response?.canceled && typeof response?.path === "string" && response.path.trim()) {
+      if (
+        !response?.canceled &&
+        typeof response?.path === "string" &&
+        response.path.trim()
+      ) {
         setWorkspaceRoot(response.path.trim());
       }
     } catch (error) {
@@ -171,7 +171,7 @@ export const RuntimeSettings = () => {
     setInfo("");
 
     try {
-      const response = await window.misoAPI.openRuntimeFolder(folderPath);
+      const response = await runtimeBridge.openRuntimeFolder(folderPath);
       if (!response?.ok) {
         setError(response?.error || "Failed to open folder.");
       }
@@ -209,7 +209,9 @@ export const RuntimeSettings = () => {
             <Button
               label={isBrowsing ? "Browsing..." : "Browse"}
               onClick={handleBrowse}
-              disabled={!browseSupported || isBrowsing || isSaving || isOpeningFolder}
+              disabled={
+                !browseSupported || isBrowsing || isSaving || isOpeningFolder
+              }
               style={{
                 fontSize: 13,
                 paddingVertical: 7,
@@ -231,7 +233,12 @@ export const RuntimeSettings = () => {
             <Button
               label="Clear"
               onClick={handleClear}
-              disabled={isSaving || isBrowsing || isOpeningFolder || !savedWorkspaceRoot.trim()}
+              disabled={
+                isSaving ||
+                isBrowsing ||
+                isOpeningFolder ||
+                !savedWorkspaceRoot.trim()
+              }
               style={{
                 fontSize: 13,
                 paddingVertical: 7,
@@ -291,7 +298,9 @@ export const RuntimeSettings = () => {
             }}
           >
             This root is sent with each Miso request and used as
-            <code style={{ marginLeft: 4, marginRight: 4 }}>workspace_root</code>
+            <code style={{ marginLeft: 4, marginRight: 4 }}>
+              workspace_root
+            </code>
             when workspace toolkit is enabled.
           </div>
         </div>
@@ -299,4 +308,3 @@ export const RuntimeSettings = () => {
     </div>
   );
 };
-

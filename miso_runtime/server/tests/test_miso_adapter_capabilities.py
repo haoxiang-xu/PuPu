@@ -164,6 +164,49 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             },
         )
 
+    def test_build_system_prompt_v2_text_from_options_normalizes_alias_and_merge(self) -> None:
+        prompt_text = miso_adapter._build_system_prompt_v2_text_from_options(
+            {
+                "system_prompt_v2": {
+                    "enabled": True,
+                    "defaults": {
+                        "personally": " Helpful and concise. ",
+                        "rules": "Never fabricate facts.",
+                        "context": "Project: PuPu",
+                    },
+                    "overrides": {
+                        "rules": "Always ask clarifying questions when blocked.",
+                        "personality": "",
+                        "context": None,
+                    },
+                }
+            }
+        )
+
+        self.assertEqual(
+            prompt_text,
+            "\n\n".join(
+                [
+                    "[Personality]\nHelpful and concise.",
+                    "[Rules]\nAlways ask clarifying questions when blocked.",
+                ]
+            ),
+        )
+
+    def test_build_system_prompt_v2_text_from_options_skips_when_disabled(self) -> None:
+        prompt_text = miso_adapter._build_system_prompt_v2_text_from_options(
+            {
+                "system_prompt_v2": {
+                    "enabled": False,
+                    "defaults": {
+                        "personality": "Should not appear.",
+                    },
+                }
+            }
+        )
+
+        self.assertEqual(prompt_text, "")
+
     def test_get_toolkit_catalog_lists_known_toolkit_exports(self) -> None:
         class FakeToolkitBase:
             pass
@@ -500,6 +543,78 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         approved_result = json.loads(approved_content)
         self.assertEqual(approved_result["ok"], True)
 
+    def test_apply_broth_runtime_patches_non_anthropic_confirmation_events(self) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+                self.used_original_execute = False
+                self.events = []
+
+            def _execute_tool_calls(
+                self,
+                *,
+                tool_calls,
+                run_id,
+                iteration,
+                callback,
+                on_tool_confirm=None,
+            ):
+                self.used_original_execute = True
+                if on_tool_confirm is not None and tool_calls:
+                    request = {
+                        "tool_name": tool_calls[0].name,
+                        "call_id": tool_calls[0].call_id,
+                        "arguments": tool_calls[0].arguments,
+                        "description": "dangerous",
+                    }
+                    on_tool_confirm(request)
+                    on_tool_confirm(request)
+                return [{"role": "tool", "content": "original"}], False
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
+                self.events.append((event_type, iteration, extra))
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+        tool_calls = [
+            SimpleNamespace(
+                call_id="call-openai-1",
+                name="terminal_exec",
+                arguments={"cmd": "pwd"},
+            )
+        ]
+
+        _messages, _observe = agent._execute_tool_calls(
+            tool_calls=tool_calls,
+            run_id="run-openai-1",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda _req: {"approved": True},
+        )
+        confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
+        self.assertEqual(len(confirmed_events), 1)
+        self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
+        self.assertTrue(agent.used_original_execute)
+
+        agent.events = []
+        _messages, _observe = agent._execute_tool_calls(
+            tool_calls=tool_calls,
+            run_id="run-openai-2",
+            iteration=1,
+            callback=None,
+            on_tool_confirm=lambda _req: {"approved": False, "reason": "denied"},
+        )
+        denied_events = [event for event in agent.events if event[0] == "tool_denied"]
+        self.assertEqual(len(denied_events), 1)
+        self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
+        self.assertEqual(denied_events[0][2].get("reason"), "denied")
+
     def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -556,11 +671,43 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     python_workspace_toolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent({"workspace_root": tmp})
+                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
 
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
         self.assertEqual(captured["include_python_runtime"], True)
+
+    def test_create_agent_skips_toolkit_when_toolkits_option_absent(self) -> None:
+        """When options has workspace_root but no toolkits key, toolkit should NOT be attached."""
+
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+            return {"workspace_root": workspace_root}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter, "_BROTH_CLASS", FakeAgent
+            ), mock.patch.object(
+                miso_adapter, "_IMPORT_ERROR", None
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    python_workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent({"workspace_root": tmp})
+
+        self.assertEqual(len(agent.toolkits), 0)
 
     def test_create_agent_marks_selected_workspace_tools_requires_confirmation(self) -> None:
         class FakeAgent:
@@ -602,7 +749,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     python_workspace_toolkit=fake_workspace_toolkit
                 ),
             ):
-                _agent = miso_adapter._create_agent({"workspace_root": tmp})
+                _agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
 
         self.assertTrue(toolkit_instance.tools["write_file"].requires_confirmation)
         self.assertTrue(toolkit_instance.tools["delete_file"].requires_confirmation)
@@ -637,7 +784,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as tmp:
                 missing = str(Path(tmp) / "missing")
                 with self.assertRaisesRegex(RuntimeError, "workspace_root does not exist"):
-                    miso_adapter._create_agent({"workspaceRoot": missing})
+                    miso_adapter._create_agent({"workspaceRoot": missing, "toolkits": ["python_workspace_toolkit"]})
 
     def test_create_agent_uses_min_two_iterations_when_workspace_root_is_set(self) -> None:
         class FakeAgent:
@@ -668,7 +815,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     python_workspace_toolkit=fake_workspace_toolkit
                 ),
             ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
-                agent = miso_adapter._create_agent({"workspace_root": tmp})
+                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
 
         self.assertEqual(agent.max_iterations, 2)
 
@@ -714,6 +861,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.provider = "openai"
                 self.max_iterations = 3
                 self.received_on_tool_confirm = False
+                self.last_messages = []
 
             def run(
                 self,
@@ -724,6 +872,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 on_tool_confirm=None,
             ):
                 self.received_on_tool_confirm = callable(on_tool_confirm)
+                self.last_messages = list(messages or [])
                 if callable(callback):
                     callback(
                         {
@@ -748,12 +897,24 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     message="hello",
                     history=[],
                     attachments=[],
-                    options={},
+                    options={
+                        "systemPromptV2": {
+                            "enabled": True,
+                            "defaults": {
+                                "personally": "You are pragmatic.",
+                                "rules": "Be concise.",
+                            },
+                        }
+                    },
                 )
             )
 
         self.assertTrue(fake_agent.received_on_tool_confirm)
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertGreaterEqual(len(fake_agent.last_messages), 1)
+        self.assertEqual(fake_agent.last_messages[0].get("role"), "system")
+        self.assertIn("[Personality]", fake_agent.last_messages[0].get("content", ""))
+        self.assertIn("[Rules]", fake_agent.last_messages[0].get("content", ""))
 
     def test_extract_last_assistant_text_handles_structured_content(self) -> None:
         messages = [

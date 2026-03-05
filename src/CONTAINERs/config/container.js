@@ -24,6 +24,7 @@ import { isSetupComplete } from "../../COMPONENTs/init-setup/init_setup_storage"
 /* { Data } ------------------------------------------------------------------------------------------------------------------ */
 import available_themes from "../../BUILTIN_COMPONENTs/theme/theme_manifest";
 /* { Data } ------------------------------------------------------------------------------------------------------------------ */
+import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 const SETTINGS_STORAGE_KEY = "settings";
@@ -97,19 +98,19 @@ const ConfigContainer = ({ children }) => {
     }
   }, [onThemeMode, selectedTheme]);
   useEffect(() => {
-    if (theme?.backgroundColor && window.themeAPI?.setBackgroundColor) {
-      window.themeAPI.setBackgroundColor(theme.backgroundColor);
+    if (theme?.backgroundColor) {
+      themeBridge.setBackgroundColor(theme.backgroundColor);
     }
   }, [theme]);
   useEffect(() => {
-    if (!window.themeAPI?.setThemeMode) {
+    if (!themeBridge.isThemeModeAvailable()) {
       return;
     }
 
     const themeModeForNativePicker = syncWithSystemTheme
       ? "sync_with_browser"
       : onThemeMode;
-    window.themeAPI.setThemeMode(themeModeForNativePicker);
+    themeBridge.setThemeMode(themeModeForNativePicker);
   }, [onThemeMode, syncWithSystemTheme]);
   useEffect(() => {
     if (syncWithSystemTheme && system_theme) {
