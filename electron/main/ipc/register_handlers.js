@@ -14,6 +14,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_MODEL_CATALOG,
   CHANNELS.MISO.GET_TOOLKIT_CATALOG,
   CHANNELS.MISO.TOOL_CONFIRMATION,
+  CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.MISO.PICK_WORKSPACE_ROOT,
   CHANNELS.MISO.VALIDATE_WORKSPACE_ROOT,
   CHANNELS.MISO.OPEN_RUNTIME_FOLDER,
@@ -89,6 +90,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.MISO.TOOL_CONFIRMATION, async (_event, payload = {}) =>
     misoService.submitMisoToolConfirmation(payload),
+  );
+  ipcMain.handle(CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN, (_event, payload = {}) =>
+    runtimeService.setChromeTerminalOpen(payload),
   );
   ipcMain.handle(CHANNELS.MISO.PICK_WORKSPACE_ROOT, async (_event, payload = {}) =>
     runtimeService.pickWorkspaceRoot(payload),

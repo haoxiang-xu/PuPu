@@ -1,10 +1,12 @@
 import json
+import threading
 import time
 from typing import Any, Dict, Iterable, List
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
 from miso_adapter import (
+    cancel_tool_confirmations,
     get_capability_catalog,
     get_default_model_capabilities,
     get_model_capability_catalog,
@@ -521,6 +523,11 @@ def chat_stream_v2() -> Response:
         completion_tokens = 0
         completion_chars = 0
         started_at = int(time.time() * 1000)
+        confirmation_cancel_event = threading.Event()
+
+        def cancel_pending_confirmations() -> None:
+            confirmation_cancel_event.set()
+            cancel_tool_confirmations(confirmation_cancel_event)
 
         try:
             seq += 1
@@ -546,6 +553,7 @@ def chat_stream_v2() -> Response:
                 attachments=attachments,
                 options=options,
                 session_id=thread_id,
+                cancel_event=confirmation_cancel_event,
             ):
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
 
@@ -612,8 +620,10 @@ def chat_stream_v2() -> Response:
                 ),
             )
         except GeneratorExit:  # pragma: no cover
+            cancel_pending_confirmations()
             return
         except Exception as stream_error:
+            cancel_pending_confirmations()
             seq += 1
             error_ts = int(time.time() * 1000)
             yield _sse_event(
@@ -630,6 +640,8 @@ def chat_stream_v2() -> Response:
                     timestamp_ms=error_ts,
                 ),
             )
+        finally:
+            cancel_pending_confirmations()
 
     return Response(
         stream_with_context(stream_events()),

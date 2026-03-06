@@ -60,6 +60,7 @@ describe("preload API contract", () => {
       "getModelCatalog",
       "getToolkitCatalog",
       "respondToolConfirmation",
+      "setChromeTerminalOpen",
       "pickWorkspaceRoot",
       "validateWorkspaceRoot",
       "openRuntimeFolder",
@@ -89,6 +90,12 @@ describe("preload API contract", () => {
       query: "q",
       category: "c",
     });
+
+    exposed.misoAPI.setChromeTerminalOpen(true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
+      { open: true },
+    );
 
     exposed.themeAPI.setThemeMode("dark_mode");
     expect(ipcRenderer.send).toHaveBeenLastCalledWith(

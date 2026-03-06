@@ -603,14 +603,23 @@ const createMisoService = ({
 
   const parseSsePayload = (dataText) => {
     if (!dataText) {
-      return {};
+      return {
+        payload: {},
+        isValidJson: true,
+      };
     }
 
     try {
-      return JSON.parse(dataText);
+      return {
+        payload: JSON.parse(dataText),
+        isValidJson: true,
+      };
     } catch {
       return {
-        message: dataText,
+        payload: {
+          message: dataText,
+        },
+        isValidJson: false,
       };
     }
   };
@@ -649,7 +658,8 @@ const createMisoService = ({
 
         if (block.trim().length > 0) {
           const parsedBlock = parseSseBlock(block);
-          const payload = parseSsePayload(parsedBlock.dataText);
+          const parsedPayload = parseSsePayload(parsedBlock.dataText);
+          const payload = parsedPayload.payload;
           emitMisoStreamEvent(webContentsId, requestId, parsedBlock.eventName, payload);
 
           if (
@@ -668,6 +678,26 @@ const createMisoService = ({
 
       if (sawTerminalEvent) {
         break;
+      }
+    }
+
+    // Recover a final SSE block even when upstream closes without the
+    // trailing "\n\n" separator.
+    const trailingBlock = buffer.trim();
+    if (!sawTerminalEvent && trailingBlock.length > 0) {
+      const parsedBlock = parseSseBlock(trailingBlock);
+      const parsedPayload = parseSsePayload(parsedBlock.dataText);
+      if (parsedPayload.isValidJson) {
+        const payload = parsedPayload.payload;
+        emitMisoStreamEvent(webContentsId, requestId, parsedBlock.eventName, payload);
+        if (
+          parsedBlock.eventName === "done" ||
+          parsedBlock.eventName === "error" ||
+          (parsedBlock.eventName === "frame" &&
+            (payload?.type === "done" || payload?.type === "error"))
+        ) {
+          sawTerminalEvent = true;
+        }
       }
     }
 

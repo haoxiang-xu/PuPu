@@ -81,6 +81,30 @@ describe("bridge wrappers", () => {
     });
   });
 
+  test("runtimeBridge.setChromeTerminalOpen forwards open flag and normalizes payload", async () => {
+    window.misoAPI = {
+      setChromeTerminalOpen: jest.fn(async (open) => ({
+        ok: true,
+        open,
+      })),
+    };
+
+    await expect(runtimeBridge.setChromeTerminalOpen(true)).resolves.toEqual({
+      ok: true,
+      open: true,
+      error: "",
+    });
+    expect(window.misoAPI.setChromeTerminalOpen).toHaveBeenCalledWith(true);
+  });
+
+  test("runtimeBridge.setChromeTerminalOpen throws when bridge method is missing", async () => {
+    window.misoAPI = {};
+
+    await expect(runtimeBridge.setChromeTerminalOpen(true)).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+  });
+
   test("ollamaBridge getStatus reports standardized error code", async () => {
     window.ollamaAPI = {
       getStatus: jest.fn(async () => {
@@ -138,6 +162,18 @@ describe("bridge wrappers", () => {
     await expect(runtimeBridge.getRuntimeDirSize("/tmp/demo")).rejects.toBeInstanceOf(
       FrontendApiError,
     );
+  });
+
+  test("runtimeBridge.setChromeTerminalOpen wraps failures in FrontendApiError", async () => {
+    window.misoAPI = {
+      setChromeTerminalOpen: jest.fn(async () => {
+        throw new Error("failed");
+      }),
+    };
+
+    await expect(runtimeBridge.setChromeTerminalOpen(true)).rejects.toMatchObject({
+      code: "miso_chrome_terminal_failed",
+    });
   });
 });
 

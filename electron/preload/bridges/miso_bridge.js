@@ -6,6 +6,10 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   getToolkitCatalog: () => ipcRenderer.invoke(CHANNELS.MISO.GET_TOOLKIT_CATALOG),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.TOOL_CONFIRMATION, payload),
+  setChromeTerminalOpen: (open = false) =>
+    ipcRenderer.invoke(CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN, {
+      open: Boolean(open),
+    }),
   pickWorkspaceRoot: (defaultPath = "") =>
     ipcRenderer.invoke(CHANNELS.MISO.PICK_WORKSPACE_ROOT, { defaultPath }),
   validateWorkspaceRoot: (path = "") =>

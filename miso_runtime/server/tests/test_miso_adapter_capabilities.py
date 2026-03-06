@@ -292,7 +292,6 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         emitted_events = []
         confirm_cb = miso_adapter._make_tool_confirm_callback(
             emitted_events.append,
-            timeout_seconds=2,
         )
         response_holder: dict[str, object] = {}
 
@@ -334,27 +333,54 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(result["approved"], True)
         self.assertEqual(result["reason"], "approved")
 
-    def test_make_tool_confirm_callback_times_out_to_denied_response(self) -> None:
+    def test_make_tool_confirm_callback_returns_denied_when_cancelled(self) -> None:
+        cancel_event = threading.Event()
+        emitted_events = []
         confirm_cb = miso_adapter._make_tool_confirm_callback(
-            lambda _event: None,
-            timeout_seconds=1,
+            emitted_events.append,
+            cancel_event=cancel_event,
         )
+        response_holder: dict[str, object] = {}
 
-        started = time.time()
-        result = confirm_cb(
-            {
-                "tool_name": "delete_file",
-                "call_id": "call-timeout",
-                "arguments": {"path": "tmp.txt"},
-                "description": "Delete a file",
-            }
+        def invoke_callback() -> None:
+            response_holder["value"] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-cancelled",
+                    "arguments": {"path": "tmp.txt"},
+                    "description": "Delete a file",
+                }
+            )
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertTrue(emitted_events)
+        confirmation_id = emitted_events[0].get("confirmation_id")
+        self.assertIsInstance(confirmation_id, str)
+
+        cancel_event.set()
+        miso_adapter.cancel_tool_confirmations(cancel_event)
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+
+        result = response_holder.get("value")
+        submitted = miso_adapter.submit_tool_confirmation(
+            confirmation_id=confirmation_id,
+            approved=True,
         )
-        elapsed = time.time() - started
 
         self.assertIsInstance(result, dict)
         self.assertEqual(result.get("approved"), False)
-        self.assertIn("timed out", str(result.get("reason", "")).lower())
-        self.assertLess(elapsed, 2.5)
+        self.assertEqual(
+            result.get("reason"),
+            "confirmation_cancelled_stream_terminated",
+        )
+        self.assertFalse(submitted)
 
     def test_submit_tool_confirmation_returns_false_for_unknown_id(self) -> None:
         submitted = miso_adapter.submit_tool_confirmation(

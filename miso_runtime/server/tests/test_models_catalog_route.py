@@ -325,6 +325,35 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertIn("final_message", event_types)
         self.assertIn("done", event_types)
 
+    def test_chat_stream_v2_sets_confirmation_cancel_event_on_generator_exit(self) -> None:
+        captured_cancel_event = {"value": None}
+
+        def fake_stream_chat_events(**kwargs):
+            captured_cancel_event["value"] = kwargs.get("cancel_event")
+            raise GeneratorExit()
+            yield  # pragma: no cover
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            side_effect=fake_stream_chat_events,
+        ):
+            response = self.client.post(
+                "/chat/stream/v2",
+                json={
+                    "message": "hello",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            _payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        cancel_event = captured_cancel_event["value"]
+        self.assertIsNotNone(cancel_event)
+        self.assertTrue(hasattr(cancel_event, "is_set"))
+        self.assertTrue(cancel_event.is_set())
+
     def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
         response = self.client.post(
             "/chat/stream/v2",

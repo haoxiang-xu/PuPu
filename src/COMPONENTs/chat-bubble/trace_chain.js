@@ -394,16 +394,22 @@ const TraceChain = ({
             ? confirmationUiState.error
             : "";
         const uiResolved = confirmationUiState?.resolved === true;
+        const uiDecision =
+          confirmationUiState?.decision === "approved" ||
+          confirmationUiState?.decision === "denied"
+            ? confirmationUiState.decision
+            : "";
+        const resolvedDecision = confirmationResult || uiDecision;
 
         const isResolved =
-          confirmationResult === "approved" || confirmationResult === "denied";
+          resolvedDecision === "approved" || resolvedDecision === "denied";
         const isSubmitting =
           !uiResolved && (uiStatus === "submitting" || uiStatus === "submitted");
 
         let statusLabel = "Pending";
-        if (confirmationResult === "approved") {
+        if (resolvedDecision === "approved") {
           statusLabel = "Approved";
-        } else if (confirmationResult === "denied") {
+        } else if (resolvedDecision === "denied") {
           statusLabel = "Denied";
         } else if (uiResolved) {
           statusLabel = "Submitted";
@@ -421,7 +427,7 @@ const TraceChain = ({
           typeof onToolConfirmationDecision === "function";
 
         const statusColor = isResolved
-          ? confirmationResult === "approved"
+          ? resolvedDecision === "approved"
             ? isDark
               ? "rgba(110,231,183,0.95)"
               : "rgba(5,150,105,0.95)"

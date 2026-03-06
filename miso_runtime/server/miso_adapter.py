@@ -35,7 +35,7 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "mcp": "integration",
 }
 _DEFAULT_MAX_ITERATIONS = 6
-_CONFIRMATION_TIMEOUT_SECONDS = 300
+_CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "write_file",
     "delete_file",
@@ -165,15 +165,48 @@ def submit_tool_confirmation(
     return True
 
 
+def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> int:
+    cancelled = 0
+    with _pending_confirmations_lock:
+        for pending in _pending_confirmations.values():
+            if not isinstance(pending, dict):
+                continue
+
+            waiter_cancel_event = pending.get("cancel_event")
+            if (
+                isinstance(cancel_event, threading.Event)
+                and waiter_cancel_event is not cancel_event
+            ):
+                continue
+
+            if pending.get("response") is not None:
+                continue
+
+            pending["response"] = {
+                "approved": False,
+                "reason": _CONFIRMATION_CANCELLED_REASON,
+                "modified_arguments": None,
+            }
+            cancelled += 1
+            event = pending.get("event")
+            if isinstance(event, threading.Event):
+                event.set()
+
+    return cancelled
+
+
 def _make_tool_confirm_callback(
     emit_event,
-    timeout_seconds: int = _CONFIRMATION_TIMEOUT_SECONDS,
+    cancel_event: threading.Event | None = None,
 ):
-    safe_timeout_seconds = max(1, int(timeout_seconds))
-
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
+        normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
         confirmation_id = str(_uuid.uuid4())
-        waiter = {"event": threading.Event(), "response": None}
+        waiter = {
+            "event": threading.Event(),
+            "response": None,
+            "cancel_event": normalized_cancel_event,
+        }
 
         with _pending_confirmations_lock:
             _pending_confirmations[confirmation_id] = waiter
@@ -182,7 +215,11 @@ def _make_tool_confirm_callback(
             request_payload = _build_tool_confirmation_request_payload(request_obj)
             request_payload["confirmation_id"] = confirmation_id
             emit_event(request_payload)
-            waiter["event"].wait(timeout=safe_timeout_seconds)
+            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+                cancel_tool_confirmations(normalized_cancel_event)
+            event = waiter.get("event")
+            if isinstance(event, threading.Event):
+                event.wait()
         except Exception as callback_error:
             return {
                 "approved": False,
@@ -197,9 +234,16 @@ def _make_tool_confirm_callback(
         if isinstance(response, dict):
             return _normalize_tool_confirmation_response(response)
 
+        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+            return {
+                "approved": False,
+                "reason": _CONFIRMATION_CANCELLED_REASON,
+                "modified_arguments": None,
+            }
+
         return {
             "approved": False,
-            "reason": "Confirmation timed out",
+            "reason": "Confirmation ended without a response",
             "modified_arguments": None,
         }
 
@@ -1704,6 +1748,7 @@ def stream_chat_events(
     attachments: List[Dict[str, object]] | None = None,
     options: Dict[str, object],
     session_id: str = "",
+    cancel_event: threading.Event | None = None,
 ) -> Iterable[Dict[str, Any]]:
     agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
@@ -1737,8 +1782,19 @@ def stream_chat_events(
 
     confirm_cb = _make_tool_confirm_callback(
         lambda event: event_queue.put(event),
-        timeout_seconds=_CONFIRMATION_TIMEOUT_SECONDS,
+        cancel_event=cancel_event,
     )
+    if isinstance(cancel_event, threading.Event):
+        def watch_stream_cancel() -> None:
+            cancel_event.wait()
+            cancel_tool_confirmations(cancel_event)
+
+        cancel_watcher = threading.Thread(
+            target=watch_stream_cancel,
+            name="miso-stream-confirm-cancel",
+            daemon=True,
+        )
+        cancel_watcher.start()
 
     def run_agent() -> None:
         try:

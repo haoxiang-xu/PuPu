@@ -191,6 +191,15 @@ const Close = (props) => (
     <path d="M11.9997 10.5865L16.9495 5.63672L18.3637 7.05093L13.4139 12.0007L18.3637 16.9504L16.9495 18.3646L11.9997 13.4149L7.04996 18.3646L5.63574 16.9504L10.5855 12.0007L5.63574 7.05093L7.04996 5.63672L11.9997 10.5865Z"></path>
   </svg>
 );
+const Code = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M24 12L18.3431 17.6569L16.9289 16.2426L21.1716 12L16.9289 7.75736L18.3431 6.34315L24 12ZM2.82843 12L7.07107 16.2426L5.65685 17.6569L0 12L5.65685 6.34315L7.07107 7.75736L2.82843 12ZM9.78845 21H7.66009L14.2116 3H16.3399L9.78845 21Z"></path>
+  </svg>
+);
 const Color = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -768,7 +777,7 @@ const SideMenuClose = (props) => (
     viewBox="0 0 24 24"
     fill="currentColor"
   >
-    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM13"></path>
+    <path d="M21 3C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H21ZM20 5H4V19H20V5ZM6 7H11V17H6V7Z"></path>
   </svg>
 );
 const SideMenuLeft = (props) => (
@@ -1043,6 +1052,7 @@ const UISVGs = {
   check_box_indeterminate: CheckBoxIndeterminate,
   circle: Circle,
   close: Close,
+  code: Code,
   color: Color,
   copy: Copy,
   data: Data,

@@ -447,12 +447,7 @@ export const createMisoApi = () => {
           requestPayload.modified_arguments = modifiedArguments;
         }
 
-        const response = await withTimeout(
-          () => method(requestPayload),
-          10000,
-          "miso_tool_confirmation_timeout",
-          "Tool confirmation request timed out",
-        );
+        const response = await method(requestPayload);
 
         return isObject(response) ? response : { status: "ok" };
       } catch (error) {

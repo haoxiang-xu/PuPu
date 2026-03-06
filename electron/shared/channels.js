@@ -20,6 +20,7 @@ const CHANNELS = Object.freeze({
     GET_MODEL_CATALOG: "miso:get-model-catalog",
     GET_TOOLKIT_CATALOG: "miso:get-toolkit-catalog",
     TOOL_CONFIRMATION: "miso:tool-confirmation",
+    SET_CHROME_TERMINAL_OPEN: "miso:set-chrome-terminal-open",
     PICK_WORKSPACE_ROOT: "miso:pick-workspace-root",
     VALIDATE_WORKSPACE_ROOT: "miso:validate-workspace-root",
     OPEN_RUNTIME_FOLDER: "miso:open-runtime-folder",

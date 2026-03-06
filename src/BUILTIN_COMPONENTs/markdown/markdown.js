@@ -1,4 +1,4 @@
-import { useContext, useMemo, useRef } from "react";
+import { useContext, useMemo, useRef, useState } from "react";
 import ReactShowdown from "react-showdown";
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
@@ -8,6 +8,83 @@ import MarkdownCodeBlock from "./code";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
+
+/* ── <think> block — renders DeepSeek reasoning content as a collapsible section ─────────────────────────────────────────────── */
+const ThinkBlock = ({ children }) => {
+  const [open, setOpen] = useState(false);
+  const { theme, onThemeMode } = useContext(ConfigContext);
+  const isDark = onThemeMode === "dark_mode";
+
+  const hasContent =
+    children !== undefined && children !== null && children !== "";
+
+  if (!hasContent) return null;
+
+  const borderColor = isDark
+    ? "rgba(255,255,255,0.10)"
+    : "rgba(0,0,0,0.08)";
+  const bgColor = isDark
+    ? "rgba(255,255,255,0.03)"
+    : "rgba(0,0,0,0.02)";
+  const mutedColor = isDark
+    ? "rgba(255,255,255,0.40)"
+    : "rgba(0,0,0,0.40)";
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
+
+  return (
+    <div
+      style={{
+        margin: "0.5em 0",
+        borderRadius: 8,
+        border: `1px solid ${borderColor}`,
+        backgroundColor: bgColor,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          padding: "6px 12px",
+          cursor: "pointer",
+          userSelect: "none",
+          fontFamily,
+          fontSize: 13,
+          fontWeight: 500,
+          color: mutedColor,
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            transition: "transform 0.15s ease",
+            transform: open ? "rotate(90deg)" : "rotate(0deg)",
+            fontSize: 10,
+          }}
+        >
+          ▶
+        </span>
+        Thinking
+      </div>
+      {open && (
+        <div
+          style={{
+            padding: "0 12px 10px",
+            fontSize: 13,
+            lineHeight: 1.6,
+            color: mutedColor,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+/* ── end <think> block ───────────────────────────────────────────────────────────────────────────────────────────────────────── */
 
 const toPx = (value, fallback) => {
   if (value === undefined || value === null) return fallback;
@@ -270,6 +347,7 @@ const Markdown = ({
       pre: (props) => (
         <MarkdownCodeBlock {...props} markdownTheme={mergedMarkdownTheme} />
       ),
+      think: ThinkBlock,
       ...components,
     }),
     [components, mergedMarkdownTheme],
