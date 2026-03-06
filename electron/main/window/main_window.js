@@ -164,7 +164,23 @@ const createMainWindowService = ({
     setTimeout(loadDevUrlWhenReady, DEV_SERVER_RETRY_MS);
   };
 
+  const focusMainWindow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return null;
+    }
+    if (typeof mainWindow.isMinimized === "function" && mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+    return mainWindow;
+  };
+
   const createMainWindow = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return focusMainWindow();
+    }
+
     mainWindow = new BrowserWindow(createWindowOptions());
 
     mainWindow.loadFile(resolvePublicPath("loading.html"));
@@ -221,6 +237,8 @@ const createMainWindowService = ({
       }
       mainWindow = null;
     });
+
+    return mainWindow;
   };
 
   const handleThemeSetBackgroundColor = (color) => {
@@ -267,14 +285,13 @@ const createMainWindowService = ({
   };
 
   const showMainWindow = () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-    }
+    focusMainWindow();
   };
 
   return {
     createMainWindow,
     getMainWindow: () => mainWindow,
+    focusMainWindow,
     showMainWindow,
     getPublicAssetPath: resolvePublicPath,
     handleThemeSetBackgroundColor,
