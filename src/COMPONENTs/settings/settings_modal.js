@@ -5,6 +5,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { AppearanceSettings } from "./appearance";
 import { ModelProvidersSettings } from "./model_providers";
 import { LocalStorageSettings } from "./local_storage";
+import { MemorySettings } from "./memory";
 import { RuntimeSettings } from "./runtime";
 import { AppUpdateSettings } from "./app_update";
 
@@ -30,6 +31,12 @@ const SETTINGS_PAGES = [
     icon: "terminal",
     label: "Runtime",
     component: RuntimeSettings,
+  },
+  {
+    key: "memory",
+    icon: "brain",
+    label: "Memory",
+    component: MemorySettings,
   },
   {
     key: "app_update",
@@ -190,7 +197,7 @@ export const SettingsModal = ({ open, onClose }) => {
           }}
         >
           <div style={{ paddingRight: 32 }}>
-            <ActivePageComponent />
+            <ActivePageComponent onNavigate={setSelectedPage} />
           </div>
         </div>
       </div>

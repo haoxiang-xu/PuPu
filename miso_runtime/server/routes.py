@@ -437,6 +437,7 @@ def chat_stream() -> Response:
                 history=history,
                 attachments=attachments,
                 options=options,
+                session_id=thread_id,
             ):
                 normalized_delta = str(delta)
                 completion_chars += len(normalized_delta)
@@ -544,6 +545,7 @@ def chat_stream_v2() -> Response:
                 history=history,
                 attachments=attachments,
                 options=options,
+                session_id=thread_id,
             ):
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
 

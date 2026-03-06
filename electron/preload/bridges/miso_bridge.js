@@ -18,6 +18,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.DELETE_RUNTIME_ENTRY, { dirPath, entryName }),
   clearRuntimeDir: (dirPath) =>
     ipcRenderer.invoke(CHANNELS.MISO.CLEAR_RUNTIME_DIR, { dirPath }),
+  getMemorySize: () => ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_SIZE),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
   startStreamV2: streamClient.startStreamV2,

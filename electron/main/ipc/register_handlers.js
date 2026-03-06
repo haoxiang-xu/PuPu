@@ -1,3 +1,4 @@
+const path = require("path");
 const { CHANNELS } = require("../../shared/channels");
 
 const IPC_HANDLE_CHANNELS = Object.freeze([
@@ -19,6 +20,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_RUNTIME_DIR_SIZE,
   CHANNELS.MISO.DELETE_RUNTIME_ENTRY,
   CHANNELS.MISO.CLEAR_RUNTIME_DIR,
+  CHANNELS.MISO.GET_MEMORY_SIZE,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -106,6 +108,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(CHANNELS.MISO.CLEAR_RUNTIME_DIR, (_event, payload = {}) =>
     runtimeService.clearRuntimeDir(payload),
   );
+  ipcMain.handle(CHANNELS.MISO.GET_MEMORY_SIZE, () => {
+    const memoryDir = path.join(app.getPath("userData"), "memory", "qdrant");
+    const result = runtimeService.getRuntimeDirSize({ dirPath: memoryDir });
+    return { total: result.total || 0, error: result.error || "" };
+  });
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {
     misoService.handleStreamStart(event, payload);

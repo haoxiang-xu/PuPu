@@ -496,6 +496,7 @@ const createMisoService = ({
         MISO_VERSION: app.getVersion(),
         MISO_PROVIDER: process.env.MISO_PROVIDER || "ollama",
         MISO_MODEL: process.env.MISO_MODEL || "deepseek-r1:14b",
+        MISO_DATA_DIR: app.getPath("userData"),
         ...(devMisoSourcePath ? { MISO_SOURCE_PATH: devMisoSourcePath } : {}),
       },
       stdio: ["ignore", "pipe", "pipe"],

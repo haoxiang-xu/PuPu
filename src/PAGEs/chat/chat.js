@@ -27,6 +27,7 @@ import {
   deleteAttachmentPayload,
 } from "../../SERVICEs/attachment_storage";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
+import { readMemorySettings } from "../../COMPONENTs/settings/memory/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
 const DEFAULT_DISCLAIMER =
@@ -1131,10 +1132,10 @@ const ChatInterface = () => {
         },
       };
 
-      const historyForModel = buildHistoryForModel(
-        normalizedBaseMessages,
-        chatId,
-      );
+      const memoryEnabled = readMemorySettings().enabled === true;
+      const historyForModel = memoryEnabled
+        ? []
+        : buildHistoryForModel(normalizedBaseMessages, chatId);
 
       const nextMessages = [
         ...normalizedBaseMessages,

@@ -217,6 +217,43 @@ const getStoredWorkspaceRoot = () => {
   return typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
 };
 
+const readMemorySettingsFromStorage = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return {};
+  }
+  try {
+    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
+    return isObject(root?.memory) ? root.memory : {};
+  } catch (_error) {
+    return {};
+  }
+};
+
+const injectMemoryIntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+  const memory = readMemorySettingsFromStorage();
+  if (!memory.enabled) {
+    return payload;
+  }
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  return {
+    ...payload,
+    options: {
+      ...currentOptions,
+      memory_enabled: true,
+      memory_embedding_provider: memory.embedding_provider || "auto",
+      memory_embedding_model:
+        memory.embedding_provider === "ollama"
+          ? memory.ollama_embedding_model || "nomic-embed-text"
+          : memory.openai_embedding_model || "text-embedding-3-small",
+      memory_last_n_turns: memory.last_n_turns ?? 8,
+      memory_vector_top_k: memory.vector_top_k ?? 4,
+    },
+  };
+};
+
 const getStoredSystemPromptV2Config = () => {
   return {
     enabled: true,
@@ -480,8 +517,9 @@ export const createMisoApi = () => {
         const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
           payloadWithWorkspaceRoot,
         );
+        const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
         const normalizedPayload = injectProviderApiKeyIntoPayload(
-          payloadWithSystemPromptV2,
+          payloadWithMemory,
         );
         const streamHandle = method(normalizedPayload, handlers);
         if (

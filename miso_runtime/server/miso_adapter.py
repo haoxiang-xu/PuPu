@@ -1550,7 +1550,7 @@ def _content_to_text(content: object) -> str:
     return str(content)
 
 
-def _create_agent(options: Dict[str, object] | None = None):
+def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
     if _IMPORT_ERROR is not None:
         raise RuntimeError(f"Failed to import miso.broth: {_IMPORT_ERROR}")
     if _BROTH_CLASS is None:
@@ -1598,6 +1598,15 @@ def _create_agent(options: Dict[str, object] | None = None):
 
     _attach_workspace_toolkit(agent, options)
 
+    if session_id and isinstance(options, dict):
+        try:
+            from memory_factory import create_memory_manager
+            mm = create_memory_manager(options)
+            if mm is not None:
+                agent.memory_manager = mm
+        except Exception:
+            pass
+
     return agent
 
 
@@ -1622,8 +1631,9 @@ def stream_chat(
     history: List[Dict[str, object]],
     attachments: List[Dict[str, object]] | None = None,
     options: Dict[str, object],
+    session_id: str = "",
 ) -> Iterable[str]:
-    agent = _create_agent(options)
+    agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
     payload = _build_payload(agent.provider, options)
 
@@ -1657,6 +1667,7 @@ def stream_chat(
                 payload=payload,
                 callback=on_event,
                 max_iterations=agent.max_iterations,
+                **({"session_id": session_id} if session_id else {}),
             )
             output_holder["messages"] = messages_out
         except Exception as run_error:  # pragma: no cover
@@ -1692,8 +1703,9 @@ def stream_chat_events(
     history: List[Dict[str, object]],
     attachments: List[Dict[str, object]] | None = None,
     options: Dict[str, object],
+    session_id: str = "",
 ) -> Iterable[Dict[str, Any]]:
-    agent = _create_agent(options)
+    agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
     system_prompt_text = _build_system_prompt_v2_text_from_options(options)
     if system_prompt_text:
@@ -1736,6 +1748,9 @@ def stream_chat_events(
                 "callback": on_event,
                 "max_iterations": agent.max_iterations,
             }
+
+            if session_id:
+                run_kwargs["session_id"] = session_id
 
             try:
                 run_params = inspect.signature(agent.run).parameters
