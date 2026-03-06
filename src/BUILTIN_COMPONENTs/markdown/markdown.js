@@ -20,15 +20,9 @@ const ThinkBlock = ({ children }) => {
 
   if (!hasContent) return null;
 
-  const borderColor = isDark
-    ? "rgba(255,255,255,0.10)"
-    : "rgba(0,0,0,0.08)";
-  const bgColor = isDark
-    ? "rgba(255,255,255,0.03)"
-    : "rgba(0,0,0,0.02)";
-  const mutedColor = isDark
-    ? "rgba(255,255,255,0.40)"
-    : "rgba(0,0,0,0.40)";
+  const borderColor = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)";
+  const bgColor = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)";
+  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.40)";
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
   return (
