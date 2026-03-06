@@ -493,6 +493,7 @@ const createMisoService = ({
         MISO_HOST,
         MISO_PORT: String(misoPort),
         MISO_AUTH_TOKEN: misoAuthToken,
+        MISO_VERSION: app.getVersion(),
         MISO_PROVIDER: process.env.MISO_PROVIDER || "ollama",
         MISO_MODEL: process.env.MISO_MODEL || "deepseek-r1:14b",
         ...(devMisoSourcePath ? { MISO_SOURCE_PATH: devMisoSourcePath } : {}),
