@@ -1,3 +1,4 @@
+import copy
 import os
 import sys
 import tempfile
@@ -117,6 +118,88 @@ class MemoryFactoryTests(unittest.TestCase):
                 {"role": "user", "content": "u3"},
                 {"role": "assistant", "content": "a3"},
             ],
+        )
+
+    def test_patch_memory_commit_with_overlap_sanitizes_tool_traffic(self) -> None:
+        existing_messages = [
+            {"role": "system", "content": "rules-v1"},
+            {"role": "user", "content": "u1"},
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "a1"},
+                    {"type": "tool_use", "id": "toolu_1", "name": "exec", "input": {}},
+                ],
+            },
+            {"role": "tool", "content": "transient"},
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": '{"ok": true}',
+                    }
+                ],
+            },
+            {"type": "function_call_output", "call_id": "call-1", "output": '{"ok": true}'},
+        ]
+        latest_messages = [
+            {"role": "system", "content": "rules-v2"},
+            {
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "toolu_1",
+                        "content": '{"ok": true}',
+                    },
+                    {"type": "text", "text": "a1"},
+                ],
+            },
+            {"type": "function_call_output", "call_id": "call-2", "output": '{"ok": true}'},
+            {"role": "user", "content": "u2"},
+            {"role": "assistant", "content": "a2"},
+        ]
+
+        class FakeStore:
+            def __init__(self, state):
+                self._state = copy.deepcopy(state)
+
+            def load(self, _session_id: str):
+                return copy.deepcopy(self._state)
+
+        class FakeManager:
+            def __init__(self):
+                self.store = FakeStore({"messages": existing_messages})
+                self.committed_payload = None
+
+            def commit_messages(self, *, session_id: str, full_conversation):
+                self.committed_payload = {
+                    "session_id": session_id,
+                    "full_conversation": full_conversation,
+                }
+
+        manager = FakeManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+
+        manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=latest_messages,
+        )
+
+        self.assertEqual(
+            manager.committed_payload,
+            {
+                "session_id": "chat-test",
+                "full_conversation": [
+                    {"role": "system", "content": "rules-v2"},
+                    {"role": "user", "content": "u1"},
+                    {"role": "assistant", "content": [{"type": "text", "text": "a1"}]},
+                    {"role": "user", "content": "u2"},
+                    {"role": "assistant", "content": "a2"},
+                ],
+            },
         )
 
     def test_patch_memory_commit_with_overlap_wraps_original_commit(self) -> None:
@@ -244,6 +327,205 @@ class MemoryFactoryTests(unittest.TestCase):
 
         self.assertEqual(prepared, [{"role": "assistant", "content": "ok"}])
         self.assertEqual(manager._last_prepare_info["vector_recall_status"], "search_failed")
+
+    def test_patch_memory_prepare_with_diagnostics_sanitizes_and_cleans_store(self) -> None:
+        class FakeStore:
+            def __init__(self, state):
+                self.state = copy.deepcopy(state)
+                self.saved_states = []
+
+            def load(self, _session_id: str):
+                return copy.deepcopy(self.state)
+
+            def save(self, _session_id: str, state):
+                next_state = copy.deepcopy(state)
+                self.saved_states.append(next_state)
+                self.state = next_state
+
+        class FakeManager:
+            def __init__(self):
+                self.config = types.SimpleNamespace(vector_top_k=0, vector_adapter=None)
+                self._last_prepare_info = {}
+                self.store = FakeStore(
+                    {
+                        "messages": [
+                            {"role": "user", "content": "old"},
+                            {"role": "tool", "content": "noise"},
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "tool_result",
+                                        "tool_use_id": "toolu_1",
+                                        "content": '{"ok": true}',
+                                    }
+                                ],
+                            },
+                            {
+                                "type": "function_call_output",
+                                "call_id": "call-legacy",
+                                "output": '{"ok": true}',
+                            },
+                        ],
+                        "session_meta": "keep",
+                    }
+                )
+                self.received_incoming = None
+
+            def prepare_messages(
+                self,
+                session_id: str,
+                incoming,
+                *,
+                max_context_window_tokens: int,
+                model: str,
+                summary_generator=None,
+            ):
+                del session_id, max_context_window_tokens, model, summary_generator
+                self.received_incoming = copy.deepcopy(incoming)
+                return [
+                    {"role": "system", "content": "sys"},
+                    {
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "toolu_2",
+                                "name": "search",
+                                "input": {},
+                            },
+                            {"type": "text", "text": "reply"},
+                        ],
+                    },
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "tool_result",
+                                "tool_use_id": "toolu_2",
+                                "content": '{"ok": true}',
+                            }
+                        ],
+                    },
+                    {"type": "function_call_output", "call_id": "call-2", "output": '{"ok": true}'},
+                ]
+
+        manager = FakeManager()
+        memory_factory._patch_memory_prepare_with_diagnostics(manager)
+
+        prepared = manager.prepare_messages(
+            session_id="chat-test",
+            incoming=[
+                {"role": "user", "content": "hello"},
+                {"type": "function_call_output", "call_id": "call-now", "output": '{"ok": true}'},
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "prior"},
+                        {"type": "tool_use", "id": "toolu_3", "name": "exec", "input": {}},
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_3",
+                            "content": '{"ok": true}',
+                        }
+                    ],
+                },
+                {"role": "tool", "content": "runtime-noise"},
+            ],
+            max_context_window_tokens=2048,
+            model="openai:gpt-4.1",
+        )
+
+        self.assertEqual(
+            manager.received_incoming,
+            [
+                {"role": "user", "content": "hello"},
+                {"role": "assistant", "content": [{"type": "text", "text": "prior"}]},
+            ],
+        )
+        self.assertEqual(
+            prepared,
+            [
+                {"role": "system", "content": "sys"},
+                {"role": "assistant", "content": [{"type": "text", "text": "reply"}]},
+            ],
+        )
+        self.assertGreaterEqual(len(manager.store.saved_states), 1)
+        self.assertEqual(
+            manager.store.state,
+            {
+                "messages": [{"role": "user", "content": "old"}],
+                "session_meta": "keep",
+            },
+        )
+
+    def test_sanitize_dialog_messages_keeps_text_and_attachments(self) -> None:
+        sanitized = memory_factory._sanitize_dialog_messages(
+            [
+                {"role": "System", "content": "rules"},
+                {"role": "system", "content": "[Recall messages]\n[]"},
+                {"role": "assistant", "content": "first assistant"},
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "tool_use", "id": "toolu_1", "name": "exec", "input": {}},
+                        {"type": "text", "text": "final answer"},
+                        {
+                            "type": "input_image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": "abc123",
+                            },
+                        },
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_1",
+                            "content": '{"ok": true}',
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "toolu_99",
+                            "content": '{"ok": false}',
+                        }
+                    ],
+                },
+            ]
+        )
+
+        self.assertEqual(
+            sanitized,
+            [
+                {
+                    "role": "system",
+                    "content": "rules\n\n[Recall messages]\n[]",
+                },
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "text", "text": "final answer"},
+                        {
+                            "type": "input_image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": "image/png",
+                                "data": "abc123",
+                            },
+                        },
+                    ],
+                }
+            ],
+        )
 
     def test_patch_qdrant_similarity_search_compat_uses_query_points(self) -> None:
         class FakeClient:

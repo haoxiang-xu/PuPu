@@ -238,6 +238,119 @@ def _deepcopy_messages(messages: object) -> list[dict[str, Any]]:
     return [copy.deepcopy(item) for item in messages if isinstance(item, dict)]
 
 
+_DIALOG_ROLES = {"system", "user", "assistant"}
+_TOOL_BLOCK_TYPES = {
+    "tool_use",
+    "tool_result",
+    "tool_call",
+    "tool_args",
+    "function_call",
+    "function_call_output",
+}
+
+
+def _sanitize_dialog_content(content: object) -> object | None:
+    if isinstance(content, str):
+        return content if content.strip() else None
+
+    if isinstance(content, list):
+        sanitized_blocks: list[dict[str, Any]] = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            block_type = str(block.get("type", "")).strip().lower()
+            if block_type in _TOOL_BLOCK_TYPES:
+                continue
+            if block_type in {"text", "input_text", "output_text"}:
+                text = block.get("text")
+                if isinstance(text, str) and text.strip():
+                    sanitized_blocks.append(copy.deepcopy(block))
+                continue
+            sanitized_blocks.append(copy.deepcopy(block))
+
+        return sanitized_blocks if sanitized_blocks else None
+
+    if isinstance(content, dict):
+        block_type = str(content.get("type", "")).strip().lower()
+        if block_type in _TOOL_BLOCK_TYPES:
+            return None
+        return copy.deepcopy(content)
+
+    return None
+
+
+def _normalize_dialog_role(role: object) -> str:
+    if not isinstance(role, str):
+        return ""
+    normalized = role.strip().lower()
+    return normalized if normalized in _DIALOG_ROLES else ""
+
+
+def _collapse_consecutive_assistant_messages(
+    messages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    collapsed: list[dict[str, Any]] = []
+
+    for message in messages:
+        if (
+            message.get("role") == "assistant"
+            and collapsed
+            and collapsed[-1].get("role") == "assistant"
+        ):
+            collapsed[-1] = message
+            continue
+        collapsed.append(message)
+
+    return collapsed
+
+
+def _merge_system_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    system_messages = [message for message in messages if message.get("role") == "system"]
+    if len(system_messages) <= 1:
+        return messages
+
+    if not all(isinstance(message.get("content"), str) for message in system_messages):
+        return messages
+
+    merged_content_parts = [
+        str(message.get("content", "")).strip()
+        for message in system_messages
+        if str(message.get("content", "")).strip()
+    ]
+    if not merged_content_parts:
+        return [message for message in messages if message.get("role") != "system"]
+
+    merged_system_message = {
+        "role": "system",
+        "content": "\n\n".join(merged_content_parts),
+    }
+    non_system_messages = [
+        message for message in messages if message.get("role") != "system"
+    ]
+    return [merged_system_message, *non_system_messages]
+
+
+def _sanitize_dialog_messages(messages: object) -> list[dict[str, Any]]:
+    sanitized_messages: list[dict[str, Any]] = []
+
+    for message in _deepcopy_messages(messages):
+        role = _normalize_dialog_role(message.get("role"))
+        if not role:
+            continue
+
+        sanitized_content = _sanitize_dialog_content(message.get("content"))
+        if sanitized_content is None:
+            continue
+
+        next_message = copy.deepcopy(message)
+        next_message["role"] = role
+        next_message["content"] = sanitized_content
+        sanitized_messages.append(next_message)
+
+    collapsed = _collapse_consecutive_assistant_messages(sanitized_messages)
+    return _merge_system_messages(collapsed)
+
+
 def _split_system_and_non_system(
     messages: object,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
@@ -266,12 +379,15 @@ def _merge_messages_with_overlap(
     existing_messages: object,
     latest_messages: object,
 ) -> list[dict[str, Any]]:
-    latest_systems, latest_non_system = _split_system_and_non_system(latest_messages)
-    if not latest_systems and existing_messages:
-        existing_systems, _ = _split_system_and_non_system(existing_messages)
+    sanitized_existing = _sanitize_dialog_messages(existing_messages)
+    sanitized_latest = _sanitize_dialog_messages(latest_messages)
+
+    latest_systems, latest_non_system = _split_system_and_non_system(sanitized_latest)
+    if not latest_systems and sanitized_existing:
+        existing_systems, _ = _split_system_and_non_system(sanitized_existing)
         latest_systems = existing_systems
 
-    _, existing_non_system = _split_system_and_non_system(existing_messages)
+    _, existing_non_system = _split_system_and_non_system(sanitized_existing)
     if not existing_non_system:
         return latest_systems + latest_non_system
     if not latest_non_system:
@@ -550,13 +666,35 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
         model: str,
         summary_generator: Callable[..., str] | None = None,
     ) -> list[dict[str, Any]]:
+        clean_incoming = _sanitize_dialog_messages(incoming)
+
+        store = getattr(self, "store", None)
+        if (
+            session_id
+            and store is not None
+            and callable(getattr(store, "load", None))
+            and callable(getattr(store, "save", None))
+        ):
+            try:
+                state = store.load(session_id)
+                if isinstance(state, dict):
+                    existing_messages = state.get("messages")
+                    clean_existing_messages = _sanitize_dialog_messages(existing_messages)
+                    if clean_existing_messages != _deepcopy_messages(existing_messages):
+                        next_state = dict(state)
+                        next_state["messages"] = clean_existing_messages
+                        store.save(session_id, next_state)
+            except Exception:
+                pass
+
         prepared = original_prepare(
             session_id=session_id,
-            incoming=incoming,
+            incoming=clean_incoming,
             max_context_window_tokens=max_context_window_tokens,
             model=model,
             summary_generator=summary_generator,
         )
+        prepared = _sanitize_dialog_messages(prepared)
 
         try:
             raw_info = getattr(self, "_last_prepare_info", {})
@@ -594,7 +732,7 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
             if isinstance(info.get("vector_fallback_reason"), str)
             else ""
         )
-        query_text = _latest_user_query_for_log(incoming)
+        query_text = _latest_user_query_for_log(clean_incoming)
         recalled_items = _extract_recall_items(prepared)
         if recalled_items and vector_recall_count <= 0:
             vector_recall_count = len(recalled_items)

@@ -51,7 +51,10 @@ const formatMisoTraceTitle = (eventType) => {
   if (!label) {
     return `[miso] ${eventType}`;
   }
-  const underscoreCount = Math.max(1, MISO_TRACE_TITLE_BODY_LENGTH - label.length);
+  const underscoreCount = Math.max(
+    1,
+    MISO_TRACE_TITLE_BODY_LENGTH - label.length,
+  );
   return `${MISO_TRACE_TITLE_PREFIX}${label}${"_".repeat(underscoreCount)}`;
 };
 
@@ -802,7 +805,8 @@ const ChatInterface = () => {
 
         const alreadyRecorded = traceFrames.some(
           (frame) =>
-            frame?.type === decisionFrameType && frame?.payload?.call_id === callId,
+            frame?.type === decisionFrameType &&
+            frame?.payload?.call_id === callId,
         );
         if (alreadyRecorded) {
           return message;
@@ -948,7 +952,10 @@ const ChatInterface = () => {
       const current = pendingContinuationRequestRef.current;
       if (!current || current.status === "submitting") return;
 
-      pendingContinuationRequestRef.current = { ...current, status: "submitting" };
+      pendingContinuationRequestRef.current = {
+        ...current,
+        status: "submitting",
+      };
       setPendingContinuationRequest((prev) =>
         prev ? { ...prev, status: "submitting" } : prev,
       );
@@ -1350,9 +1357,25 @@ const ChatInterface = () => {
               const patchTime = Date.now();
 
               if (frame.type === "request_messages") {
+                const rawMessages = Array.isArray(frame.payload?.messages)
+                  ? frame.payload.messages
+                  : [];
+                const requestMessagesForLog = JSON.parse(
+                  JSON.stringify(rawMessages),
+                );
+                const systemPrompt =
+                  typeof frame.payload?.system === "string"
+                    ? frame.payload.system.trim()
+                    : "";
+                if (systemPrompt) {
+                  requestMessagesForLog.unshift({
+                    role: "system",
+                    content: systemPrompt,
+                  });
+                }
                 console.log(
                   formatMisoTraceTitle("request_messages"),
-                  JSON.parse(JSON.stringify(frame.payload.messages))
+                  requestMessagesForLog,
                 );
                 return;
               }
@@ -1375,14 +1398,21 @@ const ChatInterface = () => {
               }
 
               if (frame.type === "error") {
-                console.log(`[miso] ${frame.type} (iteration=${frame.iteration})`, frame.payload);
+                console.log(
+                  `[miso] ${frame.type} (iteration=${frame.iteration})`,
+                  frame.payload,
+                );
               }
 
               if (frame.type === "done") {
                 console.log(formatMisoTraceTitle("done"), frame.payload);
               }
 
-              if (frame.type === "run_started" || frame.type === "run_completed" || frame.type === "run_max_iterations") {
+              if (
+                frame.type === "run_started" ||
+                frame.type === "run_completed" ||
+                frame.type === "run_max_iterations"
+              ) {
                 const title =
                   frame.type === "run_max_iterations"
                     ? "[miso] run_max_iterations"
@@ -1391,9 +1421,10 @@ const ChatInterface = () => {
               }
 
               if (frame.type === "memory_prepare") {
-                const payload = frame.payload && typeof frame.payload === "object"
-                  ? frame.payload
-                  : {};
+                const payload =
+                  frame.payload && typeof frame.payload === "object"
+                    ? frame.payload
+                    : {};
                 console.log(formatMisoTraceTitle("memory_prepare"), {
                   applied: payload.applied,
                   session_id: payload.session_id,
@@ -1413,9 +1444,10 @@ const ChatInterface = () => {
               }
 
               if (frame.type === "memory_commit") {
-                const payload = frame.payload && typeof frame.payload === "object"
-                  ? frame.payload
-                  : {};
+                const payload =
+                  frame.payload && typeof frame.payload === "object"
+                    ? frame.payload
+                    : {};
                 console.log(formatMisoTraceTitle("memory_commit"), {
                   applied: payload.applied,
                   session_id: payload.session_id,
@@ -1482,22 +1514,44 @@ const ChatInterface = () => {
                 setPendingContinuationRequest(null);
               }
 
-              // final_message carries the complete reply text
+              // final_message carries the complete reply text.
+              // For tool-call workflows, intermediate final_messages must
+              // replace content so the trace timeline can show them.  For
+              // simple (no-tool) messages we only adopt the server text
+              // when it meaningfully differs from the accumulated tokens
+              // to avoid a visual "jump" caused by minor whitespace or
+              // extraction differences.
               if (frame.type === "final_message") {
                 const finalContent =
                   typeof frame.payload?.content === "string"
                     ? frame.payload.content
                     : "";
-                const nextStreamMessages = streamMessages.map((message) =>
-                  message.id === assistantMessageId
-                    ? {
-                        ...message,
-                        content: finalContent,
-                        updatedAt: patchTime,
-                        traceFrames: [...(message.traceFrames || []), frame],
-                      }
-                    : message,
-                );
+                const nextStreamMessages = streamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+
+                  const currentContent =
+                    typeof message.content === "string" ? message.content : "";
+                  const hasToolActivity = (message.traceFrames || []).some(
+                    (f) =>
+                      f.type === "tool_call" ||
+                      f.type === "tool_confirmation_request" ||
+                      f.type === "tool_result",
+                  );
+
+                  // For simple messages, keep accumulated content when the
+                  // trimmed texts are identical (avoids whitespace-only diff).
+                  const useAccumulated =
+                    !hasToolActivity &&
+                    currentContent.trim() === finalContent.trim() &&
+                    currentContent.length > 0;
+
+                  return {
+                    ...message,
+                    content: useAccumulated ? currentContent : finalContent,
+                    updatedAt: patchTime,
+                    traceFrames: [...(message.traceFrames || []), frame],
+                  };
+                });
                 syncStreamMessages(nextStreamMessages);
                 return;
               }
@@ -1692,7 +1746,10 @@ const ChatInterface = () => {
                 setStreamingChatId(null);
                 clearAllPendingToolConfirmations();
 
-                const retryHistory = buildHistoryForModel(streamMessages, chatId);
+                const retryHistory = buildHistoryForModel(
+                  streamMessages,
+                  chatId,
+                );
                 void startStreamRequest({
                   chatId,
                   text: promptText,
@@ -2600,8 +2657,11 @@ const ChatInterface = () => {
                 fontSize: 13,
               }}
             >
-              <span style={{ flex: 1, color: "var(--color-text-secondary, #aaa)" }}>
-                Agent reached {pendingContinuationRequest.iteration} iterations without a final response. Continue?
+              <span
+                style={{ flex: 1, color: "var(--color-text-secondary, #aaa)" }}
+              >
+                Agent reached {pendingContinuationRequest.iteration} iterations
+                without a final response. Continue?
               </span>
               <button
                 disabled={pendingContinuationRequest.status === "submitting"}

@@ -1621,6 +1621,14 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
     agent.add_toolkit(workspace_toolkit)
 
 
+# Block types whose ``text`` field should be extracted as plain content.
+_TEXT_BLOCK_TYPES = {"text", "output_text", "input_text"}
+# Block types that represent model reasoning / thinking.  We wrap them in
+# ``<think>`` tags so the frontend ``ThinkBlock`` component can render them
+# identically to reasoning tokens that arrived via ``token_delta``.
+_THINKING_BLOCK_TYPES = {"reasoning", "thinking"}
+
+
 def _content_to_text(content: object) -> str:
     if isinstance(content, str):
         return content
@@ -1629,10 +1637,16 @@ def _content_to_text(content: object) -> str:
         for block in content:
             if not isinstance(block, dict):
                 continue
-            if block.get("type") in {"text", "output_text", "input_text"}:
+            btype = block.get("type")
+            if btype in _TEXT_BLOCK_TYPES:
                 text = block.get("text", "")
                 if text:
                     parts.append(text if isinstance(text, str) else str(text))
+            elif btype in _THINKING_BLOCK_TYPES:
+                text = block.get("text", "") or block.get("thinking", "")
+                if text:
+                    raw = text if isinstance(text, str) else str(text)
+                    parts.append(f"<think>{raw}</think>")
         return "".join(parts)
     if content is None:
         return ""
@@ -1721,12 +1735,12 @@ def _extract_last_assistant_text(messages: List[Dict[str, Any]]) -> str:
         if not isinstance(item, dict):
             continue
         if item.get("role") == "assistant":
-            text = _content_to_text(item.get("content", "")).strip()
-            if text:
+            text = _content_to_text(item.get("content", ""))
+            if text and text.strip():
                 return text
         if item.get("type") == "message":
-            text = _content_to_text(item.get("content", "")).strip()
-            if text:
+            text = _content_to_text(item.get("content", ""))
+            if text and text.strip():
                 return text
     return ""
 
