@@ -110,6 +110,32 @@ describe("preload API contract", () => {
     );
   });
 
+  test("forwards miso runtime logs to chrome console", () => {
+    const runtimeLogCall = ipcRenderer.on.mock.calls.find(
+      (call) => call[0] === CHANNELS.MISO.RUNTIME_LOG,
+    );
+
+    expect(runtimeLogCall).toBeDefined();
+
+    const runtimeLogListener = runtimeLogCall[1];
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      runtimeLogListener({}, { level: "stdout", text: "hello from miso" });
+      runtimeLogListener({}, { level: "stderr", text: "oops from miso" });
+      runtimeLogListener({}, { level: "stdout", text: "   " });
+
+      expect(logSpy).toHaveBeenCalledWith("[miso] hello from miso");
+      expect(errorSpy).toHaveBeenCalledWith("[miso:error] oops from miso");
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
+  });
+
   test("event listener bridges return unsubscribe", () => {
     const unsubUpdate = exposed.appUpdateAPI.onStateChange(() => {});
     expect(ipcRenderer.on).toHaveBeenCalledWith(

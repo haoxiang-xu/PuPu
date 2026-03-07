@@ -1,4 +1,5 @@
 const { contextBridge, ipcRenderer } = require("electron");
+const { CHANNELS } = require("../shared/channels");
 const { createMisoStreamClient } = require("./stream/miso_stream_client");
 const { createAppInfoBridge } = require("./bridges/app_info_bridge");
 const { createAppUpdateBridge } = require("./bridges/app_update_bridge");
@@ -16,6 +17,21 @@ const runtimeInfo = {
 };
 
 const streamClient = createMisoStreamClient(ipcRenderer);
+
+ipcRenderer.on(CHANNELS.MISO.RUNTIME_LOG, (_event, payload = {}) => {
+  const level = payload?.level === "stderr" ? "stderr" : "stdout";
+  const text = typeof payload?.text === "string" ? payload.text.trim() : "";
+  if (!text) {
+    return;
+  }
+
+  if (level === "stderr") {
+    console.error(`[miso:error] ${text}`);
+    return;
+  }
+
+  console.log(`[miso] ${text}`);
+});
 
 contextBridge.exposeInMainWorld("runtime", runtimeInfo);
 contextBridge.exposeInMainWorld("appInfoAPI", createAppInfoBridge(ipcRenderer));

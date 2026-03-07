@@ -509,6 +509,75 @@ const createMisoService = ({
     });
   };
 
+  const emitMisoRuntimeLog = (level, text) => {
+    const normalizedLevel = level === "stderr" ? "stderr" : "stdout";
+    const normalizedText = typeof text === "string" ? text.trim() : "";
+    if (!normalizedText) {
+      return;
+    }
+
+    const targets =
+      typeof webContents.getAllWebContents === "function"
+        ? webContents.getAllWebContents()
+        : [];
+
+    for (const target of targets) {
+      if (!target || target.isDestroyed()) {
+        continue;
+      }
+      if (typeof target.getType === "function" && target.getType() !== "window") {
+        continue;
+      }
+      try {
+        target.send(CHANNELS.MISO.RUNTIME_LOG, {
+          level: normalizedLevel,
+          text: normalizedText,
+        });
+      } catch {
+        // Ignore renderer availability races.
+      }
+    }
+  };
+
+  const createMisoRuntimeLogLineEmitter = (level) => {
+    let bufferedText = "";
+
+    const emitLine = (line) => {
+      const normalizedLine = typeof line === "string" ? line.trim() : "";
+      if (!normalizedLine) {
+        return;
+      }
+      emitMisoRuntimeLog(level, normalizedLine);
+    };
+
+    const push = (chunk) => {
+      if (chunk == null) {
+        return;
+      }
+
+      bufferedText += String(chunk).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const lines = bufferedText.split("\n");
+      bufferedText = lines.pop() || "";
+
+      for (const line of lines) {
+        emitLine(line);
+      }
+    };
+
+    const flush = () => {
+      if (!bufferedText) {
+        return;
+      }
+      emitLine(bufferedText);
+      bufferedText = "";
+    };
+
+    return {
+      push,
+      flush,
+    };
+  };
+
   const terminateAllMisoStreams = (event, data) => {
     for (const [requestId, streamState] of misoActiveStreams.entries()) {
       streamState.controller.abort();
@@ -599,24 +668,27 @@ const createMisoService = ({
         stdio: ["ignore", "pipe", "pipe"],
       });
 
+      const stdoutLineEmitter = createMisoRuntimeLogLineEmitter("stdout");
+      const stderrLineEmitter = createMisoRuntimeLogLineEmitter("stderr");
+      const flushMisoRuntimeLogs = () => {
+        stdoutLineEmitter.flush();
+        stderrLineEmitter.flush();
+      };
+
       misoProcess.stdout?.on("data", (chunk) => {
-        const text = String(chunk).trim();
-        if (text) {
-          console.log(`[miso] ${text}`);
-        }
+        stdoutLineEmitter.push(chunk);
       });
 
       misoProcess.stderr?.on("data", (chunk) => {
+        stderrLineEmitter.push(chunk);
         const text = String(chunk).trim();
-        if (text) {
-          console.error(`[miso:error] ${text}`);
-          if (/ModuleNotFoundError|No module named/i.test(text)) {
-            misoStatusReason = text;
-          }
+        if (/ModuleNotFoundError|No module named/i.test(text)) {
+          misoStatusReason = text;
         }
       });
 
       misoProcess.on("error", (error) => {
+        flushMisoRuntimeLogs();
         misoStatus = error.code === "ENOENT" ? "not_found" : "error";
         misoStatusReason = error.message || "Failed to start Miso process";
         misoProcess = null;
@@ -632,6 +704,7 @@ const createMisoService = ({
       });
 
       misoProcess.on("exit", (code, signal) => {
+        flushMisoRuntimeLogs();
         const stoppedIntentionally = misoIsStopping || getAppIsQuitting();
         misoProcess = null;
 

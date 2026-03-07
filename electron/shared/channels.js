@@ -32,6 +32,7 @@ const CHANNELS = Object.freeze({
     STREAM_START_V2: "miso:stream:start-v2",
     STREAM_CANCEL: "miso:stream:cancel",
     STREAM_EVENT: "miso:stream:event",
+    RUNTIME_LOG: "miso:runtime-log",
   }),
   THEME: Object.freeze({
     SET_BACKGROUND_COLOR: "theme-set-background-color",
