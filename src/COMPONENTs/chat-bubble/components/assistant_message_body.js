@@ -1,5 +1,6 @@
-import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
+import { memo } from "react";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
+import SeamlessMarkdown from "./seamless_markdown";
 
 const AssistantMessageBody = ({
   message,
@@ -43,15 +44,25 @@ const AssistantMessageBody = ({
     );
   }
 
+  const content = typeof message.content === "string" ? message.content : "";
+  const renderStatus =
+    typeof message.status === "string" ? message.status : "done";
+
   return (
-    <Markdown
-      markdown={message.content}
-      options={{
-        fontSize: 14,
-        lineHeight: 1.6,
-      }}
+    <SeamlessMarkdown
+      content={content}
+      status={renderStatus}
+      fontSize={14}
+      lineHeight={1.6}
+      priority={renderStatus === "streaming" ? "high" : "normal"}
     />
   );
 };
 
-export default AssistantMessageBody;
+const areAssistantMessageBodyPropsEqual = (previousProps, nextProps) =>
+  previousProps.message === nextProps.message &&
+  previousProps.isRawTextMode === nextProps.isRawTextMode &&
+  previousProps.theme === nextProps.theme &&
+  previousProps.hasTraceFrames === nextProps.hasTraceFrames;
+
+export default memo(AssistantMessageBody, areAssistantMessageBodyPropsEqual);

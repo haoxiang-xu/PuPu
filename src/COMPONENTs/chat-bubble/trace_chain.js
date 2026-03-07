@@ -2,8 +2,8 @@ import { memo, useState, useContext, useMemo } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
-import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import SeamlessMarkdown from "./components/seamless_markdown";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -350,15 +350,15 @@ const TraceChain = ({
           body: !isObs && text ? text : undefined,
           details:
             isObs && text ? (
-              <Markdown
+              <SeamlessMarkdown
+                content={text}
+                status="done"
+                fontSize={12}
+                lineHeight={1.65}
                 style={{
-                  fontSize: "12px",
-                  lineHeight: 1.65,
                   color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
                 }}
-              >
-                {text}
-              </Markdown>
+              />
             ) : undefined,
         });
       } else if (frame.type === "tool_confirmation_request") {
@@ -606,12 +606,11 @@ const TraceChain = ({
           status: "done",
           body: (
             <div style={{ fontFamily: "inherit" }}>
-              <Markdown
-                markdown={content}
-                options={{
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                }}
+              <SeamlessMarkdown
+                content={content}
+                status={isStreaming ? "streaming" : "done"}
+                fontSize={13}
+                lineHeight={1.6}
               />
             </div>
           ),
@@ -631,12 +630,12 @@ const TraceChain = ({
           point: "loading",
           body: (
             <div style={{ fontFamily: "inherit" }}>
-              <Markdown
-                markdown={liveContent}
-                options={{
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                }}
+              <SeamlessMarkdown
+                content={liveContent}
+                status="streaming"
+                fontSize={13}
+                lineHeight={1.6}
+                priority="high"
               />
             </div>
           ),

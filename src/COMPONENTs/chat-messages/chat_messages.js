@@ -102,9 +102,7 @@ const ChatMessages = ({
                   onToolConfirmationDecision={onToolConfirmationDecision}
                   toolConfirmationUiStateById={toolConfirmationUiStateById}
                   disableActionButtons={isStreaming}
-                  traceFrames={
-                    Array.isArray(msg.traceFrames) ? msg.traceFrames : []
-                  }
+                  traceFrames={msg.traceFrames}
                 />
               </div>
             );

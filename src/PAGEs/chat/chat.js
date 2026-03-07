@@ -240,6 +240,23 @@ const ChatInterface = () => {
   const confirmationCallIdByIdRef = useRef(new Map());
   const confirmationFollowupSignalByIdRef = useRef(new Map());
   const confirmationResolveTimerByIdRef = useRef(new Map());
+  const activeTokenFlushControllerRef = useRef(null);
+  const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
+    const controller = activeTokenFlushControllerRef.current;
+    if (!controller) {
+      return;
+    }
+
+    if (mode === "flush" && typeof controller.flushNow === "function") {
+      controller.flushNow();
+    }
+
+    if (typeof controller.dispose === "function") {
+      controller.dispose();
+    }
+
+    activeTokenFlushControllerRef.current = null;
+  }, []);
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
@@ -489,6 +506,7 @@ const ChatInterface = () => {
         clearTimeout(messagePersistTimerRef.current);
         messagePersistTimerRef.current = null;
       }
+      clearActiveTokenFlushController("dispose");
       if (
         streamHandleRef.current &&
         typeof streamHandleRef.current.cancel === "function"
@@ -508,7 +526,7 @@ const ChatInterface = () => {
       confirmationResolveTimerById.clear();
       cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
-  }, []);
+  }, [clearActiveTokenFlushController]);
 
   useEffect(() => {
     const chatId = activeChatIdRef.current;
@@ -586,6 +604,7 @@ const ChatInterface = () => {
   );
 
   const handleStop = useCallback(() => {
+    clearActiveTokenFlushController("dispose");
     if (
       streamHandleRef.current &&
       typeof streamHandleRef.current.cancel === "function"
@@ -615,7 +634,9 @@ const ChatInterface = () => {
     if (chatId && changed) {
       setChatMessages(chatId, nextMessages, { source: "chat-page" });
     }
-  }, []);
+  },
+    [clearActiveTokenFlushController],
+  );
 
   const updateToolConfirmationUiState = useCallback((updater) => {
     const previous = toolConfirmationUiStateByIdRef.current;
@@ -1167,6 +1188,8 @@ const ChatInterface = () => {
         return false;
       }
 
+      clearActiveTokenFlushController("dispose");
+
       const normalizedBaseMessages = Array.isArray(baseMessages)
         ? baseMessages
         : [];
@@ -1314,6 +1337,92 @@ const ChatInterface = () => {
         setChatMessages(chatId, nextStreamMessages, { source: "chat-page" });
       };
 
+      let bufferedTokenDelta = "";
+      let pendingTokenFlushHandle = null;
+      let pendingTokenFlushHandleType = null;
+
+      const clearScheduledTokenFlush = () => {
+        if (pendingTokenFlushHandle == null) {
+          return;
+        }
+
+        if (
+          pendingTokenFlushHandleType === "raf" &&
+          typeof window !== "undefined" &&
+          typeof window.cancelAnimationFrame === "function"
+        ) {
+          window.cancelAnimationFrame(pendingTokenFlushHandle);
+        } else {
+          clearTimeout(pendingTokenFlushHandle);
+        }
+
+        pendingTokenFlushHandle = null;
+        pendingTokenFlushHandleType = null;
+      };
+
+      const flushBufferedTokenDelta = () => {
+        clearScheduledTokenFlush();
+        if (!bufferedTokenDelta) {
+          return;
+        }
+
+        const deltaChunk = bufferedTokenDelta;
+        bufferedTokenDelta = "";
+        const patchTime = Date.now();
+        const nextStreamMessages = streamMessages.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                content: `${typeof message.content === "string" ? message.content : ""}${deltaChunk}`,
+                updatedAt: patchTime,
+              }
+            : message,
+        );
+        syncStreamMessages(nextStreamMessages);
+      };
+
+      const scheduleBufferedTokenFlush = () => {
+        if (pendingTokenFlushHandle != null) {
+          return;
+        }
+
+        if (
+          typeof window !== "undefined" &&
+          typeof window.requestAnimationFrame === "function"
+        ) {
+          pendingTokenFlushHandleType = "raf";
+          pendingTokenFlushHandle = window.requestAnimationFrame(() => {
+            pendingTokenFlushHandle = null;
+            pendingTokenFlushHandleType = null;
+            flushBufferedTokenDelta();
+          });
+          return;
+        }
+
+        pendingTokenFlushHandleType = "timeout";
+        pendingTokenFlushHandle = setTimeout(() => {
+          pendingTokenFlushHandle = null;
+          pendingTokenFlushHandleType = null;
+          flushBufferedTokenDelta();
+        }, 16);
+      };
+
+      const disposeBufferedTokenFlush = () => {
+        clearScheduledTokenFlush();
+        bufferedTokenDelta = "";
+      };
+
+      const tokenFlushController = {
+        flushNow: flushBufferedTokenDelta,
+        dispose: disposeBufferedTokenFlush,
+      };
+      activeTokenFlushControllerRef.current = tokenFlushController;
+      const releaseTokenFlushController = () => {
+        if (activeTokenFlushControllerRef.current === tokenFlushController) {
+          activeTokenFlushControllerRef.current = null;
+        }
+      };
+
       let streamHandle = null;
       try {
         const rawSystemPromptOverrides = systemPromptOverridesRef.current;
@@ -1349,6 +1458,14 @@ const ChatInterface = () => {
           {
             onFrame: (frame) => {
               if (!frame || frame.type === "token_delta") return;
+              if (
+                frame.type === "final_message" ||
+                frame.type === "tool_call" ||
+                frame.type === "error" ||
+                frame.type === "done"
+              ) {
+                flushBufferedTokenDelta();
+              }
               const patchTime = Date.now();
 
               if (frame.type === "request_messages") {
@@ -1646,19 +1763,11 @@ const ChatInterface = () => {
                 return;
               }
 
-              const patchTime = Date.now();
-              const nextStreamMessages = streamMessages.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      content: `${typeof message.content === "string" ? message.content : ""}${delta}`,
-                      updatedAt: patchTime,
-                    }
-                  : message,
-              );
-              syncStreamMessages(nextStreamMessages);
+              bufferedTokenDelta += delta;
+              scheduleBufferedTokenFlush();
             },
             onDone: (done) => {
+              flushBufferedTokenDelta();
               const doneTime = Date.now();
               const parseUsageNumber = (value) => {
                 const parsed = Number(value);
@@ -1710,6 +1819,8 @@ const ChatInterface = () => {
               activeStreamMessagesRef.current = null;
               setStreamingChatId(null);
               clearAllPendingToolConfirmations();
+              disposeBufferedTokenFlush();
+              releaseTokenFlushController();
               if (activeChatIdRef.current !== chatId) {
                 setChatGeneratedUnread(chatId, true, {
                   source: "chat-page",
@@ -1717,10 +1828,13 @@ const ChatInterface = () => {
               }
             },
             onError: (error) => {
+              flushBufferedTokenDelta();
               if (
                 streamHandleRef.current === null &&
                 streamingChatIdRef.current === null
               ) {
+                disposeBufferedTokenFlush();
+                releaseTokenFlushController();
                 return;
               }
               const errorMessage = error?.message || "Unknown stream error";
@@ -1741,6 +1855,8 @@ const ChatInterface = () => {
                 activeStreamMessagesRef.current = null;
                 setStreamingChatId(null);
                 clearAllPendingToolConfirmations();
+                disposeBufferedTokenFlush();
+                releaseTokenFlushController();
 
                 const retryHistory = buildHistoryForModel(
                   streamMessages,
@@ -1768,6 +1884,8 @@ const ChatInterface = () => {
               streamingChatIdRef.current = null;
               setStreamingChatId(null);
               clearAllPendingToolConfirmations();
+              disposeBufferedTokenFlush();
+              releaseTokenFlushController();
 
               const nextStreamMessages = streamMessages.map((message) => {
                 if (message.id !== assistantMessageId) {
@@ -1812,6 +1930,8 @@ const ChatInterface = () => {
           },
         );
       } catch (error) {
+        disposeBufferedTokenFlush();
+        releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
         setStreamError(errorMessage);
         streamHandleRef.current = null;
@@ -1856,6 +1976,7 @@ const ChatInterface = () => {
     [
       buildHistoryForModel,
       clearAllPendingToolConfirmations,
+      clearActiveTokenFlushController,
       clearResolvedToolConfirmationByCallId,
       getOrCreateChatAttachmentPayloadMap,
       markAllPendingConfirmationFollowupSignals,
@@ -2272,6 +2393,7 @@ const ChatInterface = () => {
       streamHandleRef.current &&
       streamingChatIdRef.current === activeChatIdRef.current
     ) {
+      clearActiveTokenFlushController("dispose");
       if (typeof streamHandleRef.current.cancel === "function") {
         streamHandleRef.current.cancel();
       }
@@ -2284,7 +2406,7 @@ const ChatInterface = () => {
     setMessages((previousMessages) =>
       previousMessages.filter((item) => item.id !== message.id),
     );
-  }, []);
+  }, [clearActiveTokenFlushController]);
 
   const effectiveDisclaimer = useMemo(() => {
     if (streamError) {

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
 import { getChatsStore } from "../../SERVICEs/chat_storage";
@@ -281,5 +281,84 @@ describe("ChatInterface stop flow", () => {
         }),
       ]),
     );
+  });
+
+  test("batches token updates per animation frame and flushes pending tokens on done", async () => {
+    const originalRaf = window.requestAnimationFrame;
+    const originalCancelRaf = window.cancelAnimationFrame;
+    const rafCallbacks = new Map();
+    let rafIdSeed = 0;
+
+    window.requestAnimationFrame = jest.fn((callback) => {
+      rafIdSeed += 1;
+      rafCallbacks.set(rafIdSeed, callback);
+      return rafIdSeed;
+    });
+    window.cancelAnimationFrame = jest.fn((id) => {
+      rafCallbacks.delete(id);
+    });
+
+    try {
+      render(
+        <ConfigContext.Provider
+          value={{
+            theme: {},
+            onFragment: "main",
+            onThemeMode: "light_mode",
+          }}
+        >
+          <ChatInterface />
+        </ConfigContext.Provider>,
+      );
+
+      await waitFor(() => {
+        expect(window.misoAPI.getStatus).toHaveBeenCalled();
+      });
+
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "RAF token test" },
+      });
+      fireEvent.click(screen.getByTestId("send-button"));
+
+      await waitFor(() => {
+        expect(streamHandlers).toBeTruthy();
+      });
+
+      streamHandlers.onToken("Hel");
+      streamHandlers.onToken("lo");
+      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(1);
+
+      const getAssistantMessage = () =>
+        lastChatMessagesProps?.messages?.find(
+          (message) => message.role === "assistant",
+        );
+
+      await waitFor(() => {
+        expect(getAssistantMessage()?.content || "").toBe("");
+      });
+
+      act(() => {
+        const callbacks = Array.from(rafCallbacks.values());
+        rafCallbacks.clear();
+        callbacks.forEach((callback) => callback(16));
+      });
+
+      await waitFor(() => {
+        expect(getAssistantMessage()?.content).toBe("Hello");
+        expect(getAssistantMessage()?.status).toBe("streaming");
+      });
+
+      streamHandlers.onToken(" world");
+      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(2);
+      streamHandlers.onDone({});
+
+      await waitFor(() => {
+        expect(getAssistantMessage()?.content).toBe("Hello world");
+        expect(getAssistantMessage()?.status).toBe("done");
+      });
+    } finally {
+      window.requestAnimationFrame = originalRaf;
+      window.cancelAnimationFrame = originalCancelRaf;
+    }
   });
 });
