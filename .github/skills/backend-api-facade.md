@@ -1,166 +1,145 @@
-# Skill: Add/Update Backend API Functions in `src/SERVICEs/api.js`
+# Skill: Extend Backend APIs Through Domain Modules
 
-This guide defines the only accepted pattern for frontend-to-backend calls in this repo.
-If you add a new backend call, implement it in `src/SERVICEs/api.js` first.
+Use this guide when you need to add or change renderer-to-backend calls.
 
----
+The current API layering is:
 
-## 1. Scope and boundary
+- domain implementation: `src/SERVICEs/api.miso.js`
+- domain implementation: `src/SERVICEs/api.ollama.js`
+- domain implementation: `src/SERVICEs/api.system.js`
+- compatibility export surface: `src/SERVICEs/api.js`
+- shared helpers: `src/SERVICEs/api.shared.js`
 
-Use this skill when you need to:
-
-- call Electron preload bridges (`window.misoAPI`, `window.ollamaAPI`)
-- call local HTTP endpoints (for example Ollama on `http://localhost:11434`)
-- standardize API errors and timeouts
-
-Do **not** call bridges or `fetch` directly from page/component files unless there is an approved exception.
+`src/SERVICEs/api.js` is not the main implementation home anymore. It keeps the legacy `api` shape stable while delegating to domain modules.
 
 ---
 
-## 2. Required file
+## 1. Current boundary
 
-- API facade file: `src/SERVICEs/api.js`
-- Consumer files (pages/components) must import from the facade:
+Renderer code should call:
 
 ```js
 import { api } from "../../SERVICEs/api";
 ```
 
+Page and component files should not:
+
+- call `window.misoAPI` directly
+- call `window.ollamaAPI` directly
+- add raw `fetch(...)` calls for sidecar or preload-backed backend work
+
+If a new backend capability is needed, implement it in the correct domain module first, then expose it through `api.js`.
+
 ---
 
-## 3. Public facade contract
+## 2. Which file to edit
 
-`api.js` must export:
+Use this rule:
 
-- `FrontendApiError`
-- `api` object (grouped by domain)
-- default export `api`
+- Miso sidecar / chat runtime / toolkits / streaming: `src/SERVICEs/api.miso.js`
+- Ollama HTTP helpers and model utilities: `src/SERVICEs/api.ollama.js`
+- App/runtime/theme/window integrations: `src/SERVICEs/api.system.js`
+- Shared timeout/error helpers: `src/SERVICEs/api.shared.js`
+- Aggregated export only: `src/SERVICEs/api.js`
 
-Current grouping pattern:
+Example from the current repo:
+
+- `api.miso.startStreamV2(payload, handlers)` lives in `api.miso.js`
+- `api.js` only wires `miso: createMisoApi()`
+
+---
+
+## 3. Required pattern
+
+When adding a new backend-facing method:
+
+1. Put the real implementation in the domain module.
+2. Use `withTimeout(...)` for async work where applicable.
+3. Normalize bridge/HTTP responses before returning to UI.
+4. Convert thrown errors to `FrontendApiError`.
+5. Expose the method through the aggregated `api` object in `src/SERVICEs/api.js`.
+
+Minimal pattern:
+
+```js
+export const createDomainApi = () => ({
+  someMethod: async () => {
+    try {
+      const method = assertBridgeMethod("bridgeName", "methodName");
+      const result = await withTimeout(
+        () => method(),
+        5000,
+        "some_timeout",
+        "Request timed out",
+      );
+      return normalizeResult(result);
+    } catch (error) {
+      throw toFrontendApiError(error, "some_failed", "Request failed");
+    }
+  },
+});
+```
+
+---
+
+## 4. `api.js` contract
+
+Today `src/SERVICEs/api.js` is a compatibility aggregator. Keep it small.
+
+It should:
+
+- instantiate domain APIs
+- preserve the public `api` shape used across the renderer
+- re-export shared helpers used elsewhere
+
+It should not become the dumping ground for:
+
+- bridge-specific request logic
+- Miso streaming implementation details
+- provider-specific payload shaping
+- page-specific hacks
+
+Current shape:
 
 ```js
 export const api = {
-  miso: { ... },
-  ollama: { ... },
+  appInfo: system.appInfo,
+  appUpdate: system.appUpdate,
+  system,
+  runtime: system.runtime,
+  theme: system.theme,
+  windowState: system.windowState,
+  miso: createMisoApi(),
+  ollama: createOllamaApi(),
 };
 ```
 
-When adding a new backend domain, add a new top-level group (for example `api.files`, `api.auth`), not ad-hoc exports.
+---
+
+## 5. High-risk pitfalls
+
+- Do not add new bridge or HTTP logic directly in pages. If you do, error handling and compatibility drift immediately.
+- Do not treat `src/SERVICEs/api.js` as the implementation home. It only aggregates domain modules.
+- Do not bypass `FrontendApiError` wrapping. UI code branches on stable error codes.
+- Do not skip response normalization. The facade layer exists to hide bridge and backend inconsistencies from the renderer.
+- Do not make optional bridge methods hard failures unless the feature is actually required. Follow the current compatibility pattern in `api.miso.getModelCatalog()` and `api.miso.getToolkitCatalog()`.
 
 ---
 
-## 4. Non-negotiable implementation rules
+## 6. Add-a-method checklist
 
-1. Every request path must have timeout protection (`withTimeout`).
-2. Every thrown error must be a `FrontendApiError`.
-3. Bridge methods must be checked with `assertBridgeMethod` or `hasBridgeMethod`.
-4. Any API payload with variable shape must be normalized before returning to UI.
-5. Keep bridge availability checks inside facade (`isBridgeAvailable`) when possible.
-6. If a method is intentionally optional (for compatibility), return safe defaults instead of crashing.
-
----
-
-## 5. Canonical method templates
-
-### 5.1 Bridge-based request
-
-```js
-someMethod: async () => {
-  try {
-    const method = assertBridgeMethod("bridgeName", "methodName");
-    const result = await withTimeout(
-      () => method(),
-      5000,
-      "some_timeout_code",
-      "Some request timed out",
-    );
-    return normalizeResult(result);
-  } catch (error) {
-    throw toFrontendApiError(
-      error,
-      "some_failed_code",
-      "Some request failed",
-    );
-  }
-},
-```
-
-### 5.2 HTTP request
-
-```js
-someHttpMethod: async (input) => {
-  try {
-    const response = await withTimeout(
-      () => fetch("http://localhost:xxxx/path", { method: "POST" }),
-      5000,
-      "some_http_timeout",
-      "HTTP request timed out",
-    );
-
-    if (!response.ok) {
-      throw new FrontendApiError("http_error", `Request failed (${response.status})`, null, {
-        status: response.status,
-      });
-    }
-
-    const json = await safeJson(response);
-    return normalizeJson(json);
-  } catch (error) {
-    throw toFrontendApiError(error, "some_http_failed", "HTTP request failed");
-  }
-},
-```
-
----
-
-## 6. Error model
-
-Use `FrontendApiError(code, message, cause, details)` with:
-
-- stable `code` for programmatic branching
-- user-safe `message`
-- optional `details` for debug context (`status`, `model`, etc.)
-
-Do not leak raw unknown exceptions from facade methods.
-
----
-
-## 7. Compatibility policy
-
-If preload has not exposed a method yet:
-
-- check with `hasBridgeMethod(...)`
-- return safe fallback if the feature is optional
-- throw `bridge_unavailable` if the feature is required
-
-Example already used in repo:
-- `api.miso.getModelCatalog()` returns an empty normalized catalog when bridge method is missing.
-
----
-
-## 8. Consumer-side rules
-
-Page/component code should:
-
-- call `api.<domain>.<method>()`
-- handle errors with `try/catch`
-- only branch on `FrontendApiError.code` where needed
-- avoid direct usage of `window.misoAPI`, `window.ollamaAPI`, and raw `fetch`
-
----
-
-## 9. Add-a-method checklist
-
-- [ ] Method added under the correct `api.<domain>` group in `src/SERVICEs/api.js`
-- [ ] Timeout added via `withTimeout`
-- [ ] Errors wrapped with `toFrontendApiError`
-- [ ] Response normalized
-- [ ] Consumer files switched to facade call
-- [ ] No new direct bridge/fetch call leaked into pages/components
+- [ ] Picked the correct domain module (`api.miso.js`, `api.ollama.js`, or `api.system.js`)
+- [ ] Added timeout protection where the call can hang
+- [ ] Wrapped failures in `FrontendApiError`
+- [ ] Normalized the returned payload
+- [ ] Exposed the method through `src/SERVICEs/api.js`
+- [ ] Updated the UI to call `api.<domain>.<method>()`
+- [ ] Did not add direct bridge or sidecar fetch logic to page/component code
 
 Quick check:
 
 ```bash
-rg -n "window\\.misoAPI|window\\.ollamaAPI|fetch\\(" src --glob '!**/SERVICEs/api.js' --glob '!**/PAGEs/demo/**'
+rg -n "window\\.(misoAPI|ollamaAPI)|fetch\\(" src \
+  --glob '!**/SERVICEs/api*.js' \
+  --glob '!**/PAGEs/demo/**'
 ```
-

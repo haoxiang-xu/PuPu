@@ -1,204 +1,236 @@
 # Skill: Build Chat Features with `src/SERVICEs/chat_storage.js`
 
-Use this guide when implementing any chat-related feature.
-This is the source of truth for chat data, tree structure, and persistence behavior.
+Use this guide when you are changing chat persistence, message shape, session metadata, draft handling, or attachment metadata.
+
+This module is the source of truth for chat persistence in the renderer.
 
 ---
 
-## 1. Source of truth
+## 1. Storage model
 
-All chat state is persisted in localStorage through `src/SERVICEs/chat_storage.js`.
+Chat session metadata is persisted in localStorage through:
+
+- `src/SERVICEs/chat_storage.js`
+
+Storage constants:
+
+- key: `chats`
+- schema version: `2`
+
 Do not write to localStorage directly from UI code.
 
-Storage key and schema:
-
-- `chatsStorageConstants.key` -> `"chats"`
-- `chatsStorageConstants.schemaVersion` -> `2`
-
 ---
 
-## 2. Core store shape (V2)
+## 2. Session shape that matters today
+
+The current sanitized session shape includes:
 
 ```js
 {
-  schemaVersion: 2,
+  id: string,
+  title: string,
+  createdAt: number,
   updatedAt: number,
-  chatsById: {
-    [chatId]: {
-      id: string,
-      title: string,
-      createdAt: number,
-      updatedAt: number,
-      lastMessageAt: number | null,
-      threadId: string | null,
-      model: {
-        id: string,
-        provider?: string,
-        temperature?: number,
-        maxTokens?: number,
-      },
-      draft: {
-        text: string,
-        attachments: Attachment[],
-        updatedAt: number,
-      },
-      messages: Message[],
-      stats: {
-        messageCount: number,
-        approxBytes: number,
-      },
-    },
+  lastMessageAt: number | null,
+  threadId: string | null,
+  model: {
+    id: string,
+    provider?: string,
+    temperature?: number,
+    maxTokens?: number,
   },
-  activeChatId: string | null,
-  lruChatIds: string[],
-  tree: {
-    root: string[],
-    nodesById: {
-      [nodeId]: FolderNode | ChatNode,
-    },
-    selectedNodeId: string | null,
-    expandedFolderIds: string[],
+  selectedToolkits: string[],
+  systemPromptOverrides: {
+    [sectionKey]: string,
   },
-  ui: object,
+  draft: {
+    text: string,
+    attachments: Attachment[],
+    updatedAt: number,
+  },
+  messages: Message[],
+  isTransientNewChat: boolean,
+  hasUnreadGeneratedReply: boolean,
+  stats: {
+    messageCount: number,
+    approxBytes: number,
+  },
 }
 ```
 
-Node types:
+Fields that are easy to miss:
 
-- `FolderNode`: `{ entity: "folder", type: "folder", label, children[] }`
-- `ChatNode`: `{ entity: "chat", type: "file", chatId, label }`
+- `selectedToolkits`: persisted tool picker selection for the chat
+- `systemPromptOverrides`: per-chat prompt section overrides
+- `isTransientNewChat`: marks placeholder chats that can be cleaned up if never used
+- `hasUnreadGeneratedReply`: unread/generated state used by the explorer UI
 
 ---
 
-## 3. Message and attachment model
+## 3. Message shape that matters today
 
-Message roles:
+Valid roles:
 
-- `"system" | "user" | "assistant"`
+- `system`
+- `user`
+- `assistant`
 
-Assistant message status:
+Current normalized message shape:
 
-- `"streaming" | "done" | "error" | "cancelled"`
+```js
+{
+  id: string,
+  role: "system" | "user" | "assistant",
+  content: string,
+  createdAt: number,
+  updatedAt: number,
+  status?: "streaming" | "done" | "error" | "cancelled",
+  attachments?: Attachment[],
+  traceFrames?: TraceFrame[],
+  meta?: {
+    model?: string,
+    requestId?: string,
+    usage?: {
+      promptTokens?: number,
+      completionTokens?: number,
+      completionChars?: number,
+    },
+    error?: {
+      code: string,
+      message: string,
+    },
+  },
+}
+```
 
-`message.meta` supports:
+Important details:
 
-- `model`
-- `requestId`
-- `usage`: `promptTokens`, `completionTokens`, `completionChars`
-- `error`: `{ code, message }`
+- `status` only applies to assistant messages
+- `traceFrames` are persisted on assistant messages only
+- `attachments` are persisted on user messages only
+- `meta.requestId`, `meta.usage`, and `meta.error` are already part of the storage contract and should not be reinvented elsewhere
 
-Attachment helper:
+---
+
+## 4. Trace frame persistence
+
+Assistant messages can persist `traceFrames`.
+
+`chat_storage.js` intentionally trims them before persistence:
+
+- keeps a small stable frame envelope (`seq`, `ts`, `type`, `stage`, `iteration`)
+- deep-clones `payload`
+- trims known large string fields to reduce localStorage growth
+
+That means `traceFrames` in storage are a UI/debug representation, not a byte-for-byte copy of the server stream.
+
+Do not rely on them as an exact replay log.
+
+---
+
+## 5. Attachment storage is split
+
+This is an easy place to break things.
+
+There are two layers:
+
+- chat metadata in `src/SERVICEs/chat_storage.js`
+- attachment payload durability in `src/SERVICEs/attachment_storage.js`
+
+Rules:
+
+- localStorage keeps lightweight attachment metadata
+- IndexedDB keeps the actual payload blobs/base64 data
+- the IndexedDB database is `pupu_attachment_payloads`
+- `chat.js` still maintains an in-memory attachment map as the hot cache
+
+Implication:
+
+- never assume localStorage contains attachment payload bytes
+- if you move or reload attachment-related UI, make sure you preserve the IndexedDB lookup path
+
+Use:
 
 ```js
 createChatMessageAttachment(rawAttachment)
 ```
 
-Use this helper before storing user attachments.
+before persisting user attachment metadata.
 
 ---
 
-## 4. Read APIs you should use
+## 6. Mutation APIs you should use
 
-- `getChatsStore()` -> full normalized snapshot
-- `bootstrapChatsStore()` -> `{ store, activeChat, tree }`
-- `subscribeChatsStore(listener)` -> returns unsubscribe function
-- `buildExplorerFromTree(tree, chatsById, handlers)` -> explorer UI data model
+Read APIs:
 
-`buildExplorerFromTree` is the adapter between storage tree and UI explorer component.
+- `getChatsStore()`
+- `bootstrapChatsStore()`
+- `subscribeChatsStore(listener)`
+
+Core chat mutation APIs:
+
+- `createChatInSelectedContext(...)`
+- `createChatWithMessagesInSelectedContext(...)`
+- `updateChatDraft(...)`
+- `setChatMessages(...)`
+- `setChatThreadId(...)`
+- `setChatModel(...)`
+- `setChatSelectedToolkits(...)`
+- `setChatSystemPromptOverrides(...)`
+- `setChatTitle(...)`
+- `setChatGeneratedUnread(...)`
+- `cleanupTransientNewChatOnPageLeave(...)`
+
+Tree/explorer APIs:
+
+- `createFolder(...)`
+- `selectTreeNode(...)`
+- `renameTreeNode(...)`
+- `deleteTreeNodeCascade(...)`
+- `applyExplorerReorder(...)`
 
 ---
 
-## 5. Mutation APIs you should use
+## 7. Required calling convention
 
-Tree and selection:
+Always pass a `source` on storage mutations.
 
-- `createFolder(params, options)`
-- `createChatInSelectedContext(params, options)`
-- `selectTreeNode({ nodeId }, options)`
-- `renameTreeNode({ nodeId, label }, options)`
-- `deleteTreeNodeCascade({ nodeId }, options)`
-- `applyExplorerReorder({ data, root }, options)`
-- `sanitizeExplorerReorderPayload(...)` (when validating reorder payloads)
-
-Chat content:
-
-- `updateChatDraft(chatId, patch, options)`
-- `setChatMessages(chatId, messages, options)`
-- `setChatThreadId(chatId, threadId, options)`
-- `setChatModel(chatId, model, options)`
-- `setChatTitle(chatId, title, options)`
-
----
-
-## 6. Required calling convention
-
-Always pass a `source` in `options`, for example:
+Example:
 
 ```js
 setChatMessages(chatId, messages, { source: "chat-page" });
+setChatSelectedToolkits(chatId, toolkits, { source: "chat-page" });
+setChatSystemPromptOverrides(chatId, overrides, { source: "chat-page" });
 ```
 
-Why:
+Why this matters:
 
 - store subscribers receive `{ type, source }`
-- components use `source` to avoid feedback loops
+- UI code uses `source` to avoid self-triggered feedback loops
+
+If you omit `source`, debugging state propagation gets much harder.
 
 ---
 
-## 7. Invariants the module guarantees
+## 8. High-risk pitfalls
 
-`chat_storage.js` maintains these invariants automatically:
-
-1. `activeChatId` always points to an existing chat.
-2. `tree.selectedNodeId` remains valid after mutations.
-3. Missing/invalid data is sanitized on read and write.
-4. Chat titles are derived from first user message when needed.
-5. LRU and size trimming run automatically to bound storage usage.
-6. Deleting folders/chats cascades safely and leaves a valid active chat.
-
-Do not re-implement these invariants in UI code.
+- Never write raw message objects into storage. `sanitizeMessage` and `sanitizeChatSession` exist because chat payloads drift.
+- Never assume attachment payloads live in localStorage. They do not.
+- Never update `selectedToolkits` or `systemPromptOverrides` through ad-hoc object mutation. Use the exported setters.
+- Never persist trace data on arbitrary objects or user messages. Follow the current assistant-message contract.
+- Never skip the `source` option on mutations.
+- Never duplicate the store in component-local persistence. `chat_storage.js` is already the source of truth.
 
 ---
 
-## 8. Recommended patterns for chat features
+## 9. Quick checks
 
-### 8.1 Send message flow
+```bash
+rg -n "sanitizeChatSession|sanitizeMessage|setChatSelectedToolkits|setChatSystemPromptOverrides|createChatMessageAttachment" \
+  src/SERVICEs/chat_storage.js
+```
 
-1. Build next message array in UI.
-2. `setMessages(localState)` for immediate rendering.
-3. Persist with `setChatMessages(chatId, messages, { source: "chat-page" })`.
-4. If backend returns new thread/model metadata, call:
-   - `setChatThreadId(...)`
-   - `setChatModel(...)`
-
-### 8.2 Draft sync
-
-- Keep input state locally.
-- Persist on change with `updateChatDraft(...)`.
-
-### 8.3 Switching chats from side menu
-
-- Use `selectTreeNode({ nodeId }, { source: "side-menu" })`
-- UI page listens via `subscribeChatsStore(...)` and updates local states.
-
----
-
-## 9. Anti-patterns (do not do these)
-
-- Direct `localStorage.setItem("chats", ...)` in components.
-- Mutating `tree.nodesById` directly in UI code.
-- Writing unsanitized message objects into storage.
-- Reordering explorer data without `applyExplorerReorder(...)`.
-- Updating chat title and tree label separately (use provided APIs).
-
----
-
-## 10. Checklist before shipping chat feature
-
-- [ ] Uses `chat_storage.js` exports only (no direct localStorage writes)
-- [ ] Passes `source` option on mutations
-- [ ] Handles subscribe/unsubscribe lifecycle correctly
-- [ ] Uses `setChatMessages` / `updateChatDraft` / `setChatModel` APIs (not manual writes)
-- [ ] Leaves `activeChatId` + selected node consistent through all actions
-- [ ] No duplicate state source-of-truth introduced
-
+```bash
+rg -n "pupu_attachment_payloads|saveAttachmentPayload|loadAttachmentPayload" \
+  src/SERVICEs/attachment_storage.js
+```
