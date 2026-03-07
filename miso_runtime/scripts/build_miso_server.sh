@@ -112,7 +112,7 @@ PY
 
 if ! "$VENV_PY" - <<'PY'
 import importlib.util
-required_modules = ["flask", "openai", "anthropic", "PyInstaller"]
+required_modules = ["flask", "openai", "anthropic", "PyInstaller", "qdrant_client"]
 missing = [name for name in required_modules if importlib.util.find_spec(name) is None]
 if missing:
     print("Missing required Python modules in build environment:", ", ".join(missing))
@@ -170,8 +170,16 @@ PYINSTALLER_ARGS=(
   --hidden-import miso.response_format
   --hidden-import miso.media
   --hidden-import miso.mcp
+  --hidden-import miso.memory
+  --hidden-import miso.memory_qdrant
   --hidden-import openai
   --hidden-import anthropic
+  --collect-submodules qdrant_client
+  --hidden-import qdrant_client
+  --hidden-import qdrant_client.http
+  --hidden-import qdrant_client.http.models
+  --hidden-import qdrant_client.local
+  --hidden-import qdrant_client.local.local_collection
 )
 
 if [[ -n "$TARGET_ARCH" ]]; then

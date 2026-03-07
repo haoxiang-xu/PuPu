@@ -191,23 +191,29 @@ const injectProviderApiKeyIntoPayload = (payload) => {
     provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
   const providerSpecificSnakeKey = `${provider}_api_key`;
   const hasAnyApiKey = [
-    currentOptions.apiKey,
-    currentOptions.api_key,
     currentOptions[providerSpecificCamelKey],
     currentOptions[providerSpecificSnakeKey],
+    ...(provider === "openai"
+      ? [currentOptions.apiKey, currentOptions.api_key]
+      : []),
   ].some((value) => typeof value === "string" && value.trim().length > 0);
   if (hasAnyApiKey) {
     return payload;
   }
 
+  const nextOptions = {
+    ...currentOptions,
+    [providerSpecificCamelKey]: apiKey,
+    [providerSpecificSnakeKey]: apiKey,
+  };
+  if (provider === "openai") {
+    nextOptions.apiKey = apiKey;
+    nextOptions.api_key = apiKey;
+  }
+
   return {
     ...payload,
-    options: {
-      ...currentOptions,
-      apiKey,
-      [providerSpecificCamelKey]: apiKey,
-      [providerSpecificSnakeKey]: apiKey,
-    },
+    options: nextOptions,
   };
 };
 
@@ -233,11 +239,16 @@ const injectMemoryIntoPayload = (payload) => {
   if (!isObject(payload)) {
     return payload;
   }
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  if (typeof currentOptions.memory_enabled === "boolean") {
+    return payload;
+  }
+
   const memory = readMemorySettingsFromStorage();
   if (!memory.enabled) {
     return payload;
   }
-  const currentOptions = isObject(payload.options) ? payload.options : {};
+
   return {
     ...payload,
     options: {

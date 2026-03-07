@@ -32,10 +32,82 @@ const createMisoService = ({
   let misoAuthToken = "";
   let misoRestartTimer = null;
   let misoIsStopping = false;
+  let misoStartPromise = null;
 
   const misoActiveStreams = new Map();
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const _parsePosixPsLine = (line) => {
+    const match = String(line || "").match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
+    if (!match) {
+      return null;
+    }
+    return {
+      pid: Number(match[1]),
+      ppid: Number(match[2]),
+      command: match[3] || "",
+    };
+  };
+
+  const listStaleMisoPids = (entrypoint) => {
+    if (!entrypoint || process.platform === "win32") {
+      return [];
+    }
+
+    const scriptPath = Array.isArray(entrypoint.args) ? entrypoint.args[0] : "";
+    const commandPath = typeof entrypoint.command === "string" ? entrypoint.command : "";
+    const matchToken = String(scriptPath || commandPath || "").trim();
+    if (!matchToken) {
+      return [];
+    }
+
+    const psProbe = spawnSync(
+      "ps",
+      ["-axo", "pid=,ppid=,command="],
+      {
+        encoding: "utf8",
+        windowsHide: true,
+      },
+    );
+    if (psProbe.error || psProbe.status !== 0 || typeof psProbe.stdout !== "string") {
+      return [];
+    }
+
+    const stalePids = [];
+    const rows = psProbe.stdout.split("\n");
+    for (const row of rows) {
+      const parsed = _parsePosixPsLine(row);
+      if (!parsed) {
+        continue;
+      }
+
+      // Only reap orphaned miso server scripts from previous crashed sessions.
+      if (parsed.ppid !== 1) {
+        continue;
+      }
+      if (parsed.pid === process.pid) {
+        continue;
+      }
+      if (!parsed.command.includes(matchToken)) {
+        continue;
+      }
+      stalePids.push(parsed.pid);
+    }
+
+    return stalePids;
+  };
+
+  const terminateStaleMisoProcesses = (entrypoint) => {
+    const stalePids = listStaleMisoPids(entrypoint);
+    for (const pid of stalePids) {
+      try {
+        process.kill(pid, "SIGTERM");
+      } catch {
+        // Ignore races where process exits between ps and kill.
+      }
+    }
+  };
 
   const looksLikeMisoSource = (sourcePath) =>
     fs.existsSync(path.join(sourcePath, "miso", "broth.py")) &&
@@ -79,6 +151,16 @@ const createMisoService = ({
     return probe.status === 0;
   };
 
+  const MISO_REQUIRED_PYTHON_MODULES = [
+    "flask",
+    "qdrant_client",
+    "openai",
+    "anthropic",
+  ];
+
+  const hasPythonModules = (pythonCommand, moduleNames = []) =>
+    moduleNames.every((moduleName) => hasPythonModule(pythonCommand, moduleName));
+
   const resolvePuPuVenvPythonPath = () => {
     const appPath = app.getAppPath();
     if (process.platform === "win32") {
@@ -119,6 +201,13 @@ const createMisoService = ({
     }
 
     const uniqueCandidates = [...new Set(candidates)];
+    const withRequiredModules = uniqueCandidates.find((candidate) =>
+      hasPythonModules(candidate, MISO_REQUIRED_PYTHON_MODULES),
+    );
+    if (withRequiredModules) {
+      return withRequiredModules;
+    }
+
     const withFlask = uniqueCandidates.find((candidate) =>
       hasPythonModule(candidate, "flask"),
     );
@@ -470,111 +559,126 @@ const createMisoService = ({
     if (misoProcess || misoStatus === "starting") {
       return;
     }
+    if (misoStartPromise) {
+      return misoStartPromise;
+    }
 
-    misoPort = await findAvailableMisoPort();
-    misoAuthToken = crypto.randomBytes(24).toString("hex");
     misoStatus = "starting";
     misoStatusReason = "";
 
-    const entrypoint = resolveMisoEntrypoint();
-    if (!entrypoint) {
-      misoStatus = "not_found";
-      misoStatusReason = "Miso server entrypoint was not found";
-      return;
-    }
-
-    const devMisoSourcePath = app.isPackaged ? null : resolveDevMisoSourcePath();
-    misoProcess = spawn(entrypoint.command, entrypoint.args, {
-      detached: false,
-      cwd: entrypoint.cwd,
-      windowsHide: true,
-      env: {
-        ...process.env,
-        MISO_HOST,
-        MISO_PORT: String(misoPort),
-        MISO_AUTH_TOKEN: misoAuthToken,
-        MISO_VERSION: app.getVersion(),
-        MISO_PROVIDER: process.env.MISO_PROVIDER || "ollama",
-        MISO_MODEL: process.env.MISO_MODEL || "deepseek-r1:14b",
-        MISO_DATA_DIR: app.getPath("userData"),
-        ...(devMisoSourcePath ? { MISO_SOURCE_PATH: devMisoSourcePath } : {}),
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-
-    misoProcess.stdout?.on("data", (chunk) => {
-      const text = String(chunk).trim();
-      if (text) {
-        console.log(`[miso] ${text}`);
-      }
-    });
-
-    misoProcess.stderr?.on("data", (chunk) => {
-      const text = String(chunk).trim();
-      if (text) {
-        console.error(`[miso:error] ${text}`);
-        if (/ModuleNotFoundError|No module named/i.test(text)) {
-          misoStatusReason = text;
-        }
-      }
-    });
-
-    misoProcess.on("error", (error) => {
-      misoStatus = error.code === "ENOENT" ? "not_found" : "error";
-      misoStatusReason = error.message || "Failed to start Miso process";
-      misoProcess = null;
-
-      terminateAllMisoStreams("error", {
-        code: "miso_process_error",
-        message: error.message || "Miso process failed to start",
-      });
-
-      if (error.code !== "ENOENT") {
-        scheduleMisoRestart();
-      }
-    });
-
-    misoProcess.on("exit", (code, signal) => {
-      const stoppedIntentionally = misoIsStopping || getAppIsQuitting();
-      misoProcess = null;
-
-      if (stoppedIntentionally) {
-        misoIsStopping = false;
-        if (!getAppIsQuitting()) {
-          misoStatus = "stopped";
-        }
-        return;
-      }
-
-      misoStatus = "error";
-      misoStatusReason = `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`;
-      terminateAllMisoStreams("error", {
-        code: "miso_process_exit",
-        message: `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`,
-      });
-      scheduleMisoRestart();
-    });
-
-    const ready = await waitForMisoReady();
-    if (!ready) {
-      const missingRuntime = misoStatus === "not_found";
-      if (!missingRuntime) {
-        misoStatus = "error";
-        misoStatusReason =
-          misoStatusReason || `Health check timed out after ${MISO_BOOT_TIMEOUT_MS}ms`;
-      }
-      stopMiso();
-      if (missingRuntime) {
+    misoStartPromise = (async () => {
+      const entrypoint = resolveMisoEntrypoint();
+      if (!entrypoint) {
         misoStatus = "not_found";
-        misoStatusReason = misoStatusReason || "Miso runtime not found";
+        misoStatusReason = "Miso server entrypoint was not found";
         return;
       }
-      scheduleMisoRestart();
-      return;
-    }
 
-    misoStatus = "ready";
-    misoStatusReason = "";
+      terminateStaleMisoProcesses(entrypoint);
+
+      misoPort = await findAvailableMisoPort();
+      misoAuthToken = crypto.randomBytes(24).toString("hex");
+
+      const devMisoSourcePath = app.isPackaged ? null : resolveDevMisoSourcePath();
+      misoProcess = spawn(entrypoint.command, entrypoint.args, {
+        detached: false,
+        cwd: entrypoint.cwd,
+        windowsHide: true,
+        env: {
+          ...process.env,
+          MISO_HOST,
+          MISO_PORT: String(misoPort),
+          MISO_AUTH_TOKEN: misoAuthToken,
+          MISO_VERSION: app.getVersion(),
+          MISO_PROVIDER: process.env.MISO_PROVIDER || "ollama",
+          MISO_MODEL: process.env.MISO_MODEL || "deepseek-r1:14b",
+          MISO_DATA_DIR: app.getPath("userData"),
+          MISO_PARENT_PID: String(process.pid),
+          ...(devMisoSourcePath ? { MISO_SOURCE_PATH: devMisoSourcePath } : {}),
+        },
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+
+      misoProcess.stdout?.on("data", (chunk) => {
+        const text = String(chunk).trim();
+        if (text) {
+          console.log(`[miso] ${text}`);
+        }
+      });
+
+      misoProcess.stderr?.on("data", (chunk) => {
+        const text = String(chunk).trim();
+        if (text) {
+          console.error(`[miso:error] ${text}`);
+          if (/ModuleNotFoundError|No module named/i.test(text)) {
+            misoStatusReason = text;
+          }
+        }
+      });
+
+      misoProcess.on("error", (error) => {
+        misoStatus = error.code === "ENOENT" ? "not_found" : "error";
+        misoStatusReason = error.message || "Failed to start Miso process";
+        misoProcess = null;
+
+        terminateAllMisoStreams("error", {
+          code: "miso_process_error",
+          message: error.message || "Miso process failed to start",
+        });
+
+        if (error.code !== "ENOENT") {
+          scheduleMisoRestart();
+        }
+      });
+
+      misoProcess.on("exit", (code, signal) => {
+        const stoppedIntentionally = misoIsStopping || getAppIsQuitting();
+        misoProcess = null;
+
+        if (stoppedIntentionally) {
+          misoIsStopping = false;
+          if (!getAppIsQuitting()) {
+            misoStatus = "stopped";
+          }
+          return;
+        }
+
+        misoStatus = "error";
+        misoStatusReason = `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`;
+        terminateAllMisoStreams("error", {
+          code: "miso_process_exit",
+          message: `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`,
+        });
+        scheduleMisoRestart();
+      });
+
+      const ready = await waitForMisoReady();
+      if (!ready) {
+        const missingRuntime = misoStatus === "not_found";
+        if (!missingRuntime) {
+          misoStatus = "error";
+          misoStatusReason =
+            misoStatusReason || `Health check timed out after ${MISO_BOOT_TIMEOUT_MS}ms`;
+        }
+        stopMiso();
+        if (missingRuntime) {
+          misoStatus = "not_found";
+          misoStatusReason = misoStatusReason || "Miso runtime not found";
+          return;
+        }
+        scheduleMisoRestart();
+        return;
+      }
+
+      misoStatus = "ready";
+      misoStatusReason = "";
+    })();
+
+    try {
+      await misoStartPromise;
+    } finally {
+      misoStartPromise = null;
+    }
   };
 
   const parseSseBlock = (block) => {

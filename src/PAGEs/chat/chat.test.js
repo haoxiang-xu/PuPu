@@ -222,4 +222,64 @@ describe("ChatInterface stop flow", () => {
       );
     });
   });
+
+  test("retries once with history when memory is unavailable", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        memory: {
+          enabled: true,
+        },
+      }),
+    );
+
+    render(
+      <ConfigContext.Provider
+        value={{
+          theme: {},
+          onFragment: "main",
+          onThemeMode: "light_mode",
+        }}
+      >
+        <ChatInterface />
+      </ConfigContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(window.misoAPI.getStatus).toHaveBeenCalled();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Memory fallback test" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+
+    const [firstPayload] = window.misoAPI.startStreamV2.mock.calls[0];
+    expect(firstPayload.history).toEqual([]);
+
+    streamHandlers.onError({
+      code: "memory_unavailable",
+      message: "Memory is unavailable for this request",
+    });
+
+    await waitFor(() => {
+      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+
+    const [secondPayload] = window.misoAPI.startStreamV2.mock.calls[1];
+    expect(secondPayload.threadId).toEqual(firstPayload.threadId);
+    expect(secondPayload.options.memory_enabled).toBe(false);
+    expect(secondPayload.history).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: "Memory fallback test",
+        }),
+      ]),
+    );
+  });
 });

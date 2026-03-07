@@ -95,6 +95,20 @@ def _sanitize_trace_value(value: object, trace_level: str, depth: int = 0):
     return value
 
 
+def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
+    message = str(stream_error)
+    code = "stream_failed"
+    if isinstance(message, str):
+        normalized = message.strip()
+        if normalized.startswith("memory_unavailable"):
+            code = "memory_unavailable"
+            if ":" in normalized:
+                tail = normalized.split(":", 1)[1].strip()
+                if tail:
+                    message = tail
+    return code, message
+
+
 def _build_trace_frame(
     *,
     seq: int,
@@ -461,11 +475,12 @@ def chat_stream() -> Response:
         except GeneratorExit:  # pragma: no cover
             return
         except Exception as stream_error:
+            code, normalized_message = _normalize_stream_error(stream_error)
             yield _sse_event(
                 "error",
                 {
-                    "code": "stream_failed",
-                    "message": str(stream_error),
+                    "code": code,
+                    "message": normalized_message,
                 },
             )
 
@@ -565,7 +580,7 @@ def chat_stream_v2() -> Response:
                 # Skip trace sanitization for display-critical events whose
                 # content must arrive intact (final_message carries the full
                 # reply text and token_delta carries incremental chunks).
-                if event_type in ("final_message", "token_delta"):
+                if event_type in ("final_message", "token_delta", "request_messages"):
                     sanitized_payload = payload_data
                 else:
                     sanitized_payload = _sanitize_trace_value(payload_data, trace_level)
@@ -624,6 +639,7 @@ def chat_stream_v2() -> Response:
             return
         except Exception as stream_error:
             cancel_pending_confirmations()
+            code, normalized_message = _normalize_stream_error(stream_error)
             seq += 1
             error_ts = int(time.time() * 1000)
             yield _sse_event(
@@ -633,8 +649,8 @@ def chat_stream_v2() -> Response:
                     thread_id=thread_id,
                     event_type="error",
                     payload={
-                        "code": "stream_failed",
-                        "message": str(stream_error),
+                        "code": code,
+                        "message": normalized_message,
                     },
                     iteration=0,
                     timestamp_ms=error_ts,

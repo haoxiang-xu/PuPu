@@ -19,9 +19,21 @@ def _read_port() -> int:
         raise ValueError(f"Invalid MISO_PORT value: {raw_port}") from port_error
 
 
+def _read_parent_pid() -> int:
+    raw_parent_pid = os.environ.get("MISO_PARENT_PID", "").strip()
+    if not raw_parent_pid:
+        return 0
+    try:
+        parent_pid = int(raw_parent_pid)
+        return parent_pid if parent_pid > 0 else 0
+    except Exception:
+        return 0
+
+
 def main() -> int:
     host = os.environ.get("MISO_HOST", "127.0.0.1")
     port = _read_port()
+    expected_parent_pid = _read_parent_pid()
 
     app = create_app()
     server = ThreadedFlaskServer(app, host=host, port=port)
@@ -34,6 +46,32 @@ def main() -> int:
 
     signal.signal(signal.SIGINT, request_shutdown)
     signal.signal(signal.SIGTERM, request_shutdown)
+
+    if expected_parent_pid:
+        def watch_parent() -> None:
+            while not shutdown_event.is_set():
+                try:
+                    # If parent disappeared (or PID got re-parented to init),
+                    # stop this server so it does not keep stale runtime locks.
+                    if os.getppid() == 1:
+                        shutdown_event.set()
+                        break
+                    os.kill(expected_parent_pid, 0)
+                except ProcessLookupError:
+                    shutdown_event.set()
+                    break
+                except PermissionError:
+                    pass
+                except Exception:
+                    pass
+
+                time.sleep(1.0)
+
+        threading.Thread(
+            target=watch_parent,
+            name="miso-parent-watchdog",
+            daemon=True,
+        ).start()
 
     try:
         server.start()

@@ -888,6 +888,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.max_iterations = 3
                 self.received_on_tool_confirm = False
                 self.last_messages = []
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
 
             def run(
                 self,
@@ -941,6 +946,94 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(fake_agent.last_messages[0].get("role"), "system")
         self.assertIn("[Personality]", fake_agent.last_messages[0].get("content", ""))
         self.assertIn("[Rules]", fake_agent.last_messages[0].get("content", ""))
+
+    def test_stream_chat_events_emits_memory_unavailable_and_stops_when_history_empty(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_called = False
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": False,
+                    "reason": "embedding_provider_unavailable",
+                }
+
+            def run(self, *args, **kwargs):
+                self.run_called = True
+                return [], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                miso_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertFalse(fake_agent.run_called)
+        self.assertEqual(events[0]["type"], "memory_prepare")
+        self.assertFalse(events[0]["applied"])
+        self.assertEqual(events[0]["fallback_reason"], "embedding_provider_unavailable")
+        self.assertEqual(events[1]["type"], "error")
+        self.assertEqual(events[1]["code"], "memory_unavailable")
+
+    def test_stream_chat_events_emits_memory_prepare_failure_but_runs_with_history(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_called = False
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": False,
+                    "reason": "embedding_provider_unavailable",
+                }
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                session_id=None,
+            ):
+                self.run_called = True
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return [{"role": "assistant", "content": "done"}], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                miso_adapter.stream_chat_events(
+                    message="hello",
+                    history=[{"role": "user", "content": "previous"}],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertTrue(fake_agent.run_called)
+        self.assertEqual(events[0]["type"], "memory_prepare")
+        self.assertFalse(events[0]["applied"])
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
 
     def test_extract_last_assistant_text_handles_structured_content(self) -> None:
         messages = [

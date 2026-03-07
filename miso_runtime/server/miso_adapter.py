@@ -34,7 +34,7 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "python_workspace_toolkit": "builtin",
     "mcp": "integration",
 }
-_DEFAULT_MAX_ITERATIONS = 6
+_DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "write_file",
@@ -66,6 +66,7 @@ _SYSTEM_PROMPT_V2_BUILTIN_RULES = [
     "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
     "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
 ]
+_MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
 
@@ -250,9 +251,53 @@ def _make_tool_confirm_callback(
     return on_tool_confirm
 
 
+def _make_continuation_callback(
+    emit_event,
+    cancel_event: threading.Event | None = None,
+):
+    def on_continuation_request(payload: Dict[str, Any]) -> Dict[str, Any]:
+        normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
+        confirmation_id = str(_uuid.uuid4())
+        waiter: Dict[str, Any] = {
+            "event": threading.Event(),
+            "response": None,
+            "cancel_event": normalized_cancel_event,
+        }
+
+        with _pending_confirmations_lock:
+            _pending_confirmations[confirmation_id] = waiter
+
+        try:
+            emit_event({
+                "type": "continuation_request",
+                "confirmation_id": confirmation_id,
+                "iteration": payload.get("iteration", 0),
+            })
+            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+                cancel_tool_confirmations(normalized_cancel_event)
+            event = waiter.get("event")
+            if isinstance(event, threading.Event):
+                event.wait()
+        except Exception:
+            return {"approved": False}
+        finally:
+            with _pending_confirmations_lock:
+                _pending_confirmations.pop(confirmation_id, None)
+
+        response = waiter.get("response")
+        if isinstance(response, dict):
+            return {"approved": bool(response.get("approved", False))}
+
+        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+            return {"approved": False}
+
+        return {"approved": False}
+
+    return on_continuation_request
+
+
 def _is_valid_miso_source(path: Path) -> bool:
     return (path / "miso" / "__init__.py").exists() and (path / "miso" / "broth.py").exists()
-
 
 def _candidate_miso_sources() -> List[Path]:
     candidates: List[Path] = []
@@ -1642,14 +1687,31 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
 
     _attach_workspace_toolkit(agent, options)
 
-    if session_id and isinstance(options, dict):
+    memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
+    memory_runtime = {
+        "requested": memory_requested,
+        "available": False,
+        "reason": "",
+    }
+    if memory_requested and not session_id:
+        memory_runtime["reason"] = "missing_session_id"
+
+    if session_id and isinstance(options, dict) and memory_requested:
         try:
-            from memory_factory import create_memory_manager
-            mm = create_memory_manager(options)
+            from memory_factory import create_memory_manager_with_diagnostics
+
+            mm, memory_reason = create_memory_manager_with_diagnostics(options)
             if mm is not None:
                 agent.memory_manager = mm
-        except Exception:
-            pass
+                memory_runtime["available"] = True
+            else:
+                memory_runtime["reason"] = (
+                    str(memory_reason).strip() if memory_reason else "memory_manager_unavailable"
+                )
+        except Exception as memory_error:
+            memory_runtime["reason"] = f"memory_factory_failed: {memory_error}"
+
+    setattr(agent, "_memory_runtime", memory_runtime)
 
     return agent
 
@@ -1669,6 +1731,17 @@ def _extract_last_assistant_text(messages: List[Dict[str, Any]]) -> str:
     return ""
 
 
+def _memory_runtime_from_agent(agent: Any) -> Dict[str, Any]:
+    raw_runtime = getattr(agent, "_memory_runtime", None)
+    if not isinstance(raw_runtime, dict):
+        return {"requested": False, "available": False, "reason": ""}
+    return {
+        "requested": bool(raw_runtime.get("requested")),
+        "available": bool(raw_runtime.get("available")),
+        "reason": str(raw_runtime.get("reason") or "").strip(),
+    }
+
+
 def stream_chat(
     *,
     message: str,
@@ -1678,6 +1751,15 @@ def stream_chat(
     session_id: str = "",
 ) -> Iterable[str]:
     agent = _create_agent(options, session_id=session_id)
+    memory_runtime = _memory_runtime_from_agent(agent)
+    if (
+        memory_runtime["requested"]
+        and not memory_runtime["available"]
+        and not history
+    ):
+        reason = memory_runtime["reason"] or "memory_manager_unavailable"
+        raise RuntimeError(f"{_MEMORY_UNAVAILABLE_CODE}: {reason}")
+
     messages = _normalize_messages(history, message, attachments)
     payload = _build_payload(agent.provider, options)
 
@@ -1756,6 +1838,29 @@ def stream_chat_events(
     if system_prompt_text:
         messages = _prepend_system_message(messages, system_prompt_text)
     payload = _build_payload(agent.provider, options)
+    memory_runtime = _memory_runtime_from_agent(agent)
+    if memory_runtime["requested"] and not memory_runtime["available"]:
+        fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
+        yield {
+            "type": "memory_prepare",
+            "run_id": "",
+            "iteration": 0,
+            "timestamp": time.time(),
+            "session_id": session_id,
+            "applied": False,
+            "fallback_reason": fallback_reason,
+        }
+        if not history:
+            yield {
+                "type": "error",
+                "run_id": "",
+                "iteration": 0,
+                "timestamp": time.time(),
+                "code": _MEMORY_UNAVAILABLE_CODE,
+                "message": "Memory is enabled but unavailable for this request",
+                "fallback_reason": fallback_reason,
+            }
+            return
 
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
@@ -1781,6 +1886,10 @@ def stream_chat_events(
         event_queue.put(event)
 
     confirm_cb = _make_tool_confirm_callback(
+        lambda event: event_queue.put(event),
+        cancel_event=cancel_event,
+    )
+    continuation_cb = _make_continuation_callback(
         lambda event: event_queue.put(event),
         cancel_event=cancel_event,
     )
@@ -1815,6 +1924,9 @@ def stream_chat_events(
 
             if "on_tool_confirm" in run_params:
                 run_kwargs["on_tool_confirm"] = confirm_cb
+
+            if "on_continuation_request" in run_params:
+                run_kwargs["on_continuation_request"] = continuation_cb
 
             messages_out, _bundle = agent.run(**run_kwargs)
             output_holder["messages"] = messages_out

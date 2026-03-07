@@ -199,7 +199,7 @@ const ChatInterface = () => {
   const messagePersistTimerRef = useRef(null);
   const attachmentFileInputRef = useRef(null);
   const attachmentPayloadByChatRef = useRef(new Map());
-  const threadIdRef = useRef(initialChat.threadId || `thread-${Date.now()}`);
+  const threadIdRef = useRef(initialChat.id || `chat-${Date.now()}`);
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
@@ -212,6 +212,9 @@ const ChatInterface = () => {
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
   const toolConfirmationUiStateByIdRef = useRef({});
+  const [pendingContinuationRequest, setPendingContinuationRequest] =
+    useState(null);
+  const pendingContinuationRequestRef = useRef(null);
   const selectedToolkitsRef = useRef([]);
   const systemPromptOverridesRef = useRef(
     initialChat.systemPromptOverrides || {},
@@ -425,7 +428,7 @@ const ChatInterface = () => {
       systemPromptOverridesRef.current =
         nextActiveChat.systemPromptOverrides || {};
 
-      threadIdRef.current = nextActiveChat.threadId || `thread-${Date.now()}`;
+      threadIdRef.current = nextActiveId || `chat-${Date.now()}`;
       modelIdRef.current =
         typeof nextActiveChat.model?.id === "string" &&
         nextActiveChat.model.id.trim()
@@ -537,7 +540,8 @@ const ChatInterface = () => {
       return;
     }
 
-    setChatThreadId(chatId, threadIdRef.current, { source: "chat-page" });
+    threadIdRef.current = chatId;
+    setChatThreadId(chatId, chatId, { source: "chat-page" });
     setChatModel(chatId, { id: modelIdRef.current }, { source: "chat-page" });
   }, []);
 
@@ -916,6 +920,38 @@ const ChatInterface = () => {
     ],
   );
 
+  const handleContinuationDecision = useCallback(
+    async ({ confirmationId, approved }) => {
+      const normalizedId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedId) return;
+
+      const current = pendingContinuationRequestRef.current;
+      if (!current || current.status === "submitting") return;
+
+      pendingContinuationRequestRef.current = { ...current, status: "submitting" };
+      setPendingContinuationRequest((prev) =>
+        prev ? { ...prev, status: "submitting" } : prev,
+      );
+
+      try {
+        await api.miso.respondToolConfirmation({
+          confirmation_id: normalizedId,
+          approved: Boolean(approved),
+          reason: "",
+        });
+        pendingContinuationRequestRef.current = null;
+        setPendingContinuationRequest(null);
+      } catch (_error) {
+        pendingContinuationRequestRef.current = { ...current, status: "idle" };
+        setPendingContinuationRequest((prev) =>
+          prev ? { ...prev, status: "idle" } : prev,
+        );
+      }
+    },
+    [],
+  );
+
   const getOrCreateChatAttachmentPayloadMap = useCallback((chatId) => {
     if (!chatId) {
       return null;
@@ -1093,6 +1129,9 @@ const ChatInterface = () => {
       clearComposer = false,
       reuseUserMessage = null,
       missingAttachmentPayloadMode = "block",
+      memoryFallbackAttempted = false,
+      forceHistoryFallback = false,
+      historyOverride = null,
     }) => {
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachmentsForMessage)
@@ -1128,6 +1167,8 @@ const ChatInterface = () => {
       confirmationResolveTimerByIdRef.current.clear();
       toolConfirmationUiStateByIdRef.current = {};
       setToolConfirmationUiStateById({});
+      pendingContinuationRequestRef.current = null;
+      setPendingContinuationRequest(null);
 
       const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
@@ -1209,10 +1250,13 @@ const ChatInterface = () => {
         },
       };
 
-      const memoryEnabled = readMemorySettings().enabled === true;
-      const historyForModel = memoryEnabled
-        ? []
-        : buildHistoryForModel(normalizedBaseMessages, chatId);
+      const memoryEnabled =
+        readMemorySettings().enabled === true && forceHistoryFallback !== true;
+      const historyForModel = Array.isArray(historyOverride)
+        ? historyOverride
+        : memoryEnabled
+          ? []
+          : buildHistoryForModel(normalizedBaseMessages, chatId);
 
       const nextMessages = [
         ...normalizedBaseMessages,
@@ -1261,12 +1305,15 @@ const ChatInterface = () => {
 
         streamHandle = api.miso.startStreamV2(
           {
-            threadId: threadIdRef.current,
+            threadId: chatId,
             message: promptText,
             history: historyForModel,
             attachments: payloadAttachments,
             options: {
               modelId: modelIdRef.current,
+              ...(forceHistoryFallback === true && {
+                memory_enabled: false,
+              }),
               ...(selectedToolkitsRef.current.length > 0 && {
                 toolkits: selectedToolkitsRef.current,
               }),
@@ -1282,6 +1329,75 @@ const ChatInterface = () => {
             onFrame: (frame) => {
               if (!frame || frame.type === "token_delta") return;
               const patchTime = Date.now();
+
+              if (frame.type === "request_messages") {
+                console.log(
+                  `[miso] request_messages (iteration=${frame.iteration})`,
+                  JSON.parse(JSON.stringify(frame.payload.messages))
+                );
+                return;
+              }
+
+              if (frame.type === "continuation_request") {
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id.trim()
+                    : "";
+                const iteration =
+                  typeof frame.payload?.iteration === "number"
+                    ? frame.payload.iteration
+                    : 0;
+                if (confirmationId) {
+                  const state = { confirmationId, iteration, status: "idle" };
+                  pendingContinuationRequestRef.current = state;
+                  setPendingContinuationRequest(state);
+                }
+                return;
+              }
+
+              if (frame.type === "error" || frame.type === "done") {
+                console.log(`[miso] ${frame.type} (iteration=${frame.iteration})`, frame.payload);
+              }
+
+              if (frame.type === "run_started" || frame.type === "run_completed" || frame.type === "run_max_iterations") {
+                console.log(`[miso] ${frame.type}`, frame.payload);
+              }
+
+              if (frame.type === "memory_prepare") {
+                const payload = frame.payload && typeof frame.payload === "object"
+                  ? frame.payload
+                  : {};
+                console.log("[miso] memory_prepare", {
+                  applied: payload.applied,
+                  session_id: payload.session_id,
+                  before_estimated_tokens: payload.before_estimated_tokens,
+                  after_estimated_tokens: payload.after_estimated_tokens,
+                  last_n_turns: payload.last_n_turns,
+                  kept_turn_count: payload.kept_turn_count,
+                  total_turn_count: payload.total_turn_count,
+                  vector_top_k: payload.vector_top_k,
+                  vector_adapter_enabled: payload.vector_adapter_enabled,
+                  vector_recall_count: payload.vector_recall_count,
+                  vector_recall_status: payload.vector_recall_status,
+                  vector_recall_preview: payload.vector_recall_preview,
+                  vector_fallback_reason: payload.vector_fallback_reason,
+                  fallback_reason: payload.fallback_reason,
+                });
+              }
+
+              if (frame.type === "memory_commit") {
+                const payload = frame.payload && typeof frame.payload === "object"
+                  ? frame.payload
+                  : {};
+                console.log("[miso] memory_commit", {
+                  applied: payload.applied,
+                  session_id: payload.session_id,
+                  stored_message_count: payload.stored_message_count,
+                  vector_indexed_count: payload.vector_indexed_count,
+                  vector_fallback_reason: payload.vector_fallback_reason,
+                  fallback_reason: payload.fallback_reason,
+                });
+              }
 
               if (frame.type === "tool_confirmation_request") {
                 const callId =
@@ -1335,6 +1451,8 @@ const ChatInterface = () => {
                 markConfirmationFollowupSignalByCallId(callId);
               } else if (frame.type === "error" || frame.type === "done") {
                 markAllPendingConfirmationFollowupSignals();
+                pendingContinuationRequestRef.current = null;
+                setPendingContinuationRequest(null);
               }
 
               // final_message carries the complete reply text
@@ -1426,11 +1544,11 @@ const ChatInterface = () => {
                 typeof meta.thread_id === "string" &&
                 meta.thread_id.trim()
               ) {
-                setChatThreadId(chatId, meta.thread_id, {
+                setChatThreadId(chatId, chatId, {
                   source: "chat-page",
                 });
                 if (activeChatIdRef.current === chatId) {
-                  threadIdRef.current = meta.thread_id;
+                  threadIdRef.current = chatId;
                 }
               }
 
@@ -1531,6 +1649,38 @@ const ChatInterface = () => {
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
               const errorTime = Date.now();
+
+              if (
+                errorCode === "memory_unavailable" &&
+                memoryFallbackAttempted !== true
+              ) {
+                if (activeChatIdRef.current === chatId) {
+                  setStreamError(
+                    "Memory is unavailable for this request. Retrying with recent history.",
+                  );
+                }
+                streamHandleRef.current = null;
+                streamingChatIdRef.current = null;
+                activeStreamMessagesRef.current = null;
+                setStreamingChatId(null);
+                clearAllPendingToolConfirmations();
+
+                const retryHistory = buildHistoryForModel(streamMessages, chatId);
+                void startStreamRequest({
+                  chatId,
+                  text: promptText,
+                  attachmentsForMessage: persistedAttachments,
+                  baseMessages: normalizedBaseMessages,
+                  clearComposer: false,
+                  reuseUserMessage: normalizedReuseUserMessage,
+                  missingAttachmentPayloadMode,
+                  memoryFallbackAttempted: true,
+                  forceHistoryFallback: true,
+                  historyOverride: retryHistory,
+                });
+                return;
+              }
+
               if (activeChatIdRef.current === chatId) {
                 setStreamError(errorMessage);
               }
@@ -2411,6 +2561,62 @@ const ChatInterface = () => {
             loadBatchSize={6}
             topLoadThreshold={80}
           />
+          {pendingContinuationRequest && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 16px",
+                background: "var(--color-bg-secondary, #1e1e1e)",
+                borderTop: "1px solid var(--color-border, #333)",
+                fontSize: 13,
+              }}
+            >
+              <span style={{ flex: 1, color: "var(--color-text-secondary, #aaa)" }}>
+                Agent reached {pendingContinuationRequest.iteration} iterations without a final response. Continue?
+              </span>
+              <button
+                disabled={pendingContinuationRequest.status === "submitting"}
+                onClick={() =>
+                  handleContinuationDecision({
+                    confirmationId: pendingContinuationRequest.confirmationId,
+                    approved: true,
+                  })
+                }
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "var(--color-accent, #4a9eff)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                Continue
+              </button>
+              <button
+                disabled={pendingContinuationRequest.status === "submitting"}
+                onClick={() =>
+                  handleContinuationDecision({
+                    confirmationId: pendingContinuationRequest.confirmationId,
+                    approved: false,
+                  })
+                }
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 6,
+                  border: "1px solid var(--color-border, #444)",
+                  background: "transparent",
+                  color: "var(--color-text, #eee)",
+                  cursor: "pointer",
+                }}
+              >
+                Stop
+              </button>
+            </div>
+          )}
           <ChatInput {...sharedChatInputProps} />
         </>
       )}

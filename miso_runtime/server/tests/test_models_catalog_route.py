@@ -354,6 +354,36 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertTrue(hasattr(cancel_event, "is_set"))
         self.assertTrue(cancel_event.is_set())
 
+    def test_chat_stream_v2_preserves_memory_unavailable_error_code(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=iter(
+                [
+                    {
+                        "type": "error",
+                        "run_id": "",
+                        "iteration": 0,
+                        "timestamp": 1700000000.0,
+                        "code": "memory_unavailable",
+                        "message": "Memory is enabled but unavailable for this request",
+                    }
+                ]
+            ),
+        ):
+            response = self.client.post(
+                "/chat/stream/v2",
+                json={
+                    "message": "hello",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"code": "memory_unavailable"', payload_text)
+
     def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
         response = self.client.post(
             "/chat/stream/v2",

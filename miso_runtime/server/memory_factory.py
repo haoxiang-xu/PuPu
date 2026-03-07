@@ -9,15 +9,14 @@ Embedding provider resolution order:
 """
 from __future__ import annotations
 
+import copy
+import importlib.util
 import os
+import threading
+from types import MethodType
 from typing import Any, Callable
 
-_QDRANT_AVAILABLE = False
-try:
-    from qdrant_client import QdrantClient  # noqa: F401
-    _QDRANT_AVAILABLE = True
-except ImportError:
-    pass
+_QDRANT_AVAILABLE = importlib.util.find_spec("qdrant_client") is not None
 
 # Default embedding models and their output vector sizes
 _EMBEDDING_DEFAULTS: dict[str, tuple[str, int]] = {
@@ -30,6 +29,7 @@ _NO_EMBED_PROVIDERS = {"anthropic"}
 
 # Module-level singletons — one Qdrant client reused across all requests
 _qdrant_clients: dict[str, "QdrantClient"] = {}
+_qdrant_clients_lock = threading.Lock()
 
 
 # ---------------------------------------------------------------------------
@@ -38,6 +38,15 @@ _qdrant_clients: dict[str, "QdrantClient"] = {}
 
 def _data_dir() -> str:
     return os.environ.get("MISO_DATA_DIR", "").strip()
+
+
+def _normalize_data_dir(data_dir: str) -> str:
+    if not isinstance(data_dir, str):
+        return ""
+    cleaned = data_dir.strip()
+    if not cleaned:
+        return ""
+    return os.path.realpath(os.path.abspath(cleaned))
 
 
 def _qdrant_path(data_dir: str) -> str:
@@ -55,10 +64,20 @@ def _sessions_dir(data_dir: str) -> str:
 
 
 def _get_or_create_qdrant_client(data_dir: str) -> "QdrantClient":
-    if data_dir not in _qdrant_clients:
+    normalized_data_dir = _normalize_data_dir(data_dir)
+    if normalized_data_dir in _qdrant_clients:
+        return _qdrant_clients[normalized_data_dir]
+
+    with _qdrant_clients_lock:
+        existing_client = _qdrant_clients.get(normalized_data_dir)
+        if existing_client is not None:
+            return existing_client
+
         from qdrant_client import QdrantClient
-        _qdrant_clients[data_dir] = QdrantClient(path=_qdrant_path(data_dir))
-    return _qdrant_clients[data_dir]
+
+        created_client = QdrantClient(path=_qdrant_path(normalized_data_dir))
+        _qdrant_clients[normalized_data_dir] = created_client
+        return created_client
 
 
 def _provider_from_model_id(model_id: str) -> str:
@@ -68,7 +87,10 @@ def _provider_from_model_id(model_id: str) -> str:
 
 
 def _api_key_from_options(options: dict[str, Any]) -> str:
-    for key in ("openaiApiKey", "openai_api_key", "apiKey", "api_key"):
+    # Only read OpenAI-specific keys. Generic apiKey/api_key may belong to a
+    # different provider (for example anthropic) and should not be reused for
+    # embedding requests.
+    for key in ("openaiApiKey", "openai_api_key"):
         val = options.get(key)
         if isinstance(val, str) and val.strip():
             return val.strip()
@@ -210,14 +232,413 @@ def _build_embed_fn(config: dict[str, Any]) -> Callable[[list[str]], list[list[f
     raise ValueError(f"Unsupported embedding provider: {provider}")
 
 
+def _deepcopy_messages(messages: object) -> list[dict[str, Any]]:
+    if not isinstance(messages, list):
+        return []
+    return [copy.deepcopy(item) for item in messages if isinstance(item, dict)]
+
+
+def _split_system_and_non_system(
+    messages: object,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    systems: list[dict[str, Any]] = []
+    non_system: list[dict[str, Any]] = []
+    for message in _deepcopy_messages(messages):
+        if message.get("role") == "system":
+            systems.append(message)
+        else:
+            non_system.append(message)
+    return systems, non_system
+
+
+def _max_suffix_prefix_overlap(
+    earlier: list[dict[str, Any]],
+    later: list[dict[str, Any]],
+) -> int:
+    max_overlap = min(len(earlier), len(later))
+    for overlap in range(max_overlap, 0, -1):
+        if earlier[-overlap:] == later[:overlap]:
+            return overlap
+    return 0
+
+
+def _merge_messages_with_overlap(
+    existing_messages: object,
+    latest_messages: object,
+) -> list[dict[str, Any]]:
+    latest_systems, latest_non_system = _split_system_and_non_system(latest_messages)
+    if not latest_systems and existing_messages:
+        existing_systems, _ = _split_system_and_non_system(existing_messages)
+        latest_systems = existing_systems
+
+    _, existing_non_system = _split_system_and_non_system(existing_messages)
+    if not existing_non_system:
+        return latest_systems + latest_non_system
+    if not latest_non_system:
+        return latest_systems + existing_non_system
+
+    overlap = _max_suffix_prefix_overlap(existing_non_system, latest_non_system)
+    merged_non_system = existing_non_system + latest_non_system[overlap:]
+    return latest_systems + merged_non_system
+
+
+def _content_to_text_for_log(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        text_parts: list[str] = []
+        for block in content:
+            if not isinstance(block, dict):
+                continue
+            block_type = str(block.get("type", "")).strip().lower()
+            if block_type in {"text", "input_text", "output_text"}:
+                text = block.get("text")
+                if isinstance(text, str) and text.strip():
+                    text_parts.append(text.strip())
+                continue
+            if block_type in {"image", "input_image"}:
+                text_parts.append("[image]")
+                continue
+            if block_type in {"pdf", "document", "input_file"}:
+                text_parts.append("[pdf]")
+                continue
+        return " ".join(part for part in text_parts if part).strip()
+    return ""
+
+
+def _latest_user_query_for_log(messages: object) -> str:
+    if not isinstance(messages, list):
+        return ""
+    for message in reversed(messages):
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") != "user":
+            continue
+        text = _content_to_text_for_log(message.get("content")).strip()
+        if text:
+            return text
+    return ""
+
+
+def _extract_recall_items(messages: object) -> list[str]:
+    if not isinstance(messages, list):
+        return []
+    for message in messages:
+        if not isinstance(message, dict):
+            continue
+        if message.get("role") != "system":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str):
+            continue
+        if not content.startswith("[MEMORY RECALL]"):
+            continue
+
+        recalled: list[str] = []
+        for line in content.splitlines()[1:]:
+            stripped = line.strip()
+            if not stripped.startswith("- "):
+                continue
+            item = stripped[2:].strip()
+            if item:
+                recalled.append(item)
+        return recalled
+    return []
+
+
+def _clip_for_log(text: str, limit: int = 160) -> str:
+    raw = text.strip()
+    if len(raw) <= limit:
+        return raw
+    return f"{raw[:limit - 3]}..."
+
+
+def _log_memory_recall_debug(
+    *,
+    session_id: str,
+    vector_top_k: int,
+    vector_recall_status: str,
+    vector_recall_count: int,
+    vector_fallback_reason: str,
+    query_text: str,
+    recalled_items: list[str],
+) -> None:
+    safe_query = _clip_for_log(query_text, 120) if query_text else ""
+    safe_recalled = [_clip_for_log(item, 120) for item in recalled_items[:5]]
+    print(
+        "[miso:memory] recall "
+        f"session_id={session_id!r} "
+        f"top_k={vector_top_k} "
+        f"status={vector_recall_status!r} "
+        f"count={vector_recall_count} "
+        f"query={safe_query!r} "
+        f"results={safe_recalled!r} "
+        f"fallback_reason={vector_fallback_reason!r}",
+        flush=True,
+    )
+
+
+def _extract_qdrant_hits(results: object) -> list[object]:
+    if isinstance(results, list):
+        return list(results)
+    if isinstance(results, dict):
+        points = results.get("points")
+        if isinstance(points, list):
+            return list(points)
+        result = results.get("result")
+        if isinstance(result, list):
+            return list(result)
+        if isinstance(result, dict):
+            nested_points = result.get("points")
+            if isinstance(nested_points, list):
+                return list(nested_points)
+    points_attr = getattr(results, "points", None)
+    if isinstance(points_attr, list):
+        return list(points_attr)
+    result_attr = getattr(results, "result", None)
+    if isinstance(result_attr, list):
+        return list(result_attr)
+    if isinstance(result_attr, dict):
+        nested_points = result_attr.get("points")
+        if isinstance(nested_points, list):
+            return list(nested_points)
+    return []
+
+
+def _extract_qdrant_payload(hit: object) -> dict[str, Any]:
+    if isinstance(hit, dict):
+        payload = hit.get("payload")
+        return payload if isinstance(payload, dict) else {}
+    payload = getattr(hit, "payload", None)
+    return payload if isinstance(payload, dict) else {}
+
+
+def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
+    similarity_search = getattr(vector_adapter, "similarity_search", None)
+    if not callable(similarity_search):
+        return vector_adapter
+    if getattr(vector_adapter, "_pupu_qdrant_search_compat_patch", False):
+        return vector_adapter
+
+    client = getattr(vector_adapter, "_client", None)
+    if client is None:
+        return vector_adapter
+
+    has_search = callable(getattr(client, "search", None))
+    has_query_points = callable(getattr(client, "query_points", None))
+    has_query = callable(getattr(client, "query", None))
+    if has_search or (not has_query_points and not has_query):
+        return vector_adapter
+
+    def _patched_similarity_search(
+        self,
+        *,
+        session_id: str,
+        query: str,
+        k: int,
+    ) -> list[str]:
+        collection = self._collection_name(session_id)
+        self._ensure_collection(collection)
+        query_vec = self._embed_fn([query])[0]
+
+        query_points_fn = getattr(self._client, "query_points", None)
+        query_fn = getattr(self._client, "query", None)
+        search_results: object
+
+        if callable(query_points_fn):
+            try:
+                search_results = query_points_fn(
+                    collection_name=collection,
+                    query=query_vec,
+                    limit=k,
+                    with_payload=True,
+                )
+            except TypeError:
+                search_results = query_points_fn(
+                    collection_name=collection,
+                    query_vector=query_vec,
+                    limit=k,
+                    with_payload=True,
+                )
+        elif callable(query_fn):
+            try:
+                search_results = query_fn(
+                    collection_name=collection,
+                    query=query_vec,
+                    limit=k,
+                    with_payload=True,
+                )
+            except TypeError:
+                search_results = query_fn(
+                    collection_name=collection,
+                    query_vector=query_vec,
+                    limit=k,
+                    with_payload=True,
+                )
+        else:  # pragma: no cover - guarded above
+            raise AttributeError(
+                "Qdrant client has neither search nor query_points/query methods"
+            )
+
+        hits = _extract_qdrant_hits(search_results)
+        recalled: list[str] = []
+        for hit in hits:
+            payload = _extract_qdrant_payload(hit)
+            text = payload.get("text")
+            if isinstance(text, str) and text.strip():
+                recalled.append(text)
+        return recalled
+
+    setattr(
+        vector_adapter,
+        "similarity_search",
+        MethodType(_patched_similarity_search, vector_adapter),
+    )
+    setattr(vector_adapter, "_pupu_qdrant_search_compat_patch", True)
+    return vector_adapter
+
+
+def _patch_memory_commit_with_overlap(manager: Any) -> Any:
+    commit_method = getattr(manager, "commit_messages", None)
+    if not callable(commit_method):
+        return manager
+    if getattr(manager, "_pupu_commit_overlap_patch", False):
+        return manager
+
+    original_commit = commit_method
+
+    def _patched_commit_messages(
+        self,
+        session_id: str,
+        full_conversation: list[dict[str, Any]],
+    ) -> None:
+        existing_state = self.store.load(session_id) if session_id else {}
+        existing_messages = (
+            existing_state.get("messages", [])
+            if isinstance(existing_state, dict)
+            else []
+        )
+        merged_conversation = _merge_messages_with_overlap(
+            existing_messages,
+            full_conversation,
+        )
+        return original_commit(
+            session_id=session_id,
+            full_conversation=merged_conversation,
+        )
+
+    setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))
+    setattr(manager, "_pupu_commit_overlap_patch", True)
+    return manager
+
+
+def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
+    prepare_method = getattr(manager, "prepare_messages", None)
+    if not callable(prepare_method):
+        return manager
+    if getattr(manager, "_pupu_prepare_diagnostics_patch", False):
+        return manager
+
+    original_prepare = prepare_method
+
+    def _patched_prepare_messages(
+        self,
+        session_id: str,
+        incoming: list[dict[str, Any]],
+        *,
+        max_context_window_tokens: int,
+        model: str,
+        summary_generator: Callable[..., str] | None = None,
+    ) -> list[dict[str, Any]]:
+        prepared = original_prepare(
+            session_id=session_id,
+            incoming=incoming,
+            max_context_window_tokens=max_context_window_tokens,
+            model=model,
+            summary_generator=summary_generator,
+        )
+
+        try:
+            raw_info = getattr(self, "_last_prepare_info", {})
+            info = dict(raw_info) if isinstance(raw_info, dict) else {}
+        except Exception:
+            info = {}
+
+        vector_top_k = 0
+        vector_adapter_enabled = False
+        try:
+            vector_top_k = max(0, int(getattr(self.config, "vector_top_k", 0) or 0))
+            vector_adapter_enabled = getattr(self.config, "vector_adapter", None) is not None
+        except Exception:
+            pass
+
+        vector_recall_count_raw = info.get("vector_recall_count")
+        if isinstance(vector_recall_count_raw, int):
+            vector_recall_count = max(0, vector_recall_count_raw)
+        else:
+            vector_recall_count = 0
+
+        if vector_recall_count > 0:
+            vector_recall_status = "recalled"
+        elif not vector_adapter_enabled:
+            vector_recall_status = "adapter_disabled"
+        elif vector_top_k <= 0:
+            vector_recall_status = "top_k_disabled"
+        elif isinstance(info.get("vector_fallback_reason"), str) and info.get("vector_fallback_reason"):
+            vector_recall_status = "search_failed"
+        else:
+            vector_recall_status = "no_match"
+
+        vector_fallback_reason = (
+            str(info.get("vector_fallback_reason") or "").strip()
+            if isinstance(info.get("vector_fallback_reason"), str)
+            else ""
+        )
+        query_text = _latest_user_query_for_log(incoming)
+        recalled_items = _extract_recall_items(prepared)
+        if recalled_items and vector_recall_count <= 0:
+            vector_recall_count = len(recalled_items)
+
+        info["vector_top_k"] = vector_top_k
+        info["vector_adapter_enabled"] = vector_adapter_enabled
+        info["vector_recall_count"] = vector_recall_count
+        info["vector_recall_status"] = vector_recall_status
+        if recalled_items:
+            info["vector_recall_preview"] = recalled_items[:5]
+
+        try:
+            setattr(self, "_last_prepare_info", info)
+        except Exception:
+            pass
+
+        _log_memory_recall_debug(
+            session_id=session_id,
+            vector_top_k=vector_top_k,
+            vector_recall_status=vector_recall_status,
+            vector_recall_count=vector_recall_count,
+            vector_fallback_reason=vector_fallback_reason,
+            query_text=query_text,
+            recalled_items=recalled_items,
+        )
+
+        return prepared
+
+    setattr(manager, "prepare_messages", MethodType(_patched_prepare_messages, manager))
+    setattr(manager, "_pupu_prepare_diagnostics_patch", True)
+    return manager
+
+
 # ---------------------------------------------------------------------------
 # Public: MemoryManager factory
 # ---------------------------------------------------------------------------
 
-def create_memory_manager(options: dict[str, Any]):
+def create_memory_manager_with_diagnostics(options: dict[str, Any]):
     """Build a MemoryManager for this request, or return None.
 
-    Returns None when:
+    Returns:
+        (manager, reason)
+
+    where manager is None when:
     - qdrant-client is not installed
     - MISO_DATA_DIR env var is not set
     - memory_enabled is falsy in options
@@ -225,18 +646,18 @@ def create_memory_manager(options: dict[str, Any]):
     - any import / construction error occurs
     """
     if not _QDRANT_AVAILABLE:
-        return None
+        return None, "qdrant_client_unavailable"
 
-    data_dir = _data_dir()
+    data_dir = _normalize_data_dir(_data_dir())
     if not data_dir:
-        return None
+        return None, "missing_miso_data_dir"
 
     if not options.get("memory_enabled"):
-        return None
+        return None, "memory_disabled"
 
     embed_config = resolve_embedding_config(options)
     if embed_config is None:
-        return None
+        return None, "embedding_provider_unavailable"
 
     try:
         from miso.memory import MemoryConfig, MemoryManager
@@ -250,12 +671,13 @@ def create_memory_manager(options: dict[str, Any]):
             embed_fn=embed_fn,
             vector_size=embed_config["vector_size"],
         )
+        vector_adapter = _patch_qdrant_similarity_search_compat(vector_adapter)
         store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
 
         last_n = max(1, int(options.get("memory_last_n_turns") or 8))
         top_k = max(0, int(options.get("memory_vector_top_k") or 4))
 
-        return MemoryManager(
+        manager = MemoryManager(
             config=MemoryConfig(
                 last_n_turns=last_n,
                 vector_top_k=top_k,
@@ -263,5 +685,13 @@ def create_memory_manager(options: dict[str, Any]):
             ),
             store=store,
         )
-    except Exception:
-        return None
+        manager = _patch_memory_prepare_with_diagnostics(manager)
+        manager = _patch_memory_commit_with_overlap(manager)
+        return manager, ""
+    except Exception as exc:
+        return None, f"memory_manager_init_failed: {exc}"
+
+
+def create_memory_manager(options: dict[str, Any]):
+    manager, _reason = create_memory_manager_with_diagnostics(options)
+    return manager
