@@ -35,8 +35,7 @@ const DEFAULT_DISCLAIMER =
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const STREAM_TRACE_LEVEL = "minimal";
-const MISO_TRACE_TITLE_PREFIX = "[miso] | ";
-const MISO_TRACE_TITLE_BODY_LENGTH = 33;
+const MISO_TRACE_TITLE_PREFIX = "[miso] | [stream] | ";
 const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -51,11 +50,7 @@ const formatMisoTraceTitle = (eventType) => {
   if (!label) {
     return `[miso] ${eventType}`;
   }
-  const underscoreCount = Math.max(
-    1,
-    MISO_TRACE_TITLE_BODY_LENGTH - label.length,
-  );
-  return `${MISO_TRACE_TITLE_PREFIX}${label}${"_".repeat(underscoreCount)}`;
+  return `${MISO_TRACE_TITLE_PREFIX}${label}`;
 };
 
 const getFileExtension = (name) => {
@@ -1566,19 +1561,20 @@ const ChatInterface = () => {
 
                   const currentContent =
                     typeof message.content === "string"
-                      ? message.content.trim()
+                      ? message.content
                       : "";
+                  const currentContentTrimmed = currentContent.trim();
                   const existingFrames = message.traceFrames || [];
 
                   // Check whether the current content was already captured
                   // by a real final_message frame.
                   const alreadyCaptured =
-                    !currentContent ||
+                    !currentContentTrimmed ||
                     existingFrames.some(
                       (f) =>
                         f.type === "final_message" &&
                         typeof f.payload?.content === "string" &&
-                        f.payload.content.trim() === currentContent,
+                        f.payload.content.trim() === currentContentTrimmed,
                     );
 
                   const syntheticFrame = alreadyCaptured

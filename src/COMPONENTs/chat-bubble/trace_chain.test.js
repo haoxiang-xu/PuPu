@@ -8,6 +8,7 @@ jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 const renderTraceChain = ({
   frames,
   status = "done",
+  streamingContent = "",
   onToolConfirmationDecision = null,
   toolConfirmationUiStateById = {},
 }) =>
@@ -21,6 +22,7 @@ const renderTraceChain = ({
       <TraceChain
         frames={frames}
         status={status}
+        streamingContent={streamingContent}
         onToolConfirmationDecision={onToolConfirmationDecision}
         toolConfirmationUiStateById={toolConfirmationUiStateById}
       />
@@ -185,6 +187,17 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByText("older draft")).toBeInTheDocument();
     expect(screen.getByText("latest in-progress answer")).toBeInTheDocument();
     expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
+  });
+
+  test("preserves leading whitespace in streaming content markdown", () => {
+    const { container } = renderTraceChain({
+      frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
+      status: "streaming",
+      streamingContent: "    const x = 1;\n",
+    });
+
+    expect(container.querySelector("code.hljs")).toBeInTheDocument();
+    expect(container).toHaveTextContent("const x = 1;");
   });
 
   test("renders tool confirmation actions and forwards allow decision", () => {

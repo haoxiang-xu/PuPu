@@ -597,10 +597,8 @@ const TraceChain = ({
         });
       } else if (frame.type === "final_message") {
         const content =
-          typeof frame.payload?.content === "string"
-            ? frame.payload.content.trim()
-            : "";
-        if (!content) continue;
+          typeof frame.payload?.content === "string" ? frame.payload.content : "";
+        if (!content.trim()) continue;
         items.push({
           key: `${frame.seq}-final-message`,
           title: "Response",
@@ -623,8 +621,8 @@ const TraceChain = ({
 
     if (isStreaming) {
       const liveContent =
-        typeof streamingContent === "string" ? streamingContent.trim() : "";
-      if (liveContent) {
+        typeof streamingContent === "string" ? streamingContent : "";
+      if (liveContent.trim()) {
         items.push({
           key: "__streaming_content__",
           title: "Response",
