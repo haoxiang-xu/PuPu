@@ -23,6 +23,8 @@ api_blueprint = Blueprint("miso_api", __name__)
 _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
+_MEMORY_PROJECTION_MAX_POINTS = 10000
+_MEMORY_PROJECTION_PAGE_SIZE = 512
 
 
 def _sse_event(event_name: str, payload: Dict) -> str:
@@ -273,6 +275,97 @@ def _sanitize_attachments(payload_attachments: object) -> List[Dict[str, object]
     return attachments
 
 
+def _coerce_memory_text(value: object, *, _depth: int = 0) -> str:
+    if _depth >= 8:
+        return ""
+
+    if isinstance(value, str):
+        return value.strip()
+
+    if value is None:
+        return ""
+
+    if isinstance(value, list):
+        lines: List[str] = []
+        for item in value:
+            rendered = _coerce_memory_text(item, _depth=_depth + 1)
+            if rendered:
+                lines.append(rendered)
+        return "\n".join(lines).strip()
+
+    if isinstance(value, dict):
+        role = str(value.get("role", "")).strip().lower()
+        if role:
+            content = _coerce_memory_text(value.get("content"), _depth=_depth + 1)
+            if content:
+                return f"{role}: {content}"
+
+        text_value = value.get("text")
+        if isinstance(text_value, str) and text_value.strip():
+            return text_value.strip()
+
+        for key in ("content", "conversation", "messages", "summary", "thinking"):
+            nested = _coerce_memory_text(value.get(key), _depth=_depth + 1)
+            if nested:
+                return nested
+
+        try:
+            dumped = json.dumps(value, ensure_ascii=False, default=str)
+        except Exception:
+            dumped = str(value)
+        return dumped.strip()
+
+    return str(value).strip()
+
+
+def _extract_projection_text(payload: Dict[str, object]) -> str:
+    for key in ("text", "conversation", "messages", "content", "summary"):
+        rendered = _coerce_memory_text(payload.get(key))
+        if rendered:
+            if len(rendered) > 12000:
+                return f"{rendered[:12000]}…"
+            return rendered
+    return ""
+
+
+def _scroll_projection_points(client: Any, collection_name: str) -> List[Any]:
+    all_points: List[Any] = []
+    next_offset: Any = None
+
+    while len(all_points) < _MEMORY_PROJECTION_MAX_POINTS:
+        remaining = _MEMORY_PROJECTION_MAX_POINTS - len(all_points)
+        limit = min(_MEMORY_PROJECTION_PAGE_SIZE, remaining)
+        request_kwargs: Dict[str, Any] = {
+            "collection_name": collection_name,
+            "with_payload": True,
+            "with_vectors": True,
+            "limit": limit,
+        }
+        if next_offset is not None:
+            request_kwargs["offset"] = next_offset
+
+        try:
+            page_points, new_offset = client.scroll(**request_kwargs)
+        except TypeError:
+            # Fallback for older clients; degrade to a single-page fetch.
+            if "offset" in request_kwargs:
+                break
+            request_kwargs.pop("offset", None)
+            page_points, new_offset = client.scroll(**request_kwargs)
+            all_points.extend(page_points or [])
+            break
+
+        if not page_points:
+            break
+
+        all_points.extend(page_points)
+        if new_offset is None:
+            break
+        next_offset = new_offset
+
+    return all_points
+
+
 @api_blueprint.get("/health")
 def health() -> Response:
     return jsonify(
@@ -498,6 +591,151 @@ def chat_stream() -> Response:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@api_blueprint.get("/memory/projection")
+def memory_projection() -> Response:
+    session_id = request.args.get("session_id", "").strip()
+    if not session_id:
+        return jsonify({"error": "session_id is required"}), 400
+
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        from memory_factory import (
+            _data_dir,
+            _normalize_data_dir,
+            _get_or_create_qdrant_client,
+            _vector_collection_prefix,
+            _session_collection_name,
+        )
+        import json as _json
+        import numpy as np
+        from pathlib import Path
+
+        data_dir = _normalize_data_dir(_data_dir())
+        if not data_dir:
+            return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
+
+        # Resolve the actual Qdrant collection name.
+        #
+        # New sessions store a random hex `vector_collection_tag` in the session
+        # JSON → collection = chat_{tag}_{safe_session_id}
+        #
+        # Legacy sessions (tag absent) fall through to `_vector_collection_prefix("")`
+        # which returns "chat", giving collection = chat_{safe_session_id}
+        # — matching the legacy naming that was used before the tag system.
+        session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
+        try:
+            with open(session_file, "r") as _f:
+                _state = _json.load(_f)
+        except Exception:
+            _state = {}
+
+        tag = str(_state.get("vector_collection_tag") or "").strip()
+        collection = _session_collection_name(
+            session_id=session_id,
+            collection_prefix=_vector_collection_prefix(tag),
+        )
+        client = _get_or_create_qdrant_client(data_dir)
+
+        scroll_result = _scroll_projection_points(client, collection)
+
+        if not scroll_result:
+            return jsonify({"points": [], "variance": [0.0, 0.0]})
+
+        vector_rows: List[List[float]] = []
+        vector_points: List[Any] = []
+        expected_dims = 0
+
+        for point in scroll_result:
+            raw_vector = getattr(point, "vector", None)
+            vector_candidate: Any = raw_vector
+            if isinstance(raw_vector, dict):
+                vector_candidate = next(
+                    (
+                        value
+                        for value in raw_vector.values()
+                        if isinstance(value, (list, tuple)) and value
+                    ),
+                    None,
+                )
+
+            if not isinstance(vector_candidate, (list, tuple)) or not vector_candidate:
+                continue
+
+            try:
+                vector = [float(item) for item in vector_candidate]
+            except Exception:
+                continue
+
+            if expected_dims <= 0:
+                expected_dims = len(vector)
+
+            if len(vector) != expected_dims:
+                continue
+
+            vector_rows.append(vector)
+            vector_points.append(point)
+
+        if not vector_rows:
+            return jsonify({"points": [], "variance": [0.0, 0.0]})
+
+        vectors = np.array(vector_rows, dtype=np.float64)
+
+        # PCA via numpy thin SVD — center, project onto top-2 right singular vectors
+        X = vectors - vectors.mean(axis=0)
+        _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        coords = X @ Vt[:2].T  # (n, 2)
+        total_var = float((s ** 2).sum())
+        variance = (
+            [float(s[0] ** 2 / total_var), float(s[1] ** 2 / total_var)]
+            if total_var > 0
+            else [0.0, 0.0]
+        )
+
+        points = []
+        for i, p in enumerate(vector_points):
+            payload = p.payload or {}
+            full_text = _extract_projection_text(payload)
+            turn_start = payload.get("turn_start_index")
+            turn_end   = payload.get("turn_end_index")
+
+            # label: first non-empty user line, capped at 52 chars  (used by scatter tooltip title)
+            label = ""
+            for line in full_text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    # strip "user:" / "assistant:" role prefix for the label
+                    for prefix in ("user:", "assistant:", "user :", "assistant :"):
+                        if stripped.lower().startswith(prefix):
+                            stripped = stripped[len(prefix):].strip()
+                            break
+                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    break
+
+            # content: full text for the tooltip body, capped at 300 chars
+            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+
+            points.append({
+                "id":               str(p.id),
+                "x":                float(coords[i, 0]),
+                "y":                float(coords[i, 1]),
+                "text":             full_text,
+                "label":            label,
+                "content":          content,
+                "turn_start_index": turn_start,
+                "turn_end_index":   turn_end,
+            })
+
+        return jsonify({"points": points, "variance": variance})
+
+    except Exception as exc:
+        error_str = str(exc)
+        if "Collection" in error_str and "not found" in error_str:
+            return jsonify({"points": [], "variance": [0.0, 0.0]})
+        return jsonify({"error": error_str}), 500
 
 
 @api_blueprint.post("/chat/stream/v2")

@@ -22,6 +22,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.DELETE_RUNTIME_ENTRY,
   CHANNELS.MISO.CLEAR_RUNTIME_DIR,
   CHANNELS.MISO.GET_MEMORY_SIZE,
+  CHANNELS.MISO.GET_MEMORY_PROJECTION,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -118,6 +119,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     const result = runtimeService.getRuntimeDirSize({ dirPath: memoryDir });
     return { total: result.total || 0, error: result.error || "" };
   });
+
+  ipcMain.handle(CHANNELS.MISO.GET_MEMORY_PROJECTION, async (_event, payload = {}) =>
+    misoService.getMisoMemoryProjection(payload.sessionId),
+  );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {
     misoService.handleStreamStart(event, payload);

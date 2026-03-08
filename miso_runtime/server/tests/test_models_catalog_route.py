@@ -1,6 +1,7 @@
 import sys
 import unittest
 import json
+import types
 from pathlib import Path
 from unittest import mock
 
@@ -406,6 +407,61 @@ class ModelsCatalogRouteTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn('"code": "memory_unavailable"', payload_text)
+
+    def test_memory_projection_paginates_scroll_results(self) -> None:
+        point_one = types.SimpleNamespace(
+            id="p1",
+            vector=[1.0, 0.0, 0.0],
+            payload={
+                "text": [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "hi"},
+                ],
+                "turn_start_index": 0,
+                "turn_end_index": 1,
+            },
+        )
+        point_two = types.SimpleNamespace(
+            id="p2",
+            vector=[0.0, 1.0, 0.0],
+            payload={
+                "conversation": [
+                    {"role": "user", "content": [{"type": "text", "text": "next"}]},
+                ],
+                "turn_start_index": 2,
+                "turn_end_index": 3,
+            },
+        )
+
+        class FakeClient:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def scroll(self, **kwargs):
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    return [point_one], "offset-1"
+                if len(self.calls) == 2:
+                    return [point_two], None
+                return [], None
+
+        fake_client = FakeClient()
+        fake_memory_factory = types.SimpleNamespace(
+            _data_dir=lambda: "/tmp/memory",
+            _normalize_data_dir=lambda value: value,
+            _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.get("/memory/projection?session_id=chat-1")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["points"]), 2)
+        self.assertEqual(fake_client.calls[1].get("offset"), "offset-1")
+        point_texts = [point["text"] for point in payload["points"]]
+        self.assertTrue(any("user: hello" in text for text in point_texts))
+        self.assertTrue(any("user: next" in text for text in point_texts))
 
     def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
         response = self.client.post(

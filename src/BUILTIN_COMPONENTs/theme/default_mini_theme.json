@@ -293,6 +293,27 @@
       "seeDetailsColor": "rgba(0,0,0,0.35)",
       "fontSize": "13px",
       "titleFontSize": "14px"
+    },
+    "scatter": {
+      "canvasBackground": "#f5f5f5",
+      "gridColor": "rgba(0,0,0,0.045)",
+      "pointOpacity": 0.88,
+      "pointHoverScale": 1.9,
+      "clusterColors": [
+        "#2563eb",
+        "#22c55e",
+        "#f59e0b",
+        "#ec4899",
+        "#8b5cf6",
+        "#06b6d4",
+        "#f97316"
+      ],
+      "tooltipBackground": "rgba(255,255,255,0.97)",
+      "tooltipBorder": "1px solid rgba(0,0,0,0.07)",
+      "tooltipShadow": "0 8px 32px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06)",
+      "tooltipColor": "#222222",
+      "tooltipMetaColor": "rgba(0,0,0,0.42)",
+      "labelColor": "rgba(0,0,0,0.5)"
     }
   },
   "dark_mode": {
@@ -589,6 +610,27 @@
       "seeDetailsColor": "rgba(255,255,255,0.35)",
       "fontSize": "13px",
       "titleFontSize": "14px"
+    },
+    "scatter": {
+      "canvasBackground": "#1a1a1a",
+      "gridColor": "rgba(255,255,255,0.04)",
+      "pointOpacity": 0.88,
+      "pointHoverScale": 1.9,
+      "clusterColors": [
+        "#60a5fa",
+        "#4ade80",
+        "#fbbf24",
+        "#f472b6",
+        "#a78bfa",
+        "#22d3ee",
+        "#fb923c"
+      ],
+      "tooltipBackground": "rgba(28,28,28,0.97)",
+      "tooltipBorder": "1px solid rgba(255,255,255,0.08)",
+      "tooltipShadow": "0 8px 32px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)",
+      "tooltipColor": "#CCCCCC",
+      "tooltipMetaColor": "rgba(255,255,255,0.38)",
+      "labelColor": "rgba(255,255,255,0.45)"
     }
   }
 }

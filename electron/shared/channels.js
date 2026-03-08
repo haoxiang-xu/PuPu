@@ -28,6 +28,7 @@ const CHANNELS = Object.freeze({
     DELETE_RUNTIME_ENTRY: "miso:delete-runtime-entry",
     CLEAR_RUNTIME_DIR: "miso:clear-runtime-dir",
     GET_MEMORY_SIZE: "miso:get-memory-size",
+    GET_MEMORY_PROJECTION: "miso:get-memory-projection",
     STREAM_START: "miso:stream:start",
     STREAM_START_V2: "miso:stream:start-v2",
     STREAM_CANCEL: "miso:stream:cancel",

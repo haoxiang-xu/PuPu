@@ -235,13 +235,53 @@ const readMemorySettingsFromStorage = () => {
   }
 };
 
+const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
+  const currentOptions = isObject(options) ? options : {};
+  if (currentOptions.memory_enabled !== true) {
+    return currentOptions;
+  }
+
+  const embeddingProvider =
+    typeof currentOptions.memory_embedding_provider === "string"
+      ? currentOptions.memory_embedding_provider.trim().toLowerCase()
+      : "auto";
+  if (embeddingProvider !== "auto" && embeddingProvider !== "openai") {
+    return currentOptions;
+  }
+
+  const hasOpenAIEmbeddingKey = [
+    currentOptions.openaiApiKey,
+    currentOptions.openai_api_key,
+  ].some((value) => typeof value === "string" && value.trim().length > 0);
+  if (hasOpenAIEmbeddingKey) {
+    return currentOptions;
+  }
+
+  const openaiApiKey = getStoredProviderApiKey("openai");
+  if (!openaiApiKey) {
+    return currentOptions;
+  }
+
+  return {
+    ...currentOptions,
+    openaiApiKey,
+    openai_api_key: openaiApiKey,
+  };
+};
+
 const injectMemoryIntoPayload = (payload) => {
   if (!isObject(payload)) {
     return payload;
   }
   const currentOptions = isObject(payload.options) ? payload.options : {};
   if (typeof currentOptions.memory_enabled === "boolean") {
-    return payload;
+    if (currentOptions.memory_enabled !== true) {
+      return payload;
+    }
+    return {
+      ...payload,
+      options: injectOpenAIEmbeddingKeyIfNeeded(currentOptions),
+    };
   }
 
   const memory = readMemorySettingsFromStorage();
@@ -249,19 +289,21 @@ const injectMemoryIntoPayload = (payload) => {
     return payload;
   }
 
+  const optionsWithMemory = {
+    ...currentOptions,
+    memory_enabled: true,
+    memory_embedding_provider: memory.embedding_provider || "auto",
+    memory_embedding_model:
+      memory.embedding_provider === "ollama"
+        ? memory.ollama_embedding_model || "nomic-embed-text"
+        : memory.openai_embedding_model || "text-embedding-3-small",
+    memory_last_n_turns: memory.last_n_turns ?? 8,
+    memory_vector_top_k: memory.vector_top_k ?? 4,
+  };
+
   return {
     ...payload,
-    options: {
-      ...currentOptions,
-      memory_enabled: true,
-      memory_embedding_provider: memory.embedding_provider || "auto",
-      memory_embedding_model:
-        memory.embedding_provider === "ollama"
-          ? memory.ollama_embedding_model || "nomic-embed-text"
-          : memory.openai_embedding_model || "text-embedding-3-small",
-      memory_last_n_turns: memory.last_n_turns ?? 8,
-      memory_vector_top_k: memory.vector_top_k ?? 4,
-    },
+    options: injectOpenAIEmbeddingKeyIfNeeded(optionsWithMemory),
   };
 };
 
@@ -496,6 +538,16 @@ export const createMisoApi = () => {
           "Failed to start Miso stream",
         );
       }
+    },
+
+    getMemoryProjection: async (sessionId) => {
+      const method = assertBridgeMethod("misoAPI", "getMemoryProjection");
+      return withTimeout(
+        () => method(sessionId),
+        10000,
+        "memory_projection_timeout",
+        "Memory projection request timed out",
+      );
     },
 
     cancelStream: (requestId) => {

@@ -12,6 +12,7 @@ const MISO_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const MISO_HEALTH_ENDPOINT = "/health";
 const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
+const MISO_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
 
 const createMisoService = ({
   app,
@@ -446,6 +447,30 @@ const createMisoService = ({
       "Miso toolkit catalog request failed",
       {},
       "Invalid Miso toolkit catalog response",
+    );
+  };
+
+  const getMisoMemoryProjection = async (sessionId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof sessionId === "string" ? sessionId.trim() : "";
+    if (!cleanId) {
+      throw new Error("sessionId is required");
+    }
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_MEMORY_PROJECTION_ENDPOINT}?session_id=${encodeURIComponent(cleanId)}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso memory projection request failed",
+      {},
+      "Invalid Miso memory projection response",
     );
   };
 
@@ -1056,6 +1081,7 @@ const createMisoService = ({
     getMisoStatusPayload,
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,
+    getMisoMemoryProjection,
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,
