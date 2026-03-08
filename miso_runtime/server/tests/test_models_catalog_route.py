@@ -34,6 +34,13 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             ),
             mock.patch.object(
                 miso_routes,
+                "get_embedding_provider_catalog",
+                return_value={
+                    "openai": ["text-embedding-3-small"],
+                },
+            ),
+            mock.patch.object(
+                miso_routes,
                 "get_model_capability_catalog",
                 return_value={
                     "openai:gpt-5": {
@@ -57,6 +64,11 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         )
         self.assertIn("model_capabilities", payload)
         self.assertIn("openai:gpt-5", payload["model_capabilities"])
+        self.assertEqual(payload["providers"]["openai"], ["gpt-5"])
+        self.assertEqual(
+            payload["embedding_providers"]["openai"],
+            ["text-embedding-3-small"],
+        )
 
     def test_models_catalog_falls_back_to_text_only_for_unknown_active_model(self) -> None:
         with (
@@ -72,6 +84,13 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                     "openai": ["gpt-5"],
                     "anthropic": [],
                     "ollama": [],
+                },
+            ),
+            mock.patch.object(
+                miso_routes,
+                "get_embedding_provider_catalog",
+                return_value={
+                    "openai": ["text-embedding-3-large", "text-embedding-3-small"],
                 },
             ),
             mock.patch.object(
@@ -96,6 +115,10 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                 "input_modalities": ["text"],
                 "input_source_types": {},
             },
+        )
+        self.assertEqual(
+            payload["embedding_providers"]["openai"],
+            ["text-embedding-3-large", "text-embedding-3-small"],
         )
 
     def test_chat_stream_allows_attachments_without_message(self) -> None:

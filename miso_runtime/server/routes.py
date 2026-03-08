@@ -8,6 +8,7 @@ from flask import Blueprint, Response, current_app, jsonify, request, stream_wit
 from miso_adapter import (
     cancel_tool_confirmations,
     get_capability_catalog,
+    get_embedding_provider_catalog,
     get_default_model_capabilities,
     get_model_capability_catalog,
     get_model_name,
@@ -298,6 +299,7 @@ def models_catalog() -> Response:
 
     runtime = get_runtime_config()
     provider_catalog = get_capability_catalog()
+    embedding_provider_catalog = get_embedding_provider_catalog()
     model_capabilities = get_model_capability_catalog()
     active_provider = str(runtime.get("provider", "ollama")).strip().lower() or "ollama"
     active_model = str(runtime.get("model", "")).strip()
@@ -316,6 +318,9 @@ def models_catalog() -> Response:
                 "openai": provider_catalog.get("openai", []),
                 "anthropic": provider_catalog.get("anthropic", []),
                 "ollama": provider_catalog.get("ollama", []),
+            },
+            "embedding_providers": {
+                "openai": embedding_provider_catalog.get("openai", []),
             },
             "model_capabilities": model_capabilities,
         }

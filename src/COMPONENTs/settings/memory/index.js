@@ -1,4 +1,4 @@
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import SemiSwitch from "../../../BUILTIN_COMPONENTs/input/switch";
 import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
@@ -8,35 +8,23 @@ import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { readMemorySettings, writeMemorySettings } from "./storage";
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
+import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 
 const PROVIDER_OPTIONS = [
   { value: "auto", label: "Auto" },
   { value: "openai", label: "OpenAI" },
   { value: "ollama", label: "Ollama" },
 ];
-
-const ModelInput = ({ value, onChange, placeholder, isDark }) => (
-  <input
-    value={value}
-    onChange={(e) => onChange(e.target.value)}
-    placeholder={placeholder}
-    style={{
-      width: 220,
-      fontSize: 12,
-      padding: "5px 10px",
-      borderRadius: 6,
-      border: `1px solid ${isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)"}`,
-      backgroundColor: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.03)",
-      color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
-      outline: "none",
-      fontFamily: "'SF Mono', 'Fira Code', monospace",
-    }}
-  />
-);
+const OPENAI_EMBEDDING_FALLBACK_MODEL = "text-embedding-3-small";
 
 export const MemorySettings = ({ onNavigate }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const {
+    models: openaiEmbeddingModels,
+    loading: openaiEmbeddingLoading,
+    error: openaiEmbeddingError,
+  } = useOpenAIEmbeddingModels();
   const {
     models: embeddingModels,
     loading: embeddingLoading,
@@ -54,6 +42,47 @@ export const MemorySettings = ({ onNavigate }) => {
   }, []);
 
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const normalizedCurrentOpenAIModel =
+    typeof settings.openai_embedding_model === "string"
+      ? settings.openai_embedding_model.trim()
+      : "";
+  const openaiFallbackModel = openaiEmbeddingModels.includes(
+    OPENAI_EMBEDDING_FALLBACK_MODEL,
+  )
+    ? OPENAI_EMBEDDING_FALLBACK_MODEL
+    : openaiEmbeddingModels[0] || "";
+  const selectedOpenAIModel = openaiEmbeddingModels.includes(
+    normalizedCurrentOpenAIModel,
+  )
+    ? normalizedCurrentOpenAIModel
+    : openaiFallbackModel;
+
+  useEffect(() => {
+    if (
+      openaiEmbeddingLoading ||
+      openaiEmbeddingError ||
+      openaiEmbeddingModels.length === 0
+    ) {
+      return;
+    }
+
+    if (normalizedCurrentOpenAIModel && selectedOpenAIModel === normalizedCurrentOpenAIModel) {
+      return;
+    }
+
+    if (!selectedOpenAIModel) {
+      return;
+    }
+
+    update({ openai_embedding_model: selectedOpenAIModel });
+  }, [
+    openaiEmbeddingLoading,
+    openaiEmbeddingError,
+    openaiEmbeddingModels,
+    normalizedCurrentOpenAIModel,
+    selectedOpenAIModel,
+    update,
+  ]);
 
   return (
     <div>
@@ -98,14 +127,42 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         {settings.embedding_provider === "openai" && (
-          <SettingsRow label="Model">
-            <ModelInput
-              value={settings.openai_embedding_model}
-              onChange={(val) => update({ openai_embedding_model: val })}
-              placeholder="text-embedding-3-small"
-              isDark={isDark}
-            />
-          </SettingsRow>
+          openaiEmbeddingLoading ? (
+            <SettingsRow label="Model">
+              <span style={{ fontSize: 12, color: mutedColor }}>
+                Loading models…
+              </span>
+            </SettingsRow>
+          ) : openaiEmbeddingError || openaiEmbeddingModels.length === 0 ? (
+            <SettingsRow label="Model">
+              <span style={{ fontSize: 12, color: mutedColor }}>
+                {openaiEmbeddingError
+                  ? "Could not load OpenAI embedding models."
+                  : "No embedding models available."}
+              </span>
+            </SettingsRow>
+          ) : (
+            <SettingsRow label="Model">
+              <Select
+                options={openaiEmbeddingModels.map((modelName) => ({
+                  value: modelName,
+                  label: modelName,
+                }))}
+                value={selectedOpenAIModel}
+                set_value={(val) => update({ openai_embedding_model: val })}
+                placeholder="Select embedding model"
+                filterable={true}
+                filter_mode="panel"
+                style={{
+                  fontSize: 14,
+                  height: 20,
+                  fontFamily: "Jost",
+                  borderRadius: 6,
+                  color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+                }}
+              />
+            </SettingsRow>
+          )
         )}
 
         {settings.embedding_provider === "ollama" &&

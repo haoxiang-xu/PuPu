@@ -25,6 +25,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
     def test_get_capability_catalog_keeps_provider_model_lists(self) -> None:
         payload = {
             "gpt-5": {"provider": "openai"},
+            "text-embedding-3-small": {"provider": "openai", "model_type": "embedding"},
             "claude-opus-4.6": {"provider": "anthropic"},
             "deepseek-r1:14b": {"provider": "ollama"},
             "ignored-model": {"provider": "unknown"},
@@ -36,12 +37,45 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             miso_adapter,
             "_capability_file_candidates",
             return_value=[capability_file],
+        ), mock.patch.object(
+            miso_adapter,
+            "_fetch_ollama_models",
+            return_value=[],
         ):
             providers = miso_adapter.get_capability_catalog()
 
         self.assertEqual(providers["openai"], ["gpt-5"])
         self.assertEqual(providers["anthropic"], ["claude-opus-4-6"])
         self.assertEqual(providers["ollama"], ["deepseek-r1:14b"])
+        self.assertNotIn("text-embedding-3-small", providers["openai"])
+
+    def test_get_embedding_provider_catalog_only_keeps_openai_embedding_models(self) -> None:
+        payload = {
+            "gpt-5": {"provider": "openai"},
+            "text-embedding-3-small": {"provider": "openai", "model_type": "embedding"},
+            "text-embedding-3-large": {"provider": "openai", "model_type": "embedding"},
+            "nomic-embed-text": {"provider": "ollama", "model_type": "embedding"},
+            "ignored-model": {"provider": "unknown", "model_type": "embedding"},
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        with mock.patch.object(
+            miso_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            providers = miso_adapter.get_embedding_provider_catalog()
+
+        self.assertEqual(
+            providers,
+            {
+                "openai": [
+                    "text-embedding-3-large",
+                    "text-embedding-3-small",
+                ]
+            },
+        )
 
     def test_get_model_capability_catalog_normalizes_modalities_and_sources(self) -> None:
         payload = {
@@ -55,6 +89,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     "text": ["url"],
                     "video": ["url"],
                 },
+            },
+            "text-embedding-3-small": {
+                "provider": "openai",
+                "model_type": "embedding",
+                "input_modalities": ["text"],
             },
             "deepseek-r1:14b": {
                 "provider": "ollama",
@@ -101,6 +140,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 "input_source_types": {"image": ["base64"]},
             },
         )
+        self.assertNotIn("openai:text-embedding-3-small", model_capabilities)
 
     def test_get_default_model_capabilities_is_text_only(self) -> None:
         self.assertEqual(

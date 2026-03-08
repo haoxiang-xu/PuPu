@@ -12,6 +12,9 @@ describe("normalizeModelCatalog", () => {
         anthropic: ["claude-sonnet-4-6"],
         ollama: ["deepseek-r1:14b"],
       },
+      embedding_providers: {
+        openai: ["text-embedding-3-small", " text-embedding-3-large ", "text-embedding-3-small"],
+      },
       model_capabilities: {
         "openai:gpt-5": {
           input_modalities: ["pdf", "FILE", "IMAGE", "text", "video"],
@@ -29,6 +32,9 @@ describe("normalizeModelCatalog", () => {
       openai: ["gpt-5", "gpt-5-codex"],
       anthropic: ["claude-sonnet-4-6"],
       ollama: ["deepseek-r1:14b"],
+    });
+    expect(normalized.embeddingProviders).toEqual({
+      openai: ["text-embedding-3-large", "text-embedding-3-small"],
     });
     expect(normalized.modelCapabilities["openai:gpt-5"]).toEqual({
       input_modalities: ["text", "image", "pdf"],
@@ -68,11 +74,26 @@ describe("normalizeModelCatalog", () => {
       input_modalities: ["text"],
       input_source_types: {},
     });
+    expect(normalized.embeddingProviders).toEqual({
+      openai: [],
+    });
     expect(normalized.modelCapabilities["openai:gpt-5"]).toEqual({
       input_modalities: ["text", "image"],
       input_source_types: {
         image: ["url"],
       },
+    });
+  });
+
+  test("normalizes embedding_providers from camelCase payload key", () => {
+    const normalized = normalizeModelCatalog({
+      embeddingProviders: {
+        openai: ["text-embedding-ada-002", " text-embedding-3-small ", ""],
+      },
+    });
+
+    expect(normalized.embeddingProviders).toEqual({
+      openai: ["text-embedding-3-small", "text-embedding-ada-002"],
     });
   });
 

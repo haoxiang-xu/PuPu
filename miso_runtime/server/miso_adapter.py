@@ -935,6 +935,11 @@ def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[s
     }
 
 
+def _is_embedding_model(raw_capabilities: Dict[str, object]) -> bool:
+    model_type = str(raw_capabilities.get("model_type", "")).strip().lower()
+    return model_type == "embedding"
+
+
 def get_default_model_capabilities() -> Dict[str, object]:
     return _default_model_capabilities()
 
@@ -975,6 +980,8 @@ def get_capability_catalog() -> Dict[str, List[str]]:
         provider = str(capabilities.get("provider", "")).strip().lower()
         if provider not in providers:
             continue
+        if _is_embedding_model(capabilities):
+            continue
 
         providers[provider].append(
             _normalize_provider_model_name(provider, model_name),
@@ -993,6 +1000,28 @@ def get_capability_catalog() -> Dict[str, List[str]]:
     return providers
 
 
+def get_embedding_provider_catalog() -> Dict[str, List[str]]:
+    providers: Dict[str, List[str]] = {
+        "openai": [],
+    }
+
+    raw_catalog = _load_raw_capability_catalog()
+    for model_name, capabilities in raw_catalog.items():
+        provider = str(capabilities.get("provider", "")).strip().lower()
+        if provider != "openai":
+            continue
+        if not _is_embedding_model(capabilities):
+            continue
+
+        normalized_model = _normalize_provider_model_name(provider, model_name)
+        if not normalized_model:
+            continue
+        providers["openai"].append(normalized_model)
+
+    providers["openai"] = sorted({name for name in providers["openai"] if name})
+    return providers
+
+
 def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
     catalog: Dict[str, Dict[str, object]] = {}
 
@@ -1000,6 +1029,8 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
     for model_name, capabilities in raw_catalog.items():
         provider = str(capabilities.get("provider", "")).strip().lower()
         if provider not in _SUPPORTED_PROVIDERS:
+            continue
+        if _is_embedding_model(capabilities):
             continue
 
         normalized_model = _normalize_provider_model_name(provider, model_name)
@@ -1714,7 +1745,10 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         try:
             from memory_factory import create_memory_manager_with_diagnostics
 
-            mm, memory_reason = create_memory_manager_with_diagnostics(options)
+            mm, memory_reason = create_memory_manager_with_diagnostics(
+                options,
+                session_id=session_id,
+            )
             if mm is not None:
                 agent.memory_manager = mm
                 memory_runtime["available"] = True

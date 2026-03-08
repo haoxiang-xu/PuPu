@@ -13,14 +13,15 @@ import copy
 import importlib.util
 import os
 import threading
-from types import MethodType
+import uuid
+from types import MethodType, SimpleNamespace
 from typing import Any, Callable
 
 _QDRANT_AVAILABLE = importlib.util.find_spec("qdrant_client") is not None
 
-# Default embedding models and their output vector sizes
+# Default embedding models and vector size hints
 _EMBEDDING_DEFAULTS: dict[str, tuple[str, int]] = {
-    "openai": ("text-embedding-3-small", 1536),
+    "openai": ("text-embedding-3-small", 0),  # resolved dynamically from model config
     "ollama": ("nomic-embed-text", 768),
 }
 
@@ -86,6 +87,13 @@ def _provider_from_model_id(model_id: str) -> str:
     return model_id.split(":", 1)[0].strip().lower()
 
 
+def _normalize_embedding_model_name(raw_model: object, provider: str) -> str:
+    model = str(raw_model or "").strip()
+    if model:
+        return model
+    return _EMBEDDING_DEFAULTS.get(provider, ("", 0))[0]
+
+
 def _api_key_from_options(options: dict[str, Any]) -> str:
     # Only read OpenAI-specific keys. Generic apiKey/api_key may belong to a
     # different provider (for example anthropic) and should not be reused for
@@ -113,6 +121,82 @@ def _ollama_reachable(base_url: str) -> bool:
         return False
 
 
+def _vector_embedding_signature(config: dict[str, Any], vector_size: int) -> str:
+    provider = str(config.get("provider", "") or "").strip().lower()
+    model = str(config.get("model", "") or "").strip()
+    return f"{provider}:{model}:{int(vector_size)}"
+
+
+def _vector_collection_prefix(tag: str) -> str:
+    clean_tag = "".join(c if c.isalnum() or c == "_" else "_" for c in str(tag or "").strip())
+    return f"chat_{clean_tag}" if clean_tag else "chat"
+
+
+def _session_collection_name(*, session_id: str, collection_prefix: str) -> str:
+    safe = "".join(c if c.isalnum() or c == "_" else "_" for c in str(session_id or ""))
+    return f"{collection_prefix}_{safe}"
+
+
+def _delete_collection_best_effort(client: Any, collection_name: str) -> None:
+    delete_collection = getattr(client, "delete_collection", None)
+    if not callable(delete_collection) or not collection_name:
+        return
+
+    try:
+        delete_collection(collection_name=collection_name)
+    except TypeError:
+        try:
+            delete_collection(collection_name)
+        except Exception:
+            return
+    except Exception:
+        return
+
+
+def _prepare_vector_collection_tag(
+    *,
+    store: Any,
+    client: Any,
+    session_id: str,
+    embedding_signature: str,
+) -> str:
+    if not session_id:
+        return ""
+
+    try:
+        state = store.load(session_id)
+    except Exception:
+        state = {}
+    if not isinstance(state, dict):
+        state = {}
+
+    previous_signature = str(state.get("vector_embedding_signature", "") or "").strip()
+    previous_tag = str(state.get("vector_collection_tag", "") or "").strip()
+    if previous_signature == embedding_signature and previous_tag:
+        return previous_tag
+
+    new_tag = uuid.uuid4().hex[:12]
+    state["vector_embedding_signature"] = embedding_signature
+    state["vector_collection_tag"] = new_tag
+
+    if previous_signature and previous_signature != embedding_signature:
+        existing_messages = _deepcopy_messages(state.get("messages"))
+        state["vector_indexed_until"] = len(existing_messages)
+        if previous_tag:
+            old_collection = _session_collection_name(
+                session_id=session_id,
+                collection_prefix=_vector_collection_prefix(previous_tag),
+            )
+            _delete_collection_best_effort(client, old_collection)
+
+    try:
+        store.save(session_id, state)
+    except Exception:
+        pass
+
+    return new_tag
+
+
 # ---------------------------------------------------------------------------
 # Public: embedding config resolution
 # ---------------------------------------------------------------------------
@@ -132,16 +216,21 @@ def resolve_embedding_config(options: dict[str, Any]) -> dict[str, Any] | None:
     if explicit and explicit != "auto":
         if explicit == "openai":
             api_key = _api_key_from_options(options)
-            model = str(options.get("memory_embedding_model") or _EMBEDDING_DEFAULTS["openai"][0])
+            model = _normalize_embedding_model_name(
+                options.get("memory_embedding_model"),
+                "openai",
+            )
             return {
                 "provider": "openai",
                 "model": model,
-                "vector_size": _EMBEDDING_DEFAULTS["openai"][1],
                 "api_key": api_key,
             }
         if explicit == "ollama":
             base_url = _ollama_base_url(options)
-            model = str(options.get("memory_embedding_model") or _EMBEDDING_DEFAULTS["ollama"][0])
+            model = _normalize_embedding_model_name(
+                options.get("memory_embedding_model"),
+                "ollama",
+            )
             return {
                 "provider": "ollama",
                 "model": model,
@@ -158,10 +247,13 @@ def resolve_embedding_config(options: dict[str, Any]) -> dict[str, Any] | None:
         if current_provider == "openai":
             api_key = _api_key_from_options(options)
             if api_key:
+                model = _normalize_embedding_model_name(
+                    options.get("memory_embedding_model"),
+                    "openai",
+                )
                 return {
                     "provider": "openai",
-                    "model": _EMBEDDING_DEFAULTS["openai"][0],
-                    "vector_size": _EMBEDDING_DEFAULTS["openai"][1],
+                    "model": model,
                     "api_key": api_key,
                 }
         if current_provider == "ollama":
@@ -176,10 +268,13 @@ def resolve_embedding_config(options: dict[str, Any]) -> dict[str, Any] | None:
     # 3. Fallback: OpenAI if api key is present
     api_key = _api_key_from_options(options)
     if api_key:
+        model = _normalize_embedding_model_name(
+            options.get("memory_embedding_model"),
+            "openai",
+        )
         return {
             "provider": "openai",
-            "model": _EMBEDDING_DEFAULTS["openai"][0],
-            "vector_size": _EMBEDDING_DEFAULTS["openai"][1],
+            "model": model,
             "api_key": api_key,
         }
 
@@ -196,19 +291,17 @@ def resolve_embedding_config(options: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _build_embed_fn(config: dict[str, Any]) -> Callable[[list[str]], list[list[float]]]:
+def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], list[list[float]]], int]:
     provider = config["provider"]
 
     if provider == "openai":
-        from openai import OpenAI
-        client = OpenAI(api_key=config["api_key"])
-        model = config["model"]
+        from miso.memory_qdrant import build_openai_embed_fn
 
-        def openai_embed(texts: list[str]) -> list[list[float]]:
-            resp = client.embeddings.create(input=texts, model=model)
-            return [item.embedding for item in resp.data]
-
-        return openai_embed
+        broth_instance = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
+        return build_openai_embed_fn(
+            model=str(config.get("model", "") or "").strip(),
+            broth_instance=broth_instance,
+        )
 
     if provider == "ollama":
         import httpx
@@ -227,7 +320,8 @@ def _build_embed_fn(config: dict[str, Any]) -> Callable[[list[str]], list[list[f
                 vecs.append(resp.json()["embedding"])
             return vecs
 
-        return ollama_embed
+        vector_size = int(config.get("vector_size") or _EMBEDDING_DEFAULTS["ollama"][1])
+        return ollama_embed, vector_size
 
     raise ValueError(f"Unsupported embedding provider: {provider}")
 
@@ -770,7 +864,11 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
 # Public: MemoryManager factory
 # ---------------------------------------------------------------------------
 
-def create_memory_manager_with_diagnostics(options: dict[str, Any]):
+def create_memory_manager_with_diagnostics(
+    options: dict[str, Any],
+    *,
+    session_id: str = "",
+):
     """Build a MemoryManager for this request, or return None.
 
     Returns:
@@ -802,15 +900,24 @@ def create_memory_manager_with_diagnostics(options: dict[str, Any]):
         from miso.memory_qdrant import JsonFileSessionStore, QdrantVectorAdapter
 
         qdrant_client = _get_or_create_qdrant_client(data_dir)
-        embed_fn = _build_embed_fn(embed_config)
+        embed_fn, vector_size = _build_embed_runtime(embed_config)
+        embedding_signature = _vector_embedding_signature(embed_config, vector_size)
+
+        store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+        collection_tag = _prepare_vector_collection_tag(
+            store=store,
+            client=qdrant_client,
+            session_id=session_id,
+            embedding_signature=embedding_signature,
+        )
 
         vector_adapter = QdrantVectorAdapter(
             client=qdrant_client,
             embed_fn=embed_fn,
-            vector_size=embed_config["vector_size"],
+            vector_size=vector_size,
+            collection_prefix=_vector_collection_prefix(collection_tag),
         )
         vector_adapter = _patch_qdrant_similarity_search_compat(vector_adapter)
-        store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
 
         last_n = max(1, int(options.get("memory_last_n_turns") or 8))
         top_k = max(0, int(options.get("memory_vector_top_k") or 4))
