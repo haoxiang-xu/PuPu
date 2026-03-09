@@ -1551,6 +1551,38 @@ def _extract_workspace_root_from_options(options: Dict[str, object] | None) -> s
     return ""
 
 
+def _extract_workspace_roots_from_options(options: Dict[str, object] | None) -> list[str]:
+    """Return the ordered list of workspace root paths from options.
+
+    Prefers the new ``workspace_roots`` array; falls back to the legacy
+    ``workspaceRoot`` / ``workspace_root`` single-value keys for backward compat.
+    Deduplicates while preserving order.
+    """
+    if not isinstance(options, dict):
+        return []
+
+    seen: set[str] = set()
+    roots: list[str] = []
+
+    # New multi-root field
+    workspace_roots = options.get("workspace_roots")
+    if isinstance(workspace_roots, list):
+        for entry in workspace_roots:
+            if isinstance(entry, str):
+                normalized = entry.strip()
+                if normalized and normalized not in seen:
+                    seen.add(normalized)
+                    roots.append(normalized)
+
+    # Legacy single-root fallback
+    if not roots:
+        single = _extract_workspace_root_from_options(options)
+        if single:
+            roots.append(single)
+
+    return roots
+
+
 def _should_enable_tools(options: Dict[str, object] | None) -> bool:
     """Return True when the caller explicitly requests tool-enabled mode.
 
@@ -1616,8 +1648,8 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
 
 
 def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
-    workspace_root_raw = _extract_workspace_root_from_options(options)
-    if not workspace_root_raw:
+    workspace_roots_raw = _extract_workspace_roots_from_options(options)
+    if not workspace_roots_raw:
         return
 
     if not _should_enable_tools(options):
@@ -1626,8 +1658,6 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
     if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
         raise RuntimeError("Agent does not support add_toolkit")
 
-    workspace_root = _resolve_workspace_root(workspace_root_raw)
-
     try:
         miso_module = importlib.import_module("miso")
     except Exception as import_error:
@@ -1635,10 +1665,29 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
             f"Failed to import miso for workspace toolkit: {import_error}"
         ) from import_error
 
+    # Try multi_workspace_toolkit first (supports named workspaces)
+    multi_factory = getattr(miso_module, "multi_workspace_toolkit", None)
+    if callable(multi_factory) and len(workspace_roots_raw) > 1:
+        resolved = []
+        for raw in workspace_roots_raw:
+            try:
+                resolved.append(str(_resolve_workspace_root(raw)))
+            except RuntimeError:
+                raise
+        try:
+            multi_toolkit = multi_factory(workspace_roots=resolved)
+        except TypeError:
+            multi_toolkit = multi_factory(resolved)
+        _mark_workspace_tools_for_confirmation(multi_toolkit)
+        agent.add_toolkit(multi_toolkit)
+        return
+
+    # Single workspace (or multi_workspace_toolkit unavailable): use python_workspace_toolkit
     toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
     if not callable(toolkit_factory):
         raise RuntimeError("miso.python_workspace_toolkit is unavailable")
 
+    workspace_root = _resolve_workspace_root(workspace_roots_raw[0])
     try:
         workspace_toolkit = toolkit_factory(
             workspace_root=str(workspace_root),
@@ -1706,7 +1755,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
                 max_iterations = _DEFAULT_MAX_ITERATIONS
         else:
             max_iterations = _DEFAULT_MAX_ITERATIONS
-    if _extract_workspace_root_from_options(options) and _should_enable_tools(options):
+    if _extract_workspace_roots_from_options(options) and _should_enable_tools(options):
         # Tool-call workflows need at least one extra round to produce
         # assistant-facing text after tool outputs are injected.
         max_iterations = max(max_iterations, 2)

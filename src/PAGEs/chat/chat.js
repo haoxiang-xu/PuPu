@@ -16,6 +16,7 @@ import {
   setChatMessages,
   setChatModel,
   setChatSelectedToolkits,
+  setChatSelectedWorkspaceIds,
   setChatThreadId,
   subscribeChatsStore,
   updateChatDraft,
@@ -27,6 +28,7 @@ import {
   deleteAttachmentPayload,
 } from "../../SERVICEs/attachment_storage";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
+import { createThinkTagParser } from "./think_tag_parser";
 import { readMemorySettings } from "../../COMPONENTs/settings/memory/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
@@ -226,6 +228,9 @@ const ChatInterface = () => {
   const [selectedToolkits, setSelectedToolkits] = useState(
     () => initialChat.selectedToolkits || [],
   );
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState(
+    () => initialChat.selectedWorkspaceIds || [],
+  );
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
   const toolConfirmationUiStateByIdRef = useRef({});
@@ -233,6 +238,7 @@ const ChatInterface = () => {
     useState(null);
   const pendingContinuationRequestRef = useRef(null);
   const selectedToolkitsRef = useRef([]);
+  const selectedWorkspaceIdsRef = useRef([]);
   const systemPromptOverridesRef = useRef(
     initialChat.systemPromptOverrides || {},
   );
@@ -263,6 +269,9 @@ const ChatInterface = () => {
   useEffect(() => {
     selectedToolkitsRef.current = selectedToolkits;
   }, [selectedToolkits]);
+  useEffect(() => {
+    selectedWorkspaceIdsRef.current = selectedWorkspaceIds;
+  }, [selectedWorkspaceIds]);
   useEffect(() => {
     toolConfirmationUiStateByIdRef.current = toolConfirmationUiStateById;
   }, [toolConfirmationUiStateById]);
@@ -459,6 +468,7 @@ const ChatInterface = () => {
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
+      setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
       systemPromptOverridesRef.current =
         nextActiveChat.systemPromptOverrides || {};
 
@@ -589,6 +599,17 @@ const ChatInterface = () => {
     setChatSelectedToolkits(chatId, selectedToolkits, { source: "chat-page" });
   }, [selectedToolkits]);
 
+  useEffect(() => {
+    const chatId = activeChatIdRef.current;
+    if (!chatId) {
+      return;
+    }
+
+    setChatSelectedWorkspaceIds(chatId, selectedWorkspaceIds, {
+      source: "chat-page",
+    });
+  }, [selectedWorkspaceIds]);
+
   const handleSelectModel = useCallback(
     (modelId) => {
       const chatId = activeChatIdRef.current;
@@ -634,9 +655,7 @@ const ChatInterface = () => {
     if (chatId && changed) {
       setChatMessages(chatId, nextMessages, { source: "chat-page" });
     }
-  },
-    [clearActiveTokenFlushController],
-  );
+  }, [clearActiveTokenFlushController]);
 
   const updateToolConfirmationUiState = useCallback((updater) => {
     const previous = toolConfirmationUiStateByIdRef.current;
@@ -1341,6 +1360,74 @@ const ChatInterface = () => {
       let pendingTokenFlushHandle = null;
       let pendingTokenFlushHandleType = null;
 
+      // ── Think-tag parser: split <think>…</think> into traceFrames ────
+      // We maintain a single accumulating reasoning frame per <think> block
+      // so the timeline shows ONE "Reasoning" node whose body grows as
+      // more thinking tokens arrive (instead of many small nodes).
+      let bufferedThinkingDelta = "";
+      let accumulatedThinkingText = "";
+      let thinkingBlockIndex = 0;
+      // Sentinel seq for the current thinking block's frame.
+      const THINKING_SEQ_BASE = -9000;
+
+      const flushBufferedThinkingDelta = () => {
+        if (!bufferedThinkingDelta) return;
+        accumulatedThinkingText += bufferedThinkingDelta;
+        bufferedThinkingDelta = "";
+        const patchTime = Date.now();
+        const currentSeq = THINKING_SEQ_BASE - thinkingBlockIndex;
+        const updatedFrame = {
+          seq: currentSeq,
+          ts: patchTime,
+          type: "reasoning",
+          stage: "model",
+          payload: { reasoning: accumulatedThinkingText },
+        };
+        const nextStreamMessages = streamMessages.map((message) => {
+          if (message.id !== assistantMessageId) return message;
+          const existingFrames = message.traceFrames || [];
+          // Replace the existing frame for this block, or append if new.
+          const idx = existingFrames.findIndex((f) => f.seq === currentSeq);
+          let nextFrames;
+          if (idx >= 0) {
+            nextFrames = [...existingFrames];
+            nextFrames[idx] = updatedFrame;
+          } else {
+            nextFrames = [...existingFrames, updatedFrame];
+          }
+          return {
+            ...message,
+            updatedAt: patchTime,
+            traceFrames: nextFrames,
+          };
+        });
+        syncStreamMessages(nextStreamMessages);
+      };
+
+      /** Call when a </think> tag closes — finalises the current block so
+       *  the next <think> gets its own timeline node. */
+      const finaliseThinkingBlock = () => {
+        if (accumulatedThinkingText || bufferedThinkingDelta) {
+          flushBufferedThinkingDelta();
+        }
+        accumulatedThinkingText = "";
+        thinkingBlockIndex += 1;
+      };
+
+      const thinkTagParser = createThinkTagParser({
+        onContent: (text) => {
+          bufferedTokenDelta += text;
+          scheduleBufferedTokenFlush();
+        },
+        onThinking: (text) => {
+          bufferedThinkingDelta += text;
+          scheduleBufferedTokenFlush();
+        },
+        onThinkEnd: () => {
+          finaliseThinkingBlock();
+        },
+      });
+
       const clearScheduledTokenFlush = () => {
         if (pendingTokenFlushHandle == null) {
           return;
@@ -1362,6 +1449,12 @@ const ChatInterface = () => {
 
       const flushBufferedTokenDelta = () => {
         clearScheduledTokenFlush();
+
+        // Flush thinking buffer first (may have accumulated in parallel)
+        if (bufferedThinkingDelta) {
+          flushBufferedThinkingDelta();
+        }
+
         if (!bufferedTokenDelta) {
           return;
         }
@@ -1446,6 +1539,9 @@ const ChatInterface = () => {
               }),
               ...(selectedToolkitsRef.current.length > 0 && {
                 toolkits: selectedToolkitsRef.current,
+              }),
+              ...(selectedWorkspaceIdsRef.current.length > 0 && {
+                selectedWorkspaceIds: selectedWorkspaceIdsRef.current,
               }),
               ...(Object.keys(systemPromptOverrides).length > 0 && {
                 system_prompt_v2: {
@@ -1634,10 +1730,15 @@ const ChatInterface = () => {
               // to avoid a visual "jump" caused by minor whitespace or
               // extraction differences.
               if (frame.type === "final_message") {
-                const finalContent =
+                const rawFinalContent =
                   typeof frame.payload?.content === "string"
                     ? frame.payload.content
                     : "";
+                // Strip <think>…</think> blocks that the backend may
+                // embed — their content was already routed to traceFrames.
+                const finalContent = rawFinalContent
+                  .replace(/<think>[\s\S]*?<\/think>/g, "")
+                  .replace(/^\s*\n/, "");
                 const nextStreamMessages = streamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
 
@@ -1677,9 +1778,7 @@ const ChatInterface = () => {
                   if (message.id !== assistantMessageId) return message;
 
                   const currentContent =
-                    typeof message.content === "string"
-                      ? message.content
-                      : "";
+                    typeof message.content === "string" ? message.content : "";
                   const currentContentTrimmed = currentContent.trim();
                   const existingFrames = message.traceFrames || [];
 
@@ -1763,10 +1862,12 @@ const ChatInterface = () => {
                 return;
               }
 
-              bufferedTokenDelta += delta;
-              scheduleBufferedTokenFlush();
+              // Route through the think-tag parser; it calls onContent /
+              // onThinking which buffer into the right channel.
+              thinkTagParser.feed(delta);
             },
             onDone: (done) => {
+              thinkTagParser.flush();
               flushBufferedTokenDelta();
               const doneTime = Date.now();
               const parseUsageNumber = (value) => {
@@ -1800,19 +1901,26 @@ const ChatInterface = () => {
                   ? parsedUsage
                   : undefined;
 
-              const nextStreamMessages = streamMessages.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      status: "done",
-                      updatedAt: doneTime,
-                      meta: {
-                        ...(message.meta || {}),
-                        ...(usage ? { usage } : {}),
-                      },
-                    }
-                  : message,
-              );
+              const nextStreamMessages = streamMessages.map((message) => {
+                if (message.id !== assistantMessageId) return message;
+                // Strip any residual <think>…</think> tags that may have
+                // ended up in content (e.g. from backend final_message).
+                let cleanContent =
+                  typeof message.content === "string" ? message.content : "";
+                cleanContent = cleanContent
+                  .replace(/<think>[\s\S]*?<\/think>/g, "")
+                  .replace(/^\s*\n/, "");
+                return {
+                  ...message,
+                  content: cleanContent,
+                  status: "done",
+                  updatedAt: doneTime,
+                  meta: {
+                    ...(message.meta || {}),
+                    ...(usage ? { usage } : {}),
+                  },
+                };
+              });
               syncStreamMessages(nextStreamMessages);
               streamHandleRef.current = null;
               streamingChatIdRef.current = null;
@@ -1828,6 +1936,7 @@ const ChatInterface = () => {
               }
             },
             onError: (error) => {
+              thinkTagParser.flush();
               flushBufferedTokenDelta();
               if (
                 streamHandleRef.current === null &&
@@ -2380,33 +2489,36 @@ const ChatInterface = () => {
     [removeAttachmentPayload],
   );
 
-  const handleDeleteMessage = useCallback((message) => {
-    if (!message || typeof message.id !== "string" || !message.id) {
-      return;
-    }
-
-    const deletingStreamingAssistant =
-      message.role === "assistant" && message.status === "streaming";
-
-    if (
-      deletingStreamingAssistant &&
-      streamHandleRef.current &&
-      streamingChatIdRef.current === activeChatIdRef.current
-    ) {
-      clearActiveTokenFlushController("dispose");
-      if (typeof streamHandleRef.current.cancel === "function") {
-        streamHandleRef.current.cancel();
+  const handleDeleteMessage = useCallback(
+    (message) => {
+      if (!message || typeof message.id !== "string" || !message.id) {
+        return;
       }
-      streamHandleRef.current = null;
-      streamingChatIdRef.current = null;
-      activeStreamMessagesRef.current = null;
-      setStreamingChatId(null);
-    }
 
-    setMessages((previousMessages) =>
-      previousMessages.filter((item) => item.id !== message.id),
-    );
-  }, [clearActiveTokenFlushController]);
+      const deletingStreamingAssistant =
+        message.role === "assistant" && message.status === "streaming";
+
+      if (
+        deletingStreamingAssistant &&
+        streamHandleRef.current &&
+        streamingChatIdRef.current === activeChatIdRef.current
+      ) {
+        clearActiveTokenFlushController("dispose");
+        if (typeof streamHandleRef.current.cancel === "function") {
+          streamHandleRef.current.cancel();
+        }
+        streamHandleRef.current = null;
+        streamingChatIdRef.current = null;
+        activeStreamMessagesRef.current = null;
+        setStreamingChatId(null);
+      }
+
+      setMessages((previousMessages) =>
+        previousMessages.filter((item) => item.id !== message.id),
+      );
+    },
+    [clearActiveTokenFlushController],
+  );
 
   const effectiveDisclaimer = useMemo(() => {
     if (streamError) {
@@ -2521,6 +2633,8 @@ const ChatInterface = () => {
     modelSelectDisabled: isStreaming,
     selectedToolkits,
     onToolkitsChange: setSelectedToolkits,
+    selectedWorkspaceIds,
+    onWorkspaceIdsChange: setSelectedWorkspaceIds,
   };
 
   return (

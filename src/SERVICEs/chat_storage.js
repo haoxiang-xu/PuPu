@@ -260,6 +260,19 @@ const sanitizeSelectedToolkits = (selectedToolkits) => {
   ).slice(0, MAX_SELECTED_TOOLKITS);
 };
 
+const sanitizeSelectedWorkspaceIds = (ids) => {
+  if (!Array.isArray(ids)) {
+    return [];
+  }
+  return unique(
+    ids
+      .map((item) =>
+        typeof item === "string" ? item.trim().slice(0, 200) : "",
+      )
+      .filter(Boolean),
+  ).slice(0, 20);
+};
+
 const normalizeSystemPromptSectionKey = (rawKey) => {
   if (typeof rawKey !== "string") {
     return "";
@@ -517,6 +530,7 @@ const sanitizeChatSession = (chat, fallbackId) => {
         : null,
     model: sanitizeModel(chat?.model),
     selectedToolkits: sanitizeSelectedToolkits(chat?.selectedToolkits),
+    selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(chat?.selectedWorkspaceIds),
     systemPromptOverrides: sanitizeSystemPromptOverrides(
       chat?.systemPromptOverrides,
     ),
@@ -546,6 +560,7 @@ const createChatSession = (overrides = {}) => {
       threadId: overrides.threadId || null,
       model: overrides.model || { id: DEFAULT_MODEL_ID },
       selectedToolkits: sanitizeSelectedToolkits(overrides.selectedToolkits),
+      selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(overrides.selectedWorkspaceIds),
       systemPromptOverrides: sanitizeSystemPromptOverrides(
         overrides.systemPromptOverrides,
       ),
@@ -2099,6 +2114,9 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
               selectedToolkits: sanitizeSelectedToolkits(
                 sourceChat.selectedToolkits,
               ),
+              selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
+                sourceChat.selectedWorkspaceIds,
+              ),
               messages: copiedMessages,
               isTransientNewChat:
                 copiedMessages.length > 0
@@ -2504,6 +2522,18 @@ export const setChatSelectedToolkits = (chatId, selectedToolkits, options = {}) 
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_toolkits" },
+  );
+};
+
+export const setChatSelectedWorkspaceIds = (chatId, selectedWorkspaceIds, options = {}) => {
+  return updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(selectedWorkspaceIds),
+      updatedAt: now(),
+    }),
+    { ...options, type: "chat_update_workspace_ids" },
   );
 };
 

@@ -3,6 +3,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
 import ToolPickerPopover from "./tool_picker_popover";
+import WorkspacePickerPopover from "./workspace_picker_popover";
 
 const PILL_HEIGHT = 32;
 
@@ -36,9 +37,13 @@ const AttachPanel = ({
   isStreaming = false,
   selectedToolkits = [],
   onToolkitsChange,
+  selectedWorkspaceIds = [],
+  onWorkspaceIdsChange,
 }) => {
   const [toolPickerOpen, setToolPickerOpen] = useState(false);
+  const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
   const toolBtnRef = useRef(null);
+  const workspaceBtnRef = useRef(null);
   const floating = active || focused;
   let panelBg = "transparent";
   if (floating) panelBg = focusBg || "rgba(255,255,255,0.95)";
@@ -183,6 +188,55 @@ const AttachPanel = ({
                   onChange={onToolkitsChange || (() => {})}
                   onClose={() => setToolPickerOpen(false)}
                   anchorEl={toolBtnRef.current}
+                  isDark={isDark}
+                />
+              )}
+            </div>
+
+            <div ref={workspaceBtnRef} style={{ position: "relative" }}>
+              <Button
+                prefix_icon="folder"
+                title="Select workspaces"
+                onClick={() => setWorkspacePickerOpen((v) => !v)}
+                style={{
+                  color:
+                    selectedWorkspaceIds.length > 0
+                      ? "rgba(10,186,181,1)"
+                      : color,
+                  fontSize: 14,
+                  borderRadius: floating ? 22 : 16,
+                }}
+              />
+              {selectedWorkspaceIds.length > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    minWidth: 13,
+                    height: 13,
+                    borderRadius: 999,
+                    background: "rgba(10,186,181,1)",
+                    color: "#fff",
+                    fontSize: 8,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "0 2px",
+                    pointerEvents: "none",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {selectedWorkspaceIds.length}
+                </span>
+              )}
+              {workspacePickerOpen && (
+                <WorkspacePickerPopover
+                  selected={selectedWorkspaceIds}
+                  onChange={onWorkspaceIdsChange || (() => {})}
+                  onClose={() => setWorkspacePickerOpen(false)}
+                  anchorEl={workspaceBtnRef.current}
                   isDark={isDark}
                 />
               )}

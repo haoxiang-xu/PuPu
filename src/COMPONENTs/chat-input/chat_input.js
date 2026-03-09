@@ -29,6 +29,8 @@ const ChatInput = ({
   onDropFiles = null,
   selectedToolkits = [],
   onToolkitsChange,
+  selectedWorkspaceIds = [],
+  onWorkspaceIdsChange,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -161,6 +163,8 @@ const ChatInput = ({
                   isStreaming={isStreaming}
                   selectedToolkits={selectedToolkits}
                   onToolkitsChange={onToolkitsChange}
+                  selectedWorkspaceIds={selectedWorkspaceIds}
+                  onWorkspaceIdsChange={onWorkspaceIdsChange}
                 />
               ) : null
             }

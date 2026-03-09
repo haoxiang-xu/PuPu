@@ -9,6 +9,7 @@ import {
   toFrontendApiError,
   withTimeout,
 } from "./api.shared";
+import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const SYSTEM_PROMPT_V2_SECTION_LIMIT = 2000;
@@ -331,27 +332,45 @@ const injectWorkspaceRootIntoPayload = (payload) => {
     return payload;
   }
 
-  const configuredWorkspaceRoot = getStoredWorkspaceRoot();
-  if (!configuredWorkspaceRoot) {
-    return payload;
-  }
-
   const currentOptions = isObject(payload.options) ? payload.options : {};
-  const hasExplicitWorkspaceRoot =
-    (typeof currentOptions.workspaceRoot === "string" &&
-      currentOptions.workspaceRoot.trim().length > 0) ||
-    (typeof currentOptions.workspace_root === "string" &&
-      currentOptions.workspace_root.trim().length > 0);
-  if (hasExplicitWorkspaceRoot) {
-    return payload;
+
+  // Resolve additional workspace paths from per-chat selected IDs
+  const selectedIds = Array.isArray(currentOptions.selectedWorkspaceIds)
+    ? currentOptions.selectedWorkspaceIds
+    : [];
+  const allWorkspaces = readWorkspaces();
+  const selectedPaths = selectedIds
+    .map((id) => {
+      const ws = allWorkspaces.find((w) => w.id === id);
+      return typeof ws?.path === "string" ? ws.path.trim() : "";
+    })
+    .filter(Boolean);
+
+  // Default workspace root
+  const defaultRoot = getStoredWorkspaceRoot();
+
+  // Build the full list: default first, then selected
+  const allRoots = [
+    ...(defaultRoot ? [defaultRoot] : []),
+    ...selectedPaths.filter((p) => p !== defaultRoot),
+  ];
+
+  // Strip internal field from options
+  const { selectedWorkspaceIds: _omit, ...restOptions } = currentOptions;
+
+  if (allRoots.length === 0) {
+    return { ...payload, options: restOptions };
   }
 
   return {
     ...payload,
     options: {
-      ...currentOptions,
-      workspaceRoot: configuredWorkspaceRoot,
-      workspace_root: configuredWorkspaceRoot,
+      ...restOptions,
+      // Backward-compat single root
+      workspaceRoot: allRoots[0],
+      workspace_root: allRoots[0],
+      // New multi-root
+      workspace_roots: allRoots,
     },
   };
 };

@@ -48,6 +48,32 @@ const writeWorkspaceRoot = (workspaceRoot) => {
   window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
 };
 
+export const readWorkspaces = () => {
+  const root = readSettingsRoot();
+  const runtime = isObject(root.runtime) ? root.runtime : {};
+  const list = Array.isArray(runtime.workspaces) ? runtime.workspaces : [];
+  return list.filter(
+    (w) =>
+      isObject(w) &&
+      typeof w.id === "string" &&
+      w.id.trim() &&
+      (typeof w.path === "string" || typeof w.name === "string"),
+  );
+};
+
+const writeWorkspaces = (workspaces) => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return;
+  }
+  const root = readSettingsRoot();
+  const runtime = isObject(root.runtime) ? root.runtime : {};
+  root.runtime = { ...runtime, workspaces };
+  window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
+};
+
+const makeWorkspaceId = () =>
+  `ws_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+
 const validateWorkspaceRoot = async (workspaceRoot) => {
   const trimmed = typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
   if (!trimmed) {
@@ -184,7 +210,7 @@ export const RuntimeSettings = () => {
 
   return (
     <div>
-      <SettingsSection title="Miso Workspace" icon="terminal">
+      <SettingsSection title="Default Workspace" icon="terminal">
         <div
           style={{
             padding: "14px 0",
@@ -297,14 +323,378 @@ export const RuntimeSettings = () => {
               lineHeight: 1.5,
             }}
           >
-            This root is sent with each Miso request and used as
-            <code style={{ marginLeft: 4, marginRight: 4 }}>
-              workspace_root
-            </code>
-            when workspace toolkit is enabled.
+            Applied to every Miso request automatically when workspace toolkit
+            is enabled.
           </div>
         </div>
       </SettingsSection>
+
+      <WorkspacesSection />
     </div>
+  );
+};
+
+const WorkspacesSection = () => {
+  const { onThemeMode } = useContext(ConfigContext);
+  const isDark = onThemeMode === "dark_mode";
+
+  // `items` = persisted workspaces; only modified after a successful save.
+  const [items, setItems] = useState(() => readWorkspaces());
+  // Which item is currently open in edit mode.
+  const [editingId, setEditingId] = useState(null);
+  // Draft values for the item being edited.
+  const [editDraft, setEditDraft] = useState({ name: "", path: "" });
+  // IDs created via "Add" that haven't been saved yet.
+  const [unsavedIds, setUnsavedIds] = useState(() => new Set());
+  const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const browseSupported = runtimeBridge.isWorkspacePickerAvailable();
+
+  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const errorColor = isDark ? "#ff7f7f" : "#c62828";
+  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.82)";
+  const borderColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+
+  const startEditing = useCallback((item) => {
+    setEditingId(item.id);
+    setEditDraft({ name: item.name || "", path: item.path || "" });
+    setEditError("");
+  }, []);
+
+  const cancelEditing = useCallback(() => {
+    // If this was a brand-new unsaved item, remove it entirely.
+    setItems((prev) =>
+      unsavedIds.has(editingId)
+        ? prev.filter((w) => w.id !== editingId)
+        : prev,
+    );
+    setUnsavedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(editingId);
+      return next;
+    });
+    setEditingId(null);
+    setEditDraft({ name: "", path: "" });
+    setEditError("");
+  }, [editingId, unsavedIds]);
+
+  const addItem = useCallback(() => {
+    const id = makeWorkspaceId();
+    const newItem = { id, name: "", path: "" };
+    setItems((prev) => [...prev, newItem]);
+    setUnsavedIds((prev) => new Set([...prev, id]));
+    setEditingId(id);
+    setEditDraft({ name: "", path: "" });
+    setEditError("");
+  }, []);
+
+  const handleBrowse = useCallback(async () => {
+    try {
+      const response = await runtimeBridge.pickWorkspaceRoot(
+        editDraft.path.trim() || "",
+      );
+      if (
+        !response?.canceled &&
+        typeof response?.path === "string" &&
+        response.path.trim()
+      ) {
+        setEditDraft((d) => ({ ...d, path: response.path.trim() }));
+      }
+    } catch (_err) {}
+  }, [editDraft.path]);
+
+  const handleSaveItem = useCallback(async () => {
+    setIsSaving(true);
+    setEditError("");
+
+    const rawPath = editDraft.path.trim();
+    let resolvedPath = rawPath;
+
+    if (rawPath) {
+      const validation = await validateWorkspaceRoot(rawPath);
+      if (!validation.valid) {
+        setEditError(validation.reason || "Invalid path.");
+        setIsSaving(false);
+        return;
+      }
+      resolvedPath = validation.resolvedPath || rawPath;
+    }
+
+    const saved = {
+      id: editingId,
+      name: editDraft.name.trim(),
+      path: resolvedPath,
+    };
+
+    setItems((prev) =>
+      prev.map((w) => (w.id === editingId ? saved : w)),
+    );
+    setUnsavedIds((prev) => {
+      const next = new Set(prev);
+      next.delete(editingId);
+      return next;
+    });
+
+    // Persist the full list
+    const next = items.map((w) => (w.id === editingId ? saved : w));
+    writeWorkspaces(next.filter((w) => w.path || w.name));
+
+    setEditingId(null);
+    setEditDraft({ name: "", path: "" });
+    setIsSaving(false);
+  }, [editingId, editDraft, items]);
+
+  const deleteItem = useCallback(
+    (id) => {
+      const next = items.filter((w) => w.id !== id);
+      setItems(next);
+      writeWorkspaces(next.filter((w) => w.path || w.name));
+      if (editingId === id) {
+        setEditingId(null);
+        setEditDraft({ name: "", path: "" });
+        setEditError("");
+      }
+      setUnsavedIds((prev) => {
+        const s = new Set(prev);
+        s.delete(id);
+        return s;
+      });
+    },
+    [items, editingId],
+  );
+
+  const hasItems = items.length > 0;
+
+  return (
+    <SettingsSection title="Workspaces" icon="terminal">
+      <div
+        style={{
+          padding: "14px 0",
+          display: "flex",
+          flexDirection: "column",
+          gap: 0,
+        }}
+      >
+        {!hasItems && (
+          <div
+            style={{
+              fontSize: 12,
+              color: mutedColor,
+              fontFamily: "Jost, sans-serif",
+              paddingBottom: 10,
+            }}
+          >
+            No workspaces added yet.
+          </div>
+        )}
+
+        {hasItems && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              borderTop: `1px solid ${borderColor}`,
+              marginBottom: 10,
+            }}
+          >
+            {items.map((item) => {
+              const isEditing = editingId === item.id;
+
+              if (isEditing) {
+                // ── Edit row ──────────────────────────────────────────────
+                return (
+                  <div
+                    key={item.id}
+                    style={{
+                      padding: "10px 0",
+                      borderBottom: `1px solid ${borderColor}`,
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                      <Input
+                        placeholder="Name (optional)"
+                        value={editDraft.name}
+                        set_value={(v) =>
+                          setEditDraft((d) => ({ ...d, name: v }))
+                        }
+                        style={{
+                          width: 130,
+                          flexShrink: 0,
+                          fontSize: 13,
+                          height: 34,
+                        }}
+                      />
+                      <Input
+                        placeholder="/path/to/workspace"
+                        value={editDraft.path}
+                        set_value={(v) =>
+                          setEditDraft((d) => ({ ...d, path: v }))
+                        }
+                        style={{ flex: 1, fontSize: 13, height: 34 }}
+                      />
+                      {browseSupported && (
+                        <Button
+                          label="Browse"
+                          onClick={handleBrowse}
+                          disabled={isSaving}
+                          style={{
+                            fontSize: 12,
+                            paddingVertical: 6,
+                            paddingHorizontal: 11,
+                            borderRadius: 7,
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                    </div>
+
+                    {editError && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: errorColor,
+                          fontFamily: "Jost, sans-serif",
+                        }}
+                      >
+                        {editError}
+                      </div>
+                    )}
+
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <Button
+                        label={isSaving ? "Saving..." : "Save"}
+                        onClick={handleSaveItem}
+                        disabled={isSaving}
+                        style={{
+                          fontSize: 12,
+                          paddingVertical: 5,
+                          paddingHorizontal: 12,
+                          borderRadius: 7,
+                        }}
+                      />
+                      <Button
+                        label="Cancel"
+                        onClick={cancelEditing}
+                        disabled={isSaving}
+                        style={{
+                          fontSize: 12,
+                          paddingVertical: 5,
+                          paddingHorizontal: 12,
+                          borderRadius: 7,
+                          opacity: 0.55,
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
+              // ── View row ────────────────────────────────────────────────
+              const displayName = item.name?.trim() || item.path?.trim() || "Unnamed";
+              const displayPath = item.name?.trim() ? item.path?.trim() : null;
+
+              return (
+                <div
+                  key={item.id}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "9px 0",
+                    borderBottom: `1px solid ${borderColor}`,
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontFamily: "Jost, sans-serif",
+                        color: textColor,
+                        fontWeight: 500,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {displayName}
+                    </div>
+                    {displayPath && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          fontFamily: "Menlo, Monaco, Consolas, monospace",
+                          color: mutedColor,
+                          marginTop: 2,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {displayPath}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+                    <Button
+                      label="Edit"
+                      onClick={() => startEditing(item)}
+                      disabled={editingId !== null}
+                      style={{
+                        fontSize: 12,
+                        paddingVertical: 4,
+                        paddingHorizontal: 10,
+                        borderRadius: 6,
+                        opacity: editingId !== null ? 0.35 : 0.7,
+                      }}
+                    />
+                    <Button
+                      prefix_icon="delete"
+                      onClick={() => deleteItem(item.id)}
+                      disabled={editingId !== null}
+                      style={{
+                        paddingVertical: 4,
+                        paddingHorizontal: 6,
+                        borderRadius: 6,
+                        opacity: editingId !== null ? 0.25 : 0.5,
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <Button
+          label="Add Workspace"
+          onClick={addItem}
+          disabled={editingId !== null}
+          style={{
+            fontSize: 13,
+            paddingVertical: 7,
+            paddingHorizontal: 14,
+            borderRadius: 7,
+            opacity: editingId !== null ? 0.4 : 1,
+          }}
+        />
+
+        <div
+          style={{
+            fontSize: 11,
+            fontFamily: "Jost, sans-serif",
+            color: mutedColor,
+            lineHeight: 1.5,
+            paddingTop: 10,
+          }}
+        >
+          Named workspaces can be selected per-chat from the chat input toolbar.
+        </div>
+      </div>
+    </SettingsSection>
   );
 };
