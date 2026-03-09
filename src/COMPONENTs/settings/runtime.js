@@ -210,7 +210,7 @@ export const RuntimeSettings = () => {
 
   return (
     <div>
-      <SettingsSection title="Default Workspace" icon="terminal">
+      <SettingsSection title="Default Workspace" icon="folder_2">
         <div
           style={{
             padding: "14px 0",
@@ -467,7 +467,7 @@ const WorkspacesSection = () => {
   const hasItems = items.length > 0;
 
   return (
-    <SettingsSection title="Workspaces" icon="terminal">
+    <SettingsSection title="Workspaces" icon="folder_keyhole">
       <div
         style={{
           padding: "14px 0",

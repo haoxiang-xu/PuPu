@@ -29,10 +29,6 @@
 const OPEN_TAG = "<think>";
 const CLOSE_TAG = "</think>";
 
-// The longest possible prefix we may need to buffer while deciding if we're
-// looking at an opening or closing tag.  `</think>` is 8 chars.
-const MAX_TAG_LEN = CLOSE_TAG.length; // 8
-
 /**
  * @param {{
  *   onContent: (t: string) => void,

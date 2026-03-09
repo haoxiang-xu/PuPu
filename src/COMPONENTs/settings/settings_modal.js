@@ -30,8 +30,8 @@ const BASE_SETTINGS_PAGES = [
   },
   {
     key: "runtime",
-    icon: "terminal",
-    label: "Runtime",
+    icon: "folder_2",
+    label: "Workspace",
     component: RuntimeSettings,
   },
   {

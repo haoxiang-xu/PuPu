@@ -195,7 +195,7 @@ const AttachPanel = ({
 
             <div ref={workspaceBtnRef} style={{ position: "relative" }}>
               <Button
-                prefix_icon="folder"
+                prefix_icon="folder_2"
                 title="Select workspaces"
                 onClick={() => setWorkspacePickerOpen((v) => !v)}
                 style={{
