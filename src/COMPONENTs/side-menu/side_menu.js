@@ -7,6 +7,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
 import { ToolkitModal } from "../toolkit/toolkit_modal";
+import { WorkspaceModal } from "../workspace/workspace_modal";
 import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
   ConfirmDeleteModal,
@@ -29,6 +30,7 @@ const SideMenu = () => {
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [windowWidth, setWindowWidth] = useState(
     typeof window !== "undefined" ? window.innerWidth : 1200,
@@ -96,13 +98,10 @@ const SideMenu = () => {
     [],
   );
 
-  const handleInspectMemory = useCallback(
-    (sessionId, chatTitle) => {
-      setMemoryInspect({ open: true, sessionId, chatTitle: chatTitle || "" });
-      setContextMenu((c) => ({ ...c, visible: false }));
-    },
-    [],
-  );
+  const handleInspectMemory = useCallback((sessionId, chatTitle) => {
+    setMemoryInspect({ open: true, sessionId, chatTitle: chatTitle || "" });
+    setContextMenu((c) => ({ ...c, visible: false }));
+  }, []);
 
   const handleContextMenu = useCallback((storeNode, event) => {
     event.preventDefault();
@@ -175,7 +174,14 @@ const SideMenu = () => {
         setConfirmDelete,
         onInspectMemory: handleInspectMemory,
       }),
-    [contextMenu.node, clipboard, chatStore, handleStartRename, setChatStore, handleInspectMemory],
+    [
+      contextMenu.node,
+      clipboard,
+      chatStore,
+      handleStartRename,
+      setChatStore,
+      handleInspectMemory,
+    ],
   );
 
   const explorerData = useMemo(() => {
@@ -228,7 +234,9 @@ const SideMenu = () => {
       }}
     >
       <Button
-        prefix_icon={onFragment === "main" ? "side_menu_left" : "side_menu_close"}
+        prefix_icon={
+          onFragment === "main" ? "side_menu_left" : "side_menu_close"
+        }
         style={{
           position: "absolute",
           top: 25,
@@ -333,6 +341,21 @@ const SideMenu = () => {
             iconSize: 16,
           }}
         />
+        <Button
+          prefix_icon="folder_2"
+          label="Workspace"
+          onClick={() => setWorkspaceModalOpen(true)}
+          style={{
+            width: "100%",
+            justifyContent: "flex-start",
+            fontSize: 14,
+            padding: "5px 8px",
+            borderRadius: 6,
+            marginBottom: 2,
+            WebkitAppRegion: "no-drag",
+            iconSize: 16,
+          }}
+        />
         <div
           style={{
             padding: "4px 4px 6px",
@@ -376,7 +399,9 @@ const SideMenu = () => {
             <Explorer
               data={filteredRoot ? filteredData : explorerData}
               root={filteredRoot ?? explorerModel.root}
-              default_expanded={filteredRoot ? true : explorerModel.defaultExpanded}
+              default_expanded={
+                filteredRoot ? true : explorerModel.defaultExpanded
+              }
               draggable={!filteredRoot}
               on_reorder={handleReorder}
               style={{ width: "100%", fontSize: 13 }}
@@ -399,9 +424,17 @@ const SideMenu = () => {
         onClick={() => setSettingsOpen(true)}
       />
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+
+      <WorkspaceModal
+        open={workspaceModalOpen}
+        onClose={() => setWorkspaceModalOpen(false)}
+      />
 
       <ContextMenu
         visible={contextMenu.visible}
@@ -424,7 +457,9 @@ const SideMenu = () => {
         open={memoryInspect.open}
         sessionId={memoryInspect.sessionId}
         chatTitle={memoryInspect.chatTitle}
-        onClose={() => setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })}
+        onClose={() =>
+          setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })
+        }
       />
     </div>
   );

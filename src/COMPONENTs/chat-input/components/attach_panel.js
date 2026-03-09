@@ -4,16 +4,17 @@ import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
 import ToolPickerPopover from "./tool_picker_popover";
 import WorkspacePickerPopover from "./workspace_picker_popover";
+import { WorkspaceModal } from "../../workspace/workspace_modal";
 
 const PILL_HEIGHT = 32;
 
 const isTextEntryTarget = (target) =>
   Boolean(
     target &&
-      typeof target.closest === "function" &&
-      target.closest(
-        "input, textarea, [contenteditable]:not([contenteditable='false'])",
-      ),
+    typeof target.closest === "function" &&
+    target.closest(
+      "input, textarea, [contenteditable]:not([contenteditable='false'])",
+    ),
   );
 
 const AttachPanel = ({
@@ -42,6 +43,7 @@ const AttachPanel = ({
 }) => {
   const [toolPickerOpen, setToolPickerOpen] = useState(false);
   const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const toolBtnRef = useRef(null);
   const workspaceBtnRef = useRef(null);
   const floating = active || focused;
@@ -238,6 +240,7 @@ const AttachPanel = ({
                   onClose={() => setWorkspacePickerOpen(false)}
                   anchorEl={workspaceBtnRef.current}
                   isDark={isDark}
+                  onOpenWorkspaceModal={() => setWorkspaceModalOpen(true)}
                 />
               )}
             </div>
@@ -252,6 +255,11 @@ const AttachPanel = ({
           />
         )}
       </div>
+
+      <WorkspaceModal
+        open={workspaceModalOpen}
+        onClose={() => setWorkspaceModalOpen(false)}
+      />
     </div>
   );
 };

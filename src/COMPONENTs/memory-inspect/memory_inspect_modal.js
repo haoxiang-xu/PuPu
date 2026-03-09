@@ -5,7 +5,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
-import Modal, { ModalCloseButton } from "../../BUILTIN_COMPONENTs/modal/modal";
+import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { Scatter } from "../../BUILTIN_COMPONENTs/scatter";
 import Tooltip from "../../BUILTIN_COMPONENTs/tooltip/tooltip";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
@@ -499,11 +499,32 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
         flexDirection: "column",
         padding: 0,
         overflow: "hidden",
-        borderRadius: 14,
       }}
     >
-      {/* ━━ Close button (standard 28×28 icon) ━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <ModalCloseButton onClick={onClose} />
+      {/* Close — aligned with Settings/Tools modal */}
+      <Button
+        prefix_icon="close"
+        onClick={onClose}
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 12,
+          paddingVertical: 6,
+          paddingHorizontal: 6,
+          borderRadius: 6,
+          opacity: 0.45,
+          zIndex: 2,
+          content: {
+            prefixIconWrap: {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 0,
+            },
+            icon: { width: 14, height: 14 },
+          },
+        }}
+      />
 
       {/* ━━ Header ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div
@@ -514,8 +535,9 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
       >
         <div
           style={{
-            fontSize: 18,
-            fontFamily: "Jost",
+            fontSize: 22,
+            fontWeight: 600,
+            fontFamily: "NunitoSans, sans-serif",
             color,
             userSelect: "none",
             WebkitUserSelect: "none",
@@ -755,66 +777,68 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
         </div>
 
         {/* ── Right: detail panel ── */}
-        <div
-          style={{
-            width: 300,
-            flexShrink: 0,
-            display: "flex",
-            flexDirection: "column",
-            overflow: "hidden",
-          }}
-        >
-          {/* Detail header */}
+        {status !== "empty" && (
           <div
             style={{
-              padding: "16px 20px 10px",
+              width: 300,
               flexShrink: 0,
-              fontSize: 11,
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-              color: meta_color,
-              textTransform: "uppercase",
-              letterSpacing: "0.8px",
-              userSelect: "none",
-              WebkitUserSelect: "none",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
             }}
           >
-            Chunk Detail
-          </div>
+            {/* Detail header */}
+            <div
+              style={{
+                padding: "16px 20px 10px",
+                flexShrink: 0,
+                fontSize: 11,
+                fontFamily: "Menlo, Monaco, Consolas, monospace",
+                color: meta_color,
+                textTransform: "uppercase",
+                letterSpacing: "0.8px",
+                userSelect: "none",
+                WebkitUserSelect: "none",
+              }}
+            >
+              Chunk Detail
+            </div>
 
-          {/* Detail content */}
-          <div
-            className="scrollable"
-            style={{
-              flex: 1,
-              minHeight: 0,
-              overflowY: "auto",
-              padding: "0 20px 20px",
-            }}
-          >
-            {status === "ready" && selectedPoint ? (
-              <SelectedCard
-                point={selectedPoint}
-                isDark={isDark}
-                fontFamily={fontFamily}
-                color={color}
-              />
-            ) : status === "ready" ? (
-              <div
-                style={{
-                  fontSize: 13,
-                  fontFamily,
-                  color: meta_color,
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                  paddingTop: 8,
-                  lineHeight: 1.6,
-                }}
-              >
-                Click a point on the scatter plot to inspect that memory chunk.
-              </div>
-            ) : null}
+            {/* Detail content */}
+            <div
+              className="scrollable"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: "auto",
+                padding: "0 20px 20px",
+              }}
+            >
+              {status === "ready" && selectedPoint ? (
+                <SelectedCard
+                  point={selectedPoint}
+                  isDark={isDark}
+                  fontFamily={fontFamily}
+                  color={color}
+                />
+              ) : status === "ready" ? (
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontFamily,
+                    color: meta_color,
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                    paddingTop: 8,
+                    lineHeight: 1.6,
+                  }}
+                >
+                  Click a point on the scatter plot to inspect that memory chunk.
+                </div>
+              ) : null}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </Modal>
   );
