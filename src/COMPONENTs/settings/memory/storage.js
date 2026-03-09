@@ -20,7 +20,7 @@ const writeRoot = (root) => {
 };
 
 export const DEFAULT_MEMORY_SETTINGS = {
-  enabled: false,
+  enabled: true,
   embedding_provider: "auto",
   ollama_embedding_model: "nomic-embed-text",
   openai_embedding_model: "text-embedding-3-small",

@@ -20,6 +20,14 @@ const SYSTEM_PROMPT_V2_SECTION_KEYS = [
   "context",
   "constraints",
 ];
+const DEFAULT_MEMORY_SETTINGS = {
+  enabled: true,
+  embedding_provider: "auto",
+  ollama_embedding_model: "nomic-embed-text",
+  openai_embedding_model: "text-embedding-3-small",
+  last_n_turns: 8,
+  vector_top_k: 4,
+};
 const normalizeSystemPromptV2SectionKey = (rawKey) => {
   if (typeof rawKey !== "string") {
     return "";
@@ -225,13 +233,17 @@ const getStoredWorkspaceRoot = () => {
 
 const readMemorySettingsFromStorage = () => {
   if (typeof window === "undefined" || !window.localStorage) {
-    return {};
+    return { ...DEFAULT_MEMORY_SETTINGS };
   }
   try {
     const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-    return isObject(root?.memory) ? root.memory : {};
+    const storedMemory = isObject(root?.memory) ? root.memory : {};
+    return {
+      ...DEFAULT_MEMORY_SETTINGS,
+      ...storedMemory,
+    };
   } catch (_error) {
-    return {};
+    return { ...DEFAULT_MEMORY_SETTINGS };
   }
 };
 
