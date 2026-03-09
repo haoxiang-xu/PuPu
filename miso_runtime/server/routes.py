@@ -366,6 +366,50 @@ def _scroll_projection_points(client: Any, collection_name: str) -> List[Any]:
     return all_points
 
 
+def _kmeans_2d_numpy(coords_2d: "Any") -> List[int]:
+    """K-means++ clustering on 2D PCA coordinates (numpy only).
+    Auto-selects k = max(2, min(6, round(sqrt(n)))).
+    Fixed seed=42 for reproducibility.
+    """
+    import numpy as _np
+    arr = _np.asarray(coords_2d, dtype=_np.float64)
+    n = len(arr)
+    if n <= 1:
+        return [0] * n
+    k = max(2, min(6, round(n ** 0.5)))
+    k = min(k, n)
+    if k == 1:
+        return [0] * n
+
+    rng = _np.random.default_rng(42)
+    # K-means++ init: first centroid random, rest proportional to D²
+    centroid_indices: List[int] = [int(rng.integers(0, n))]
+    for _ in range(k - 1):
+        c = arr[centroid_indices]
+        diff = arr[:, None, :] - c[None]          # (n, m, 2)
+        min_sq_d = _np.min(_np.sum(diff ** 2, axis=2), axis=1)  # (n,)
+        total = float(min_sq_d.sum())
+        if total <= 0.0:
+            break
+        probs = min_sq_d / total
+        centroid_indices.append(int(rng.choice(n, p=probs)))
+
+    centroids = arr[centroid_indices].copy()
+    labels = _np.zeros(n, dtype=int)
+    for _ in range(150):
+        diff = arr[:, None, :] - centroids[None]      # (n, k, 2)
+        new_labels = _np.sum(diff ** 2, axis=2).argmin(axis=1)
+        if _np.array_equal(new_labels, labels):
+            break
+        labels = new_labels
+        for ki in range(len(centroids)):
+            mask = labels == ki
+            if mask.any():
+                centroids[ki] = arr[mask].mean(axis=0)
+
+    return labels.tolist()
+
+
 @api_blueprint.get("/health")
 def health() -> Response:
     return jsonify(
@@ -684,16 +728,18 @@ def memory_projection() -> Response:
 
         vectors = np.array(vector_rows, dtype=np.float64)
 
-        # PCA via numpy thin SVD — center, project onto top-2 right singular vectors
+        # PCA via numpy thin SVD — center, project onto top-5 right singular vectors
         X = vectors - vectors.mean(axis=0)
         _, s, Vt = np.linalg.svd(X, full_matrices=False)
-        coords = X @ Vt[:2].T  # (n, 2)
+        n_pcs = min(5, len(s))
+        coords = X @ Vt[:n_pcs].T  # (n, n_pcs)
         total_var = float((s ** 2).sum())
         variance = (
-            [float(s[0] ** 2 / total_var), float(s[1] ** 2 / total_var)]
+            [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
             if total_var > 0
-            else [0.0, 0.0]
+            else [0.0] * 5
         )
+        cluster_labels = _kmeans_2d_numpy(coords[:, :2])
 
         points = []
         for i, p in enumerate(vector_points):
@@ -718,10 +764,17 @@ def memory_projection() -> Response:
             # content: full text for the tooltip body, capped at 300 chars
             content = full_text[:300] + ("…" if len(full_text) > 300 else "")
 
+            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
             points.append({
                 "id":               str(p.id),
-                "x":                float(coords[i, 0]),
-                "y":                float(coords[i, 1]),
+                "x":                pc_vals[0],
+                "y":                pc_vals[1],
+                "pc1":              pc_vals[0],
+                "pc2":              pc_vals[1],
+                "pc3":              pc_vals[2],
+                "pc4":              pc_vals[3],
+                "pc5":              pc_vals[4],
+                "group":            f"Cluster {cluster_labels[i] + 1}",
                 "text":             full_text,
                 "label":            label,
                 "content":          content,

@@ -74,8 +74,13 @@ const DEFAULT_THEME = {
   pointOpacity: 0.88,
   pointHoverScale: 1.9,
   clusterColors: [
-    "#2563eb", "#22c55e", "#f59e0b",
-    "#ec4899", "#8b5cf6", "#06b6d4", "#f97316",
+    "#2563eb",
+    "#22c55e",
+    "#f59e0b",
+    "#ec4899",
+    "#8b5cf6",
+    "#06b6d4",
+    "#f97316",
   ],
   tooltipBackground: "rgba(255,255,255,0.97)",
   tooltipBorder: "1px solid rgba(0,0,0,0.07)",
@@ -89,10 +94,10 @@ const DEFAULT_THEME = {
 /*  Constants                                                              */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const BASE_FRUSTUM   = 1.4;   /* half-height of the initial camera view */
-const ZOOM_MIN       = 0.25;
-const ZOOM_MAX       = 12;
-const ENTRANCE_MS    = 650;
+const BASE_FRUSTUM = 1.4; /* half-height of the initial camera view */
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 12;
+const ENTRANCE_MS = 650;
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Component                                                              */
@@ -105,6 +110,7 @@ function Scatter({
   show_legend = true,
   on_point_click,
   on_point_hover,
+  render_tooltip,
   style,
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
@@ -131,38 +137,42 @@ function Scatter({
 
   /* ── State ────────────────────────────────────────────────────────── */
   const [hovered_idx, set_hovered_idx] = useState(-1);
-  const hovered_idx_ref                = useRef(-1);   /* always-current mirror */
+  const hovered_idx_ref = useRef(-1); /* always-current mirror */
   const [, set_selected_id] = useState(null);
-  const [tooltip, set_tooltip]         = useState(null); /* { x, y, point } */
+  const [tooltip, set_tooltip] = useState(null); /* { x, y, point } */
 
   /* ── Refs ─────────────────────────────────────────────────────────── */
-  const canvas_ref    = useRef(null);
-  const wrapper_ref   = useRef(null);
+  const canvas_ref = useRef(null);
+  const wrapper_ref = useRef(null);
 
   /* Three.js objects */
-  const renderer_ref  = useRef(null);
-  const scene_ref     = useRef(null);
-  const camera_ref    = useRef(null);
-  const points_ref    = useRef(null);   /* THREE.Points mesh */
-  const geo_ref       = useRef(null);
-  const mat_ref       = useRef(null);
+  const renderer_ref = useRef(null);
+  const scene_ref = useRef(null);
+  const camera_ref = useRef(null);
+  const points_ref = useRef(null); /* THREE.Points mesh */
+  const geo_ref = useRef(null);
+  const mat_ref = useRef(null);
 
   /* per-frame mutable state stored in refs to avoid re-renders */
-  const zoom_ref      = useRef(1);      /* logical zoom level */
-  const pan_ref       = useRef(null);   /* active pan gesture */
-  const raf_ref       = useRef(null);
-  const sizes_ref     = useRef(null);   /* Float32Array — per-point sizes */
-  const norm_ref      = useRef(norm_points);
+  const zoom_ref = useRef(1); /* logical zoom level */
+  const pan_ref = useRef(null); /* active pan gesture */
+  const raf_ref = useRef(null);
+  const sizes_ref = useRef(null); /* Float32Array — per-point sizes */
+  const norm_ref = useRef(norm_points);
 
-  useEffect(() => { norm_ref.current = norm_points; }, [norm_points]);
-  useEffect(() => { hovered_idx_ref.current = hovered_idx; }, [hovered_idx]);
+  useEffect(() => {
+    norm_ref.current = norm_points;
+  }, [norm_points]);
+  useEffect(() => {
+    hovered_idx_ref.current = hovered_idx;
+  }, [hovered_idx]);
 
   /* ═══════════════════════════════════════════════════════════════════ */
   /*  Three.js initialization                                            */
   /* ═══════════════════════════════════════════════════════════════════ */
 
   useEffect(() => {
-    const canvas  = canvas_ref.current;
+    const canvas = canvas_ref.current;
     const wrapper = wrapper_ref.current;
     if (!canvas || !wrapper) return;
 
@@ -171,7 +181,11 @@ function Scatter({
     const aspect = w / h;
 
     /* ── Renderer ── */
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    const renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: true,
+      alpha: true,
+    });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(w, h);
     renderer.setClearColor(0x000000, 0);
@@ -190,35 +204,35 @@ function Scatter({
 
     /* ── Geometry ── */
     const geo = new THREE.BufferGeometry();
-    const n   = norm_points.length;
+    const n = norm_points.length;
 
-    const pos    = new Float32Array(n * 3);
+    const pos = new Float32Array(n * 3);
     const colors = new Float32Array(color_buf);
-    const sizes  = new Float32Array(n).fill(point_size);
+    const sizes = new Float32Array(n).fill(point_size);
 
     for (let i = 0; i < n; i++) {
-      pos[i * 3]     = norm_points[i].nx;
+      pos[i * 3] = norm_points[i].nx;
       pos[i * 3 + 1] = norm_points[i].ny;
       pos[i * 3 + 2] = 0;
     }
 
     geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-    geo.setAttribute("aColor",   new THREE.BufferAttribute(colors, 3));
-    geo.setAttribute("aSize",    new THREE.BufferAttribute(sizes, 1));
+    geo.setAttribute("aColor", new THREE.BufferAttribute(colors, 3));
+    geo.setAttribute("aSize", new THREE.BufferAttribute(sizes, 1));
 
-    geo_ref.current   = geo;
+    geo_ref.current = geo;
     sizes_ref.current = sizes;
 
     /* ── Material ── */
     const mat = new THREE.ShaderMaterial({
-      vertexShader:   VERTEX_SHADER,
+      vertexShader: VERTEX_SHADER,
       fragmentShader: FRAGMENT_SHADER,
       uniforms: {
-        uOpacity:  { value: theme.pointOpacity },
+        uOpacity: { value: theme.pointOpacity },
         uProgress: { value: 0 },
       },
       transparent: true,
-      depthWrite:  false,
+      depthWrite: false,
     });
     mat_ref.current = mat;
 
@@ -239,7 +253,7 @@ function Scatter({
     /* ── Entrance animation ── */
     const t_start = performance.now();
     const animate_entrance = () => {
-      const elapsed  = performance.now() - t_start;
+      const elapsed = performance.now() - t_start;
       const progress = Math.min(1, elapsed / ENTRANCE_MS);
       /* ease-out cubic */
       const eased = 1 - Math.pow(1 - progress, 3);
@@ -256,12 +270,12 @@ function Scatter({
       mat.dispose();
       renderer.dispose();
       renderer_ref.current = null;
-      scene_ref.current    = null;
-      camera_ref.current   = null;
-      points_ref.current   = null;
-      geo_ref.current      = null;
-      mat_ref.current      = null;
-      sizes_ref.current    = null;
+      scene_ref.current = null;
+      camera_ref.current = null;
+      points_ref.current = null;
+      geo_ref.current = null;
+      mat_ref.current = null;
+      sizes_ref.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -274,10 +288,10 @@ function Scatter({
     const geo = geo_ref.current;
     if (!geo) return;
 
-    const n   = norm_points.length;
+    const n = norm_points.length;
     const pos = new Float32Array(n * 3);
     for (let i = 0; i < n; i++) {
-      pos[i * 3]     = norm_points[i].nx;
+      pos[i * 3] = norm_points[i].nx;
       pos[i * 3 + 1] = norm_points[i].ny;
       pos[i * 3 + 2] = 0;
     }
@@ -301,7 +315,7 @@ function Scatter({
 
     const ro = new ResizeObserver(() => {
       const renderer = renderer_ref.current;
-      const camera   = camera_ref.current;
+      const camera = camera_ref.current;
       if (!renderer || !camera) return;
 
       const w = wrapper.clientWidth;
@@ -311,12 +325,12 @@ function Scatter({
       renderer.setSize(w, h);
 
       /* recalculate frustum preserving zoom */
-      const z  = zoom_ref.current;
+      const z = zoom_ref.current;
       const fh = BASE_FRUSTUM / z;
       const fw = fh * (w / h);
-      camera.left   = -fw;
-      camera.right  =  fw;
-      camera.top    =  fh;
+      camera.left = -fw;
+      camera.right = fw;
+      camera.top = fh;
       camera.bottom = -fh;
       camera.updateProjectionMatrix();
     });
@@ -330,7 +344,7 @@ function Scatter({
   /* ═══════════════════════════════════════════════════════════════════ */
 
   const apply_zoom = useCallback((next_zoom, pivot_sx, pivot_sy) => {
-    const camera  = camera_ref.current;
+    const camera = camera_ref.current;
     const wrapper = wrapper_ref.current;
     if (!camera || !wrapper) return;
 
@@ -338,15 +352,15 @@ function Scatter({
     const h = wrapper.clientHeight;
 
     /* world position under cursor before zoom */
-    const rect    = { width: w, height: h };
-    const before  = screen_to_world(pivot_sx, pivot_sy, camera, rect);
+    const rect = { width: w, height: h };
+    const before = screen_to_world(pivot_sx, pivot_sy, camera, rect);
 
     /* new frustum */
     const fh = BASE_FRUSTUM / next_zoom;
     const fw = fh * (w / h);
-    camera.left   = -fw;
-    camera.right  =  fw;
-    camera.top    =  fh;
+    camera.left = -fw;
+    camera.right = fw;
+    camera.top = fh;
     camera.bottom = -fh;
     camera.updateProjectionMatrix();
 
@@ -371,9 +385,12 @@ function Scatter({
 
     const on_wheel = (e) => {
       e.preventDefault();
-      const factor   = e.deltaY > 0 ? 0.93 : 1 / 0.93;
-      const next     = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom_ref.current * factor));
-      const rect     = canvas.getBoundingClientRect();
+      const factor = e.deltaY > 0 ? 0.93 : 1 / 0.93;
+      const next = Math.max(
+        ZOOM_MIN,
+        Math.min(ZOOM_MAX, zoom_ref.current * factor),
+      );
+      const rect = canvas.getBoundingClientRect();
       apply_zoom(next, e.clientX - rect.left, e.clientY - rect.top);
     };
 
@@ -405,7 +422,7 @@ function Scatter({
     const on_move = (e) => {
       const p = pan_ref.current;
       if (!p) return;
-      const camera  = camera_ref.current;
+      const camera = camera_ref.current;
       const wrapper = wrapper_ref.current;
       if (!camera || !wrapper) return;
 
@@ -414,10 +431,10 @@ function Scatter({
 
       if (Math.abs(dx_px) > 2 || Math.abs(dy_px) > 2) p.moved = true;
 
-      const w   = wrapper.clientWidth;
-      const h   = wrapper.clientHeight;
-      const fw  = camera.right - camera.left;
-      const fh  = camera.top   - camera.bottom;
+      const w = wrapper.clientWidth;
+      const h = wrapper.clientHeight;
+      const fw = camera.right - camera.left;
+      const fh = camera.top - camera.bottom;
 
       camera.position.x = p.start_cx - (dx_px / w) * fw;
       camera.position.y = p.start_cy + (dy_px / h) * fh;
@@ -444,10 +461,10 @@ function Scatter({
     };
 
     window.addEventListener("mousemove", on_move);
-    window.addEventListener("mouseup",   on_up);
+    window.addEventListener("mouseup", on_up);
     return () => {
       window.removeEventListener("mousemove", on_move);
-      window.removeEventListener("mouseup",   on_up);
+      window.removeEventListener("mouseup", on_up);
     };
   }, [on_point_click]);
 
@@ -460,24 +477,27 @@ function Scatter({
       /* skip hover updates while panning */
       if (pan_ref.current?.moved) return;
 
-      const camera  = camera_ref.current;
-      const canvas  = canvas_ref.current;
+      const camera = camera_ref.current;
+      const canvas = canvas_ref.current;
       const wrapper = wrapper_ref.current;
-      const sizes   = sizes_ref.current;
-      const geo     = geo_ref.current;
+      const sizes = sizes_ref.current;
+      const geo = geo_ref.current;
       if (!camera || !canvas || !wrapper || !sizes || !geo) return;
 
-      const rect   = canvas.getBoundingClientRect();
-      const sx     = e.clientX - rect.left;
-      const sy     = e.clientY - rect.top;
-      const canvas_rect = { width: wrapper.clientWidth, height: wrapper.clientHeight };
+      const rect = canvas.getBoundingClientRect();
+      const sx = e.clientX - rect.left;
+      const sy = e.clientY - rect.top;
+      const canvas_rect = {
+        width: wrapper.clientWidth,
+        height: wrapper.clientHeight,
+      };
 
-      const world  = screen_to_world(sx, sy, camera, canvas_rect);
+      const world = screen_to_world(sx, sy, camera, canvas_rect);
 
       /* hit radius in world units: 1.5× point radius projected to world space */
-      const fw            = camera.right - camera.left;
-      const world_per_px  = fw / wrapper.clientWidth;
-      const hit_radius    = point_size * 1.6 * world_per_px;
+      const fw = camera.right - camera.left;
+      const world_per_px = fw / wrapper.clientWidth;
+      const hit_radius = point_size * 1.6 * world_per_px;
 
       const idx = find_nearest(norm_ref.current, world.x, world.y, hit_radius);
 
@@ -498,8 +518,8 @@ function Scatter({
         on_point_hover?.(idx >= 0 ? norm_ref.current[idx] : null);
 
         if (idx >= 0) {
-          const pt    = norm_ref.current[idx];
-          const sp    = world_to_screen(pt.nx, pt.ny, camera, canvas_rect);
+          const pt = norm_ref.current[idx];
+          const sp = world_to_screen(pt.nx, pt.ny, camera, canvas_rect);
           set_tooltip({ x: sp.x, y: sp.y, point: pt });
         } else {
           set_tooltip(null);
@@ -511,7 +531,7 @@ function Scatter({
 
   const handle_mouse_leave = useCallback(() => {
     const sizes = sizes_ref.current;
-    const geo   = geo_ref.current;
+    const geo = geo_ref.current;
     if (hovered_idx >= 0 && sizes && geo) {
       sizes[hovered_idx] = point_size;
       geo.attributes.aSize.needsUpdate = true;
@@ -591,99 +611,112 @@ function Scatter({
             zIndex: 10,
           }}
         >
-          <div
-            style={{
-              backgroundColor: theme.tooltipBackground,
-              border: theme.tooltipBorder,
-              boxShadow: theme.tooltipShadow,
-              borderRadius: 9,
-              padding: "9px 13px",
-              maxWidth: 240,
-              minWidth: 120,
-            }}
-          >
-            {tooltip.point.label && (
+          {typeof render_tooltip === "function" ? (
+            render_tooltip({
+              point: tooltip.point,
+              x: tooltip.x,
+              y: tooltip.y,
+              theme,
+            })
+          ) : (
+            <>
               <div
                 style={{
-                  fontSize: 12,
-                  fontFamily: "Jost, sans-serif",
-                  fontWeight: 500,
-                  color: theme.tooltipColor,
-                  marginBottom: tooltip.point.content ? 4 : 0,
-                  lineHeight: 1.4,
+                  backgroundColor: theme.tooltipBackground,
+                  border: theme.tooltipBorder,
+                  boxShadow: theme.tooltipShadow,
+                  borderRadius: 9,
+                  padding: "9px 13px",
+                  maxWidth: 240,
+                  minWidth: 120,
                 }}
               >
-                {tooltip.point.label}
+                {tooltip.point.label && (
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontFamily: "Jost, sans-serif",
+                      fontWeight: 500,
+                      color: theme.tooltipColor,
+                      marginBottom: tooltip.point.content ? 4 : 0,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {tooltip.point.label}
+                  </div>
+                )}
+                {tooltip.point.content && (
+                  <div
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "Jost, sans-serif",
+                      color: theme.tooltipMetaColor,
+                      lineHeight: 1.5,
+                      wordBreak: "break-word",
+                      whiteSpace: "pre-wrap",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 4,
+                      WebkitBoxOrient: "vertical",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {tooltip.point.content}
+                  </div>
+                )}
+                {tooltip.point.group && (
+                  <div
+                    style={{
+                      marginTop: 6,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 5,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 7,
+                        height: 7,
+                        borderRadius: "50%",
+                        backgroundColor:
+                          theme.clusterColors[
+                            legend.findIndex(
+                              (l) => l.label === tooltip.point.group,
+                            ) % theme.clusterColors.length
+                          ] || theme.clusterColors[0],
+                        flexShrink: 0,
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontFamily: "Jost, sans-serif",
+                        color: theme.tooltipMetaColor,
+                        letterSpacing: "0.3px",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {tooltip.point.group}
+                    </span>
+                  </div>
+                )}
               </div>
-            )}
-            {tooltip.point.content && (
+              {/* arrow */}
               <div
                 style={{
-                  fontSize: 11,
-                  fontFamily: "Jost, sans-serif",
-                  color: theme.tooltipMetaColor,
-                  lineHeight: 1.5,
-                  wordBreak: "break-word",
-                  whiteSpace: "pre-wrap",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 4,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
+                  position: "absolute",
+                  bottom: -6,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "6px solid transparent",
+                  borderRight: "6px solid transparent",
+                  borderTop: `6px solid ${theme.tooltipBackground}`,
+                  filter: `drop-shadow(0 2px 3px rgba(0,0,0,0.08))`,
                 }}
-              >
-                {tooltip.point.content}
-              </div>
-            )}
-            {tooltip.point.group && (
-              <div
-                style={{
-                  marginTop: 6,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
-              >
-                <div
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    backgroundColor: theme.clusterColors[
-                      legend.findIndex((l) => l.label === tooltip.point.group) %
-                        theme.clusterColors.length
-                    ] || theme.clusterColors[0],
-                    flexShrink: 0,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "Jost, sans-serif",
-                    color: theme.tooltipMetaColor,
-                    letterSpacing: "0.3px",
-                    textTransform: "uppercase",
-                  }}
-                >
-                  {tooltip.point.group}
-                </span>
-              </div>
-            )}
-          </div>
-          {/* arrow */}
-          <div
-            style={{
-              position: "absolute",
-              bottom: -6,
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: 0,
-              height: 0,
-              borderLeft: "6px solid transparent",
-              borderRight: "6px solid transparent",
-              borderTop: `6px solid ${theme.tooltipBackground}`,
-              filter: `drop-shadow(0 2px 3px rgba(0,0,0,0.08))`,
-            }}
-          />
+              />
+            </>
+          )}
         </div>
       )}
 
