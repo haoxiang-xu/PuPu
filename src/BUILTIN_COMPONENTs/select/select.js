@@ -675,14 +675,18 @@ const Select = ({
   options = [],
   value,
   set_value = () => {},
+  multi = false,
+  multi_label,
   placeholder = "Select...",
   filterable = true,
   filter_mode = "panel",
   search_placeholder = "Search...",
   icon,
+  custom_trigger,
   style,
   dropdown_style,
   option_style,
+  dropdown_footer,
   disabled = false,
   show_trigger_icon = true,
   open,
@@ -704,6 +708,7 @@ const Select = ({
     options,
     value,
     set_value,
+    multi,
     filterable,
     filter_mode,
     disabled,
@@ -716,6 +721,7 @@ const Select = ({
     selectedValue,
     selectedOption,
     selectedTriggerText,
+    selectedValuesSet,
     mergedOpen,
     query,
     highlightedIndex,
@@ -768,12 +774,31 @@ const Select = ({
 
   const showBg = hovered || pressed || mergedOpen;
 
-  const selectedIcon = selectedOption?.icon;
+  const selectedIcon = multi ? null : selectedOption?.icon;
   const resolvedIcon =
     show_trigger_icon && selectedIcon ? selectedIcon : icon ? icon : null;
   const showIcon =
     resolvedIcon &&
     (typeof resolvedIcon === "string" || isValidElement(resolvedIcon));
+
+  /* multi trigger text: count-based label */
+  const multiCount = multi
+    ? Array.isArray(selectedValue)
+      ? selectedValue.length
+      : 0
+    : 0;
+  const triggerLabel = multi
+    ? multiCount > 0
+      ? multi_label
+        ? typeof multi_label === "function"
+          ? multi_label(multiCount)
+          : `${multiCount} ${multi_label}`
+        : `${multiCount} selected`
+      : placeholder
+    : selectedTriggerText || placeholder;
+  const triggerLabelIsPlaceholder = multi
+    ? multiCount === 0
+    : !selectedTriggerText;
 
   const dropdownMinWidth = triggerWidth || undefined;
   const dropdownMaxHeight =
@@ -862,10 +887,10 @@ const Select = ({
         style={{
           position: "relative",
           zIndex: 1,
-          color: selectedTriggerText ? baseColor : placeholderColor,
+          color: triggerLabelIsPlaceholder ? placeholderColor : baseColor,
         }}
       >
-        {selectedTriggerText || placeholder}
+        {triggerLabel}
       </span>
 
       {/* arrow */}
@@ -953,6 +978,8 @@ const Select = ({
           filteredUngrouped={filteredUngrouped}
           flatSelectable={flatSelectable}
           selectedValue={selectedValue}
+          selectedValuesSet={selectedValuesSet}
+          multi={multi}
           highlightedIndex={highlightedIndex}
           setHighlightedIndex={setHighlightedIndex}
           select_option={select_option}
@@ -968,6 +995,19 @@ const Select = ({
           isDark={isDark}
         />
       </div>
+      {/* optional footer (e.g. clear all, add workspace) */}
+      {dropdown_footer != null && (
+        <div
+          style={{
+            borderTop: `1px solid ${
+              isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)"
+            }`,
+            padding: "4px 6px",
+          }}
+        >
+          {dropdown_footer}
+        </div>
+      )}
     </div>
   );
 
@@ -987,7 +1027,7 @@ const Select = ({
       open={mergedOpen}
       on_open_change={emit_open_change}
     >
-      {triggerContent}
+      {custom_trigger || triggerContent}
     </Tooltip>
   );
 };

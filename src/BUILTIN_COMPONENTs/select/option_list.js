@@ -4,6 +4,44 @@ import { get_option_text, render_icon } from "./use_select";
 import Icon from "../icon/icon";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ *  Checkbox — teal checkbox for multi-select mode
+ * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const CHECK_COLOR = "rgba(10,186,181,1)";
+
+const Checkbox = ({ checked, isDark }) => (
+  <div
+    style={{
+      width: 14,
+      height: 14,
+      borderRadius: 4,
+      border: checked
+        ? `2px solid ${CHECK_COLOR}`
+        : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
+      background: checked ? CHECK_COLOR : "transparent",
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.12s",
+      boxSizing: "border-box",
+    }}
+  >
+    {checked && (
+      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+        <path
+          d="M1.5 4L3.5 6L6.5 2"
+          stroke="white"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )}
+  </div>
+);
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  *  OptionItem — single selectable option
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
@@ -12,6 +50,8 @@ const OptionItem = ({
   flatIndex,
   isSelected,
   isHighlighted,
+  multi,
+  isDark,
   onMouseEnter,
   onMouseDown,
   onClick,
@@ -19,6 +59,7 @@ const OptionItem = ({
   fontSize,
   fontFamily,
   baseColor,
+  placeholderColor,
   option_theme,
   option_style,
 }) => {
@@ -28,10 +69,18 @@ const OptionItem = ({
     : baseColor;
   const iconValue = option?.icon;
   const showIcon =
-    iconValue && (typeof iconValue === "string" || isValidElement(iconValue));
+    !multi &&
+    iconValue &&
+    (typeof iconValue === "string" || isValidElement(iconValue));
 
-  const itemHeight = option_theme?.height ?? 28;
-  const itemPadding = option_theme?.padding ?? "0 10px";
+  const hasDescription =
+    option?.description &&
+    typeof option.description === "string" &&
+    option.description.trim();
+  const itemHeight = hasDescription ? "auto" : (option_theme?.height ?? 28);
+  const itemPadding = hasDescription
+    ? (option_theme?.paddingWithDesc ?? "5px 10px")
+    : (option_theme?.padding ?? "0 10px");
 
   return (
     <div
@@ -53,27 +102,52 @@ const OptionItem = ({
         color: optionColor,
         backgroundColor: isHighlighted
           ? (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
-          : isSelected
+          : isSelected && !multi
             ? (option_theme?.selectedBackgroundColor ??
               "rgba(10, 133, 255, 0.14)")
             : "transparent",
         ...option_style,
-        gap: showIcon ? (option_theme?.gap ?? 6) : 0,
+        gap: multi ? 8 : showIcon ? (option_theme?.gap ?? 6) : 0,
       }}
     >
+      {/* checkbox for multi-select */}
+      {multi && <Checkbox checked={isSelected} isDark={isDark} />}
+
+      {/* icon (single-select only) */}
       {showIcon ? <>{render_icon(iconValue, fontSize, optionColor)}</> : null}
-      <span
-        style={{
-          position: "relative",
-          fontFamily,
-          fontSize,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
-      >
-        {option?.label ?? get_option_text(option)}
-      </span>
+
+      {/* label + optional description */}
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <span
+          style={{
+            position: "relative",
+            fontFamily,
+            fontSize,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            display: "block",
+          }}
+        >
+          {option?.label ?? get_option_text(option)}
+        </span>
+        {hasDescription && (
+          <span
+            style={{
+              display: "block",
+              fontFamily,
+              fontSize: Math.round(fontSize * 0.8),
+              color: placeholderColor ?? "rgba(0,0,0,0.38)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              marginTop: 1,
+            }}
+          >
+            {option.description}
+          </span>
+        )}
+      </div>
     </div>
   );
 };
@@ -208,6 +282,8 @@ const OptionList = ({
   flatSelectable,
   // state
   selectedValue,
+  selectedValuesSet,
+  multi,
   highlightedIndex,
   setHighlightedIndex,
   select_option,
@@ -224,6 +300,10 @@ const OptionList = ({
   option_style,
   isDark,
 }) => {
+  const is_selected = (option) =>
+    multi
+      ? selectedValuesSet?.has(option?.value)
+      : option?.value === selectedValue;
   if (!hasGroups) {
     /* ── flat mode (backward compatible) ── */
     if (filteredUngrouped.length === 0) {
@@ -245,8 +325,10 @@ const OptionList = ({
         key={`${option?.value ?? index}`}
         option={option}
         flatIndex={index}
-        isSelected={option?.value === selectedValue}
+        isSelected={is_selected(option)}
         isHighlighted={index === highlightedIndex}
+        multi={multi}
+        isDark={isDark}
         onMouseEnter={() => {
           if (!option?.disabled) setHighlightedIndex(index);
         }}
@@ -258,6 +340,7 @@ const OptionList = ({
         fontSize={fontSize}
         fontFamily={fontFamily}
         baseColor={baseColor}
+        placeholderColor={placeholderColor}
         option_theme={option_theme}
         option_style={option_style}
       />
@@ -349,8 +432,10 @@ const OptionList = ({
                       key={`${option?.value ?? fi}`}
                       option={option}
                       flatIndex={fi}
-                      isSelected={option?.value === selectedValue}
+                      isSelected={is_selected(option)}
                       isHighlighted={fi === highlightedIndex}
+                      multi={multi}
+                      isDark={isDark}
                       onMouseEnter={() => {
                         if (!option?.disabled && fi >= 0)
                           setHighlightedIndex(fi);
@@ -363,6 +448,7 @@ const OptionList = ({
                       fontSize={fontSize}
                       fontFamily={fontFamily}
                       baseColor={baseColor}
+                      placeholderColor={placeholderColor}
                       option_theme={option_theme}
                       option_style={option_style}
                     />
@@ -395,8 +481,10 @@ const OptionList = ({
             key={`${option?.value ?? fi}`}
             option={option}
             flatIndex={fi}
-            isSelected={option?.value === selectedValue}
+            isSelected={is_selected(option)}
             isHighlighted={fi === highlightedIndex}
+            multi={multi}
+            isDark={isDark}
             onMouseEnter={() => {
               if (!option?.disabled && fi >= 0) setHighlightedIndex(fi);
             }}
@@ -408,6 +496,7 @@ const OptionList = ({
             fontSize={fontSize}
             fontFamily={fontFamily}
             baseColor={baseColor}
+            placeholderColor={placeholderColor}
             option_theme={option_theme}
             option_style={option_style}
           />
