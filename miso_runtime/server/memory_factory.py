@@ -64,6 +64,13 @@ def _sessions_dir(data_dir: str) -> str:
     return str(p)
 
 
+def _long_term_profiles_dir(data_dir: str) -> str:
+    from pathlib import Path
+    p = Path(data_dir) / "memory" / "long_term_profiles"
+    p.mkdir(parents=True, exist_ok=True)
+    return str(p)
+
+
 def _get_or_create_qdrant_client(data_dir: str) -> "QdrantClient":
     normalized_data_dir = _normalize_data_dir(data_dir)
     if normalized_data_dir in _qdrant_clients:
@@ -896,8 +903,8 @@ def create_memory_manager_with_diagnostics(
         return None, "embedding_provider_unavailable"
 
     try:
-        from miso.memory import MemoryConfig, MemoryManager
-        from miso.memory_qdrant import JsonFileSessionStore, QdrantVectorAdapter
+        from miso.memory import LongTermMemoryConfig, MemoryConfig, MemoryManager
+        from miso.memory_qdrant import JsonFileSessionStore, QdrantLongTermVectorAdapter, QdrantVectorAdapter
 
         qdrant_client = _get_or_create_qdrant_client(data_dir)
         embed_fn, vector_size = _build_embed_runtime(embed_config)
@@ -918,6 +925,29 @@ def create_memory_manager_with_diagnostics(
             collection_prefix=_vector_collection_prefix(collection_tag),
         )
         vector_adapter = _patch_qdrant_similarity_search_compat(vector_adapter)
+        long_term_enabled = bool(options.get("memory_long_term_enabled"))
+        long_term_config = None
+        if long_term_enabled:
+            long_term_config = LongTermMemoryConfig(
+                vector_adapter=QdrantLongTermVectorAdapter(
+                    client=qdrant_client,
+                    embed_fn=embed_fn,
+                    vector_size=vector_size,
+                    collection_prefix="long_term",
+                ),
+                profile_base_dir=_long_term_profiles_dir(data_dir),
+                vector_top_k=max(0, int(options.get("memory_long_term_vector_top_k") or 4)),
+                episode_top_k=max(0, int(options.get("memory_long_term_episode_top_k") or 2)),
+                playbook_top_k=max(0, int(options.get("memory_long_term_playbook_top_k") or 2)),
+                max_fact_items=max(0, int(options.get("memory_long_term_max_fact_items") or 6)),
+                max_episode_items=max(0, int(options.get("memory_long_term_max_episode_items") or 3)),
+                max_playbook_items=max(0, int(options.get("memory_long_term_max_playbook_items") or 2)),
+                extract_every_n_turns=max(
+                    1,
+                    int(options.get("memory_long_term_extract_every_n_turns") or 6),
+                ),
+                embedding_model=str(embed_config.get("model", "") or ""),
+            )
 
         last_n = max(1, int(options.get("memory_last_n_turns") or 8))
         top_k = max(0, int(options.get("memory_vector_top_k") or 4))
@@ -927,6 +957,7 @@ def create_memory_manager_with_diagnostics(
                 last_n_turns=last_n,
                 vector_top_k=top_k,
                 vector_adapter=vector_adapter,
+                long_term=long_term_config,
             ),
             store=store,
         )

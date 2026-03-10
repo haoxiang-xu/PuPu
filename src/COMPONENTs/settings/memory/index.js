@@ -93,11 +93,21 @@ export const MemorySettings = ({ onNavigate }) => {
       <SettingsSection title="Chat Memory">
         <SettingsRow
           label="Enable memory"
-          description="Each chat maintains its own semantic memory. Recent turns are always included; older context is recalled via vector search."
+          description="Each chat keeps short-term memory, while long-term memory is shared globally and recalled automatically when relevant."
         >
           <SemiSwitch
             on={settings.enabled}
             set_on={(val) => update({ enabled: val })}
+            style={{ width: 56, height: 28 }}
+          />
+        </SettingsRow>
+        <SettingsRow
+          label="Enable long-term memory"
+          description="Stable profile, facts, episodes, and reusable workflows are extracted and shared across chats."
+        >
+          <SemiSwitch
+            on={settings.long_term_enabled}
+            set_on={(val) => update({ long_term_enabled: val })}
             style={{ width: 56, height: 28 }}
           />
         </SettingsRow>
@@ -293,6 +303,23 @@ export const MemorySettings = ({ onNavigate }) => {
             set_value={(val) => update({ vector_top_k: val })}
             min={0}
             max={10}
+            step={1}
+            label_format={(v) => `${v}`}
+            style={{ width: 160 }}
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label={`Extract every N turns — ${settings.long_term_extract_every_n_turns}`}
+          description="Long-term memory extraction runs after this many complete user → assistant turns."
+        >
+          <Slider
+            value={settings.long_term_extract_every_n_turns}
+            set_value={(val) =>
+              update({ long_term_extract_every_n_turns: Math.max(1, val) })
+            }
+            min={1}
+            max={20}
             step={1}
             label_format={(v) => `${v}`}
             style={{ width: 160 }}

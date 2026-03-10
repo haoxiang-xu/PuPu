@@ -2011,13 +2011,16 @@ def stream_chat_events(
                 "max_iterations": agent.max_iterations,
             }
 
-            if session_id:
-                run_kwargs["session_id"] = session_id
-
             try:
                 run_params = inspect.signature(agent.run).parameters
             except Exception:
                 run_params = {}
+
+            if session_id:
+                run_kwargs["session_id"] = session_id
+            memory_namespace = str(options.get("memory_namespace") or "").strip()
+            if memory_namespace and "memory_namespace" in run_params:
+                run_kwargs["memory_namespace"] = memory_namespace
 
             if "on_tool_confirm" in run_params:
                 run_kwargs["on_tool_confirm"] = confirm_cb

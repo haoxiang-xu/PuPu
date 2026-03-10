@@ -21,6 +21,8 @@ const writeRoot = (root) => {
 
 export const DEFAULT_MEMORY_SETTINGS = {
   enabled: true,
+  long_term_enabled: true,
+  long_term_extract_every_n_turns: 6,
   embedding_provider: "auto",
   ollama_embedding_model: "nomic-embed-text",
   openai_embedding_model: "text-embedding-3-small",

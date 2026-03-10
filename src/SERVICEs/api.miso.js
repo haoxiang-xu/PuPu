@@ -23,12 +23,15 @@ const SYSTEM_PROMPT_V2_SECTION_KEYS = [
 ];
 const DEFAULT_MEMORY_SETTINGS = {
   enabled: true,
+  long_term_enabled: true,
+  long_term_extract_every_n_turns: 6,
   embedding_provider: "auto",
   ollama_embedding_model: "nomic-embed-text",
   openai_embedding_model: "text-embedding-3-small",
   last_n_turns: 8,
   vector_top_k: 4,
 };
+const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
 const normalizeSystemPromptV2SectionKey = (rawKey) => {
   if (typeof rawKey !== "string") {
     return "";
@@ -291,9 +294,26 @@ const injectMemoryIntoPayload = (payload) => {
     if (currentOptions.memory_enabled !== true) {
       return payload;
     }
+    const memory = readMemorySettingsFromStorage();
+    const optionsWithLongTerm = {
+      ...currentOptions,
+      memory_namespace:
+        typeof currentOptions.memory_namespace === "string" &&
+        currentOptions.memory_namespace.trim()
+          ? currentOptions.memory_namespace.trim()
+          : DEFAULT_LONG_TERM_MEMORY_NAMESPACE,
+      memory_long_term_enabled:
+        typeof currentOptions.memory_long_term_enabled === "boolean"
+          ? currentOptions.memory_long_term_enabled
+          : memory.long_term_enabled !== false,
+      memory_long_term_extract_every_n_turns:
+        Number.isFinite(Number(currentOptions.memory_long_term_extract_every_n_turns))
+          ? Math.max(1, Math.floor(Number(currentOptions.memory_long_term_extract_every_n_turns)))
+          : Math.max(1, Math.floor(Number(memory.long_term_extract_every_n_turns) || 6)),
+    };
     return {
       ...payload,
-      options: injectOpenAIEmbeddingKeyIfNeeded(currentOptions),
+      options: injectOpenAIEmbeddingKeyIfNeeded(optionsWithLongTerm),
     };
   }
 
@@ -305,6 +325,12 @@ const injectMemoryIntoPayload = (payload) => {
   const optionsWithMemory = {
     ...currentOptions,
     memory_enabled: true,
+    memory_namespace: DEFAULT_LONG_TERM_MEMORY_NAMESPACE,
+    memory_long_term_enabled: memory.long_term_enabled !== false,
+    memory_long_term_extract_every_n_turns: Math.max(
+      1,
+      Math.floor(Number(memory.long_term_extract_every_n_turns) || 6),
+    ),
     memory_embedding_provider: memory.embedding_provider || "auto",
     memory_embedding_model:
       memory.embedding_provider === "ollama"

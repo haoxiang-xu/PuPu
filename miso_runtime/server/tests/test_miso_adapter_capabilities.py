@@ -1075,6 +1075,67 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertFalse(events[0]["applied"])
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
 
+    def test_stream_chat_events_passes_memory_namespace_to_agent_run(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_kwargs = None
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": True,
+                    "reason": "",
+                }
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                session_id=None,
+                memory_namespace=None,
+            ):
+                self.run_kwargs = {
+                    "messages": messages,
+                    "payload": payload,
+                    "max_iterations": max_iterations,
+                    "session_id": session_id,
+                    "memory_namespace": memory_namespace,
+                }
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return [{"role": "assistant", "content": "done"}], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                miso_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "memory_enabled": True,
+                        "memory_namespace": "pupu:default",
+                    },
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertEqual(fake_agent.run_kwargs["session_id"], "chat-1")
+        self.assertEqual(fake_agent.run_kwargs["memory_namespace"], "pupu:default")
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
     def test_extract_last_assistant_text_handles_structured_content(self) -> None:
         messages = [
             {

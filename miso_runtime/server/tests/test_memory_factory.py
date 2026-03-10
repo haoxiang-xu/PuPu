@@ -135,6 +135,10 @@ class MemoryFactoryTests(unittest.TestCase):
             def __init__(self, **kwargs):
                 self.__dict__.update(kwargs)
 
+        class FakeLongTermMemoryConfig:
+            def __init__(self, **kwargs):
+                self.__dict__.update(kwargs)
+
         class FakeMemoryManager:
             def __init__(self, config, store):
                 self.config = config
@@ -172,11 +176,13 @@ class MemoryFactoryTests(unittest.TestCase):
 
         fake_memory_module = types.ModuleType("miso.memory")
         fake_memory_module.MemoryConfig = FakeMemoryConfig
+        fake_memory_module.LongTermMemoryConfig = FakeLongTermMemoryConfig
         fake_memory_module.MemoryManager = FakeMemoryManager
 
         fake_memory_qdrant_module = types.ModuleType("miso.memory_qdrant")
         fake_memory_qdrant_module.JsonFileSessionStore = FakeJsonFileSessionStore
         fake_memory_qdrant_module.QdrantVectorAdapter = FakeQdrantVectorAdapter
+        fake_memory_qdrant_module.QdrantLongTermVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_qdrant_module.build_openai_embed_fn = build_openai_embed_fn
 
         fake_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
@@ -257,6 +263,53 @@ class MemoryFactoryTests(unittest.TestCase):
             fake_store_cls._state_by_session["chat-1"]["vector_collection_tag"],
             "111111111111",
         )
+
+    def test_create_memory_manager_can_enable_long_term_memory(self) -> None:
+        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
+            del model, broth_instance, payload
+            return (lambda texts: [[0.0] * 1536 for _ in texts], 1536)
+
+        modules, _fake_store_cls, fake_client, _delete_calls = (
+            self._install_fake_miso_modules_for_manager(
+                build_openai_embed_fn=fake_build_openai_embed_fn,
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(sys.modules, modules), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
+            mock.patch.object(
+                memory_factory,
+                "_get_or_create_qdrant_client",
+                return_value=fake_client,
+            ), \
+            mock.patch.object(
+                memory_factory.uuid,
+                "uuid4",
+                return_value=uuid.UUID("11111111-1111-1111-1111-111111111111"),
+            ):
+            manager, reason = memory_factory.create_memory_manager_with_diagnostics(
+                {
+                    "memory_enabled": True,
+                    "memory_long_term_enabled": True,
+                    "memory_long_term_extract_every_n_turns": 7,
+                    "memory_embedding_provider": "openai",
+                    "memory_embedding_model": "text-embedding-3-small",
+                    "openaiApiKey": "openai-key-123",
+                },
+                session_id="chat-1",
+            )
+
+        self.assertEqual(reason, "")
+        self.assertIsNotNone(manager)
+        self.assertIsNotNone(manager.config.long_term)
+        self.assertEqual(manager.config.long_term.extract_every_n_turns, 7)
+        self.assertEqual(
+            manager.config.long_term.profile_base_dir,
+            os.path.realpath(os.path.join(data_dir, "memory", "long_term_profiles")),
+        )
+        self.assertEqual(manager.config.long_term.vector_adapter._collection_prefix, "long_term")
 
     def test_create_memory_manager_rotates_collection_tag_on_signature_change(self) -> None:
         old_state = {
