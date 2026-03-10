@@ -23,6 +23,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.CLEAR_RUNTIME_DIR,
   CHANNELS.MISO.GET_MEMORY_SIZE,
   CHANNELS.MISO.GET_MEMORY_PROJECTION,
+  CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -64,7 +65,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   });
 
   ipcMain.handle(CHANNELS.APP.GET_VERSION, () => app.getVersion());
-  ipcMain.handle(CHANNELS.UPDATE.GET_STATE, () => updateService.getAppUpdateStatePayload());
+  ipcMain.handle(CHANNELS.UPDATE.GET_STATE, () =>
+    updateService.getAppUpdateStatePayload(),
+  );
   ipcMain.handle(CHANNELS.UPDATE.CHECK_AND_DOWNLOAD, async () =>
     updateService.checkAndDownloadAppUpdate(),
   );
@@ -83,27 +86,35 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     ollamaService.searchLibrary(payload),
   );
 
-  ipcMain.handle(CHANNELS.MISO.GET_STATUS, () => misoService.getMisoStatusPayload());
+  ipcMain.handle(CHANNELS.MISO.GET_STATUS, () =>
+    misoService.getMisoStatusPayload(),
+  );
   ipcMain.handle(CHANNELS.MISO.GET_MODEL_CATALOG, async () =>
     misoService.getMisoModelCatalogPayload(),
   );
   ipcMain.handle(CHANNELS.MISO.GET_TOOLKIT_CATALOG, async () =>
     misoService.getMisoToolkitCatalogPayload(),
   );
-  ipcMain.handle(CHANNELS.MISO.TOOL_CONFIRMATION, async (_event, payload = {}) =>
-    misoService.submitMisoToolConfirmation(payload),
+  ipcMain.handle(
+    CHANNELS.MISO.TOOL_CONFIRMATION,
+    async (_event, payload = {}) =>
+      misoService.submitMisoToolConfirmation(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN, (_event, payload = {}) =>
-    runtimeService.setChromeTerminalOpen(payload),
+  ipcMain.handle(
+    CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
+    (_event, payload = {}) => runtimeService.setChromeTerminalOpen(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.PICK_WORKSPACE_ROOT, async (_event, payload = {}) =>
-    runtimeService.pickWorkspaceRoot(payload),
+  ipcMain.handle(
+    CHANNELS.MISO.PICK_WORKSPACE_ROOT,
+    async (_event, payload = {}) => runtimeService.pickWorkspaceRoot(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.VALIDATE_WORKSPACE_ROOT, (_event, payload = {}) =>
-    runtimeService.validateWorkspaceRoot(payload),
+  ipcMain.handle(
+    CHANNELS.MISO.VALIDATE_WORKSPACE_ROOT,
+    (_event, payload = {}) => runtimeService.validateWorkspaceRoot(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.OPEN_RUNTIME_FOLDER, async (_event, payload = {}) =>
-    runtimeService.openRuntimeFolder(payload),
+  ipcMain.handle(
+    CHANNELS.MISO.OPEN_RUNTIME_FOLDER,
+    async (_event, payload = {}) => runtimeService.openRuntimeFolder(payload),
   );
   ipcMain.handle(CHANNELS.MISO.GET_RUNTIME_DIR_SIZE, (_event, payload = {}) =>
     runtimeService.getRuntimeDirSize(payload),
@@ -120,8 +131,14 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     return { total: result.total || 0, error: result.error || "" };
   });
 
-  ipcMain.handle(CHANNELS.MISO.GET_MEMORY_PROJECTION, async (_event, payload = {}) =>
-    misoService.getMisoMemoryProjection(payload.sessionId),
+  ipcMain.handle(
+    CHANNELS.MISO.GET_MEMORY_PROJECTION,
+    async (_event, payload = {}) =>
+      misoService.getMisoMemoryProjection(payload.sessionId),
+  );
+
+  ipcMain.handle(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION, async () =>
+    misoService.getMisoLongTermMemoryProjection(),
   );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {

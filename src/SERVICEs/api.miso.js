@@ -306,10 +306,19 @@ const injectMemoryIntoPayload = (payload) => {
         typeof currentOptions.memory_long_term_enabled === "boolean"
           ? currentOptions.memory_long_term_enabled
           : memory.long_term_enabled !== false,
-      memory_long_term_extract_every_n_turns:
-        Number.isFinite(Number(currentOptions.memory_long_term_extract_every_n_turns))
-          ? Math.max(1, Math.floor(Number(currentOptions.memory_long_term_extract_every_n_turns)))
-          : Math.max(1, Math.floor(Number(memory.long_term_extract_every_n_turns) || 6)),
+      memory_long_term_extract_every_n_turns: Number.isFinite(
+        Number(currentOptions.memory_long_term_extract_every_n_turns),
+      )
+        ? Math.max(
+            1,
+            Math.floor(
+              Number(currentOptions.memory_long_term_extract_every_n_turns),
+            ),
+          )
+        : Math.max(
+            1,
+            Math.floor(Number(memory.long_term_extract_every_n_turns) || 6),
+          ),
     };
     return {
       ...payload,
@@ -607,6 +616,19 @@ export const createMisoApi = () => {
       );
     },
 
+    getLongTermMemoryProjection: async () => {
+      const method = assertBridgeMethod(
+        "misoAPI",
+        "getLongTermMemoryProjection",
+      );
+      return withTimeout(
+        () => method(),
+        15000,
+        "long_term_memory_projection_timeout",
+        "Long-term memory projection request timed out",
+      );
+    },
+
     cancelStream: (requestId) => {
       if (typeof requestId !== "string" || !requestId.trim()) {
         return;
@@ -632,10 +654,11 @@ export const createMisoApi = () => {
         const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
           payloadWithWorkspaceRoot,
         );
-        const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
-        const normalizedPayload = injectProviderApiKeyIntoPayload(
-          payloadWithMemory,
+        const payloadWithMemory = injectMemoryIntoPayload(
+          payloadWithSystemPromptV2,
         );
+        const normalizedPayload =
+          injectProviderApiKeyIntoPayload(payloadWithMemory);
         const streamHandle = method(normalizedPayload, handlers);
         if (
           !isObject(streamHandle) ||

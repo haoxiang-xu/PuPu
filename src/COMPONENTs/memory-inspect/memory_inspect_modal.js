@@ -274,9 +274,16 @@ function SelectedCard({ point, isDark, fontFamily, color }) {
 /*    onClose   — () => void                                               */
 /*    sessionId — string  (chat session ID, e.g. "chat-1772850432671-...")*/
 /*    chatTitle — string  (optional, for the header)                      */
+/*    mode      — "session" | "long_term" (default: "session")        */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
+const MemoryInspectModal = ({
+  open,
+  onClose,
+  sessionId,
+  chatTitle,
+  mode = "session",
+}) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || (isDark ? "#fff" : "#111");
@@ -296,9 +303,8 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
 
   /* Fetch projection whenever the modal opens with a new sessionId */
   useEffect(() => {
-    if (!open || !sessionId) {
-      return;
-    }
+    if (!open) return;
+    if (mode === "session" && !sessionId) return;
 
     let cancelled = false;
     const loadProjection = ({ silent = false } = {}) => {
@@ -310,8 +316,11 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
         setErrorMsg("");
       }
 
-      misoApi
-        .getMemoryProjection(sessionId)
+      const fetchPromise =
+        mode === "long_term"
+          ? misoApi.getLongTermMemoryProjection()
+          : misoApi.getMemoryProjection(sessionId);
+      fetchPromise
         .then((data) => {
           if (cancelled) return;
           const pts = Array.isArray(data?.points) ? data.points : [];
@@ -352,7 +361,7 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
       cancelled = true;
       window.clearInterval(refreshTimer);
     };
-  }, [open, sessionId]);
+  }, [open, sessionId, mode]);
 
   /* ── Theme tokens ── */
   const meta_color = isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)";
@@ -463,7 +472,8 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
               WebkitUserSelect: "none",
             }}
           >
-            No memory vectors found for this chat.
+            No memory vectors found
+            {mode === "long_term" ? "" : " for this chat"}.
           </div>
         )}
 
@@ -548,7 +558,7 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
               : "0 1px 6px rgba(255,255,255,0.6)",
           }}
         >
-          Memory
+          {mode === "long_term" ? "Long-Term Memory" : "Memory"}
         </div>
         {chatTitle && (
           <div

@@ -9,6 +9,7 @@ import { SettingsRow, SettingsSection } from "../appearance";
 import { readMemorySettings, writeMemorySettings } from "./storage";
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
+import { MemoryInspectModal } from "../../memory-inspect/memory_inspect_modal";
 
 const PROVIDER_OPTIONS = [
   { value: "auto", label: "Auto" },
@@ -32,6 +33,7 @@ export const MemorySettings = ({ onNavigate }) => {
   } = useOllamaEmbeddingModels();
 
   const [settings, setSettings] = useState(() => readMemorySettings());
+  const [inspectOpen, setInspectOpen] = useState(false);
 
   const update = useCallback((patch) => {
     setSettings((prev) => {
@@ -110,6 +112,28 @@ export const MemorySettings = ({ onNavigate }) => {
             set_on={(val) => update({ long_term_enabled: val })}
             style={{ width: 56, height: 28 }}
           />
+        </SettingsRow>
+        <SettingsRow
+          label="Inspect long-term memory"
+          description="Visualise all long-term memory vectors in a PCA scatter plot."
+        >
+          <button
+            onClick={() => setInspectOpen(true)}
+            style={{
+              fontSize: 12,
+              padding: "5px 14px",
+              borderRadius: 6,
+              border: `1px solid ${isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.15)"}`,
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.04)",
+              color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            Inspect
+          </button>
         </SettingsRow>
       </SettingsSection>
 
@@ -326,6 +350,13 @@ export const MemorySettings = ({ onNavigate }) => {
           />
         </SettingsRow>
       </SettingsSection>
+
+      {/* ── Long-term memory inspect modal ── */}
+      <MemoryInspectModal
+        open={inspectOpen}
+        onClose={() => setInspectOpen(false)}
+        mode="long_term"
+      />
     </div>
   );
 };

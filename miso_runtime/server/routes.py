@@ -791,6 +791,137 @@ def memory_projection() -> Response:
         return jsonify({"error": error_str}), 500
 
 
+@api_blueprint.get("/memory/long-term/projection")
+def long_term_memory_projection() -> Response:
+    """PCA scatter projection over ALL long-term memory collections."""
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        from memory_factory import (
+            _data_dir,
+            _normalize_data_dir,
+            _get_or_create_qdrant_client,
+        )
+        import numpy as np
+
+        data_dir = _normalize_data_dir(_data_dir())
+        if not data_dir:
+            return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
+
+        client = _get_or_create_qdrant_client(data_dir)
+
+        # Discover all collections whose name starts with "long_term"
+        all_collections = client.get_collections().collections
+        lt_names = [
+            c.name for c in all_collections if c.name.startswith("long_term")
+        ]
+
+        if not lt_names:
+            return jsonify({"points": [], "variance": [0.0, 0.0]})
+
+        # Scroll every long-term collection and merge
+        all_scroll: List[Any] = []
+        for col_name in lt_names:
+            all_scroll.extend(_scroll_projection_points(client, col_name))
+
+        if not all_scroll:
+            return jsonify({"points": [], "variance": [0.0, 0.0]})
+
+        vector_rows: List[List[float]] = []
+        vector_points: List[Any] = []
+        expected_dims = 0
+
+        for point in all_scroll:
+            raw_vector = getattr(point, "vector", None)
+            vector_candidate: Any = raw_vector
+            if isinstance(raw_vector, dict):
+                vector_candidate = next(
+                    (
+                        value
+                        for value in raw_vector.values()
+                        if isinstance(value, (list, tuple)) and value
+                    ),
+                    None,
+                )
+
+            if not isinstance(vector_candidate, (list, tuple)) or not vector_candidate:
+                continue
+
+            try:
+                vector = [float(item) for item in vector_candidate]
+            except Exception:
+                continue
+
+            if expected_dims <= 0:
+                expected_dims = len(vector)
+
+            if len(vector) != expected_dims:
+                continue
+
+            vector_rows.append(vector)
+            vector_points.append(point)
+
+        if not vector_rows:
+            return jsonify({"points": [], "variance": [0.0, 0.0]})
+
+        vectors = np.array(vector_rows, dtype=np.float64)
+
+        X = vectors - vectors.mean(axis=0)
+        _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        n_pcs = min(5, len(s))
+        coords = X @ Vt[:n_pcs].T
+        total_var = float((s ** 2).sum())
+        variance = (
+            [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
+            if total_var > 0
+            else [0.0] * 5
+        )
+        cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+
+        points = []
+        for i, p in enumerate(vector_points):
+            payload = p.payload or {}
+            full_text = _extract_projection_text(payload)
+
+            label = ""
+            for line in full_text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    for prefix in ("user:", "assistant:", "user :", "assistant :"):
+                        if stripped.lower().startswith(prefix):
+                            stripped = stripped[len(prefix):].strip()
+                            break
+                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    break
+
+            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+
+            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
+            points.append({
+                "id":      str(p.id),
+                "x":       pc_vals[0],
+                "y":       pc_vals[1],
+                "pc1":     pc_vals[0],
+                "pc2":     pc_vals[1],
+                "pc3":     pc_vals[2],
+                "pc4":     pc_vals[3],
+                "pc5":     pc_vals[4],
+                "group":   f"Cluster {cluster_labels[i] + 1}",
+                "text":    full_text,
+                "label":   label,
+                "content": content,
+            })
+
+        return jsonify({"points": points, "variance": variance})
+
+    except Exception as exc:
+        error_str = str(exc)
+        if "Collection" in error_str and "not found" in error_str:
+            return jsonify({"points": [], "variance": [0.0, 0.0]})
+        return jsonify({"error": error_str}), 500
+
+
 @api_blueprint.post("/chat/stream/v2")
 def chat_stream_v2() -> Response:
     if not _is_authorized():
