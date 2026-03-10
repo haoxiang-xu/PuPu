@@ -7,7 +7,6 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { Scatter } from "../../BUILTIN_COMPONENTs/scatter";
-import Tooltip from "../../BUILTIN_COMPONENTs/tooltip/tooltip";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
@@ -134,9 +133,6 @@ function VarianceBar({ variance, isDark, x_pc = 0, y_pc = 1 }) {
   return (
     <div
       style={{
-        position: "absolute",
-        top: 14,
-        right: 14,
         display: "flex",
         flexDirection: "column",
         gap: 5,
@@ -199,10 +195,6 @@ function VarianceBar({ variance, isDark, x_pc = 0, y_pc = 1 }) {
 
 function SelectedCard({ point, isDark, fontFamily, color }) {
   const meta_color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
-  const card_bg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)";
-  const card_border = isDark
-    ? "1px solid rgba(255,255,255,0.06)"
-    : "1px solid rgba(0,0,0,0.06)";
 
   /* Extract clean user + assistant turns from the stored text */
   const lines = extractConversationLines(point);
@@ -210,10 +202,6 @@ function SelectedCard({ point, isDark, fontFamily, color }) {
   return (
     <div
       style={{
-        backgroundColor: card_bg,
-        border: card_border,
-        borderRadius: 10,
-        padding: "12px 16px",
         display: "flex",
         flexDirection: "column",
         gap: 8,
@@ -373,85 +361,6 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
     setSelectedPoint(pt);
   }, []);
 
-  /* Custom tooltip renderer for the scatter points using the mini UI Tooltip bubble */
-  const tooltipTextColor = isDark ? "#111" : "#fff";
-  const tooltipMetaColor = isDark
-    ? "rgba(0,0,0,0.40)"
-    : "rgba(255,255,255,0.50)";
-  const renderScatterTooltip = useCallback(
-    ({ point }) => {
-      const lines = extractConversationLines(point);
-      const preview =
-        lines.length > 0 ? lines.slice(0, 3).join("\n") : "No content";
-      const turnRange =
-        point.turn_start_index != null || point.turn_end_index != null
-          ? `#${point.turn_start_index ?? "?"} → #${point.turn_end_index ?? "?"}`
-          : null;
-
-      return (
-        <Tooltip
-          open={true}
-          position="top"
-          show_arrow={true}
-          style={{
-            width: "min(360px, 72vw)",
-            minWidth: 240,
-            maxWidth: "min(440px, 84vw)",
-          }}
-          tooltip_component={
-            <div>
-              {turnRange && (
-                <div
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "Menlo, Monaco, Consolas, monospace",
-                    color: tooltipMetaColor,
-                    marginBottom: 4,
-                  }}
-                >
-                  {turnRange}
-                </div>
-              )}
-              <div
-                style={{
-                  fontSize: 12,
-                  fontFamily,
-                  color: tooltipTextColor,
-                  lineHeight: 1.5,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  display: "-webkit-box",
-                  WebkitLineClamp: 4,
-                  WebkitBoxOrient: "vertical",
-                  overflow: "hidden",
-                }}
-              >
-                {preview}
-              </div>
-              {point.group && (
-                <div
-                  style={{
-                    marginTop: 5,
-                    fontSize: 10,
-                    fontFamily: "Menlo, Monaco, Consolas, monospace",
-                    color: tooltipMetaColor,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.3px",
-                  }}
-                >
-                  {point.group}
-                </div>
-              )}
-            </div>
-          }
-        >
-          <div style={{ width: 1, height: 1 }} />
-        </Tooltip>
-      );
-    },
-    [tooltipMetaColor, tooltipTextColor, fontFamily],
-  );
-
   /* Remap points to selected PC axes, with optional jitter */
   const display_points = useMemo(() => {
     if (!points.length) return [];
@@ -486,22 +395,112 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
     label: `PC${i + 1} (${((variance[i] || 0) * 100).toFixed(0)}%)`,
   }));
 
+  /* ── Overlay theme tokens ── */
+  const overlay_bg = isDark
+    ? "rgba(20, 20, 20, 0.72)"
+    : "rgba(255, 255, 255, 0.78)";
+  const overlay_border = isDark
+    ? "1px solid rgba(255,255,255,0.08)"
+    : "1px solid rgba(0,0,0,0.08)";
+  const overlay_backdrop = "blur(16px) saturate(1.4)";
+
+  const hasDetail = status === "ready" && selectedPoint;
+
   return (
     <Modal
       open={open}
       onClose={onClose}
       style={{
-        width: 860,
+        width: 920,
         maxWidth: "92vw",
-        height: 560,
+        height: 600,
         maxHeight: "88vh",
-        display: "flex",
-        flexDirection: "column",
         padding: 0,
         overflow: "hidden",
+        position: "relative",
       }}
     >
-      {/* Close — aligned with Settings/Tools modal */}
+      {/* ━━ Full-bleed scatter canvas ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          overflow: "hidden",
+          borderRadius: "inherit",
+        }}
+      >
+        {(status === "loading" || status === "idle") && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontFamily,
+              color: meta_color,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            Loading…
+          </div>
+        )}
+
+        {status === "empty" && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontFamily,
+              color: meta_color,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            No memory vectors found for this chat.
+          </div>
+        )}
+
+        {status === "error" && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontFamily,
+              color: isDark ? "rgba(255,100,100,0.7)" : "rgba(180,40,40,0.7)",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              padding: "0 24px",
+              textAlign: "center",
+            }}
+          >
+            {errorMsg}
+          </div>
+        )}
+
+        {status === "ready" && (
+          <Scatter
+            points={display_points}
+            color_by="group"
+            point_size={10}
+            show_legend={true}
+            on_point_click={on_point_click}
+            render_tooltip={() => null}
+          />
+        )}
+      </div>
+
+      {/* ━━ Overlay: Close button ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Button
         prefix_icon="close"
         onClick={onClose}
@@ -513,7 +512,7 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
           paddingHorizontal: 6,
           borderRadius: 6,
           opacity: 0.45,
-          zIndex: 2,
+          zIndex: 4,
           content: {
             prefixIconWrap: {
               display: "flex",
@@ -526,11 +525,14 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
         }}
       />
 
-      {/* ━━ Header ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {/* ━━ Overlay: Header (top-left) ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <div
         style={{
-          padding: "20px 24px 0",
-          flexShrink: 0,
+          position: "absolute",
+          top: 20,
+          left: 24,
+          zIndex: 3,
+          pointerEvents: "none",
         }}
       >
         <div
@@ -541,7 +543,9 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
             color,
             userSelect: "none",
             WebkitUserSelect: "none",
-            paddingRight: 36,
+            textShadow: isDark
+              ? "0 1px 6px rgba(0,0,0,0.5)"
+              : "0 1px 6px rgba(255,255,255,0.6)",
           }}
         >
           Memory
@@ -562,283 +566,206 @@ const MemoryInspectModal = ({ open, onClose, sessionId, chatTitle }) => {
         )}
       </div>
 
-      {/* ━━ Body — two-column layout ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "row",
-          overflow: "hidden",
-        }}
-      >
-        {/* ── Left: scatter plot ── */}
+      {/* ━━ Overlay: Variance bar (top-left, below header) ━━━━━━━━━━━━ */}
+      {status === "ready" && (variance[x_pc] > 0 || variance[y_pc] > 0) && (
+        <div style={{ position: "absolute", top: 56, right: 16, zIndex: 2 }}>
+          <VarianceBar
+            variance={variance}
+            isDark={isDark}
+            x_pc={x_pc}
+            y_pc={y_pc}
+          />
+        </div>
+      )}
+
+      {/* ━━ Overlay: Bottom-center control panel ━━━━━━━━━━━━━━━━━━━━━━━ */}
+      {status === "ready" && (
         <div
           style={{
-            flex: "1 1 0",
-            minWidth: 0,
+            position: "absolute",
+            bottom: 16,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 3,
             display: "flex",
-            flexDirection: "column",
+            alignItems: "center",
+            gap: 8,
+            padding: "6px 6px 6px 16px",
+            borderRadius: 10,
+            backgroundColor: overlay_bg,
+            border: overlay_border,
+            backdropFilter: overlay_backdrop,
+            WebkitBackdropFilter: overlay_backdrop,
+            boxShadow: isDark
+              ? "0 4px 24px rgba(0,0,0,0.4)"
+              : "0 4px 24px rgba(0,0,0,0.08)",
+            pointerEvents: "auto",
           }}
         >
-          {/* Scatter canvas */}
-          <div
+          <Select
+            options={pc_options}
+            value={String(x_pc)}
+            set_value={(v) => set_x_pc(Number(v))}
+            filterable={false}
+            filter_mode="panel"
             style={{
-              position: "relative",
-              flex: 1,
-              minHeight: 0,
-              margin: "16px 0 0 24px",
-              borderRadius: 10,
-              overflow: "hidden",
+              fontSize: 12,
+              paddingVertical: 4,
+              paddingHorizontal: 10,
+            }}
+          />
+          <span
+            style={{
+              fontSize: 10,
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              color: meta_color,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              flexShrink: 0,
             }}
           >
-            {(status === "loading" || status === "idle") && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  fontFamily,
-                  color: meta_color,
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                }}
-              >
-                Loading…
-              </div>
-            )}
+            vs
+          </span>
+          <Select
+            options={pc_options}
+            value={String(y_pc)}
+            set_value={(v) => set_y_pc(Number(v))}
+            filterable={false}
+            filter_mode="panel"
+            style={{
+              fontSize: 12,
+              paddingVertical: 4,
+              paddingHorizontal: 10,
+            }}
+          />
 
-            {status === "empty" && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  fontFamily,
-                  color: meta_color,
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                }}
-              >
-                No memory vectors found for this chat.
-              </div>
-            )}
-
-            {status === "error" && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 13,
-                  fontFamily,
-                  color: isDark
-                    ? "rgba(255,100,100,0.7)"
-                    : "rgba(180,40,40,0.7)",
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                  padding: "0 24px",
-                  textAlign: "center",
-                }}
-              >
-                {errorMsg}
-              </div>
-            )}
-
-            {status === "ready" && (
-              <>
-                <Scatter
-                  points={display_points}
-                  color_by="group"
-                  point_size={10}
-                  show_legend={true}
-                  on_point_click={on_point_click}
-                  render_tooltip={renderScatterTooltip}
-                />
-                {(variance[x_pc] > 0 || variance[y_pc] > 0) && (
-                  <VarianceBar
-                    variance={variance}
-                    isDark={isDark}
-                    x_pc={x_pc}
-                    y_pc={y_pc}
-                  />
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Controls bar (below scatter) */}
-          {status === "ready" && (
-            <div
-              style={{
-                padding: "10px 0px 16px 24px",
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                flexShrink: 0,
-              }}
-            >
-              <Select
-                options={pc_options}
-                value={String(x_pc)}
-                set_value={(v) => set_x_pc(Number(v))}
-                filterable={false}
-                filter_mode="panel"
-                style={{
-                  fontSize: 12,
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 10,
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
-                  color: meta_color,
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                  flexShrink: 0,
-                }}
-              >
-                vs
-              </span>
-              <Select
-                options={pc_options}
-                value={String(y_pc)}
-                set_value={(v) => set_y_pc(Number(v))}
-                filterable={false}
-                filter_mode="panel"
-                style={{
-                  fontSize: 12,
-                  paddingVertical: 4,
-                  paddingHorizontal: 10,
-                }}
-              />
-
-              <div style={{ flex: 1 }} />
-
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily,
-                  color: meta_color,
-                  userSelect: "none",
-                  WebkitUserSelect: "none",
-                  flexShrink: 0,
-                  marginRight: 12,
-                }}
-              >
-                Jitter
-              </span>
-              <Slider
-                value={jitter}
-                set_value={set_jitter}
-                min={0}
-                max={10}
-                step={1}
-                show_tooltip={true}
-                label_format={(v) => (v === 0 ? "off" : String(v))}
-                style={{ width: 200 }}
-              />
-              <div
-                style={{
-                  width: 32,
-                  flexShrink: 0,
-                  display: "flex",
-                  justifyContent: "center",
-                }}
-              >
-                {jitter > 0 && (
-                  <Button
-                    prefix_icon="update"
-                    onClick={() => set_jitter_seed((s) => (s + 1) % 10000)}
-                    style={{
-                      paddingVertical: 4,
-                      paddingHorizontal: 4,
-                      borderRadius: 6,
-                      opacity: 0.5,
-                      content: {
-                        icon: { width: 14, height: 14 },
-                      },
-                    }}
-                  />
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── Right: detail panel ── */}
-        {status !== "empty" && (
           <div
             style={{
-              width: 300,
+              width: 1,
+              height: 16,
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.1)"
+                : "rgba(0,0,0,0.1)",
+              flexShrink: 0,
+              margin: "0 4px",
+            }}
+          />
+
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily,
+              marginRight: 6,
+              color: meta_color,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              flexShrink: 0,
+            }}
+          >
+            Jitter
+          </span>
+          <Slider
+            value={jitter}
+            set_value={set_jitter}
+            min={0}
+            max={10}
+            step={1}
+            show_tooltip={true}
+            label_format={(v) => (v === 0 ? "off" : String(v))}
+            style={{ width: 140 }}
+          />
+          <div
+            style={{
+              width: 28,
+              height: 28,
               flexShrink: 0,
               display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            {/* Detail header */}
-            <div
-              style={{
-                padding: "16px 20px 10px",
-                flexShrink: 0,
-                fontSize: 11,
-                fontFamily: "Menlo, Monaco, Consolas, monospace",
-                color: meta_color,
-                textTransform: "uppercase",
-                letterSpacing: "0.8px",
-                userSelect: "none",
-                WebkitUserSelect: "none",
-              }}
-            >
-              Chunk Detail
-            </div>
-
-            {/* Detail content */}
-            <div
-              className="scrollable"
-              style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: "auto",
-                padding: "0 20px 20px",
-              }}
-            >
-              {status === "ready" && selectedPoint ? (
-                <SelectedCard
-                  point={selectedPoint}
-                  isDark={isDark}
-                  fontFamily={fontFamily}
-                  color={color}
-                />
-              ) : status === "ready" ? (
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontFamily,
-                    color: meta_color,
-                    userSelect: "none",
-                    WebkitUserSelect: "none",
-                    paddingTop: 8,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  Click a point on the scatter plot to inspect that memory chunk.
-                </div>
-              ) : null}
-            </div>
+            {jitter > 0 && (
+              <Button
+                prefix_icon="update"
+                onClick={() => set_jitter_seed((s) => (s + 1) % 10000)}
+                style={{
+                  paddingVertical: 0,
+                  paddingHorizontal: 0,
+                  borderRadius: 6,
+                  opacity: 0.5,
+                  content: {
+                    icon: { width: 14, height: 14 },
+                  },
+                }}
+              />
+            )}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* ━━ Overlay: Detail card (right side, animated) ━━━━━━━━━━━━━━━━ */}
+      <div
+        style={{
+          position: "absolute",
+          top: 6,
+          right: 6,
+          bottom: 96,
+          width: 320,
+          zIndex: 3,
+          display: "flex",
+          flexDirection: "column",
+          borderRadius: 10,
+          backgroundColor: overlay_bg,
+          border: overlay_border,
+          backdropFilter: overlay_backdrop,
+          WebkitBackdropFilter: overlay_backdrop,
+          boxShadow: isDark
+            ? "0 8px 32px rgba(0,0,0,0.5)"
+            : "0 8px 32px rgba(0,0,0,0.1)",
+          overflow: "hidden",
+          opacity: hasDetail ? 1 : 0,
+          transform: hasDetail ? "translateX(0)" : "translateX(12px)",
+          transition:
+            "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+          pointerEvents: hasDetail ? "auto" : "none",
+        }}
+      >
+        {/* Detail header */}
+        <div
+          style={{
+            padding: "14px 16px 8px",
+            flexShrink: 0,
+            fontSize: 11,
+            fontFamily: "Menlo, Monaco, Consolas, monospace",
+            color: meta_color,
+            textTransform: "uppercase",
+            letterSpacing: "0.8px",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+          }}
+        >
+          Chunk Detail
+        </div>
+
+        {/* Detail content */}
+        <div
+          className="scrollable"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            padding: "0 16px 16px",
+          }}
+        >
+          {selectedPoint && (
+            <SelectedCard
+              point={selectedPoint}
+              isDark={isDark}
+              fontFamily={fontFamily}
+              color={color}
+            />
+          )}
+        </div>
       </div>
     </Modal>
   );
