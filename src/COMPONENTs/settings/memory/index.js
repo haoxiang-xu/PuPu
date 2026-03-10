@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
-import SemiSwitch from "../../../BUILTIN_COMPONENTs/input/switch";
+import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
@@ -66,7 +66,10 @@ export const MemorySettings = ({ onNavigate }) => {
       return;
     }
 
-    if (normalizedCurrentOpenAIModel && selectedOpenAIModel === normalizedCurrentOpenAIModel) {
+    if (
+      normalizedCurrentOpenAIModel &&
+      selectedOpenAIModel === normalizedCurrentOpenAIModel
+    ) {
       return;
     }
 
@@ -126,8 +129,8 @@ export const MemorySettings = ({ onNavigate }) => {
           />
         </SettingsRow>
 
-        {settings.embedding_provider === "openai" && (
-          openaiEmbeddingLoading ? (
+        {settings.embedding_provider === "openai" &&
+          (openaiEmbeddingLoading ? (
             <SettingsRow label="Model">
               <span style={{ fontSize: 12, color: mutedColor }}>
                 Loading models…
@@ -162,8 +165,7 @@ export const MemorySettings = ({ onNavigate }) => {
                 }}
               />
             </SettingsRow>
-          )
-        )}
+          ))}
 
         {settings.embedding_provider === "ollama" &&
           (embeddingLoading ? (

@@ -8,15 +8,18 @@ This is not a full handbook. It is the shortest path to not breaking the current
 
 ## 1. End-to-end request path
 
-The normal chat request path is:
+The normal v2 chat request path is:
 
 1. `src/PAGEs/chat/chat.js`
 2. `src/SERVICEs/api.js`
 3. `src/SERVICEs/api.miso.js`
-4. `electron/preload/bridges/miso_bridge.js`
-5. `miso_runtime/server/routes.py`
-6. `miso_runtime/server/miso_adapter.py`
-7. provider/runtime code
+4. `electron/preload/stream/miso_stream_client.js`
+5. `electron/preload/bridges/miso_bridge.js`
+6. `electron/main/ipc/register_handlers.js`
+7. `electron/main/services/miso/service.js`
+8. `miso_runtime/server/routes.py`
+9. `miso_runtime/server/miso_adapter.py`
+10. provider/runtime code
 
 For standard chat generation, the renderer entrypoint is:
 
@@ -41,6 +44,7 @@ The renderer sends a request shaped roughly like:
   options: {
     modelId?: string,
     toolkits?: string[],
+    selectedWorkspaceIds?: string[], // renderer-only, stripped before sidecar
     system_prompt_v2?: {
       defaults?: { [sectionKey]: string },
       overrides?: { [sectionKey]: string },
@@ -59,6 +63,7 @@ Important producer-side sources:
 - chat/session state: `src/SERVICEs/chat_storage.js`
 - attachment payload durability: `src/SERVICEs/attachment_storage.js`
 - memory settings: `src/COMPONENTs/settings/memory/storage.js`
+- workspace settings and named workspaces: `src/COMPONENTs/settings/runtime.js`
 - request assembly and option injection: `src/SERVICEs/api.miso.js`
 
 Important runtime-side sources:
@@ -66,9 +71,44 @@ Important runtime-side sources:
 - route sanitization: `miso_runtime/server/routes.py`
 - prompt/toolkit/memory shaping: `miso_runtime/server/miso_adapter.py`
 
+Important `api.miso.js` nuance:
+
+- `selectedWorkspaceIds` is internal renderer state, not a server contract
+- `startStreamV2(...)` injects `workspaceRoot`, `workspace_root`, and `workspace_roots`
+- `startStreamV2(...)` also injects `system_prompt_v2`, memory settings, and provider API keys
+
 ---
 
-## 3. Memory lifecycle
+## 3. Workspace and tool lifecycle
+
+Workspace context spans settings, chat state, and the sidecar.
+
+Renderer side:
+
+- default workspace root: `settings.runtime.workspace_root`
+- named workspaces: `settings.runtime.workspaces`
+- per-chat selection: `chat.selectedWorkspaceIds`
+- payload injection: `src/SERVICEs/api.miso.js`
+
+Payload shaping rule:
+
+- `selectedWorkspaceIds` is resolved against saved workspaces
+- the field is then stripped from `options`
+- the sidecar receives `workspaceRoot` / `workspace_root` / `workspace_roots`
+
+Runtime side:
+
+- workspace root extraction: `miso_runtime/server/miso_adapter.py`
+- toolkit attachment: `multi_workspace_toolkit(...)` when multiple roots exist
+- fallback toolkit: `python_workspace_toolkit(...)`
+
+Recent hard-earned rule:
+
+- do not treat saved workspace IDs as the server contract; only resolved paths belong in sidecar payloads
+
+---
+
+## 4. Memory lifecycle
 
 The current memory system spans both renderer and sidecar.
 
@@ -121,7 +161,7 @@ The current memory sanitizer in `memory_factory.py` does all of this:
 
 ---
 
-## 4. Trace lifecycle
+## 5. Trace lifecycle
 
 `/chat/stream/v2` streams `event: frame`.
 
@@ -148,6 +188,8 @@ Important frame types in day-to-day debugging:
 - `tool_confirmation_request`
 - `continuation_request`
 - `final_message`
+- `error`
+- `done`
 
 Frontend persistence:
 
@@ -162,7 +204,7 @@ Important trace nuance:
 
 ---
 
-## 5. Anthropic-specific request pitfall
+## 6. Anthropic-specific request pitfall
 
 Anthropic is where new engineers usually misread the trace.
 
@@ -178,7 +220,7 @@ That is why the memory sanitization path now merges multiple system messages int
 
 ---
 
-## 6. High-risk pitfalls
+## 7. High-risk pitfalls
 
 ### Memory behavior
 
@@ -191,11 +233,18 @@ That is why the memory sanitization path now merges multiple system messages int
 - Do not assume every provider request stores everything in `messages`.
 - Do not inspect only `request_messages.payload.messages` when debugging Anthropic.
 - Do not persist raw trace payloads indiscriminately into localStorage; `chat_storage.js` already trims them for size.
+- Do not forget that the stream path traverses preload and Electron main before the Flask sidecar.
 
 ### Attachments
 
 - Do not assume attachment payload bytes are in chat localStorage.
 - Do not break the split model: metadata in `chat_storage`, payload durability in IndexedDB via `attachment_storage`.
+
+### Workspace and tools
+
+- Do not persist raw workspace paths in chat sessions. Chat sessions store `selectedWorkspaceIds`.
+- Do not send `selectedWorkspaceIds` straight to the sidecar. `api.miso.js` must resolve them first.
+- Do not assume multi-workspace support is automatic. The runtime explicitly falls back to single-root toolkit behavior.
 
 ### Skills and maintenance
 
@@ -209,13 +258,16 @@ That is why the memory sanitization path now merges multiple system messages int
 
 ---
 
-## 7. When editing this area, read these files first
+## 8. When editing this area, read these files first
 
 - `src/PAGEs/chat/chat.js`
 - `src/SERVICEs/api.miso.js`
 - `src/SERVICEs/chat_storage.js`
 - `src/SERVICEs/attachment_storage.js`
 - `src/COMPONENTs/settings/memory/storage.js`
+- `src/COMPONENTs/settings/runtime.js`
+- `electron/preload/stream/miso_stream_client.js`
+- `electron/main/services/miso/service.js`
 - `miso_runtime/server/routes.py`
 - `miso_runtime/server/miso_adapter.py`
 - `miso_runtime/server/memory_factory.py`
@@ -226,17 +278,24 @@ If the change touches tool approval, also read:
 
 ---
 
-## 8. Quick checks
+## 9. Quick checks
 
 ```bash
-rg -n "startStreamV2|system_prompt_v2|memory_enabled|toolkits" \
+rg -n "startStreamV2|system_prompt_v2|memory_enabled|toolkits|selectedWorkspaceIds|workspace_roots" \
   src/PAGEs/chat/chat.js \
-  src/SERVICEs/api.miso.js \
-  miso_runtime/server/miso_adapter.py
+  src/SERVICEs/api.miso.js
 ```
 
 ```bash
-rg -n "_sanitize_dialog_messages|_merge_system_messages|request_messages|memory_prepare|memory_commit" \
+rg -n "STREAM_START_V2|STREAM_EVENT|getMisoStatusPayload|handleStreamStartV2" \
+  electron/preload/stream/miso_stream_client.js \
+  electron/main/ipc/register_handlers.js \
+  electron/main/services/miso/service.js
+```
+
+```bash
+rg -n "_sanitize_dialog_messages|_merge_system_messages|request_messages|memory_prepare|memory_commit|continuation_request" \
   miso_runtime/server/memory_factory.py \
-  miso_runtime/server/routes.py
+  miso_runtime/server/routes.py \
+  miso_runtime/server/miso_adapter.py
 ```

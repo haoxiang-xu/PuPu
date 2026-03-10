@@ -6,6 +6,8 @@ Primary source files:
 
 - Flask routes: `miso_runtime/server/routes.py`
 - Runtime adapter: `miso_runtime/server/miso_adapter.py`
+- Electron main service: `electron/main/services/miso/service.js`
+- Electron preload stream client: `electron/preload/stream/miso_stream_client.js`
 - Renderer facade: `src/SERVICEs/api.miso.js`
 - Electron preload bridge: `electron/preload/bridges/miso_bridge.js`
 
@@ -20,6 +22,7 @@ Current Flask endpoints are:
 - `GET /health`
 - `GET /models/catalog`
 - `GET /toolkits/catalog`
+- `GET /memory/projection`
 - `POST /chat/tool/confirmation`
 - `POST /chat/stream`
 - `POST /chat/stream/v2`
@@ -46,8 +49,10 @@ api.miso.startStreamV2(payload, handlers)
 That path goes through:
 
 1. `src/SERVICEs/api.miso.js`
-2. `electron/preload/bridges/miso_bridge.js`
-3. local Flask sidecar `/chat/stream/v2`
+2. `electron/preload/stream/miso_stream_client.js`
+3. `electron/main/ipc/register_handlers.js`
+4. `electron/main/services/miso/service.js`
+5. local Flask sidecar `/chat/stream/v2`
 
 Do not add direct `fetch("http://127.0.0.1:...")` calls from renderer pages.
 
@@ -75,6 +80,14 @@ In practice, renderer code usually injects these through `api.miso.startStreamV2
 - `options.memory_embedding_model`
 - `options.memory_last_n_turns`
 - `options.memory_vector_top_k`
+- `options.workspaceRoot`
+- `options.workspace_root`
+- `options.workspace_roots`
+
+Important client-side nuance:
+
+- `options.selectedWorkspaceIds` is internal renderer state
+- `api.miso.js` resolves it into workspace paths, then removes the IDs before the sidecar sees the payload
 
 ---
 
@@ -139,7 +152,7 @@ Use it only when you specifically need the simple token stream and do not need v
 
 ---
 
-## 6. Tool-related endpoints
+## 6. Tool-related and memory endpoints
 
 ### `GET /toolkits/catalog`
 
@@ -172,6 +185,22 @@ Renderer entrypoint:
 api.miso.respondToolConfirmation(payload)
 ```
 
+### `GET /memory/projection`
+
+Returns projected memory points for the memory inspector modal.
+
+Query:
+
+```txt
+session_id=<chat thread or session id>
+```
+
+Renderer entrypoint:
+
+```js
+api.miso.getMemoryProjection(sessionId)
+```
+
 ---
 
 ## 7. Anthropic and trace inspection pitfall
@@ -196,9 +225,11 @@ When you add server functionality, update layers in this order:
 
 1. Flask route in `miso_runtime/server/routes.py`
 2. adapter/runtime logic in `miso_runtime/server/miso_adapter.py` if needed
-3. Electron preload bridge in `electron/preload/bridges/miso_bridge.js`
-4. renderer facade in `src/SERVICEs/api.miso.js`
-5. UI usage through `api.miso.*`
+3. Electron main service in `electron/main/services/miso/service.js`
+4. IPC channels and handler registry in `electron/shared/channels.js` and `electron/main/ipc/register_handlers.js`
+5. preload bridge or stream client in `electron/preload/bridges/miso_bridge.js` or `electron/preload/stream/miso_stream_client.js`
+6. renderer facade in `src/SERVICEs/api.miso.js`
+7. UI usage through `api.miso.*`
 
 Do not skip the facade layer.
 
@@ -211,7 +242,15 @@ rg -n "@api_blueprint\\.(get|post)" miso_runtime/server/routes.py
 ```
 
 ```bash
-rg -n "startStreamV2|getToolkitCatalog|respondToolConfirmation" \
+rg -n "startStreamV2|getToolkitCatalog|respondToolConfirmation|getMemoryProjection" \
   src/SERVICEs/api.miso.js \
-  electron/preload/bridges/miso_bridge.js
+  electron/preload/bridges/miso_bridge.js \
+  electron/preload/stream/miso_stream_client.js
+```
+
+```bash
+rg -n "STREAM_START_V2|GET_TOOLKIT_CATALOG|GET_MEMORY_PROJECTION|handleStreamStartV2" \
+  electron/shared/channels.js \
+  electron/main/ipc/register_handlers.js \
+  electron/main/services/miso/service.js
 ```

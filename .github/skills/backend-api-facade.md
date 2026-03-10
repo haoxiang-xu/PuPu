@@ -1,34 +1,36 @@
-# Skill: Extend Backend APIs Through Domain Modules
+# Skill: Extend Backend APIs and Renderer Bridges
 
-Use this guide when you need to add or change renderer-to-backend calls.
+Use this guide when a renderer feature needs new backend, runtime, or Electron-backed capability.
 
-The current API layering is:
+The current boundary is split in two:
 
-- domain implementation: `src/SERVICEs/api.miso.js`
-- domain implementation: `src/SERVICEs/api.ollama.js`
-- domain implementation: `src/SERVICEs/api.system.js`
+- domain APIs for feature flows: `src/SERVICEs/api.miso.js`, `src/SERVICEs/api.ollama.js`, `src/SERVICEs/api.system.js`
+- low-level renderer bridge helpers: `src/SERVICEs/bridges/miso_bridge.js`, `src/SERVICEs/bridges/ollama_bridge.js`, `src/SERVICEs/bridges/theme_bridge.js`, `src/SERVICEs/bridges/window_state_bridge.js`
+- shared error/timeout helpers: `src/SERVICEs/api.shared.js`
 - compatibility export surface: `src/SERVICEs/api.js`
-- shared helpers: `src/SERVICEs/api.shared.js`
 
-`src/SERVICEs/api.js` is not the main implementation home anymore. It keeps the legacy `api` shape stable while delegating to domain modules.
+`src/SERVICEs/api.js` is still only the small public aggregator.
 
 ---
 
-## 1. Current boundary
+## 1. Current renderer boundary
 
-Renderer code should call:
+Feature and page code should call one of these:
 
 ```js
 import { api } from "../../SERVICEs/api";
+import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
+import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
+import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 ```
 
 Page and component files should not:
 
-- call `window.misoAPI` directly
-- call `window.ollamaAPI` directly
-- add raw `fetch(...)` calls for sidecar or preload-backed backend work
+- call `window.misoAPI` / `window.ollamaAPI` / `window.themeAPI` directly
+- import `ipcRenderer`
+- add raw `fetch(...)` calls for preload-backed or sidecar-backed app work
 
-If a new backend capability is needed, implement it in the correct domain module first, then expose it through `api.js`.
+Use `api.*` for business/domain flows. Use `src/SERVICEs/bridges/*.js` for native runtime helpers that intentionally stay close to the Electron bridge.
 
 ---
 
@@ -36,30 +38,35 @@ If a new backend capability is needed, implement it in the correct domain module
 
 Use this rule:
 
-- Miso sidecar / chat runtime / toolkits / streaming: `src/SERVICEs/api.miso.js`
-- Ollama HTTP helpers and model utilities: `src/SERVICEs/api.ollama.js`
-- App/runtime/theme/window integrations: `src/SERVICEs/api.system.js`
-- Shared timeout/error helpers: `src/SERVICEs/api.shared.js`
-- Aggregated export only: `src/SERVICEs/api.js`
+- Miso chat runtime / model catalog / toolkits / memory projection / streaming: `src/SERVICEs/api.miso.js`
+- Ollama install, status, library, HTTP helpers: `src/SERVICEs/api.ollama.js`
+- app info / updater namespaces exposed on `api`: `src/SERVICEs/api.system.js`
+- workspace validation, runtime storage, devtools toggle, theme, window chrome: `src/SERVICEs/bridges/*.js`
+- shared wrappers and error types: `src/SERVICEs/api.shared.js`
+- aggregated export only: `src/SERVICEs/api.js`
 
-Example from the current repo:
+If the new capability crosses the Electron process boundary, also update:
 
-- `api.miso.startStreamV2(payload, handlers)` lives in `api.miso.js`
-- `api.js` only wires `miso: createMisoApi()`
+- channel names: `electron/shared/channels.js`
+- preload bridge factory: `electron/preload/bridges/*.js`
+- preload exposure: `electron/preload/index.js` when adding a new global API namespace
+- handler registry: `electron/main/ipc/register_handlers.js`
+- main service implementation: `electron/main/services/*`
 
 ---
 
 ## 3. Required pattern
 
-When adding a new backend-facing method:
+When adding a new async renderer-facing method:
 
-1. Put the real implementation in the domain module.
-2. Use `withTimeout(...)` for async work where applicable.
-3. Normalize bridge/HTTP responses before returning to UI.
-4. Convert thrown errors to `FrontendApiError`.
-5. Expose the method through the aggregated `api` object in `src/SERVICEs/api.js`.
+1. Put the real implementation in the correct domain API or bridge helper.
+2. Use `assertBridgeMethod(...)` and `hasBridgeMethod(...)` appropriately.
+3. Use `withTimeout(...)` when the call can hang.
+4. Normalize the returned payload before the UI sees it.
+5. Wrap failures with `toFrontendApiError(...)` or throw `FrontendApiError`.
+6. Expose the method through `api.js` only when it belongs on the public `api` surface.
 
-Minimal pattern:
+Minimal API pattern:
 
 ```js
 export const createDomainApi = () => ({
@@ -80,24 +87,41 @@ export const createDomainApi = () => ({
 });
 ```
 
+Minimal renderer-bridge pattern:
+
+```js
+export const runtimeBridge = {
+  someMethod: async () => {
+    const method = assertBridgeMethod("misoAPI", "someMethod");
+    const response = await withTimeout(
+      () => method(),
+      6000,
+      "some_timeout",
+      "Request timed out",
+    );
+    return normalizeResponse(response);
+  },
+};
+```
+
 ---
 
 ## 4. `api.js` contract
 
-Today `src/SERVICEs/api.js` is a compatibility aggregator. Keep it small.
+Keep `src/SERVICEs/api.js` small.
 
 It should:
 
 - instantiate domain APIs
 - preserve the public `api` shape used across the renderer
-- re-export shared helpers used elsewhere
+- re-export shared helpers used in tests and callers
 
-It should not become the dumping ground for:
+It should not become the implementation home for:
 
 - bridge-specific request logic
-- Miso streaming implementation details
+- Miso stream listener wiring
 - provider-specific payload shaping
-- page-specific hacks
+- runtime helper code that already has a bridge wrapper
 
 Current shape:
 
@@ -118,28 +142,36 @@ export const api = {
 
 ## 5. High-risk pitfalls
 
-- Do not add new bridge or HTTP logic directly in pages. If you do, error handling and compatibility drift immediately.
-- Do not treat `src/SERVICEs/api.js` as the implementation home. It only aggregates domain modules.
+- Do not add new bridge or HTTP logic directly in pages. Error handling and compatibility drift immediately.
+- Do not treat `src/SERVICEs/api.js` as the implementation home.
 - Do not bypass `FrontendApiError` wrapping. UI code branches on stable error codes.
-- Do not skip response normalization. The facade layer exists to hide bridge and backend inconsistencies from the renderer.
+- Do not skip preload, channels, and main-service updates when adding a new Electron capability.
 - Do not make optional bridge methods hard failures unless the feature is actually required. Follow the current compatibility pattern in `api.miso.getModelCatalog()` and `api.miso.getToolkitCatalog()`.
+- Do not duplicate runtime helpers in multiple pages when a renderer bridge module already exists.
 
 ---
 
-## 6. Add-a-method checklist
+## 6. Add-a-capability checklist
 
-- [ ] Picked the correct domain module (`api.miso.js`, `api.ollama.js`, or `api.system.js`)
+- [ ] Picked the correct domain API or renderer bridge module
 - [ ] Added timeout protection where the call can hang
 - [ ] Wrapped failures in `FrontendApiError`
 - [ ] Normalized the returned payload
-- [ ] Exposed the method through `src/SERVICEs/api.js`
-- [ ] Updated the UI to call `api.<domain>.<method>()`
-- [ ] Did not add direct bridge or sidecar fetch logic to page/component code
+- [ ] Updated `electron/shared/channels.js` if a new IPC capability was added
+- [ ] Updated preload and main-service layers if the capability crosses Electron
+- [ ] Exposed the method through `src/SERVICEs/api.js` only when appropriate
+- [ ] Updated UI code to call `api.*` or `src/SERVICEs/bridges/*`
+- [ ] Did not add direct `window.*API` or raw sidecar `fetch(...)` in page/component code
 
-Quick check:
+Quick checks:
 
 ```bash
-rg -n "window\\.(misoAPI|ollamaAPI)|fetch\\(" src \
+rg -n "window\\.(misoAPI|ollamaAPI|themeAPI|windowStateAPI)|ipcRenderer|fetch\\(" src \
   --glob '!**/SERVICEs/api*.js' \
+  --glob '!**/SERVICEs/bridges/*.js' \
   --glob '!**/PAGEs/demo/**'
+```
+
+```bash
+rg -n "CHANNELS\\.|ipcMain\\.(handle|on)|ipcRenderer\\.(invoke|send)" electron
 ```

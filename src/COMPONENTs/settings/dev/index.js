@@ -1,6 +1,6 @@
 import { useCallback, useContext, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
-import SemiSwitch from "../../../BUILTIN_COMPONENTs/input/switch";
+import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import { runtimeBridge } from "../../../SERVICEs/bridges/miso_bridge";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { readDevSettings, writeDevSettings } from "./storage";
@@ -37,15 +37,17 @@ export const DevSettings = () => {
       try {
         const response = await runtimeBridge.setChromeTerminalOpen(nextOpen);
         if (!response.ok) {
-          throw new Error(response.error || "Failed to toggle Chrome terminal.");
+          throw new Error(
+            response.error || "Failed to toggle Chrome terminal.",
+          );
         }
-        setInfo(nextOpen ? "Chrome terminal opened." : "Chrome terminal closed.");
+        setInfo(
+          nextOpen ? "Chrome terminal opened." : "Chrome terminal closed.",
+        );
       } catch (toggleError) {
         setChromeTerminalEnabled(previousOpen);
         writeDevSettings({ chrome_terminal_enabled: previousOpen });
-        setError(
-          toggleError?.message || "Failed to toggle Chrome terminal.",
-        );
+        setError(toggleError?.message || "Failed to toggle Chrome terminal.");
       } finally {
         setIsUpdating(false);
       }

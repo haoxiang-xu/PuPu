@@ -17,7 +17,7 @@ Current built-in pages are:
 
 - `appearance`
 - `model_providers`
-- `runtime`
+- `runtime` (label: `Workspace`)
 - `memory`
 - `app_update`
 - `local_storage`
@@ -39,6 +39,12 @@ The repo already uses both patterns. `memory` is folder-based and imported as:
 
 ```js
 import { MemorySettings } from "./memory";
+```
+
+`runtime` is also a useful reminder that the settings page can just wrap a shared editor:
+
+```js
+export const RuntimeSettings = () => <WorkspaceEditor isDark={isDark} />;
 ```
 
 Do not force everything into a single-file convention if the page needs local helpers, storage, or hooks.
@@ -83,18 +89,20 @@ Examples already used by the live settings registry:
 
 - `color`
 - `pentagon`
-- `terminal`
+- `folder_2`
 - `brain`
 - `download_cloud`
 - `data`
 - `code`
+
+Do not assume the page key and label match. The current `runtime` page is labeled `Workspace` and uses `folder_2`.
 
 Do not copy old examples from stale docs without verifying the icon name in the manifest.
 
 Quick check:
 
 ```bash
-rg -n "download_cloud|brain|terminal|data|pentagon|code" \
+rg -n "download_cloud|brain|folder_2|data|pentagon|code|color" \
   src/BUILTIN_COMPONENTs/icon/icon_manifest.js
 ```
 
@@ -149,17 +157,33 @@ Use `SettingsRow` for simple label/control pairs. For complex layouts, build dir
 
 ---
 
-## 7. Pitfalls
+## 7. Storage guidance
+
+Most settings pages persist into the shared `"settings"` localStorage root, but you should still prefer page-local helpers.
+
+Current examples:
+
+- runtime/workspace helpers: `src/COMPONENTs/settings/runtime.js`
+- model provider helpers: `src/COMPONENTs/settings/model_providers/storage.js`
+- memory helpers: `src/COMPONENTs/settings/memory/storage.js`
+- dev helpers: `src/COMPONENTs/settings/dev/storage.js`
+
+If a page already has a storage helper, use it instead of adding direct `localStorage` writes inside the component.
+
+---
+
+## 8. Pitfalls
 
 - Do not register the page in a stale `SETTINGS_PAGES` constant. The current registry is `BASE_SETTINGS_PAGES`.
 - Do not assume every settings page is a single `.js` file. Folder-based pages are already a supported pattern.
 - Do not invent your own cross-page navigation prop. Use `onNavigate`.
 - Do not reference icon names that are not in `icon_manifest.js`.
-- Do not add direct localStorage writes from settings pages when a page-specific storage helper already exists, as `memory/storage.js` does.
+- Do not assume the `runtime` page is about terminal/runtime internals; it is the Workspace settings surface.
+- Do not add direct localStorage writes from settings pages when a page-specific storage helper already exists.
 
 ---
 
-## 8. Add-a-page checklist
+## 9. Add-a-page checklist
 
 - [ ] Chose file-based or folder-based page structure intentionally
 - [ ] Imported the page into `settings_modal.js`

@@ -40,6 +40,7 @@ The current sanitized session shape includes:
     maxTokens?: number,
   },
   selectedToolkits: string[],
+  selectedWorkspaceIds: string[],
   systemPromptOverrides: {
     [sectionKey]: string,
   },
@@ -61,6 +62,7 @@ The current sanitized session shape includes:
 Fields that are easy to miss:
 
 - `selectedToolkits`: persisted tool picker selection for the chat
+- `selectedWorkspaceIds`: persisted named-workspace selection for the chat
 - `systemPromptOverrides`: per-chat prompt section overrides
 - `isTransientNewChat`: marks placeholder chats that can be cleaned up if never used
 - `hasUnreadGeneratedReply`: unread/generated state used by the explorer UI
@@ -159,7 +161,26 @@ before persisting user attachment metadata.
 
 ---
 
-## 6. Mutation APIs you should use
+## 6. Workspace selection is split too
+
+There are also two workspace layers:
+
+- workspace definitions in `settings.runtime.workspaces`
+- per-chat selection in `chat.selectedWorkspaceIds`
+
+Rules:
+
+- chat storage persists workspace IDs, not absolute paths
+- `api.miso.js` resolves IDs into `workspace_roots` before the sidecar sees them
+
+Implication:
+
+- never inline workspace paths into chat session objects
+- if you rename or migrate workspace definitions, keep chat selection compatibility in mind
+
+---
+
+## 7. Mutation APIs you should use
 
 Read APIs:
 
@@ -176,6 +197,7 @@ Core chat mutation APIs:
 - `setChatThreadId(...)`
 - `setChatModel(...)`
 - `setChatSelectedToolkits(...)`
+- `setChatSelectedWorkspaceIds(...)`
 - `setChatSystemPromptOverrides(...)`
 - `setChatTitle(...)`
 - `setChatGeneratedUnread(...)`
@@ -191,7 +213,7 @@ Tree/explorer APIs:
 
 ---
 
-## 7. Required calling convention
+## 8. Required calling convention
 
 Always pass a `source` on storage mutations.
 
@@ -200,6 +222,7 @@ Example:
 ```js
 setChatMessages(chatId, messages, { source: "chat-page" });
 setChatSelectedToolkits(chatId, toolkits, { source: "chat-page" });
+setChatSelectedWorkspaceIds(chatId, workspaceIds, { source: "chat-page" });
 setChatSystemPromptOverrides(chatId, overrides, { source: "chat-page" });
 ```
 
@@ -212,21 +235,22 @@ If you omit `source`, debugging state propagation gets much harder.
 
 ---
 
-## 8. High-risk pitfalls
+## 9. High-risk pitfalls
 
 - Never write raw message objects into storage. `sanitizeMessage` and `sanitizeChatSession` exist because chat payloads drift.
 - Never assume attachment payloads live in localStorage. They do not.
 - Never update `selectedToolkits` or `systemPromptOverrides` through ad-hoc object mutation. Use the exported setters.
+- Never persist workspace paths inside chat sessions. Use `selectedWorkspaceIds` and the exported setter.
 - Never persist trace data on arbitrary objects or user messages. Follow the current assistant-message contract.
 - Never skip the `source` option on mutations.
 - Never duplicate the store in component-local persistence. `chat_storage.js` is already the source of truth.
 
 ---
 
-## 9. Quick checks
+## 10. Quick checks
 
 ```bash
-rg -n "sanitizeChatSession|sanitizeMessage|setChatSelectedToolkits|setChatSystemPromptOverrides|createChatMessageAttachment" \
+rg -n "sanitizeChatSession|sanitizeMessage|setChatSelectedToolkits|setChatSelectedWorkspaceIds|setChatSystemPromptOverrides|createChatMessageAttachment" \
   src/SERVICEs/chat_storage.js
 ```
 
