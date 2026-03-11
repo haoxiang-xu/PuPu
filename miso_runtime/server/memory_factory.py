@@ -728,6 +728,10 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         self,
         session_id: str,
         full_conversation: list[dict[str, Any]],
+        *,
+        memory_namespace: str | None = None,
+        model: str | None = None,
+        long_term_extractor: Callable[..., Any] | None = None,
     ) -> None:
         existing_state = self.store.load(session_id) if session_id else {}
         existing_messages = (
@@ -742,6 +746,9 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         return original_commit(
             session_id=session_id,
             full_conversation=merged_conversation,
+            memory_namespace=memory_namespace,
+            model=model,
+            long_term_extractor=long_term_extractor,
         )
 
     setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))
@@ -766,6 +773,7 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
         max_context_window_tokens: int,
         model: str,
         summary_generator: Callable[..., str] | None = None,
+        memory_namespace: str | None = None,
     ) -> list[dict[str, Any]]:
         clean_incoming = _sanitize_dialog_messages(incoming)
 
@@ -794,6 +802,7 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
             max_context_window_tokens=max_context_window_tokens,
             model=model,
             summary_generator=summary_generator,
+            memory_namespace=memory_namespace,
         )
         prepared = _sanitize_dialog_messages(prepared)
 
