@@ -2,8 +2,8 @@ import { memo, useState, useContext, useMemo } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
-import Markdown from "../../BUILTIN_COMPONENTs/markdown/markdown";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import SeamlessMarkdown from "./components/seamless_markdown";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -350,15 +350,15 @@ const TraceChain = ({
           body: !isObs && text ? text : undefined,
           details:
             isObs && text ? (
-              <Markdown
+              <SeamlessMarkdown
+                content={text}
+                status="done"
+                fontSize={12}
+                lineHeight={1.65}
                 style={{
-                  fontSize: "12px",
-                  lineHeight: 1.65,
                   color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
                 }}
-              >
-                {text}
-              </Markdown>
+              />
             ) : undefined,
         });
       } else if (frame.type === "tool_confirmation_request") {
@@ -394,16 +394,22 @@ const TraceChain = ({
             ? confirmationUiState.error
             : "";
         const uiResolved = confirmationUiState?.resolved === true;
+        const uiDecision =
+          confirmationUiState?.decision === "approved" ||
+          confirmationUiState?.decision === "denied"
+            ? confirmationUiState.decision
+            : "";
+        const resolvedDecision = confirmationResult || uiDecision;
 
         const isResolved =
-          confirmationResult === "approved" || confirmationResult === "denied";
+          resolvedDecision === "approved" || resolvedDecision === "denied";
         const isSubmitting =
           !uiResolved && (uiStatus === "submitting" || uiStatus === "submitted");
 
         let statusLabel = "Pending";
-        if (confirmationResult === "approved") {
+        if (resolvedDecision === "approved") {
           statusLabel = "Approved";
-        } else if (confirmationResult === "denied") {
+        } else if (resolvedDecision === "denied") {
           statusLabel = "Denied";
         } else if (uiResolved) {
           statusLabel = "Submitted";
@@ -421,7 +427,7 @@ const TraceChain = ({
           typeof onToolConfirmationDecision === "function";
 
         const statusColor = isResolved
-          ? confirmationResult === "approved"
+          ? resolvedDecision === "approved"
             ? isDark
               ? "rgba(110,231,183,0.95)"
               : "rgba(5,150,105,0.95)"
@@ -591,10 +597,8 @@ const TraceChain = ({
         });
       } else if (frame.type === "final_message") {
         const content =
-          typeof frame.payload?.content === "string"
-            ? frame.payload.content.trim()
-            : "";
-        if (!content) continue;
+          typeof frame.payload?.content === "string" ? frame.payload.content : "";
+        if (!content.trim()) continue;
         items.push({
           key: `${frame.seq}-final-message`,
           title: "Response",
@@ -602,12 +606,11 @@ const TraceChain = ({
           status: "done",
           body: (
             <div style={{ fontFamily: "inherit" }}>
-              <Markdown
-                markdown={content}
-                options={{
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                }}
+              <SeamlessMarkdown
+                content={content}
+                status={isStreaming ? "streaming" : "done"}
+                fontSize={13}
+                lineHeight={1.6}
               />
             </div>
           ),
@@ -617,8 +620,8 @@ const TraceChain = ({
 
     if (isStreaming) {
       const liveContent =
-        typeof streamingContent === "string" ? streamingContent.trim() : "";
-      if (liveContent) {
+        typeof streamingContent === "string" ? streamingContent : "";
+      if (liveContent.trim()) {
         items.push({
           key: "__streaming_content__",
           title: "Response",
@@ -627,12 +630,12 @@ const TraceChain = ({
           point: "loading",
           body: (
             <div style={{ fontFamily: "inherit" }}>
-              <Markdown
-                markdown={liveContent}
-                options={{
-                  fontSize: 13,
-                  lineHeight: 1.6,
-                }}
+              <SeamlessMarkdown
+                content={liveContent}
+                status="streaming"
+                fontSize={13}
+                lineHeight={1.6}
+                priority="high"
               />
             </div>
           ),

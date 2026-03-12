@@ -8,6 +8,7 @@ jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
 const renderTraceChain = ({
   frames,
   status = "done",
+  streamingContent = "",
   onToolConfirmationDecision = null,
   toolConfirmationUiStateById = {},
 }) =>
@@ -21,6 +22,7 @@ const renderTraceChain = ({
       <TraceChain
         frames={frames}
         status={status}
+        streamingContent={streamingContent}
         onToolConfirmationDecision={onToolConfirmationDecision}
         toolConfirmationUiStateById={toolConfirmationUiStateById}
       />
@@ -187,6 +189,17 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
   });
 
+  test("preserves leading whitespace in streaming content markdown", () => {
+    const { container } = renderTraceChain({
+      frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
+      status: "streaming",
+      streamingContent: "    const x = 1;\n",
+    });
+
+    expect(container.querySelector("code.hljs")).toBeInTheDocument();
+    expect(container).toHaveTextContent("const x = 1;");
+  });
+
   test("renders tool confirmation actions and forwards allow decision", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [
@@ -294,5 +307,39 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
     expect(screen.getByText("Submitted")).toBeInTheDocument();
+  });
+
+  test("shows approved status from a resolved local UI decision when follow-up event is missing", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_confirmation_request",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          tool_name: "terminal_exec",
+          arguments: { cmd: "pwd" },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision: jest.fn(),
+      toolConfirmationUiStateById: {
+        "confirm-1": {
+          status: "submitted",
+          error: "",
+          resolved: true,
+          decision: "approved",
+        },
+      },
+    });
+
+    expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
   });
 });

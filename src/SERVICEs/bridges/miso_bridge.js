@@ -34,6 +34,8 @@ const invokeMiso = async (
 };
 
 export const runtimeBridge = {
+  isChromeTerminalControlAvailable: () =>
+    hasBridgeMethod("misoAPI", "setChromeTerminalOpen"),
   isWorkspaceValidationAvailable: () =>
     hasBridgeMethod("misoAPI", "validateWorkspaceRoot"),
   isWorkspacePickerAvailable: () =>
@@ -42,6 +44,32 @@ export const runtimeBridge = {
     hasBridgeMethod("misoAPI", "openRuntimeFolder"),
   isRuntimeStorageAvailable: () =>
     hasBridgeMethod("misoAPI", "getRuntimeDirSize"),
+  isMemorySizeAvailable: () =>
+    hasBridgeMethod("misoAPI", "getMemorySize"),
+
+  setChromeTerminalOpen: async (open = false) => {
+    if (!runtimeBridge.isChromeTerminalControlAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.setChromeTerminalOpen is unavailable",
+      );
+    }
+
+    const nextOpen = Boolean(open);
+    const response = await invokeMiso("setChromeTerminalOpen", [nextOpen], {
+      timeoutMs: 6000,
+      timeoutCode: "miso_chrome_terminal_timeout",
+      timeoutMessage: "Chrome terminal toggle request timed out",
+      failureCode: "miso_chrome_terminal_failed",
+      failureMessage: "Failed to toggle Chrome terminal",
+    });
+
+    return {
+      ok: Boolean(response?.ok),
+      open: typeof response?.open === "boolean" ? response.open : nextOpen,
+      error: typeof response?.error === "string" ? response.error : "",
+    };
+  },
 
   validateWorkspaceRoot: async (path = "") => {
     if (!runtimeBridge.isWorkspaceValidationAvailable()) {
@@ -145,6 +173,28 @@ export const runtimeBridge = {
       entries: Array.isArray(response.entries) ? response.entries : [],
       total: Number.isFinite(Number(response.total)) ? Number(response.total) : 0,
       error: typeof response.error === "string" ? response.error : "",
+    };
+  },
+
+  getMemorySize: async () => {
+    if (!runtimeBridge.isMemorySizeAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.getMemorySize is unavailable",
+      );
+    }
+
+    const response = await invokeMiso("getMemorySize", [], {
+      timeoutMs: 10000,
+      timeoutCode: "miso_memory_size_timeout",
+      timeoutMessage: "Memory size request timed out",
+      failureCode: "miso_memory_size_failed",
+      failureMessage: "Failed to get memory size",
+    });
+
+    return {
+      total: Number.isFinite(Number(response?.total)) ? Number(response.total) : 0,
+      error: typeof response?.error === "string" ? response.error : "",
     };
   },
 

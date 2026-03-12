@@ -126,6 +126,55 @@ export const createOllamaApi = () => ({
     }
   },
 
+  /**
+   * List only embedding-capable models installed locally.
+   * Filters by checking `details.families` for known embedding families
+   * (e.g. "bert", "nomic-bert").
+   */
+  listEmbeddingModels: async () => {
+    const EMBEDDING_FAMILIES = new Set(["bert", "nomic-bert", "bge"]);
+    try {
+      const response = await withTimeout(
+        () =>
+          fetch(`${OLLAMA_BASE}/api/tags`, {
+            method: "GET",
+          }),
+        3000,
+        "ollama_embed_list_timeout",
+        "Ollama embedding model list request timed out",
+      );
+
+      if (!response.ok) {
+        throw new FrontendApiError(
+          "ollama_http_error",
+          `Failed to list Ollama models (${response.status})`,
+          null,
+          { status: response.status },
+        );
+      }
+
+      const json = await safeJson(response);
+      const models = (json?.models || [])
+        .filter((item) => {
+          const families = item?.details?.families || [];
+          return families.some((f) => EMBEDDING_FAMILIES.has(f));
+        })
+        .map((item) => ({
+          name: item?.name,
+          size: item?.size || 0,
+        }))
+        .filter((item) => typeof item.name === "string" && item.name.trim());
+
+      return models.sort((a, b) => b.size - a.size);
+    } catch (error) {
+      throw toFrontendApiError(
+        error,
+        "ollama_embed_list_failed",
+        "Failed to load Ollama embedding models",
+      );
+    }
+  },
+
   searchLibrary: async ({ query = "", category = "" } = {}) => {
     if (
       typeof window === "undefined" ||

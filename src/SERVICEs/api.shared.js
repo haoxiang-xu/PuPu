@@ -23,6 +23,9 @@ const EMPTY_MODEL_CATALOG = {
     openai: [],
     anthropic: [],
   },
+  embeddingProviders: {
+    openai: [],
+  },
 };
 
 const isObject = (value) =>
@@ -218,6 +221,14 @@ const normalizeModelCatalog = (payload) => {
     payload?.providers && typeof payload.providers === "object"
       ? payload.providers
       : {};
+  const rawEmbeddingProviders =
+    payload?.embedding_providers &&
+    typeof payload.embedding_providers === "object"
+      ? payload.embedding_providers
+      : payload?.embeddingProviders &&
+          typeof payload.embeddingProviders === "object"
+        ? payload.embeddingProviders
+        : {};
   const rawModelCapabilities =
     payload?.model_capabilities &&
     typeof payload.model_capabilities === "object"
@@ -282,6 +293,9 @@ const normalizeModelCatalog = (payload) => {
       ollama: normalizeStringList(providers.ollama),
       openai: normalizeStringList(providers.openai),
       anthropic: normalizeStringList(providers.anthropic),
+    },
+    embeddingProviders: {
+      openai: normalizeStringList(rawEmbeddingProviders.openai),
     },
   };
 };

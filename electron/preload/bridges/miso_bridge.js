@@ -3,9 +3,14 @@ const { CHANNELS } = require("../../shared/channels");
 const createMisoBridge = (ipcRenderer, streamClient) => ({
   getStatus: () => ipcRenderer.invoke(CHANNELS.MISO.GET_STATUS),
   getModelCatalog: () => ipcRenderer.invoke(CHANNELS.MISO.GET_MODEL_CATALOG),
-  getToolkitCatalog: () => ipcRenderer.invoke(CHANNELS.MISO.GET_TOOLKIT_CATALOG),
+  getToolkitCatalog: () =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_TOOLKIT_CATALOG),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.TOOL_CONFIRMATION, payload),
+  setChromeTerminalOpen: (open = false) =>
+    ipcRenderer.invoke(CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN, {
+      open: Boolean(open),
+    }),
   pickWorkspaceRoot: (defaultPath = "") =>
     ipcRenderer.invoke(CHANNELS.MISO.PICK_WORKSPACE_ROOT, { defaultPath }),
   validateWorkspaceRoot: (path = "") =>
@@ -15,9 +20,17 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   getRuntimeDirSize: (dirPath = "") =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_RUNTIME_DIR_SIZE, { dirPath }),
   deleteRuntimeEntry: (dirPath, entryName) =>
-    ipcRenderer.invoke(CHANNELS.MISO.DELETE_RUNTIME_ENTRY, { dirPath, entryName }),
+    ipcRenderer.invoke(CHANNELS.MISO.DELETE_RUNTIME_ENTRY, {
+      dirPath,
+      entryName,
+    }),
   clearRuntimeDir: (dirPath) =>
     ipcRenderer.invoke(CHANNELS.MISO.CLEAR_RUNTIME_DIR, { dirPath }),
+  getMemorySize: () => ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_SIZE),
+  getMemoryProjection: (sessionId) =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_PROJECTION, { sessionId }),
+  getLongTermMemoryProjection: () =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
   startStreamV2: streamClient.startStreamV2,

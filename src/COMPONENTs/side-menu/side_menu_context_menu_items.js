@@ -14,6 +14,7 @@ export const buildSideMenuContextMenuItems = ({
   handleStartRename,
   setClipboard,
   setConfirmDelete,
+  onInspectMemory,
 }) => {
   const pasteFromClipboard = (parentFolderId) => {
     if (!clipboard) {
@@ -156,6 +157,12 @@ export const buildSideMenuContextMenuItems = ({
     const chatTitle =
       chatStore?.chatsById?.[node.chatId]?.title || node.label || "Chat";
     return [
+      {
+        icon: "brain",
+        label: "Inspect Memory",
+        onClick: () => onInspectMemory && onInspectMemory(node.chatId, chatTitle),
+      },
+      { type: "separator" },
       {
         icon: "rename",
         label: "Rename",

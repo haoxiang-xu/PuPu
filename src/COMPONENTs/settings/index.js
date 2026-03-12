@@ -4,3 +4,4 @@ export { ModelProvidersSettings } from "./model_providers";
 export { RuntimeSettings } from "./runtime";
 export { LocalStorageSettings } from "./local_storage";
 export { AppUpdateSettings } from "./app_update";
+export { DevSettings } from "./dev";

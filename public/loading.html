@@ -15,11 +15,15 @@
       body {
         width: 100%;
         height: 100%;
-        background: #121212;
         overflow: hidden;
         user-select: none;
         -webkit-user-select: none;
         -webkit-app-region: drag;
+      }
+
+      /* default dark palette — overridden by inline script when light */
+      body {
+        background: var(--bg, #121212);
       }
 
       .container {
@@ -37,21 +41,24 @@
         font-weight: 300;
         letter-spacing: 6px;
         text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.75);
+        color: var(--fg, rgba(255, 255, 255, 0.75));
         animation: fadein 0.5s ease both;
+      }
+
+      /* fadein wrapper — keeps translateY from conflicting with spin */
+      .spinner-wrapper {
+        opacity: 0;
+        animation: fadein 0.5s ease both;
+        animation-delay: 0.2s;
       }
 
       .spinner {
         width: 22px;
         height: 22px;
-        border: 2px solid rgba(255, 255, 255, 0.08);
-        border-top-color: rgba(255, 255, 255, 0.4);
+        border: 2px solid var(--spinner-track, rgba(255, 255, 255, 0.08));
+        border-top-color: var(--spinner-arc, rgba(255, 255, 255, 0.4));
         border-radius: 50%;
-        opacity: 0;
-        animation:
-          fadein 0.5s ease both,
-          spin 0.85s linear infinite;
-        animation-delay: 0.2s, 0.2s;
+        animation: spin 0.85s linear infinite;
       }
 
       @keyframes fadein {
@@ -75,7 +82,22 @@
   <body>
     <div class="container">
       <div class="logo">PuPu</div>
-      <div class="spinner"></div>
+      <div class="spinner-wrapper"><div class="spinner"></div></div>
     </div>
+    <script>
+      /* Apply persisted theme from URL params injected by the main process */
+      (function () {
+        var params = new URLSearchParams(window.location.search);
+        var bg = params.get("bg");
+        var fg = params.get("fg");
+        var st = params.get("st");
+        var sa = params.get("sa");
+        var root = document.documentElement;
+        if (bg) root.style.setProperty("--bg", bg);
+        if (fg) root.style.setProperty("--fg", fg);
+        if (st) root.style.setProperty("--spinner-track", st);
+        if (sa) root.style.setProperty("--spinner-arc", sa);
+      })();
+    </script>
   </body>
 </html>

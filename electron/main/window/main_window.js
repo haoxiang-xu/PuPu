@@ -1,6 +1,7 @@
 const { CHANNELS } = require("../../shared/channels");
 
-const DEV_SERVER_URL = process.env.ELECTRON_START_URL || "http://localhost:2907/#";
+const DEV_SERVER_URL =
+  process.env.ELECTRON_START_URL || "http://localhost:2907/#";
 const PROD_ENTRY_HASH = "/";
 const DEV_SERVER_RETRY_MS = 1200;
 const DARWIN_TRAFFIC_LIGHT_X = 14;
@@ -22,6 +23,49 @@ const normalizeThemeModeToNativeSource = (mode) => {
   const normalizedMode = mode.trim().toLowerCase();
   return THEME_MODE_TO_NATIVE_SOURCE[normalizedMode] || "";
 };
+
+/* ── Theme-preference persistence (tiny JSON file in userData) ────── */
+const THEME_PREFS_FILENAME = "theme-prefs.json";
+
+const DARK_PALETTE = Object.freeze({
+  backgroundColor: "#121212",
+  foregroundColor: "rgba(255,255,255,0.75)",
+  spinnerTrack: "rgba(255,255,255,0.08)",
+  spinnerArc: "rgba(255,255,255,0.4)",
+});
+
+const LIGHT_PALETTE = Object.freeze({
+  backgroundColor: "#FFFFFF",
+  foregroundColor: "rgba(0,0,0,0.65)",
+  spinnerTrack: "rgba(0,0,0,0.08)",
+  spinnerArc: "rgba(0,0,0,0.35)",
+});
+
+const readThemePrefs = (app, fs, path) => {
+  try {
+    const filePath = path.join(app.getPath("userData"), THEME_PREFS_FILENAME);
+    const raw = fs.readFileSync(filePath, "utf-8");
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
+
+const writeThemePrefs = (app, fs, path, data) => {
+  try {
+    const filePath = path.join(app.getPath("userData"), THEME_PREFS_FILENAME);
+    const existing = readThemePrefs(app, fs, path) || {};
+    fs.writeFileSync(filePath, JSON.stringify({ ...existing, ...data }));
+  } catch {
+    // Non-critical – silently ignore.
+  }
+};
+
+const paletteForMode = (mode) => {
+  if (mode === "light" || mode === "light_mode") return LIGHT_PALETTE;
+  return DARK_PALETTE;
+};
+/* ── Theme-preference persistence ──────────────────────────────────── */
 
 const createMainWindowService = ({
   app,
@@ -87,9 +131,45 @@ const createMainWindowService = ({
     }, 16);
   };
 
+  /** Resolve the initial background color from persisted prefs. */
+  const resolveInitialBackgroundColor = () => {
+    const prefs = readThemePrefs(app, fs, path);
+    if (
+      prefs?.backgroundColor &&
+      /^#[0-9a-fA-F]{3,8}$/.test(prefs.backgroundColor)
+    ) {
+      return prefs.backgroundColor;
+    }
+    // Fall back based on persisted themeMode or OS preference.
+    if (prefs?.themeMode === "light" || prefs?.themeMode === "light_mode") {
+      return LIGHT_PALETTE.backgroundColor;
+    }
+    if (prefs?.themeMode === "system") {
+      return nativeTheme.shouldUseDarkColors
+        ? DARK_PALETTE.backgroundColor
+        : LIGHT_PALETTE.backgroundColor;
+    }
+    return DARK_PALETTE.backgroundColor;
+  };
+
+  /** Resolve the full loading-screen palette from persisted prefs. */
+  const resolveLoadingPalette = () => {
+    const prefs = readThemePrefs(app, fs, path);
+    if (prefs?.themeMode === "light" || prefs?.themeMode === "light_mode") {
+      return LIGHT_PALETTE;
+    }
+    if (prefs?.themeMode === "system") {
+      return nativeTheme.shouldUseDarkColors ? DARK_PALETTE : LIGHT_PALETTE;
+    }
+    // dark is the default
+    return DARK_PALETTE;
+  };
+
   const createWindowOptions = () => {
     const windowsIcon = resolvePublicPath("icon-win.ico");
     const fallbackIcon = resolvePublicPath("favicon.ico");
+
+    const initialBgColor = resolveInitialBackgroundColor();
 
     const baseWindowOptions = {
       title: "Mini UI",
@@ -120,7 +200,7 @@ const createMainWindowService = ({
           x: DARWIN_TRAFFIC_LIGHT_X,
           y: DARWIN_TRAFFIC_LIGHT_Y,
         },
-        backgroundColor: "#121212",
+        backgroundColor: initialBgColor,
         hasShadow: true,
         show: false,
       };
@@ -132,7 +212,7 @@ const createMainWindowService = ({
         frame: true,
         titleBarStyle: "hidden",
         hasShadow: true,
-        backgroundColor: "#121212",
+        backgroundColor: initialBgColor,
         show: false,
       };
     }
@@ -141,7 +221,7 @@ const createMainWindowService = ({
       ...baseWindowOptions,
       frame: true,
       titleBarStyle: "hidden",
-      backgroundColor: "#121212",
+      backgroundColor: initialBgColor,
       show: false,
     };
   };
@@ -164,10 +244,38 @@ const createMainWindowService = ({
     setTimeout(loadDevUrlWhenReady, DEV_SERVER_RETRY_MS);
   };
 
+  const focusMainWindow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return null;
+    }
+    if (
+      typeof mainWindow.isMinimized === "function" &&
+      mainWindow.isMinimized()
+    ) {
+      mainWindow.restore();
+    }
+    mainWindow.show();
+    mainWindow.focus();
+    return mainWindow;
+  };
+
   const createMainWindow = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      return focusMainWindow();
+    }
+
     mainWindow = new BrowserWindow(createWindowOptions());
 
-    mainWindow.loadFile(resolvePublicPath("loading.html"));
+    /* Load loading screen with theme-aware query params */
+    const palette = resolveLoadingPalette();
+    mainWindow.loadFile(resolvePublicPath("loading.html"), {
+      query: {
+        bg: palette.backgroundColor,
+        fg: palette.foregroundColor,
+        st: palette.spinnerTrack,
+        sa: palette.spinnerArc,
+      },
+    });
 
     mainWindow.once("ready-to-show", () => {
       mainWindow.show();
@@ -221,6 +329,8 @@ const createMainWindowService = ({
       }
       mainWindow = null;
     });
+
+    return mainWindow;
   };
 
   const handleThemeSetBackgroundColor = (color) => {
@@ -229,6 +339,8 @@ const createMainWindowService = ({
     }
     if (typeof color === "string" && /^#[0-9a-fA-F]{6,8}$/.test(color)) {
       mainWindow.setBackgroundColor(color);
+      /* Persist so the next launch uses this color immediately. */
+      writeThemePrefs(app, fs, path, { backgroundColor: color });
     }
   };
 
@@ -238,6 +350,8 @@ const createMainWindowService = ({
       return;
     }
     nativeTheme.themeSource = themeSource;
+    /* Persist the mode so the loading screen matches on next launch. */
+    writeThemePrefs(app, fs, path, { themeMode: themeSource });
   };
 
   const handleWindowStateEvent = (action) => {
@@ -267,14 +381,13 @@ const createMainWindowService = ({
   };
 
   const showMainWindow = () => {
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.show();
-    }
+    focusMainWindow();
   };
 
   return {
     createMainWindow,
     getMainWindow: () => mainWindow,
+    focusMainWindow,
     showMainWindow,
     getPublicAssetPath: resolvePublicPath,
     handleThemeSetBackgroundColor,

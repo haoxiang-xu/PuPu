@@ -25,6 +25,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
     def test_get_capability_catalog_keeps_provider_model_lists(self) -> None:
         payload = {
             "gpt-5": {"provider": "openai"},
+            "text-embedding-3-small": {"provider": "openai", "model_type": "embedding"},
             "claude-opus-4.6": {"provider": "anthropic"},
             "deepseek-r1:14b": {"provider": "ollama"},
             "ignored-model": {"provider": "unknown"},
@@ -36,12 +37,45 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             miso_adapter,
             "_capability_file_candidates",
             return_value=[capability_file],
+        ), mock.patch.object(
+            miso_adapter,
+            "_fetch_ollama_models",
+            return_value=[],
         ):
             providers = miso_adapter.get_capability_catalog()
 
         self.assertEqual(providers["openai"], ["gpt-5"])
         self.assertEqual(providers["anthropic"], ["claude-opus-4-6"])
         self.assertEqual(providers["ollama"], ["deepseek-r1:14b"])
+        self.assertNotIn("text-embedding-3-small", providers["openai"])
+
+    def test_get_embedding_provider_catalog_only_keeps_openai_embedding_models(self) -> None:
+        payload = {
+            "gpt-5": {"provider": "openai"},
+            "text-embedding-3-small": {"provider": "openai", "model_type": "embedding"},
+            "text-embedding-3-large": {"provider": "openai", "model_type": "embedding"},
+            "nomic-embed-text": {"provider": "ollama", "model_type": "embedding"},
+            "ignored-model": {"provider": "unknown", "model_type": "embedding"},
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        with mock.patch.object(
+            miso_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            providers = miso_adapter.get_embedding_provider_catalog()
+
+        self.assertEqual(
+            providers,
+            {
+                "openai": [
+                    "text-embedding-3-large",
+                    "text-embedding-3-small",
+                ]
+            },
+        )
 
     def test_get_model_capability_catalog_normalizes_modalities_and_sources(self) -> None:
         payload = {
@@ -55,6 +89,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     "text": ["url"],
                     "video": ["url"],
                 },
+            },
+            "text-embedding-3-small": {
+                "provider": "openai",
+                "model_type": "embedding",
+                "input_modalities": ["text"],
             },
             "deepseek-r1:14b": {
                 "provider": "ollama",
@@ -101,6 +140,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 "input_source_types": {"image": ["base64"]},
             },
         )
+        self.assertNotIn("openai:text-embedding-3-small", model_capabilities)
 
     def test_get_default_model_capabilities_is_text_only(self) -> None:
         self.assertEqual(
@@ -292,7 +332,6 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         emitted_events = []
         confirm_cb = miso_adapter._make_tool_confirm_callback(
             emitted_events.append,
-            timeout_seconds=2,
         )
         response_holder: dict[str, object] = {}
 
@@ -334,27 +373,54 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(result["approved"], True)
         self.assertEqual(result["reason"], "approved")
 
-    def test_make_tool_confirm_callback_times_out_to_denied_response(self) -> None:
+    def test_make_tool_confirm_callback_returns_denied_when_cancelled(self) -> None:
+        cancel_event = threading.Event()
+        emitted_events = []
         confirm_cb = miso_adapter._make_tool_confirm_callback(
-            lambda _event: None,
-            timeout_seconds=1,
+            emitted_events.append,
+            cancel_event=cancel_event,
         )
+        response_holder: dict[str, object] = {}
 
-        started = time.time()
-        result = confirm_cb(
-            {
-                "tool_name": "delete_file",
-                "call_id": "call-timeout",
-                "arguments": {"path": "tmp.txt"},
-                "description": "Delete a file",
-            }
+        def invoke_callback() -> None:
+            response_holder["value"] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-cancelled",
+                    "arguments": {"path": "tmp.txt"},
+                    "description": "Delete a file",
+                }
+            )
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertTrue(emitted_events)
+        confirmation_id = emitted_events[0].get("confirmation_id")
+        self.assertIsInstance(confirmation_id, str)
+
+        cancel_event.set()
+        miso_adapter.cancel_tool_confirmations(cancel_event)
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+
+        result = response_holder.get("value")
+        submitted = miso_adapter.submit_tool_confirmation(
+            confirmation_id=confirmation_id,
+            approved=True,
         )
-        elapsed = time.time() - started
 
         self.assertIsInstance(result, dict)
         self.assertEqual(result.get("approved"), False)
-        self.assertIn("timed out", str(result.get("reason", "")).lower())
-        self.assertLess(elapsed, 2.5)
+        self.assertEqual(
+            result.get("reason"),
+            "confirmation_cancelled_stream_terminated",
+        )
+        self.assertFalse(submitted)
 
     def test_submit_tool_confirmation_returns_false_for_unknown_id(self) -> None:
         submitted = miso_adapter.submit_tool_confirmation(
@@ -862,6 +928,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.max_iterations = 3
                 self.received_on_tool_confirm = False
                 self.last_messages = []
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
 
             def run(
                 self,
@@ -915,6 +986,155 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(fake_agent.last_messages[0].get("role"), "system")
         self.assertIn("[Personality]", fake_agent.last_messages[0].get("content", ""))
         self.assertIn("[Rules]", fake_agent.last_messages[0].get("content", ""))
+
+    def test_stream_chat_events_emits_memory_unavailable_and_stops_when_history_empty(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_called = False
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": False,
+                    "reason": "embedding_provider_unavailable",
+                }
+
+            def run(self, *args, **kwargs):
+                self.run_called = True
+                return [], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                miso_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertFalse(fake_agent.run_called)
+        self.assertEqual(events[0]["type"], "memory_prepare")
+        self.assertFalse(events[0]["applied"])
+        self.assertEqual(events[0]["fallback_reason"], "embedding_provider_unavailable")
+        self.assertEqual(events[1]["type"], "error")
+        self.assertEqual(events[1]["code"], "memory_unavailable")
+
+    def test_stream_chat_events_emits_memory_prepare_failure_but_runs_with_history(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_called = False
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": False,
+                    "reason": "embedding_provider_unavailable",
+                }
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                session_id=None,
+            ):
+                self.run_called = True
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return [{"role": "assistant", "content": "done"}], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                miso_adapter.stream_chat_events(
+                    message="hello",
+                    history=[{"role": "user", "content": "previous"}],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertTrue(fake_agent.run_called)
+        self.assertEqual(events[0]["type"], "memory_prepare")
+        self.assertFalse(events[0]["applied"])
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
+    def test_stream_chat_events_passes_memory_namespace_to_agent_run(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_kwargs = None
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": True,
+                    "reason": "",
+                }
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                session_id=None,
+                memory_namespace=None,
+            ):
+                self.run_kwargs = {
+                    "messages": messages,
+                    "payload": payload,
+                    "max_iterations": max_iterations,
+                    "session_id": session_id,
+                    "memory_namespace": memory_namespace,
+                }
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return [{"role": "assistant", "content": "done"}], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                miso_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "memory_enabled": True,
+                        "memory_namespace": "pupu:default",
+                    },
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertEqual(fake_agent.run_kwargs["session_id"], "chat-1")
+        self.assertEqual(fake_agent.run_kwargs["memory_namespace"], "pupu:default")
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
 
     def test_extract_last_assistant_text_handles_structured_content(self) -> None:
         messages = [

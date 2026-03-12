@@ -1,19 +1,117 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
-import ToolPickerPopover from "./tool_picker_popover";
+import { WorkspaceModal } from "../../workspace/workspace_modal";
+import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
+import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 
 const PILL_HEIGHT = 32;
 
 const isTextEntryTarget = (target) =>
   Boolean(
     target &&
-      typeof target.closest === "function" &&
-      target.closest(
-        "input, textarea, [contenteditable]:not([contenteditable='false'])",
-      ),
+    typeof target.closest === "function" &&
+    target.closest(
+      "input, textarea, [contenteditable]:not([contenteditable='false'])",
+    ),
   );
+
+/* ── shared footer helpers ── */
+
+const ClearAllFooter = ({ onClear, isDark }) => (
+  <button
+    onMouseDown={(e) => {
+      e.preventDefault();
+      onClear();
+    }}
+    style={{
+      background: "none",
+      border: "none",
+      padding: "2px 4px",
+      cursor: "pointer",
+      fontSize: 11,
+      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+      fontFamily: "Jost, sans-serif",
+    }}
+  >
+    clear all
+  </button>
+);
+
+const WorkspaceFooter = ({ onClear, hasSelection, onAdd, isDark }) => {
+  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
+  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      {hasSelection && (
+        <button
+          onMouseDown={(e) => {
+            e.preventDefault();
+            onClear();
+          }}
+          style={{
+            background: "none",
+            border: "none",
+            padding: "2px 4px",
+            cursor: "pointer",
+            fontSize: 11,
+            color: mutedColor,
+            fontFamily: "Jost, sans-serif",
+            textAlign: "left",
+          }}
+        >
+          clear all
+        </button>
+      )}
+      <div
+        onMouseDown={(e) => {
+          e.preventDefault();
+          onAdd();
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          cursor: "pointer",
+          padding: "3px 4px",
+          opacity: 0.55,
+          borderRadius: 4,
+        }}
+        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.55")}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 14 14"
+          fill="none"
+          style={{ flexShrink: 0 }}
+        >
+          <path
+            d="M7 2.5V11.5M2.5 7H11.5"
+            stroke={textColor}
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
+        </svg>
+        <span
+          style={{
+            fontSize: 12,
+            fontFamily: "Jost, sans-serif",
+            color: textColor,
+            fontWeight: 500,
+          }}
+        >
+          Add Workspace
+        </span>
+      </div>
+    </div>
+  );
+};
+
+/* ── main component ── */
 
 const AttachPanel = ({
   color,
@@ -36,14 +134,71 @@ const AttachPanel = ({
   isStreaming = false,
   selectedToolkits = [],
   onToolkitsChange,
+  selectedWorkspaceIds = [],
+  onWorkspaceIdsChange,
 }) => {
-  const [toolPickerOpen, setToolPickerOpen] = useState(false);
-  const toolBtnRef = useRef(null);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+  const [openSelector, setOpenSelector] = useState(null);
+  const { toolkitOptions } = useChatInputToolkits();
+  const { workspaceOptions } = useChatInputWorkspaces();
+
   const floating = active || focused;
   let panelBg = "transparent";
   if (floating) panelBg = focusBg || "rgba(255,255,255,0.95)";
 
   const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
+
+  /* shared pill style (model selector) */
+  const pillStyle = {
+    height: PILL_HEIGHT,
+    fontSize: 12,
+    color,
+    backgroundColor: selectBg,
+    borderRadius: floating ? 999 : 16,
+    outline: "none",
+    padding: "0 10px",
+  };
+
+  /* badge overlay for icon buttons */
+  const Badge = ({ count }) =>
+    count > 0 ? (
+      <span
+        style={{
+          position: "absolute",
+          top: 0,
+          right: 0,
+          minWidth: 13,
+          height: 13,
+          borderRadius: 999,
+          background: "rgba(10,186,181,1)",
+          color: "#fff",
+          fontSize: 8,
+          fontWeight: 700,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "0 2px",
+          pointerEvents: "none",
+          boxSizing: "border-box",
+        }}
+      >
+        {count}
+      </span>
+    ) : null;
+
+  /* stop-propagation wrapper for selects */
+  const selectWrap = (children) => (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => {
+        if (!isTextEntryTarget(e.target)) e.preventDefault();
+        e.stopPropagation();
+      }}
+      style={{ display: "flex", alignItems: "center" }}
+    >
+      {children}
+    </div>
+  );
 
   return (
     <div
@@ -78,17 +233,10 @@ const AttachPanel = ({
           transition: "background-color 0.22s ease, box-shadow 0.22s ease",
         }}
       >
-        {modelOptions && modelOptions.length > 0 && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => {
-              if (!isTextEntryTarget(e.target)) {
-                e.preventDefault();
-              }
-              e.stopPropagation();
-            }}
-            style={{ display: "flex", alignItems: "center" }}
-          >
+        {/* ── Model selector ── */}
+        {modelOptions &&
+          modelOptions.length > 0 &&
+          selectWrap(
             <Select
               options={modelOptions}
               value={selectedModelId || null}
@@ -100,27 +248,20 @@ const AttachPanel = ({
               disabled={modelSelectDisabled}
               show_trigger_icon={true}
               on_group_toggle={onGroupToggle}
-              style={{
-                height: PILL_HEIGHT,
-                maxWidth: 180,
-                fontSize: 12,
-                color,
-                backgroundColor: selectBg,
-                borderRadius: floating ? 999 : 16,
-                outline: "none",
-                padding: "0 10px",
-              }}
+              open={openSelector === "model"}
+              on_open_change={(next) => setOpenSelector(next ? "model" : null)}
+              style={{ ...pillStyle, maxWidth: 180 }}
               dropdown_style={{
                 maxWidth: 260,
                 minWidth: 180,
                 maxHeight: 240,
               }}
-            />
-          </div>
-        )}
+            />,
+          )}
 
         {onAttachFile && (
           <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
+            {/* ── Attach file button ── */}
             <div
               title={
                 attachmentsEnabled
@@ -141,51 +282,101 @@ const AttachPanel = ({
               />
             </div>
 
-            <div ref={toolBtnRef} style={{ position: "relative" }}>
-              <Button
-                prefix_icon="tool"
-                title="Select toolkits"
-                onClick={() => setToolPickerOpen((v) => !v)}
-                style={{
-                  color:
-                    selectedToolkits.length > 0 ? "rgba(10,186,181,1)" : color,
-                  fontSize: 14,
-                  borderRadius: floating ? 22 : 16,
+            {/* ── Tools selector (icon button + badge trigger) ── */}
+            <div style={{ position: "relative" }}>
+              <Select
+                multi
+                options={toolkitOptions}
+                value={selectedToolkits}
+                set_value={onToolkitsChange || (() => {})}
+                filterable={true}
+                filter_mode="panel"
+                search_placeholder="Search toolkits..."
+                open={openSelector === "tools"}
+                on_open_change={(next) =>
+                  setOpenSelector(next ? "tools" : null)
+                }
+                dropdown_style={{
+                  maxWidth: 300,
+                  minWidth: 220,
+                  maxHeight: 280,
                 }}
+                dropdown_footer={
+                  selectedToolkits.length > 0 ? (
+                    <ClearAllFooter
+                      onClear={() => (onToolkitsChange || (() => {}))([])}
+                      isDark={isDark}
+                    />
+                  ) : null
+                }
+                custom_trigger={
+                  <div style={{ position: "relative" }}>
+                    <Button
+                      prefix_icon="tool"
+                      title="Select toolkits"
+                      style={{
+                        color:
+                          selectedToolkits.length > 0
+                            ? "rgba(10,186,181,1)"
+                            : color,
+                        fontSize: 14,
+                        borderRadius: floating ? 22 : 16,
+                      }}
+                    />
+                    <Badge count={selectedToolkits.length} />
+                  </div>
+                }
               />
-              {selectedToolkits.length > 0 && (
-                <span
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    right: 0,
-                    minWidth: 13,
-                    height: 13,
-                    borderRadius: 999,
-                    background: "rgba(10,186,181,1)",
-                    color: "#fff",
-                    fontSize: 8,
-                    fontWeight: 700,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: "0 2px",
-                    pointerEvents: "none",
-                    boxSizing: "border-box",
-                  }}
-                >
-                  {selectedToolkits.length}
-                </span>
-              )}
-              {toolPickerOpen && (
-                <ToolPickerPopover
-                  selected={selectedToolkits}
-                  onChange={onToolkitsChange || (() => {})}
-                  onClose={() => setToolPickerOpen(false)}
-                  anchorEl={toolBtnRef.current}
-                  isDark={isDark}
-                />
-              )}
+            </div>
+
+            {/* ── Workspace selector (icon button + badge trigger) ── */}
+            <div style={{ position: "relative" }}>
+              <Select
+                multi
+                options={workspaceOptions}
+                value={selectedWorkspaceIds}
+                set_value={onWorkspaceIdsChange || (() => {})}
+                filterable={true}
+                filter_mode="panel"
+                search_placeholder="Search workspaces..."
+                open={openSelector === "workspace"}
+                on_open_change={(next) =>
+                  setOpenSelector(next ? "workspace" : null)
+                }
+                dropdown_style={{
+                  maxWidth: 300,
+                  minWidth: 220,
+                  maxHeight: 260,
+                }}
+                dropdown_footer={
+                  <WorkspaceFooter
+                    hasSelection={selectedWorkspaceIds.length > 0}
+                    onClear={() => (onWorkspaceIdsChange || (() => {}))([])}
+                    onAdd={() => {
+                      setOpenSelector(null);
+                      setWorkspaceModalOpen(true);
+                    }}
+                    isDark={isDark}
+                  />
+                }
+                custom_trigger={
+                  <div style={{ position: "relative" }}>
+                    <Button
+                      prefix_icon="folder_2"
+                      title="Select workspaces"
+                      style={{
+                        color:
+                          selectedWorkspaceIds.length > 0
+                            ? "rgba(10,186,181,1)"
+                            : color,
+                        fontSize: 14,
+                        borderRadius: floating ? 22 : 16,
+                      }}
+                    />
+                    <Badge count={selectedWorkspaceIds.length} />
+                  </div>
+                }
+              />
             </div>
           </div>
         )}
@@ -198,6 +389,11 @@ const AttachPanel = ({
           />
         )}
       </div>
+
+      <WorkspaceModal
+        open={workspaceModalOpen}
+        onClose={() => setWorkspaceModalOpen(false)}
+      />
     </div>
   );
 };

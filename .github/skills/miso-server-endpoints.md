@@ -1,188 +1,256 @@
-# Skill: Miso Server Endpoint Reference
+# Skill: Miso Server Endpoints and Stream V2
 
-Use this guide when you need to understand, call, or extend the Miso sidecar server in this repo.
+Use this guide when you need to understand, call, or extend the local Miso sidecar.
 
----
+Primary source files:
 
-## 1. Runtime architecture
-
-Miso runs as a local Flask sidecar started by Electron main process.
-
-- Flask app entry: `miso_runtime/server/main.py`
-- Flask app setup: `miso_runtime/server/app.py`
 - Flask routes: `miso_runtime/server/routes.py`
-- Electron bridge and proxy: `public/electron.js`
-- Renderer preload bridge: `public/preload.js`
-- Frontend API facade: `src/SERVICEs/api.js`
+- Runtime adapter: `miso_runtime/server/miso_adapter.py`
+- Electron main service: `electron/main/services/miso/service.js`
+- Electron preload stream client: `electron/preload/stream/miso_stream_client.js`
+- Renderer facade: `src/SERVICEs/api.miso.js`
+- Electron preload bridge: `electron/preload/bridges/miso_bridge.js`
 
-The renderer should call Miso through `api.miso.*` in `src/SERVICEs/api.js`.
-Do not call local sidecar HTTP endpoints directly from page/component files.
-
----
-
-## 2. Auth model
-
-When `MISO_AUTH_TOKEN` is set, protected routes require this header:
-
-- `x-miso-auth: <token>`
-
-Auth check is implemented in `miso_runtime/server/routes.py` via `_is_authorized()`.
+The renderer should call Miso through `api.miso.*`. Do not call sidecar HTTP endpoints directly from pages or components.
 
 ---
 
-## 3. Endpoint list (server HTTP)
+## 1. Current endpoint list
 
-Current Flask endpoints:
+Current Flask endpoints are:
 
 - `GET /health`
 - `GET /models/catalog`
-- `POST /chat/stream` (SSE)
+- `GET /toolkits/catalog`
+- `GET /memory/projection`
+- `POST /chat/tool/confirmation`
+- `POST /chat/stream`
+- `POST /chat/stream/v2`
 
-These paths are mirrored in `public/electron.js`:
+Guidance:
 
-- `MISO_HEALTH_ENDPOINT = "/health"`
-- `MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog"`
-- `MISO_STREAM_ENDPOINT = "/chat/stream"`
+- `/chat/stream/v2` is the primary streaming contract for the app.
+- `/chat/stream` is still present, but it is the legacy/simple SSE path.
 
----
+When `MISO_AUTH_TOKEN` is configured, protected routes require:
 
-## 4. Endpoint params and response contract
-
-### 4.1 `GET /health`
-
-Purpose:
-- Liveness/ready probe for sidecar bootstrap.
-
-Request:
-- Method: `GET`
-- Headers:
-  - `x-miso-auth` (optional; accepted when token exists)
-- Query params: none
-- Body: none
-
-Response `200` JSON:
-- `status`: string (currently `"ok"`)
-- `version`: string
-- `model`: string (for example `"ollama:deepseek-r1:14b"` or `"miso-unavailable"`)
-- `threaded`: boolean
+- header: `x-miso-auth: <token>`
 
 ---
 
-### 4.2 `GET /models/catalog`
+## 2. Which path the UI should use
 
-Purpose:
-- Return active provider/model and provider model lists.
+For normal chat generation in the renderer, use:
 
-Request:
-- Method: `GET`
-- Headers:
-  - `x-miso-auth` (required when auth token is enabled)
-- Query params: none
-- Body: none
+```js
+api.miso.startStreamV2(payload, handlers)
+```
 
-Response `200` JSON:
-- `active`: object
-  - `provider`: string (`"openai" | "anthropic" | "ollama"`)
-  - `model`: string
-  - `model_id`: string (`"<provider>:<model>"`)
-- `providers`: object
-  - `openai`: string[]
-  - `anthropic`: string[]
-  - `ollama`: string[]
+That path goes through:
 
-Error `401` JSON:
-- `error.code`: `"unauthorized"`
-- `error.message`: `"Invalid auth token"`
+1. `src/SERVICEs/api.miso.js`
+2. `electron/preload/stream/miso_stream_client.js`
+3. `electron/main/ipc/register_handlers.js`
+4. `electron/main/services/miso/service.js`
+5. local Flask sidecar `/chat/stream/v2`
+
+Do not add direct `fetch("http://127.0.0.1:...")` calls from renderer pages.
 
 ---
 
-### 4.3 `POST /chat/stream`
+## 3. `/chat/stream/v2` request contract
 
-Purpose:
-- Start assistant generation and stream tokens over SSE.
+Request body is JSON. The important fields are:
 
-Request:
-- Method: `POST`
-- Headers:
-  - `Content-Type: application/json`
-  - `x-miso-auth` (required when auth token is enabled)
-- Query params: none
-- Body JSON:
-  - `message`: string, required, non-empty after trim
-  - `threadId`: string, optional
-  - `thread_id`: string, optional (alias)
-  - `history`: array, optional
-    - each item:
-      - `role`: `"system" | "user" | "assistant"`
-      - `content`: string
-  - `options`: object, optional
-    - model/provider selectors:
-      - `modelId` or `model_id` (for example `"openai:gpt-5"`)
-      - `provider` (`"openai" | "anthropic" | "ollama"`)
-      - `model` (supports plain model or `<provider>:<model>`)
-    - generation:
-      - `temperature`: number
-      - `maxTokens`: number
-    - API key pass-through:
-      - `apiKey` / `api_key`
-      - `openaiApiKey` / `openai_api_key`
-      - `anthropicApiKey` / `anthropic_api_key`
-      - `misoApiKey` / `miso_api_key`
+- `message`: string
+- `attachments`: optional attachment blocks
+- `threadId` or `thread_id`: optional thread/session identifier
+- `history`: prior dialog messages
+- `options`: runtime options
+- `trace_level`: optional, `"minimal"` or `"full"`
 
-SSE event stream (`text/event-stream`):
+`message` or `attachments` must be present.
+
+In practice, renderer code usually injects these through `api.miso.startStreamV2(...)`:
+
+- `options.system_prompt_v2`
+- `options.toolkits`
+- `options.memory_enabled`
+- `options.memory_embedding_provider`
+- `options.memory_embedding_model`
+- `options.memory_last_n_turns`
+- `options.memory_vector_top_k`
+- `options.workspaceRoot`
+- `options.workspace_root`
+- `options.workspace_roots`
+
+Important client-side nuance:
+
+- `options.selectedWorkspaceIds` is internal renderer state
+- `api.miso.js` resolves it into workspace paths, then removes the IDs before the sidecar sees the payload
+
+---
+
+## 4. `/chat/stream/v2` SSE contract
+
+This endpoint streams `event: frame`.
+
+Each frame is a trace object with this shape:
+
+```js
+{
+  seq: number,
+  ts: number,
+  thread_id: string,
+  run_id: string,
+  iteration: number,
+  stage: "agent" | "model" | "tool" | "stream",
+  type: string,
+  payload: object,
+}
+```
+
+Important frame types currently used by the app:
+
+- `request_messages`
+- `memory_prepare`
+- `memory_commit`
+- `tool_confirmation_request`
+- `continuation_request`
+- `final_message`
+- `token_delta`
+- `error`
+- `done`
+
+Operational meaning:
+
+- `request_messages`: exact provider request shape the runtime is about to send
+- `memory_prepare`: memory recall/preparation outcome for the request
+- `memory_commit`: memory persistence outcome after the run
+- `tool_confirmation_request`: a tool call needs user approval or editing
+- `continuation_request`: the agent is asking whether to continue after a limit/decision point
+- `final_message`: the final assistant message content
+
+Important trace rule:
+
+- `final_message`, `token_delta`, and `request_messages` are intentionally not trace-sanitized in `routes.py`, because the frontend needs their full content.
+
+---
+
+## 5. Legacy `/chat/stream`
+
+`POST /chat/stream` is still supported, but it is the older/simple SSE path.
+
+It emits:
+
 - `event: meta`
-  - payload:
-    - `thread_id`: string
-    - `model`: string
-    - `started_at`: number (epoch ms)
 - `event: token`
-  - payload:
-    - `delta`: string
 - `event: done`
-  - payload:
-    - `thread_id`: string
-    - `finished_at`: number (epoch ms)
-    - `usage`:
-      - `prompt_tokens`: number
-      - `completion_tokens`: number
-      - `completion_chars`: number
 - `event: error`
-  - payload:
-    - `code`: string
-    - `message`: string
 
-Error responses:
-- `400` when `message` is missing/empty
-  - `error.code`: `"invalid_request"`
-  - `error.message`: `"message is required"`
-- `401` when auth fails
-  - `error.code`: `"unauthorized"`
-  - `error.message`: `"Invalid auth token"`
+Use it only when you specifically need the simple token stream and do not need v2 frames, memory trace, tool confirmation frames, or continuation frames.
 
 ---
 
-## 5. Non-endpoint stream controls (Electron bridge)
+## 6. Tool-related and memory endpoints
 
-There is no Flask endpoint for stream cancellation.
-Cancellation is local in Electron by aborting fetch controller.
+### `GET /toolkits/catalog`
 
-Preload bridge methods in `public/preload.js`:
+Returns the toolkit catalog used by the tool picker.
 
-- `misoAPI.getStatus()`
-- `misoAPI.getModelCatalog()`
-- `misoAPI.startStream(payload, handlers)`
-- `misoAPI.cancelStream(requestId)` (bridge-level cancel)
+Renderer entrypoint:
+
+```js
+api.miso.getToolkitCatalog()
+```
+
+### `POST /chat/tool/confirmation`
+
+Submits the decision for a pending tool confirmation request.
+
+Request body:
+
+```js
+{
+  confirmation_id: string,
+  approved: boolean,
+  reason?: string,
+  modified_arguments?: object,
+}
+```
+
+Renderer entrypoint:
+
+```js
+api.miso.respondToolConfirmation(payload)
+```
+
+### `GET /memory/projection`
+
+Returns projected memory points for the memory inspector modal.
+
+Query:
+
+```txt
+session_id=<chat thread or session id>
+```
+
+Renderer entrypoint:
+
+```js
+api.miso.getMemoryProjection(sessionId)
+```
 
 ---
 
-## 6. How to add a new server endpoint safely
+## 7. Anthropic and trace inspection pitfall
 
-When adding an endpoint, update all layers in this order:
+Do not assume every provider request is fully represented by `messages`.
 
-1. Add Flask route in `miso_runtime/server/routes.py`.
-2. Add/adjust endpoint constant and proxy call in `public/electron.js`.
-3. Expose bridge method in `public/preload.js`.
-4. Add facade method in `src/SERVICEs/api.js` with timeout and `FrontendApiError`.
-5. Use `api.miso.<method>()` from UI code.
+For Anthropic, system prompt content is separated from the `messages` array during provider formatting. That means:
 
-Do not bypass the facade from pages/components.
+- the request trace may have system content outside `payload.messages`
+- inspecting only `request_messages.payload.messages` can make it look like rules disappeared when they actually moved to the provider-specific `system` field
+
+When debugging Anthropic request shape, inspect both:
+
+- the trace frame payload
+- the provider formatting path in `miso_runtime/server/miso_adapter.py`
+
+---
+
+## 8. Adding or changing an endpoint safely
+
+When you add server functionality, update layers in this order:
+
+1. Flask route in `miso_runtime/server/routes.py`
+2. adapter/runtime logic in `miso_runtime/server/miso_adapter.py` if needed
+3. Electron main service in `electron/main/services/miso/service.js`
+4. IPC channels and handler registry in `electron/shared/channels.js` and `electron/main/ipc/register_handlers.js`
+5. preload bridge or stream client in `electron/preload/bridges/miso_bridge.js` or `electron/preload/stream/miso_stream_client.js`
+6. renderer facade in `src/SERVICEs/api.miso.js`
+7. UI usage through `api.miso.*`
+
+Do not skip the facade layer.
+
+---
+
+## 9. Quick checks
+
+```bash
+rg -n "@api_blueprint\\.(get|post)" miso_runtime/server/routes.py
+```
+
+```bash
+rg -n "startStreamV2|getToolkitCatalog|respondToolConfirmation|getMemoryProjection" \
+  src/SERVICEs/api.miso.js \
+  electron/preload/bridges/miso_bridge.js \
+  electron/preload/stream/miso_stream_client.js
+```
+
+```bash
+rg -n "STREAM_START_V2|GET_TOOLKIT_CATALOG|GET_MEMORY_PROJECTION|handleStreamStartV2" \
+  electron/shared/channels.js \
+  electron/main/ipc/register_handlers.js \
+  electron/main/services/miso/service.js
+```

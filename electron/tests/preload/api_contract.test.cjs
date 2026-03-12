@@ -60,6 +60,7 @@ describe("preload API contract", () => {
       "getModelCatalog",
       "getToolkitCatalog",
       "respondToolConfirmation",
+      "setChromeTerminalOpen",
       "pickWorkspaceRoot",
       "validateWorkspaceRoot",
       "openRuntimeFolder",
@@ -90,6 +91,12 @@ describe("preload API contract", () => {
       category: "c",
     });
 
+    exposed.misoAPI.setChromeTerminalOpen(true);
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
+      { open: true },
+    );
+
     exposed.themeAPI.setThemeMode("dark_mode");
     expect(ipcRenderer.send).toHaveBeenLastCalledWith(
       CHANNELS.THEME.SET_MODE,
@@ -101,6 +108,32 @@ describe("preload API contract", () => {
       CHANNELS.WINDOW_STATE.HANDLE_ACTION,
       "maximize",
     );
+  });
+
+  test("forwards miso runtime logs to chrome console", () => {
+    const runtimeLogCall = ipcRenderer.on.mock.calls.find(
+      (call) => call[0] === CHANNELS.MISO.RUNTIME_LOG,
+    );
+
+    expect(runtimeLogCall).toBeDefined();
+
+    const runtimeLogListener = runtimeLogCall[1];
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      runtimeLogListener({}, { level: "stdout", text: "hello from miso" });
+      runtimeLogListener({}, { level: "stderr", text: "oops from miso" });
+      runtimeLogListener({}, { level: "stdout", text: "   " });
+
+      expect(logSpy).toHaveBeenCalledWith("[miso] hello from miso");
+      expect(errorSpy).toHaveBeenCalledWith("[miso:error] oops from miso");
+      expect(logSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+    }
   });
 
   test("event listener bridges return unsubscribe", () => {

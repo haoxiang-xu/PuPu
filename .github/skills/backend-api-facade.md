@@ -1,166 +1,177 @@
-# Skill: Add/Update Backend API Functions in `src/SERVICEs/api.js`
+# Skill: Extend Backend APIs and Renderer Bridges
 
-This guide defines the only accepted pattern for frontend-to-backend calls in this repo.
-If you add a new backend call, implement it in `src/SERVICEs/api.js` first.
+Use this guide when a renderer feature needs new backend, runtime, or Electron-backed capability.
 
----
+The current boundary is split in two:
 
-## 1. Scope and boundary
+- domain APIs for feature flows: `src/SERVICEs/api.miso.js`, `src/SERVICEs/api.ollama.js`, `src/SERVICEs/api.system.js`
+- low-level renderer bridge helpers: `src/SERVICEs/bridges/miso_bridge.js`, `src/SERVICEs/bridges/ollama_bridge.js`, `src/SERVICEs/bridges/theme_bridge.js`, `src/SERVICEs/bridges/window_state_bridge.js`
+- shared error/timeout helpers: `src/SERVICEs/api.shared.js`
+- compatibility export surface: `src/SERVICEs/api.js`
 
-Use this skill when you need to:
-
-- call Electron preload bridges (`window.misoAPI`, `window.ollamaAPI`)
-- call local HTTP endpoints (for example Ollama on `http://localhost:11434`)
-- standardize API errors and timeouts
-
-Do **not** call bridges or `fetch` directly from page/component files unless there is an approved exception.
+`src/SERVICEs/api.js` is still only the small public aggregator.
 
 ---
 
-## 2. Required file
+## 1. Current renderer boundary
 
-- API facade file: `src/SERVICEs/api.js`
-- Consumer files (pages/components) must import from the facade:
+Feature and page code should call one of these:
 
 ```js
 import { api } from "../../SERVICEs/api";
+import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
+import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
+import { windowStateBridge } from "../../SERVICEs/bridges/window_state_bridge";
 ```
+
+Page and component files should not:
+
+- call `window.misoAPI` / `window.ollamaAPI` / `window.themeAPI` directly
+- import `ipcRenderer`
+- add raw `fetch(...)` calls for preload-backed or sidecar-backed app work
+
+Use `api.*` for business/domain flows. Use `src/SERVICEs/bridges/*.js` for native runtime helpers that intentionally stay close to the Electron bridge.
 
 ---
 
-## 3. Public facade contract
+## 2. Which file to edit
 
-`api.js` must export:
+Use this rule:
 
-- `FrontendApiError`
-- `api` object (grouped by domain)
-- default export `api`
+- Miso chat runtime / model catalog / toolkits / memory projection / streaming: `src/SERVICEs/api.miso.js`
+- Ollama install, status, library, HTTP helpers: `src/SERVICEs/api.ollama.js`
+- app info / updater namespaces exposed on `api`: `src/SERVICEs/api.system.js`
+- workspace validation, runtime storage, devtools toggle, theme, window chrome: `src/SERVICEs/bridges/*.js`
+- shared wrappers and error types: `src/SERVICEs/api.shared.js`
+- aggregated export only: `src/SERVICEs/api.js`
 
-Current grouping pattern:
+If the new capability crosses the Electron process boundary, also update:
+
+- channel names: `electron/shared/channels.js`
+- preload bridge factory: `electron/preload/bridges/*.js`
+- preload exposure: `electron/preload/index.js` when adding a new global API namespace
+- handler registry: `electron/main/ipc/register_handlers.js`
+- main service implementation: `electron/main/services/*`
+
+---
+
+## 3. Required pattern
+
+When adding a new async renderer-facing method:
+
+1. Put the real implementation in the correct domain API or bridge helper.
+2. Use `assertBridgeMethod(...)` and `hasBridgeMethod(...)` appropriately.
+3. Use `withTimeout(...)` when the call can hang.
+4. Normalize the returned payload before the UI sees it.
+5. Wrap failures with `toFrontendApiError(...)` or throw `FrontendApiError`.
+6. Expose the method through `api.js` only when it belongs on the public `api` surface.
+
+Minimal API pattern:
 
 ```js
-export const api = {
-  miso: { ... },
-  ollama: { ... },
+export const createDomainApi = () => ({
+  someMethod: async () => {
+    try {
+      const method = assertBridgeMethod("bridgeName", "methodName");
+      const result = await withTimeout(
+        () => method(),
+        5000,
+        "some_timeout",
+        "Request timed out",
+      );
+      return normalizeResult(result);
+    } catch (error) {
+      throw toFrontendApiError(error, "some_failed", "Request failed");
+    }
+  },
+});
+```
+
+Minimal renderer-bridge pattern:
+
+```js
+export const runtimeBridge = {
+  someMethod: async () => {
+    const method = assertBridgeMethod("misoAPI", "someMethod");
+    const response = await withTimeout(
+      () => method(),
+      6000,
+      "some_timeout",
+      "Request timed out",
+    );
+    return normalizeResponse(response);
+  },
 };
 ```
 
-When adding a new backend domain, add a new top-level group (for example `api.files`, `api.auth`), not ad-hoc exports.
-
 ---
 
-## 4. Non-negotiable implementation rules
+## 4. `api.js` contract
 
-1. Every request path must have timeout protection (`withTimeout`).
-2. Every thrown error must be a `FrontendApiError`.
-3. Bridge methods must be checked with `assertBridgeMethod` or `hasBridgeMethod`.
-4. Any API payload with variable shape must be normalized before returning to UI.
-5. Keep bridge availability checks inside facade (`isBridgeAvailable`) when possible.
-6. If a method is intentionally optional (for compatibility), return safe defaults instead of crashing.
+Keep `src/SERVICEs/api.js` small.
 
----
+It should:
 
-## 5. Canonical method templates
+- instantiate domain APIs
+- preserve the public `api` shape used across the renderer
+- re-export shared helpers used in tests and callers
 
-### 5.1 Bridge-based request
+It should not become the implementation home for:
 
-```js
-someMethod: async () => {
-  try {
-    const method = assertBridgeMethod("bridgeName", "methodName");
-    const result = await withTimeout(
-      () => method(),
-      5000,
-      "some_timeout_code",
-      "Some request timed out",
-    );
-    return normalizeResult(result);
-  } catch (error) {
-    throw toFrontendApiError(
-      error,
-      "some_failed_code",
-      "Some request failed",
-    );
-  }
-},
-```
+- bridge-specific request logic
+- Miso stream listener wiring
+- provider-specific payload shaping
+- runtime helper code that already has a bridge wrapper
 
-### 5.2 HTTP request
+Current shape:
 
 ```js
-someHttpMethod: async (input) => {
-  try {
-    const response = await withTimeout(
-      () => fetch("http://localhost:xxxx/path", { method: "POST" }),
-      5000,
-      "some_http_timeout",
-      "HTTP request timed out",
-    );
-
-    if (!response.ok) {
-      throw new FrontendApiError("http_error", `Request failed (${response.status})`, null, {
-        status: response.status,
-      });
-    }
-
-    const json = await safeJson(response);
-    return normalizeJson(json);
-  } catch (error) {
-    throw toFrontendApiError(error, "some_http_failed", "HTTP request failed");
-  }
-},
+export const api = {
+  appInfo: system.appInfo,
+  appUpdate: system.appUpdate,
+  system,
+  runtime: system.runtime,
+  theme: system.theme,
+  windowState: system.windowState,
+  miso: createMisoApi(),
+  ollama: createOllamaApi(),
+};
 ```
 
 ---
 
-## 6. Error model
+## 5. High-risk pitfalls
 
-Use `FrontendApiError(code, message, cause, details)` with:
-
-- stable `code` for programmatic branching
-- user-safe `message`
-- optional `details` for debug context (`status`, `model`, etc.)
-
-Do not leak raw unknown exceptions from facade methods.
-
----
-
-## 7. Compatibility policy
-
-If preload has not exposed a method yet:
-
-- check with `hasBridgeMethod(...)`
-- return safe fallback if the feature is optional
-- throw `bridge_unavailable` if the feature is required
-
-Example already used in repo:
-- `api.miso.getModelCatalog()` returns an empty normalized catalog when bridge method is missing.
+- Do not add new bridge or HTTP logic directly in pages. Error handling and compatibility drift immediately.
+- Do not treat `src/SERVICEs/api.js` as the implementation home.
+- Do not bypass `FrontendApiError` wrapping. UI code branches on stable error codes.
+- Do not skip preload, channels, and main-service updates when adding a new Electron capability.
+- Do not make optional bridge methods hard failures unless the feature is actually required. Follow the current compatibility pattern in `api.miso.getModelCatalog()` and `api.miso.getToolkitCatalog()`.
+- Do not duplicate runtime helpers in multiple pages when a renderer bridge module already exists.
 
 ---
 
-## 8. Consumer-side rules
+## 6. Add-a-capability checklist
 
-Page/component code should:
+- [ ] Picked the correct domain API or renderer bridge module
+- [ ] Added timeout protection where the call can hang
+- [ ] Wrapped failures in `FrontendApiError`
+- [ ] Normalized the returned payload
+- [ ] Updated `electron/shared/channels.js` if a new IPC capability was added
+- [ ] Updated preload and main-service layers if the capability crosses Electron
+- [ ] Exposed the method through `src/SERVICEs/api.js` only when appropriate
+- [ ] Updated UI code to call `api.*` or `src/SERVICEs/bridges/*`
+- [ ] Did not add direct `window.*API` or raw sidecar `fetch(...)` in page/component code
 
-- call `api.<domain>.<method>()`
-- handle errors with `try/catch`
-- only branch on `FrontendApiError.code` where needed
-- avoid direct usage of `window.misoAPI`, `window.ollamaAPI`, and raw `fetch`
-
----
-
-## 9. Add-a-method checklist
-
-- [ ] Method added under the correct `api.<domain>` group in `src/SERVICEs/api.js`
-- [ ] Timeout added via `withTimeout`
-- [ ] Errors wrapped with `toFrontendApiError`
-- [ ] Response normalized
-- [ ] Consumer files switched to facade call
-- [ ] No new direct bridge/fetch call leaked into pages/components
-
-Quick check:
+Quick checks:
 
 ```bash
-rg -n "window\\.misoAPI|window\\.ollamaAPI|fetch\\(" src --glob '!**/SERVICEs/api.js' --glob '!**/PAGEs/demo/**'
+rg -n "window\\.(misoAPI|ollamaAPI|themeAPI|windowStateAPI)|ipcRenderer|fetch\\(" src \
+  --glob '!**/SERVICEs/api*.js' \
+  --glob '!**/SERVICEs/bridges/*.js' \
+  --glob '!**/PAGEs/demo/**'
 ```
 
+```bash
+rg -n "CHANNELS\\.|ipcMain\\.(handle|on)|ipcRenderer\\.(invoke|send)" electron
+```

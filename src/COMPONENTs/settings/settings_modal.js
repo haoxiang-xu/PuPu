@@ -1,18 +1,21 @@
-import { useContext, useState } from "react";
+import { useContext, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { AppearanceSettings } from "./appearance";
 import { ModelProvidersSettings } from "./model_providers";
 import { LocalStorageSettings } from "./local_storage";
+import { MemorySettings } from "./memory";
 import { RuntimeSettings } from "./runtime";
 import { AppUpdateSettings } from "./app_update";
+import { DevSettings } from "./dev";
+import { isDevSettingsAvailable } from "./dev/storage";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Settings pages configuration                                                                                               */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const SETTINGS_PAGES = [
+const BASE_SETTINGS_PAGES = [
   {
     key: "appearance",
     icon: "color",
@@ -27,9 +30,15 @@ const SETTINGS_PAGES = [
   },
   {
     key: "runtime",
-    icon: "terminal",
-    label: "Runtime",
+    icon: "folder_2",
+    label: "Workspace",
     component: RuntimeSettings,
+  },
+  {
+    key: "memory",
+    icon: "brain",
+    label: "Memory",
+    component: MemorySettings,
   },
   {
     key: "app_update",
@@ -48,6 +57,14 @@ const SETTINGS_PAGES = [
   // { key: "account", icon: "user", label: "Account", component: AccountSettings },
 ];
 
+const DEV_SETTINGS_PAGE = {
+  key: "dev",
+  icon: "code",
+  label: "Dev",
+  component: DevSettings,
+  pinToBottom: true,
+};
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  SettingsModal — modal wrapper for settings pages                                                                           */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -56,10 +73,16 @@ export const SettingsModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedPage, setSelectedPage] = useState("appearance");
-
-  const ActivePageComponent =
-    SETTINGS_PAGES.find((p) => p.key === selectedPage)?.component ||
-    AppearanceSettings;
+  const settingsPages = useMemo(() => {
+    const pages = [...BASE_SETTINGS_PAGES];
+    if (isDevSettingsAvailable()) {
+      pages.push(DEV_SETTINGS_PAGE);
+    }
+    return pages;
+  }, []);
+  const activePage =
+    settingsPages.find((p) => p.key === selectedPage) || settingsPages[0] || null;
+  const ActivePageComponent = activePage?.component || AppearanceSettings;
 
   return (
     <Modal
@@ -85,7 +108,7 @@ export const SettingsModal = ({ open, onClose }) => {
           backgroundColor: isDark
             ? "rgba(255,255,255,0.03)"
             : "rgba(0,0,0,0.04)",
-          padding: "16px 10px",
+          padding: "16px 10px 10px",
           display: "flex",
           flexDirection: "column",
           gap: 2,
@@ -109,7 +132,7 @@ export const SettingsModal = ({ open, onClose }) => {
         </div>
 
         {/* Menu items */}
-        {SETTINGS_PAGES.map((page) => (
+        {settingsPages.map((page) => (
           <Button
             key={page.key}
             prefix_icon={page.icon}
@@ -123,6 +146,7 @@ export const SettingsModal = ({ open, onClose }) => {
               padding: "8px 12px",
               borderRadius: 7,
               iconSize: 16,
+              marginTop: page.pinToBottom ? "auto" : 0,
             }}
           />
         ))}
@@ -176,8 +200,7 @@ export const SettingsModal = ({ open, onClose }) => {
             padding: "24px 32px 8px",
           }}
         >
-          {SETTINGS_PAGES.find((p) => p.key === selectedPage)?.label ||
-            "Settings"}
+          {activePage?.label || "Settings"}
         </div>
 
         {/* Page content */}
@@ -190,7 +213,7 @@ export const SettingsModal = ({ open, onClose }) => {
           }}
         >
           <div style={{ paddingRight: 32 }}>
-            <ActivePageComponent />
+            <ActivePageComponent onNavigate={setSelectedPage} />
           </div>
         </div>
       </div>

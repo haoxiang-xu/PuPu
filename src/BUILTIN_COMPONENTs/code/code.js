@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import hljs from "highlight.js/lib/common";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -19,6 +19,32 @@ const toText = (node) => {
   if (typeof node === "object" && node.props?.children !== undefined)
     return toText(node.props.children);
   return "";
+};
+
+const DEFAULT_MAX_AUTO_DETECT_CHARS = 6000;
+
+const scheduleHighlightTask = (callback, { timeout = 220, delay = 48 } = {}) => {
+  if (
+    typeof window !== "undefined" &&
+    typeof window.requestIdleCallback === "function"
+  ) {
+    const idleId = window.requestIdleCallback(
+      () => {
+        callback();
+      },
+      { timeout },
+    );
+    return () => {
+      if (typeof window.cancelIdleCallback === "function") {
+        window.cancelIdleCallback(idleId);
+      }
+    };
+  }
+
+  const timerId = setTimeout(() => {
+    callback();
+  }, delay);
+  return () => clearTimeout(timerId);
 };
 
 /* ── Highlight.js theme loader (shared across all Code instances) ────────── */
@@ -70,6 +96,8 @@ const Code = ({
   style,
   showHeader,
   showCopy = true,
+  deferHighlight = true,
+  maxAutoDetectChars = DEFAULT_MAX_AUTO_DETECT_CHARS,
   className,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -100,6 +128,7 @@ const Code = ({
   const shouldShowHeader =
     showHeader !== undefined ? showHeader : !!(lang || (showCopy && canCopy));
   const [copied, setCopied] = useState(false);
+  const [highlightedHtml, setHighlightedHtml] = useState("");
   const handleCopy = async () => {
     if (!canCopy) return;
     try {
@@ -112,17 +141,61 @@ const Code = ({
   };
 
   /* Highlight */
-  const highlightedHtml = useMemo(() => {
-    if (!codeText) return "";
-    try {
-      if (lang && hljs.getLanguage(lang)) {
-        return hljs.highlight(codeText, { language: lang }).value;
-      }
-      return hljs.highlightAuto(codeText).value;
-    } catch {
-      return "";
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!codeText) {
+      setHighlightedHtml("");
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [codeText, lang]);
+
+    const shouldSkipAutoDetect = !lang && codeText.length > maxAutoDetectChars;
+    if (shouldSkipAutoDetect) {
+      setHighlightedHtml("");
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const applyHighlight = () => {
+      if (cancelled) {
+        return;
+      }
+      let nextHtml = "";
+      try {
+        if (lang && hljs.getLanguage(lang)) {
+          nextHtml = hljs.highlight(codeText, { language: lang }).value;
+        } else {
+          nextHtml = hljs.highlightAuto(codeText).value;
+        }
+      } catch {
+        nextHtml = "";
+      }
+
+      if (!cancelled) {
+        setHighlightedHtml(nextHtml);
+      }
+    };
+
+    if (!deferHighlight) {
+      applyHighlight();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setHighlightedHtml("");
+    const cancelTask = scheduleHighlightTask(applyHighlight, {
+      timeout: lang ? 120 : 220,
+      delay: lang ? 24 : 56,
+    });
+    return () => {
+      cancelled = true;
+      cancelTask();
+    };
+  }, [codeText, deferHighlight, lang, maxAutoDetectChars]);
 
   const codeClassName = [lang ? `language-${lang}` : "", "hljs"]
     .filter(Boolean)
@@ -218,6 +291,10 @@ const Code = ({
           ...(shouldShowHeader ? { marginTop: 0 } : {}),
           overflow: "auto",
           padding: codePadding,
+          /* Prevent parent prose wrapping from leaking into fenced code blocks. */
+          wordBreak: "normal",
+          overflowWrap: "normal",
+          hyphens: "none",
         }}
       >
         <code
@@ -234,6 +311,9 @@ const Code = ({
             border: "none",
             whiteSpace: "pre",
             width: "fit-content",
+            wordBreak: "normal",
+            overflowWrap: "normal",
+            hyphens: "none",
           }}
           dangerouslySetInnerHTML={
             highlightedHtml ? { __html: highlightedHtml } : undefined

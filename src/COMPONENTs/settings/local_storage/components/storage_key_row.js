@@ -11,6 +11,7 @@ const StorageKeyRow = ({
   isDark,
   onDelete,
   attachmentCount = null,
+  vectorMemoryBytes = null,
 }) => {
   const [hovered, setHovered] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -96,6 +97,23 @@ const StorageKeyRow = ({
               }}
             >
               {attachmentCount} cached {attachmentCount === 1 ? "file" : "files"}
+            </span>
+          )}
+          {isChats && vectorMemoryBytes !== null && vectorMemoryBytes > 0 && (
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: 10,
+                padding: "1px 6px",
+                borderRadius: 99,
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.07)"
+                  : "rgba(0,0,0,0.06)",
+                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formatBytes(vectorMemoryBytes)} vectors
             </span>
           )}
         </div>

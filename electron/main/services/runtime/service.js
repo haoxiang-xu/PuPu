@@ -118,6 +118,46 @@ const createRuntimeService = ({ app, dialog, shell, fs, path, getMainWindow }) =
     return { ok: result === "", error: result || null };
   };
 
+  const setChromeTerminalOpen = ({ open = false } = {}) => {
+    const nextOpen = Boolean(open);
+
+    if (app.isPackaged) {
+      return { ok: false, open: false, error: "dev_only" };
+    }
+
+    const mainWindow = getMainWindow();
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return { ok: false, open: nextOpen, error: "main_window_unavailable" };
+    }
+
+    const targetWebContents = mainWindow.webContents;
+    if (
+      !targetWebContents ||
+      (typeof targetWebContents.isDestroyed === "function" &&
+        targetWebContents.isDestroyed())
+    ) {
+      return { ok: false, open: nextOpen, error: "webcontents_unavailable" };
+    }
+
+    try {
+      if (nextOpen) {
+        targetWebContents.openDevTools({ mode: "detach" });
+      } else {
+        targetWebContents.closeDevTools();
+      }
+      return { ok: true, open: nextOpen };
+    } catch (error) {
+      return {
+        ok: false,
+        open: nextOpen,
+        error:
+          typeof error?.message === "string" && error.message
+            ? error.message
+            : "failed_to_toggle_chrome_terminal",
+      };
+    }
+  };
+
   const getDirSize = (dirPath) => {
     let total = 0;
     try {
@@ -209,6 +249,7 @@ const createRuntimeService = ({ app, dialog, shell, fs, path, getMainWindow }) =
     pickWorkspaceRoot,
     validateWorkspaceRoot,
     openRuntimeFolder,
+    setChromeTerminalOpen,
     getRuntimeDirSize,
     deleteRuntimeEntry,
     clearRuntimeDir,

@@ -25,6 +25,11 @@ import { isSetupComplete } from "../../COMPONENTs/init-setup/init_setup_storage"
 import available_themes from "../../BUILTIN_COMPONENTs/theme/theme_manifest";
 /* { Data } ------------------------------------------------------------------------------------------------------------------ */
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
+import {
+  isDevSettingsAvailable,
+  readDevSettings,
+} from "../../COMPONENTs/settings/dev/storage";
+import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 const SETTINGS_STORAGE_KEY = "settings";
@@ -123,6 +128,23 @@ const ConfigContainer = ({ children }) => {
       theme_mode: syncWithSystemTheme ? "sync_with_browser" : onThemeMode,
     });
   }, [onThemeMode, syncWithSystemTheme]);
+
+  useEffect(() => {
+    if (!isDevSettingsAvailable()) {
+      return;
+    }
+
+    if (!runtimeBridge.isChromeTerminalControlAvailable()) {
+      return;
+    }
+
+    const devSettings = readDevSettings();
+    if (!devSettings.chrome_terminal_enabled) {
+      return;
+    }
+
+    runtimeBridge.setChromeTerminalOpen(true).catch(() => {});
+  }, []);
   /* { global theme } ---------------------------------------------------------------------------------------------------- */
   /* { STYLE } =========================================================================================================== */
 

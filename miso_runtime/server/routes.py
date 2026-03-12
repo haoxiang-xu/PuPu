@@ -1,11 +1,15 @@
 import json
+import math
+import threading
 import time
 from typing import Any, Dict, Iterable, List
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
 from miso_adapter import (
+    cancel_tool_confirmations,
     get_capability_catalog,
+    get_embedding_provider_catalog,
     get_default_model_capabilities,
     get_model_capability_catalog,
     get_model_name,
@@ -20,6 +24,8 @@ api_blueprint = Blueprint("miso_api", __name__)
 _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
+_MEMORY_PROJECTION_MAX_POINTS = 10000
+_MEMORY_PROJECTION_PAGE_SIZE = 512
 
 
 def _sse_event(event_name: str, payload: Dict) -> str:
@@ -91,6 +97,20 @@ def _sanitize_trace_value(value: object, trace_level: str, depth: int = 0):
         return sanitized
 
     return value
+
+
+def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
+    message = str(stream_error)
+    code = "stream_failed"
+    if isinstance(message, str):
+        normalized = message.strip()
+        if normalized.startswith("memory_unavailable"):
+            code = "memory_unavailable"
+            if ":" in normalized:
+                tail = normalized.split(":", 1)[1].strip()
+                if tail:
+                    message = tail
+    return code, message
 
 
 def _build_trace_frame(
@@ -256,6 +276,209 @@ def _sanitize_attachments(payload_attachments: object) -> List[Dict[str, object]
     return attachments
 
 
+def _coerce_memory_text(value: object, *, _depth: int = 0) -> str:
+    if _depth >= 8:
+        return ""
+
+    if isinstance(value, str):
+        return value.strip()
+
+    if value is None:
+        return ""
+
+    if isinstance(value, list):
+        lines: List[str] = []
+        for item in value:
+            rendered = _coerce_memory_text(item, _depth=_depth + 1)
+            if rendered:
+                lines.append(rendered)
+        return "\n".join(lines).strip()
+
+    if isinstance(value, dict):
+        role = str(value.get("role", "")).strip().lower()
+        if role:
+            content = _coerce_memory_text(value.get("content"), _depth=_depth + 1)
+            if content:
+                return f"{role}: {content}"
+
+        text_value = value.get("text")
+        if isinstance(text_value, str) and text_value.strip():
+            return text_value.strip()
+
+        for key in ("content", "conversation", "messages", "summary", "thinking"):
+            nested = _coerce_memory_text(value.get(key), _depth=_depth + 1)
+            if nested:
+                return nested
+
+        try:
+            dumped = json.dumps(value, ensure_ascii=False, default=str)
+        except Exception:
+            dumped = str(value)
+        return dumped.strip()
+
+    return str(value).strip()
+
+
+def _extract_projection_text(payload: Dict[str, object]) -> str:
+    for key in ("text", "conversation", "messages", "content", "summary"):
+        rendered = _coerce_memory_text(payload.get(key))
+        if rendered:
+            if len(rendered) > 12000:
+                return f"{rendered[:12000]}…"
+            return rendered
+    return ""
+
+
+def _empty_projection_payload() -> Dict[str, object]:
+    return {"points": [], "variance": [0.0, 0.0]}
+
+
+def _projection_collection_prefix(tag: object) -> str:
+    clean_tag = "".join(
+        c if c.isalnum() or c == "_" else "_"
+        for c in str(tag or "").strip()
+    )
+    return f"chat_{clean_tag}" if clean_tag else "chat"
+
+
+def _projection_session_collection_name(
+    *,
+    session_id: object,
+    collection_prefix: str,
+) -> str:
+    safe_session_id = "".join(
+        c if c.isalnum() or c == "_" else "_"
+        for c in str(session_id or "")
+    )
+    return f"{collection_prefix}_{safe_session_id}"
+
+
+def _normalize_projection_vector(
+    raw_vector: object,
+    *,
+    expected_dims: int = 0,
+) -> List[float] | None:
+    vector_candidate: Any = raw_vector
+    if isinstance(raw_vector, dict):
+        vector_candidate = next(
+            (
+                value
+                for value in raw_vector.values()
+                if isinstance(value, (list, tuple)) and value
+            ),
+            None,
+        )
+
+    if not isinstance(vector_candidate, (list, tuple)) or not vector_candidate:
+        return None
+
+    try:
+        vector = [float(item) for item in vector_candidate]
+    except Exception:
+        return None
+
+    if not vector or any(not math.isfinite(item) for item in vector):
+        return None
+
+    if expected_dims > 0 and len(vector) != expected_dims:
+        return None
+
+    return vector
+
+
+def _is_projection_collection_missing_error(error: Exception) -> bool:
+    normalized = str(error or "").strip().lower()
+    if "collection" not in normalized:
+        return False
+    return (
+        "not found" in normalized
+        or "does not exist" in normalized
+        or "doesn't exist" in normalized
+    )
+
+
+def _scroll_projection_points(client: Any, collection_name: str) -> List[Any]:
+    all_points: List[Any] = []
+    next_offset: Any = None
+
+    while len(all_points) < _MEMORY_PROJECTION_MAX_POINTS:
+        remaining = _MEMORY_PROJECTION_MAX_POINTS - len(all_points)
+        limit = min(_MEMORY_PROJECTION_PAGE_SIZE, remaining)
+        request_kwargs: Dict[str, Any] = {
+            "collection_name": collection_name,
+            "with_payload": True,
+            "with_vectors": True,
+            "limit": limit,
+        }
+        if next_offset is not None:
+            request_kwargs["offset"] = next_offset
+
+        try:
+            page_points, new_offset = client.scroll(**request_kwargs)
+        except TypeError:
+            # Fallback for older clients; degrade to a single-page fetch.
+            if "offset" in request_kwargs:
+                break
+            request_kwargs.pop("offset", None)
+            page_points, new_offset = client.scroll(**request_kwargs)
+            all_points.extend(page_points or [])
+            break
+
+        if not page_points:
+            break
+
+        all_points.extend(page_points)
+        if new_offset is None:
+            break
+        next_offset = new_offset
+
+    return all_points
+
+
+def _kmeans_2d_numpy(coords_2d: "Any") -> List[int]:
+    """K-means++ clustering on 2D PCA coordinates (numpy only).
+    Auto-selects k = max(2, min(6, round(sqrt(n)))).
+    Fixed seed=42 for reproducibility.
+    """
+    import numpy as _np
+    arr = _np.asarray(coords_2d, dtype=_np.float64)
+    n = len(arr)
+    if n <= 1:
+        return [0] * n
+    k = max(2, min(6, round(n ** 0.5)))
+    k = min(k, n)
+    if k == 1:
+        return [0] * n
+
+    rng = _np.random.default_rng(42)
+    # K-means++ init: first centroid random, rest proportional to D²
+    centroid_indices: List[int] = [int(rng.integers(0, n))]
+    for _ in range(k - 1):
+        c = arr[centroid_indices]
+        diff = arr[:, None, :] - c[None]          # (n, m, 2)
+        min_sq_d = _np.min(_np.sum(diff ** 2, axis=2), axis=1)  # (n,)
+        total = float(min_sq_d.sum())
+        if total <= 0.0:
+            break
+        probs = min_sq_d / total
+        centroid_indices.append(int(rng.choice(n, p=probs)))
+
+    centroids = arr[centroid_indices].copy()
+    labels = _np.zeros(n, dtype=int)
+    for _ in range(150):
+        diff = arr[:, None, :] - centroids[None]      # (n, k, 2)
+        new_labels = _np.sum(diff ** 2, axis=2).argmin(axis=1)
+        if _np.array_equal(new_labels, labels):
+            break
+        labels = new_labels
+        for ki in range(len(centroids)):
+            mask = labels == ki
+            if mask.any():
+                centroids[ki] = arr[mask].mean(axis=0)
+
+    return labels.tolist()
+
+
 @api_blueprint.get("/health")
 def health() -> Response:
     return jsonify(
@@ -282,6 +505,7 @@ def models_catalog() -> Response:
 
     runtime = get_runtime_config()
     provider_catalog = get_capability_catalog()
+    embedding_provider_catalog = get_embedding_provider_catalog()
     model_capabilities = get_model_capability_catalog()
     active_provider = str(runtime.get("provider", "ollama")).strip().lower() or "ollama"
     active_model = str(runtime.get("model", "")).strip()
@@ -300,6 +524,9 @@ def models_catalog() -> Response:
                 "openai": provider_catalog.get("openai", []),
                 "anthropic": provider_catalog.get("anthropic", []),
                 "ollama": provider_catalog.get("ollama", []),
+            },
+            "embedding_providers": {
+                "openai": embedding_provider_catalog.get("openai", []),
             },
             "model_capabilities": model_capabilities,
         }
@@ -437,6 +664,7 @@ def chat_stream() -> Response:
                 history=history,
                 attachments=attachments,
                 options=options,
+                session_id=thread_id,
             ):
                 normalized_delta = str(delta)
                 completion_chars += len(normalized_delta)
@@ -458,11 +686,12 @@ def chat_stream() -> Response:
         except GeneratorExit:  # pragma: no cover
             return
         except Exception as stream_error:
+            code, normalized_message = _normalize_stream_error(stream_error)
             yield _sse_event(
                 "error",
                 {
-                    "code": "stream_failed",
-                    "message": str(stream_error),
+                    "code": code,
+                    "message": normalized_message,
                 },
             )
 
@@ -475,6 +704,277 @@ def chat_stream() -> Response:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@api_blueprint.get("/memory/projection")
+def memory_projection() -> Response:
+    session_id = request.args.get("session_id", "").strip()
+    if not session_id:
+        return jsonify({"error": "session_id is required"}), 400
+
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        import memory_factory
+        import json as _json
+        import numpy as np
+        from pathlib import Path
+
+        _data_dir = memory_factory._data_dir
+        _normalize_data_dir = memory_factory._normalize_data_dir
+        _get_or_create_qdrant_client = memory_factory._get_or_create_qdrant_client
+        vector_collection_prefix = getattr(
+            memory_factory,
+            "_vector_collection_prefix",
+            _projection_collection_prefix,
+        )
+        session_collection_name = getattr(
+            memory_factory,
+            "_session_collection_name",
+            _projection_session_collection_name,
+        )
+
+        data_dir = _normalize_data_dir(_data_dir())
+        if not data_dir:
+            return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
+
+        # Resolve the actual Qdrant collection name.
+        #
+        # New sessions store a random hex `vector_collection_tag` in the session
+        # JSON → collection = chat_{tag}_{safe_session_id}
+        #
+        # Legacy sessions (tag absent) fall through to `_vector_collection_prefix("")`
+        # which returns "chat", giving collection = chat_{safe_session_id}
+        # — matching the legacy naming that was used before the tag system.
+        session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
+        try:
+            with open(session_file, "r") as _f:
+                _state = _json.load(_f)
+        except Exception:
+            _state = {}
+
+        tag = str(_state.get("vector_collection_tag") or "").strip()
+        collection = session_collection_name(
+            session_id=session_id,
+            collection_prefix=vector_collection_prefix(tag),
+        )
+        client = _get_or_create_qdrant_client(data_dir)
+
+        scroll_result = _scroll_projection_points(client, collection)
+
+        if not scroll_result:
+            return jsonify(_empty_projection_payload())
+
+        vector_rows: List[List[float]] = []
+        vector_points: List[Any] = []
+        expected_dims = 0
+
+        for point in scroll_result:
+            vector = _normalize_projection_vector(
+                getattr(point, "vector", None),
+                expected_dims=expected_dims,
+            )
+            if vector is None:
+                continue
+
+            if expected_dims <= 0:
+                expected_dims = len(vector)
+
+            vector_rows.append(vector)
+            vector_points.append(point)
+
+        if not vector_rows:
+            return jsonify(_empty_projection_payload())
+
+        vectors = np.array(vector_rows, dtype=np.float64)
+
+        # PCA via numpy thin SVD — center, project onto top-5 right singular vectors
+        try:
+            X = vectors - vectors.mean(axis=0)
+            _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        except Exception:
+            return jsonify(_empty_projection_payload())
+        n_pcs = min(5, len(s))
+        coords = X @ Vt[:n_pcs].T  # (n, n_pcs)
+        total_var = float((s ** 2).sum())
+        variance = (
+            [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
+            if total_var > 0
+            else [0.0] * 5
+        )
+        try:
+            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+        except Exception:
+            cluster_labels = [0] * len(vector_points)
+
+        points = []
+        for i, p in enumerate(vector_points):
+            payload = p.payload if isinstance(p.payload, dict) else {}
+            full_text = _extract_projection_text(payload)
+            turn_start = payload.get("turn_start_index")
+            turn_end   = payload.get("turn_end_index")
+
+            # label: first non-empty user line, capped at 52 chars  (used by scatter tooltip title)
+            label = ""
+            for line in full_text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    # strip "user:" / "assistant:" role prefix for the label
+                    for prefix in ("user:", "assistant:", "user :", "assistant :"):
+                        if stripped.lower().startswith(prefix):
+                            stripped = stripped[len(prefix):].strip()
+                            break
+                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    break
+
+            # content: full text for the tooltip body, capped at 300 chars
+            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+
+            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
+            points.append({
+                "id":               str(p.id),
+                "x":                pc_vals[0],
+                "y":                pc_vals[1],
+                "pc1":              pc_vals[0],
+                "pc2":              pc_vals[1],
+                "pc3":              pc_vals[2],
+                "pc4":              pc_vals[3],
+                "pc5":              pc_vals[4],
+                "group":            f"Cluster {cluster_labels[i] + 1}",
+                "text":             full_text,
+                "label":            label,
+                "content":          content,
+                "turn_start_index": turn_start,
+                "turn_end_index":   turn_end,
+            })
+
+        return jsonify({"points": points, "variance": variance})
+
+    except Exception as exc:
+        if _is_projection_collection_missing_error(exc):
+            return jsonify(_empty_projection_payload())
+        return jsonify({"error": str(exc)}), 500
+
+
+@api_blueprint.get("/memory/long-term/projection")
+def long_term_memory_projection() -> Response:
+    """PCA scatter projection over ALL long-term memory collections."""
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        from memory_factory import (
+            _data_dir,
+            _normalize_data_dir,
+            _get_or_create_qdrant_client,
+        )
+        import numpy as np
+
+        data_dir = _normalize_data_dir(_data_dir())
+        if not data_dir:
+            return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
+
+        client = _get_or_create_qdrant_client(data_dir)
+
+        # Discover all collections whose name starts with "long_term"
+        all_collections = client.get_collections().collections
+        lt_names = [
+            c.name for c in all_collections if c.name.startswith("long_term")
+        ]
+
+        if not lt_names:
+            return jsonify(_empty_projection_payload())
+
+        # Scroll every long-term collection and merge
+        all_scroll: List[Any] = []
+        for col_name in lt_names:
+            all_scroll.extend(_scroll_projection_points(client, col_name))
+
+        if not all_scroll:
+            return jsonify(_empty_projection_payload())
+
+        vector_rows: List[List[float]] = []
+        vector_points: List[Any] = []
+        expected_dims = 0
+
+        for point in all_scroll:
+            vector = _normalize_projection_vector(
+                getattr(point, "vector", None),
+                expected_dims=expected_dims,
+            )
+            if vector is None:
+                continue
+
+            if expected_dims <= 0:
+                expected_dims = len(vector)
+
+            vector_rows.append(vector)
+            vector_points.append(point)
+
+        if not vector_rows:
+            return jsonify(_empty_projection_payload())
+
+        vectors = np.array(vector_rows, dtype=np.float64)
+
+        try:
+            X = vectors - vectors.mean(axis=0)
+            _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        except Exception:
+            return jsonify(_empty_projection_payload())
+        n_pcs = min(5, len(s))
+        coords = X @ Vt[:n_pcs].T
+        total_var = float((s ** 2).sum())
+        variance = (
+            [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
+            if total_var > 0
+            else [0.0] * 5
+        )
+        try:
+            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+        except Exception:
+            cluster_labels = [0] * len(vector_points)
+
+        points = []
+        for i, p in enumerate(vector_points):
+            payload = p.payload if isinstance(p.payload, dict) else {}
+            full_text = _extract_projection_text(payload)
+
+            label = ""
+            for line in full_text.splitlines():
+                stripped = line.strip()
+                if stripped:
+                    for prefix in ("user:", "assistant:", "user :", "assistant :"):
+                        if stripped.lower().startswith(prefix):
+                            stripped = stripped[len(prefix):].strip()
+                            break
+                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    break
+
+            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+
+            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
+            points.append({
+                "id":      str(p.id),
+                "x":       pc_vals[0],
+                "y":       pc_vals[1],
+                "pc1":     pc_vals[0],
+                "pc2":     pc_vals[1],
+                "pc3":     pc_vals[2],
+                "pc4":     pc_vals[3],
+                "pc5":     pc_vals[4],
+                "group":   f"Cluster {cluster_labels[i] + 1}",
+                "text":    full_text,
+                "label":   label,
+                "content": content,
+            })
+
+        return jsonify({"points": points, "variance": variance})
+
+    except Exception as exc:
+        if _is_projection_collection_missing_error(exc):
+            return jsonify(_empty_projection_payload())
+        return jsonify({"error": str(exc)}), 500
 
 
 @api_blueprint.post("/chat/stream/v2")
@@ -520,6 +1020,11 @@ def chat_stream_v2() -> Response:
         completion_tokens = 0
         completion_chars = 0
         started_at = int(time.time() * 1000)
+        confirmation_cancel_event = threading.Event()
+
+        def cancel_pending_confirmations() -> None:
+            confirmation_cancel_event.set()
+            cancel_tool_confirmations(confirmation_cancel_event)
 
         try:
             seq += 1
@@ -544,6 +1049,8 @@ def chat_stream_v2() -> Response:
                 history=history,
                 attachments=attachments,
                 options=options,
+                session_id=thread_id,
+                cancel_event=confirmation_cancel_event,
             ):
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
 
@@ -555,7 +1062,7 @@ def chat_stream_v2() -> Response:
                 # Skip trace sanitization for display-critical events whose
                 # content must arrive intact (final_message carries the full
                 # reply text and token_delta carries incremental chunks).
-                if event_type in ("final_message", "token_delta"):
+                if event_type in ("final_message", "token_delta", "request_messages"):
                     sanitized_payload = payload_data
                 else:
                     sanitized_payload = _sanitize_trace_value(payload_data, trace_level)
@@ -610,8 +1117,11 @@ def chat_stream_v2() -> Response:
                 ),
             )
         except GeneratorExit:  # pragma: no cover
+            cancel_pending_confirmations()
             return
         except Exception as stream_error:
+            cancel_pending_confirmations()
+            code, normalized_message = _normalize_stream_error(stream_error)
             seq += 1
             error_ts = int(time.time() * 1000)
             yield _sse_event(
@@ -621,13 +1131,15 @@ def chat_stream_v2() -> Response:
                     thread_id=thread_id,
                     event_type="error",
                     payload={
-                        "code": "stream_failed",
-                        "message": str(stream_error),
+                        "code": code,
+                        "message": normalized_message,
                     },
                     iteration=0,
                     timestamp_ms=error_ts,
                 ),
             )
+        finally:
+            cancel_pending_confirmations()
 
     return Response(
         stream_with_context(stream_events()),

@@ -34,106 +34,122 @@ try {
 
 let appIsQuitting = false;
 
-const windowService = createMainWindowService({
-  app,
-  BrowserWindow,
-  shell,
-  fs,
-  path,
-  nativeTheme,
-});
+const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
-const runtimeService = createRuntimeService({
-  app,
-  dialog,
-  shell,
-  fs,
-  path,
-  getMainWindow: windowService.getMainWindow,
-});
-
-const ollamaService = createOllamaService({
-  app,
-  shell,
-  spawn,
-  http,
-  https,
-  fs,
-  path,
-});
-
-const misoService = createMisoService({
-  app,
-  fs,
-  path,
-  spawn,
-  spawnSync,
-  crypto,
-  net,
-  webContents,
-  runtimeService,
-  getAppIsQuitting: () => appIsQuitting,
-});
-
-const updateService = createUpdateService({
-  app,
-  webContents,
-  autoUpdater,
-});
-
-registerIpcHandlers({
-  ipcMain,
-  app,
-  services: {
-    windowService,
-    updateService,
-    ollamaService,
-    misoService,
-    runtimeService,
-  },
-});
-
-const stopBackgroundServices = () => {
+if (!gotSingleInstanceLock) {
   appIsQuitting = true;
-  ollamaService.stopOllama();
-  misoService.stopMiso();
-};
+  app.quit();
+} else {
+  const windowService = createMainWindowService({
+    app,
+    BrowserWindow,
+    shell,
+    fs,
+    path,
+    nativeTheme,
+  });
 
-app.on("before-quit", stopBackgroundServices);
-app.on("will-quit", stopBackgroundServices);
+  const runtimeService = createRuntimeService({
+    app,
+    dialog,
+    shell,
+    fs,
+    path,
+    getMainWindow: windowService.getMainWindow,
+  });
 
-app.whenReady().then(() => {
-  updateService.applyUnsupportedRuntimeMessage();
+  const ollamaService = createOllamaService({
+    app,
+    shell,
+    spawn,
+    http,
+    https,
+    fs,
+    path,
+  });
 
-  ollamaService.startOllama();
-  misoService.startMiso();
+  const misoService = createMisoService({
+    app,
+    fs,
+    path,
+    spawn,
+    spawnSync,
+    crypto,
+    net,
+    webContents,
+    runtimeService,
+    getAppIsQuitting: () => appIsQuitting,
+  });
 
-  if (process.platform === "darwin" && app.dock) {
-    const dockIconPath = windowService.getPublicAssetPath("logo512.png");
-    try {
-      const { nativeImage } = require("electron");
-      const icon = nativeImage.createFromPath(dockIconPath);
-      if (!icon.isEmpty()) {
-        app.dock.setIcon(icon);
-      }
-    } catch {
-      // Silently ignore if icon cannot be loaded.
+  const updateService = createUpdateService({
+    app,
+    webContents,
+    autoUpdater,
+  });
+
+  registerIpcHandlers({
+    ipcMain,
+    app,
+    services: {
+      windowService,
+      updateService,
+      ollamaService,
+      misoService,
+      runtimeService,
+    },
+  });
+
+  const stopBackgroundServices = () => {
+    appIsQuitting = true;
+    ollamaService.stopOllama();
+    misoService.stopMiso();
+  };
+
+  app.on("before-quit", stopBackgroundServices);
+  app.on("will-quit", stopBackgroundServices);
+
+  app.on("second-instance", () => {
+    const existingMainWindow = windowService.getMainWindow();
+    if (existingMainWindow && !existingMainWindow.isDestroyed()) {
+      windowService.focusMainWindow();
+      return;
     }
-  }
+    windowService.createMainWindow();
+  });
 
-  windowService.createMainWindow();
+  app.whenReady().then(() => {
+    updateService.applyUnsupportedRuntimeMessage();
 
-  app.on("activate", () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      windowService.createMainWindow();
-    } else {
-      windowService.showMainWindow();
+    ollamaService.startOllama();
+    misoService.startMiso();
+
+    if (process.platform === "darwin" && app.dock) {
+      const dockIconPath = windowService.getPublicAssetPath("logo512.png");
+      try {
+        const { nativeImage } = require("electron");
+        const icon = nativeImage.createFromPath(dockIconPath);
+        if (!icon.isEmpty()) {
+          app.dock.setIcon(icon);
+        }
+      } catch {
+        // Silently ignore if icon cannot be loaded.
+      }
+    }
+
+    windowService.createMainWindow();
+
+    app.on("activate", () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        windowService.createMainWindow();
+      } else {
+        windowService.focusMainWindow();
+      }
+    });
+  });
+
+  app.on("window-all-closed", () => {
+    if (process.platform !== "darwin") {
+      app.quit();
     }
   });
-});
-
-app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
-});
+}

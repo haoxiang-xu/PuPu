@@ -9,6 +9,7 @@ import {
   toFrontendApiError,
   withTimeout,
 } from "./api.shared";
+import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const SYSTEM_PROMPT_V2_SECTION_LIMIT = 2000;
@@ -20,6 +21,17 @@ const SYSTEM_PROMPT_V2_SECTION_KEYS = [
   "context",
   "constraints",
 ];
+const DEFAULT_MEMORY_SETTINGS = {
+  enabled: true,
+  long_term_enabled: true,
+  long_term_extract_every_n_turns: 6,
+  embedding_provider: "auto",
+  ollama_embedding_model: "nomic-embed-text",
+  openai_embedding_model: "text-embedding-3-small",
+  last_n_turns: 8,
+  vector_top_k: 4,
+};
+const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
 const normalizeSystemPromptV2SectionKey = (rawKey) => {
   if (typeof rawKey !== "string") {
     return "";
@@ -191,23 +203,29 @@ const injectProviderApiKeyIntoPayload = (payload) => {
     provider === "openai" ? "openaiApiKey" : "anthropicApiKey";
   const providerSpecificSnakeKey = `${provider}_api_key`;
   const hasAnyApiKey = [
-    currentOptions.apiKey,
-    currentOptions.api_key,
     currentOptions[providerSpecificCamelKey],
     currentOptions[providerSpecificSnakeKey],
+    ...(provider === "openai"
+      ? [currentOptions.apiKey, currentOptions.api_key]
+      : []),
   ].some((value) => typeof value === "string" && value.trim().length > 0);
   if (hasAnyApiKey) {
     return payload;
   }
 
+  const nextOptions = {
+    ...currentOptions,
+    [providerSpecificCamelKey]: apiKey,
+    [providerSpecificSnakeKey]: apiKey,
+  };
+  if (provider === "openai") {
+    nextOptions.apiKey = apiKey;
+    nextOptions.api_key = apiKey;
+  }
+
   return {
     ...payload,
-    options: {
-      ...currentOptions,
-      apiKey,
-      [providerSpecificCamelKey]: apiKey,
-      [providerSpecificSnakeKey]: apiKey,
-    },
+    options: nextOptions,
   };
 };
 
@@ -215,6 +233,126 @@ const getStoredWorkspaceRoot = () => {
   const runtimeSettings = readRuntimeSettings();
   const workspaceRoot = runtimeSettings?.workspace_root;
   return typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
+};
+
+const readMemorySettingsFromStorage = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return { ...DEFAULT_MEMORY_SETTINGS };
+  }
+  try {
+    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
+    const storedMemory = isObject(root?.memory) ? root.memory : {};
+    return {
+      ...DEFAULT_MEMORY_SETTINGS,
+      ...storedMemory,
+    };
+  } catch (_error) {
+    return { ...DEFAULT_MEMORY_SETTINGS };
+  }
+};
+
+const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
+  const currentOptions = isObject(options) ? options : {};
+  if (currentOptions.memory_enabled !== true) {
+    return currentOptions;
+  }
+
+  const embeddingProvider =
+    typeof currentOptions.memory_embedding_provider === "string"
+      ? currentOptions.memory_embedding_provider.trim().toLowerCase()
+      : "auto";
+  if (embeddingProvider !== "auto" && embeddingProvider !== "openai") {
+    return currentOptions;
+  }
+
+  const hasOpenAIEmbeddingKey = [
+    currentOptions.openaiApiKey,
+    currentOptions.openai_api_key,
+  ].some((value) => typeof value === "string" && value.trim().length > 0);
+  if (hasOpenAIEmbeddingKey) {
+    return currentOptions;
+  }
+
+  const openaiApiKey = getStoredProviderApiKey("openai");
+  if (!openaiApiKey) {
+    return currentOptions;
+  }
+
+  return {
+    ...currentOptions,
+    openaiApiKey,
+    openai_api_key: openaiApiKey,
+  };
+};
+
+const injectMemoryIntoPayload = (payload) => {
+  if (!isObject(payload)) {
+    return payload;
+  }
+  const currentOptions = isObject(payload.options) ? payload.options : {};
+  if (typeof currentOptions.memory_enabled === "boolean") {
+    if (currentOptions.memory_enabled !== true) {
+      return payload;
+    }
+    const memory = readMemorySettingsFromStorage();
+    const optionsWithLongTerm = {
+      ...currentOptions,
+      memory_namespace:
+        typeof currentOptions.memory_namespace === "string" &&
+        currentOptions.memory_namespace.trim()
+          ? currentOptions.memory_namespace.trim()
+          : DEFAULT_LONG_TERM_MEMORY_NAMESPACE,
+      memory_long_term_enabled:
+        typeof currentOptions.memory_long_term_enabled === "boolean"
+          ? currentOptions.memory_long_term_enabled
+          : memory.long_term_enabled !== false,
+      memory_long_term_extract_every_n_turns: Number.isFinite(
+        Number(currentOptions.memory_long_term_extract_every_n_turns),
+      )
+        ? Math.max(
+            1,
+            Math.floor(
+              Number(currentOptions.memory_long_term_extract_every_n_turns),
+            ),
+          )
+        : Math.max(
+            1,
+            Math.floor(Number(memory.long_term_extract_every_n_turns) || 6),
+          ),
+    };
+    return {
+      ...payload,
+      options: injectOpenAIEmbeddingKeyIfNeeded(optionsWithLongTerm),
+    };
+  }
+
+  const memory = readMemorySettingsFromStorage();
+  if (!memory.enabled) {
+    return payload;
+  }
+
+  const optionsWithMemory = {
+    ...currentOptions,
+    memory_enabled: true,
+    memory_namespace: DEFAULT_LONG_TERM_MEMORY_NAMESPACE,
+    memory_long_term_enabled: memory.long_term_enabled !== false,
+    memory_long_term_extract_every_n_turns: Math.max(
+      1,
+      Math.floor(Number(memory.long_term_extract_every_n_turns) || 6),
+    ),
+    memory_embedding_provider: memory.embedding_provider || "auto",
+    memory_embedding_model:
+      memory.embedding_provider === "ollama"
+        ? memory.ollama_embedding_model || "nomic-embed-text"
+        : memory.openai_embedding_model || "text-embedding-3-small",
+    memory_last_n_turns: memory.last_n_turns ?? 8,
+    memory_vector_top_k: memory.vector_top_k ?? 4,
+  };
+
+  return {
+    ...payload,
+    options: injectOpenAIEmbeddingKeyIfNeeded(optionsWithMemory),
+  };
 };
 
 const getStoredSystemPromptV2Config = () => {
@@ -229,27 +367,45 @@ const injectWorkspaceRootIntoPayload = (payload) => {
     return payload;
   }
 
-  const configuredWorkspaceRoot = getStoredWorkspaceRoot();
-  if (!configuredWorkspaceRoot) {
-    return payload;
-  }
-
   const currentOptions = isObject(payload.options) ? payload.options : {};
-  const hasExplicitWorkspaceRoot =
-    (typeof currentOptions.workspaceRoot === "string" &&
-      currentOptions.workspaceRoot.trim().length > 0) ||
-    (typeof currentOptions.workspace_root === "string" &&
-      currentOptions.workspace_root.trim().length > 0);
-  if (hasExplicitWorkspaceRoot) {
-    return payload;
+
+  // Resolve additional workspace paths from per-chat selected IDs
+  const selectedIds = Array.isArray(currentOptions.selectedWorkspaceIds)
+    ? currentOptions.selectedWorkspaceIds
+    : [];
+  const allWorkspaces = readWorkspaces();
+  const selectedPaths = selectedIds
+    .map((id) => {
+      const ws = allWorkspaces.find((w) => w.id === id);
+      return typeof ws?.path === "string" ? ws.path.trim() : "";
+    })
+    .filter(Boolean);
+
+  // Default workspace root
+  const defaultRoot = getStoredWorkspaceRoot();
+
+  // Build the full list: default first, then selected
+  const allRoots = [
+    ...(defaultRoot ? [defaultRoot] : []),
+    ...selectedPaths.filter((p) => p !== defaultRoot),
+  ];
+
+  // Strip internal field from options
+  const { selectedWorkspaceIds: _omit, ...restOptions } = currentOptions;
+
+  if (allRoots.length === 0) {
+    return { ...payload, options: restOptions };
   }
 
   return {
     ...payload,
     options: {
-      ...currentOptions,
-      workspaceRoot: configuredWorkspaceRoot,
-      workspace_root: configuredWorkspaceRoot,
+      ...restOptions,
+      // Backward-compat single root
+      workspaceRoot: allRoots[0],
+      workspace_root: allRoots[0],
+      // New multi-root
+      workspace_roots: allRoots,
     },
   };
 };
@@ -410,12 +566,7 @@ export const createMisoApi = () => {
           requestPayload.modified_arguments = modifiedArguments;
         }
 
-        const response = await withTimeout(
-          () => method(requestPayload),
-          10000,
-          "miso_tool_confirmation_timeout",
-          "Tool confirmation request timed out",
-        );
+        const response = await method(requestPayload);
 
         return isObject(response) ? response : { status: "ok" };
       } catch (error) {
@@ -455,6 +606,29 @@ export const createMisoApi = () => {
       }
     },
 
+    getMemoryProjection: async (sessionId) => {
+      const method = assertBridgeMethod("misoAPI", "getMemoryProjection");
+      return withTimeout(
+        () => method(sessionId),
+        10000,
+        "memory_projection_timeout",
+        "Memory projection request timed out",
+      );
+    },
+
+    getLongTermMemoryProjection: async () => {
+      const method = assertBridgeMethod(
+        "misoAPI",
+        "getLongTermMemoryProjection",
+      );
+      return withTimeout(
+        () => method(),
+        15000,
+        "long_term_memory_projection_timeout",
+        "Long-term memory projection request timed out",
+      );
+    },
+
     cancelStream: (requestId) => {
       if (typeof requestId !== "string" || !requestId.trim()) {
         return;
@@ -480,9 +654,11 @@ export const createMisoApi = () => {
         const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
           payloadWithWorkspaceRoot,
         );
-        const normalizedPayload = injectProviderApiKeyIntoPayload(
+        const payloadWithMemory = injectMemoryIntoPayload(
           payloadWithSystemPromptV2,
         );
+        const normalizedPayload =
+          injectProviderApiKeyIntoPayload(payloadWithMemory);
         const streamHandle = method(normalizedPayload, handlers);
         if (
           !isObject(streamHandle) ||

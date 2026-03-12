@@ -25,7 +25,56 @@ if ($TargetOS -ne "windows") {
 }
 
 $MIN_PYTHON_MAJOR = 3
-$MIN_PYTHON_MINOR = 10
+$MIN_PYTHON_MINOR = 12
+
+function Test-Python312Command {
+  param(
+    [Parameter(Mandatory = $true)][string]$Command,
+    [string[]]$Arguments = @()
+  )
+
+  try {
+    $null = & $Command @Arguments -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)"
+    return ($LASTEXITCODE -eq 0)
+  } catch {
+    return $false
+  }
+}
+
+function Resolve-Python312Command {
+  if ($env:MISO_PYTHON_BIN) {
+    if (Test-Python312Command -Command $env:MISO_PYTHON_BIN) {
+      return @{
+        Command = $env:MISO_PYTHON_BIN
+        Arguments = @()
+      }
+    }
+
+    throw "MISO_PYTHON_BIN must point to Python 3.12.x: $($env:MISO_PYTHON_BIN)"
+  }
+
+  if (Get-Command py -ErrorAction SilentlyContinue) {
+    if (Test-Python312Command -Command "py" -Arguments @("-3.12")) {
+      return @{
+        Command = "py"
+        Arguments = @("-3.12")
+      }
+    }
+  }
+
+  foreach ($candidate in @("python3.12", "python3", "python")) {
+    if (Get-Command $candidate -ErrorAction SilentlyContinue) {
+      if (Test-Python312Command -Command $candidate) {
+        return @{
+          Command = $candidate
+          Arguments = @()
+        }
+      }
+    }
+  }
+
+  throw "Python 3.12.x is required to build miso-server."
+}
 
 # Resolve root directory (two levels up from this script)
 $ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
@@ -49,15 +98,20 @@ if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON
 }
 
 # Python / venv setup
-$PYTHON_BIN = if ($env:MISO_PYTHON_BIN) { $env:MISO_PYTHON_BIN } else { "python" }
+$resolvedPython = Resolve-Python312Command
 $VENV_DIR = if ($env:MISO_BUILD_VENV) { $env:MISO_BUILD_VENV } else { Join-Path $ROOT_DIR ".venv-miso-build" }
 
 $VENV_PY = Join-Path $VENV_DIR "Scripts\python.exe"
 $VENV_PIP = Join-Path $VENV_DIR "Scripts\pip.exe"
 
+if ((Test-Path $VENV_PY) -and -not (Test-Python312Command -Command $VENV_PY)) {
+  Write-Host "Existing build venv does not use Python 3.12.x. Rebuilding: $VENV_DIR"
+  Remove-Item $VENV_DIR -Recurse -Force
+}
+
 if (-not (Test-Path $VENV_PY)) {
   Write-Host "Creating build venv at $VENV_DIR ..."
-  & $PYTHON_BIN -m venv $VENV_DIR
+  & $resolvedPython.Command @($resolvedPython.Arguments + @("-m", "venv", $VENV_DIR))
   if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create venv"; exit 1 }
 }
 
@@ -80,8 +134,8 @@ if ($env:MISO_BUILD_SKIP_INSTALL -ne "1") {
 $pyVersionCheck = @"
 import sys
 major, minor = sys.version_info[:2]
-if (major, minor) < ($MIN_PYTHON_MAJOR, $MIN_PYTHON_MINOR):
-    print(f"Unsupported Python version: {sys.version.split()[0]} (required: >=$MIN_PYTHON_MAJOR.$MIN_PYTHON_MINOR)")
+if (major, minor) != ($MIN_PYTHON_MAJOR, $MIN_PYTHON_MINOR):
+    print(f"Unsupported Python version: {sys.version.split()[0]} (required: $MIN_PYTHON_MAJOR.$MIN_PYTHON_MINOR.x)")
     raise SystemExit(1)
 print(f"Using Python: {sys.version.split()[0]} ({sys.executable})")
 "@
@@ -91,7 +145,7 @@ if ($LASTEXITCODE -ne 0) { exit 1 }
 # Validate required modules
 $depCheck = @"
 import importlib.util
-required_modules = ["flask", "openai", "anthropic", "PyInstaller"]
+required_modules = ["flask", "openai", "anthropic", "PyInstaller", "qdrant_client"]
 missing = [name for name in required_modules if importlib.util.find_spec(name) is None]
 if missing:
     print("Missing required Python modules in build environment:", ", ".join(missing))

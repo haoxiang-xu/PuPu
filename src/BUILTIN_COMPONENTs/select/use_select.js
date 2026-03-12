@@ -189,6 +189,7 @@ const useSelect = ({
   options = [],
   value,
   set_value = () => {},
+  multi = false,
   filterable = true,
   filter_mode = "panel",
   disabled = false,
@@ -198,8 +199,16 @@ const useSelect = ({
 }) => {
   /* ── controlled / uncontrolled value ── */
   const is_value_controlled = value !== undefined;
-  const [internalValue, setInternalValue] = useState(value ?? null);
+  const [internalValue, setInternalValue] = useState(
+    value ?? (multi ? [] : null),
+  );
   const selectedValue = is_value_controlled ? value : internalValue;
+
+  /* ── multi-select helpers ── */
+  const selectedValuesSet = useMemo(() => {
+    if (!multi) return new Set();
+    return new Set(Array.isArray(selectedValue) ? selectedValue : []);
+  }, [multi, selectedValue]);
 
   /* ── open state ── */
   const is_open_controlled = open !== undefined;
@@ -253,15 +262,20 @@ const useSelect = ({
     return result;
   }, [options]);
 
-  const selectedOption = useMemo(
-    () => allFlatOptions.find((o) => o?.value === selectedValue) || null,
-    [allFlatOptions, selectedValue],
-  );
+  const selectedOption = useMemo(() => {
+    if (multi) {
+      return allFlatOptions.filter((o) => selectedValuesSet.has(o?.value));
+    }
+    return allFlatOptions.find((o) => o?.value === selectedValue) || null;
+  }, [allFlatOptions, selectedValue, multi, selectedValuesSet]);
 
-  const selectedTriggerText = useMemo(
-    () => get_trigger_text(selectedOption),
-    [selectedOption],
-  );
+  const selectedTriggerText = useMemo(() => {
+    if (multi) {
+      const arr = Array.isArray(selectedOption) ? selectedOption : [];
+      return arr.length > 0 ? arr.map(get_trigger_text).join(", ") : "";
+    }
+    return get_trigger_text(selectedOption);
+  }, [selectedOption, multi]);
 
   /* ── value helpers ── */
   const update_value = useCallback(
@@ -285,10 +299,19 @@ const useSelect = ({
   const select_option = useCallback(
     (opt) => {
       if (!opt || opt.disabled || disabled) return;
-      update_value(opt.value, opt);
-      emit_open_change(false);
+      if (multi) {
+        const current = Array.isArray(selectedValue) ? selectedValue : [];
+        const next = current.includes(opt.value)
+          ? current.filter((v) => v !== opt.value)
+          : [...current, opt.value];
+        update_value(next, opt);
+        /* keep dropdown open in multi mode */
+      } else {
+        update_value(opt.value, opt);
+        emit_open_change(false);
+      }
     },
-    [disabled, emit_open_change, update_value],
+    [disabled, emit_open_change, update_value, multi, selectedValue],
   );
 
   /* ── keyboard navigation ── */
@@ -410,6 +433,11 @@ const useSelect = ({
       setHighlightedIndex(-1);
       return;
     }
+    if (multi) {
+      /* multi mode: highlight first item */
+      setHighlightedIndex(flatSelectable.findIndex((o) => o && !o.disabled));
+      return;
+    }
     const si = flatSelectable.findIndex(
       (o) => o?.value === selectedValue && !o?.disabled,
     );
@@ -418,7 +446,7 @@ const useSelect = ({
       return;
     }
     setHighlightedIndex(flatSelectable.findIndex((o) => o && !o.disabled));
-  }, [mergedOpen, flatSelectable, selectedValue]);
+  }, [mergedOpen, flatSelectable, selectedValue, multi]);
 
   /* ── focus search input on panel mode ── */
   useEffect(() => {
@@ -441,6 +469,8 @@ const useSelect = ({
     selectedValue,
     selectedOption,
     selectedTriggerText,
+    selectedValuesSet,
+    multi,
     mergedOpen,
     query,
     highlightedIndex,

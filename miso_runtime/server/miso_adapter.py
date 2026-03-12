@@ -34,8 +34,8 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "python_workspace_toolkit": "builtin",
     "mcp": "integration",
 }
-_DEFAULT_MAX_ITERATIONS = 6
-_CONFIRMATION_TIMEOUT_SECONDS = 300
+_DEFAULT_MAX_ITERATIONS = 32
+_CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "write_file",
     "delete_file",
@@ -66,6 +66,7 @@ _SYSTEM_PROMPT_V2_BUILTIN_RULES = [
     "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
     "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
 ]
+_MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
 
@@ -165,15 +166,48 @@ def submit_tool_confirmation(
     return True
 
 
+def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> int:
+    cancelled = 0
+    with _pending_confirmations_lock:
+        for pending in _pending_confirmations.values():
+            if not isinstance(pending, dict):
+                continue
+
+            waiter_cancel_event = pending.get("cancel_event")
+            if (
+                isinstance(cancel_event, threading.Event)
+                and waiter_cancel_event is not cancel_event
+            ):
+                continue
+
+            if pending.get("response") is not None:
+                continue
+
+            pending["response"] = {
+                "approved": False,
+                "reason": _CONFIRMATION_CANCELLED_REASON,
+                "modified_arguments": None,
+            }
+            cancelled += 1
+            event = pending.get("event")
+            if isinstance(event, threading.Event):
+                event.set()
+
+    return cancelled
+
+
 def _make_tool_confirm_callback(
     emit_event,
-    timeout_seconds: int = _CONFIRMATION_TIMEOUT_SECONDS,
+    cancel_event: threading.Event | None = None,
 ):
-    safe_timeout_seconds = max(1, int(timeout_seconds))
-
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
+        normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
         confirmation_id = str(_uuid.uuid4())
-        waiter = {"event": threading.Event(), "response": None}
+        waiter = {
+            "event": threading.Event(),
+            "response": None,
+            "cancel_event": normalized_cancel_event,
+        }
 
         with _pending_confirmations_lock:
             _pending_confirmations[confirmation_id] = waiter
@@ -182,7 +216,11 @@ def _make_tool_confirm_callback(
             request_payload = _build_tool_confirmation_request_payload(request_obj)
             request_payload["confirmation_id"] = confirmation_id
             emit_event(request_payload)
-            waiter["event"].wait(timeout=safe_timeout_seconds)
+            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+                cancel_tool_confirmations(normalized_cancel_event)
+            event = waiter.get("event")
+            if isinstance(event, threading.Event):
+                event.wait()
         except Exception as callback_error:
             return {
                 "approved": False,
@@ -197,18 +235,69 @@ def _make_tool_confirm_callback(
         if isinstance(response, dict):
             return _normalize_tool_confirmation_response(response)
 
+        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+            return {
+                "approved": False,
+                "reason": _CONFIRMATION_CANCELLED_REASON,
+                "modified_arguments": None,
+            }
+
         return {
             "approved": False,
-            "reason": "Confirmation timed out",
+            "reason": "Confirmation ended without a response",
             "modified_arguments": None,
         }
 
     return on_tool_confirm
 
 
+def _make_continuation_callback(
+    emit_event,
+    cancel_event: threading.Event | None = None,
+):
+    def on_continuation_request(payload: Dict[str, Any]) -> Dict[str, Any]:
+        normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
+        confirmation_id = str(_uuid.uuid4())
+        waiter: Dict[str, Any] = {
+            "event": threading.Event(),
+            "response": None,
+            "cancel_event": normalized_cancel_event,
+        }
+
+        with _pending_confirmations_lock:
+            _pending_confirmations[confirmation_id] = waiter
+
+        try:
+            emit_event({
+                "type": "continuation_request",
+                "confirmation_id": confirmation_id,
+                "iteration": payload.get("iteration", 0),
+            })
+            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+                cancel_tool_confirmations(normalized_cancel_event)
+            event = waiter.get("event")
+            if isinstance(event, threading.Event):
+                event.wait()
+        except Exception:
+            return {"approved": False}
+        finally:
+            with _pending_confirmations_lock:
+                _pending_confirmations.pop(confirmation_id, None)
+
+        response = waiter.get("response")
+        if isinstance(response, dict):
+            return {"approved": bool(response.get("approved", False))}
+
+        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+            return {"approved": False}
+
+        return {"approved": False}
+
+    return on_continuation_request
+
+
 def _is_valid_miso_source(path: Path) -> bool:
     return (path / "miso" / "__init__.py").exists() and (path / "miso" / "broth.py").exists()
-
 
 def _candidate_miso_sources() -> List[Path]:
     candidates: List[Path] = []
@@ -846,6 +935,11 @@ def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[s
     }
 
 
+def _is_embedding_model(raw_capabilities: Dict[str, object]) -> bool:
+    model_type = str(raw_capabilities.get("model_type", "")).strip().lower()
+    return model_type == "embedding"
+
+
 def get_default_model_capabilities() -> Dict[str, object]:
     return _default_model_capabilities()
 
@@ -886,6 +980,8 @@ def get_capability_catalog() -> Dict[str, List[str]]:
         provider = str(capabilities.get("provider", "")).strip().lower()
         if provider not in providers:
             continue
+        if _is_embedding_model(capabilities):
+            continue
 
         providers[provider].append(
             _normalize_provider_model_name(provider, model_name),
@@ -904,6 +1000,28 @@ def get_capability_catalog() -> Dict[str, List[str]]:
     return providers
 
 
+def get_embedding_provider_catalog() -> Dict[str, List[str]]:
+    providers: Dict[str, List[str]] = {
+        "openai": [],
+    }
+
+    raw_catalog = _load_raw_capability_catalog()
+    for model_name, capabilities in raw_catalog.items():
+        provider = str(capabilities.get("provider", "")).strip().lower()
+        if provider != "openai":
+            continue
+        if not _is_embedding_model(capabilities):
+            continue
+
+        normalized_model = _normalize_provider_model_name(provider, model_name)
+        if not normalized_model:
+            continue
+        providers["openai"].append(normalized_model)
+
+    providers["openai"] = sorted({name for name in providers["openai"] if name})
+    return providers
+
+
 def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
     catalog: Dict[str, Dict[str, object]] = {}
 
@@ -911,6 +1029,8 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
     for model_name, capabilities in raw_catalog.items():
         provider = str(capabilities.get("provider", "")).strip().lower()
         if provider not in _SUPPORTED_PROVIDERS:
+            continue
+        if _is_embedding_model(capabilities):
             continue
 
         normalized_model = _normalize_provider_model_name(provider, model_name)
@@ -1431,6 +1551,38 @@ def _extract_workspace_root_from_options(options: Dict[str, object] | None) -> s
     return ""
 
 
+def _extract_workspace_roots_from_options(options: Dict[str, object] | None) -> list[str]:
+    """Return the ordered list of workspace root paths from options.
+
+    Prefers the new ``workspace_roots`` array; falls back to the legacy
+    ``workspaceRoot`` / ``workspace_root`` single-value keys for backward compat.
+    Deduplicates while preserving order.
+    """
+    if not isinstance(options, dict):
+        return []
+
+    seen: set[str] = set()
+    roots: list[str] = []
+
+    # New multi-root field
+    workspace_roots = options.get("workspace_roots")
+    if isinstance(workspace_roots, list):
+        for entry in workspace_roots:
+            if isinstance(entry, str):
+                normalized = entry.strip()
+                if normalized and normalized not in seen:
+                    seen.add(normalized)
+                    roots.append(normalized)
+
+    # Legacy single-root fallback
+    if not roots:
+        single = _extract_workspace_root_from_options(options)
+        if single:
+            roots.append(single)
+
+    return roots
+
+
 def _should_enable_tools(options: Dict[str, object] | None) -> bool:
     """Return True when the caller explicitly requests tool-enabled mode.
 
@@ -1496,8 +1648,8 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
 
 
 def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
-    workspace_root_raw = _extract_workspace_root_from_options(options)
-    if not workspace_root_raw:
+    workspace_roots_raw = _extract_workspace_roots_from_options(options)
+    if not workspace_roots_raw:
         return
 
     if not _should_enable_tools(options):
@@ -1506,8 +1658,6 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
     if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
         raise RuntimeError("Agent does not support add_toolkit")
 
-    workspace_root = _resolve_workspace_root(workspace_root_raw)
-
     try:
         miso_module = importlib.import_module("miso")
     except Exception as import_error:
@@ -1515,10 +1665,29 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
             f"Failed to import miso for workspace toolkit: {import_error}"
         ) from import_error
 
+    # Try multi_workspace_toolkit first (supports named workspaces)
+    multi_factory = getattr(miso_module, "multi_workspace_toolkit", None)
+    if callable(multi_factory) and len(workspace_roots_raw) > 1:
+        resolved = []
+        for raw in workspace_roots_raw:
+            try:
+                resolved.append(str(_resolve_workspace_root(raw)))
+            except RuntimeError:
+                raise
+        try:
+            multi_toolkit = multi_factory(workspace_roots=resolved)
+        except TypeError:
+            multi_toolkit = multi_factory(resolved)
+        _mark_workspace_tools_for_confirmation(multi_toolkit)
+        agent.add_toolkit(multi_toolkit)
+        return
+
+    # Single workspace (or multi_workspace_toolkit unavailable): use python_workspace_toolkit
     toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
     if not callable(toolkit_factory):
         raise RuntimeError("miso.python_workspace_toolkit is unavailable")
 
+    workspace_root = _resolve_workspace_root(workspace_roots_raw[0])
     try:
         workspace_toolkit = toolkit_factory(
             workspace_root=str(workspace_root),
@@ -1532,6 +1701,14 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
     agent.add_toolkit(workspace_toolkit)
 
 
+# Block types whose ``text`` field should be extracted as plain content.
+_TEXT_BLOCK_TYPES = {"text", "output_text", "input_text"}
+# Block types that represent model reasoning / thinking.  We wrap them in
+# ``<think>`` tags so the frontend ``ThinkBlock`` component can render them
+# identically to reasoning tokens that arrived via ``token_delta``.
+_THINKING_BLOCK_TYPES = {"reasoning", "thinking"}
+
+
 def _content_to_text(content: object) -> str:
     if isinstance(content, str):
         return content
@@ -1540,17 +1717,23 @@ def _content_to_text(content: object) -> str:
         for block in content:
             if not isinstance(block, dict):
                 continue
-            if block.get("type") in {"text", "output_text", "input_text"}:
+            btype = block.get("type")
+            if btype in _TEXT_BLOCK_TYPES:
                 text = block.get("text", "")
                 if text:
                     parts.append(text if isinstance(text, str) else str(text))
+            elif btype in _THINKING_BLOCK_TYPES:
+                text = block.get("text", "") or block.get("thinking", "")
+                if text:
+                    raw = text if isinstance(text, str) else str(text)
+                    parts.append(f"<think>{raw}</think>")
         return "".join(parts)
     if content is None:
         return ""
     return str(content)
 
 
-def _create_agent(options: Dict[str, object] | None = None):
+def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
     if _IMPORT_ERROR is not None:
         raise RuntimeError(f"Failed to import miso.broth: {_IMPORT_ERROR}")
     if _BROTH_CLASS is None:
@@ -1572,7 +1755,7 @@ def _create_agent(options: Dict[str, object] | None = None):
                 max_iterations = _DEFAULT_MAX_ITERATIONS
         else:
             max_iterations = _DEFAULT_MAX_ITERATIONS
-    if _extract_workspace_root_from_options(options) and _should_enable_tools(options):
+    if _extract_workspace_roots_from_options(options) and _should_enable_tools(options):
         # Tool-call workflows need at least one extra round to produce
         # assistant-facing text after tool outputs are injected.
         max_iterations = max(max_iterations, 2)
@@ -1598,6 +1781,35 @@ def _create_agent(options: Dict[str, object] | None = None):
 
     _attach_workspace_toolkit(agent, options)
 
+    memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
+    memory_runtime = {
+        "requested": memory_requested,
+        "available": False,
+        "reason": "",
+    }
+    if memory_requested and not session_id:
+        memory_runtime["reason"] = "missing_session_id"
+
+    if session_id and isinstance(options, dict) and memory_requested:
+        try:
+            from memory_factory import create_memory_manager_with_diagnostics
+
+            mm, memory_reason = create_memory_manager_with_diagnostics(
+                options,
+                session_id=session_id,
+            )
+            if mm is not None:
+                agent.memory_manager = mm
+                memory_runtime["available"] = True
+            else:
+                memory_runtime["reason"] = (
+                    str(memory_reason).strip() if memory_reason else "memory_manager_unavailable"
+                )
+        except Exception as memory_error:
+            memory_runtime["reason"] = f"memory_factory_failed: {memory_error}"
+
+    setattr(agent, "_memory_runtime", memory_runtime)
+
     return agent
 
 
@@ -1606,14 +1818,25 @@ def _extract_last_assistant_text(messages: List[Dict[str, Any]]) -> str:
         if not isinstance(item, dict):
             continue
         if item.get("role") == "assistant":
-            text = _content_to_text(item.get("content", "")).strip()
-            if text:
+            text = _content_to_text(item.get("content", ""))
+            if text and text.strip():
                 return text
         if item.get("type") == "message":
-            text = _content_to_text(item.get("content", "")).strip()
-            if text:
+            text = _content_to_text(item.get("content", ""))
+            if text and text.strip():
                 return text
     return ""
+
+
+def _memory_runtime_from_agent(agent: Any) -> Dict[str, Any]:
+    raw_runtime = getattr(agent, "_memory_runtime", None)
+    if not isinstance(raw_runtime, dict):
+        return {"requested": False, "available": False, "reason": ""}
+    return {
+        "requested": bool(raw_runtime.get("requested")),
+        "available": bool(raw_runtime.get("available")),
+        "reason": str(raw_runtime.get("reason") or "").strip(),
+    }
 
 
 def stream_chat(
@@ -1622,8 +1845,18 @@ def stream_chat(
     history: List[Dict[str, object]],
     attachments: List[Dict[str, object]] | None = None,
     options: Dict[str, object],
+    session_id: str = "",
 ) -> Iterable[str]:
-    agent = _create_agent(options)
+    agent = _create_agent(options, session_id=session_id)
+    memory_runtime = _memory_runtime_from_agent(agent)
+    if (
+        memory_runtime["requested"]
+        and not memory_runtime["available"]
+        and not history
+    ):
+        reason = memory_runtime["reason"] or "memory_manager_unavailable"
+        raise RuntimeError(f"{_MEMORY_UNAVAILABLE_CODE}: {reason}")
+
     messages = _normalize_messages(history, message, attachments)
     payload = _build_payload(agent.provider, options)
 
@@ -1657,6 +1890,7 @@ def stream_chat(
                 payload=payload,
                 callback=on_event,
                 max_iterations=agent.max_iterations,
+                **({"session_id": session_id} if session_id else {}),
             )
             output_holder["messages"] = messages_out
         except Exception as run_error:  # pragma: no cover
@@ -1692,13 +1926,38 @@ def stream_chat_events(
     history: List[Dict[str, object]],
     attachments: List[Dict[str, object]] | None = None,
     options: Dict[str, object],
+    session_id: str = "",
+    cancel_event: threading.Event | None = None,
 ) -> Iterable[Dict[str, Any]]:
-    agent = _create_agent(options)
+    agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
     system_prompt_text = _build_system_prompt_v2_text_from_options(options)
     if system_prompt_text:
         messages = _prepend_system_message(messages, system_prompt_text)
     payload = _build_payload(agent.provider, options)
+    memory_runtime = _memory_runtime_from_agent(agent)
+    if memory_runtime["requested"] and not memory_runtime["available"]:
+        fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
+        yield {
+            "type": "memory_prepare",
+            "run_id": "",
+            "iteration": 0,
+            "timestamp": time.time(),
+            "session_id": session_id,
+            "applied": False,
+            "fallback_reason": fallback_reason,
+        }
+        if not history:
+            yield {
+                "type": "error",
+                "run_id": "",
+                "iteration": 0,
+                "timestamp": time.time(),
+                "code": _MEMORY_UNAVAILABLE_CODE,
+                "message": "Memory is enabled but unavailable for this request",
+                "fallback_reason": fallback_reason,
+            }
+            return
 
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
@@ -1725,8 +1984,23 @@ def stream_chat_events(
 
     confirm_cb = _make_tool_confirm_callback(
         lambda event: event_queue.put(event),
-        timeout_seconds=_CONFIRMATION_TIMEOUT_SECONDS,
+        cancel_event=cancel_event,
     )
+    continuation_cb = _make_continuation_callback(
+        lambda event: event_queue.put(event),
+        cancel_event=cancel_event,
+    )
+    if isinstance(cancel_event, threading.Event):
+        def watch_stream_cancel() -> None:
+            cancel_event.wait()
+            cancel_tool_confirmations(cancel_event)
+
+        cancel_watcher = threading.Thread(
+            target=watch_stream_cancel,
+            name="miso-stream-confirm-cancel",
+            daemon=True,
+        )
+        cancel_watcher.start()
 
     def run_agent() -> None:
         try:
@@ -1742,8 +2016,17 @@ def stream_chat_events(
             except Exception:
                 run_params = {}
 
+            if session_id:
+                run_kwargs["session_id"] = session_id
+            memory_namespace = str(options.get("memory_namespace") or "").strip()
+            if memory_namespace and "memory_namespace" in run_params:
+                run_kwargs["memory_namespace"] = memory_namespace
+
             if "on_tool_confirm" in run_params:
                 run_kwargs["on_tool_confirm"] = confirm_cb
+
+            if "on_continuation_request" in run_params:
+                run_kwargs["on_continuation_request"] = continuation_cb
 
             messages_out, _bundle = agent.run(**run_kwargs)
             output_holder["messages"] = messages_out

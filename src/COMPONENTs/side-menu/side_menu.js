@@ -7,6 +7,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
 import { ToolkitModal } from "../toolkit/toolkit_modal";
+import { WorkspaceModal } from "../workspace/workspace_modal";
 import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
   ConfirmDeleteModal,
@@ -16,6 +17,7 @@ import {
 import { sideMenuChatTreeAPI } from "./side_menu_api";
 import { getRuntimePlatform } from "./side_menu_utils";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
+import { MemoryInspectModal } from "../memory-inspect/memory_inspect_modal";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
 import { filter_explorer_data } from "./utils/filter_explorer_data";
@@ -28,10 +30,8 @@ const SideMenu = () => {
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== "undefined" ? window.innerWidth : 1200,
-  );
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -45,6 +45,11 @@ const SideMenu = () => {
   });
   const [renaming, setRenaming] = useState({ nodeId: null, value: "" });
   const [searchQuery, setSearchQuery] = useState("");
+  const [memoryInspect, setMemoryInspect] = useState({
+    open: false,
+    sessionId: null,
+    chatTitle: "",
+  });
 
   const { chatStore, setChatStore, selectedNodeId } = useChatTreeStore();
 
@@ -53,24 +58,12 @@ const SideMenu = () => {
   const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
 
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
     const timer = window.setInterval(() => {
       setRelativeNow(Date.now());
     }, 60 * 1000);
 
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    if (windowWidth < 1000 && onFragment === "side_menu") {
-      console.log("Window width < 1000, side menu in overlay mode");
-    }
-  }, [windowWidth, onFragment]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -89,6 +82,11 @@ const SideMenu = () => {
     () => setContextMenu((c) => ({ ...c, visible: false })),
     [],
   );
+
+  const handleInspectMemory = useCallback((sessionId, chatTitle) => {
+    setMemoryInspect({ open: true, sessionId, chatTitle: chatTitle || "" });
+    setContextMenu((c) => ({ ...c, visible: false }));
+  }, []);
 
   const handleContextMenu = useCallback((storeNode, event) => {
     event.preventDefault();
@@ -159,8 +157,16 @@ const SideMenu = () => {
         handleStartRename,
         setClipboard,
         setConfirmDelete,
+        onInspectMemory: handleInspectMemory,
       }),
-    [contextMenu.node, clipboard, chatStore, handleStartRename, setChatStore],
+    [
+      contextMenu.node,
+      clipboard,
+      chatStore,
+      handleStartRename,
+      setChatStore,
+      handleInspectMemory,
+    ],
   );
 
   const explorerData = useMemo(() => {
@@ -213,7 +219,9 @@ const SideMenu = () => {
       }}
     >
       <Button
-        prefix_icon={onFragment === "main" ? "side_menu_left" : "side_menu_close"}
+        prefix_icon={
+          onFragment === "main" ? "side_menu_left" : "side_menu_close"
+        }
         style={{
           position: "absolute",
           top: 25,
@@ -318,6 +326,21 @@ const SideMenu = () => {
             iconSize: 16,
           }}
         />
+        <Button
+          prefix_icon="folder_2"
+          label="Workspace"
+          onClick={() => setWorkspaceModalOpen(true)}
+          style={{
+            width: "100%",
+            justifyContent: "flex-start",
+            fontSize: 14,
+            padding: "5px 8px",
+            borderRadius: 6,
+            marginBottom: 2,
+            WebkitAppRegion: "no-drag",
+            iconSize: 16,
+          }}
+        />
         <div
           style={{
             padding: "4px 4px 6px",
@@ -361,7 +384,9 @@ const SideMenu = () => {
             <Explorer
               data={filteredRoot ? filteredData : explorerData}
               root={filteredRoot ?? explorerModel.root}
-              default_expanded={filteredRoot ? true : explorerModel.defaultExpanded}
+              default_expanded={
+                filteredRoot ? true : explorerModel.defaultExpanded
+              }
               draggable={!filteredRoot}
               on_reorder={handleReorder}
               style={{ width: "100%", fontSize: 13 }}
@@ -384,9 +409,17 @@ const SideMenu = () => {
         onClick={() => setSettingsOpen(true)}
       />
 
-      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+      />
 
       <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+
+      <WorkspaceModal
+        open={workspaceModalOpen}
+        onClose={() => setWorkspaceModalOpen(false)}
+      />
 
       <ContextMenu
         visible={contextMenu.visible}
@@ -403,6 +436,15 @@ const SideMenu = () => {
         onConfirm={() => handleDelete(confirmDelete.node)}
         label={confirmDelete.node?.label || ""}
         isDark={isDark}
+      />
+
+      <MemoryInspectModal
+        open={memoryInspect.open}
+        sessionId={memoryInspect.sessionId}
+        chatTitle={memoryInspect.chatTitle}
+        onClose={() =>
+          setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })
+        }
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import sys
 import unittest
 import json
+import types
 from pathlib import Path
 from unittest import mock
 
@@ -34,6 +35,13 @@ class ModelsCatalogRouteTests(unittest.TestCase):
             ),
             mock.patch.object(
                 miso_routes,
+                "get_embedding_provider_catalog",
+                return_value={
+                    "openai": ["text-embedding-3-small"],
+                },
+            ),
+            mock.patch.object(
+                miso_routes,
                 "get_model_capability_catalog",
                 return_value={
                     "openai:gpt-5": {
@@ -57,6 +65,11 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         )
         self.assertIn("model_capabilities", payload)
         self.assertIn("openai:gpt-5", payload["model_capabilities"])
+        self.assertEqual(payload["providers"]["openai"], ["gpt-5"])
+        self.assertEqual(
+            payload["embedding_providers"]["openai"],
+            ["text-embedding-3-small"],
+        )
 
     def test_models_catalog_falls_back_to_text_only_for_unknown_active_model(self) -> None:
         with (
@@ -72,6 +85,13 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                     "openai": ["gpt-5"],
                     "anthropic": [],
                     "ollama": [],
+                },
+            ),
+            mock.patch.object(
+                miso_routes,
+                "get_embedding_provider_catalog",
+                return_value={
+                    "openai": ["text-embedding-3-large", "text-embedding-3-small"],
                 },
             ),
             mock.patch.object(
@@ -96,6 +116,10 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                 "input_modalities": ["text"],
                 "input_source_types": {},
             },
+        )
+        self.assertEqual(
+            payload["embedding_providers"]["openai"],
+            ["text-embedding-3-large", "text-embedding-3-small"],
         )
 
     def test_chat_stream_allows_attachments_without_message(self) -> None:
@@ -324,6 +348,146 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertIn("token_delta", event_types)
         self.assertIn("final_message", event_types)
         self.assertIn("done", event_types)
+
+    def test_chat_stream_v2_sets_confirmation_cancel_event_on_generator_exit(self) -> None:
+        captured_cancel_event = {"value": None}
+
+        def fake_stream_chat_events(**kwargs):
+            captured_cancel_event["value"] = kwargs.get("cancel_event")
+            raise GeneratorExit()
+            yield  # pragma: no cover
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            side_effect=fake_stream_chat_events,
+        ):
+            response = self.client.post(
+                "/chat/stream/v2",
+                json={
+                    "message": "hello",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            _payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        cancel_event = captured_cancel_event["value"]
+        self.assertIsNotNone(cancel_event)
+        self.assertTrue(hasattr(cancel_event, "is_set"))
+        self.assertTrue(cancel_event.is_set())
+
+    def test_chat_stream_v2_preserves_memory_unavailable_error_code(self) -> None:
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            return_value=iter(
+                [
+                    {
+                        "type": "error",
+                        "run_id": "",
+                        "iteration": 0,
+                        "timestamp": 1700000000.0,
+                        "code": "memory_unavailable",
+                        "message": "Memory is enabled but unavailable for this request",
+                    }
+                ]
+            ),
+        ):
+            response = self.client.post(
+                "/chat/stream/v2",
+                json={
+                    "message": "hello",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"code": "memory_unavailable"', payload_text)
+
+    def test_memory_projection_paginates_scroll_results(self) -> None:
+        point_one = types.SimpleNamespace(
+            id="p1",
+            vector=[1.0, 0.0, 0.0],
+            payload={
+                "text": [
+                    {"role": "user", "content": "hello"},
+                    {"role": "assistant", "content": "hi"},
+                ],
+                "turn_start_index": 0,
+                "turn_end_index": 1,
+            },
+        )
+        point_two = types.SimpleNamespace(
+            id="p2",
+            vector=[0.0, 1.0, 0.0],
+            payload={
+                "conversation": [
+                    {"role": "user", "content": [{"type": "text", "text": "next"}]},
+                ],
+                "turn_start_index": 2,
+                "turn_end_index": 3,
+            },
+        )
+
+        class FakeClient:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def scroll(self, **kwargs):
+                self.calls.append(kwargs)
+                if len(self.calls) == 1:
+                    return [point_one], "offset-1"
+                if len(self.calls) == 2:
+                    return [point_two], None
+                return [], None
+
+        fake_client = FakeClient()
+        fake_memory_factory = types.SimpleNamespace(
+            _data_dir=lambda: "/tmp/memory",
+            _normalize_data_dir=lambda value: value,
+            _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.get("/memory/projection?session_id=chat-1")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["points"]), 2)
+        self.assertEqual(fake_client.calls[1].get("offset"), "offset-1")
+        point_texts = [point["text"] for point in payload["points"]]
+        self.assertTrue(any("user: hello" in text for text in point_texts))
+        self.assertTrue(any("user: next" in text for text in point_texts))
+
+    def test_memory_projection_skips_non_finite_vectors(self) -> None:
+        bad_point = types.SimpleNamespace(
+            id="bad-1",
+            vector=[float("nan"), 1.0, 2.0],
+            payload={"text": "user: broken"},
+        )
+
+        class FakeClient:
+            def scroll(self, **_kwargs):
+                return [bad_point], None
+
+        fake_client = FakeClient()
+        fake_memory_factory = types.SimpleNamespace(
+            _data_dir=lambda: "/tmp/memory",
+            _normalize_data_dir=lambda value: value,
+            _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.get("/memory/projection?session_id=chat-1")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["points"], [])
+        self.assertEqual(payload["variance"], [0.0, 0.0])
 
     def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
         response = self.client.post(

@@ -16,6 +16,7 @@ import {
   setChatMessages,
   setChatModel,
   setChatSelectedToolkits,
+  setChatSelectedWorkspaceIds,
   setChatThreadId,
   subscribeChatsStore,
   updateChatDraft,
@@ -27,6 +28,8 @@ import {
   deleteAttachmentPayload,
 } from "../../SERVICEs/attachment_storage";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
+import { createThinkTagParser } from "./think_tag_parser";
+import { readMemorySettings } from "../../COMPONENTs/settings/memory/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 
 const DEFAULT_DISCLAIMER =
@@ -34,7 +37,23 @@ const DEFAULT_DISCLAIMER =
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const STREAM_TRACE_LEVEL = "minimal";
-const TOOL_CONFIRMATION_EVENT_FALLBACK_TIMEOUT_MS = 12_000;
+const MISO_TRACE_TITLE_PREFIX = "[miso] | [stream] | ";
+const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
+  memory_prepare: "memory_prepare",
+  run_started: "start",
+  request_messages: "request_messages",
+  run_completed: "reponse_received",
+  memory_commit: "memory_commit",
+  done: "end",
+});
+
+const formatMisoTraceTitle = (eventType) => {
+  const label = MISO_TRACE_LABEL_BY_TYPE[eventType];
+  if (!label) {
+    return `[miso] ${eventType}`;
+  }
+  return `${MISO_TRACE_TITLE_PREFIX}${label}`;
+};
 
 const getFileExtension = (name) => {
   if (typeof name !== "string" || !name.includes(".")) {
@@ -192,13 +211,14 @@ const ChatInterface = () => {
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
 
   const activeChatIdRef = useRef(initialChat.id);
+  const messagesRef = useRef(initialChat.messages || []);
   const streamHandleRef = useRef(null);
   const streamingChatIdRef = useRef(null);
   const activeStreamMessagesRef = useRef(null);
   const messagePersistTimerRef = useRef(null);
   const attachmentFileInputRef = useRef(null);
   const attachmentPayloadByChatRef = useRef(new Map());
-  const threadIdRef = useRef(initialChat.threadId || `thread-${Date.now()}`);
+  const threadIdRef = useRef(initialChat.id || `chat-${Date.now()}`);
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
@@ -208,9 +228,17 @@ const ChatInterface = () => {
   const [selectedToolkits, setSelectedToolkits] = useState(
     () => initialChat.selectedToolkits || [],
   );
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState(
+    () => initialChat.selectedWorkspaceIds || [],
+  );
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
+  const toolConfirmationUiStateByIdRef = useRef({});
+  const [pendingContinuationRequest, setPendingContinuationRequest] =
+    useState(null);
+  const pendingContinuationRequestRef = useRef(null);
   const selectedToolkitsRef = useRef([]);
+  const selectedWorkspaceIdsRef = useRef([]);
   const systemPromptOverridesRef = useRef(
     initialChat.systemPromptOverrides || {},
   );
@@ -218,9 +246,35 @@ const ChatInterface = () => {
   const confirmationCallIdByIdRef = useRef(new Map());
   const confirmationFollowupSignalByIdRef = useRef(new Map());
   const confirmationResolveTimerByIdRef = useRef(new Map());
+  const activeTokenFlushControllerRef = useRef(null);
+  const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
+    const controller = activeTokenFlushControllerRef.current;
+    if (!controller) {
+      return;
+    }
+
+    if (mode === "flush" && typeof controller.flushNow === "function") {
+      controller.flushNow();
+    }
+
+    if (typeof controller.dispose === "function") {
+      controller.dispose();
+    }
+
+    activeTokenFlushControllerRef.current = null;
+  }, []);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
   useEffect(() => {
     selectedToolkitsRef.current = selectedToolkits;
   }, [selectedToolkits]);
+  useEffect(() => {
+    selectedWorkspaceIdsRef.current = selectedWorkspaceIds;
+  }, [selectedWorkspaceIds]);
+  useEffect(() => {
+    toolConfirmationUiStateByIdRef.current = toolConfirmationUiStateById;
+  }, [toolConfirmationUiStateById]);
   const isStreaming = streamingChatId === activeChatId;
   const hasBackgroundStream = Boolean(
     streamingChatId && streamingChatId !== activeChatId,
@@ -414,10 +468,11 @@ const ChatInterface = () => {
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
+      setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
       systemPromptOverridesRef.current =
         nextActiveChat.systemPromptOverrides || {};
 
-      threadIdRef.current = nextActiveChat.threadId || `thread-${Date.now()}`;
+      threadIdRef.current = nextActiveId || `chat-${Date.now()}`;
       modelIdRef.current =
         typeof nextActiveChat.model?.id === "string" &&
         nextActiveChat.model.id.trim()
@@ -461,6 +516,7 @@ const ChatInterface = () => {
         clearTimeout(messagePersistTimerRef.current);
         messagePersistTimerRef.current = null;
       }
+      clearActiveTokenFlushController("dispose");
       if (
         streamHandleRef.current &&
         typeof streamHandleRef.current.cancel === "function"
@@ -480,7 +536,7 @@ const ChatInterface = () => {
       confirmationResolveTimerById.clear();
       cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
-  }, []);
+  }, [clearActiveTokenFlushController]);
 
   useEffect(() => {
     const chatId = activeChatIdRef.current;
@@ -529,7 +585,8 @@ const ChatInterface = () => {
       return;
     }
 
-    setChatThreadId(chatId, threadIdRef.current, { source: "chat-page" });
+    threadIdRef.current = chatId;
+    setChatThreadId(chatId, chatId, { source: "chat-page" });
     setChatModel(chatId, { id: modelIdRef.current }, { source: "chat-page" });
   }, []);
 
@@ -541,6 +598,17 @@ const ChatInterface = () => {
 
     setChatSelectedToolkits(chatId, selectedToolkits, { source: "chat-page" });
   }, [selectedToolkits]);
+
+  useEffect(() => {
+    const chatId = activeChatIdRef.current;
+    if (!chatId) {
+      return;
+    }
+
+    setChatSelectedWorkspaceIds(chatId, selectedWorkspaceIds, {
+      source: "chat-page",
+    });
+  }, [selectedWorkspaceIds]);
 
   const handleSelectModel = useCallback(
     (modelId) => {
@@ -557,6 +625,7 @@ const ChatInterface = () => {
   );
 
   const handleStop = useCallback(() => {
+    clearActiveTokenFlushController("dispose");
     if (
       streamHandleRef.current &&
       typeof streamHandleRef.current.cancel === "function"
@@ -575,17 +644,28 @@ const ChatInterface = () => {
       clearTimeout(timerId);
     });
     confirmationResolveTimerByIdRef.current.clear();
+    toolConfirmationUiStateByIdRef.current = {};
     setToolConfirmationUiStateById({});
     // Remove empty assistant placeholder; mark partial ones as cancelled
-    setMessages((prev) => {
-      const { changed, nextMessages } = settleStreamingAssistantMessages(prev);
+    const { changed, nextMessages } = settleStreamingAssistantMessages(
+      messagesRef.current,
+    );
+    setMessages(nextMessages);
 
-      if (chatId && changed) {
-        setChatMessages(chatId, nextMessages, { source: "chat-page" });
-      }
+    if (chatId && changed) {
+      setChatMessages(chatId, nextMessages, { source: "chat-page" });
+    }
+  }, [clearActiveTokenFlushController]);
 
-      return nextMessages;
-    });
+  const updateToolConfirmationUiState = useCallback((updater) => {
+    const previous = toolConfirmationUiStateByIdRef.current;
+    const next = typeof updater === "function" ? updater(previous) : updater;
+    if (next === previous) {
+      return previous;
+    }
+    toolConfirmationUiStateByIdRef.current = next;
+    setToolConfirmationUiStateById(next);
+    return next;
   }, []);
 
   const clearConfirmationResolutionTimer = useCallback((confirmationId) => {
@@ -611,7 +691,7 @@ const ChatInterface = () => {
       }
       clearConfirmationResolutionTimer(normalizedId);
 
-      setToolConfirmationUiStateById((previous) => {
+      updateToolConfirmationUiState((previous) => {
         const current = previous[normalizedId];
         if (!current || current.resolved === true) {
           return previous;
@@ -636,7 +716,7 @@ const ChatInterface = () => {
         };
       });
     },
-    [clearConfirmationResolutionTimer],
+    [clearConfirmationResolutionTimer, updateToolConfirmationUiState],
   );
 
   const markConfirmationFollowupSignalByCallId = useCallback(
@@ -666,49 +746,6 @@ const ChatInterface = () => {
     });
   }, [resolveSubmittedConfirmationFromSignal]);
 
-  const scheduleConfirmationResolutionFallback = useCallback(
-    (confirmationId) => {
-      const normalizedId =
-        typeof confirmationId === "string" ? confirmationId.trim() : "";
-      if (!normalizedId) {
-        return;
-      }
-
-      clearConfirmationResolutionTimer(normalizedId);
-      const timerId = setTimeout(() => {
-        confirmationResolveTimerByIdRef.current.delete(normalizedId);
-
-        setToolConfirmationUiStateById((previous) => {
-          const current = previous[normalizedId];
-          if (!current || current.resolved === true) {
-            return previous;
-          }
-
-          const currentStatus =
-            typeof current.status === "string" ? current.status : "idle";
-          const isPendingSubmission =
-            currentStatus === "submitting" || currentStatus === "submitted";
-          if (!isPendingSubmission) {
-            return previous;
-          }
-
-          return {
-            ...previous,
-            [normalizedId]: {
-              ...current,
-              status: "submitted",
-              resolved: true,
-              error: "",
-            },
-          };
-        });
-      }, TOOL_CONFIRMATION_EVENT_FALLBACK_TIMEOUT_MS);
-
-      confirmationResolveTimerByIdRef.current.set(normalizedId, timerId);
-    },
-    [clearConfirmationResolutionTimer],
-  );
-
   const clearResolvedToolConfirmationByCallId = useCallback(
     (callId) => {
       if (typeof callId !== "string" || !callId.trim()) {
@@ -723,7 +760,7 @@ const ChatInterface = () => {
       confirmationCallIdByIdRef.current.delete(confirmationId);
       confirmationFollowupSignalByIdRef.current.delete(confirmationId);
       clearConfirmationResolutionTimer(confirmationId);
-      setToolConfirmationUiStateById((previous) => {
+      updateToolConfirmationUiState((previous) => {
         if (!previous || !previous[confirmationId]) {
           return previous;
         }
@@ -732,7 +769,7 @@ const ChatInterface = () => {
         return next;
       });
     },
-    [clearConfirmationResolutionTimer],
+    [clearConfirmationResolutionTimer, updateToolConfirmationUiState],
   );
 
   const clearAllPendingToolConfirmations = useCallback(() => {
@@ -752,7 +789,7 @@ const ChatInterface = () => {
       return;
     }
 
-    setToolConfirmationUiStateById((previous) => {
+    updateToolConfirmationUiState((previous) => {
       const next = { ...previous };
       let changed = false;
       activeConfirmationIds.forEach((confirmationId) => {
@@ -763,7 +800,104 @@ const ChatInterface = () => {
       });
       return changed ? next : previous;
     });
-  }, [clearConfirmationResolutionTimer]);
+  }, [clearConfirmationResolutionTimer, updateToolConfirmationUiState]);
+
+  const appendSyntheticToolConfirmationDecision = useCallback(
+    ({ confirmationId, approved }) => {
+      const normalizedConfirmationId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedConfirmationId) {
+        return false;
+      }
+
+      const callId =
+        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
+      const streamState = activeStreamMessagesRef.current;
+      const chatId = streamState?.chatId;
+      const streamMessages = Array.isArray(streamState?.messages)
+        ? streamState.messages
+        : [];
+      if (!callId || !chatId || streamMessages.length === 0) {
+        return false;
+      }
+
+      const decisionFrameType = approved ? "tool_confirmed" : "tool_denied";
+      const patchTime = Date.now();
+      let changed = false;
+
+      const nextStreamMessages = streamMessages.map((message) => {
+        const traceFrames = Array.isArray(message?.traceFrames)
+          ? message.traceFrames
+          : [];
+        const requestFrame = traceFrames.find(
+          (frame) =>
+            frame?.type === "tool_confirmation_request" &&
+            frame?.payload?.confirmation_id === normalizedConfirmationId,
+        );
+        if (!requestFrame) {
+          return message;
+        }
+
+        const alreadyRecorded = traceFrames.some(
+          (frame) =>
+            frame?.type === decisionFrameType &&
+            frame?.payload?.call_id === callId,
+        );
+        if (alreadyRecorded) {
+          return message;
+        }
+
+        changed = true;
+
+        const maxSeq = traceFrames.reduce((highest, frame) => {
+          const seq = Number(frame?.seq);
+          return Number.isFinite(seq) && seq > highest ? seq : highest;
+        }, 0);
+        const toolName =
+          typeof requestFrame.payload?.tool_name === "string"
+            ? requestFrame.payload.tool_name
+            : "";
+
+        return {
+          ...message,
+          updatedAt: patchTime,
+          traceFrames: [
+            ...traceFrames,
+            {
+              seq: maxSeq + 0.1,
+              ts: patchTime,
+              type: decisionFrameType,
+              stage: "client",
+              payload: {
+                tool_name: toolName,
+                call_id: callId,
+                confirmation_id: normalizedConfirmationId,
+                synthetic: true,
+              },
+            },
+          ],
+        };
+      });
+
+      if (!changed) {
+        return false;
+      }
+
+      activeStreamMessagesRef.current = {
+        chatId,
+        messages: nextStreamMessages,
+      };
+
+      if (activeChatIdRef.current === chatId) {
+        setMessages(nextStreamMessages);
+      } else {
+        setChatMessages(chatId, nextStreamMessages, { source: "chat-page" });
+      }
+
+      return true;
+    },
+    [],
+  );
 
   const handleToolConfirmationDecision = useCallback(
     async ({ confirmationId, approved }) => {
@@ -773,26 +907,22 @@ const ChatInterface = () => {
         return;
       }
 
-      let shouldSubmit = false;
-      setToolConfirmationUiStateById((previous) => {
-        const current = previous[normalizedConfirmationId] || {};
-        if (current.status === "submitting" || current.status === "submitted") {
-          return previous;
-        }
-        shouldSubmit = true;
-        return {
-          ...previous,
-          [normalizedConfirmationId]: {
-            status: "submitting",
-            error: "",
-            resolved: false,
-          },
-        };
-      });
-
-      if (!shouldSubmit) {
+      const current =
+        toolConfirmationUiStateByIdRef.current[normalizedConfirmationId] || {};
+      if (current.status === "submitting" || current.status === "submitted") {
         return;
       }
+
+      updateToolConfirmationUiState((previous) => ({
+        ...previous,
+        [normalizedConfirmationId]: {
+          ...(previous[normalizedConfirmationId] || {}),
+          status: "submitting",
+          error: "",
+          resolved: false,
+          decision: "",
+        },
+      }));
 
       try {
         await api.miso.respondToolConfirmation({
@@ -810,22 +940,27 @@ const ChatInterface = () => {
             false,
           );
         }
-        setToolConfirmationUiStateById((previous) => ({
+        clearConfirmationResolutionTimer(normalizedConfirmationId);
+        appendSyntheticToolConfirmationDecision({
+          confirmationId: normalizedConfirmationId,
+          approved: Boolean(approved),
+        });
+        updateToolConfirmationUiState((previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
             status: "submitted",
             error: "",
-            resolved: false,
+            resolved: true,
+            decision: approved ? "approved" : "denied",
           },
         }));
-        scheduleConfirmationResolutionFallback(normalizedConfirmationId);
       } catch (error) {
         clearConfirmationResolutionTimer(normalizedConfirmationId);
         const errorMessage =
           (typeof error?.message === "string" && error.message) ||
           "Failed to submit confirmation";
-        setToolConfirmationUiStateById((previous) => ({
+        updateToolConfirmationUiState((previous) => ({
           ...previous,
           [normalizedConfirmationId]: {
             ...(previous[normalizedConfirmationId] || {}),
@@ -836,7 +971,46 @@ const ChatInterface = () => {
         }));
       }
     },
-    [clearConfirmationResolutionTimer, scheduleConfirmationResolutionFallback],
+    [
+      appendSyntheticToolConfirmationDecision,
+      clearConfirmationResolutionTimer,
+      updateToolConfirmationUiState,
+    ],
+  );
+
+  const handleContinuationDecision = useCallback(
+    async ({ confirmationId, approved }) => {
+      const normalizedId =
+        typeof confirmationId === "string" ? confirmationId.trim() : "";
+      if (!normalizedId) return;
+
+      const current = pendingContinuationRequestRef.current;
+      if (!current || current.status === "submitting") return;
+
+      pendingContinuationRequestRef.current = {
+        ...current,
+        status: "submitting",
+      };
+      setPendingContinuationRequest((prev) =>
+        prev ? { ...prev, status: "submitting" } : prev,
+      );
+
+      try {
+        await api.miso.respondToolConfirmation({
+          confirmation_id: normalizedId,
+          approved: Boolean(approved),
+          reason: "",
+        });
+        pendingContinuationRequestRef.current = null;
+        setPendingContinuationRequest(null);
+      } catch (_error) {
+        pendingContinuationRequestRef.current = { ...current, status: "idle" };
+        setPendingContinuationRequest((prev) =>
+          prev ? { ...prev, status: "idle" } : prev,
+        );
+      }
+    },
+    [],
   );
 
   const getOrCreateChatAttachmentPayloadMap = useCallback((chatId) => {
@@ -1016,6 +1190,9 @@ const ChatInterface = () => {
       clearComposer = false,
       reuseUserMessage = null,
       missingAttachmentPayloadMode = "block",
+      memoryFallbackAttempted = false,
+      forceHistoryFallback = false,
+      historyOverride = null,
     }) => {
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachmentsForMessage)
@@ -1029,6 +1206,8 @@ const ChatInterface = () => {
       if (!chatId || (!promptText && !hasAttachments)) {
         return false;
       }
+
+      clearActiveTokenFlushController("dispose");
 
       const normalizedBaseMessages = Array.isArray(baseMessages)
         ? baseMessages
@@ -1049,7 +1228,10 @@ const ChatInterface = () => {
         clearTimeout(timerId);
       });
       confirmationResolveTimerByIdRef.current.clear();
+      toolConfirmationUiStateByIdRef.current = {};
       setToolConfirmationUiStateById({});
+      pendingContinuationRequestRef.current = null;
+      setPendingContinuationRequest(null);
 
       const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
@@ -1131,10 +1313,13 @@ const ChatInterface = () => {
         },
       };
 
-      const historyForModel = buildHistoryForModel(
-        normalizedBaseMessages,
-        chatId,
-      );
+      const memoryEnabled =
+        readMemorySettings().enabled === true && forceHistoryFallback !== true;
+      const historyForModel = Array.isArray(historyOverride)
+        ? historyOverride
+        : memoryEnabled
+          ? []
+          : buildHistoryForModel(normalizedBaseMessages, chatId);
 
       const nextMessages = [
         ...normalizedBaseMessages,
@@ -1171,6 +1356,166 @@ const ChatInterface = () => {
         setChatMessages(chatId, nextStreamMessages, { source: "chat-page" });
       };
 
+      let bufferedTokenDelta = "";
+      let pendingTokenFlushHandle = null;
+      let pendingTokenFlushHandleType = null;
+
+      // ── Think-tag parser: split <think>…</think> into traceFrames ────
+      // We maintain a single accumulating reasoning frame per <think> block
+      // so the timeline shows ONE "Reasoning" node whose body grows as
+      // more thinking tokens arrive (instead of many small nodes).
+      let bufferedThinkingDelta = "";
+      let accumulatedThinkingText = "";
+      let thinkingBlockIndex = 0;
+      // Sentinel seq for the current thinking block's frame.
+      const THINKING_SEQ_BASE = -9000;
+
+      const flushBufferedThinkingDelta = () => {
+        if (!bufferedThinkingDelta) return;
+        accumulatedThinkingText += bufferedThinkingDelta;
+        bufferedThinkingDelta = "";
+        const patchTime = Date.now();
+        const currentSeq = THINKING_SEQ_BASE - thinkingBlockIndex;
+        const updatedFrame = {
+          seq: currentSeq,
+          ts: patchTime,
+          type: "reasoning",
+          stage: "model",
+          payload: { reasoning: accumulatedThinkingText },
+        };
+        const nextStreamMessages = streamMessages.map((message) => {
+          if (message.id !== assistantMessageId) return message;
+          const existingFrames = message.traceFrames || [];
+          // Replace the existing frame for this block, or append if new.
+          const idx = existingFrames.findIndex((f) => f.seq === currentSeq);
+          let nextFrames;
+          if (idx >= 0) {
+            nextFrames = [...existingFrames];
+            nextFrames[idx] = updatedFrame;
+          } else {
+            nextFrames = [...existingFrames, updatedFrame];
+          }
+          return {
+            ...message,
+            updatedAt: patchTime,
+            traceFrames: nextFrames,
+          };
+        });
+        syncStreamMessages(nextStreamMessages);
+      };
+
+      /** Call when a </think> tag closes — finalises the current block so
+       *  the next <think> gets its own timeline node. */
+      const finaliseThinkingBlock = () => {
+        if (accumulatedThinkingText || bufferedThinkingDelta) {
+          flushBufferedThinkingDelta();
+        }
+        accumulatedThinkingText = "";
+        thinkingBlockIndex += 1;
+      };
+
+      const thinkTagParser = createThinkTagParser({
+        onContent: (text) => {
+          bufferedTokenDelta += text;
+          scheduleBufferedTokenFlush();
+        },
+        onThinking: (text) => {
+          bufferedThinkingDelta += text;
+          scheduleBufferedTokenFlush();
+        },
+        onThinkEnd: () => {
+          finaliseThinkingBlock();
+        },
+      });
+
+      const clearScheduledTokenFlush = () => {
+        if (pendingTokenFlushHandle == null) {
+          return;
+        }
+
+        if (
+          pendingTokenFlushHandleType === "raf" &&
+          typeof window !== "undefined" &&
+          typeof window.cancelAnimationFrame === "function"
+        ) {
+          window.cancelAnimationFrame(pendingTokenFlushHandle);
+        } else {
+          clearTimeout(pendingTokenFlushHandle);
+        }
+
+        pendingTokenFlushHandle = null;
+        pendingTokenFlushHandleType = null;
+      };
+
+      const flushBufferedTokenDelta = () => {
+        clearScheduledTokenFlush();
+
+        // Flush thinking buffer first (may have accumulated in parallel)
+        if (bufferedThinkingDelta) {
+          flushBufferedThinkingDelta();
+        }
+
+        if (!bufferedTokenDelta) {
+          return;
+        }
+
+        const deltaChunk = bufferedTokenDelta;
+        bufferedTokenDelta = "";
+        const patchTime = Date.now();
+        const nextStreamMessages = streamMessages.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                content: `${typeof message.content === "string" ? message.content : ""}${deltaChunk}`,
+                updatedAt: patchTime,
+              }
+            : message,
+        );
+        syncStreamMessages(nextStreamMessages);
+      };
+
+      const scheduleBufferedTokenFlush = () => {
+        if (pendingTokenFlushHandle != null) {
+          return;
+        }
+
+        if (
+          typeof window !== "undefined" &&
+          typeof window.requestAnimationFrame === "function"
+        ) {
+          pendingTokenFlushHandleType = "raf";
+          pendingTokenFlushHandle = window.requestAnimationFrame(() => {
+            pendingTokenFlushHandle = null;
+            pendingTokenFlushHandleType = null;
+            flushBufferedTokenDelta();
+          });
+          return;
+        }
+
+        pendingTokenFlushHandleType = "timeout";
+        pendingTokenFlushHandle = setTimeout(() => {
+          pendingTokenFlushHandle = null;
+          pendingTokenFlushHandleType = null;
+          flushBufferedTokenDelta();
+        }, 16);
+      };
+
+      const disposeBufferedTokenFlush = () => {
+        clearScheduledTokenFlush();
+        bufferedTokenDelta = "";
+      };
+
+      const tokenFlushController = {
+        flushNow: flushBufferedTokenDelta,
+        dispose: disposeBufferedTokenFlush,
+      };
+      activeTokenFlushControllerRef.current = tokenFlushController;
+      const releaseTokenFlushController = () => {
+        if (activeTokenFlushControllerRef.current === tokenFlushController) {
+          activeTokenFlushControllerRef.current = null;
+        }
+      };
+
       let streamHandle = null;
       try {
         const rawSystemPromptOverrides = systemPromptOverridesRef.current;
@@ -1183,14 +1528,20 @@ const ChatInterface = () => {
 
         streamHandle = api.miso.startStreamV2(
           {
-            threadId: threadIdRef.current,
+            threadId: chatId,
             message: promptText,
             history: historyForModel,
             attachments: payloadAttachments,
             options: {
               modelId: modelIdRef.current,
+              ...(forceHistoryFallback === true && {
+                memory_enabled: false,
+              }),
               ...(selectedToolkitsRef.current.length > 0 && {
                 toolkits: selectedToolkitsRef.current,
+              }),
+              ...(selectedWorkspaceIdsRef.current.length > 0 && {
+                selectedWorkspaceIds: selectedWorkspaceIdsRef.current,
               }),
               ...(Object.keys(systemPromptOverrides).length > 0 && {
                 system_prompt_v2: {
@@ -1203,7 +1554,117 @@ const ChatInterface = () => {
           {
             onFrame: (frame) => {
               if (!frame || frame.type === "token_delta") return;
+              if (
+                frame.type === "final_message" ||
+                frame.type === "tool_call" ||
+                frame.type === "error" ||
+                frame.type === "done"
+              ) {
+                flushBufferedTokenDelta();
+              }
               const patchTime = Date.now();
+
+              if (frame.type === "request_messages") {
+                const rawMessages = Array.isArray(frame.payload?.messages)
+                  ? frame.payload.messages
+                  : [];
+                const requestMessagesForLog = JSON.parse(
+                  JSON.stringify(rawMessages),
+                );
+                const systemPrompt =
+                  typeof frame.payload?.system === "string"
+                    ? frame.payload.system.trim()
+                    : "";
+                if (systemPrompt) {
+                  requestMessagesForLog.unshift({
+                    role: "system",
+                    content: systemPrompt,
+                  });
+                }
+                console.log(
+                  formatMisoTraceTitle("request_messages"),
+                  requestMessagesForLog,
+                );
+                return;
+              }
+
+              if (frame.type === "continuation_request") {
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id.trim()
+                    : "";
+                const iteration =
+                  typeof frame.payload?.iteration === "number"
+                    ? frame.payload.iteration
+                    : 0;
+                if (confirmationId) {
+                  const state = { confirmationId, iteration, status: "idle" };
+                  pendingContinuationRequestRef.current = state;
+                  setPendingContinuationRequest(state);
+                }
+                return;
+              }
+
+              if (frame.type === "error") {
+                console.log(
+                  `[miso] ${frame.type} (iteration=${frame.iteration})`,
+                  frame.payload,
+                );
+              }
+
+              if (frame.type === "done") {
+                console.log(formatMisoTraceTitle("done"), frame.payload);
+              }
+
+              if (
+                frame.type === "run_started" ||
+                frame.type === "run_completed" ||
+                frame.type === "run_max_iterations"
+              ) {
+                const title =
+                  frame.type === "run_max_iterations"
+                    ? "[miso] run_max_iterations"
+                    : formatMisoTraceTitle(frame.type);
+                console.log(title, frame.payload);
+              }
+
+              if (frame.type === "memory_prepare") {
+                const payload =
+                  frame.payload && typeof frame.payload === "object"
+                    ? frame.payload
+                    : {};
+                console.log(formatMisoTraceTitle("memory_prepare"), {
+                  applied: payload.applied,
+                  session_id: payload.session_id,
+                  before_estimated_tokens: payload.before_estimated_tokens,
+                  after_estimated_tokens: payload.after_estimated_tokens,
+                  last_n_turns: payload.last_n_turns,
+                  kept_turn_count: payload.kept_turn_count,
+                  total_turn_count: payload.total_turn_count,
+                  vector_top_k: payload.vector_top_k,
+                  vector_adapter_enabled: payload.vector_adapter_enabled,
+                  vector_recall_count: payload.vector_recall_count,
+                  vector_recall_status: payload.vector_recall_status,
+                  vector_recall_preview: payload.vector_recall_preview,
+                  vector_fallback_reason: payload.vector_fallback_reason,
+                  fallback_reason: payload.fallback_reason,
+                });
+              }
+
+              if (frame.type === "memory_commit") {
+                const payload =
+                  frame.payload && typeof frame.payload === "object"
+                    ? frame.payload
+                    : {};
+                console.log(formatMisoTraceTitle("memory_commit"), {
+                  applied: payload.applied,
+                  session_id: payload.session_id,
+                  stored_message_count: payload.stored_message_count,
+                  vector_indexed_count: payload.vector_indexed_count,
+                  vector_fallback_reason: payload.vector_fallback_reason,
+                  fallback_reason: payload.fallback_reason,
+                });
+              }
 
               if (frame.type === "tool_confirmation_request") {
                 const callId =
@@ -1227,7 +1688,7 @@ const ChatInterface = () => {
                       false,
                     );
                   }
-                  setToolConfirmationUiStateById((previous) =>
+                  updateToolConfirmationUiState((previous) =>
                     previous[confirmationId]
                       ? previous
                       : {
@@ -1257,24 +1718,53 @@ const ChatInterface = () => {
                 markConfirmationFollowupSignalByCallId(callId);
               } else if (frame.type === "error" || frame.type === "done") {
                 markAllPendingConfirmationFollowupSignals();
+                pendingContinuationRequestRef.current = null;
+                setPendingContinuationRequest(null);
               }
 
-              // final_message carries the complete reply text
+              // final_message carries the complete reply text.
+              // For tool-call workflows, intermediate final_messages must
+              // replace content so the trace timeline can show them.  For
+              // simple (no-tool) messages we only adopt the server text
+              // when it meaningfully differs from the accumulated tokens
+              // to avoid a visual "jump" caused by minor whitespace or
+              // extraction differences.
               if (frame.type === "final_message") {
-                const finalContent =
+                const rawFinalContent =
                   typeof frame.payload?.content === "string"
                     ? frame.payload.content
                     : "";
-                const nextStreamMessages = streamMessages.map((message) =>
-                  message.id === assistantMessageId
-                    ? {
-                        ...message,
-                        content: finalContent,
-                        updatedAt: patchTime,
-                        traceFrames: [...(message.traceFrames || []), frame],
-                      }
-                    : message,
-                );
+                // Strip <think>…</think> blocks that the backend may
+                // embed — their content was already routed to traceFrames.
+                const finalContent = rawFinalContent
+                  .replace(/<think>[\s\S]*?<\/think>/g, "")
+                  .replace(/^\s*\n/, "");
+                const nextStreamMessages = streamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+
+                  const currentContent =
+                    typeof message.content === "string" ? message.content : "";
+                  const hasToolActivity = (message.traceFrames || []).some(
+                    (f) =>
+                      f.type === "tool_call" ||
+                      f.type === "tool_confirmation_request" ||
+                      f.type === "tool_result",
+                  );
+
+                  // For simple messages, keep accumulated content when the
+                  // trimmed texts are identical (avoids whitespace-only diff).
+                  const useAccumulated =
+                    !hasToolActivity &&
+                    currentContent.trim() === finalContent.trim() &&
+                    currentContent.length > 0;
+
+                  return {
+                    ...message,
+                    content: useAccumulated ? currentContent : finalContent,
+                    updatedAt: patchTime,
+                    traceFrames: [...(message.traceFrames || []), frame],
+                  };
+                });
                 syncStreamMessages(nextStreamMessages);
                 return;
               }
@@ -1288,20 +1778,19 @@ const ChatInterface = () => {
                   if (message.id !== assistantMessageId) return message;
 
                   const currentContent =
-                    typeof message.content === "string"
-                      ? message.content.trim()
-                      : "";
+                    typeof message.content === "string" ? message.content : "";
+                  const currentContentTrimmed = currentContent.trim();
                   const existingFrames = message.traceFrames || [];
 
                   // Check whether the current content was already captured
                   // by a real final_message frame.
                   const alreadyCaptured =
-                    !currentContent ||
+                    !currentContentTrimmed ||
                     existingFrames.some(
                       (f) =>
                         f.type === "final_message" &&
                         typeof f.payload?.content === "string" &&
-                        f.payload.content.trim() === currentContent,
+                        f.payload.content.trim() === currentContentTrimmed,
                     );
 
                   const syntheticFrame = alreadyCaptured
@@ -1348,11 +1837,11 @@ const ChatInterface = () => {
                 typeof meta.thread_id === "string" &&
                 meta.thread_id.trim()
               ) {
-                setChatThreadId(chatId, meta.thread_id, {
+                setChatThreadId(chatId, chatId, {
                   source: "chat-page",
                 });
                 if (activeChatIdRef.current === chatId) {
-                  threadIdRef.current = meta.thread_id;
+                  threadIdRef.current = chatId;
                 }
               }
 
@@ -1373,19 +1862,13 @@ const ChatInterface = () => {
                 return;
               }
 
-              const patchTime = Date.now();
-              const nextStreamMessages = streamMessages.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      content: `${typeof message.content === "string" ? message.content : ""}${delta}`,
-                      updatedAt: patchTime,
-                    }
-                  : message,
-              );
-              syncStreamMessages(nextStreamMessages);
+              // Route through the think-tag parser; it calls onContent /
+              // onThinking which buffer into the right channel.
+              thinkTagParser.feed(delta);
             },
             onDone: (done) => {
+              thinkTagParser.flush();
+              flushBufferedTokenDelta();
               const doneTime = Date.now();
               const parseUsageNumber = (value) => {
                 const parsed = Number(value);
@@ -1418,25 +1901,34 @@ const ChatInterface = () => {
                   ? parsedUsage
                   : undefined;
 
-              const nextStreamMessages = streamMessages.map((message) =>
-                message.id === assistantMessageId
-                  ? {
-                      ...message,
-                      status: "done",
-                      updatedAt: doneTime,
-                      meta: {
-                        ...(message.meta || {}),
-                        ...(usage ? { usage } : {}),
-                      },
-                    }
-                  : message,
-              );
+              const nextStreamMessages = streamMessages.map((message) => {
+                if (message.id !== assistantMessageId) return message;
+                // Strip any residual <think>…</think> tags that may have
+                // ended up in content (e.g. from backend final_message).
+                let cleanContent =
+                  typeof message.content === "string" ? message.content : "";
+                cleanContent = cleanContent
+                  .replace(/<think>[\s\S]*?<\/think>/g, "")
+                  .replace(/^\s*\n/, "");
+                return {
+                  ...message,
+                  content: cleanContent,
+                  status: "done",
+                  updatedAt: doneTime,
+                  meta: {
+                    ...(message.meta || {}),
+                    ...(usage ? { usage } : {}),
+                  },
+                };
+              });
               syncStreamMessages(nextStreamMessages);
               streamHandleRef.current = null;
               streamingChatIdRef.current = null;
               activeStreamMessagesRef.current = null;
               setStreamingChatId(null);
               clearAllPendingToolConfirmations();
+              disposeBufferedTokenFlush();
+              releaseTokenFlushController();
               if (activeChatIdRef.current !== chatId) {
                 setChatGeneratedUnread(chatId, true, {
                   source: "chat-page",
@@ -1444,15 +1936,56 @@ const ChatInterface = () => {
               }
             },
             onError: (error) => {
+              thinkTagParser.flush();
+              flushBufferedTokenDelta();
               if (
                 streamHandleRef.current === null &&
                 streamingChatIdRef.current === null
               ) {
+                disposeBufferedTokenFlush();
+                releaseTokenFlushController();
                 return;
               }
               const errorMessage = error?.message || "Unknown stream error";
               const errorCode = error?.code || "stream_error";
               const errorTime = Date.now();
+
+              if (
+                errorCode === "memory_unavailable" &&
+                memoryFallbackAttempted !== true
+              ) {
+                if (activeChatIdRef.current === chatId) {
+                  setStreamError(
+                    "Memory is unavailable for this request. Retrying with recent history.",
+                  );
+                }
+                streamHandleRef.current = null;
+                streamingChatIdRef.current = null;
+                activeStreamMessagesRef.current = null;
+                setStreamingChatId(null);
+                clearAllPendingToolConfirmations();
+                disposeBufferedTokenFlush();
+                releaseTokenFlushController();
+
+                const retryHistory = buildHistoryForModel(
+                  streamMessages,
+                  chatId,
+                );
+                void startStreamRequest({
+                  chatId,
+                  text: promptText,
+                  attachmentsForMessage: persistedAttachments,
+                  baseMessages: normalizedBaseMessages,
+                  clearComposer: false,
+                  reuseUserMessage: normalizedReuseUserMessage,
+                  missingAttachmentPayloadMode,
+                  memoryFallbackAttempted: true,
+                  forceHistoryFallback: true,
+                  historyOverride: retryHistory,
+                });
+                return;
+              }
+
               if (activeChatIdRef.current === chatId) {
                 setStreamError(errorMessage);
               }
@@ -1460,6 +1993,8 @@ const ChatInterface = () => {
               streamingChatIdRef.current = null;
               setStreamingChatId(null);
               clearAllPendingToolConfirmations();
+              disposeBufferedTokenFlush();
+              releaseTokenFlushController();
 
               const nextStreamMessages = streamMessages.map((message) => {
                 if (message.id !== assistantMessageId) {
@@ -1504,6 +2039,8 @@ const ChatInterface = () => {
           },
         );
       } catch (error) {
+        disposeBufferedTokenFlush();
+        releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
         setStreamError(errorMessage);
         streamHandleRef.current = null;
@@ -1548,11 +2085,13 @@ const ChatInterface = () => {
     [
       buildHistoryForModel,
       clearAllPendingToolConfirmations,
+      clearActiveTokenFlushController,
       clearResolvedToolConfirmationByCallId,
       getOrCreateChatAttachmentPayloadMap,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       resolveAttachmentPayloads,
+      updateToolConfirmationUiState,
     ],
   );
 
@@ -1950,32 +2489,36 @@ const ChatInterface = () => {
     [removeAttachmentPayload],
   );
 
-  const handleDeleteMessage = useCallback((message) => {
-    if (!message || typeof message.id !== "string" || !message.id) {
-      return;
-    }
-
-    const deletingStreamingAssistant =
-      message.role === "assistant" && message.status === "streaming";
-
-    if (
-      deletingStreamingAssistant &&
-      streamHandleRef.current &&
-      streamingChatIdRef.current === activeChatIdRef.current
-    ) {
-      if (typeof streamHandleRef.current.cancel === "function") {
-        streamHandleRef.current.cancel();
+  const handleDeleteMessage = useCallback(
+    (message) => {
+      if (!message || typeof message.id !== "string" || !message.id) {
+        return;
       }
-      streamHandleRef.current = null;
-      streamingChatIdRef.current = null;
-      activeStreamMessagesRef.current = null;
-      setStreamingChatId(null);
-    }
 
-    setMessages((previousMessages) =>
-      previousMessages.filter((item) => item.id !== message.id),
-    );
-  }, []);
+      const deletingStreamingAssistant =
+        message.role === "assistant" && message.status === "streaming";
+
+      if (
+        deletingStreamingAssistant &&
+        streamHandleRef.current &&
+        streamingChatIdRef.current === activeChatIdRef.current
+      ) {
+        clearActiveTokenFlushController("dispose");
+        if (typeof streamHandleRef.current.cancel === "function") {
+          streamHandleRef.current.cancel();
+        }
+        streamHandleRef.current = null;
+        streamingChatIdRef.current = null;
+        activeStreamMessagesRef.current = null;
+        setStreamingChatId(null);
+      }
+
+      setMessages((previousMessages) =>
+        previousMessages.filter((item) => item.id !== message.id),
+      );
+    },
+    [clearActiveTokenFlushController],
+  );
 
   const effectiveDisclaimer = useMemo(() => {
     if (streamError) {
@@ -2090,6 +2633,8 @@ const ChatInterface = () => {
     modelSelectDisabled: isStreaming,
     selectedToolkits,
     onToolkitsChange: setSelectedToolkits,
+    selectedWorkspaceIds,
+    onWorkspaceIdsChange: setSelectedWorkspaceIds,
   };
 
   return (
@@ -2332,6 +2877,65 @@ const ChatInterface = () => {
             loadBatchSize={6}
             topLoadThreshold={80}
           />
+          {pendingContinuationRequest && (
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
+                padding: "10px 16px",
+                background: "var(--color-bg-secondary, #1e1e1e)",
+                borderTop: "1px solid var(--color-border, #333)",
+                fontSize: 13,
+              }}
+            >
+              <span
+                style={{ flex: 1, color: "var(--color-text-secondary, #aaa)" }}
+              >
+                Agent reached {pendingContinuationRequest.iteration} iterations
+                without a final response. Continue?
+              </span>
+              <button
+                disabled={pendingContinuationRequest.status === "submitting"}
+                onClick={() =>
+                  handleContinuationDecision({
+                    confirmationId: pendingContinuationRequest.confirmationId,
+                    approved: true,
+                  })
+                }
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: "var(--color-accent, #4a9eff)",
+                  color: "#fff",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                }}
+              >
+                Continue
+              </button>
+              <button
+                disabled={pendingContinuationRequest.status === "submitting"}
+                onClick={() =>
+                  handleContinuationDecision({
+                    confirmationId: pendingContinuationRequest.confirmationId,
+                    approved: false,
+                  })
+                }
+                style={{
+                  padding: "5px 14px",
+                  borderRadius: 6,
+                  border: "1px solid var(--color-border, #444)",
+                  background: "transparent",
+                  color: "var(--color-text, #eee)",
+                  cursor: "pointer",
+                }}
+              >
+                Stop
+              </button>
+            </div>
+          )}
           <ChatInput {...sharedChatInputProps} />
         </>
       )}
