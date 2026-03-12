@@ -112,9 +112,37 @@ Manage multiple conversations without losing context or cluttering your workflow
 - Agent Teams and Skills
 - MCP integration
 
+## Contributing
+
+Contributions are welcome.
+
+By intentionally submitting a contribution, you agree to the terms in
+[CLA.md](./CLA.md). In short:
+
+- you keep ownership of your contribution;
+- the project may ship your contribution under Apache-2.0; and
+- the project may also reuse or relicense accepted contributions in future
+  commercial, dual-licensed, source-available, or proprietary offerings.
+
+If you are contributing code or assets owned by your employer or client, make
+sure you have authority to do so before opening a pull request.
+
+## License And Trademark
+
+PuPu is distributed under the [Apache License 2.0](./LICENSE).
+
+This means the code can be used, modified, and redistributed commercially, but
+the PuPu name and brand are not automatically included in those rights.
+
+- License text: [LICENSE](./LICENSE)
+- Project notices: [NOTICE](./NOTICE)
+- Contributor terms: [CLA.md](./CLA.md)
+- Brand usage rules: [TRADEMARK_POLICY.md](./TRADEMARK_POLICY.md)
+
+If you ship a modified fork, rename it and replace PuPu branding unless you
+have written permission to use the marks.
+
 ## Support
 
 - Found a bug or want to request something: [open an issue](https://github.com/haoxiang-xu/PuPu/issues)
 - Want the latest downloadable builds: [see releases](https://github.com/haoxiang-xu/PuPu/releases/latest)
-
-Contributor and engineering docs live in [wiki/Home.md](./wiki/Home.md).
