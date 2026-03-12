@@ -1,317 +1,120 @@
-<link
-  href="https://fonts.googleapis.com/css2?family=Jost:wght@400;700&display=swap"
-  rel="stylesheet"
-></link>
-
 <div align="center">
   <img src="./public/logo512.png" alt="PuPu" style="height: 128px">
   <h1>PuPu</h1>
   <p>Your AI, your way — beautifully simple.</p>
-  <br>
-  <a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0">
-    <img src="./public/assets/download_mac.svg" alt="Download for Mac" />
-  </a>&nbsp;&nbsp;
-  <a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0">
-    <img src="./public/assets/download_windows.svg" alt="Download for Windows" />
-  </a>&nbsp;&nbsp;
-  <a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0">
-    <img src="./public/assets/download_linux.svg" alt="Download for Linux" />
-  </a>
+  <p>
+    A desktop AI client for local and cloud models, with workspace-aware chat in one clean app.
+  </p>
+  <p>
+    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest">
+      <img src="./public/assets/download_mac.svg" alt="Download for Mac" />
+    </a>
+    &nbsp;&nbsp;
+    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest">
+      <img src="./public/assets/download_windows.svg" alt="Download for Windows" />
+    </a>
+    &nbsp;&nbsp;
+    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest">
+      <img src="./public/assets/download_linux.svg" alt="Download for Linux" />
+    </a>
+  </p>
 </div>
-<br><br>
 
-PuPu is a lightweight, cross-platform desktop AI client that works with both local and cloud-hosted models. Whether you prefer running models on your own machine or connecting to providers like OpenAI and Anthropic, PuPu gives you a unified, elegant interface — your AI, your rules.
+PuPu is a cross-platform desktop AI client that lets you chat with local models through Ollama or connect to cloud providers such as OpenAI and Anthropic. It is built for people who want one fast desktop app for everyday AI work, not a browser tab maze.
 
-please star the repo if you find it interesting! ⭐
+If you find the project useful, star the repo.
 
-<img src="./public/assets/v0.1.0-release/social_preview.png" alt="PuPu UI 1"/>
+![PuPu UI](./public/assets/v0.1.0-release/social_preview.png)
 
-## Features
+## Why PuPu
 
-### 🖥️ Multi-Platform Support
+- Local and cloud models in one place
+  - Use Ollama for local models, or switch to supported hosted providers when you need them.
+- Workspace-aware chat
+  - Attach a project folder so PuPu can work with your local files in context.
+- A cleaner desktop workflow
+  - Keep conversations, settings, and tools inside one native app on macOS, Windows, and Linux.
+- Built for real usage
+  - Manage multiple chats, keep context close to your work, and avoid bouncing between disconnected tools.
 
-Runs natively on **macOS**, **Windows**, and **Linux**. Connect to local models via Ollama or use cloud providers like OpenAI and Anthropic — all from the same beautiful interface.
+## Get PuPu
 
-### 📂 Workspace & Local File Access
+Download the latest release:
 
-Attach a workspace and let AI read, edit, and manage your local files directly. PuPu bridges the gap between your AI conversations and your actual project files.
-
-### 💬 Advanced Chat Management
-
-Organize conversations with ease — pin, search, and manage multiple chat sessions. A refined chat experience designed for productivity, not clutter.
-
-### 🔮 Roadmap
-
-- **Agent Builder** — Create custom AI agents tailored to your workflows
-- **Agent Teams & Skills** — Orchestrate multiple agents working together with specialized capabilities
-- **MCP Integration** — Connect to the Model Context Protocol ecosystem for extended tool use and context sharing
-
-<img src="./public/assets/v0.1.0-release/ui_showcase_1.png" alt="PuPu UI 2"/>
-
-## Table of Contents
-
-- [Features](#features)
-- [For Users](#for-users)
-  - [App installation](#app-installation)
-- [For Developers](#for-developers)
-  - [Miso Setup](#miso-setup)
-  - [Local Setup](#local-setup)
-  - [Deployment](#deployment)
-
-## For Users <a name="for-users"></a>
-
-### App installation <a name="app-installation"></a>
+- [macOS](https://github.com/haoxiang-xu/PuPu/releases/latest)
+- [Windows](https://github.com/haoxiang-xu/PuPu/releases/latest)
+- [Linux](https://github.com/haoxiang-xu/PuPu/releases/latest)
 
 ### Windows
 
-<a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
+1. Download the latest `.exe` installer from the [latest release page](https://github.com/haoxiang-xu/PuPu/releases/latest).
+2. Run the installer.
+3. Launch PuPu from the Start menu.
 
-- Download the `.exe` Windows installer [here](https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0).
-- Run the installer and follow the instructions.
-- Once the installation is complete, you can find the app in the start menu.
+### macOS
 
-### Mac
-
-<a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0"><img src="./public/assets/download_mac.svg" alt="Download for Mac" /></a>
-
-- Download the `.dmg` Mac installer [here](https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0).
-- Open the downloaded file and drag the app to the Applications folder.
-- Once the installation is complete, you can find the app in the Applications folder.
+1. Download the latest `.dmg` from the [latest release page](https://github.com/haoxiang-xu/PuPu/releases/latest).
+2. Open the disk image.
+3. Drag PuPu into `Applications`.
+4. Launch PuPu from `Applications`.
 
 ### Linux
 
-<a href="https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0"><img src="./public/assets/download_linux.svg" alt="Download for Linux" /></a>
-
-- Download the `.deb` or `.AppImage` file [here](https://github.com/haoxiang-xu/PuPu/releases/tag/v0.1.0).
-- If you downloaded the `.deb` file, run the following command in the terminal:
+1. Download the latest `.deb` or `.AppImage` from the [latest release page](https://github.com/haoxiang-xu/PuPu/releases/latest).
+2. If you use the `.deb`, install it with:
 
 ```bash
-sudo dpkg -i PuPu-0.1.0.deb
+sudo apt install ./PuPu-<version>.deb
 ```
 
-OR
-
-```bash
-sudo apt install ./PuPu-0.1.0.deb
-```
-
-- Ensuring Proper Sandbox Permissions: <span style="opacity: 0.32">If you encounter an error message about sandbox permissions, you can run the following command:</span>
+3. If your system reports a Chromium sandbox permission error, run:
 
 ```bash
 sudo chown root:root /opt/PuPu/chrome-sandbox
 sudo chmod 4755 /opt/PuPu/chrome-sandbox
 ```
 
-## For Developers <a name="for-developers"></a>
+## Quick Start
 
-### Miso Setup <a name="miso-setup"></a>
+1. Open PuPu.
+2. Choose how you want to run models:
+   - local with Ollama
+   - cloud with a supported provider such as OpenAI or Anthropic
+3. Add any API key or provider settings in the app if needed.
+4. Optionally attach a workspace folder so PuPu can work with local files in context.
+5. Start chatting.
 
-PuPu starts a local Miso sidecar process when running the Electron app.
+## What You Can Do
 
-Team Python standard:
+### Work With Local Models
 
-- Both repos pin `.python-version` to `3.12`
-- Development virtual environments must live at `.venv/`
-- PuPu build packaging uses `.venv-miso-build/`
-- `venv/` is no longer supported
-- `MISO_PYTHON_BIN` must point to a Python `3.12.x` interpreter
+Run supported Ollama models directly from your machine without leaving the desktop app.
 
-In development, PuPu looks for a valid Miso source in this order:
+### Connect To Hosted Providers
 
-1. `MISO_SOURCE_PATH` (if set)
-2. sibling folder `../miso`
+Switch to supported cloud providers when you want stronger hosted models or a different workflow.
 
-A valid Miso source must contain:
+### Attach A Workspace
 
-- `miso/__init__.py`
-- `miso/broth.py`
+Give PuPu a workspace and keep the conversation tied to the files you are actually working on.
 
-Recommended setup:
+### Keep Chats Organized
 
-1. Put the Miso repo next to PuPu:
+Manage multiple conversations without losing context or cluttering your workflow.
 
-```bash
-# parent folder of PuPu
-cd ..
-git clone <your-miso-repo-url> miso
-cd PuPu
-```
+## Screenshots
 
-2. Create a Python environment for the PuPu sidecar runtime:
+![PuPu showcase](./public/assets/v0.1.0-release/ui_showcase_1.png)
 
-```bash
-cd ../miso
-./scripts/init_python312_venv.sh
+## Roadmap
 
-cd ../PuPu
-./scripts/init_python312_venv.sh
-```
+- Agent Builder
+- Agent Teams and Skills
+- MCP integration
 
-Windows:
+## Support
 
-```powershell
-cd ..\miso
-powershell -ExecutionPolicy Bypass -File .\scripts\init_python312_venv.ps1
+- Found a bug or want to request something: [open an issue](https://github.com/haoxiang-xu/PuPu/issues)
+- Want the latest downloadable builds: [see releases](https://github.com/haoxiang-xu/PuPu/releases/latest)
 
-cd ..\PuPu
-powershell -ExecutionPolicy Bypass -File .\scripts\init_python312_venv.ps1
-```
-
-3. Activate the PuPu virtual environment when you want to run Python-side checks manually:
-
-```bash
-source ./.venv/bin/activate
-```
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-```
-
-4. Configure Miso runtime environment variables (examples):
-
-```bash
-# optional if your miso repo is already at ../miso
-export MISO_SOURCE_PATH=/absolute/path/to/miso
-
-# optional override for Python executable used to launch miso sidecar
-# must point to a Python 3.12.x interpreter, typically:
-export MISO_PYTHON_BIN=/absolute/path/to/PuPu/.venv/bin/python
-
-# optional (default: ollama)
-export MISO_PROVIDER=ollama
-
-# optional (provider-specific default will be used if omitted)
-export MISO_MODEL=deepseek-r1:14b
-
-# required when MISO_PROVIDER is openai or anthropic
-export MISO_API_KEY=<your_api_key>
-# or use provider-specific keys:
-# export OPENAI_API_KEY=<your_api_key>
-# export ANTHROPIC_API_KEY=<your_api_key>
-```
-
-Quick checks:
-
-- Confirm `python --version` inside both `.venv` environments reports `Python 3.12.x`.
-- If `MISO_PROVIDER=ollama`, ensure Ollama is running and the selected model is installed.
-- Start PuPu with `npm start` and confirm Miso status in the app is `ready`.
-
-#### Build packaged Miso sidecar (release)
-
-For packaged apps, build a standalone `miso-server` binary first:
-
-```bash
-# macOS arm64
-npm run build:miso:mac
-```
-
-Output path:
-
-```bash
-miso_runtime/dist/macos/miso-server
-```
-
-Notes:
-
-- The script is `miso_runtime/scripts/build_miso_server.sh`.
-- Default Miso source is `../miso`. Override with `MISO_SOURCE_PATH` when needed.
-- First run creates `./.venv-miso-build` with Python `3.12.x` and installs build dependencies.
-- If `./.venv-miso-build` exists with another Python minor version, the build script recreates it.
-- First run needs network access to install `pyinstaller` and Python deps.
-- If deps are already prepared, run with `MISO_BUILD_SKIP_INSTALL=1`.
-
-### Local Setup <a name="local-setup"></a>
-
-- Install dependencies: <span style="opacity: 0.32">To run the electron app locally, you need to install the dependencies by running the following command:</span>
-
-`npm install`
-
-- Rebuild the Electron App: <span style="opacity: 0.32">After installing the dependencies, you need to rebuild the electron app by running the following command:</span>
-
-`npx electron-rebuild`
-
-- Run the Electron App: <span style="opacity: 0.32">Once the dependencies are installed, you can run the app by running the following command:</span>
-
-`npm start`
-
-- Browse built-in Mini UI components:
-  <span style="opacity: 0.32">After local startup, open the following page to preview available Mini UI native components:</span>
-
-`http://localhost:2907/mini`
-
-### Deployment <a name="deployment"></a>
-
-Build on the target OS host.
-
-#### Common prerequisites
-
-1. Make sure Miso source exists at `../miso`, or set custom path:
-
-```bash
-export MISO_SOURCE_PATH=/absolute/path/to/miso
-```
-
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Optional cleanup before rebuilding:
-
-```bash
-# macOS / Linux
-rm -rf dist
-```
-
-```powershell
-# Windows
-Remove-Item -Recurse -Force dist -ErrorAction SilentlyContinue
-```
-
-#### macOS (arm64)
-
-```bash
-npm run build:electron:mac
-```
-
-Output files:
-
-- `dist/PuPu-<version>-arm64.dmg`
-- `dist/mac-arm64/PuPu.app`
-
-#### Windows
-
-Use **Command Prompt or PowerShell as Administrator** for Windows packaging.
-
-Unsigned local build (recommended for development):
-
-```powershell
-npm run pack:win:unsigned
-```
-
-Signed release build:
-
-```powershell
-$env:WIN_CSC_LINK="C:\path\to\codesign.pfx"
-$env:WIN_CSC_KEY_PASSWORD="your_password"
-npm run pack:win
-```
-
-Output files:
-
-- `dist/PuPu Setup <version>.exe`
-- `dist/win-unpacked/PuPu.exe`
-
-If you see `Cannot create symbolic link : A required privilege is not held by the client`, clear cache and rebuild in an Administrator shell:
-
-```powershell
-Remove-Item -Recurse -Force "$env:LOCALAPPDATA\electron-builder\Cache\winCodeSign"
-npm run pack:win
-```
-
-#### Linux
-
-```bash
-npm run build:electron:linux
-```
+Contributor and engineering docs live in [wiki/Home.md](./wiki/Home.md).
