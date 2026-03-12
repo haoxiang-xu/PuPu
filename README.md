@@ -108,6 +108,14 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 
 PuPu starts a local Miso sidecar process when running the Electron app.
 
+Team Python standard:
+
+- Both repos pin `.python-version` to `3.12`
+- Development virtual environments must live at `.venv/`
+- PuPu build packaging uses `.venv-miso-build/`
+- `venv/` is no longer supported
+- `MISO_PYTHON_BIN` must point to a Python `3.12.x` interpreter
+
 In development, PuPu looks for a valid Miso source in this order:
 
 1. `MISO_SOURCE_PATH` (if set)
@@ -132,16 +140,32 @@ cd PuPu
 2. Create a Python environment for the PuPu sidecar runtime:
 
 ```bash
-python3 -m venv ./.venv
-# Mac/Linux:
-source ./.venv/bin/activate
-# Windows: Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
-.\.venv\Scripts\activate
+cd ../miso
+./scripts/init_python312_venv.sh
 
-pip install -r ./miso_runtime/server/requirements.txt
+cd ../PuPu
+./scripts/init_python312_venv.sh
 ```
 
-3. Install dependencies for your Miso repo (inside `../miso`) based on that repo's instructions.
+Windows:
+
+```powershell
+cd ..\miso
+powershell -ExecutionPolicy Bypass -File .\scripts\init_python312_venv.ps1
+
+cd ..\PuPu
+powershell -ExecutionPolicy Bypass -File .\scripts\init_python312_venv.ps1
+```
+
+3. Activate the PuPu virtual environment when you want to run Python-side checks manually:
+
+```bash
+source ./.venv/bin/activate
+```
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
 
 4. Configure Miso runtime environment variables (examples):
 
@@ -150,7 +174,8 @@ pip install -r ./miso_runtime/server/requirements.txt
 export MISO_SOURCE_PATH=/absolute/path/to/miso
 
 # optional override for Python executable used to launch miso sidecar
-export MISO_PYTHON_BIN=/absolute/path/to/python
+# must point to a Python 3.12.x interpreter, typically:
+export MISO_PYTHON_BIN=/absolute/path/to/PuPu/.venv/bin/python
 
 # optional (default: ollama)
 export MISO_PROVIDER=ollama
@@ -167,6 +192,7 @@ export MISO_API_KEY=<your_api_key>
 
 Quick checks:
 
+- Confirm `python --version` inside both `.venv` environments reports `Python 3.12.x`.
 - If `MISO_PROVIDER=ollama`, ensure Ollama is running and the selected model is installed.
 - Start PuPu with `npm start` and confirm Miso status in the app is `ready`.
 
@@ -189,7 +215,8 @@ Notes:
 
 - The script is `miso_runtime/scripts/build_miso_server.sh`.
 - Default Miso source is `../miso`. Override with `MISO_SOURCE_PATH` when needed.
-- First run creates `./.venv-miso-build` and installs build dependencies.
+- First run creates `./.venv-miso-build` with Python `3.12.x` and installs build dependencies.
+- If `./.venv-miso-build` exists with another Python minor version, the build script recreates it.
 - First run needs network access to install `pyinstaller` and Python deps.
 - If deps are already prepared, run with `MISO_BUILD_SKIP_INSTALL=1`.
 

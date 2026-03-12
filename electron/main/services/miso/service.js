@@ -131,41 +131,94 @@ const createMisoService = ({
     return null;
   };
 
-  const hasPythonModule = (pythonCommand, moduleName) => {
-    if (!pythonCommand || !moduleName) {
-      return false;
-    }
-
-    const probe = spawnSync(
-      pythonCommand,
-      [
-        "-c",
-        `import importlib.util, sys; sys.exit(0 if importlib.util.find_spec("${moduleName}") else 1)`,
-      ],
-      {
-        stdio: "ignore",
-        windowsHide: true,
-      },
-    );
-
-    if (probe.error) {
-      return false;
-    }
-
-    return probe.status === 0;
-  };
-
   const MISO_REQUIRED_PYTHON_MODULES = [
     "flask",
     "qdrant_client",
     "openai",
     "anthropic",
   ];
+  const MISO_REQUIRED_PYTHON_VERSION = "3.12.x";
 
-  const hasPythonModules = (pythonCommand, moduleNames = []) =>
-    moduleNames.every((moduleName) =>
-      hasPythonModule(pythonCommand, moduleName),
+  const inspectPythonCommand = (
+    pythonCommand,
+    label,
+    moduleNames = MISO_REQUIRED_PYTHON_MODULES,
+  ) => {
+    if (!pythonCommand) {
+      return {
+        ok: false,
+        reason: `${label} is not configured.`,
+      };
+    }
+
+    const probe = spawnSync(
+      pythonCommand,
+      [
+        "-c",
+        [
+          "import importlib.util",
+          "import json",
+          "import sys",
+          `module_names = ${JSON.stringify(moduleNames)}`,
+          "missing = [name for name in module_names if importlib.util.find_spec(name) is None]",
+          "print(json.dumps({",
+          '    "version": sys.version.split()[0],',
+          '    "major": sys.version_info[0],',
+          '    "minor": sys.version_info[1],',
+          '    "missing": missing,',
+          "}))",
+        ].join("\n"),
+      ],
+      {
+        encoding: "utf8",
+        windowsHide: true,
+      },
     );
+
+    if (probe.error) {
+      return {
+        ok: false,
+        reason: `${label} is unavailable at ${pythonCommand}: ${probe.error.message}`,
+      };
+    }
+
+    if (probe.status !== 0) {
+      return {
+        ok: false,
+        reason: `${label} could not be inspected at ${pythonCommand}.`,
+      };
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(String(probe.stdout || "").trim());
+    } catch {
+      return {
+        ok: false,
+        reason: `${label} returned an invalid probe response.`,
+      };
+    }
+
+    if (parsed.major !== 3 || parsed.minor !== 12) {
+      return {
+        ok: false,
+        reason: `${label} must use Python ${MISO_REQUIRED_PYTHON_VERSION}. Found ${parsed.version} at ${pythonCommand}.`,
+      };
+    }
+
+    if (parsed.missing.length > 0) {
+      return {
+        ok: false,
+        reason: `${label} is missing required modules (${parsed.missing.join(", ")}). Recreate that .venv with Python ${MISO_REQUIRED_PYTHON_VERSION}.`,
+      };
+    }
+
+    return {
+      ok: true,
+      command: pythonCommand,
+      version: parsed.version,
+    };
+  };
 
   const resolvePuPuVenvPythonPath = () => {
     const appPath = app.getAppPath();
@@ -182,53 +235,61 @@ const createMisoService = ({
     }
 
     if (process.platform === "win32") {
-      return path.join(misoSourcePath, "venv", "Scripts", "python.exe");
+      return path.join(misoSourcePath, ".venv", "Scripts", "python.exe");
     }
-    return path.join(misoSourcePath, "venv", "bin", "python");
+    return path.join(misoSourcePath, ".venv", "bin", "python");
   };
 
   const pickBestPythonCommand = () => {
-    const candidates = [];
+    const candidates = [
+      {
+        label: "PuPu .venv",
+        command: resolvePuPuVenvPythonPath(),
+      },
+      {
+        label: "miso .venv",
+        command: resolveMisoVenvPythonPath(),
+      },
+    ];
+    const failures = [];
 
-    const pupuVenvPython = resolvePuPuVenvPythonPath();
-    if (fs.existsSync(pupuVenvPython)) {
-      candidates.push(pupuVenvPython);
+    for (const candidate of candidates) {
+      if (!candidate.command) {
+        failures.push(`${candidate.label} could not be resolved.`);
+        continue;
+      }
+      if (!fs.existsSync(candidate.command)) {
+        failures.push(
+          `${candidate.label} was not found at ${candidate.command}.`,
+        );
+        continue;
+      }
+
+      const inspection = inspectPythonCommand(candidate.command, candidate.label);
+      if (inspection.ok) {
+        return inspection.command;
+      }
+      failures.push(inspection.reason);
     }
 
-    const misoVenvPython = resolveMisoVenvPythonPath();
-    if (misoVenvPython && fs.existsSync(misoVenvPython)) {
-      candidates.push(misoVenvPython);
-    }
-
-    if (process.platform === "win32") {
-      candidates.push("python");
-    } else {
-      candidates.push("python3", "python");
-    }
-
-    const uniqueCandidates = [...new Set(candidates)];
-    const withRequiredModules = uniqueCandidates.find((candidate) =>
-      hasPythonModules(candidate, MISO_REQUIRED_PYTHON_MODULES),
-    );
-    if (withRequiredModules) {
-      return withRequiredModules;
-    }
-
-    const withFlask = uniqueCandidates.find((candidate) =>
-      hasPythonModule(candidate, "flask"),
-    );
-    if (withFlask) {
-      return withFlask;
-    }
-
-    return (
-      uniqueCandidates[0] ||
-      (process.platform === "win32" ? "python" : "python3")
+    throw new Error(
+      [
+        `PuPu requires a Python ${MISO_REQUIRED_PYTHON_VERSION} runtime in .venv.`,
+        "Initialize ./scripts/init_python312_venv.sh in PuPu and ../miso/scripts/init_python312_venv.sh in miso.",
+        ...failures,
+      ].join(" "),
     );
   };
 
   const getMisoPythonCommand = () => {
     if (process.env.MISO_PYTHON_BIN) {
+      const inspection = inspectPythonCommand(
+        process.env.MISO_PYTHON_BIN,
+        "MISO_PYTHON_BIN",
+      );
+      if (!inspection.ok) {
+        throw new Error(inspection.reason);
+      }
       return process.env.MISO_PYTHON_BIN;
     }
     return pickBestPythonCommand();
@@ -701,7 +762,15 @@ const createMisoService = ({
     misoStatusReason = "";
 
     misoStartPromise = (async () => {
-      const entrypoint = resolveMisoEntrypoint();
+      let entrypoint;
+      try {
+        entrypoint = resolveMisoEntrypoint();
+      } catch (error) {
+        misoStatus = "not_found";
+        misoStatusReason =
+          error?.message || "Python 3.12 runtime for Miso was not found";
+        return;
+      }
       if (!entrypoint) {
         misoStatus = "not_found";
         misoStatusReason = "Miso server entrypoint was not found";

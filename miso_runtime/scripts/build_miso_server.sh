@@ -8,7 +8,8 @@ Usage:
 
 Environment variables:
   MISO_SOURCE_PATH      Path to miso source repo (default: ../miso)
-  MISO_PYTHON_BIN       Python executable to create build venv (default: python3)
+  MISO_PYTHON_BIN       Python 3.12 executable to create build venv
+                        (default resolution: python3.12 -> python3 -> python)
   MISO_BUILD_VENV       Build venv path (default: ./.venv-miso-build)
   MISO_TARGET_ARCH      macOS target arch for PyInstaller
   MISO_BUILD_SKIP_INSTALL
@@ -20,7 +21,38 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_OS="${1:-}"
 TARGET_ARCH="${2:-${MISO_TARGET_ARCH:-}}"
 MIN_PYTHON_MAJOR=3
-MIN_PYTHON_MINOR=10
+MIN_PYTHON_MINOR=12
+
+is_python312() {
+  local python_bin="$1"
+  "$python_bin" - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info[:2] == (3, 12) else 1)
+PY
+}
+
+resolve_python312() {
+  local candidate
+
+  if [[ -n "${MISO_PYTHON_BIN:-}" ]]; then
+    if is_python312 "${MISO_PYTHON_BIN}"; then
+      printf '%s\n' "${MISO_PYTHON_BIN}"
+      return 0
+    fi
+    echo "MISO_PYTHON_BIN must point to Python 3.12.x: ${MISO_PYTHON_BIN}" >&2
+    return 1
+  fi
+
+  for candidate in python3.12 python3 python; do
+    if is_python312 "$candidate"; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  echo "Python 3.12.x is required to build miso-server." >&2
+  return 1
+}
 
 if [[ -z "$TARGET_OS" ]]; then
   case "$(uname -s)" in
@@ -71,12 +103,8 @@ if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
   exit 1
 fi
 
-PYTHON_BIN="${MISO_PYTHON_BIN:-python3}"
+PYTHON_BIN="$(resolve_python312)"
 VENV_DIR="${MISO_BUILD_VENV:-"$ROOT_DIR/.venv-miso-build"}"
-if [[ ! -x "$VENV_DIR/bin/python" && ! -x "$VENV_DIR/Scripts/python.exe" ]]; then
-  "$PYTHON_BIN" -m venv "$VENV_DIR"
-fi
-
 if [[ -x "$VENV_DIR/bin/python" ]]; then
   VENV_PY="$VENV_DIR/bin/python"
   VENV_PIP="$VENV_DIR/bin/pip"
@@ -84,8 +112,30 @@ elif [[ -x "$VENV_DIR/Scripts/python.exe" ]]; then
   VENV_PY="$VENV_DIR/Scripts/python.exe"
   VENV_PIP="$VENV_DIR/Scripts/pip.exe"
 else
-  echo "Build venv is missing python executable: $VENV_DIR"
-  exit 1
+  VENV_PY=""
+  VENV_PIP=""
+fi
+
+if [[ -n "$VENV_PY" ]] && ! is_python312 "$VENV_PY"; then
+  echo "Existing build venv does not use Python 3.12.x. Rebuilding: $VENV_DIR"
+  rm -rf "$VENV_DIR"
+  VENV_PY=""
+  VENV_PIP=""
+fi
+
+if [[ -z "$VENV_PY" ]]; then
+  "$PYTHON_BIN" -m venv "$VENV_DIR"
+
+  if [[ -x "$VENV_DIR/bin/python" ]]; then
+    VENV_PY="$VENV_DIR/bin/python"
+    VENV_PIP="$VENV_DIR/bin/pip"
+  elif [[ -x "$VENV_DIR/Scripts/python.exe" ]]; then
+    VENV_PY="$VENV_DIR/Scripts/python.exe"
+    VENV_PIP="$VENV_DIR/Scripts/pip.exe"
+  else
+    echo "Build venv is missing python executable: $VENV_DIR"
+    exit 1
+  fi
 fi
 
 if [[ "${MISO_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
@@ -100,10 +150,10 @@ fi
 import sys
 
 major, minor = sys.version_info[:2]
-if (major, minor) < (${MIN_PYTHON_MAJOR}, ${MIN_PYTHON_MINOR}):
+if (major, minor) != (${MIN_PYTHON_MAJOR}, ${MIN_PYTHON_MINOR}):
     print(
         f"Unsupported Python version: {sys.version.split()[0]} "
-        f"(required: >=${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR})"
+        f"(required: ${MIN_PYTHON_MAJOR}.${MIN_PYTHON_MINOR}.x)"
     )
     raise SystemExit(1)
 
