@@ -291,6 +291,10 @@ const Code = ({
           ...(shouldShowHeader ? { marginTop: 0 } : {}),
           overflow: "auto",
           padding: codePadding,
+          /* Prevent parent prose wrapping from leaking into fenced code blocks. */
+          wordBreak: "normal",
+          overflowWrap: "normal",
+          hyphens: "none",
         }}
       >
         <code
@@ -307,6 +311,9 @@ const Code = ({
             border: "none",
             whiteSpace: "pre",
             width: "fit-content",
+            wordBreak: "normal",
+            overflowWrap: "normal",
+            hyphens: "none",
           }}
           dangerouslySetInnerHTML={
             highlightedHtml ? { __html: highlightedHtml } : undefined

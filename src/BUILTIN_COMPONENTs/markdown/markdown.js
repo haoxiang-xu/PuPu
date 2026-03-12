@@ -108,6 +108,8 @@ const MARKDOWN_STYLE_KEYS = new Set([
   "image",
   "codeBlock",
 ]);
+const EMPTY_COMPONENTS = Object.freeze({});
+
 const splitStyleProps = (style) => {
   if (!style || typeof style !== "object") {
     return { containerStyle: style, markdownStyle: undefined };
@@ -167,7 +169,7 @@ const Markdown = ({
   markdown,
   options,
   extensions,
-  components = {},
+  components = EMPTY_COMPONENTS,
   flavor,
   sanitize_html = false,
   className,
@@ -336,15 +338,25 @@ const Markdown = ({
     }),
     [options],
   );
+  const renderPre = useMemo(
+    () =>
+      function renderPre(props) {
+        return (
+          <MarkdownCodeBlock
+            {...props}
+            markdownTheme={mergedMarkdownTheme}
+          />
+        );
+      },
+    [mergedMarkdownTheme],
+  );
   const mergedComponents = useMemo(
     () => ({
-      pre: (props) => (
-        <MarkdownCodeBlock {...props} markdownTheme={mergedMarkdownTheme} />
-      ),
+      pre: renderPre,
       think: ThinkBlock,
       ...components,
     }),
-    [components, mergedMarkdownTheme],
+    [components, renderPre],
   );
 
   const hasHeight =

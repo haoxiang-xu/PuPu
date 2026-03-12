@@ -9,17 +9,23 @@ jest.mock("highlight.js/lib/common", () => ({
   highlightAuto: jest.fn(),
 }));
 
-const renderCode = (props) =>
-  render(
+const configContextValue = {
+  theme: { color: "#222", font: { fontFamily: "sans-serif" }, code: {} },
+  onThemeMode: "light_mode",
+};
+
+const renderCodeTree = (props, parentStyle) => (
+  <div style={parentStyle}>
     <ConfigContext.Provider
-      value={{
-        theme: { color: "#222", font: { fontFamily: "sans-serif" }, code: {} },
-        onThemeMode: "light_mode",
-      }}
+      value={configContextValue}
     >
       <Code {...props} />
     </ConfigContext.Provider>,
-  );
+  </div>
+);
+
+const renderCode = (props, { parentStyle } = {}) =>
+  render(renderCodeTree(props, parentStyle));
 
 describe("Code deferred highlight", () => {
   beforeEach(() => {
@@ -82,5 +88,85 @@ describe("Code deferred highlight", () => {
     expect(hljs.highlightAuto).not.toHaveBeenCalled();
     const codeElement = container.querySelector("code.hljs");
     expect(codeElement.textContent.length).toBe(veryLongCode.length);
+  });
+
+  test("keeps fenced code blocks opt out of inherited prose wrapping", () => {
+    const { container } = renderCode(
+      {
+        code: "const value = 1;",
+        language: "js",
+      },
+      {
+        parentStyle: {
+          wordBreak: "break-word",
+          width: "120px",
+        },
+      },
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(10);
+    });
+
+    const scrollContainer = container.querySelector(".scrollable");
+    const codeElement = container.querySelector("code.hljs");
+
+    expect(codeElement.innerHTML).toContain("<mark>const</mark>");
+    expect(scrollContainer).toHaveStyle(`
+      word-break: normal;
+      overflow-wrap: normal;
+      hyphens: none;
+    `);
+    expect(codeElement).toHaveStyle(`
+      white-space: pre;
+      word-break: normal;
+      overflow-wrap: normal;
+      hyphens: none;
+    `);
+  });
+
+  test("preserves highlight output and non-wrapping styles across parent rerenders", () => {
+    const props = {
+      code: "const value = 1;",
+      language: "js",
+    };
+    const { container, rerender } = renderCode(props, {
+      parentStyle: {
+        wordBreak: "break-word",
+        width: "320px",
+      },
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(10);
+    });
+
+    rerender(
+      renderCodeTree(props, {
+        wordBreak: "break-word",
+        width: "140px",
+      }),
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(10);
+    });
+
+    const scrollContainer = container.querySelector(".scrollable");
+    const codeElement = container.querySelector("code.hljs");
+
+    expect(hljs.highlight).toHaveBeenCalledTimes(1);
+    expect(codeElement.innerHTML).toContain("<mark>const</mark>");
+    expect(scrollContainer).toHaveStyle(`
+      word-break: normal;
+      overflow-wrap: normal;
+      hyphens: none;
+    `);
+    expect(codeElement).toHaveStyle(`
+      white-space: pre;
+      word-break: normal;
+      overflow-wrap: normal;
+      hyphens: none;
+    `);
   });
 });
