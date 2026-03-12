@@ -32,9 +32,6 @@ const SideMenu = () => {
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
-  const [windowWidth, setWindowWidth] = useState(
-    typeof window !== "undefined" ? window.innerWidth : 1200,
-  );
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
@@ -61,24 +58,12 @@ const SideMenu = () => {
   const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
 
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  useEffect(() => {
     const timer = window.setInterval(() => {
       setRelativeNow(Date.now());
     }, 60 * 1000);
 
     return () => window.clearInterval(timer);
   }, []);
-
-  useEffect(() => {
-    if (windowWidth < 1000 && onFragment === "side_menu") {
-      console.log("Window width < 1000, side menu in overlay mode");
-    }
-  }, [windowWidth, onFragment]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

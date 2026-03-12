@@ -1,4 +1,5 @@
 import json
+import math
 import threading
 import time
 from typing import Any, Dict, Iterable, List
@@ -328,6 +329,74 @@ def _extract_projection_text(payload: Dict[str, object]) -> str:
     return ""
 
 
+def _empty_projection_payload() -> Dict[str, object]:
+    return {"points": [], "variance": [0.0, 0.0]}
+
+
+def _projection_collection_prefix(tag: object) -> str:
+    clean_tag = "".join(
+        c if c.isalnum() or c == "_" else "_"
+        for c in str(tag or "").strip()
+    )
+    return f"chat_{clean_tag}" if clean_tag else "chat"
+
+
+def _projection_session_collection_name(
+    *,
+    session_id: object,
+    collection_prefix: str,
+) -> str:
+    safe_session_id = "".join(
+        c if c.isalnum() or c == "_" else "_"
+        for c in str(session_id or "")
+    )
+    return f"{collection_prefix}_{safe_session_id}"
+
+
+def _normalize_projection_vector(
+    raw_vector: object,
+    *,
+    expected_dims: int = 0,
+) -> List[float] | None:
+    vector_candidate: Any = raw_vector
+    if isinstance(raw_vector, dict):
+        vector_candidate = next(
+            (
+                value
+                for value in raw_vector.values()
+                if isinstance(value, (list, tuple)) and value
+            ),
+            None,
+        )
+
+    if not isinstance(vector_candidate, (list, tuple)) or not vector_candidate:
+        return None
+
+    try:
+        vector = [float(item) for item in vector_candidate]
+    except Exception:
+        return None
+
+    if not vector or any(not math.isfinite(item) for item in vector):
+        return None
+
+    if expected_dims > 0 and len(vector) != expected_dims:
+        return None
+
+    return vector
+
+
+def _is_projection_collection_missing_error(error: Exception) -> bool:
+    normalized = str(error or "").strip().lower()
+    if "collection" not in normalized:
+        return False
+    return (
+        "not found" in normalized
+        or "does not exist" in normalized
+        or "doesn't exist" in normalized
+    )
+
+
 def _scroll_projection_points(client: Any, collection_name: str) -> List[Any]:
     all_points: List[Any] = []
     next_offset: Any = None
@@ -647,16 +716,24 @@ def memory_projection() -> Response:
         return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
 
     try:
-        from memory_factory import (
-            _data_dir,
-            _normalize_data_dir,
-            _get_or_create_qdrant_client,
-            _vector_collection_prefix,
-            _session_collection_name,
-        )
+        import memory_factory
         import json as _json
         import numpy as np
         from pathlib import Path
+
+        _data_dir = memory_factory._data_dir
+        _normalize_data_dir = memory_factory._normalize_data_dir
+        _get_or_create_qdrant_client = memory_factory._get_or_create_qdrant_client
+        vector_collection_prefix = getattr(
+            memory_factory,
+            "_vector_collection_prefix",
+            _projection_collection_prefix,
+        )
+        session_collection_name = getattr(
+            memory_factory,
+            "_session_collection_name",
+            _projection_session_collection_name,
+        )
 
         data_dir = _normalize_data_dir(_data_dir())
         if not data_dir:
@@ -678,59 +755,46 @@ def memory_projection() -> Response:
             _state = {}
 
         tag = str(_state.get("vector_collection_tag") or "").strip()
-        collection = _session_collection_name(
+        collection = session_collection_name(
             session_id=session_id,
-            collection_prefix=_vector_collection_prefix(tag),
+            collection_prefix=vector_collection_prefix(tag),
         )
         client = _get_or_create_qdrant_client(data_dir)
 
         scroll_result = _scroll_projection_points(client, collection)
 
         if not scroll_result:
-            return jsonify({"points": [], "variance": [0.0, 0.0]})
+            return jsonify(_empty_projection_payload())
 
         vector_rows: List[List[float]] = []
         vector_points: List[Any] = []
         expected_dims = 0
 
         for point in scroll_result:
-            raw_vector = getattr(point, "vector", None)
-            vector_candidate: Any = raw_vector
-            if isinstance(raw_vector, dict):
-                vector_candidate = next(
-                    (
-                        value
-                        for value in raw_vector.values()
-                        if isinstance(value, (list, tuple)) and value
-                    ),
-                    None,
-                )
-
-            if not isinstance(vector_candidate, (list, tuple)) or not vector_candidate:
-                continue
-
-            try:
-                vector = [float(item) for item in vector_candidate]
-            except Exception:
+            vector = _normalize_projection_vector(
+                getattr(point, "vector", None),
+                expected_dims=expected_dims,
+            )
+            if vector is None:
                 continue
 
             if expected_dims <= 0:
                 expected_dims = len(vector)
 
-            if len(vector) != expected_dims:
-                continue
-
             vector_rows.append(vector)
             vector_points.append(point)
 
         if not vector_rows:
-            return jsonify({"points": [], "variance": [0.0, 0.0]})
+            return jsonify(_empty_projection_payload())
 
         vectors = np.array(vector_rows, dtype=np.float64)
 
         # PCA via numpy thin SVD — center, project onto top-5 right singular vectors
-        X = vectors - vectors.mean(axis=0)
-        _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        try:
+            X = vectors - vectors.mean(axis=0)
+            _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        except Exception:
+            return jsonify(_empty_projection_payload())
         n_pcs = min(5, len(s))
         coords = X @ Vt[:n_pcs].T  # (n, n_pcs)
         total_var = float((s ** 2).sum())
@@ -739,11 +803,14 @@ def memory_projection() -> Response:
             if total_var > 0
             else [0.0] * 5
         )
-        cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+        try:
+            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+        except Exception:
+            cluster_labels = [0] * len(vector_points)
 
         points = []
         for i, p in enumerate(vector_points):
-            payload = p.payload or {}
+            payload = p.payload if isinstance(p.payload, dict) else {}
             full_text = _extract_projection_text(payload)
             turn_start = payload.get("turn_start_index")
             turn_end   = payload.get("turn_end_index")
@@ -785,10 +852,9 @@ def memory_projection() -> Response:
         return jsonify({"points": points, "variance": variance})
 
     except Exception as exc:
-        error_str = str(exc)
-        if "Collection" in error_str and "not found" in error_str:
-            return jsonify({"points": [], "variance": [0.0, 0.0]})
-        return jsonify({"error": error_str}), 500
+        if _is_projection_collection_missing_error(exc):
+            return jsonify(_empty_projection_payload())
+        return jsonify({"error": str(exc)}), 500
 
 
 @api_blueprint.get("/memory/long-term/projection")
@@ -818,7 +884,7 @@ def long_term_memory_projection() -> Response:
         ]
 
         if not lt_names:
-            return jsonify({"points": [], "variance": [0.0, 0.0]})
+            return jsonify(_empty_projection_payload())
 
         # Scroll every long-term collection and merge
         all_scroll: List[Any] = []
@@ -826,49 +892,36 @@ def long_term_memory_projection() -> Response:
             all_scroll.extend(_scroll_projection_points(client, col_name))
 
         if not all_scroll:
-            return jsonify({"points": [], "variance": [0.0, 0.0]})
+            return jsonify(_empty_projection_payload())
 
         vector_rows: List[List[float]] = []
         vector_points: List[Any] = []
         expected_dims = 0
 
         for point in all_scroll:
-            raw_vector = getattr(point, "vector", None)
-            vector_candidate: Any = raw_vector
-            if isinstance(raw_vector, dict):
-                vector_candidate = next(
-                    (
-                        value
-                        for value in raw_vector.values()
-                        if isinstance(value, (list, tuple)) and value
-                    ),
-                    None,
-                )
-
-            if not isinstance(vector_candidate, (list, tuple)) or not vector_candidate:
-                continue
-
-            try:
-                vector = [float(item) for item in vector_candidate]
-            except Exception:
+            vector = _normalize_projection_vector(
+                getattr(point, "vector", None),
+                expected_dims=expected_dims,
+            )
+            if vector is None:
                 continue
 
             if expected_dims <= 0:
                 expected_dims = len(vector)
 
-            if len(vector) != expected_dims:
-                continue
-
             vector_rows.append(vector)
             vector_points.append(point)
 
         if not vector_rows:
-            return jsonify({"points": [], "variance": [0.0, 0.0]})
+            return jsonify(_empty_projection_payload())
 
         vectors = np.array(vector_rows, dtype=np.float64)
 
-        X = vectors - vectors.mean(axis=0)
-        _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        try:
+            X = vectors - vectors.mean(axis=0)
+            _, s, Vt = np.linalg.svd(X, full_matrices=False)
+        except Exception:
+            return jsonify(_empty_projection_payload())
         n_pcs = min(5, len(s))
         coords = X @ Vt[:n_pcs].T
         total_var = float((s ** 2).sum())
@@ -877,11 +930,14 @@ def long_term_memory_projection() -> Response:
             if total_var > 0
             else [0.0] * 5
         )
-        cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+        try:
+            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+        except Exception:
+            cluster_labels = [0] * len(vector_points)
 
         points = []
         for i, p in enumerate(vector_points):
-            payload = p.payload or {}
+            payload = p.payload if isinstance(p.payload, dict) else {}
             full_text = _extract_projection_text(payload)
 
             label = ""
@@ -916,10 +972,9 @@ def long_term_memory_projection() -> Response:
         return jsonify({"points": points, "variance": variance})
 
     except Exception as exc:
-        error_str = str(exc)
-        if "Collection" in error_str and "not found" in error_str:
-            return jsonify({"points": [], "variance": [0.0, 0.0]})
-        return jsonify({"error": error_str}), 500
+        if _is_projection_collection_missing_error(exc):
+            return jsonify(_empty_projection_payload())
+        return jsonify({"error": str(exc)}), 500
 
 
 @api_blueprint.post("/chat/stream/v2")

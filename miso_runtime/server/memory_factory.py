@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import copy
 import importlib.util
+import json
 import os
 import threading
 import uuid
@@ -71,6 +72,71 @@ def _long_term_profiles_dir(data_dir: str) -> str:
     return str(p)
 
 
+def _qdrant_meta_path(data_dir: str) -> str:
+    return os.path.join(_qdrant_path(data_dir), "meta.json")
+
+
+def _atomic_write_json(path: str, payload: Any) -> None:
+    directory = os.path.dirname(path)
+    temp_path = os.path.join(directory, f".{os.path.basename(path)}.{uuid.uuid4().hex}.tmp")
+    with open(temp_path, "w", encoding="utf-8") as handle:
+        json.dump(payload, handle, separators=(",", ":"))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp_path, path)
+
+
+def _repair_qdrant_local_meta(data_dir: str) -> bool:
+    meta_path = _qdrant_meta_path(data_dir)
+    if not os.path.exists(meta_path):
+        return False
+
+    try:
+        with open(meta_path, "r", encoding="utf-8") as handle:
+            meta = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"Invalid Qdrant meta.json at {meta_path}: {exc.msg}",
+        ) from exc
+
+    if not isinstance(meta, dict):
+        raise RuntimeError(f"Invalid Qdrant meta.json at {meta_path}: expected object")
+
+    collections = meta.get("collections")
+    if not isinstance(collections, dict) or not collections:
+        return False
+
+    from qdrant_client.http.models import CreateCollection
+
+    field_map = getattr(CreateCollection, "model_fields", None) or getattr(
+        CreateCollection,
+        "__fields__",
+        None,
+    )
+    allowed_fields = set(field_map.keys()) if isinstance(field_map, dict) else set()
+    if not allowed_fields:
+        return False
+
+    changed = False
+    for collection_name, config in list(collections.items()):
+        if not isinstance(config, dict):
+            continue
+        sanitized_config = {
+            key: value for key, value in config.items() if key in allowed_fields
+        }
+        if sanitized_config != config:
+            collections[collection_name] = sanitized_config
+            changed = True
+
+    if not changed:
+        return False
+
+    # Strip unsupported persisted config keys before the embedded client reloads
+    # the local collection metadata.
+    _atomic_write_json(meta_path, meta)
+    return True
+
+
 def _get_or_create_qdrant_client(data_dir: str) -> "QdrantClient":
     normalized_data_dir = _normalize_data_dir(data_dir)
     if normalized_data_dir in _qdrant_clients:
@@ -83,6 +149,7 @@ def _get_or_create_qdrant_client(data_dir: str) -> "QdrantClient":
 
         from qdrant_client import QdrantClient
 
+        _repair_qdrant_local_meta(normalized_data_dir)
         created_client = QdrantClient(path=_qdrant_path(normalized_data_dir))
         _qdrant_clients[normalized_data_dir] = created_client
         return created_client

@@ -463,6 +463,32 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertTrue(any("user: hello" in text for text in point_texts))
         self.assertTrue(any("user: next" in text for text in point_texts))
 
+    def test_memory_projection_skips_non_finite_vectors(self) -> None:
+        bad_point = types.SimpleNamespace(
+            id="bad-1",
+            vector=[float("nan"), 1.0, 2.0],
+            payload={"text": "user: broken"},
+        )
+
+        class FakeClient:
+            def scroll(self, **_kwargs):
+                return [bad_point], None
+
+        fake_client = FakeClient()
+        fake_memory_factory = types.SimpleNamespace(
+            _data_dir=lambda: "/tmp/memory",
+            _normalize_data_dir=lambda value: value,
+            _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.get("/memory/projection?session_id=chat-1")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["points"], [])
+        self.assertEqual(payload["variance"], [0.0, 0.0])
+
     def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
         response = self.client.post(
             "/chat/stream/v2",

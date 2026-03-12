@@ -1,4 +1,5 @@
 import copy
+import json
 import os
 import sys
 import tempfile
@@ -23,6 +24,32 @@ class MemoryFactoryTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         memory_factory._qdrant_clients.clear()
+
+    def _build_fake_qdrant_modules(
+        self,
+        *,
+        client_cls,
+        allowed_fields: dict[str, object] | None = None,
+    ) -> dict[str, object]:
+        fake_qdrant_module = types.ModuleType("qdrant_client")
+        fake_qdrant_module.QdrantClient = client_cls
+
+        modules: dict[str, object] = {"qdrant_client": fake_qdrant_module}
+        if allowed_fields is None:
+            return modules
+
+        class FakeCreateCollection:
+            model_fields = allowed_fields
+
+        fake_http_module = types.ModuleType("qdrant_client.http")
+        fake_http_models_module = types.ModuleType("qdrant_client.http.models")
+        fake_http_models_module.CreateCollection = FakeCreateCollection
+        fake_http_module.models = fake_http_models_module
+        fake_qdrant_module.http = fake_http_module
+
+        modules["qdrant_client.http"] = fake_http_module
+        modules["qdrant_client.http.models"] = fake_http_models_module
+        return modules
 
     def test_get_or_create_qdrant_client_is_thread_safe_singleton(self) -> None:
         class FakeQdrantClient:
@@ -63,6 +90,95 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(len(results), worker_count)
         self.assertEqual(FakeQdrantClient.init_count, 1)
         self.assertTrue(all(client is results[0] for client in results))
+
+    def test_get_or_create_qdrant_client_removes_unsupported_meta_fields(self) -> None:
+        class FakeQdrantClient:
+            init_paths: list[str] = []
+
+            def __init__(self, path: str) -> None:
+                type(self).init_paths.append(path)
+                self.path = path
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            qdrant_dir = Path(data_dir) / "memory" / "qdrant"
+            qdrant_dir.mkdir(parents=True, exist_ok=True)
+            meta_path = qdrant_dir / "meta.json"
+            meta_path.write_text(
+                json.dumps(
+                    {
+                        "collections": {
+                            "chat_1": {
+                                "vectors": {"size": 768, "distance": "Cosine"},
+                                "strict_mode_config": None,
+                                "metadata": None,
+                            }
+                        },
+                        "aliases": {},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with mock.patch.dict(
+                sys.modules,
+                self._build_fake_qdrant_modules(
+                    client_cls=FakeQdrantClient,
+                    allowed_fields={
+                        "vectors": object(),
+                        "strict_mode_config": object(),
+                    },
+                ),
+            ):
+                client = memory_factory._get_or_create_qdrant_client(data_dir)
+
+            expected_qdrant_dir = os.path.realpath(str(qdrant_dir))
+            self.assertEqual(client.path, expected_qdrant_dir)
+            self.assertEqual(FakeQdrantClient.init_paths, [expected_qdrant_dir])
+            repaired_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                repaired_meta["collections"]["chat_1"],
+                {
+                    "vectors": {"size": 768, "distance": "Cosine"},
+                    "strict_mode_config": None,
+                },
+            )
+
+    def test_get_or_create_qdrant_client_keeps_compatible_meta_unchanged(self) -> None:
+        class FakeQdrantClient:
+            def __init__(self, path: str) -> None:
+                self.path = path
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            qdrant_dir = Path(data_dir) / "memory" / "qdrant"
+            qdrant_dir.mkdir(parents=True, exist_ok=True)
+            meta_path = qdrant_dir / "meta.json"
+            original_meta = json.dumps(
+                {
+                    "collections": {
+                        "chat_1": {
+                            "vectors": {"size": 768, "distance": "Cosine"},
+                            "strict_mode_config": None,
+                        }
+                    },
+                    "aliases": {},
+                },
+                separators=(",", ":"),
+            )
+            meta_path.write_text(original_meta, encoding="utf-8")
+
+            with mock.patch.dict(
+                sys.modules,
+                self._build_fake_qdrant_modules(
+                    client_cls=FakeQdrantClient,
+                    allowed_fields={
+                        "vectors": object(),
+                        "strict_mode_config": object(),
+                    },
+                ),
+            ):
+                memory_factory._get_or_create_qdrant_client(data_dir)
+
+            self.assertEqual(meta_path.read_text(encoding="utf-8"), original_meta)
 
     def test_get_or_create_qdrant_client_normalizes_data_dir_key(self) -> None:
         class FakeQdrantClient:

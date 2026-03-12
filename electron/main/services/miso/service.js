@@ -467,7 +467,12 @@ const createMisoService = ({
       if (bodyText) {
         try {
           const parsed = JSON.parse(bodyText);
-          const serverMessage = parsed?.error?.message || parsed?.message;
+          const serverMessage =
+            (typeof parsed?.error?.message === "string" &&
+              parsed.error.message.trim()) ||
+            (typeof parsed?.error === "string" && parsed.error.trim()) ||
+            (typeof parsed?.message === "string" && parsed.message.trim()) ||
+            "";
           if (serverMessage) {
             message = String(serverMessage);
           }
