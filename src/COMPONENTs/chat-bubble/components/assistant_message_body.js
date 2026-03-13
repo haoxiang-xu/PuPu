@@ -1,6 +1,10 @@
 import { memo } from "react";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import SeamlessMarkdown from "./seamless_markdown";
+import {
+  ASSISTANT_MARKDOWN_FONT_SIZE,
+  ASSISTANT_MARKDOWN_LINE_HEIGHT,
+} from "./assistant_markdown_metrics";
 
 const AssistantMessageBody = ({
   message,
@@ -34,8 +38,8 @@ const AssistantMessageBody = ({
           margin: 0,
           whiteSpace: "pre-wrap",
           fontFamily: theme?.font?.fontFamily || "inherit",
-          fontSize: 14,
-          lineHeight: 1.6,
+          fontSize: ASSISTANT_MARKDOWN_FONT_SIZE,
+          lineHeight: ASSISTANT_MARKDOWN_LINE_HEIGHT,
           color: theme?.color || "#222",
         }}
       >
@@ -52,8 +56,8 @@ const AssistantMessageBody = ({
     <SeamlessMarkdown
       content={content}
       status={renderStatus}
-      fontSize={14}
-      lineHeight={1.6}
+      fontSize={ASSISTANT_MARKDOWN_FONT_SIZE}
+      lineHeight={ASSISTANT_MARKDOWN_LINE_HEIGHT}
       priority={renderStatus === "streaming" ? "high" : "normal"}
     />
   );

@@ -4,6 +4,10 @@ import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import SeamlessMarkdown from "./components/seamless_markdown";
+import {
+  ASSISTANT_MARKDOWN_FONT_SIZE,
+  ASSISTANT_MARKDOWN_LINE_HEIGHT,
+} from "./components/assistant_markdown_metrics";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -609,8 +613,8 @@ const TraceChain = ({
               <SeamlessMarkdown
                 content={content}
                 status={isStreaming ? "streaming" : "done"}
-                fontSize={13}
-                lineHeight={1.6}
+                fontSize={ASSISTANT_MARKDOWN_FONT_SIZE}
+                lineHeight={ASSISTANT_MARKDOWN_LINE_HEIGHT}
               />
             </div>
           ),
@@ -633,8 +637,8 @@ const TraceChain = ({
               <SeamlessMarkdown
                 content={liveContent}
                 status="streaming"
-                fontSize={13}
-                lineHeight={1.6}
+                fontSize={ASSISTANT_MARKDOWN_FONT_SIZE}
+                lineHeight={ASSISTANT_MARKDOWN_LINE_HEIGHT}
                 priority="high"
               />
             </div>

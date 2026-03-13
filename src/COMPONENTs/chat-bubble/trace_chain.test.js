@@ -200,6 +200,21 @@ describe("TraceChain final_message draft timeline", () => {
     expect(container).toHaveTextContent("const x = 1;");
   });
 
+  test("uses the same markdown metrics as the final assistant response", () => {
+    const { container } = renderTraceChain({
+      frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
+      status: "streaming",
+      streamingContent: "Paragraph one.\n\nParagraph two.",
+    });
+
+    const markdownRoot = container.querySelector("[data-markdown-id]");
+    expect(markdownRoot).toBeInTheDocument();
+
+    const styleTag = markdownRoot.querySelector("style");
+    expect(styleTag?.textContent).toContain("font-size: 14px;");
+    expect(styleTag?.textContent).toContain("line-height: 1.6;");
+  });
+
   test("renders tool confirmation actions and forwards allow decision", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [
