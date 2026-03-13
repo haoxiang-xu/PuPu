@@ -788,6 +788,51 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
         self.assertEqual(captured["include_python_runtime"], True)
 
+    def test_create_agent_attaches_workspace_toolkit_with_current_export_name(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            captured["workspace_root"] = workspace_root
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_root": tmp,
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+
     def test_create_agent_skips_toolkit_when_toolkits_option_absent(self) -> None:
         """When options has workspace_root but no toolkits key, toolkit should NOT be attached."""
 

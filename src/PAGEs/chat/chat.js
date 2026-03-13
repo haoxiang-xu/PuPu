@@ -31,13 +31,13 @@ import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refre
 import { createThinkTagParser } from "./think_tag_parser";
 import { readMemorySettings } from "../../COMPONENTs/settings/memory/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
+import { createLogger } from "../../SERVICEs/console_logger";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const STREAM_TRACE_LEVEL = "minimal";
-const MISO_TRACE_TITLE_PREFIX = "[miso] | [stream] | ";
 const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -47,13 +47,7 @@ const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   done: "end",
 });
 
-const formatMisoTraceTitle = (eventType) => {
-  const label = MISO_TRACE_LABEL_BY_TYPE[eventType];
-  if (!label) {
-    return `[miso] ${eventType}`;
-  }
-  return `${MISO_TRACE_TITLE_PREFIX}${label}`;
-};
+const misoLogger = createLogger("MISO", "src/PAGEs/chat/chat.js");
 
 const getFileExtension = (name) => {
   if (typeof name !== "string" || !name.includes(".")) {
@@ -1581,10 +1575,7 @@ const ChatInterface = () => {
                     content: systemPrompt,
                   });
                 }
-                console.log(
-                  formatMisoTraceTitle("request_messages"),
-                  requestMessagesForLog,
-                );
+                misoLogger.log("request_messages", requestMessagesForLog);
                 return;
               }
 
@@ -1606,14 +1597,14 @@ const ChatInterface = () => {
               }
 
               if (frame.type === "error") {
-                console.log(
-                  `[miso] ${frame.type} (iteration=${frame.iteration})`,
+                misoLogger.error(
+                  `error (iteration=${frame.iteration})`,
                   frame.payload,
                 );
               }
 
               if (frame.type === "done") {
-                console.log(formatMisoTraceTitle("done"), frame.payload);
+                misoLogger.log("end", frame.payload);
               }
 
               if (
@@ -1621,11 +1612,11 @@ const ChatInterface = () => {
                 frame.type === "run_completed" ||
                 frame.type === "run_max_iterations"
               ) {
-                const title =
+                const label =
                   frame.type === "run_max_iterations"
-                    ? "[miso] run_max_iterations"
-                    : formatMisoTraceTitle(frame.type);
-                console.log(title, frame.payload);
+                    ? "run_max_iterations"
+                    : (MISO_TRACE_LABEL_BY_TYPE[frame.type] ?? frame.type);
+                misoLogger.log(label, frame.payload);
               }
 
               if (frame.type === "memory_prepare") {
@@ -1633,7 +1624,7 @@ const ChatInterface = () => {
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                console.log(formatMisoTraceTitle("memory_prepare"), {
+                misoLogger.log("memory_prepare", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   before_estimated_tokens: payload.before_estimated_tokens,
@@ -1656,7 +1647,7 @@ const ChatInterface = () => {
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                console.log(formatMisoTraceTitle("memory_commit"), {
+                misoLogger.log("memory_commit", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   stored_message_count: payload.stored_message_count,
