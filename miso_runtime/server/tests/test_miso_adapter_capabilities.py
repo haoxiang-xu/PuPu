@@ -833,6 +833,205 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
 
+    def test_create_agent_attaches_workspace_toolkit_with_workspace_roots_fallback(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_roots=None):
+            captured["workspace_roots"] = workspace_roots
+            return {
+                "workspace_roots": workspace_roots,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp_a, tempfile.TemporaryDirectory() as tmp_b:
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_roots": [tmp_a, tmp_b],
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(
+            captured["workspace_roots"],
+            [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
+        )
+
+    def test_create_agent_builds_multi_workspace_proxy_toolkit_when_workspace_roots_are_unsupported(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        class FakeTool:
+            def __init__(
+                self,
+                *,
+                name="",
+                description="",
+                func=None,
+                parameters=None,
+                observe=False,
+                requires_confirmation=False,
+            ):
+                self.name = name
+                self.description = description
+                self.func = func
+                self.parameters = list(parameters or [])
+                self.observe = observe
+                self.requires_confirmation = requires_confirmation
+
+            def execute(self, arguments):
+                payload = arguments or {}
+                return self.func(**payload)
+
+        class FakeToolkit:
+            def __init__(self):
+                self.tools = {}
+
+            def register(self, tool_obj):
+                self.tools[tool_obj.name] = tool_obj
+                return tool_obj
+
+            def get(self, function_name):
+                return self.tools.get(function_name)
+
+            def execute(self, function_name, arguments):
+                tool_obj = self.get(function_name)
+                if tool_obj is None:
+                    return {"error": f"tool not found: {function_name}"}
+                return tool_obj.execute(arguments)
+
+        def fake_workspace_toolkit(*, workspace_roots=None, workspace_root=None):
+            if workspace_roots is not None:
+                raise TypeError("workspace_roots unsupported")
+            captured.setdefault("workspace_roots", []).append(workspace_root)
+            tk = FakeToolkit()
+            tk.register(
+                FakeTool(
+                    name="read_file",
+                    description="Read a file",
+                    parameters=[
+                        {
+                            "name": "path",
+                            "description": "Relative path",
+                            "type_": "string",
+                            "required": True,
+                        }
+                    ],
+                    func=lambda path, _root=workspace_root: {
+                        "workspace_root": _root,
+                        "path": path,
+                    },
+                )
+            )
+            tk.register(
+                FakeTool(
+                    name="write_file",
+                    description="Write a file",
+                    parameters=[
+                        {
+                            "name": "path",
+                            "description": "Relative path",
+                            "type_": "string",
+                            "required": True,
+                        },
+                        {
+                            "name": "content",
+                            "description": "Content",
+                            "type_": "string",
+                            "required": True,
+                        },
+                    ],
+                    func=lambda path, content, _root=workspace_root: {
+                        "workspace_root": _root,
+                        "path": path,
+                        "content": content,
+                    },
+                )
+            )
+            return tk
+
+        with tempfile.TemporaryDirectory() as parent:
+            tmp_a = str(Path(parent) / "default-root")
+            tmp_b = str(Path(parent) / "extra-root")
+            Path(tmp_a).mkdir()
+            Path(tmp_b).mkdir()
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    workspace_toolkit=fake_workspace_toolkit,
+                    toolkit=FakeToolkit,
+                    tool=FakeTool,
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_roots": [tmp_a, tmp_b],
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(
+            captured["workspace_roots"],
+            [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
+        )
+        merged_toolkit = agent.toolkits[0]
+        self.assertIn("read_file", merged_toolkit.tools)
+        self.assertIn("write_file", merged_toolkit.tools)
+        self.assertIn("workspace_2_extra_root_read_file", merged_toolkit.tools)
+        self.assertIn("workspace_2_extra_root_write_file", merged_toolkit.tools)
+        self.assertIn("list_available_workspaces", merged_toolkit.tools)
+
+        second_workspace_read = merged_toolkit.execute(
+            "workspace_2_extra_root_read_file",
+            {"path": "hello.txt"},
+        )
+        self.assertEqual(second_workspace_read["workspace_root"], str(Path(tmp_b).resolve()))
+        self.assertEqual(second_workspace_read["path"], "hello.txt")
+        self.assertTrue(merged_toolkit.tools["workspace_2_extra_root_write_file"].requires_confirmation)
+
     def test_create_agent_skips_toolkit_when_toolkits_option_absent(self) -> None:
         """When options has workspace_root but no toolkits key, toolkit should NOT be attached."""
 

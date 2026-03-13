@@ -1706,6 +1706,180 @@ def _resolve_workspace_toolkit_factory(miso_module: Any) -> tuple[Any, bool]:
     )
 
 
+def _resolve_workspace_roots(workspace_roots_raw: list[str]) -> list[str]:
+    return [str(_resolve_workspace_root(raw)) for raw in workspace_roots_raw]
+
+
+def _build_workspace_toolkit_for_root(
+    toolkit_factory: Any,
+    *,
+    include_python_runtime: bool,
+    workspace_root: str,
+) -> Any:
+    build_attempts = []
+    if include_python_runtime:
+        build_attempts.append(
+            lambda: toolkit_factory(
+                workspace_root=workspace_root,
+                include_python_runtime=True,
+            )
+        )
+    build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
+    build_attempts.append(lambda: toolkit_factory(workspace_root))
+
+    last_type_error = None
+    for build_attempt in build_attempts:
+        try:
+            return build_attempt()
+        except TypeError as error:
+            last_type_error = error
+
+    raise last_type_error or RuntimeError("Failed to create workspace toolkit")
+
+
+def _try_build_workspace_toolkit_for_roots(
+    toolkit_factory: Any,
+    *,
+    include_python_runtime: bool,
+    workspace_roots: list[str],
+) -> Any | None:
+    build_attempts = []
+    if include_python_runtime:
+        build_attempts.append(
+            lambda: toolkit_factory(
+                workspace_roots=workspace_roots,
+                include_python_runtime=True,
+            )
+        )
+    build_attempts.append(lambda: toolkit_factory(workspace_roots=workspace_roots))
+    build_attempts.append(lambda: toolkit_factory(workspace_roots))
+
+    for build_attempt in build_attempts:
+        try:
+            return build_attempt()
+        except TypeError:
+            continue
+
+    return None
+
+
+def _build_workspace_tool_prefix(workspace_root: str, index: int) -> str:
+    label = Path(workspace_root).name or f"workspace_{index}"
+    slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+    slug = slug[:32] or "workspace"
+    return f"workspace_{index}_{slug}"
+
+
+def _build_multi_workspace_proxy_toolkit(
+    miso_module: Any,
+    toolkit_factory: Any,
+    *,
+    include_python_runtime: bool,
+    workspace_roots: list[str],
+) -> Any:
+    toolkit_cls = getattr(miso_module, "toolkit", None)
+    tool_cls = getattr(miso_module, "tool", None)
+    if not callable(toolkit_cls) or not callable(tool_cls):
+        raise RuntimeError(
+            "Miso multi-workspace fallback requires toolkit and tool exports"
+        )
+
+    merged_toolkit = toolkit_cls()
+    workspace_entries = []
+
+    for index, workspace_root in enumerate(workspace_roots, start=1):
+        source_toolkit = _build_workspace_toolkit_for_root(
+            toolkit_factory,
+            include_python_runtime=include_python_runtime,
+            workspace_root=workspace_root,
+        )
+        _mark_workspace_tools_for_confirmation(source_toolkit)
+        workspace_entries.append(
+            {
+                "index": index,
+                "root": workspace_root,
+                "prefix": _build_workspace_tool_prefix(workspace_root, index),
+                "toolkit": source_toolkit,
+            }
+        )
+
+    default_entry = workspace_entries[0]
+    for tool_name, tool_obj in getattr(default_entry["toolkit"], "tools", {}).items():
+        merged_toolkit.tools[tool_name] = tool_obj
+
+    for entry in workspace_entries[1:]:
+        source_toolkit = entry["toolkit"]
+        tool_prefix = entry["prefix"]
+        workspace_root = entry["root"]
+
+        for tool_name, tool_obj in getattr(source_toolkit, "tools", {}).items():
+            proxy_name = f"{tool_prefix}_{tool_name}"
+            proxy_description = (
+                f"{getattr(tool_obj, 'description', '')} "
+                f"Only for workspace '{tool_prefix}' at {workspace_root}."
+            ).strip()
+
+            def _make_proxy(
+                current_toolkit: Any = source_toolkit,
+                current_tool_name: str = tool_name,
+            ) -> Any:
+                def _proxy(**kwargs: Any) -> Any:
+                    return current_toolkit.execute(current_tool_name, kwargs)
+
+                return _proxy
+
+            proxy_tool = tool_cls(
+                name=proxy_name,
+                description=proxy_description,
+                func=_make_proxy(),
+                parameters=list(getattr(tool_obj, "parameters", []) or []),
+                observe=bool(getattr(tool_obj, "observe", False)),
+                requires_confirmation=bool(
+                    getattr(tool_obj, "requires_confirmation", False)
+                    or tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES
+                ),
+            )
+            merged_toolkit.register(proxy_tool)
+
+    workspace_map = [
+        {
+            "tool_prefix": "default",
+            "workspace_root": default_entry["root"],
+            "default": True,
+        }
+    ]
+    workspace_map.extend(
+        {
+            "tool_prefix": entry["prefix"],
+            "workspace_root": entry["root"],
+            "default": False,
+        }
+        for entry in workspace_entries[1:]
+    )
+
+    def list_available_workspaces() -> dict[str, Any]:
+        return {
+            "workspaces": workspace_map,
+            "note": (
+                "Use the original workspace tool names for the default workspace. "
+                "Use the prefixed tool names for additional workspaces."
+            ),
+        }
+
+    merged_toolkit.register(
+        tool_cls(
+            name="list_available_workspaces",
+            description=(
+                "List every available workspace root and the tool-name prefix "
+                "for each additional workspace."
+            ),
+            func=list_available_workspaces,
+        )
+    )
+
+    return merged_toolkit
+
+
 def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
     workspace_roots_raw = _extract_workspace_roots_from_options(options)
     if not workspace_roots_raw:
@@ -1747,31 +1921,29 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
     toolkit_factory, include_python_runtime = _resolve_workspace_toolkit_factory(
         miso_module
     )
-    workspace_root = _resolve_workspace_root(workspace_roots_raw[0])
-    build_attempts = []
-    if include_python_runtime:
-        build_attempts.append(
-            lambda: toolkit_factory(
-                workspace_root=str(workspace_root),
-                include_python_runtime=True,
-            )
-        )
-    build_attempts.append(
-        lambda: toolkit_factory(workspace_root=str(workspace_root))
-    )
-    build_attempts.append(lambda: toolkit_factory(str(workspace_root)))
-
-    last_type_error = None
+    resolved_roots = _resolve_workspace_roots(workspace_roots_raw)
     workspace_toolkit = None
-    for build_attempt in build_attempts:
-        try:
-            workspace_toolkit = build_attempt()
-            break
-        except TypeError as error:
-            last_type_error = error
+
+    if len(resolved_roots) > 1:
+        workspace_toolkit = _try_build_workspace_toolkit_for_roots(
+            toolkit_factory,
+            include_python_runtime=include_python_runtime,
+            workspace_roots=resolved_roots,
+        )
+        if workspace_toolkit is None:
+            workspace_toolkit = _build_multi_workspace_proxy_toolkit(
+                miso_module,
+                toolkit_factory,
+                include_python_runtime=include_python_runtime,
+                workspace_roots=resolved_roots,
+            )
 
     if workspace_toolkit is None:
-        raise last_type_error or RuntimeError("Failed to create workspace toolkit")
+        workspace_toolkit = _build_workspace_toolkit_for_root(
+            toolkit_factory,
+            include_python_runtime=include_python_runtime,
+            workspace_root=resolved_roots[0],
+        )
 
     _mark_workspace_tools_for_confirmation(workspace_toolkit)
     agent.add_toolkit(workspace_toolkit)
