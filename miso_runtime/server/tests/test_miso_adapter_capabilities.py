@@ -481,6 +481,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.used_original_execute = False
                 self.used_original_inject = False
                 self.events = []
+                self.executed_session_ids = []
 
             def _execute_tool_calls(self, **_kwargs):
                 self.used_original_execute = True
@@ -505,7 +506,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     return SimpleNamespace(observe=True)
                 return SimpleNamespace(observe=False)
 
-            def _execute_from_toolkits(self, name, arguments):
+            def _execute_from_toolkits(self, name, arguments, session_id=None):
+                self.executed_session_ids.append(session_id)
                 return {"name": name, "arguments": arguments}
 
         miso_adapter._apply_broth_runtime_patches(FakeBroth)
@@ -520,6 +522,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             run_id="run-1",
             iteration=0,
             callback=None,
+            session_id="thread-anthropic-1",
         )
 
         self.assertEqual(len(result_messages), 1)
@@ -531,6 +534,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         self.assertFalse(should_observe)
         self.assertFalse(agent.used_original_execute)
+        self.assertEqual(agent.executed_session_ids, ["thread-anthropic-1", "thread-anthropic-1"])
 
         merged_observation_messages = agent._build_observation_messages(
             full_messages=[
@@ -660,6 +664,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.provider = "openai"
                 self.used_original_execute = False
                 self.events = []
+                self.session_ids = []
 
             def _execute_tool_calls(
                 self,
@@ -669,8 +674,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 iteration,
                 callback,
                 on_tool_confirm=None,
+                session_id=None,
             ):
                 self.used_original_execute = True
+                self.session_ids.append(session_id)
                 if on_tool_confirm is not None and tool_calls:
                     request = {
                         "tool_name": tool_calls[0].name,
@@ -707,11 +714,13 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             iteration=0,
             callback=None,
             on_tool_confirm=lambda _req: {"approved": True},
+            session_id="thread-openai-1",
         )
         confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
         self.assertEqual(len(confirmed_events), 1)
         self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
         self.assertTrue(agent.used_original_execute)
+        self.assertEqual(agent.session_ids, ["thread-openai-1"])
 
         agent.events = []
         _messages, _observe = agent._execute_tool_calls(
@@ -720,11 +729,13 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             iteration=1,
             callback=None,
             on_tool_confirm=lambda _req: {"approved": False, "reason": "denied"},
+            session_id="thread-openai-2",
         )
         denied_events = [event for event in agent.events if event[0] == "tool_denied"]
         self.assertEqual(len(denied_events), 1)
         self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
         self.assertEqual(denied_events[0][2].get("reason"), "denied")
+        self.assertEqual(agent.session_ids, ["thread-openai-1", "thread-openai-2"])
 
     def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
         class FakeAgent:

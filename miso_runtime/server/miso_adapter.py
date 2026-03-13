@@ -362,11 +362,12 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     if not isinstance(broth_cls, type):
         return
 
-    patch_marker = "_pupu_tool_confirmation_contract_patch_v2"
+    patch_marker = "_pupu_tool_confirmation_contract_patch_v3"
     if getattr(broth_cls, patch_marker, False):
         return
 
     original_execute_tool_calls = getattr(broth_cls, "_execute_tool_calls", None)
+    original_execute_from_toolkits = getattr(broth_cls, "_execute_from_toolkits", None)
     original_build_observation_messages = getattr(
         broth_cls, "_build_observation_messages", None
     )
@@ -387,8 +388,30 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 for parameter in execute_tool_calls_params.values()
             )
         )
+        original_supports_session_id = (
+            "session_id" in execute_tool_calls_params
+            or any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in execute_tool_calls_params.values()
+            )
+        )
     except Exception:
         original_supports_on_tool_confirm = True
+        original_supports_session_id = True
+
+    try:
+        execute_from_toolkits_params = inspect.signature(
+            original_execute_from_toolkits
+        ).parameters
+        execute_from_toolkits_supports_session_id = (
+            "session_id" in execute_from_toolkits_params
+            or any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in execute_from_toolkits_params.values()
+            )
+        )
+    except Exception:
+        execute_from_toolkits_supports_session_id = True
 
     def _patched_execute_tool_calls(
         self,
@@ -398,6 +421,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         iteration: int,
         callback,
         on_tool_confirm=None,
+        session_id=None,
     ):
         emitted_confirmation_events: set[tuple[str, bool]] = set()
 
@@ -470,6 +494,8 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 original_kwargs["on_tool_confirm"] = (
                     _on_tool_confirm_with_event if on_tool_confirm is not None else None
                 )
+            if original_supports_session_id:
+                original_kwargs["session_id"] = session_id
             return original_execute_tool_calls(
                 self,
                 **original_kwargs,
@@ -537,7 +563,14 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "reason": deny_reason or "User denied execution.",
                 }
             else:
-                tool_result = self._execute_from_toolkits(tool_call.name, effective_arguments)
+                execute_kwargs: Dict[str, Any] = {}
+                if execute_from_toolkits_supports_session_id:
+                    execute_kwargs["session_id"] = session_id
+                tool_result = self._execute_from_toolkits(
+                    tool_call.name,
+                    effective_arguments,
+                    **execute_kwargs,
+                )
             content = json.dumps(tool_result, default=str, ensure_ascii=False)
 
             anthropic_tool_results.append(
