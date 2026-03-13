@@ -25,6 +25,7 @@ _RESOLVED_MISO_SOURCE = None
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
 _ALLOWED_INPUT_SOURCE_TYPES = ("url", "base64")
+_OLLAMA_EMBEDDING_FAMILY_PREFIXES = ("bert", "nomic-bert", "bge")
 _INPUT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
@@ -940,11 +941,42 @@ def _is_embedding_model(raw_capabilities: Dict[str, object]) -> bool:
     return model_type == "embedding"
 
 
+def _normalize_ollama_family(raw_family: object) -> str:
+    if not isinstance(raw_family, str):
+        return ""
+    return raw_family.strip().lower()
+
+
+def _is_ollama_embedding_family(raw_family: object) -> bool:
+    family = _normalize_ollama_family(raw_family)
+    return any(
+        family == prefix or family.startswith(f"{prefix}-")
+        for prefix in _OLLAMA_EMBEDDING_FAMILY_PREFIXES
+    )
+
+
+def _is_ollama_embedding_entry(raw_entry: object) -> bool:
+    if not isinstance(raw_entry, dict):
+        return False
+
+    details = raw_entry.get("details")
+    if not isinstance(details, dict):
+        return False
+
+    raw_families: List[object] = []
+    if isinstance(details.get("families"), list):
+        raw_families.extend(details["families"])
+    if "family" in details:
+        raw_families.append(details["family"])
+
+    return any(_is_ollama_embedding_family(raw_family) for raw_family in raw_families)
+
+
 def get_default_model_capabilities() -> Dict[str, object]:
     return _default_model_capabilities()
 
 
-def _fetch_ollama_models() -> List[str]:
+def _fetch_ollama_models(chat_only: bool = False) -> List[str]:
     """Query the local Ollama daemon for all installed model names.
 
     Returns an empty list if Ollama is unreachable or httpx is unavailable.
@@ -962,6 +994,8 @@ def _fetch_ollama_models() -> List[str]:
         for entry in models:
             name = str(entry.get("name") or entry.get("model") or "").strip()
             if name:
+                if chat_only and _is_ollama_embedding_entry(entry):
+                    continue
                 names.append(name)
         return names
     except Exception:
@@ -987,9 +1021,9 @@ def get_capability_catalog() -> Dict[str, List[str]]:
             _normalize_provider_model_name(provider, model_name),
         )
 
-    # Merge dynamically discovered Ollama models so all locally installed
-    # models appear as chips regardless of model_capabilities.json.
-    for live_model in _fetch_ollama_models():
+    # Merge dynamically discovered Ollama chat models so installed LLMs
+    # appear as chips regardless of model_capabilities.json.
+    for live_model in _fetch_ollama_models(chat_only=True):
         normalized = _normalize_provider_model_name("ollama", live_model)
         if normalized:
             providers["ollama"].append(normalized)

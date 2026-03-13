@@ -8,6 +8,77 @@ import {
   withTimeout,
 } from "./api.shared";
 
+const OLLAMA_EMBEDDING_FAMILY_PREFIXES = ["bert", "nomic-bert", "bge"];
+
+const normalizeOllamaFamily = (rawFamily) =>
+  typeof rawFamily === "string" ? rawFamily.trim().toLowerCase() : "";
+
+const isEmbeddingFamily = (rawFamily) => {
+  const family = normalizeOllamaFamily(rawFamily);
+  return OLLAMA_EMBEDDING_FAMILY_PREFIXES.some(
+    (prefix) => family === prefix || family.startsWith(`${prefix}-`),
+  );
+};
+
+const normalizeInstalledOllamaModels = (payload) =>
+  (payload?.models || [])
+    .map((item) => {
+      const details =
+        item?.details && typeof item.details === "object" ? item.details : {};
+      const rawFamilies = [
+        ...(Array.isArray(details.families) ? details.families : []),
+        details.family,
+      ];
+      const families = [...new Set(rawFamilies.map(normalizeOllamaFamily))].filter(
+        Boolean,
+      );
+      const rawName =
+        typeof item?.name === "string" && item.name.trim()
+          ? item.name
+          : item?.model;
+      const rawSize = Number(item?.size);
+      return {
+        name: typeof rawName === "string" ? rawName.trim() : "",
+        size: Number.isFinite(rawSize) ? rawSize : 0,
+        families,
+      };
+    })
+    .filter((item) => item.name)
+    .sort((a, b) => b.size - a.size);
+
+const fetchInstalledOllamaModels = async ({
+  timeoutCode,
+  timeoutMessage,
+  failureCode,
+  failureMessage,
+}) => {
+  try {
+    const response = await withTimeout(
+      () =>
+        fetch(`${OLLAMA_BASE}/api/tags`, {
+          method: "GET",
+        }),
+      3000,
+      timeoutCode,
+      timeoutMessage,
+    );
+
+    if (!response.ok) {
+      throw new FrontendApiError(
+        "ollama_http_error",
+        `Failed to list Ollama models (${response.status})`,
+        null,
+        { status: response.status },
+      );
+    }
+
+    const json = await safeJson(response);
+    return normalizeInstalledOllamaModels(json);
+  } catch (error) {
+    throw toFrontendApiError(error, failureCode, failureMessage);
+  }
+};
+
 export const createOllamaApi = () => ({
   isBridgeAvailable: () =>
     hasBridgeMethod("ollamaAPI", "getStatus") &&
@@ -88,91 +159,41 @@ export const createOllamaApi = () => ({
   },
 
   listModels: async () => {
-    try {
-      const response = await withTimeout(
-        () =>
-          fetch(`${OLLAMA_BASE}/api/tags`, {
-            method: "GET",
-          }),
-        3000,
-        "ollama_list_timeout",
-        "Ollama model list request timed out",
-      );
+    const models = await fetchInstalledOllamaModels({
+      timeoutCode: "ollama_list_timeout",
+      timeoutMessage: "Ollama model list request timed out",
+      failureCode: "ollama_list_failed",
+      failureMessage: "Failed to load Ollama models",
+    });
+    return models.map(({ name, size }) => ({ name, size }));
+  },
 
-      if (!response.ok) {
-        throw new FrontendApiError(
-          "ollama_http_error",
-          `Failed to list Ollama models (${response.status})`,
-          null,
-          { status: response.status },
-        );
-      }
-
-      const json = await safeJson(response);
-      const models = (json?.models || [])
-        .map((item) => ({
-          name: item?.name,
-          size: item?.size || 0,
-        }))
-        .filter((item) => typeof item.name === "string" && item.name.trim());
-
-      return models.sort((a, b) => b.size - a.size);
-    } catch (error) {
-      throw toFrontendApiError(
-        error,
-        "ollama_list_failed",
-        "Failed to load Ollama models",
-      );
-    }
+  listChatModels: async () => {
+    const models = await fetchInstalledOllamaModels({
+      timeoutCode: "ollama_chat_list_timeout",
+      timeoutMessage: "Ollama chat model list request timed out",
+      failureCode: "ollama_chat_list_failed",
+      failureMessage: "Failed to load Ollama chat models",
+    });
+    return models
+      .filter(({ families }) => !families.some(isEmbeddingFamily))
+      .map(({ name, size }) => ({ name, size }));
   },
 
   /**
    * List only embedding-capable models installed locally.
-   * Filters by checking `details.families` for known embedding families
-   * (e.g. "bert", "nomic-bert").
+   * Filters by checking `details.families` for known embedding families.
    */
   listEmbeddingModels: async () => {
-    const EMBEDDING_FAMILIES = new Set(["bert", "nomic-bert", "bge"]);
-    try {
-      const response = await withTimeout(
-        () =>
-          fetch(`${OLLAMA_BASE}/api/tags`, {
-            method: "GET",
-          }),
-        3000,
-        "ollama_embed_list_timeout",
-        "Ollama embedding model list request timed out",
-      );
-
-      if (!response.ok) {
-        throw new FrontendApiError(
-          "ollama_http_error",
-          `Failed to list Ollama models (${response.status})`,
-          null,
-          { status: response.status },
-        );
-      }
-
-      const json = await safeJson(response);
-      const models = (json?.models || [])
-        .filter((item) => {
-          const families = item?.details?.families || [];
-          return families.some((f) => EMBEDDING_FAMILIES.has(f));
-        })
-        .map((item) => ({
-          name: item?.name,
-          size: item?.size || 0,
-        }))
-        .filter((item) => typeof item.name === "string" && item.name.trim());
-
-      return models.sort((a, b) => b.size - a.size);
-    } catch (error) {
-      throw toFrontendApiError(
-        error,
-        "ollama_embed_list_failed",
-        "Failed to load Ollama embedding models",
-      );
-    }
+    const models = await fetchInstalledOllamaModels({
+      timeoutCode: "ollama_embed_list_timeout",
+      timeoutMessage: "Ollama embedding model list request timed out",
+      failureCode: "ollama_embed_list_failed",
+      failureMessage: "Failed to load Ollama embedding models",
+    });
+    return models
+      .filter(({ families }) => families.some(isEmbeddingFamily))
+      .map(({ name, size }) => ({ name, size }));
   },
 
   searchLibrary: async ({ query = "", category = "" } = {}) => {

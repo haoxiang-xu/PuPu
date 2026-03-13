@@ -49,6 +49,51 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(providers["ollama"], ["deepseek-r1:14b"])
         self.assertNotIn("text-embedding-3-small", providers["openai"])
 
+    def test_get_capability_catalog_filters_dynamic_ollama_embedding_models(self) -> None:
+        payload = {
+            "deepseek-r1:14b": {"provider": "ollama"},
+            "nomic-embed-text": {"provider": "ollama", "model_type": "embedding"},
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        class _FakeResponse:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict:
+                return {
+                    "models": [
+                        {
+                            "name": "llama3",
+                            "details": {"families": ["llama"]},
+                        },
+                        {
+                            "name": "nomic-embed-text",
+                            "details": {"families": ["nomic-bert"]},
+                        },
+                        {
+                            "name": "bge-m3",
+                            "details": {"families": ["bge-m3"]},
+                        },
+                    ]
+                }
+
+        fake_httpx = SimpleNamespace(get=mock.Mock(return_value=_FakeResponse()))
+
+        with mock.patch.object(
+            miso_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ), mock.patch.object(
+            miso_adapter,
+            "_httpx",
+            fake_httpx,
+        ):
+            providers = miso_adapter.get_capability_catalog()
+
+        self.assertEqual(providers["ollama"], ["deepseek-r1:14b", "llama3"])
+
     def test_get_embedding_provider_catalog_only_keeps_openai_embedding_models(self) -> None:
         payload = {
             "gpt-5": {"provider": "openai"},
