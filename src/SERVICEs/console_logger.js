@@ -108,6 +108,11 @@ const buildBadge = (level, moduleName, action, filePath) => {
     // ── segment text ──
     fmt += `%c ${label} `;
     css.push(segCSS(bgs[i], FG[i]));
+
+    if (i < labels.length - 1) {
+      fmt += `%c${SEP}`;
+      css.push(sepCSS(bgs[i], bgs[i + 1]));
+    }
   });
 
   // reset after the badge row

@@ -513,7 +513,13 @@ const MemoryInspectModal = ({
       {/* ━━ Overlay: Close button ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Button
         prefix_icon="close"
-        onClick={onClose}
+        onClick={() => {
+          if (hasDetail) {
+            setSelectedPoint(null);
+          } else {
+            onClose();
+          }
+        }}
         style={{
           position: "absolute",
           top: 12,
