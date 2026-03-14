@@ -845,6 +845,8 @@ const createMisoService = ({
           MISO_MODEL: process.env.MISO_MODEL || "deepseek-r1:14b",
           MISO_DATA_DIR: app.getPath("userData"),
           MISO_PARENT_PID: String(process.pid),
+          PYTHONIOENCODING: process.env.PYTHONIOENCODING || "utf-8",
+          PYTHONUTF8: process.env.PYTHONUTF8 || "1",
           ...(devMisoSourcePath ? { MISO_SOURCE_PATH: devMisoSourcePath } : {}),
         },
         stdio: ["ignore", "pipe", "pipe"],

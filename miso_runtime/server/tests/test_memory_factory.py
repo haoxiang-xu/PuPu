@@ -1262,6 +1262,60 @@ class MemoryFactoryTests(unittest.TestCase):
             },
         )
 
+    def test_patch_memory_prepare_with_diagnostics_ignores_log_encoding_failures(self) -> None:
+        class FakeManager:
+            def __init__(self):
+                self.config = types.SimpleNamespace(vector_top_k=2, vector_adapter=object())
+                self._last_prepare_info = {
+                    "vector_recall_count": 1,
+                }
+                self.store = None
+
+            def prepare_messages(
+                self,
+                session_id: str,
+                incoming,
+                *,
+                max_context_window_tokens: int,
+                model: str,
+                summary_generator=None,
+            ):
+                del session_id, incoming, max_context_window_tokens, model, summary_generator
+                return [
+                    {
+                        "role": "system",
+                        "content": "[MEMORY RECALL]\n- 中文记忆\n- emoji 😀",
+                    },
+                    {"role": "assistant", "content": "ok"},
+                ]
+
+        manager = FakeManager()
+        memory_factory._patch_memory_prepare_with_diagnostics(manager)
+
+        with mock.patch.object(
+            memory_factory,
+            "_safe_console_print",
+            side_effect=UnicodeEncodeError("charmap", "中文😀", 0, 3, "boom"),
+        ):
+            prepared = manager.prepare_messages(
+                session_id="chat-test",
+                incoming=[{"role": "user", "content": "请记住这段中文 😀"}],
+                max_context_window_tokens=1024,
+                model="openai:gpt-4.1",
+            )
+
+        self.assertEqual(
+            prepared,
+            [
+                {
+                    "role": "system",
+                    "content": "[MEMORY RECALL]\n- 中文记忆\n- emoji 😀",
+                },
+                {"role": "assistant", "content": "ok"},
+            ],
+        )
+        self.assertEqual(manager._last_prepare_info["vector_recall_status"], "recalled")
+
     def test_sanitize_dialog_messages_keeps_text_and_attachments(self) -> None:
         sanitized = memory_factory._sanitize_dialog_messages(
             [

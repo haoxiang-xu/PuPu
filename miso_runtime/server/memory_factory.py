@@ -5,7 +5,7 @@ Embedding provider resolution order:
   2. Current chat model's provider, if it supports embeddings
   3. OpenAI fallback if api key is present
   4. Ollama fallback if server is reachable
-  5. None — memory is skipped for this request
+  5. None â€” memory is skipped for this request
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import inspect
 import importlib.util
 import json
 import os
+import sys
 import threading
 import uuid
 from types import MethodType, SimpleNamespace
@@ -30,7 +31,7 @@ _EMBEDDING_DEFAULTS: dict[str, tuple[str, int]] = {
 # Providers that have no embedding API
 _NO_EMBED_PROVIDERS = {"anthropic"}
 
-# Module-level singletons — one Qdrant client reused across all requests
+# Module-level singletons â€” one Qdrant client reused across all requests
 _qdrant_clients: dict[str, "QdrantClient"] = {}
 _qdrant_clients_lock = threading.Lock()
 
@@ -663,6 +664,38 @@ def _clip_for_log(text: str, limit: int = 160) -> str:
     return f"{raw[:limit - 3]}..."
 
 
+def _safe_console_print(message: str) -> None:
+    try:
+        print(message, flush=True)
+        return
+    except UnicodeEncodeError:
+        pass
+    except Exception:
+        return
+
+    stream = getattr(sys, "stdout", None)
+    if stream is None:
+        return
+
+    encoding = getattr(stream, "encoding", None) or "utf-8"
+    try:
+        safe_message = message.encode(
+            encoding,
+            errors="backslashreplace",
+        ).decode(encoding, errors="replace")
+    except Exception:
+        safe_message = message.encode(
+            "ascii",
+            errors="backslashreplace",
+        ).decode("ascii")
+
+    try:
+        stream.write(f"{safe_message}\n")
+        stream.flush()
+    except Exception:
+        pass
+
+
 def _log_memory_recall_debug(
     *,
     session_id: str,
@@ -673,19 +706,22 @@ def _log_memory_recall_debug(
     query_text: str,
     recalled_items: list[str],
 ) -> None:
-    safe_query = _clip_for_log(query_text, 120) if query_text else ""
-    safe_recalled = [_clip_for_log(item, 120) for item in recalled_items[:5]]
-    print(
-        "[miso:memory] recall "
-        f"session_id={session_id!r} "
-        f"top_k={vector_top_k} "
-        f"status={vector_recall_status!r} "
-        f"count={vector_recall_count} "
-        f"query={safe_query!r} "
-        f"results={safe_recalled!r} "
-        f"fallback_reason={vector_fallback_reason!r}",
-        flush=True,
-    )
+    try:
+        safe_query = _clip_for_log(query_text, 120) if query_text else ""
+        safe_recalled = [_clip_for_log(item, 120) for item in recalled_items[:5]]
+        _safe_console_print(
+            "[miso:memory] recall "
+            f"session_id={session_id!r} "
+            f"top_k={vector_top_k} "
+            f"status={vector_recall_status!r} "
+            f"count={vector_recall_count} "
+            f"query={safe_query!r} "
+            f"results={safe_recalled!r} "
+            f"fallback_reason={vector_fallback_reason!r}",
+        )
+    except Exception:
+        # Diagnostics should never interfere with memory preparation.
+        return
 
 
 def _extract_qdrant_hits(results: object) -> list[object]:

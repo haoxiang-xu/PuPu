@@ -324,7 +324,7 @@ def _extract_projection_text(payload: Dict[str, object]) -> str:
         rendered = _coerce_memory_text(payload.get(key))
         if rendered:
             if len(rendered) > 12000:
-                return f"{rendered[:12000]}…"
+                return f"{rendered[:12000]}â€¦"
             return rendered
     return ""
 
@@ -451,7 +451,7 @@ def _kmeans_2d_numpy(coords_2d: "Any") -> List[int]:
         return [0] * n
 
     rng = _np.random.default_rng(42)
-    # K-means++ init: first centroid random, rest proportional to D²
+    # K-means++ init: first centroid random, rest proportional to DÂ²
     centroid_indices: List[int] = [int(rng.integers(0, n))]
     for _ in range(k - 1):
         c = arr[centroid_indices]
@@ -733,14 +733,14 @@ def memory_projection() -> Response:
         # Resolve the actual Qdrant collection name.
         #
         # New sessions store a random hex `vector_collection_tag` in the session
-        # JSON → collection = chat_{tag}_{safe_session_id}
+        # JSON â†’ collection = chat_{tag}_{safe_session_id}
         #
         # Legacy sessions (tag absent) fall through to `_vector_collection_prefix("")`
         # which returns "chat", giving collection = chat_{safe_session_id}
-        # — matching the legacy naming that was used before the tag system.
+        # â€” matching the legacy naming that was used before the tag system.
         session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
         try:
-            with open(session_file, "r") as _f:
+            with open(session_file, "r", encoding="utf-8") as _f:
                 _state = _json.load(_f)
         except Exception:
             _state = {}
@@ -780,7 +780,7 @@ def memory_projection() -> Response:
 
         vectors = np.array(vector_rows, dtype=np.float64)
 
-        # PCA via numpy thin SVD — center, project onto top-5 right singular vectors
+        # PCA via numpy thin SVD â€” center, project onto top-5 right singular vectors
         try:
             X = vectors - vectors.mean(axis=0)
             _, s, Vt = np.linalg.svd(X, full_matrices=False)
@@ -816,11 +816,11 @@ def memory_projection() -> Response:
                         if stripped.lower().startswith(prefix):
                             stripped = stripped[len(prefix):].strip()
                             break
-                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    label = stripped[:52] + ("â€¦" if len(stripped) > 52 else "")
                     break
 
             # content: full text for the tooltip body, capped at 300 chars
-            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+            content = full_text[:300] + ("â€¦" if len(full_text) > 300 else "")
 
             pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
             points.append({
@@ -939,10 +939,10 @@ def long_term_memory_projection() -> Response:
                         if stripped.lower().startswith(prefix):
                             stripped = stripped[len(prefix):].strip()
                             break
-                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    label = stripped[:52] + ("â€¦" if len(stripped) > 52 else "")
                     break
 
-            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+            content = full_text[:300] + ("â€¦" if len(full_text) > 300 else "")
 
             pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
             points.append({
