@@ -304,6 +304,17 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                     "timestamp": 1700000000.4,
                     "content": "hello",
                 },
+                {
+                    "type": "stream_summary",
+                    "run_id": "run-1",
+                    "iteration": 1,
+                    "timestamp": 1700000000.5,
+                    "bundle": {
+                        "consumed_tokens": 21,
+                        "max_context_window_tokens": 128000,
+                        "context_window_used_pct": 3.5,
+                    },
+                },
             ]
         )
 
@@ -348,6 +359,13 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertIn("token_delta", event_types)
         self.assertIn("final_message", event_types)
         self.assertIn("done", event_types)
+        self.assertNotIn("stream_summary", event_types)
+        done_frame = next(frame for frame in frames if frame.get("type") == "done")
+        self.assertNotIn("usage", done_frame.get("payload", {}))
+        self.assertEqual(
+            done_frame.get("payload", {}).get("bundle", {}).get("consumed_tokens"),
+            21,
+        )
 
     def test_chat_stream_v2_sets_confirmation_cancel_event_on_generator_exit(self) -> None:
         captured_cancel_event = {"value": None}

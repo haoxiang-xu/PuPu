@@ -42,7 +42,7 @@ const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
   request_messages: "request_messages",
-  run_completed: "reponse_received",
+  response_received: "response_received",
   memory_commit: "memory_commit",
   done: "end",
 });
@@ -1604,12 +1604,17 @@ const ChatInterface = () => {
               }
 
               if (frame.type === "done") {
-                misoLogger.log("end", frame.payload);
+                const endPayload =
+                  frame.payload && typeof frame.payload === "object"
+                    ? { ...frame.payload }
+                    : {};
+                delete endPayload.bundle;
+                misoLogger.log("end", endPayload);
               }
 
               if (
                 frame.type === "run_started" ||
-                frame.type === "run_completed" ||
+                frame.type === "response_received" ||
                 frame.type === "run_max_iterations"
               ) {
                 const label =
@@ -1861,35 +1866,9 @@ const ChatInterface = () => {
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               const doneTime = Date.now();
-              const parseUsageNumber = (value) => {
-                const parsed = Number(value);
-                if (Number.isFinite(parsed) && parsed >= 0) {
-                  return parsed;
-                }
-                return undefined;
-              };
-              const parsedUsage =
-                done?.usage && typeof done.usage === "object"
-                  ? {
-                      promptTokens: parseUsageNumber(
-                        done.usage.prompt_tokens ?? done.usage.promptTokens,
-                      ),
-                      completionTokens: parseUsageNumber(
-                        done.usage.completion_tokens ??
-                          done.usage.completionTokens,
-                      ),
-                      completionChars: parseUsageNumber(
-                        done.usage.completion_chars ??
-                          done.usage.completionChars,
-                      ),
-                    }
-                  : null;
-              const usage =
-                parsedUsage &&
-                (parsedUsage.promptTokens != null ||
-                  parsedUsage.completionTokens != null ||
-                  parsedUsage.completionChars != null)
-                  ? parsedUsage
+              const bundle =
+                done?.bundle && typeof done.bundle === "object"
+                  ? { ...done.bundle }
                   : undefined;
 
               const nextStreamMessages = streamMessages.map((message) => {
@@ -1908,7 +1887,7 @@ const ChatInterface = () => {
                   updatedAt: doneTime,
                   meta: {
                     ...(message.meta || {}),
-                    ...(usage ? { usage } : {}),
+                    ...(bundle ? { bundle } : {}),
                   },
                 };
               });

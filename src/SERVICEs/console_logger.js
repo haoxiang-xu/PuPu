@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════════════════════════
- *  console_logger.js  –  Agnoster / Oh-My-Zsh–style Chrome DevTools logger
+ *  console_logger.js  –  Chrome DevTools badge logger
  *
  *  Usage:
  *    import { createLogger } from "../SERVICEs/console_logger";
@@ -10,20 +10,14 @@
  *    logger.error("stream", "Connection failed", err);
  *    logger.debug("stream", "Raw frame", frame);
  *
- *  Each call produces a Powerline-segmented badge row in the console:
+ *  Each call produces a badge row in the console:
  *    ┌─────────┬──────────┬──────────┬────────────────────────────────┐
- *    │  TIME   ▸  MODULE  ▸  ACTION  ▸  FILE PATH                    │
+ *    │  TIME    MODULE    ACTION    FILE PATH                        │
  *    └─────────┴──────────┴──────────┴────────────────────────────────┘
  *  followed by the remaining arguments printed on the next line.
  *
- *  Palette: Solarized Dark (matches the classic Agnoster ZSH theme).
+ *  Palette: Solarized Dark.
  * ══════════════════════════════════════════════════════════════════════════════ */
-
-/* ── Separator ─────────────────────────────────────────────────────────────── */
-// Powerline right-arrow U+E0B0 — falls back to ▸ in stock DevTools fonts.
-// Flip USE_POWERLINE to true if you've set a Nerd / Powerline font in DevTools.
-const USE_POWERLINE = false;
-const SEP = USE_POWERLINE ? "\uE0B0" : "▸";
 
 /* ── Enable / disable ──────────────────────────────────────────────────────── */
 let _enabled =
@@ -72,9 +66,6 @@ const FG = [SOL.base1, SOL.base3, SOL.base3, SOL.base2];
 const segCSS = (bg, fg) =>
   `background:${bg};color:${fg};padding:2px 6px;font-weight:bold;font-size:11px`;
 
-const sepCSS = (leftBg, rightBg) =>
-  `background:${rightBg};color:${leftBg};padding:0;font-size:11px`;
-
 const resetCSS = "background:transparent;color:inherit;font-weight:normal";
 
 /* ── Timestamp ─────────────────────────────────────────────────────────────── */
@@ -105,14 +96,8 @@ const buildBadge = (level, moduleName, action, filePath) => {
   const css = [];
 
   labels.forEach((label, i) => {
-    // ── segment text ──
     fmt += `%c ${label} `;
     css.push(segCSS(bgs[i], FG[i]));
-
-    if (i < labels.length - 1) {
-      fmt += `%c${SEP}`;
-      css.push(sepCSS(bgs[i], bgs[i + 1]));
-    }
   });
 
   // reset after the badge row

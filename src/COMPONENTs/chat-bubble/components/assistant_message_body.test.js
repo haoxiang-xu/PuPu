@@ -1,6 +1,13 @@
 import { act, render, screen } from "@testing-library/react";
+import hljs from "highlight.js/lib/common";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import AssistantMessageBody from "./assistant_message_body";
+
+jest.mock("highlight.js/lib/common", () => ({
+  getLanguage: jest.fn(),
+  highlight: jest.fn(),
+  highlightAuto: jest.fn(),
+}));
 
 const TEST_THEME = {
   color: "#222",
@@ -25,6 +32,19 @@ const renderAssistantBody = (props) =>
 describe("AssistantMessageBody seamless rendering", () => {
   beforeEach(() => {
     jest.useFakeTimers();
+    hljs.getLanguage.mockReturnValue(true);
+    hljs.highlight.mockImplementation((code) => ({
+      value: String(code)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;"),
+    }));
+    hljs.highlightAuto.mockImplementation((code) => ({
+      value: String(code)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;"),
+    }));
     window.requestIdleCallback = (callback) =>
       setTimeout(
         () =>
@@ -42,6 +62,7 @@ describe("AssistantMessageBody seamless rendering", () => {
     jest.useRealTimers();
     delete window.requestIdleCallback;
     delete window.cancelIdleCallback;
+    jest.clearAllMocks();
   });
 
   test("uses lightweight rendering during streaming and upgrades after completion", () => {
@@ -104,5 +125,46 @@ describe("AssistantMessageBody seamless rendering", () => {
     expect(container.querySelector("pre")).toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Title" })).not.toBeInTheDocument();
     expect(screen.getByText(/# Title/)).toBeInTheDocument();
+  });
+
+  test("renders raw html documents as fenced code instead of mounting document tags", () => {
+    const htmlDocumentMarkdown = `下面是一款纯前端页面：
+
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Demo</title>
+  </head>
+  <body>
+    <main>Hello world</main>
+  </body>
+</html>`;
+
+    const { container } = renderAssistantBody({
+      message: {
+        id: "assistant-html",
+        role: "assistant",
+        status: "done",
+        content: htmlDocumentMarkdown,
+      },
+      isRawTextMode: false,
+      theme: TEST_THEME,
+      hasTraceFrames: false,
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(50);
+    });
+
+    expect(screen.getByText("下面是一款纯前端页面：")).toBeInTheDocument();
+    expect(screen.getByText(/<!DOCTYPE html>/)).toBeInTheDocument();
+    expect(container.querySelector("code.hljs")).toBeInTheDocument();
+    expect(
+      container.querySelector("[data-markdown-id] meta"),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-markdown-id] html"),
+    ).not.toBeInTheDocument();
   });
 });

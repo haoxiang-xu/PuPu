@@ -2248,6 +2248,7 @@ def stream_chat_events(
         "seen_final_message": False,
         "last_run_id": "",
         "last_iteration": 0,
+        "bundle": None,
     }
 
     def on_event(event: Dict[str, Any]) -> None:
@@ -2309,8 +2310,10 @@ def stream_chat_events(
             if "on_continuation_request" in run_params:
                 run_kwargs["on_continuation_request"] = continuation_cb
 
-            messages_out, _bundle = agent.run(**run_kwargs)
+            messages_out, bundle = agent.run(**run_kwargs)
             output_holder["messages"] = messages_out
+            if isinstance(bundle, dict) and bundle:
+                output_holder["bundle"] = bundle
         except Exception as run_error:  # pragma: no cover
             output_holder["error"] = run_error
         finally:
@@ -2340,3 +2343,13 @@ def stream_chat_events(
                 "timestamp": time.time(),
                 "content": final_text,
             }
+
+    bundle = output_holder.get("bundle")
+    if isinstance(bundle, dict) and bundle:
+        yield {
+            "type": "stream_summary",
+            "run_id": str(output_holder.get("last_run_id") or ""),
+            "iteration": int(output_holder.get("last_iteration") or 0),
+            "timestamp": time.time(),
+            "bundle": bundle,
+        }

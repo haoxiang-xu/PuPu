@@ -51,6 +51,14 @@ const saveSettingsStorage = (path, data) => {
   } catch {}
 };
 
+const loadInitialFragment = () => {
+  try {
+    const persisted = loadSettingsStorage();
+    return persisted?.ui?.side_menu_open === true ? "side_menu" : "main";
+  } catch {}
+  return "main";
+};
+
 /* remove legacy top-level keys that were migrated into "settings" */
 const migrateSettingsStorage = () => {
   try {
@@ -154,7 +162,13 @@ const ConfigContainer = ({ children }) => {
   const device_type = useDeviceType();
   /* { ENVIRONMENT } ===================================================================================================== */
 
-  const [onFragment, setOnFragment] = useState("main");
+  const [onFragment, setOnFragment] = useState(() => loadInitialFragment());
+
+  useEffect(() => {
+    saveSettingsStorage("ui", {
+      side_menu_open: onFragment === "side_menu",
+    });
+  }, [onFragment]);
 
   /* { Init Setup } ============================================ */
   const [showInitSetup, setShowInitSetup] = useState(() => !isSetupComplete());

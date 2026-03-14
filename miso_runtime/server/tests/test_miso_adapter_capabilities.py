@@ -1254,7 +1254,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                             "content": "done",
                         }
                     )
-                return [{"role": "assistant", "content": "done"}], {}
+                return [{"role": "assistant", "content": "done"}], {
+                    "consumed_tokens": 21,
+                    "max_context_window_tokens": 128000,
+                    "context_window_used_pct": 3.5,
+                }
 
         fake_agent = FakeAgent()
 
@@ -1282,6 +1286,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertTrue(fake_agent.received_on_tool_confirm)
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertTrue(any(event.get("type") == "stream_summary" for event in events))
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("consumed_tokens"),
+            21,
+        )
         self.assertGreaterEqual(len(fake_agent.last_messages), 1)
         self.assertEqual(fake_agent.last_messages[0].get("role"), "system")
         self.assertIn("[Personality]", fake_agent.last_messages[0].get("content", ""))

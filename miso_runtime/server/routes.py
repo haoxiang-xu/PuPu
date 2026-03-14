@@ -645,8 +645,6 @@ def chat_stream() -> Response:
     options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
 
     def stream_events() -> Iterable[str]:
-        completion_tokens = 0
-        completion_chars = 0
         started_at = int(time.time() * 1000)
 
         try:
@@ -667,8 +665,6 @@ def chat_stream() -> Response:
                 session_id=thread_id,
             ):
                 normalized_delta = str(delta)
-                completion_chars += len(normalized_delta)
-                completion_tokens += max(1, len(normalized_delta.strip().split()))
                 yield _sse_event("token", {"delta": normalized_delta})
 
             yield _sse_event(
@@ -676,11 +672,6 @@ def chat_stream() -> Response:
                 {
                     "thread_id": thread_id,
                     "finished_at": int(time.time() * 1000),
-                    "usage": {
-                        "prompt_tokens": max(1, len(message.split())),
-                        "completion_tokens": completion_tokens,
-                        "completion_chars": completion_chars,
-                    },
                 },
             )
         except GeneratorExit:  # pragma: no cover
@@ -1017,9 +1008,8 @@ def chat_stream_v2() -> Response:
 
     def stream_events() -> Iterable[str]:
         seq = 0
-        completion_tokens = 0
-        completion_chars = 0
         started_at = int(time.time() * 1000)
+        final_bundle: Dict[str, object] | None = None
         confirmation_cancel_event = threading.Event()
 
         def cancel_pending_confirmations() -> None:
@@ -1054,6 +1044,12 @@ def chat_stream_v2() -> Response:
             ):
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
 
+                if event_type == "stream_summary":
+                    bundle = raw_event.get("bundle")
+                    if isinstance(bundle, dict) and bundle:
+                        final_bundle = bundle
+                    continue
+
                 payload_data = {
                     key: value
                     for key, value in raw_event.items()
@@ -1066,11 +1062,6 @@ def chat_stream_v2() -> Response:
                     sanitized_payload = payload_data
                 else:
                     sanitized_payload = _sanitize_trace_value(payload_data, trace_level)
-
-                delta = raw_event.get("delta")
-                if event_type == "token_delta" and isinstance(delta, str):
-                    completion_chars += len(delta)
-                    completion_tokens += max(1, len(delta.strip().split()))
 
                 run_id = raw_event.get("run_id")
                 normalized_run_id = run_id if isinstance(run_id, str) else ""
@@ -1098,20 +1089,18 @@ def chat_stream_v2() -> Response:
 
             seq += 1
             finished_at = int(time.time() * 1000)
+            done_payload: Dict[str, object] = {
+                "finished_at": finished_at,
+            }
+            if isinstance(final_bundle, dict) and final_bundle:
+                done_payload["bundle"] = final_bundle
             yield _sse_event(
                 "frame",
                 _build_trace_frame(
                     seq=seq,
                     thread_id=thread_id,
                     event_type="done",
-                    payload={
-                        "finished_at": finished_at,
-                        "usage": {
-                            "prompt_tokens": max(1, len(message.split())),
-                            "completion_tokens": completion_tokens,
-                            "completion_chars": completion_chars,
-                        },
-                    },
+                    payload=done_payload,
                     iteration=0,
                     timestamp_ms=finished_at,
                 ),

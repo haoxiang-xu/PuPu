@@ -361,4 +361,49 @@ describe("ChatInterface stop flow", () => {
       window.cancelAnimationFrame = originalCancelRaf;
     }
   });
+
+  test("stores the done bundle on the assistant message", async () => {
+    render(
+      <ConfigContext.Provider
+        value={{
+          theme: {},
+          onFragment: "main",
+          onThemeMode: "light_mode",
+        }}
+      >
+        <ChatInterface />
+      </ConfigContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(window.misoAPI.getStatus).toHaveBeenCalled();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Bundle test" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    const bundle = {
+      consumed_tokens: 21,
+      max_context_window_tokens: 128000,
+      context_window_used_pct: 3.5,
+    };
+
+    streamHandlers.onDone({ bundle });
+
+    const getAssistantMessage = () =>
+      lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+
+    await waitFor(() => {
+      expect(getAssistantMessage()?.status).toBe("done");
+      expect(getAssistantMessage()?.meta?.bundle).toEqual(bundle);
+    });
+  });
 });
