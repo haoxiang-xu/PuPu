@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useSystemTheme,
   useWindowSize,
@@ -8,6 +8,7 @@ import {
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 import Scrollable from "../../BUILTIN_COMPONENTs/class/scrollable";
+import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import TitleBar from "../../BUILTIN_COMPONENTs/electron/title_bar";
 import SideMenu from "../../COMPONENTs/side-menu/side_menu";
 import InitSetupModal from "../../COMPONENTs/init-setup/init_setup_modal";
@@ -59,6 +60,66 @@ const loadInitialFragment = () => {
   return "main";
 };
 
+const resolveInitialThemeMode = (persistedThemeMode, systemTheme) => {
+  if (persistedThemeMode && persistedThemeMode !== "sync_with_browser") {
+    return persistedThemeMode;
+  }
+
+  return systemTheme === "dark_mode" ? "dark_mode" : "light_mode";
+};
+
+const THEME_NAMES = Object.keys(available_themes);
+const DEFAULT_THEME_NAME = THEME_NAMES[0] || null;
+
+const resolveThemeDefinition = (themeName, themeMode) => {
+  if (!themeName || !themeMode) {
+    return null;
+  }
+
+  return available_themes?.[themeName]?.[themeMode] || null;
+};
+
+const ThemeBootScreen = ({ isDark }) => {
+  const backgroundColor = isDark ? "#121212" : "#FFFFFF";
+  const foregroundColor = isDark
+    ? "rgba(255,255,255,0.75)"
+    : "rgba(0,0,0,0.65)";
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 18,
+        backgroundColor,
+      }}
+    >
+      <div
+        style={{
+          fontFamily: "Jost, Segoe UI, system-ui, sans-serif",
+          fontSize: 24,
+          fontWeight: 300,
+          letterSpacing: 6,
+          textTransform: "uppercase",
+          color: foregroundColor,
+        }}
+      >
+        PuPu
+      </div>
+      <ArcSpinner
+        size={22}
+        stroke_width={2}
+        color={isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)"}
+        track_opacity={isDark ? 0.18 : 0.1}
+      />
+    </div>
+  );
+};
+
 /* remove legacy top-level keys that were migrated into "settings" */
 const migrateSettingsStorage = () => {
   try {
@@ -76,45 +137,37 @@ const ConfigContainer = ({ children }) => {
   /* load persisted appearance on first render */
   const _persisted = loadSettingsStorage();
   const _persistedThemeMode = _persisted?.appearance?.theme_mode;
+  const initialThemeMode = resolveInitialThemeMode(
+    _persistedThemeMode,
+    system_theme,
+  );
 
   const [syncWithSystemTheme, setSyncWithSystemTheme] = useState(
     _persistedThemeMode === "sync_with_browser" || _persistedThemeMode == null,
   );
-  const [theme, setTheme] = useState(null);
-  const [onThemeMode, setOnThemeMode] = useState(
-    _persistedThemeMode && _persistedThemeMode !== "sync_with_browser"
-      ? _persistedThemeMode
-      : system_theme === "dark_mode"
-        ? "dark_mode"
-        : "light_mode",
+  const [theme, setTheme] = useState(() =>
+    resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
   );
-  const [availableThemes, setAvailableThemes] = useState([]);
-  const [selectedTheme, setSelectedTheme] = useState(null);
-  const initialize_theme = useCallback(() => {
-    /* only reset to system theme if no persisted preference */
-    if (!_persistedThemeMode) {
-      setOnThemeMode(system_theme);
-    }
-    setAvailableThemes(Object.keys(available_themes));
-    setSelectedTheme(Object.keys(available_themes)[0]);
-  }, [system_theme, _persistedThemeMode]);
+  const [onThemeMode, setOnThemeMode] = useState(initialThemeMode);
+  const [isThemeBooting, setIsThemeBooting] = useState(true);
+  const availableThemes = THEME_NAMES;
+  const selectedTheme = DEFAULT_THEME_NAME;
+
   useEffect(() => {
-    initialize_theme();
-  }, [initialize_theme]);
-  useEffect(() => {
-    if (
-      available_themes &&
-      available_themes[selectedTheme] &&
-      available_themes[selectedTheme][onThemeMode]
-    ) {
-      setTheme(available_themes[selectedTheme][onThemeMode]);
-    }
+    setTheme(resolveThemeDefinition(selectedTheme, onThemeMode));
   }, [onThemeMode, selectedTheme]);
   useEffect(() => {
     if (theme?.backgroundColor) {
       themeBridge.setBackgroundColor(theme.backgroundColor);
     }
   }, [theme]);
+  useEffect(() => {
+    if (!theme || !selectedTheme) {
+      return;
+    }
+
+    setIsThemeBooting(false);
+  }, [theme, selectedTheme]);
   useEffect(() => {
     if (!themeBridge.isThemeModeAvailable()) {
       return;
@@ -201,28 +254,36 @@ const ConfigContainer = ({ children }) => {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: theme?.backgroundColor || "#00000000",
+          backgroundColor:
+            theme?.backgroundColor ||
+            (onThemeMode === "dark_mode" ? "#121212" : "#FFFFFF"),
         }}
       >
-        <TitleBar />
-        <div
-          style={{
-            position: "absolute",
-            top: 18,
-            left: 4,
-            right: 4,
-            bottom: 0,
-          }}
-        >
-          {children}
-        </div>
-        <SideMenu />
-        <InitSetupModal
-          open={showInitSetup}
-          onClose={() => setShowInitSetup(false)}
-        />
+        {isThemeBooting ? (
+          <ThemeBootScreen isDark={onThemeMode === "dark_mode"} />
+        ) : (
+          <>
+            <TitleBar />
+            <div
+              style={{
+                position: "absolute",
+                top: 18,
+                left: 4,
+                right: 4,
+                bottom: 0,
+              }}
+            >
+              {children}
+            </div>
+            <SideMenu />
+            <InitSetupModal
+              open={showInitSetup}
+              onClose={() => setShowInitSetup(false)}
+            />
+          </>
+        )}
       </div>
-      <Scrollable />
+      {!isThemeBooting && <Scrollable />}
     </ConfigContext.Provider>
   );
 };
