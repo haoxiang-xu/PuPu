@@ -15,6 +15,7 @@ const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 const MISO_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
 const MISO_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
+const MISO_REPLACE_SESSION_MEMORY_ENDPOINT = "/memory/session/replace";
 
 const createMisoService = ({
   app,
@@ -572,6 +573,46 @@ const createMisoService = ({
       "Miso long-term memory projection request failed",
       {},
       "Invalid Miso long-term memory projection response",
+    );
+  };
+
+  const replaceMisoSessionMemory = async (payload = {}) => {
+    ensureMisoReady();
+
+    const sessionIdRaw = payload?.sessionId ?? payload?.session_id;
+    const sessionId =
+      typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+    if (!sessionId) {
+      throw new Error("session_id is required");
+    }
+
+    const messages = Array.isArray(payload?.messages) ? payload.messages : [];
+    const options =
+      payload?.options && typeof payload.options === "object"
+        ? payload.options
+        : {};
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_REPLACE_SESSION_MEMORY_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+        },
+        body: JSON.stringify({
+          session_id: sessionId,
+          messages,
+          options,
+        }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso session memory replace request failed",
+      {},
+      "Invalid Miso session memory replace response",
     );
   };
 
@@ -1216,6 +1257,7 @@ const createMisoService = ({
     getMisoToolkitCatalogPayload,
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
+    replaceMisoSessionMemory,
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,

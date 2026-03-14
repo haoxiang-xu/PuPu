@@ -67,6 +67,7 @@ describe("preload API contract", () => {
       "getRuntimeDirSize",
       "deleteRuntimeEntry",
       "clearRuntimeDir",
+      "replaceSessionMemory",
       "startStream",
       "startStreamV2",
       "cancelStream",
@@ -95,6 +96,12 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
       { open: true },
+    );
+
+    exposed.misoAPI.replaceSessionMemory({ sessionId: "chat-1", messages: [] });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+      { sessionId: "chat-1", messages: [] },
     );
 
     exposed.themeAPI.setThemeMode("dark_mode");

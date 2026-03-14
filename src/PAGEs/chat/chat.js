@@ -159,6 +159,40 @@ const settleStreamingAssistantMessages = (messages) => {
   };
 };
 
+const collectTurnMessageIds = (messages, targetMessageId) => {
+  if (!Array.isArray(messages) || !targetMessageId) {
+    return new Set();
+  }
+
+  const targetIndex = messages.findIndex((message) => message?.id === targetMessageId);
+  if (targetIndex < 0) {
+    return new Set();
+  }
+
+  let startIndex = targetIndex;
+  while (startIndex > 0 && messages[startIndex]?.role !== "user") {
+    startIndex -= 1;
+  }
+  if (messages[startIndex]?.role !== "user") {
+    startIndex = targetIndex;
+  }
+
+  let endIndex = targetIndex;
+  while (
+    endIndex + 1 < messages.length &&
+    messages[endIndex + 1]?.role !== "user"
+  ) {
+    endIndex += 1;
+  }
+
+  return new Set(
+    messages
+      .slice(startIndex, endIndex + 1)
+      .map((message) => message?.id)
+      .filter((messageId) => typeof messageId === "string" && messageId),
+  );
+};
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Hero layout constants
 ───────────────────────────────────────────────────────────────────────────── */
@@ -644,11 +678,47 @@ const ChatInterface = () => {
     const { changed, nextMessages } = settleStreamingAssistantMessages(
       messagesRef.current,
     );
+    messagesRef.current = nextMessages;
     setMessages(nextMessages);
 
     if (chatId && changed) {
       setChatMessages(chatId, nextMessages, { source: "chat-page" });
     }
+  }, [clearActiveTokenFlushController]);
+
+  const cancelCurrentStreamAndSettleMessages = useCallback(() => {
+    clearActiveTokenFlushController("dispose");
+    if (
+      streamHandleRef.current &&
+      typeof streamHandleRef.current.cancel === "function"
+    ) {
+      streamHandleRef.current.cancel();
+    }
+    const chatId = activeChatIdRef.current;
+    streamHandleRef.current = null;
+    streamingChatIdRef.current = null;
+    activeStreamMessagesRef.current = null;
+    setStreamingChatId(null);
+    confirmationIdByCallIdRef.current.clear();
+    confirmationCallIdByIdRef.current.clear();
+    confirmationFollowupSignalByIdRef.current.clear();
+    confirmationResolveTimerByIdRef.current.forEach((timerId) => {
+      clearTimeout(timerId);
+    });
+    confirmationResolveTimerByIdRef.current.clear();
+    toolConfirmationUiStateByIdRef.current = {};
+    setToolConfirmationUiStateById({});
+    // Remove empty assistant placeholder; mark partial ones as cancelled
+    const { changed, nextMessages } = settleStreamingAssistantMessages(
+      messagesRef.current,
+    );
+    messagesRef.current = nextMessages;
+    setMessages(nextMessages);
+
+    if (chatId && changed) {
+      setChatMessages(chatId, nextMessages, { source: "chat-page" });
+    }
+    return nextMessages;
   }, [clearActiveTokenFlushController]);
 
   const updateToolConfirmationUiState = useCallback((updater) => {
@@ -1174,6 +1244,34 @@ const ChatInterface = () => {
       })
       .filter(Boolean);
   }, []);
+
+  const replaceSessionMemoryForMessages = useCallback(
+    async (chatId, nextMessages) => {
+      if (!chatId || readMemorySettings().enabled !== true) {
+        return true;
+      }
+
+      try {
+        const response = await api.miso.replaceSessionMemory({
+          sessionId: chatId,
+          messages: buildHistoryForModel(nextMessages, chatId),
+          options: {
+            modelId: modelIdRef.current,
+          },
+        });
+
+        return response?.applied !== false;
+      } catch (error) {
+        if (activeChatIdRef.current === chatId) {
+          setStreamError(
+            error?.message || "Failed to sync short-term memory for this chat.",
+          );
+        }
+        return false;
+      }
+    },
+    [buildHistoryForModel],
+  );
 
   const startStreamRequest = useCallback(
     async ({
@@ -2114,7 +2212,7 @@ const ChatInterface = () => {
   ]);
 
   const handleResendMessage = useCallback(
-    (message) => {
+    async (message) => {
       const chatId = activeChatIdRef.current;
       const messageIndex = Array.isArray(messages)
         ? messages.findIndex((item) => item?.id === message?.id)
@@ -2151,6 +2249,13 @@ const ChatInterface = () => {
       }
 
       const baseMessages = messages.slice(0, messageIndex);
+      const memoryReplaced = await replaceSessionMemoryForMessages(
+        chatId,
+        baseMessages,
+      );
+      if (!memoryReplaced) {
+        return;
+      }
       const sourceAttachments = Array.isArray(targetMessage.attachments)
         ? targetMessage.attachments
         : [];
@@ -2174,11 +2279,16 @@ const ChatInterface = () => {
         missingAttachmentPayloadMode: "degrade",
       });
     },
-    [attachmentsEnabled, messages, startStreamRequest],
+    [
+      attachmentsEnabled,
+      messages,
+      replaceSessionMemoryForMessages,
+      startStreamRequest,
+    ],
   );
 
   const handleEditMessage = useCallback(
-    (message, nextContent) => {
+    async (message, nextContent) => {
       const chatId = activeChatIdRef.current;
       const messageIndex = Array.isArray(messages)
         ? messages.findIndex((item) => item?.id === message?.id)
@@ -2212,6 +2322,13 @@ const ChatInterface = () => {
       }
 
       const baseMessages = messages.slice(0, messageIndex);
+      const memoryReplaced = await replaceSessionMemoryForMessages(
+        chatId,
+        baseMessages,
+      );
+      if (!memoryReplaced) {
+        return;
+      }
       const sourceAttachments = Array.isArray(targetMessage.attachments)
         ? targetMessage.attachments
         : [];
@@ -2235,7 +2352,12 @@ const ChatInterface = () => {
         missingAttachmentPayloadMode: "degrade",
       });
     },
-    [attachmentsEnabled, messages, startStreamRequest],
+    [
+      attachmentsEnabled,
+      messages,
+      replaceSessionMemoryForMessages,
+      startStreamRequest,
+    ],
   );
 
   const handleAttachFile = useCallback(() => {
@@ -2460,34 +2582,53 @@ const ChatInterface = () => {
   );
 
   const handleDeleteMessage = useCallback(
-    (message) => {
+    async (message) => {
       if (!message || typeof message.id !== "string" || !message.id) {
+        return;
+      }
+
+      const chatId = activeChatIdRef.current;
+      if (!chatId) {
+        return;
+      }
+
+      const turnMessageIds = collectTurnMessageIds(
+        messagesRef.current,
+        message.id,
+      );
+      if (turnMessageIds.size === 0) {
         return;
       }
 
       const deletingStreamingAssistant =
         message.role === "assistant" && message.status === "streaming";
+      let workingMessages = Array.isArray(messagesRef.current)
+        ? messagesRef.current
+        : [];
 
       if (
         deletingStreamingAssistant &&
         streamHandleRef.current &&
-        streamingChatIdRef.current === activeChatIdRef.current
+        streamingChatIdRef.current === chatId
       ) {
-        clearActiveTokenFlushController("dispose");
-        if (typeof streamHandleRef.current.cancel === "function") {
-          streamHandleRef.current.cancel();
-        }
-        streamHandleRef.current = null;
-        streamingChatIdRef.current = null;
-        activeStreamMessagesRef.current = null;
-        setStreamingChatId(null);
+        workingMessages = cancelCurrentStreamAndSettleMessages();
       }
 
-      setMessages((previousMessages) =>
-        previousMessages.filter((item) => item.id !== message.id),
+      const nextMessages = workingMessages.filter(
+        (item) => !turnMessageIds.has(item?.id),
       );
+      const memoryReplaced = await replaceSessionMemoryForMessages(
+        chatId,
+        nextMessages,
+      );
+      if (!memoryReplaced) {
+        return;
+      }
+
+      messagesRef.current = nextMessages;
+      setMessages(nextMessages);
     },
-    [clearActiveTokenFlushController],
+    [cancelCurrentStreamAndSettleMessages, replaceSessionMemoryForMessages],
   );
 
   const effectiveDisclaimer = useMemo(() => {

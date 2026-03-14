@@ -31,6 +31,8 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_PROJECTION, { sessionId }),
   getLongTermMemoryProjection: () =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION),
+  replaceSessionMemory: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.REPLACE_SESSION_MEMORY, payload),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
   startStreamV2: streamClient.startStreamV2,

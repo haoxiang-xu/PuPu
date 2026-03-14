@@ -72,6 +72,32 @@ _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
 
 
+def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
+    """Return True when OpenAI should fall back from previous_response_id chaining."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error_obj = body.get("error")
+        if isinstance(error_obj, dict):
+            code = error_obj.get("code")
+            if code == "previous_response_not_found":
+                return True
+
+            param = error_obj.get("param")
+            message = str(error_obj.get("message", ""))
+            if param == "previous_response_id" and "not found" in message.lower():
+                return True
+
+            if "no tool call found for function call output" in message.lower():
+                return True
+
+    text = str(exc).lower()
+    if "previous_response_id" in text and "not found" in text:
+        return True
+    if "no tool call found for function call output" in text:
+        return True
+    return False
+
+
 def _normalize_tool_confirmation_response(raw: object) -> Dict[str, Any]:
     approved = True
     reason = ""
@@ -362,7 +388,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     if not isinstance(broth_cls, type):
         return
 
-    patch_marker = "_pupu_tool_confirmation_contract_patch_v3"
+    patch_marker = "_pupu_tool_confirmation_contract_patch_v4"
     if getattr(broth_cls, patch_marker, False):
         return
 
@@ -372,6 +398,11 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         broth_cls, "_build_observation_messages", None
     )
     original_inject_observation = getattr(broth_cls, "_inject_observation", None)
+    original_is_previous_response_not_found_error = getattr(
+        broth_cls,
+        "_is_previous_response_not_found_error",
+        None,
+    )
     if not (
         callable(original_execute_tool_calls)
         and callable(original_build_observation_messages)
@@ -683,9 +714,26 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
 
         return original_inject_observation(self, tool_message, observation)
 
+    def _patched_is_previous_response_not_found_error(
+        self,
+        exc: Exception,
+    ) -> bool:
+        if callable(original_is_previous_response_not_found_error):
+            try:
+                if bool(original_is_previous_response_not_found_error(self, exc)):
+                    return True
+            except Exception:
+                pass
+        return _is_openai_previous_response_fallback_error(exc)
+
     setattr(broth_cls, "_execute_tool_calls", _patched_execute_tool_calls)
     setattr(broth_cls, "_build_observation_messages", _patched_build_observation_messages)
     setattr(broth_cls, "_inject_observation", _patched_inject_observation)
+    setattr(
+        broth_cls,
+        "_is_previous_response_not_found_error",
+        _patched_is_previous_response_not_found_error,
+    )
     setattr(broth_cls, patch_marker, True)
 
 

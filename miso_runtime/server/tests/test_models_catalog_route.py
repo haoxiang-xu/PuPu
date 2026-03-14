@@ -567,6 +567,59 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         options = stream_mock.call_args.kwargs.get("options", {})
         self.assertIn("system_prompt_v2", options)
 
+    def test_replace_memory_session_returns_memory_factory_payload(self) -> None:
+        expected_payload = {
+            "applied": True,
+            "session_id": "chat-1",
+            "stored_message_count": 2,
+            "vector_applied": True,
+            "vector_indexed_count": 1,
+            "vector_indexed_until": 2,
+            "vector_fallback_reason": "",
+        }
+
+        fake_memory_factory = types.SimpleNamespace(
+            replace_short_term_session_memory=mock.Mock(return_value=expected_payload)
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.post(
+                "/memory/session/replace",
+                json={
+                    "session_id": "chat-1",
+                    "messages": [
+                        {"role": "user", "content": "u1"},
+                        {"role": "assistant", "content": "a1"},
+                    ],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), expected_payload)
+        fake_memory_factory.replace_short_term_session_memory.assert_called_once_with(
+            session_id="chat-1",
+            messages=[
+                {"role": "user", "content": "u1"},
+                {"role": "assistant", "content": "a1"},
+            ],
+            options={"modelId": "openai:gpt-5"},
+        )
+
+    def test_replace_memory_session_requires_messages_array(self) -> None:
+        response = self.client.post(
+            "/memory/session/replace",
+            json={
+                "session_id": "chat-1",
+                "messages": "invalid",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "invalid_request")
+        self.assertEqual(payload["error"]["message"], "messages must be an array")
+
 
 if __name__ == "__main__":
     unittest.main()

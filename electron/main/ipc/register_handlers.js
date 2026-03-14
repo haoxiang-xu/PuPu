@@ -24,6 +24,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_MEMORY_SIZE,
   CHANNELS.MISO.GET_MEMORY_PROJECTION,
   CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
+  CHANNELS.MISO.REPLACE_SESSION_MEMORY,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -139,6 +140,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.handle(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION, async () =>
     misoService.getMisoLongTermMemoryProjection(),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+    async (_event, payload = {}) => misoService.replaceMisoSessionMemory(payload),
   );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {

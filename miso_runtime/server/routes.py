@@ -968,6 +968,73 @@ def long_term_memory_projection() -> Response:
         return jsonify({"error": str(exc)}), 500
 
 
+@api_blueprint.post("/memory/session/replace")
+def replace_memory_session() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    payload = request.get_json(silent=True) or {}
+    session_id_raw = payload.get("session_id") or payload.get("sessionId")
+    session_id = str(session_id_raw or "").strip()
+    if not session_id:
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "session_id is required",
+                }
+            }
+        ), 400
+
+    raw_messages = payload.get("messages")
+    if not isinstance(raw_messages, list):
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "messages must be an array",
+                }
+            }
+        ), 400
+
+    options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
+
+    try:
+        import memory_factory
+
+        result = memory_factory.replace_short_term_session_memory(
+            session_id=session_id,
+            messages=raw_messages,
+            options=options,
+        )
+        return jsonify(result)
+    except ValueError as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": str(exc),
+                }
+            }
+        ), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "memory_replace_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
 @api_blueprint.post("/chat/stream/v2")
 def chat_stream_v2() -> Response:
     if not _is_authorized():

@@ -737,6 +737,57 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(denied_events[0][2].get("reason"), "denied")
         self.assertEqual(agent.session_ids, ["thread-openai-1", "thread-openai-2"])
 
+    def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
+        self,
+    ) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+
+            def _execute_tool_calls(self, **_kwargs):
+                return [], False
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _is_previous_response_not_found_error(self, exc):
+                return "previous response" in str(exc).lower()
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+
+        class FakeError(Exception):
+            def __init__(self, message: str, body: dict | None = None):
+                super().__init__(message)
+                self.body = body
+
+        no_tool_call_error = FakeError(
+            (
+                "Error code: 400 - {'error': {'message': "
+                "'No tool call found for function call output with call_id call_123.', "
+                "'type': 'invalid_request_error', 'param': 'input', 'code': None}}"
+            ),
+            body={
+                "error": {
+                    "message": (
+                        "No tool call found for function call output with call_id call_123."
+                    ),
+                    "type": "invalid_request_error",
+                    "param": "input",
+                    "code": None,
+                }
+            },
+        )
+        previous_response_error = FakeError(
+            "Previous response with id 'resp_1' not found.",
+        )
+
+        self.assertTrue(agent._is_previous_response_not_found_error(no_tool_call_error))
+        self.assertTrue(agent._is_previous_response_not_found_error(previous_response_error))
+
     def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
         class FakeAgent:
             def __init__(self):
