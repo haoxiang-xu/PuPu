@@ -1755,6 +1755,32 @@ const ChatInterface = () => {
                   session_id: payload.session_id,
                   stored_message_count: payload.stored_message_count,
                   vector_indexed_count: payload.vector_indexed_count,
+                  memory_namespace: payload.memory_namespace,
+                  long_term_pending_turn_count:
+                    payload.long_term_pending_turn_count,
+                  long_term_extract_every_n_turns:
+                    payload.long_term_extract_every_n_turns,
+                  long_term_extraction_deferred:
+                    payload.long_term_extraction_deferred,
+                  long_term_profile_updated: payload.long_term_profile_updated,
+                  long_term_profile_key_count:
+                    payload.long_term_profile_key_count,
+                  long_term_memory_indexed_count:
+                    payload.long_term_memory_indexed_count,
+                  long_term_fact_indexed_count:
+                    payload.long_term_fact_indexed_count,
+                  long_term_episode_indexed_count:
+                    payload.long_term_episode_indexed_count,
+                  long_term_playbook_indexed_count:
+                    payload.long_term_playbook_indexed_count,
+                  long_term_noop: payload.long_term_noop,
+                  long_term_fallback_reason: payload.long_term_fallback_reason,
+                  long_term_profile_fallback_reason:
+                    payload.long_term_profile_fallback_reason,
+                  long_term_extractor_fallback_reason:
+                    payload.long_term_extractor_fallback_reason,
+                  long_term_vector_fallback_reason:
+                    payload.long_term_vector_fallback_reason,
                   vector_fallback_reason: payload.vector_fallback_reason,
                   fallback_reason: payload.fallback_reason,
                 });

@@ -1,6 +1,7 @@
 import sys
 import unittest
 import json
+import tempfile
 import types
 from pathlib import Path
 from unittest import mock
@@ -506,6 +507,85 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["points"], [])
         self.assertEqual(payload["variance"], [0.0, 0.0])
+
+    def test_long_term_memory_projection_includes_profile_documents_without_vectors(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir:
+            profiles_dir = Path(data_dir) / "memory" / "long_term_profiles"
+            profiles_dir.mkdir(parents=True, exist_ok=True)
+            profile_path = profiles_dir / "pupu_default.json"
+            profile_document = {
+                "preferences": {
+                    "tone": "concise",
+                    "language": "zh-CN",
+                }
+            }
+            profile_path.write_text(
+                json.dumps(profile_document, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            fake_client = types.SimpleNamespace(
+                get_collections=lambda: types.SimpleNamespace(collections=[]),
+            )
+            fake_memory_factory = types.SimpleNamespace(
+                _data_dir=lambda: data_dir,
+                _normalize_data_dir=lambda value: value,
+                _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+            )
+
+            with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+                response = self.client.get("/memory/long-term/projection")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["points"], [])
+        self.assertEqual(payload["profile_count"], 1)
+        self.assertGreater(payload["profile_total_bytes"], 0)
+        self.assertEqual(payload["profiles"][0]["storage_key"], "pupu_default")
+        self.assertEqual(payload["profiles"][0]["document"], profile_document)
+
+    def test_long_term_memory_projection_tolerates_empty_cluster_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir:
+            point_one = types.SimpleNamespace(
+                id="lt-1",
+                vector=[1.0, 0.0, 0.0],
+                payload={"text": "first memory"},
+            )
+            point_two = types.SimpleNamespace(
+                id="lt-2",
+                vector=[0.0, 1.0, 0.0],
+                payload={"text": "second memory"},
+            )
+
+            class FakeClient:
+                def get_collections(self):
+                    return types.SimpleNamespace(
+                        collections=[types.SimpleNamespace(name="long_term_legacy")]
+                    )
+
+                def scroll(self, **_kwargs):
+                    return [point_one, point_two], None
+
+            fake_client = FakeClient()
+            fake_memory_factory = types.SimpleNamespace(
+                _data_dir=lambda: data_dir,
+                _normalize_data_dir=lambda value: value,
+                _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+            )
+
+            with (
+                mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}),
+                mock.patch.object(miso_routes, "_kmeans_2d_numpy", return_value=[]),
+            ):
+                response = self.client.get("/memory/long-term/projection")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["points"]), 2)
+        self.assertEqual(
+            [point["group"] for point in payload["points"]],
+            ["Cluster 1", "Cluster 1"],
+        )
 
     def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
         response = self.client.post(

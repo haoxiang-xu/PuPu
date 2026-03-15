@@ -17,6 +17,7 @@ import { createMisoApi } from "../../SERVICEs/api.miso";
 import { Select } from "../../BUILTIN_COMPONENTs/select/select";
 import { Slider } from "../../BUILTIN_COMPONENTs/input/slider";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
+import SegmentedButton from "../../BUILTIN_COMPONENTs/input/segmented_button";
 /* { Input components } ------------------------------------------------------------------------------------------------------- */
 
 const misoApi = createMisoApi();
@@ -99,6 +100,17 @@ const extractConversationLines = (point) => {
   }
 
   return [];
+};
+
+const stringifyProfileDocument = (document) => {
+  if (!document || typeof document !== "object") {
+    return "{}";
+  }
+  try {
+    return JSON.stringify(document, null, 2);
+  } catch (_error) {
+    return "{}";
+  }
 };
 
 /* Seeded PRNG (mulberry32) for reproducible jitter offsets */
@@ -266,6 +278,170 @@ function SelectedCard({ point, isDark, fontFamily, color }) {
   );
 }
 
+function LongTermProfileCard({
+  profiles,
+  selectedProfileId,
+  setSelectedProfileId,
+  isDark,
+  fontFamily,
+  color,
+}) {
+  const meta_color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
+  const selectedProfile =
+    profiles.find((item) => String(item?.id) === String(selectedProfileId)) ||
+    profiles[0] ||
+    null;
+  const selectedDocument =
+    selectedProfile &&
+    selectedProfile.document &&
+    typeof selectedProfile.document === "object"
+      ? selectedProfile.document
+      : {};
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 12,
+        minHeight: 80,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 12,
+          fontFamily,
+          color: meta_color,
+          lineHeight: 1.5,
+        }}
+      >
+        {profiles.length} stored profile
+        {profiles.length === 1 ? "" : "s"}.
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+        }}
+      >
+        {profiles.map((profile) => {
+          const isSelected =
+            String(profile?.id || "") === String(selectedProfile?.id || "");
+
+          return (
+            <button
+              key={String(profile?.id || profile?.storage_key || "profile")}
+              type="button"
+              onClick={() => setSelectedProfileId(String(profile?.id || ""))}
+              style={{
+                appearance: "none",
+                border: `1px solid ${
+                  isSelected
+                    ? isDark
+                      ? "rgba(255,255,255,0.16)"
+                      : "rgba(0,0,0,0.14)"
+                    : "transparent"
+                }`,
+                backgroundColor: isSelected
+                  ? isDark
+                    ? "rgba(255,255,255,0.06)"
+                    : "rgba(0,0,0,0.05)"
+                  : "transparent",
+                borderRadius: 8,
+                padding: "8px 10px",
+                textAlign: "left",
+                cursor: "pointer",
+                color: color,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  color,
+                  marginBottom: 4,
+                  wordBreak: "break-all",
+                }}
+              >
+                {profile?.storage_key || profile?.id || "default"}
+              </div>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontFamily,
+                  color: meta_color,
+                  lineHeight: 1.45,
+                }}
+              >
+                {profile?.preview || "Profile document"}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      {selectedProfile && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 8,
+            marginTop: 4,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 8,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: "Menlo, Monaco, Consolas, monospace",
+                color: meta_color,
+                textTransform: "uppercase",
+                letterSpacing: "0.6px",
+              }}
+            >
+              Profile JSON
+            </span>
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: "Menlo, Monaco, Consolas, monospace",
+                color: meta_color,
+              }}
+            >
+              {selectedProfile.size_bytes ?? 0} bytes
+            </span>
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              padding: "12px 12px",
+              borderRadius: 8,
+              backgroundColor: isDark ? "rgba(0,0,0,0.22)" : "rgba(0,0,0,0.04)",
+              color,
+              fontSize: 11,
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              lineHeight: 1.55,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {stringifyProfileDocument(selectedDocument)}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  MemoryInspectModal                                                     */
 /*                                                                         */
@@ -289,11 +465,16 @@ const MemoryInspectModal = ({
   const color = theme?.color || (isDark ? "#fff" : "#111");
   const fontFamily = theme?.font?.fontFamily || "Jost";
 
-  const [status, setStatus] = useState("idle"); // "idle" | "loading" | "ready" | "empty" | "error"
+  const [status, setStatus] = useState("idle"); // "idle" | "loading" | "ready" | "profiles" | "empty" | "error"
   const [points, setPoints] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [variance, setVariance] = useState([0, 0, 0, 0, 0]);
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  /* ── View toggle (long-term only) ── */
+  const [viewTab, setViewTab] = useState("scatter"); // "scatter" | "json"
 
   /* ── Scatter controls ── */
   const [x_pc, set_x_pc] = useState(0); // 0 = PC1, 1 = PC2 …
@@ -311,8 +492,10 @@ const MemoryInspectModal = ({
       if (!silent) {
         setStatus("loading");
         setPoints([]);
+        setProfiles([]);
         setVariance([0, 0, 0, 0, 0]);
         setSelectedPoint(null);
+        setSelectedProfileId("");
         setErrorMsg("");
       }
 
@@ -324,8 +507,31 @@ const MemoryInspectModal = ({
         .then((data) => {
           if (cancelled) return;
           const pts = Array.isArray(data?.points) ? data.points : [];
+          const nextProfiles = Array.isArray(data?.profiles)
+            ? data.profiles
+            : [];
+          setProfiles(nextProfiles);
+          setSelectedProfileId((current) => {
+            const currentId = String(current || "");
+            if (
+              currentId &&
+              nextProfiles.some((item) => String(item?.id || "") === currentId)
+            ) {
+              return currentId;
+            }
+            const fallbackId =
+              typeof nextProfiles[0]?.id === "string" ? nextProfiles[0].id : "";
+            return fallbackId;
+          });
           if (pts.length === 0) {
-            setStatus("empty");
+            setPoints([]);
+            setVariance([0, 0, 0, 0, 0]);
+            if (mode === "long_term" && nextProfiles.length > 0) {
+              setStatus("profiles");
+              setViewTab("json");
+            } else {
+              setStatus("empty");
+            }
             return;
           }
 
@@ -413,7 +619,12 @@ const MemoryInspectModal = ({
     : "1px solid rgba(0,0,0,0.08)";
   const overlay_backdrop = "blur(16px) saturate(1.4)";
 
-  const hasDetail = status === "ready" && selectedPoint;
+  const isScatterView = mode !== "long_term" || viewTab === "scatter";
+  const isJsonView = mode === "long_term" && viewTab === "json";
+  const hasChunkDetail = status === "ready" && selectedPoint;
+  const hasProfileDetail =
+    mode === "long_term" && profiles.length > 0 && isScatterView;
+  const hasDetail = hasChunkDetail || hasProfileDetail;
 
   return (
     <Modal
@@ -438,7 +649,7 @@ const MemoryInspectModal = ({
           borderRadius: "inherit",
         }}
       >
-        {(status === "loading" || status === "idle") && (
+        {isScatterView && (status === "loading" || status === "idle") && (
           <div
             style={{
               position: "absolute",
@@ -457,7 +668,7 @@ const MemoryInspectModal = ({
           </div>
         )}
 
-        {status === "empty" && (
+        {isScatterView && status === "empty" && (
           <div
             style={{
               position: "absolute",
@@ -477,7 +688,29 @@ const MemoryInspectModal = ({
           </div>
         )}
 
-        {status === "error" && (
+        {isScatterView && status === "profiles" && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontFamily,
+              color: meta_color,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              padding: "0 24px",
+              textAlign: "center",
+            }}
+          >
+            No memory vectors found. Stored long-term profiles are shown on the
+            right.
+          </div>
+        )}
+
+        {isScatterView && status === "error" && (
           <div
             style={{
               position: "absolute",
@@ -498,23 +731,106 @@ const MemoryInspectModal = ({
           </div>
         )}
 
-        {status === "ready" && (
+        {isScatterView && status === "ready" && (
           <Scatter
             points={display_points}
             color_by="group"
-            point_size={10}
+            point_size={18}
             show_legend={true}
             on_point_click={on_point_click}
             render_tooltip={() => null}
           />
         )}
+
+        {/* ━━ JSON view (full-area profile list) ━━━━━━━━━━━━━━━━━━━━━━━━ */}
+        {isJsonView && (status === "loading" || status === "idle") && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontFamily,
+              color: meta_color,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            Loading…
+          </div>
+        )}
+
+        {isJsonView && status === "error" && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontFamily,
+              color: isDark ? "rgba(255,100,100,0.7)" : "rgba(180,40,40,0.7)",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              padding: "0 24px",
+              textAlign: "center",
+            }}
+          >
+            {errorMsg}
+          </div>
+        )}
+
+        {isJsonView &&
+          status !== "loading" &&
+          status !== "idle" &&
+          status !== "error" && (
+            <div
+              className="scrollable"
+              style={{
+                position: "absolute",
+                inset: 0,
+                overflowY: "auto",
+                padding: "72px 24px 24px",
+              }}
+            >
+              {profiles.length > 0 ? (
+                <LongTermProfileCard
+                  profiles={profiles}
+                  selectedProfileId={selectedProfileId}
+                  setSelectedProfileId={setSelectedProfileId}
+                  isDark={isDark}
+                  fontFamily={fontFamily}
+                  color={color}
+                />
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    fontSize: 13,
+                    fontFamily,
+                    color: meta_color,
+                    userSelect: "none",
+                    WebkitUserSelect: "none",
+                  }}
+                >
+                  No long-term profiles found.
+                </div>
+              )}
+            </div>
+          )}
       </div>
 
       {/* ━━ Overlay: Close button ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Button
         prefix_icon="close"
         onClick={() => {
-          if (hasDetail) {
+          if (selectedPoint) {
             setSelectedPoint(null);
           } else {
             onClose();
@@ -580,22 +896,51 @@ const MemoryInspectModal = ({
             {chatTitle}
           </div>
         )}
+        {mode === "long_term" && profiles.length > 0 && (
+          <div
+            style={{
+              fontSize: 11,
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              color: meta_color,
+              marginTop: 6,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            {profiles.length} profile{profiles.length === 1 ? "" : "s"} stored
+          </div>
+        )}
+        {mode === "long_term" && (
+          <div style={{ marginTop: 10 }}>
+            <SegmentedButton
+              options={[
+                { label: "Scatter", value: "scatter" },
+                { label: "JSON", value: "json" },
+              ]}
+              value={viewTab}
+              on_change={setViewTab}
+              style={{ fontSize: 11 }}
+            />
+          </div>
+        )}
       </div>
 
       {/* ━━ Overlay: Variance bar (top-left, below header) ━━━━━━━━━━━━ */}
-      {status === "ready" && (variance[x_pc] > 0 || variance[y_pc] > 0) && (
-        <div style={{ position: "absolute", top: 56, right: 16, zIndex: 2 }}>
-          <VarianceBar
-            variance={variance}
-            isDark={isDark}
-            x_pc={x_pc}
-            y_pc={y_pc}
-          />
-        </div>
-      )}
+      {isScatterView &&
+        status === "ready" &&
+        (variance[x_pc] > 0 || variance[y_pc] > 0) && (
+          <div style={{ position: "absolute", top: 56, right: 16, zIndex: 2 }}>
+            <VarianceBar
+              variance={variance}
+              isDark={isDark}
+              x_pc={x_pc}
+              y_pc={y_pc}
+            />
+          </div>
+        )}
 
       {/* ━━ Overlay: Bottom-center control panel ━━━━━━━━━━━━━━━━━━━━━━━ */}
-      {status === "ready" && (
+      {isScatterView && status === "ready" && (
         <div
           style={{
             position: "absolute",
@@ -760,7 +1105,7 @@ const MemoryInspectModal = ({
             WebkitUserSelect: "none",
           }}
         >
-          Chunk Detail
+          {hasChunkDetail ? "Chunk Detail" : "Long-Term Profiles"}
         </div>
 
         {/* Detail content */}
@@ -773,14 +1118,23 @@ const MemoryInspectModal = ({
             padding: "0 16px 16px",
           }}
         >
-          {selectedPoint && (
+          {hasChunkDetail && selectedPoint ? (
             <SelectedCard
               point={selectedPoint}
               isDark={isDark}
               fontFamily={fontFamily}
               color={color}
             />
-          )}
+          ) : hasProfileDetail ? (
+            <LongTermProfileCard
+              profiles={profiles}
+              selectedProfileId={selectedProfileId}
+              setSelectedProfileId={setSelectedProfileId}
+              isDark={isDark}
+              fontFamily={fontFamily}
+              color={color}
+            />
+          ) : null}
         </div>
       </div>
     </Modal>

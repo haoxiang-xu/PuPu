@@ -333,6 +333,66 @@ def _empty_projection_payload() -> Dict[str, object]:
     return {"points": [], "variance": [0.0, 0.0]}
 
 
+def _profile_preview(document: object, *, limit: int = 220) -> str:
+    if not isinstance(document, dict) or not document:
+        return ""
+    try:
+        rendered = json.dumps(document, ensure_ascii=False)
+    except Exception:
+        return ""
+    if len(rendered) <= limit:
+        return rendered
+    return f"{rendered[: limit - 3]}..."
+
+
+def _load_long_term_profiles_payload(data_dir: str) -> Dict[str, object]:
+    from pathlib import Path
+
+    profiles_dir = Path(data_dir) / "memory" / "long_term_profiles"
+    if not profiles_dir.exists():
+        return {
+            "profiles": [],
+            "profile_count": 0,
+            "profile_total_bytes": 0,
+        }
+
+    profiles: List[Dict[str, object]] = []
+    total_bytes = 0
+
+    for profile_path in sorted(
+        profiles_dir.glob("*.json"),
+        key=lambda item: item.name.lower(),
+    ):
+        try:
+            size_bytes = profile_path.stat().st_size
+        except Exception:
+            size_bytes = 0
+        total_bytes += size_bytes
+
+        try:
+            raw_document = json.loads(profile_path.read_text(encoding="utf-8"))
+        except Exception:
+            raw_document = {}
+
+        document = raw_document if isinstance(raw_document, dict) else {}
+        profiles.append(
+            {
+                "id": profile_path.name,
+                "storage_key": profile_path.stem,
+                "size_bytes": size_bytes,
+                "entry_count": len(document),
+                "preview": _profile_preview(document),
+                "document": document,
+            }
+        )
+
+    return {
+        "profiles": profiles,
+        "profile_count": len(profiles),
+        "profile_total_bytes": total_bytes,
+    }
+
+
 def _projection_collection_prefix(tag: object) -> str:
     clean_tag = "".join(
         c if c.isalnum() or c == "_" else "_"
@@ -477,6 +537,31 @@ def _kmeans_2d_numpy(coords_2d: "Any") -> List[int]:
                 centroids[ki] = arr[mask].mean(axis=0)
 
     return labels.tolist()
+
+
+def _normalize_cluster_labels(raw_labels: object, point_count: int) -> List[int]:
+    if point_count <= 0:
+        return []
+
+    candidate = raw_labels
+    if hasattr(candidate, "tolist"):
+        try:
+            candidate = candidate.tolist()
+        except Exception:
+            candidate = []
+
+    normalized: List[int] = []
+    if isinstance(candidate, list):
+        for item in candidate:
+            try:
+                normalized.append(max(0, int(item)))
+            except Exception:
+                normalized.append(0)
+
+    if len(normalized) < point_count:
+        normalized.extend([0] * (point_count - len(normalized)))
+
+    return normalized[:point_count]
 
 
 @api_blueprint.get("/health")
@@ -788,6 +873,13 @@ def memory_projection() -> Response:
             return jsonify(_empty_projection_payload())
         n_pcs = min(5, len(s))
         coords = X @ Vt[:n_pcs].T  # (n, n_pcs)
+        coords_shape = getattr(coords, "shape", ())
+        point_count = min(
+            len(vector_points),
+            int(coords_shape[0]) if len(coords_shape) >= 1 else 0,
+        )
+        if point_count <= 0:
+            return jsonify(_empty_projection_payload())
         total_var = float((s ** 2).sum())
         variance = (
             [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
@@ -795,12 +887,15 @@ def memory_projection() -> Response:
             else [0.0] * 5
         )
         try:
-            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+            cluster_labels = _normalize_cluster_labels(
+                _kmeans_2d_numpy(coords[:point_count, :2]),
+                point_count,
+            )
         except Exception:
-            cluster_labels = [0] * len(vector_points)
+            cluster_labels = [0] * point_count
 
         points = []
-        for i, p in enumerate(vector_points):
+        for i, p in enumerate(vector_points[:point_count]):
             payload = p.payload if isinstance(p.payload, dict) else {}
             full_text = _extract_projection_text(payload)
             turn_start = payload.get("turn_start_index")
@@ -822,7 +917,10 @@ def memory_projection() -> Response:
             # content: full text for the tooltip body, capped at 300 chars
             content = full_text[:300] + ("â€¦" if len(full_text) > 300 else "")
 
-            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
+            pc_vals = [
+                float(coords[i, j]) if len(coords_shape) >= 2 and j < coords_shape[1] else 0.0
+                for j in range(5)
+            ]
             points.append({
                 "id":               str(p.id),
                 "x":                pc_vals[0],
@@ -867,6 +965,7 @@ def long_term_memory_projection() -> Response:
             return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
 
         client = _get_or_create_qdrant_client(data_dir)
+        profile_payload = _load_long_term_profiles_payload(data_dir)
 
         # Discover all collections whose name starts with "long_term"
         all_collections = client.get_collections().collections
@@ -875,7 +974,9 @@ def long_term_memory_projection() -> Response:
         ]
 
         if not lt_names:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
 
         # Scroll every long-term collection and merge
         all_scroll: List[Any] = []
@@ -883,7 +984,9 @@ def long_term_memory_projection() -> Response:
             all_scroll.extend(_scroll_projection_points(client, col_name))
 
         if not all_scroll:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
 
         vector_rows: List[List[float]] = []
         vector_points: List[Any] = []
@@ -904,7 +1007,9 @@ def long_term_memory_projection() -> Response:
             vector_points.append(point)
 
         if not vector_rows:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
 
         vectors = np.array(vector_rows, dtype=np.float64)
 
@@ -912,9 +1017,20 @@ def long_term_memory_projection() -> Response:
             X = vectors - vectors.mean(axis=0)
             _, s, Vt = np.linalg.svd(X, full_matrices=False)
         except Exception:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
         n_pcs = min(5, len(s))
         coords = X @ Vt[:n_pcs].T
+        coords_shape = getattr(coords, "shape", ())
+        point_count = min(
+            len(vector_points),
+            int(coords_shape[0]) if len(coords_shape) >= 1 else 0,
+        )
+        if point_count <= 0:
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
         total_var = float((s ** 2).sum())
         variance = (
             [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
@@ -922,12 +1038,15 @@ def long_term_memory_projection() -> Response:
             else [0.0] * 5
         )
         try:
-            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+            cluster_labels = _normalize_cluster_labels(
+                _kmeans_2d_numpy(coords[:point_count, :2]),
+                point_count,
+            )
         except Exception:
-            cluster_labels = [0] * len(vector_points)
+            cluster_labels = [0] * point_count
 
         points = []
-        for i, p in enumerate(vector_points):
+        for i, p in enumerate(vector_points[:point_count]):
             payload = p.payload if isinstance(p.payload, dict) else {}
             full_text = _extract_projection_text(payload)
 
@@ -944,7 +1063,10 @@ def long_term_memory_projection() -> Response:
 
             content = full_text[:300] + ("â€¦" if len(full_text) > 300 else "")
 
-            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
+            pc_vals = [
+                float(coords[i, j]) if len(coords_shape) >= 2 and j < coords_shape[1] else 0.0
+                for j in range(5)
+            ]
             points.append({
                 "id":      str(p.id),
                 "x":       pc_vals[0],
@@ -960,7 +1082,13 @@ def long_term_memory_projection() -> Response:
                 "content": content,
             })
 
-        return jsonify({"points": points, "variance": variance})
+        return jsonify(
+            {
+                "points": points,
+                "variance": variance,
+                **profile_payload,
+            }
+        )
 
     except Exception as exc:
         if _is_projection_collection_missing_error(exc):

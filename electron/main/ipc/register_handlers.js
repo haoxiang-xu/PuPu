@@ -131,9 +131,24 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     runtimeService.clearRuntimeDir(payload),
   );
   ipcMain.handle(CHANNELS.MISO.GET_MEMORY_SIZE, () => {
-    const memoryDir = path.join(app.getPath("userData"), "memory", "qdrant");
-    const result = runtimeService.getRuntimeDirSize({ dirPath: memoryDir });
-    return { total: result.total || 0, error: result.error || "" };
+    const baseMemoryDir = path.join(app.getPath("userData"), "memory");
+    const vectorDir = path.join(baseMemoryDir, "qdrant");
+    const profileDir = path.join(baseMemoryDir, "long_term_profiles");
+    const vectorResult = runtimeService.getRuntimeDirSize({ dirPath: vectorDir });
+    const profileResult = runtimeService.getRuntimeDirSize({ dirPath: profileDir });
+    const vectorTotal = Number(vectorResult.total) || 0;
+    const profileTotal = Number(profileResult.total) || 0;
+    const error =
+      vectorResult.error && profileResult.error
+        ? [vectorResult.error, profileResult.error].filter(Boolean).join(",")
+        : vectorResult.error || profileResult.error || "";
+
+    return {
+      total: vectorTotal + profileTotal,
+      vectorTotal,
+      profileTotal,
+      error,
+    };
   });
 
   ipcMain.handle(

@@ -12,6 +12,7 @@ const StorageKeyRow = ({
   onDelete,
   attachmentCount = null,
   vectorMemoryBytes = null,
+  profileMemoryBytes = null,
 }) => {
   const [hovered, setHovered] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -114,6 +115,23 @@ const StorageKeyRow = ({
               }}
             >
               {formatBytes(vectorMemoryBytes)} vectors
+            </span>
+          )}
+          {isChats && profileMemoryBytes !== null && profileMemoryBytes > 0 && (
+            <span
+              style={{
+                flexShrink: 0,
+                fontSize: 10,
+                padding: "1px 6px",
+                borderRadius: 99,
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.07)"
+                  : "rgba(0,0,0,0.06)",
+                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {formatBytes(profileMemoryBytes)} profiles
             </span>
           )}
         </div>

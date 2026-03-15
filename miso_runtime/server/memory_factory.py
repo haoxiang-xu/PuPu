@@ -10,6 +10,7 @@ Embedding provider resolution order:
 from __future__ import annotations
 
 import copy
+import hashlib
 import inspect
 import importlib.util
 import json
@@ -206,6 +207,14 @@ def _vector_embedding_signature(config: dict[str, Any], vector_size: int) -> str
 def _vector_collection_prefix(tag: str) -> str:
     clean_tag = "".join(c if c.isalnum() or c == "_" else "_" for c in str(tag or "").strip())
     return f"chat_{clean_tag}" if clean_tag else "chat"
+
+
+def _long_term_collection_prefix(embedding_signature: str) -> str:
+    normalized = str(embedding_signature or "").strip()
+    if not normalized:
+        return "long_term"
+    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+    return f"long_term_{digest}"
 
 
 def _session_collection_name(*, session_id: str, collection_prefix: str) -> str:
@@ -1087,7 +1096,9 @@ def create_memory_manager_with_diagnostics(
                     client=qdrant_client,
                     embed_fn=embed_fn,
                     vector_size=vector_size,
-                    collection_prefix="long_term",
+                    collection_prefix=_long_term_collection_prefix(
+                        embedding_signature
+                    ),
                 ),
                 profile_base_dir=_long_term_profiles_dir(data_dir),
                 vector_top_k=max(0, int(options.get("memory_long_term_vector_top_k") or 4)),

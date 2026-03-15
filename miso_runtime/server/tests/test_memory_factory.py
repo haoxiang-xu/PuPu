@@ -485,7 +485,30 @@ class MemoryFactoryTests(unittest.TestCase):
             manager.config.long_term.profile_base_dir,
             os.path.realpath(os.path.join(data_dir, "memory", "long_term_profiles")),
         )
-        self.assertEqual(manager.config.long_term.vector_adapter._collection_prefix, "long_term")
+        self.assertEqual(
+            manager.config.long_term.vector_adapter._collection_prefix,
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+        )
+
+    def test_long_term_collection_prefix_changes_with_embedding_signature(self) -> None:
+        self.assertEqual(
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+        )
+        self.assertNotEqual(
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+            memory_factory._long_term_collection_prefix(
+                "ollama:nomic-embed-text:768"
+            ),
+        )
 
     def test_create_memory_manager_rotates_collection_tag_on_signature_change(self) -> None:
         old_state = {
