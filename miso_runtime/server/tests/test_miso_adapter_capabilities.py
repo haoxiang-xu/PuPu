@@ -273,7 +273,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "\n\n".join(
                 [
                     "[Personality]\nHelpful and concise.",
-                    "[Rules]\nAlways ask clarifying questions when blocked.",
+                    "[Rules]\n"
+                    "Once you start your final answer, treat that single message as the final deliverable. "
+                    "Output may be truncated, so do not depend on follow-up continuation.\n"
+                    "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\n"
+                    "Always ask clarifying questions when blocked.",
                 ]
             ),
         )
@@ -311,7 +315,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             if module_name == "miso":
                 return SimpleNamespace(
                     builtin_toolkit=FakeBuiltinToolkit,
-                    python_workspace_toolkit=FakePythonWorkspaceToolkit,
+                    workspace_toolkit=FakePythonWorkspaceToolkit,
                     mcp=FakeMcpToolkit,
                 )
             raise ImportError(module_name)
@@ -328,7 +332,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             names,
             [
                 "builtin_toolkit",
-                "python_workspace_toolkit",
+                "workspace_toolkit",
                 "mcp",
             ],
         )
@@ -603,7 +607,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     description="dangerous",
                 )
 
-            def _execute_from_toolkits(self, name, arguments):
+            def _execute_from_toolkits(self, name, arguments, **_kwargs):
                 self.executed_arguments.append((name, arguments))
                 return {"ok": True, "arguments": arguments}
 
@@ -820,12 +824,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         captured = {}
 
-        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+        def fake_workspace_toolkit(*, workspace_root=None):
             captured["workspace_root"] = workspace_root
-            captured["include_python_runtime"] = include_python_runtime
             return {
                 "workspace_root": workspace_root,
-                "include_python_runtime": include_python_runtime,
             }
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -841,14 +843,13 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    python_workspace_toolkit=fake_workspace_toolkit
+                    workspace_toolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
+                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
-        self.assertEqual(captured["include_python_runtime"], True)
 
     def test_create_agent_attaches_workspace_toolkit_with_current_export_name(self) -> None:
         class FakeAgent:
@@ -1107,7 +1108,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+        def fake_workspace_toolkit(*, workspace_root=None):
             return {"workspace_root": workspace_root}
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1119,7 +1120,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    python_workspace_toolkit=fake_workspace_toolkit
+                    workspace_toolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent({"workspace_root": tmp})
@@ -1151,7 +1152,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             }
         )
 
-        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+        def fake_workspace_toolkit(*, workspace_root=None):
             return toolkit_instance
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1163,10 +1164,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    python_workspace_toolkit=fake_workspace_toolkit
+                    workspace_toolkit=fake_workspace_toolkit
                 ),
             ):
-                _agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
+                _agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
         self.assertTrue(toolkit_instance.tools["write_file"].requires_confirmation)
         self.assertTrue(toolkit_instance.tools["delete_file"].requires_confirmation)
@@ -1185,10 +1186,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+        def fake_workspace_toolkit(*, workspace_root=None):
             return {
                 "workspace_root": workspace_root,
-                "include_python_runtime": include_python_runtime,
             }
 
         with mock.patch.object(miso_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
@@ -1196,12 +1196,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         ), mock.patch.object(
             miso_adapter.importlib,
             "import_module",
-            return_value=SimpleNamespace(python_workspace_toolkit=fake_workspace_toolkit),
+            return_value=SimpleNamespace(workspace_toolkit=fake_workspace_toolkit),
         ):
             with tempfile.TemporaryDirectory() as tmp:
                 missing = str(Path(tmp) / "missing")
                 with self.assertRaisesRegex(RuntimeError, "workspace_root does not exist"):
-                    miso_adapter._create_agent({"workspaceRoot": missing, "toolkits": ["python_workspace_toolkit"]})
+                    miso_adapter._create_agent({"workspaceRoot": missing, "toolkits": ["workspace_toolkit"]})
 
     def test_create_agent_uses_min_two_iterations_when_workspace_root_is_set(self) -> None:
         class FakeAgent:
@@ -1214,10 +1214,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        def fake_workspace_toolkit(*, workspace_root=None, include_python_runtime=True):
+        def fake_workspace_toolkit(*, workspace_root=None):
             return {
                 "workspace_root": workspace_root,
-                "include_python_runtime": include_python_runtime,
             }
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1229,10 +1228,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    python_workspace_toolkit=fake_workspace_toolkit
+                    workspace_toolkit=fake_workspace_toolkit
                 ),
             ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
-                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["python_workspace_toolkit"]})
+                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
         self.assertEqual(agent.max_iterations, 2)
 
