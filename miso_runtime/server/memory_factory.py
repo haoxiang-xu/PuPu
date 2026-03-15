@@ -5,14 +5,17 @@ Embedding provider resolution order:
   2. Current chat model's provider, if it supports embeddings
   3. OpenAI fallback if api key is present
   4. Ollama fallback if server is reachable
-  5. None — memory is skipped for this request
+  5. None â€” memory is skipped for this request
 """
 from __future__ import annotations
 
 import copy
+import hashlib
+import inspect
 import importlib.util
 import json
 import os
+import sys
 import threading
 import uuid
 from types import MethodType, SimpleNamespace
@@ -29,7 +32,7 @@ _EMBEDDING_DEFAULTS: dict[str, tuple[str, int]] = {
 # Providers that have no embedding API
 _NO_EMBED_PROVIDERS = {"anthropic"}
 
-# Module-level singletons — one Qdrant client reused across all requests
+# Module-level singletons â€” one Qdrant client reused across all requests
 _qdrant_clients: dict[str, "QdrantClient"] = {}
 _qdrant_clients_lock = threading.Lock()
 
@@ -206,6 +209,14 @@ def _vector_collection_prefix(tag: str) -> str:
     return f"chat_{clean_tag}" if clean_tag else "chat"
 
 
+def _long_term_collection_prefix(embedding_signature: str) -> str:
+    normalized = str(embedding_signature or "").strip()
+    if not normalized:
+        return "long_term"
+    digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:12]
+    return f"long_term_{digest}"
+
+
 def _session_collection_name(*, session_id: str, collection_prefix: str) -> str:
     safe = "".join(c if c.isalnum() or c == "_" else "_" for c in str(session_id or ""))
     return f"{collection_prefix}_{safe}"
@@ -225,6 +236,31 @@ def _delete_collection_best_effort(client: Any, collection_name: str) -> None:
             return
     except Exception:
         return
+
+
+def _delete_collection_best_effort_with_warning(
+    client: Any,
+    collection_name: str,
+) -> str:
+    delete_collection = getattr(client, "delete_collection", None)
+    if not callable(delete_collection) or not collection_name:
+        return ""
+
+    try:
+        delete_collection(collection_name=collection_name)
+        return ""
+    except TypeError:
+        try:
+            delete_collection(collection_name)
+            return ""
+        except Exception as exc:
+            return str(exc)
+    except Exception as exc:
+        return str(exc)
+
+
+def _fresh_vector_collection_tag() -> str:
+    return uuid.uuid4().hex[:12]
 
 
 def _prepare_vector_collection_tag(
@@ -637,6 +673,38 @@ def _clip_for_log(text: str, limit: int = 160) -> str:
     return f"{raw[:limit - 3]}..."
 
 
+def _safe_console_print(message: str) -> None:
+    try:
+        print(message, flush=True)
+        return
+    except UnicodeEncodeError:
+        pass
+    except Exception:
+        return
+
+    stream = getattr(sys, "stdout", None)
+    if stream is None:
+        return
+
+    encoding = getattr(stream, "encoding", None) or "utf-8"
+    try:
+        safe_message = message.encode(
+            encoding,
+            errors="backslashreplace",
+        ).decode(encoding, errors="replace")
+    except Exception:
+        safe_message = message.encode(
+            "ascii",
+            errors="backslashreplace",
+        ).decode("ascii")
+
+    try:
+        stream.write(f"{safe_message}\n")
+        stream.flush()
+    except Exception:
+        pass
+
+
 def _log_memory_recall_debug(
     *,
     session_id: str,
@@ -647,19 +715,22 @@ def _log_memory_recall_debug(
     query_text: str,
     recalled_items: list[str],
 ) -> None:
-    safe_query = _clip_for_log(query_text, 120) if query_text else ""
-    safe_recalled = [_clip_for_log(item, 120) for item in recalled_items[:5]]
-    print(
-        "[miso:memory] recall "
-        f"session_id={session_id!r} "
-        f"top_k={vector_top_k} "
-        f"status={vector_recall_status!r} "
-        f"count={vector_recall_count} "
-        f"query={safe_query!r} "
-        f"results={safe_recalled!r} "
-        f"fallback_reason={vector_fallback_reason!r}",
-        flush=True,
-    )
+    try:
+        safe_query = _clip_for_log(query_text, 120) if query_text else ""
+        safe_recalled = [_clip_for_log(item, 120) for item in recalled_items[:5]]
+        _safe_console_print(
+            "[miso:memory] recall "
+            f"session_id={session_id!r} "
+            f"top_k={vector_top_k} "
+            f"status={vector_recall_status!r} "
+            f"count={vector_recall_count} "
+            f"query={safe_query!r} "
+            f"results={safe_recalled!r} "
+            f"fallback_reason={vector_fallback_reason!r}",
+        )
+    except Exception:
+        # Diagnostics should never interfere with memory preparation.
+        return
 
 
 def _extract_qdrant_hits(results: object) -> list[object]:
@@ -790,6 +861,10 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
         return manager
 
     original_commit = commit_method
+    try:
+        commit_params = inspect.signature(original_commit).parameters
+    except Exception:
+        commit_params = {}
 
     def _patched_commit_messages(
         self,
@@ -810,13 +885,17 @@ def _patch_memory_commit_with_overlap(manager: Any) -> Any:
             existing_messages,
             full_conversation,
         )
-        return original_commit(
-            session_id=session_id,
-            full_conversation=merged_conversation,
-            memory_namespace=memory_namespace,
-            model=model,
-            long_term_extractor=long_term_extractor,
-        )
+        commit_kwargs = {
+            "session_id": session_id,
+            "full_conversation": merged_conversation,
+        }
+        if "memory_namespace" in commit_params:
+            commit_kwargs["memory_namespace"] = memory_namespace
+        if "model" in commit_params:
+            commit_kwargs["model"] = model
+        if "long_term_extractor" in commit_params:
+            commit_kwargs["long_term_extractor"] = long_term_extractor
+        return original_commit(**commit_kwargs)
 
     setattr(manager, "commit_messages", MethodType(_patched_commit_messages, manager))
     setattr(manager, "_pupu_commit_overlap_patch", True)
@@ -831,6 +910,10 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
         return manager
 
     original_prepare = prepare_method
+    try:
+        prepare_params = inspect.signature(original_prepare).parameters
+    except Exception:
+        prepare_params = {}
 
     def _patched_prepare_messages(
         self,
@@ -863,14 +946,18 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
             except Exception:
                 pass
 
-        prepared = original_prepare(
-            session_id=session_id,
-            incoming=clean_incoming,
-            max_context_window_tokens=max_context_window_tokens,
-            model=model,
-            summary_generator=summary_generator,
-            memory_namespace=memory_namespace,
-        )
+        prepare_kwargs = {
+            "session_id": session_id,
+            "incoming": clean_incoming,
+            "max_context_window_tokens": max_context_window_tokens,
+            "model": model,
+        }
+        if "summary_generator" in prepare_params:
+            prepare_kwargs["summary_generator"] = summary_generator
+        if "memory_namespace" in prepare_params:
+            prepare_kwargs["memory_namespace"] = memory_namespace
+
+        prepared = original_prepare(**prepare_kwargs)
         prepared = _sanitize_dialog_messages(prepared)
 
         try:
@@ -1009,7 +1096,9 @@ def create_memory_manager_with_diagnostics(
                     client=qdrant_client,
                     embed_fn=embed_fn,
                     vector_size=vector_size,
-                    collection_prefix="long_term",
+                    collection_prefix=_long_term_collection_prefix(
+                        embedding_signature
+                    ),
                 ),
                 profile_base_dir=_long_term_profiles_dir(data_dir),
                 vector_top_k=max(0, int(options.get("memory_long_term_vector_top_k") or 4)),
@@ -1047,3 +1136,128 @@ def create_memory_manager_with_diagnostics(
 def create_memory_manager(options: dict[str, Any]):
     manager, _reason = create_memory_manager_with_diagnostics(options)
     return manager
+
+
+def replace_short_term_session_memory(
+    *,
+    session_id: str,
+    messages: object,
+    options: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    normalized_session_id = str(session_id or "").strip()
+    if not normalized_session_id:
+        raise ValueError("session_id is required")
+
+    data_dir = _normalize_data_dir(_data_dir())
+    if not data_dir:
+        raise RuntimeError("MISO_DATA_DIR not configured")
+
+    from miso.memory import _collect_complete_turns_for_vector_index
+    from miso.memory_qdrant import JsonFileSessionStore, QdrantVectorAdapter
+
+    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    raw_options = options if isinstance(options, dict) else {}
+    retained_messages = _sanitize_dialog_messages(messages)
+
+    try:
+        previous_state = store.load(normalized_session_id)
+    except Exception:
+        previous_state = {}
+    if not isinstance(previous_state, dict):
+        previous_state = {}
+
+    old_tag = str(previous_state.get("vector_collection_tag", "") or "").strip()
+    old_collection_name = _session_collection_name(
+        session_id=normalized_session_id,
+        collection_prefix=_vector_collection_prefix(old_tag),
+    )
+
+    new_tag = _fresh_vector_collection_tag()
+    new_collection_prefix = _vector_collection_prefix(new_tag)
+    new_collection_name = _session_collection_name(
+        session_id=normalized_session_id,
+        collection_prefix=new_collection_prefix,
+    )
+
+    vector_applied = False
+    vector_indexed_count = 0
+    vector_indexed_until = 0
+    vector_fallback_reason = ""
+    vector_signature = ""
+    cleanup_warning = ""
+    qdrant_client = None
+
+    if not retained_messages:
+        vector_applied = True
+    elif not _QDRANT_AVAILABLE:
+        vector_fallback_reason = "qdrant_client_unavailable"
+    else:
+        embed_config = resolve_embedding_config(raw_options)
+        if embed_config is None:
+            vector_fallback_reason = "embedding_provider_unavailable"
+        else:
+            try:
+                qdrant_client = _get_or_create_qdrant_client(data_dir)
+                embed_fn, vector_size = _build_embed_runtime(embed_config)
+                vector_signature = _vector_embedding_signature(
+                    embed_config,
+                    vector_size,
+                )
+                texts, metadatas, next_indexed_until, _indexed_turn_count = (
+                    _collect_complete_turns_for_vector_index(
+                        retained_messages,
+                        start_index=0,
+                    )
+                )
+                vector_adapter = QdrantVectorAdapter(
+                    client=qdrant_client,
+                    embed_fn=embed_fn,
+                    vector_size=vector_size,
+                    collection_prefix=new_collection_prefix,
+                )
+                if texts:
+                    vector_adapter.add_texts(
+                        session_id=normalized_session_id,
+                        texts=texts,
+                        metadatas=metadatas,
+                    )
+                vector_applied = True
+                vector_indexed_count = len(texts)
+                vector_indexed_until = next_indexed_until
+            except Exception as exc:
+                vector_fallback_reason = f"vector_rebuild_failed: {exc}"
+                if qdrant_client is not None:
+                    _delete_collection_best_effort(qdrant_client, new_collection_name)
+
+    next_state = dict(previous_state)
+    next_state["messages"] = retained_messages
+    next_state.pop("summary", None)
+    next_state["vector_indexed_until"] = vector_indexed_until
+    next_state["vector_collection_tag"] = new_tag
+    next_state["vector_embedding_signature"] = vector_signature
+    store.save(normalized_session_id, next_state)
+
+    if qdrant_client is None and _QDRANT_AVAILABLE:
+        try:
+            qdrant_client = _get_or_create_qdrant_client(data_dir)
+        except Exception:
+            qdrant_client = None
+
+    if qdrant_client is not None and old_collection_name != new_collection_name:
+        cleanup_warning = _delete_collection_best_effort_with_warning(
+            qdrant_client,
+            old_collection_name,
+        )
+
+    response = {
+        "applied": True,
+        "session_id": normalized_session_id,
+        "stored_message_count": len(retained_messages),
+        "vector_applied": vector_applied,
+        "vector_indexed_count": vector_indexed_count,
+        "vector_indexed_until": vector_indexed_until,
+        "vector_fallback_reason": vector_fallback_reason,
+    }
+    if cleanup_warning:
+        response["cleanup_warning"] = cleanup_warning
+    return response

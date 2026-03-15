@@ -11,6 +11,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
     window.localStorage.clear();
     window.misoAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
+      replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
 
@@ -173,5 +174,40 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
     expect(payload.options.memory_namespace).toBe("pupu:default");
     expect(payload.options.memory_long_term_enabled).toBe(true);
     expect(payload.options.memory_long_term_extract_every_n_turns).toBe(7);
+  });
+
+  test("replaceSessionMemory reuses memory/provider injection path", async () => {
+    writeSettings({
+      memory: {
+        enabled: true,
+        long_term_enabled: true,
+        long_term_extract_every_n_turns: 6,
+        embedding_provider: "auto",
+        openai_embedding_model: "text-embedding-3-small",
+        last_n_turns: 8,
+        vector_top_k: 4,
+      },
+      model_providers: {
+        openai_api_key: "openai-key-123",
+        anthropic_api_key: "anthropic-key-456",
+      },
+    });
+
+    await api.miso.replaceSessionMemory({
+      sessionId: "chat-1",
+      messages: [{ role: "user", content: "hello" }],
+      options: {
+        modelId: "anthropic:claude-sonnet-4-6",
+      },
+    });
+
+    const [payload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(payload.session_id).toBe("chat-1");
+    expect(payload.options.memory_enabled).toBe(true);
+    expect(payload.options.memory_embedding_provider).toBe("auto");
+    expect(payload.options.openaiApiKey).toBe("openai-key-123");
+    expect(payload.options.openai_api_key).toBe("openai-key-123");
+    expect(payload.options.anthropicApiKey).toBe("anthropic-key-456");
+    expect(payload.options.anthropic_api_key).toBe("anthropic-key-456");
   });
 });

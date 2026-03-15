@@ -1,4 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createLogger } from "../../SERVICEs/console_logger";
+
+const storageLogger = createLogger(
+  "PUPU",
+  "BUILTIN_COMPONENTs/mini_react/mini_storage.js",
+);
 
 /* { STORAGE HOOKs } --------------------------------------------------------------------------------------------- */
 const createMemoryStorageAdapter = () => {
@@ -29,7 +35,7 @@ const createIndexedDBStorageAdapter = ({
   const openDb = () => {
     if (!isAvailable()) {
       return Promise.reject(
-        new Error("IndexedDB is unavailable in this runtime.")
+        new Error("IndexedDB is unavailable in this runtime."),
       );
     }
     if (dbPromise) {
@@ -70,7 +76,7 @@ const createIndexedDBStorageAdapter = ({
           reject(request.error || new Error("IndexedDB request failed."));
         transaction.onabort = () =>
           reject(
-            transaction.error || new Error("IndexedDB transaction aborted.")
+            transaction.error || new Error("IndexedDB transaction aborted."),
           );
       } catch (error) {
         reject(error);
@@ -103,12 +109,10 @@ const createStorageAdapterFromMethods = (
     getMethod = "getItem",
     setMethod = "setItem",
     removeMethod = "removeItem",
-  } = {}
+  } = {},
 ) => {
   const toPromise = (value) =>
-    value && typeof value.then === "function"
-      ? value
-      : Promise.resolve(value);
+    value && typeof value.then === "function" ? value : Promise.resolve(value);
 
   if (!storage) {
     throw new Error("storage instance is required.");
@@ -119,7 +123,7 @@ const createStorageAdapterFromMethods = (
     typeof storage[removeMethod] !== "function"
   ) {
     throw new Error(
-      `storage instance must expose methods: ${getMethod}, ${setMethod}, ${removeMethod}.`
+      `storage instance must expose methods: ${getMethod}, ${setMethod}, ${removeMethod}.`,
     );
   }
 
@@ -152,7 +156,7 @@ const registerStorageAdapter = (adapter) => {
     typeof adapter.removeItem !== "function"
   ) {
     throw new Error(
-      "Storage adapter must provide getItem(key), setItem(key, value), removeItem(key)."
+      "Storage adapter must provide getItem(key), setItem(key, value), removeItem(key).",
     );
   }
   registeredStorageAdapter = adapter;
@@ -166,7 +170,7 @@ const useIndexedStorage = (key, initialValue, options = {}) => {
   const isFunction = useCallback((value) => typeof value === "function", []);
   const resolveInitialValue = useCallback(
     (value) => (typeof value === "function" ? value() : value),
-    []
+    [],
   );
   const normalizeStorageKey = useCallback((storageKey) => {
     if (storageKey === null || storageKey === undefined || storageKey === "") {
@@ -182,7 +186,7 @@ const useIndexedStorage = (key, initialValue, options = {}) => {
       typeof adapter.removeItem !== "function"
     ) {
       throw new Error(
-        "Storage adapter must provide getItem(key), setItem(key, value), removeItem(key)."
+        "Storage adapter must provide getItem(key), setItem(key, value), removeItem(key).",
       );
     }
     return adapter;
@@ -231,9 +235,11 @@ const useIndexedStorage = (key, initialValue, options = {}) => {
   const getStorageAdapter = useCallback(
     (adapterOverride) =>
       validateStorageAdapter(
-        adapterOverride || registeredStorageAdapter || getDefaultStorageAdapter()
+        adapterOverride ||
+          registeredStorageAdapter ||
+          getDefaultStorageAdapter(),
       ),
-    [getDefaultStorageAdapter, validateStorageAdapter]
+    [getDefaultStorageAdapter, validateStorageAdapter],
   );
 
   const {
@@ -250,10 +256,10 @@ const useIndexedStorage = (key, initialValue, options = {}) => {
         onError(error);
       } else if (process.env.NODE_ENV !== "production") {
         // eslint-disable-next-line no-console
-        console.warn("useIndexedStorage error:", error);
+        storageLogger.warn("storage", "useIndexedStorage error", error);
       }
     },
-    [isFunction, onError]
+    [isFunction, onError],
   );
 
   const resolveInitial = useCallback(() => {
@@ -365,7 +371,7 @@ const useIndexedStorage = (key, initialValue, options = {}) => {
         return nextValue;
       });
     },
-    [isFunction, key, normalizeStorageKey, reportError, serialize]
+    [isFunction, key, normalizeStorageKey, reportError, serialize],
   );
 
   const removeValue = useCallback(async () => {
@@ -400,7 +406,11 @@ const useIndexedStorage = (key, initialValue, options = {}) => {
     }
   }, [deserialize, key, normalizeStorageKey, reportError, resolveInitial]);
 
-  return [storedValue, setValue, { removeValue, reloadValue, isLoading, error }];
+  return [
+    storedValue,
+    setValue,
+    { removeValue, reloadValue, isLoading, error },
+  ];
 };
 /* { STORAGE HOOKs } --------------------------------------------------------------------------------------------- */
 

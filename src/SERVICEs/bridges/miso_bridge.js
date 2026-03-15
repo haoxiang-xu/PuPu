@@ -194,6 +194,12 @@ export const runtimeBridge = {
 
     return {
       total: Number.isFinite(Number(response?.total)) ? Number(response.total) : 0,
+      vectorTotal: Number.isFinite(Number(response?.vectorTotal))
+        ? Number(response.vectorTotal)
+        : 0,
+      profileTotal: Number.isFinite(Number(response?.profileTotal))
+        ? Number(response.profileTotal)
+        : 0,
       error: typeof response?.error === "string" ? response.error : "",
     };
   },

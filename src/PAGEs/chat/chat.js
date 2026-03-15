@@ -31,29 +31,23 @@ import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refre
 import { createThinkTagParser } from "./think_tag_parser";
 import { readMemorySettings } from "../../COMPONENTs/settings/memory/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
+import { createLogger } from "../../SERVICEs/console_logger";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const STREAM_TRACE_LEVEL = "minimal";
-const MISO_TRACE_TITLE_PREFIX = "[miso] | [stream] | ";
 const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
   request_messages: "request_messages",
-  run_completed: "reponse_received",
+  response_received: "response_received",
   memory_commit: "memory_commit",
   done: "end",
 });
 
-const formatMisoTraceTitle = (eventType) => {
-  const label = MISO_TRACE_LABEL_BY_TYPE[eventType];
-  if (!label) {
-    return `[miso] ${eventType}`;
-  }
-  return `${MISO_TRACE_TITLE_PREFIX}${label}`;
-};
+const misoLogger = createLogger("MISO", "src/PAGEs/chat/chat.js");
 
 const getFileExtension = (name) => {
   if (typeof name !== "string" || !name.includes(".")) {
@@ -163,6 +157,40 @@ const settleStreamingAssistantMessages = (messages) => {
     changed,
     nextMessages: changed ? nextMessages : messages,
   };
+};
+
+const collectTurnMessageIds = (messages, targetMessageId) => {
+  if (!Array.isArray(messages) || !targetMessageId) {
+    return new Set();
+  }
+
+  const targetIndex = messages.findIndex((message) => message?.id === targetMessageId);
+  if (targetIndex < 0) {
+    return new Set();
+  }
+
+  let startIndex = targetIndex;
+  while (startIndex > 0 && messages[startIndex]?.role !== "user") {
+    startIndex -= 1;
+  }
+  if (messages[startIndex]?.role !== "user") {
+    startIndex = targetIndex;
+  }
+
+  let endIndex = targetIndex;
+  while (
+    endIndex + 1 < messages.length &&
+    messages[endIndex + 1]?.role !== "user"
+  ) {
+    endIndex += 1;
+  }
+
+  return new Set(
+    messages
+      .slice(startIndex, endIndex + 1)
+      .map((message) => message?.id)
+      .filter((messageId) => typeof messageId === "string" && messageId),
+  );
 };
 
 /* ─────────────────────────────────────────────────────────────────────────────
@@ -650,11 +678,47 @@ const ChatInterface = () => {
     const { changed, nextMessages } = settleStreamingAssistantMessages(
       messagesRef.current,
     );
+    messagesRef.current = nextMessages;
     setMessages(nextMessages);
 
     if (chatId && changed) {
       setChatMessages(chatId, nextMessages, { source: "chat-page" });
     }
+  }, [clearActiveTokenFlushController]);
+
+  const cancelCurrentStreamAndSettleMessages = useCallback(() => {
+    clearActiveTokenFlushController("dispose");
+    if (
+      streamHandleRef.current &&
+      typeof streamHandleRef.current.cancel === "function"
+    ) {
+      streamHandleRef.current.cancel();
+    }
+    const chatId = activeChatIdRef.current;
+    streamHandleRef.current = null;
+    streamingChatIdRef.current = null;
+    activeStreamMessagesRef.current = null;
+    setStreamingChatId(null);
+    confirmationIdByCallIdRef.current.clear();
+    confirmationCallIdByIdRef.current.clear();
+    confirmationFollowupSignalByIdRef.current.clear();
+    confirmationResolveTimerByIdRef.current.forEach((timerId) => {
+      clearTimeout(timerId);
+    });
+    confirmationResolveTimerByIdRef.current.clear();
+    toolConfirmationUiStateByIdRef.current = {};
+    setToolConfirmationUiStateById({});
+    // Remove empty assistant placeholder; mark partial ones as cancelled
+    const { changed, nextMessages } = settleStreamingAssistantMessages(
+      messagesRef.current,
+    );
+    messagesRef.current = nextMessages;
+    setMessages(nextMessages);
+
+    if (chatId && changed) {
+      setChatMessages(chatId, nextMessages, { source: "chat-page" });
+    }
+    return nextMessages;
   }, [clearActiveTokenFlushController]);
 
   const updateToolConfirmationUiState = useCallback((updater) => {
@@ -1181,6 +1245,34 @@ const ChatInterface = () => {
       .filter(Boolean);
   }, []);
 
+  const replaceSessionMemoryForMessages = useCallback(
+    async (chatId, nextMessages) => {
+      if (!chatId || readMemorySettings().enabled !== true) {
+        return true;
+      }
+
+      try {
+        const response = await api.miso.replaceSessionMemory({
+          sessionId: chatId,
+          messages: buildHistoryForModel(nextMessages, chatId),
+          options: {
+            modelId: modelIdRef.current,
+          },
+        });
+
+        return response?.applied !== false;
+      } catch (error) {
+        if (activeChatIdRef.current === chatId) {
+          setStreamError(
+            error?.message || "Failed to sync short-term memory for this chat.",
+          );
+        }
+        return false;
+      }
+    },
+    [buildHistoryForModel],
+  );
+
   const startStreamRequest = useCallback(
     async ({
       chatId,
@@ -1581,10 +1673,7 @@ const ChatInterface = () => {
                     content: systemPrompt,
                   });
                 }
-                console.log(
-                  formatMisoTraceTitle("request_messages"),
-                  requestMessagesForLog,
-                );
+                misoLogger.log("request_messages", requestMessagesForLog);
                 return;
               }
 
@@ -1606,26 +1695,31 @@ const ChatInterface = () => {
               }
 
               if (frame.type === "error") {
-                console.log(
-                  `[miso] ${frame.type} (iteration=${frame.iteration})`,
+                misoLogger.error(
+                  `error (iteration=${frame.iteration})`,
                   frame.payload,
                 );
               }
 
               if (frame.type === "done") {
-                console.log(formatMisoTraceTitle("done"), frame.payload);
+                const endPayload =
+                  frame.payload && typeof frame.payload === "object"
+                    ? { ...frame.payload }
+                    : {};
+                delete endPayload.bundle;
+                misoLogger.log("end", endPayload);
               }
 
               if (
                 frame.type === "run_started" ||
-                frame.type === "run_completed" ||
+                frame.type === "response_received" ||
                 frame.type === "run_max_iterations"
               ) {
-                const title =
+                const label =
                   frame.type === "run_max_iterations"
-                    ? "[miso] run_max_iterations"
-                    : formatMisoTraceTitle(frame.type);
-                console.log(title, frame.payload);
+                    ? "run_max_iterations"
+                    : (MISO_TRACE_LABEL_BY_TYPE[frame.type] ?? frame.type);
+                misoLogger.log(label, frame.payload);
               }
 
               if (frame.type === "memory_prepare") {
@@ -1633,7 +1727,7 @@ const ChatInterface = () => {
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                console.log(formatMisoTraceTitle("memory_prepare"), {
+                misoLogger.log("memory_prepare", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   before_estimated_tokens: payload.before_estimated_tokens,
@@ -1656,11 +1750,37 @@ const ChatInterface = () => {
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                console.log(formatMisoTraceTitle("memory_commit"), {
+                misoLogger.log("memory_commit", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   stored_message_count: payload.stored_message_count,
                   vector_indexed_count: payload.vector_indexed_count,
+                  memory_namespace: payload.memory_namespace,
+                  long_term_pending_turn_count:
+                    payload.long_term_pending_turn_count,
+                  long_term_extract_every_n_turns:
+                    payload.long_term_extract_every_n_turns,
+                  long_term_extraction_deferred:
+                    payload.long_term_extraction_deferred,
+                  long_term_profile_updated: payload.long_term_profile_updated,
+                  long_term_profile_key_count:
+                    payload.long_term_profile_key_count,
+                  long_term_memory_indexed_count:
+                    payload.long_term_memory_indexed_count,
+                  long_term_fact_indexed_count:
+                    payload.long_term_fact_indexed_count,
+                  long_term_episode_indexed_count:
+                    payload.long_term_episode_indexed_count,
+                  long_term_playbook_indexed_count:
+                    payload.long_term_playbook_indexed_count,
+                  long_term_noop: payload.long_term_noop,
+                  long_term_fallback_reason: payload.long_term_fallback_reason,
+                  long_term_profile_fallback_reason:
+                    payload.long_term_profile_fallback_reason,
+                  long_term_extractor_fallback_reason:
+                    payload.long_term_extractor_fallback_reason,
+                  long_term_vector_fallback_reason:
+                    payload.long_term_vector_fallback_reason,
                   vector_fallback_reason: payload.vector_fallback_reason,
                   fallback_reason: payload.fallback_reason,
                 });
@@ -1870,35 +1990,9 @@ const ChatInterface = () => {
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               const doneTime = Date.now();
-              const parseUsageNumber = (value) => {
-                const parsed = Number(value);
-                if (Number.isFinite(parsed) && parsed >= 0) {
-                  return parsed;
-                }
-                return undefined;
-              };
-              const parsedUsage =
-                done?.usage && typeof done.usage === "object"
-                  ? {
-                      promptTokens: parseUsageNumber(
-                        done.usage.prompt_tokens ?? done.usage.promptTokens,
-                      ),
-                      completionTokens: parseUsageNumber(
-                        done.usage.completion_tokens ??
-                          done.usage.completionTokens,
-                      ),
-                      completionChars: parseUsageNumber(
-                        done.usage.completion_chars ??
-                          done.usage.completionChars,
-                      ),
-                    }
-                  : null;
-              const usage =
-                parsedUsage &&
-                (parsedUsage.promptTokens != null ||
-                  parsedUsage.completionTokens != null ||
-                  parsedUsage.completionChars != null)
-                  ? parsedUsage
+              const bundle =
+                done?.bundle && typeof done.bundle === "object"
+                  ? { ...done.bundle }
                   : undefined;
 
               const nextStreamMessages = streamMessages.map((message) => {
@@ -1917,7 +2011,7 @@ const ChatInterface = () => {
                   updatedAt: doneTime,
                   meta: {
                     ...(message.meta || {}),
-                    ...(usage ? { usage } : {}),
+                    ...(bundle ? { bundle } : {}),
                   },
                 };
               });
@@ -2144,7 +2238,7 @@ const ChatInterface = () => {
   ]);
 
   const handleResendMessage = useCallback(
-    (message) => {
+    async (message) => {
       const chatId = activeChatIdRef.current;
       const messageIndex = Array.isArray(messages)
         ? messages.findIndex((item) => item?.id === message?.id)
@@ -2181,6 +2275,13 @@ const ChatInterface = () => {
       }
 
       const baseMessages = messages.slice(0, messageIndex);
+      const memoryReplaced = await replaceSessionMemoryForMessages(
+        chatId,
+        baseMessages,
+      );
+      if (!memoryReplaced) {
+        return;
+      }
       const sourceAttachments = Array.isArray(targetMessage.attachments)
         ? targetMessage.attachments
         : [];
@@ -2204,11 +2305,16 @@ const ChatInterface = () => {
         missingAttachmentPayloadMode: "degrade",
       });
     },
-    [attachmentsEnabled, messages, startStreamRequest],
+    [
+      attachmentsEnabled,
+      messages,
+      replaceSessionMemoryForMessages,
+      startStreamRequest,
+    ],
   );
 
   const handleEditMessage = useCallback(
-    (message, nextContent) => {
+    async (message, nextContent) => {
       const chatId = activeChatIdRef.current;
       const messageIndex = Array.isArray(messages)
         ? messages.findIndex((item) => item?.id === message?.id)
@@ -2242,6 +2348,13 @@ const ChatInterface = () => {
       }
 
       const baseMessages = messages.slice(0, messageIndex);
+      const memoryReplaced = await replaceSessionMemoryForMessages(
+        chatId,
+        baseMessages,
+      );
+      if (!memoryReplaced) {
+        return;
+      }
       const sourceAttachments = Array.isArray(targetMessage.attachments)
         ? targetMessage.attachments
         : [];
@@ -2265,7 +2378,12 @@ const ChatInterface = () => {
         missingAttachmentPayloadMode: "degrade",
       });
     },
-    [attachmentsEnabled, messages, startStreamRequest],
+    [
+      attachmentsEnabled,
+      messages,
+      replaceSessionMemoryForMessages,
+      startStreamRequest,
+    ],
   );
 
   const handleAttachFile = useCallback(() => {
@@ -2490,34 +2608,53 @@ const ChatInterface = () => {
   );
 
   const handleDeleteMessage = useCallback(
-    (message) => {
+    async (message) => {
       if (!message || typeof message.id !== "string" || !message.id) {
+        return;
+      }
+
+      const chatId = activeChatIdRef.current;
+      if (!chatId) {
+        return;
+      }
+
+      const turnMessageIds = collectTurnMessageIds(
+        messagesRef.current,
+        message.id,
+      );
+      if (turnMessageIds.size === 0) {
         return;
       }
 
       const deletingStreamingAssistant =
         message.role === "assistant" && message.status === "streaming";
+      let workingMessages = Array.isArray(messagesRef.current)
+        ? messagesRef.current
+        : [];
 
       if (
         deletingStreamingAssistant &&
         streamHandleRef.current &&
-        streamingChatIdRef.current === activeChatIdRef.current
+        streamingChatIdRef.current === chatId
       ) {
-        clearActiveTokenFlushController("dispose");
-        if (typeof streamHandleRef.current.cancel === "function") {
-          streamHandleRef.current.cancel();
-        }
-        streamHandleRef.current = null;
-        streamingChatIdRef.current = null;
-        activeStreamMessagesRef.current = null;
-        setStreamingChatId(null);
+        workingMessages = cancelCurrentStreamAndSettleMessages();
       }
 
-      setMessages((previousMessages) =>
-        previousMessages.filter((item) => item.id !== message.id),
+      const nextMessages = workingMessages.filter(
+        (item) => !turnMessageIds.has(item?.id),
       );
+      const memoryReplaced = await replaceSessionMemoryForMessages(
+        chatId,
+        nextMessages,
+      );
+      if (!memoryReplaced) {
+        return;
+      }
+
+      messagesRef.current = nextMessages;
+      setMessages(nextMessages);
     },
-    [clearActiveTokenFlushController],
+    [cancelCurrentStreamAndSettleMessages, replaceSessionMemoryForMessages],
   );
 
   const effectiveDisclaimer = useMemo(() => {

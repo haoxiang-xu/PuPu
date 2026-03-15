@@ -244,8 +244,8 @@ class MemoryFactoryTests(unittest.TestCase):
         *,
         build_openai_embed_fn,
         initial_state_by_session: dict[str, dict[str, object]] | None = None,
-    ) -> tuple[dict[str, object], type, object, dict[str, list[str]]]:
-        delete_calls: dict[str, list[str]] = {"collections": []}
+    ) -> tuple[dict[str, object], type, object, dict[str, list[object]]]:
+        delete_calls: dict[str, list[object]] = {"collections": [], "add_texts": []}
 
         class FakeMemoryConfig:
             def __init__(self, **kwargs):
@@ -287,6 +287,63 @@ class MemoryFactoryTests(unittest.TestCase):
                 self._collection_prefix = collection_prefix
                 self._ensured = set()
 
+            def add_texts(self, *, session_id, texts, metadatas):
+                delete_calls["add_texts"].append(
+                    {
+                        "session_id": session_id,
+                        "texts": copy.deepcopy(texts),
+                        "metadatas": copy.deepcopy(metadatas),
+                        "collection_prefix": self._collection_prefix,
+                    }
+                )
+
+        def fake_collect_complete_turns_for_vector_index(messages, *, start_index):
+            texts = []
+            metadatas = []
+            next_indexed_until = max(0, int(start_index))
+            i = next_indexed_until
+
+            while i < len(messages):
+                while i < len(messages) and messages[i].get("role") != "user":
+                    i += 1
+                next_indexed_until = i
+                if i >= len(messages):
+                    break
+
+                turn_start = i
+                i += 1
+                while i < len(messages) and messages[i].get("role") != "user":
+                    i += 1
+                turn_end = i - 1
+                turn_messages = messages[turn_start : turn_end + 1]
+                if not any(item.get("role") == "assistant" for item in turn_messages):
+                    next_indexed_until = turn_start
+                    break
+
+                normalized_turn_messages = [
+                    {
+                        "role": item.get("role"),
+                        "content": item.get("content"),
+                    }
+                    for item in turn_messages
+                ]
+                texts.append(
+                    "\n".join(
+                        f"{item['role']}: {item['content']}"
+                        for item in normalized_turn_messages
+                    )
+                )
+                metadatas.append(
+                    {
+                        "messages": normalized_turn_messages,
+                        "turn_start_index": turn_start,
+                        "turn_end_index": turn_end,
+                    }
+                )
+                next_indexed_until = turn_end + 1
+
+            return texts, metadatas, next_indexed_until, len(texts)
+
         fake_pkg = types.ModuleType("miso")
         fake_pkg.__path__ = []  # type: ignore[attr-defined]
 
@@ -294,6 +351,9 @@ class MemoryFactoryTests(unittest.TestCase):
         fake_memory_module.MemoryConfig = FakeMemoryConfig
         fake_memory_module.LongTermMemoryConfig = FakeLongTermMemoryConfig
         fake_memory_module.MemoryManager = FakeMemoryManager
+        fake_memory_module._collect_complete_turns_for_vector_index = (
+            fake_collect_complete_turns_for_vector_index
+        )
 
         fake_memory_qdrant_module = types.ModuleType("miso.memory_qdrant")
         fake_memory_qdrant_module.JsonFileSessionStore = FakeJsonFileSessionStore
@@ -425,7 +485,30 @@ class MemoryFactoryTests(unittest.TestCase):
             manager.config.long_term.profile_base_dir,
             os.path.realpath(os.path.join(data_dir, "memory", "long_term_profiles")),
         )
-        self.assertEqual(manager.config.long_term.vector_adapter._collection_prefix, "long_term")
+        self.assertEqual(
+            manager.config.long_term.vector_adapter._collection_prefix,
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+        )
+
+    def test_long_term_collection_prefix_changes_with_embedding_signature(self) -> None:
+        self.assertEqual(
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+        )
+        self.assertNotEqual(
+            memory_factory._long_term_collection_prefix(
+                "openai:text-embedding-3-small:1536"
+            ),
+            memory_factory._long_term_collection_prefix(
+                "ollama:nomic-embed-text:768"
+            ),
+        )
 
     def test_create_memory_manager_rotates_collection_tag_on_signature_change(self) -> None:
         old_state = {
@@ -559,6 +642,268 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(
             fake_store_cls._state_by_session["chat-1"]["vector_indexed_until"],
             1,
+        )
+        self.assertEqual(delete_calls["collections"], [])
+
+    def test_replace_short_term_session_memory_rebuilds_vectors(self) -> None:
+        previous_state = {
+            "chat-1": {
+                "messages": [
+                    {"role": "user", "content": "old-user"},
+                    {"role": "assistant", "content": "old-assistant"},
+                ],
+                "summary": "old summary",
+                "vector_indexed_until": 2,
+                "vector_embedding_signature": "openai:text-embedding-3-small:1536",
+                "vector_collection_tag": "legacytag",
+                "long_term_indexed_until": 9,
+            }
+        }
+
+        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
+            del model, broth_instance, payload
+            return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
+
+        modules, fake_store_cls, fake_client, delete_calls = (
+            self._install_fake_miso_modules_for_manager(
+                build_openai_embed_fn=fake_build_openai_embed_fn,
+                initial_state_by_session=previous_state,
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(sys.modules, modules), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
+            mock.patch.object(
+                memory_factory,
+                "_get_or_create_qdrant_client",
+                return_value=fake_client,
+            ), \
+            mock.patch.object(
+                memory_factory.uuid,
+                "uuid4",
+                return_value=uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc"),
+            ):
+            result = memory_factory.replace_short_term_session_memory(
+                session_id="chat-1",
+                messages=[
+                    {"role": "user", "content": "u1"},
+                    {"role": "assistant", "content": "a1"},
+                    {"role": "user", "content": "u2"},
+                    {"role": "assistant", "content": "a2"},
+                ],
+                options={
+                    "memory_embedding_provider": "openai",
+                    "memory_embedding_model": "text-embedding-3-large",
+                    "openaiApiKey": "openai-key-123",
+                },
+            )
+
+        self.assertEqual(
+            result,
+            {
+                "applied": True,
+                "session_id": "chat-1",
+                "stored_message_count": 4,
+                "vector_applied": True,
+                "vector_indexed_count": 2,
+                "vector_indexed_until": 4,
+                "vector_fallback_reason": "",
+            },
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["messages"],
+            [
+                {"role": "user", "content": "u1"},
+                {"role": "assistant", "content": "a1"},
+                {"role": "user", "content": "u2"},
+                {"role": "assistant", "content": "a2"},
+            ],
+        )
+        self.assertNotIn("summary", fake_store_cls._state_by_session["chat-1"])
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_collection_tag"],
+            "cccccccccccc",
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_embedding_signature"],
+            "openai:text-embedding-3-large:3072",
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_indexed_until"],
+            4,
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["long_term_indexed_until"],
+            9,
+        )
+        self.assertEqual(delete_calls["collections"], ["chat_legacytag_chat_1"])
+        self.assertEqual(len(delete_calls["add_texts"]), 1)
+        self.assertEqual(
+            delete_calls["add_texts"][0]["collection_prefix"],
+            "chat_cccccccccccc",
+        )
+        self.assertEqual(
+            delete_calls["add_texts"][0]["metadatas"],
+            [
+                {
+                    "messages": [
+                        {"role": "user", "content": "u1"},
+                        {"role": "assistant", "content": "a1"},
+                    ],
+                    "turn_start_index": 0,
+                    "turn_end_index": 1,
+                },
+                {
+                    "messages": [
+                        {"role": "user", "content": "u2"},
+                        {"role": "assistant", "content": "a2"},
+                    ],
+                    "turn_start_index": 2,
+                    "turn_end_index": 3,
+                },
+            ],
+        )
+
+    def test_replace_short_term_session_memory_clears_vectors_for_empty_messages(self) -> None:
+        previous_state = {
+            "chat-1": {
+                "messages": [{"role": "user", "content": "u1"}],
+                "vector_indexed_until": 1,
+                "vector_embedding_signature": "openai:text-embedding-3-small:1536",
+                "vector_collection_tag": "legacytag",
+            }
+        }
+
+        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
+            del model, broth_instance, payload
+            return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
+
+        modules, fake_store_cls, fake_client, delete_calls = (
+            self._install_fake_miso_modules_for_manager(
+                build_openai_embed_fn=fake_build_openai_embed_fn,
+                initial_state_by_session=previous_state,
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(sys.modules, modules), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
+            mock.patch.object(
+                memory_factory,
+                "_get_or_create_qdrant_client",
+                return_value=fake_client,
+            ), \
+            mock.patch.object(
+                memory_factory.uuid,
+                "uuid4",
+                return_value=uuid.UUID("dddddddd-dddd-dddd-dddd-dddddddddddd"),
+            ):
+            result = memory_factory.replace_short_term_session_memory(
+                session_id="chat-1",
+                messages=[],
+                options={},
+            )
+
+        self.assertEqual(
+            result,
+            {
+                "applied": True,
+                "session_id": "chat-1",
+                "stored_message_count": 0,
+                "vector_applied": True,
+                "vector_indexed_count": 0,
+                "vector_indexed_until": 0,
+                "vector_fallback_reason": "",
+            },
+        )
+        self.assertEqual(fake_store_cls._state_by_session["chat-1"]["messages"], [])
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_collection_tag"],
+            "dddddddddddd",
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_embedding_signature"],
+            "",
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_indexed_until"],
+            0,
+        )
+        self.assertEqual(delete_calls["collections"], ["chat_legacytag_chat_1"])
+        self.assertEqual(delete_calls["add_texts"], [])
+
+    def test_replace_short_term_session_memory_rewrites_state_when_vector_unavailable(self) -> None:
+        previous_state = {
+            "chat-1": {
+                "messages": [{"role": "user", "content": "old"}],
+                "vector_collection_tag": "legacytag",
+                "vector_embedding_signature": "openai:text-embedding-3-small:1536",
+                "long_term_indexed_until": 4,
+            }
+        }
+
+        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
+            del model, broth_instance, payload
+            return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
+
+        modules, fake_store_cls, _fake_client, delete_calls = (
+            self._install_fake_miso_modules_for_manager(
+                build_openai_embed_fn=fake_build_openai_embed_fn,
+                initial_state_by_session=previous_state,
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(sys.modules, modules), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
+            mock.patch.object(
+                memory_factory.uuid,
+                "uuid4",
+                return_value=uuid.UUID("eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"),
+            ):
+            result = memory_factory.replace_short_term_session_memory(
+                session_id="chat-1",
+                messages=[
+                    {"role": "user", "content": "u1"},
+                    {"role": "assistant", "content": "a1"},
+                ],
+                options={},
+            )
+
+        self.assertEqual(
+            result,
+            {
+                "applied": True,
+                "session_id": "chat-1",
+                "stored_message_count": 2,
+                "vector_applied": False,
+                "vector_indexed_count": 0,
+                "vector_indexed_until": 0,
+                "vector_fallback_reason": "qdrant_client_unavailable",
+            },
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["messages"],
+            [
+                {"role": "user", "content": "u1"},
+                {"role": "assistant", "content": "a1"},
+            ],
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_collection_tag"],
+            "eeeeeeeeeeee",
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["vector_embedding_signature"],
+            "",
+        )
+        self.assertEqual(
+            fake_store_cls._state_by_session["chat-1"]["long_term_indexed_until"],
+            4,
         )
         self.assertEqual(delete_calls["collections"], [])
 
@@ -939,6 +1284,60 @@ class MemoryFactoryTests(unittest.TestCase):
                 "session_meta": "keep",
             },
         )
+
+    def test_patch_memory_prepare_with_diagnostics_ignores_log_encoding_failures(self) -> None:
+        class FakeManager:
+            def __init__(self):
+                self.config = types.SimpleNamespace(vector_top_k=2, vector_adapter=object())
+                self._last_prepare_info = {
+                    "vector_recall_count": 1,
+                }
+                self.store = None
+
+            def prepare_messages(
+                self,
+                session_id: str,
+                incoming,
+                *,
+                max_context_window_tokens: int,
+                model: str,
+                summary_generator=None,
+            ):
+                del session_id, incoming, max_context_window_tokens, model, summary_generator
+                return [
+                    {
+                        "role": "system",
+                        "content": "[MEMORY RECALL]\n- 中文记忆\n- emoji 😀",
+                    },
+                    {"role": "assistant", "content": "ok"},
+                ]
+
+        manager = FakeManager()
+        memory_factory._patch_memory_prepare_with_diagnostics(manager)
+
+        with mock.patch.object(
+            memory_factory,
+            "_safe_console_print",
+            side_effect=UnicodeEncodeError("charmap", "中文😀", 0, 3, "boom"),
+        ):
+            prepared = manager.prepare_messages(
+                session_id="chat-test",
+                incoming=[{"role": "user", "content": "请记住这段中文 😀"}],
+                max_context_window_tokens=1024,
+                model="openai:gpt-4.1",
+            )
+
+        self.assertEqual(
+            prepared,
+            [
+                {
+                    "role": "system",
+                    "content": "[MEMORY RECALL]\n- 中文记忆\n- emoji 😀",
+                },
+                {"role": "assistant", "content": "ok"},
+            ],
+        )
+        self.assertEqual(manager._last_prepare_info["vector_recall_status"], "recalled")
 
     def test_sanitize_dialog_messages_keeps_text_and_attachments(self) -> None:
         sanitized = memory_factory._sanitize_dialog_messages(

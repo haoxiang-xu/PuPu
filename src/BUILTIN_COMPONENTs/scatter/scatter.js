@@ -41,7 +41,7 @@ const VERTEX_SHADER = /* glsl */ `
     vColor = aColor;
     vAlpha = uOpacity * uProgress;
 
-    gl_PointSize  = aSize * uProgress;
+    gl_PointSize  = aSize * 1.8 * uProgress;
     gl_Position   = projectionMatrix * modelViewMatrix * vec4(position.xy, 0.0, 1.0);
   }
 `;
@@ -51,12 +51,12 @@ const FRAGMENT_SHADER = /* glsl */ `
   varying float vAlpha;
 
   void main() {
-    vec2  coord = gl_PointCoord - 0.5;
+    vec2  coord = (gl_PointCoord - 0.5) * 1.8;
     float dist  = length(coord);
 
     /* sharp core + soft glow halo */
-    float core  = 1.0 - smoothstep(0.28, 0.44, dist);
-    float glow  = exp(-dist * dist * 5.5) * 0.38;
+    float core  = 1.0 - smoothstep(0.18, 0.25, dist);
+    float glow  = exp(-dist * dist * 12.0) * 0.35;
     float alpha = (core + glow) * vAlpha;
 
     if (alpha < 0.01) discard;
@@ -72,7 +72,7 @@ const DEFAULT_THEME = {
   canvasBackground: "#f5f5f5",
   gridColor: "rgba(0,0,0,0.045)",
   pointOpacity: 0.88,
-  pointHoverScale: 1.9,
+  pointHoverScale: 1.5,
   clusterColors: [
     "#2563eb",
     "#22c55e",

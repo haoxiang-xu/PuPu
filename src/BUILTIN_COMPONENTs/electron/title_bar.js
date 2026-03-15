@@ -81,9 +81,9 @@ const TitleBar = () => {
         : "rgba(255, 255, 255, 0.14)";
     return {
       root: {
-        width: 30,
+        width: 40,
         height: 30,
-        borderRadius: 8,
+        borderRadius: 3,
         color: theme?.icon?.color || topBarForeground,
         backgroundColor: defaultBackgroundColor,
         iconSize: 13,
@@ -109,8 +109,8 @@ const TitleBar = () => {
           justifyContent: "center",
         },
         icon: {
-          width: 13,
-          height: 13,
+          width: 14,
+          height: 14,
         },
       },
       state: {
@@ -196,7 +196,7 @@ const TitleBar = () => {
         >
           <Button
             prefix_icon={WINDOWS_CONTROL_ICONS.minimize}
-            style={{...controlButtonStyle("minimize"), borderRadius: "1px"}}
+            style={{...controlButtonStyle("minimize"), borderRadius: "0px"}}
             onClick={() => runWindowAction("minimize")}
           />
           <Button

@@ -49,6 +49,51 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(providers["ollama"], ["deepseek-r1:14b"])
         self.assertNotIn("text-embedding-3-small", providers["openai"])
 
+    def test_get_capability_catalog_filters_dynamic_ollama_embedding_models(self) -> None:
+        payload = {
+            "deepseek-r1:14b": {"provider": "ollama"},
+            "nomic-embed-text": {"provider": "ollama", "model_type": "embedding"},
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        class _FakeResponse:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict:
+                return {
+                    "models": [
+                        {
+                            "name": "llama3",
+                            "details": {"families": ["llama"]},
+                        },
+                        {
+                            "name": "nomic-embed-text",
+                            "details": {"families": ["nomic-bert"]},
+                        },
+                        {
+                            "name": "bge-m3",
+                            "details": {"families": ["bge-m3"]},
+                        },
+                    ]
+                }
+
+        fake_httpx = SimpleNamespace(get=mock.Mock(return_value=_FakeResponse()))
+
+        with mock.patch.object(
+            miso_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ), mock.patch.object(
+            miso_adapter,
+            "_httpx",
+            fake_httpx,
+        ):
+            providers = miso_adapter.get_capability_catalog()
+
+        self.assertEqual(providers["ollama"], ["deepseek-r1:14b", "llama3"])
+
     def test_get_embedding_provider_catalog_only_keeps_openai_embedding_models(self) -> None:
         payload = {
             "gpt-5": {"provider": "openai"},
@@ -436,6 +481,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.used_original_execute = False
                 self.used_original_inject = False
                 self.events = []
+                self.executed_session_ids = []
 
             def _execute_tool_calls(self, **_kwargs):
                 self.used_original_execute = True
@@ -460,7 +506,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     return SimpleNamespace(observe=True)
                 return SimpleNamespace(observe=False)
 
-            def _execute_from_toolkits(self, name, arguments):
+            def _execute_from_toolkits(self, name, arguments, session_id=None):
+                self.executed_session_ids.append(session_id)
                 return {"name": name, "arguments": arguments}
 
         miso_adapter._apply_broth_runtime_patches(FakeBroth)
@@ -475,6 +522,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             run_id="run-1",
             iteration=0,
             callback=None,
+            session_id="thread-anthropic-1",
         )
 
         self.assertEqual(len(result_messages), 1)
@@ -486,6 +534,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         self.assertFalse(should_observe)
         self.assertFalse(agent.used_original_execute)
+        self.assertEqual(agent.executed_session_ids, ["thread-anthropic-1", "thread-anthropic-1"])
 
         merged_observation_messages = agent._build_observation_messages(
             full_messages=[
@@ -615,6 +664,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.provider = "openai"
                 self.used_original_execute = False
                 self.events = []
+                self.session_ids = []
 
             def _execute_tool_calls(
                 self,
@@ -624,8 +674,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 iteration,
                 callback,
                 on_tool_confirm=None,
+                session_id=None,
             ):
                 self.used_original_execute = True
+                self.session_ids.append(session_id)
                 if on_tool_confirm is not None and tool_calls:
                     request = {
                         "tool_name": tool_calls[0].name,
@@ -662,11 +714,13 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             iteration=0,
             callback=None,
             on_tool_confirm=lambda _req: {"approved": True},
+            session_id="thread-openai-1",
         )
         confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
         self.assertEqual(len(confirmed_events), 1)
         self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
         self.assertTrue(agent.used_original_execute)
+        self.assertEqual(agent.session_ids, ["thread-openai-1"])
 
         agent.events = []
         _messages, _observe = agent._execute_tool_calls(
@@ -675,11 +729,64 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             iteration=1,
             callback=None,
             on_tool_confirm=lambda _req: {"approved": False, "reason": "denied"},
+            session_id="thread-openai-2",
         )
         denied_events = [event for event in agent.events if event[0] == "tool_denied"]
         self.assertEqual(len(denied_events), 1)
         self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
         self.assertEqual(denied_events[0][2].get("reason"), "denied")
+        self.assertEqual(agent.session_ids, ["thread-openai-1", "thread-openai-2"])
+
+    def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
+        self,
+    ) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+
+            def _execute_tool_calls(self, **_kwargs):
+                return [], False
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _is_previous_response_not_found_error(self, exc):
+                return "previous response" in str(exc).lower()
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+
+        class FakeError(Exception):
+            def __init__(self, message: str, body: dict | None = None):
+                super().__init__(message)
+                self.body = body
+
+        no_tool_call_error = FakeError(
+            (
+                "Error code: 400 - {'error': {'message': "
+                "'No tool call found for function call output with call_id call_123.', "
+                "'type': 'invalid_request_error', 'param': 'input', 'code': None}}"
+            ),
+            body={
+                "error": {
+                    "message": (
+                        "No tool call found for function call output with call_id call_123."
+                    ),
+                    "type": "invalid_request_error",
+                    "param": "input",
+                    "code": None,
+                }
+            },
+        )
+        previous_response_error = FakeError(
+            "Previous response with id 'resp_1' not found.",
+        )
+
+        self.assertTrue(agent._is_previous_response_not_found_error(no_tool_call_error))
+        self.assertTrue(agent._is_previous_response_not_found_error(previous_response_error))
 
     def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
         class FakeAgent:
@@ -742,6 +849,250 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
         self.assertEqual(captured["include_python_runtime"], True)
+
+    def test_create_agent_attaches_workspace_toolkit_with_current_export_name(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            captured["workspace_root"] = workspace_root
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_root": tmp,
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+
+    def test_create_agent_attaches_workspace_toolkit_with_workspace_roots_fallback(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_roots=None):
+            captured["workspace_roots"] = workspace_roots
+            return {
+                "workspace_roots": workspace_roots,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp_a, tempfile.TemporaryDirectory() as tmp_b:
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    workspace_toolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_roots": [tmp_a, tmp_b],
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(
+            captured["workspace_roots"],
+            [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
+        )
+
+    def test_create_agent_builds_multi_workspace_proxy_toolkit_when_workspace_roots_are_unsupported(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        class FakeTool:
+            def __init__(
+                self,
+                *,
+                name="",
+                description="",
+                func=None,
+                parameters=None,
+                observe=False,
+                requires_confirmation=False,
+            ):
+                self.name = name
+                self.description = description
+                self.func = func
+                self.parameters = list(parameters or [])
+                self.observe = observe
+                self.requires_confirmation = requires_confirmation
+
+            def execute(self, arguments):
+                payload = arguments or {}
+                return self.func(**payload)
+
+        class FakeToolkit:
+            def __init__(self):
+                self.tools = {}
+
+            def register(self, tool_obj):
+                self.tools[tool_obj.name] = tool_obj
+                return tool_obj
+
+            def get(self, function_name):
+                return self.tools.get(function_name)
+
+            def execute(self, function_name, arguments):
+                tool_obj = self.get(function_name)
+                if tool_obj is None:
+                    return {"error": f"tool not found: {function_name}"}
+                return tool_obj.execute(arguments)
+
+        def fake_workspace_toolkit(*, workspace_roots=None, workspace_root=None):
+            if workspace_roots is not None:
+                raise TypeError("workspace_roots unsupported")
+            captured.setdefault("workspace_roots", []).append(workspace_root)
+            tk = FakeToolkit()
+            tk.register(
+                FakeTool(
+                    name="read_file",
+                    description="Read a file",
+                    parameters=[
+                        {
+                            "name": "path",
+                            "description": "Relative path",
+                            "type_": "string",
+                            "required": True,
+                        }
+                    ],
+                    func=lambda path, _root=workspace_root: {
+                        "workspace_root": _root,
+                        "path": path,
+                    },
+                )
+            )
+            tk.register(
+                FakeTool(
+                    name="write_file",
+                    description="Write a file",
+                    parameters=[
+                        {
+                            "name": "path",
+                            "description": "Relative path",
+                            "type_": "string",
+                            "required": True,
+                        },
+                        {
+                            "name": "content",
+                            "description": "Content",
+                            "type_": "string",
+                            "required": True,
+                        },
+                    ],
+                    func=lambda path, content, _root=workspace_root: {
+                        "workspace_root": _root,
+                        "path": path,
+                        "content": content,
+                    },
+                )
+            )
+            return tk
+
+        with tempfile.TemporaryDirectory() as parent:
+            tmp_a = str(Path(parent) / "default-root")
+            tmp_b = str(Path(parent) / "extra-root")
+            Path(tmp_a).mkdir()
+            Path(tmp_b).mkdir()
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    workspace_toolkit=fake_workspace_toolkit,
+                    toolkit=FakeToolkit,
+                    tool=FakeTool,
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_roots": [tmp_a, tmp_b],
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(
+            captured["workspace_roots"],
+            [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
+        )
+        merged_toolkit = agent.toolkits[0]
+        self.assertIn("read_file", merged_toolkit.tools)
+        self.assertIn("write_file", merged_toolkit.tools)
+        self.assertIn("workspace_2_extra_root_read_file", merged_toolkit.tools)
+        self.assertIn("workspace_2_extra_root_write_file", merged_toolkit.tools)
+        self.assertIn("list_available_workspaces", merged_toolkit.tools)
+
+        second_workspace_read = merged_toolkit.execute(
+            "workspace_2_extra_root_read_file",
+            {"path": "hello.txt"},
+        )
+        self.assertEqual(second_workspace_read["workspace_root"], str(Path(tmp_b).resolve()))
+        self.assertEqual(second_workspace_read["path"], "hello.txt")
+        self.assertTrue(merged_toolkit.tools["workspace_2_extra_root_write_file"].requires_confirmation)
 
     def test_create_agent_skips_toolkit_when_toolkits_option_absent(self) -> None:
         """When options has workspace_root but no toolkits key, toolkit should NOT be attached."""
@@ -954,7 +1305,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                             "content": "done",
                         }
                     )
-                return [{"role": "assistant", "content": "done"}], {}
+                return [{"role": "assistant", "content": "done"}], {
+                    "consumed_tokens": 21,
+                    "max_context_window_tokens": 128000,
+                    "context_window_used_pct": 3.5,
+                }
 
         fake_agent = FakeAgent()
 
@@ -982,6 +1337,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertTrue(fake_agent.received_on_tool_confirm)
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertTrue(any(event.get("type") == "stream_summary" for event in events))
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("consumed_tokens"),
+            21,
+        )
         self.assertGreaterEqual(len(fake_agent.last_messages), 1)
         self.assertEqual(fake_agent.last_messages[0].get("role"), "system")
         self.assertIn("[Personality]", fake_agent.last_messages[0].get("content", ""))

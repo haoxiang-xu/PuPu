@@ -414,22 +414,6 @@ const sanitizeMessage = (message) => {
       meta.requestId = trimText(message.meta.requestId, 200);
     }
 
-    if (isObject(message.meta.usage)) {
-      const usage = {};
-      const promptTokens = Number(message.meta.usage.promptTokens);
-      const completionTokens = Number(message.meta.usage.completionTokens);
-      const completionChars = Number(message.meta.usage.completionChars);
-      if (Number.isFinite(promptTokens) && promptTokens >= 0)
-        usage.promptTokens = promptTokens;
-      if (Number.isFinite(completionTokens) && completionTokens >= 0)
-        usage.completionTokens = completionTokens;
-      if (Number.isFinite(completionChars) && completionChars >= 0)
-        usage.completionChars = completionChars;
-      if (Object.keys(usage).length > 0) {
-        meta.usage = usage;
-      }
-    }
-
     if (isObject(message.meta.error)) {
       meta.error = {
         code: trimText(String(message.meta.error.code || "unknown"), 100),

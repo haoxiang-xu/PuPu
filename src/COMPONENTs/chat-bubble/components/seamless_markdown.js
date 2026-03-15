@@ -17,6 +17,9 @@ const HIGH_PRIORITY_IDLE_TIMEOUT = 120;
 const NORMAL_PRIORITY_IDLE_TIMEOUT = 240;
 const HIGH_PRIORITY_TIMEOUT_DELAY = 32;
 const NORMAL_PRIORITY_TIMEOUT_DELAY = 72;
+const HTML_DOCUMENT_TAG_PATTERN =
+  /<!doctype\s+html\b|<(?:html|head|body|meta|title|link|style|script)\b/i;
+const MARKDOWN_FENCE_PATTERN = /^```/gm;
 
 const isHeavyMarkdownContent = (content) => {
   if (typeof content !== "string" || !content) {
@@ -35,6 +38,42 @@ const isHeavyMarkdownContent = (content) => {
     }
   }
   return LARGE_CODE_BLOCK_PATTERN.test(content);
+};
+
+const isInsideFencedCodeBlock = (content, index) => {
+  if (typeof content !== "string" || index < 0) {
+    return false;
+  }
+
+  MARKDOWN_FENCE_PATTERN.lastIndex = 0;
+  let fenceCount = 0;
+  let match = MARKDOWN_FENCE_PATTERN.exec(content);
+  while (match && match.index < index) {
+    fenceCount += 1;
+    match = MARKDOWN_FENCE_PATTERN.exec(content);
+  }
+
+  return fenceCount % 2 === 1;
+};
+
+const normalizeHtmlDocumentMarkdown = (content) => {
+  if (typeof content !== "string" || !content) {
+    return "";
+  }
+
+  const match = HTML_DOCUMENT_TAG_PATTERN.exec(content);
+  if (!match || isInsideFencedCodeBlock(content, match.index)) {
+    return content;
+  }
+
+  const leadingContent = content.slice(0, match.index).trimEnd();
+  const htmlLikeContent = content.slice(match.index).trim();
+
+  if (!htmlLikeContent) {
+    return content;
+  }
+
+  return `${leadingContent ? `${leadingContent}\n\n` : ""}\`\`\`html\n${htmlLikeContent}\n\`\`\``;
 };
 
 const scheduleIdleUpgrade = (callback, priority = "normal") => {
@@ -78,10 +117,14 @@ const SeamlessMarkdown = ({
   const containerRef = useRef(null);
   const [isNearViewport, setIsNearViewport] = useState(false);
   const [isUpgraded, setIsUpgraded] = useState(false);
+  const normalizedContent = useMemo(
+    () => normalizeHtmlDocumentMarkdown(content),
+    [content],
+  );
 
   const isHeavyContent = useMemo(
-    () => isHeavyMarkdownContent(content),
-    [content],
+    () => isHeavyMarkdownContent(normalizedContent),
+    [normalizedContent],
   );
   const isStreaming = status === "streaming";
   const markdownStyle = useMemo(
@@ -153,7 +196,13 @@ const SeamlessMarkdown = ({
   }, [isHeavyContent, isNearViewport, isStreaming, isUpgraded, priority]);
 
   if (!isHeavyContent || isUpgraded) {
-    return <Markdown className={className} style={markdownStyle} markdown={content} />;
+    return (
+      <Markdown
+        className={className}
+        style={markdownStyle}
+        markdown={normalizedContent}
+      />
+    );
   }
 
   return (

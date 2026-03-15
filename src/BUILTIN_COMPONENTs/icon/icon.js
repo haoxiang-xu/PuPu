@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext, useCallback } from "react";
+import { createLogger } from "../../SERVICEs/console_logger";
 
 /* { Constants } ------------------------------------------------------------------------------------------------------------- */
 import { fileTypeSVGs, LogoSVGs, UISVGs } from "./icon_manifest";
@@ -7,6 +8,8 @@ import { fileTypeSVGs, LogoSVGs, UISVGs } from "./icon_manifest";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
+
+const iconLogger = createLogger("UI", "BUILTIN_COMPONENTs/icon/icon.js");
 
 const Icon = ({ src, color, ...props }) => {
   const { theme } = useContext(ConfigContext);
@@ -66,8 +69,9 @@ const Icon = ({ src, color, ...props }) => {
         );
       }
     } catch (error) {
-      console.error(
-        "[Error occurred while fetching SVG file BUILTIN_COMPONENTs/icon/icon.js]:",
+      iconLogger.error(
+        "fetch",
+        "Error occurred while fetching SVG file",
         error,
       );
     }
@@ -105,8 +109,9 @@ const Icon = ({ src, color, ...props }) => {
         fetch_icon();
       }
     } catch (error) {
-      console.error(
-        "[Error occurred while setting icon source BUILTIN_COMPONENTs/icon/icon.js]:",
+      iconLogger.error(
+        "source",
+        "Error occurred while setting icon source",
         error,
       );
     }

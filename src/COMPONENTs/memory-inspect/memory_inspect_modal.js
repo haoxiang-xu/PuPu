@@ -7,6 +7,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import { Scatter } from "../../BUILTIN_COMPONENTs/scatter";
+import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
@@ -99,6 +100,45 @@ const extractConversationLines = (point) => {
   }
 
   return [];
+};
+
+/* Convert a profile document (nested JSON) into Explorer flat data + root */
+const buildExplorerFromProfile = (document) => {
+  const data = {};
+  const root = [];
+  let counter = 0;
+
+  const walk = (value, label, parentChildren) => {
+    const id = `node_${counter++}`;
+    parentChildren.push(id);
+
+    if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+      const children = [];
+      data[id] = { label, type: "folder", children };
+      for (const key of Object.keys(value)) {
+        walk(value[key], key, children);
+      }
+    } else if (Array.isArray(value)) {
+      const children = [];
+      data[id] = {
+        label: `${label} [${value.length}]`,
+        type: "folder",
+        children,
+      };
+      value.forEach((item, idx) => {
+        walk(item, String(idx), children);
+      });
+    } else {
+      data[id] = { label: `${label}: ${JSON.stringify(value)}`, type: "file" };
+    }
+  };
+
+  if (document && typeof document === "object" && !Array.isArray(document)) {
+    for (const key of Object.keys(document)) {
+      walk(document[key], key, root);
+    }
+  }
+  return { data, root };
 };
 
 /* Seeded PRNG (mulberry32) for reproducible jitter offsets */
@@ -289,11 +329,16 @@ const MemoryInspectModal = ({
   const color = theme?.color || (isDark ? "#fff" : "#111");
   const fontFamily = theme?.font?.fontFamily || "Jost";
 
-  const [status, setStatus] = useState("idle"); // "idle" | "loading" | "ready" | "empty" | "error"
+  const [status, setStatus] = useState("idle"); // "idle" | "loading" | "ready" | "profiles" | "empty" | "error"
   const [points, setPoints] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [variance, setVariance] = useState([0, 0, 0, 0, 0]);
   const [selectedPoint, setSelectedPoint] = useState(null);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+
+  /* ── Profile side-panel toggle (long-term only) ── */
+  const [showProfile, setShowProfile] = useState(false);
 
   /* ── Scatter controls ── */
   const [x_pc, set_x_pc] = useState(0); // 0 = PC1, 1 = PC2 …
@@ -311,8 +356,10 @@ const MemoryInspectModal = ({
       if (!silent) {
         setStatus("loading");
         setPoints([]);
+        setProfiles([]);
         setVariance([0, 0, 0, 0, 0]);
         setSelectedPoint(null);
+        setSelectedProfileId("");
         setErrorMsg("");
       }
 
@@ -324,8 +371,31 @@ const MemoryInspectModal = ({
         .then((data) => {
           if (cancelled) return;
           const pts = Array.isArray(data?.points) ? data.points : [];
+          const nextProfiles = Array.isArray(data?.profiles)
+            ? data.profiles
+            : [];
+          setProfiles(nextProfiles);
+          setSelectedProfileId((current) => {
+            const currentId = String(current || "");
+            if (
+              currentId &&
+              nextProfiles.some((item) => String(item?.id || "") === currentId)
+            ) {
+              return currentId;
+            }
+            const fallbackId =
+              typeof nextProfiles[0]?.id === "string" ? nextProfiles[0].id : "";
+            return fallbackId;
+          });
           if (pts.length === 0) {
-            setStatus("empty");
+            setPoints([]);
+            setVariance([0, 0, 0, 0, 0]);
+            if (mode === "long_term" && nextProfiles.length > 0) {
+              setStatus("profiles");
+              setShowProfile(true);
+            } else {
+              setStatus("empty");
+            }
             return;
           }
 
@@ -368,6 +438,7 @@ const MemoryInspectModal = ({
 
   const on_point_click = useCallback((pt) => {
     setSelectedPoint(pt);
+    setShowProfile(false);
   }, []);
 
   /* Remap points to selected PC axes, with optional jitter */
@@ -413,7 +484,10 @@ const MemoryInspectModal = ({
     : "1px solid rgba(0,0,0,0.08)";
   const overlay_backdrop = "blur(16px) saturate(1.4)";
 
-  const hasDetail = status === "ready" && selectedPoint;
+  const hasChunkDetail = status === "ready" && selectedPoint;
+  const hasProfileOpen =
+    showProfile && mode === "long_term" && profiles.length > 0;
+  const hasDetail = hasChunkDetail || hasProfileOpen;
 
   return (
     <Modal
@@ -477,6 +551,27 @@ const MemoryInspectModal = ({
           </div>
         )}
 
+        {status === "profiles" && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 13,
+              fontFamily,
+              color: meta_color,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              padding: "0 24px",
+              textAlign: "center",
+            }}
+          >
+            No memory vectors found.
+          </div>
+        )}
+
         {status === "error" && (
           <div
             style={{
@@ -502,7 +597,7 @@ const MemoryInspectModal = ({
           <Scatter
             points={display_points}
             color_by="group"
-            point_size={10}
+            point_size={18}
             show_legend={true}
             on_point_click={on_point_click}
             render_tooltip={() => null}
@@ -513,7 +608,15 @@ const MemoryInspectModal = ({
       {/* ━━ Overlay: Close button ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */}
       <Button
         prefix_icon="close"
-        onClick={onClose}
+        onClick={() => {
+          if (showProfile) {
+            setShowProfile(false);
+          } else if (selectedPoint) {
+            setSelectedPoint(null);
+          } else {
+            onClose();
+          }
+        }}
         style={{
           position: "absolute",
           top: 12,
@@ -572,6 +675,26 @@ const MemoryInspectModal = ({
             }}
           >
             {chatTitle}
+          </div>
+        )}
+        {mode === "long_term" && profiles.length > 0 && (
+          <div style={{ marginTop: 10, pointerEvents: "auto" }}>
+            <Button
+              label="Profiles"
+              onClick={() => {
+                setShowProfile((prev) => {
+                  if (!prev) setSelectedPoint(null);
+                  return !prev;
+                });
+              }}
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                fontSize: 11,
+                opacity: showProfile ? 1 : 0.5,
+              }}
+            />
           </div>
         )}
       </div>
@@ -754,7 +877,7 @@ const MemoryInspectModal = ({
             WebkitUserSelect: "none",
           }}
         >
-          Chunk Detail
+          {hasProfileOpen ? "Profile" : "Chunk Detail"}
         </div>
 
         {/* Detail content */}
@@ -764,17 +887,54 @@ const MemoryInspectModal = ({
             flex: 1,
             minHeight: 0,
             overflowY: "auto",
-            padding: "0 16px 16px",
+            padding: hasProfileOpen ? "0 4px 8px" : "0 16px 16px",
           }}
         >
-          {selectedPoint && (
+          {hasProfileOpen ? (
+            (() => {
+              const selectedProfile =
+                profiles.find(
+                  (p) => String(p?.id) === String(selectedProfileId),
+                ) || profiles[0];
+              const doc =
+                selectedProfile?.document &&
+                typeof selectedProfile.document === "object"
+                  ? selectedProfile.document
+                  : {};
+              const { data: explorerData, root: explorerRoot } =
+                buildExplorerFromProfile(doc);
+              return explorerRoot.length > 0 ? (
+                <Explorer
+                  data={explorerData}
+                  root={explorerRoot}
+                  default_expanded={true}
+                  style={{ width: "100%", fontSize: 12 }}
+                />
+              ) : (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    height: "100%",
+                    fontSize: 13,
+                    fontFamily,
+                    color: meta_color,
+                    userSelect: "none",
+                  }}
+                >
+                  Empty profile document.
+                </div>
+              );
+            })()
+          ) : hasChunkDetail && selectedPoint ? (
             <SelectedCard
               point={selectedPoint}
               isDark={isDark}
               fontFamily={fontFamily}
               color={color}
             />
-          )}
+          ) : null}
         </div>
       </div>
     </Modal>

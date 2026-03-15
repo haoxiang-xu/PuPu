@@ -1,6 +1,7 @@
 import sys
 import unittest
 import json
+import tempfile
 import types
 from pathlib import Path
 from unittest import mock
@@ -304,6 +305,17 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                     "timestamp": 1700000000.4,
                     "content": "hello",
                 },
+                {
+                    "type": "stream_summary",
+                    "run_id": "run-1",
+                    "iteration": 1,
+                    "timestamp": 1700000000.5,
+                    "bundle": {
+                        "consumed_tokens": 21,
+                        "max_context_window_tokens": 128000,
+                        "context_window_used_pct": 3.5,
+                    },
+                },
             ]
         )
 
@@ -348,6 +360,13 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertIn("token_delta", event_types)
         self.assertIn("final_message", event_types)
         self.assertIn("done", event_types)
+        self.assertNotIn("stream_summary", event_types)
+        done_frame = next(frame for frame in frames if frame.get("type") == "done")
+        self.assertNotIn("usage", done_frame.get("payload", {}))
+        self.assertEqual(
+            done_frame.get("payload", {}).get("bundle", {}).get("consumed_tokens"),
+            21,
+        )
 
     def test_chat_stream_v2_sets_confirmation_cancel_event_on_generator_exit(self) -> None:
         captured_cancel_event = {"value": None}
@@ -489,6 +508,85 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertEqual(payload["points"], [])
         self.assertEqual(payload["variance"], [0.0, 0.0])
 
+    def test_long_term_memory_projection_includes_profile_documents_without_vectors(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir:
+            profiles_dir = Path(data_dir) / "memory" / "long_term_profiles"
+            profiles_dir.mkdir(parents=True, exist_ok=True)
+            profile_path = profiles_dir / "pupu_default.json"
+            profile_document = {
+                "preferences": {
+                    "tone": "concise",
+                    "language": "zh-CN",
+                }
+            }
+            profile_path.write_text(
+                json.dumps(profile_document, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            fake_client = types.SimpleNamespace(
+                get_collections=lambda: types.SimpleNamespace(collections=[]),
+            )
+            fake_memory_factory = types.SimpleNamespace(
+                _data_dir=lambda: data_dir,
+                _normalize_data_dir=lambda value: value,
+                _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+            )
+
+            with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+                response = self.client.get("/memory/long-term/projection")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["points"], [])
+        self.assertEqual(payload["profile_count"], 1)
+        self.assertGreater(payload["profile_total_bytes"], 0)
+        self.assertEqual(payload["profiles"][0]["storage_key"], "pupu_default")
+        self.assertEqual(payload["profiles"][0]["document"], profile_document)
+
+    def test_long_term_memory_projection_tolerates_empty_cluster_labels(self) -> None:
+        with tempfile.TemporaryDirectory() as data_dir:
+            point_one = types.SimpleNamespace(
+                id="lt-1",
+                vector=[1.0, 0.0, 0.0],
+                payload={"text": "first memory"},
+            )
+            point_two = types.SimpleNamespace(
+                id="lt-2",
+                vector=[0.0, 1.0, 0.0],
+                payload={"text": "second memory"},
+            )
+
+            class FakeClient:
+                def get_collections(self):
+                    return types.SimpleNamespace(
+                        collections=[types.SimpleNamespace(name="long_term_legacy")]
+                    )
+
+                def scroll(self, **_kwargs):
+                    return [point_one, point_two], None
+
+            fake_client = FakeClient()
+            fake_memory_factory = types.SimpleNamespace(
+                _data_dir=lambda: data_dir,
+                _normalize_data_dir=lambda value: value,
+                _get_or_create_qdrant_client=lambda _data_dir: fake_client,
+            )
+
+            with (
+                mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}),
+                mock.patch.object(miso_routes, "_kmeans_2d_numpy", return_value=[]),
+            ):
+                response = self.client.get("/memory/long-term/projection")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(len(payload["points"]), 2)
+        self.assertEqual(
+            [point["group"] for point in payload["points"]],
+            ["Cluster 1", "Cluster 1"],
+        )
+
     def test_chat_stream_v2_requires_message_or_attachments(self) -> None:
         response = self.client.post(
             "/chat/stream/v2",
@@ -548,6 +646,59 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         stream_mock.assert_called_once()
         options = stream_mock.call_args.kwargs.get("options", {})
         self.assertIn("system_prompt_v2", options)
+
+    def test_replace_memory_session_returns_memory_factory_payload(self) -> None:
+        expected_payload = {
+            "applied": True,
+            "session_id": "chat-1",
+            "stored_message_count": 2,
+            "vector_applied": True,
+            "vector_indexed_count": 1,
+            "vector_indexed_until": 2,
+            "vector_fallback_reason": "",
+        }
+
+        fake_memory_factory = types.SimpleNamespace(
+            replace_short_term_session_memory=mock.Mock(return_value=expected_payload)
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.post(
+                "/memory/session/replace",
+                json={
+                    "session_id": "chat-1",
+                    "messages": [
+                        {"role": "user", "content": "u1"},
+                        {"role": "assistant", "content": "a1"},
+                    ],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json(), expected_payload)
+        fake_memory_factory.replace_short_term_session_memory.assert_called_once_with(
+            session_id="chat-1",
+            messages=[
+                {"role": "user", "content": "u1"},
+                {"role": "assistant", "content": "a1"},
+            ],
+            options={"modelId": "openai:gpt-5"},
+        )
+
+    def test_replace_memory_session_requires_messages_array(self) -> None:
+        response = self.client.post(
+            "/memory/session/replace",
+            json={
+                "session_id": "chat-1",
+                "messages": "invalid",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "invalid_request")
+        self.assertEqual(payload["error"]["message"], "messages must be an array")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UPDATE.CHECK_AND_DOWNLOAD,
   CHANNELS.UPDATE.INSTALL_NOW,
   CHANNELS.OLLAMA.GET_STATUS,
+  CHANNELS.OLLAMA.LIST_INSTALLED_MODELS,
   CHANNELS.OLLAMA.INSTALL,
   CHANNELS.OLLAMA.RESTART,
   CHANNELS.OLLAMA.LIBRARY_SEARCH,
@@ -24,6 +25,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_MEMORY_SIZE,
   CHANNELS.MISO.GET_MEMORY_PROJECTION,
   CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
+  CHANNELS.MISO.REPLACE_SESSION_MEMORY,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -76,6 +78,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
 
   ipcMain.handle(CHANNELS.OLLAMA.GET_STATUS, () => ollamaService.getStatus());
+  ipcMain.handle(CHANNELS.OLLAMA.LIST_INSTALLED_MODELS, async () =>
+    ollamaService.listInstalledModels(),
+  );
   ipcMain.handle(CHANNELS.OLLAMA.INSTALL, async (event) =>
     ollamaService.installOllama(event),
   );
@@ -126,9 +131,24 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     runtimeService.clearRuntimeDir(payload),
   );
   ipcMain.handle(CHANNELS.MISO.GET_MEMORY_SIZE, () => {
-    const memoryDir = path.join(app.getPath("userData"), "memory", "qdrant");
-    const result = runtimeService.getRuntimeDirSize({ dirPath: memoryDir });
-    return { total: result.total || 0, error: result.error || "" };
+    const baseMemoryDir = path.join(app.getPath("userData"), "memory");
+    const vectorDir = path.join(baseMemoryDir, "qdrant");
+    const profileDir = path.join(baseMemoryDir, "long_term_profiles");
+    const vectorResult = runtimeService.getRuntimeDirSize({ dirPath: vectorDir });
+    const profileResult = runtimeService.getRuntimeDirSize({ dirPath: profileDir });
+    const vectorTotal = Number(vectorResult.total) || 0;
+    const profileTotal = Number(profileResult.total) || 0;
+    const error =
+      vectorResult.error && profileResult.error
+        ? [vectorResult.error, profileResult.error].filter(Boolean).join(",")
+        : vectorResult.error || profileResult.error || "";
+
+    return {
+      total: vectorTotal + profileTotal,
+      vectorTotal,
+      profileTotal,
+      error,
+    };
   });
 
   ipcMain.handle(
@@ -139,6 +159,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.handle(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION, async () =>
     misoService.getMisoLongTermMemoryProjection(),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+    async (_event, payload = {}) => misoService.replaceMisoSessionMemory(payload),
   );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {
