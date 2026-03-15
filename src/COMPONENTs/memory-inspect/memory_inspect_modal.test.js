@@ -34,23 +34,17 @@ jest.mock("../../BUILTIN_COMPONENTs/input/slider", () => ({
 }));
 
 jest.mock("../../BUILTIN_COMPONENTs/input/button", () => {
-  return function MockButton({ onClick }) {
-    return <button onClick={onClick}>button</button>;
+  return function MockButton({ label, onClick }) {
+    return <button onClick={onClick}>{label || "button"}</button>;
   };
 });
 
-jest.mock("../../BUILTIN_COMPONENTs/input/segmented_button", () => {
-  return function MockSegmentedButton({ options, value, on_change }) {
+jest.mock("../../BUILTIN_COMPONENTs/explorer/explorer", () => {
+  return function MockExplorer({ data, root }) {
     return (
-      <div data-testid="segmented-button">
-        {options.map((opt) => (
-          <button
-            key={opt.value}
-            data-selected={opt.value === value ? "true" : "false"}
-            onClick={() => on_change(opt.value)}
-          >
-            {opt.label}
-          </button>
+      <div data-testid="explorer">
+        {root.map((id) => (
+          <span key={id}>{data[id]?.label}</span>
         ))}
       </div>
     );
@@ -91,9 +85,8 @@ describe("MemoryInspectModal long-term profiles", () => {
       expect(mockApi.getLongTermMemoryProjection).toHaveBeenCalledTimes(1);
     });
 
-    /* Auto-switches to JSON view when no vectors exist */
-    expect(screen.getByText("1 stored profile.")).toBeInTheDocument();
-    expect(screen.getByText("pupu_default")).toBeInTheDocument();
-    expect(screen.getByText(/"tone": "concise"/)).toBeInTheDocument();
+    /* Auto-switches to Profiles view when no vectors exist */
+    expect(screen.getByTestId("explorer")).toBeInTheDocument();
+    expect(screen.getByText("preferences")).toBeInTheDocument();
   });
 });
