@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
@@ -139,8 +139,21 @@ const AttachPanel = ({
 }) => {
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
-  const { toolkitOptions } = useChatInputToolkits();
+  const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
   const { workspaceOptions } = useChatInputWorkspaces();
+
+  const handleToolsOpenChange = useCallback(
+    (next) => {
+      if (next) {
+        void refreshToolkits();
+        setOpenSelector("tools");
+        return;
+      }
+
+      setOpenSelector(null);
+    },
+    [refreshToolkits],
+  );
 
   const floating = active || focused;
   let panelBg = "transparent";
@@ -293,9 +306,7 @@ const AttachPanel = ({
                 filter_mode="panel"
                 search_placeholder="Search toolkits..."
                 open={openSelector === "tools"}
-                on_open_change={(next) =>
-                  setOpenSelector(next ? "tools" : null)
-                }
+                on_open_change={handleToolsOpenChange}
                 dropdown_style={{
                   maxWidth: 300,
                   minWidth: 220,
