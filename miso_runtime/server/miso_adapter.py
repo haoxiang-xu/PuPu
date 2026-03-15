@@ -25,13 +25,15 @@ _RESOLVED_MISO_SOURCE = None
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
 _ALLOWED_INPUT_SOURCE_TYPES = ("url", "base64")
+_OLLAMA_EMBEDDING_FAMILY_PREFIXES = ("bert", "nomic-bert", "bge")
 _INPUT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
 _KNOWN_TOOLKIT_EXPORTS = {
     "toolkit": "core",
     "builtin_toolkit": "builtin",
-    "python_workspace_toolkit": "builtin",
+    "workspace_toolkit": "builtin",
+    "external_api_toolkit": "builtin",
     "mcp": "integration",
 }
 _DEFAULT_MAX_ITERATIONS = 32
@@ -69,6 +71,32 @@ _SYSTEM_PROMPT_V2_BUILTIN_RULES = [
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
+
+
+def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
+    """Return True when OpenAI should fall back from previous_response_id chaining."""
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error_obj = body.get("error")
+        if isinstance(error_obj, dict):
+            code = error_obj.get("code")
+            if code == "previous_response_not_found":
+                return True
+
+            param = error_obj.get("param")
+            message = str(error_obj.get("message", ""))
+            if param == "previous_response_id" and "not found" in message.lower():
+                return True
+
+            if "no tool call found for function call output" in message.lower():
+                return True
+
+    text = str(exc).lower()
+    if "previous_response_id" in text and "not found" in text:
+        return True
+    if "no tool call found for function call output" in text:
+        return True
+    return False
 
 
 def _normalize_tool_confirmation_response(raw: object) -> Dict[str, Any]:
@@ -361,15 +389,21 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     if not isinstance(broth_cls, type):
         return
 
-    patch_marker = "_pupu_tool_confirmation_contract_patch_v2"
+    patch_marker = "_pupu_tool_confirmation_contract_patch_v4"
     if getattr(broth_cls, patch_marker, False):
         return
 
     original_execute_tool_calls = getattr(broth_cls, "_execute_tool_calls", None)
+    original_execute_from_toolkits = getattr(broth_cls, "_execute_from_toolkits", None)
     original_build_observation_messages = getattr(
         broth_cls, "_build_observation_messages", None
     )
     original_inject_observation = getattr(broth_cls, "_inject_observation", None)
+    original_is_previous_response_not_found_error = getattr(
+        broth_cls,
+        "_is_previous_response_not_found_error",
+        None,
+    )
     if not (
         callable(original_execute_tool_calls)
         and callable(original_build_observation_messages)
@@ -386,8 +420,16 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 for parameter in execute_tool_calls_params.values()
             )
         )
+        original_supports_session_id = (
+            "session_id" in execute_tool_calls_params
+            or any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in execute_tool_calls_params.values()
+            )
+        )
     except Exception:
         original_supports_on_tool_confirm = True
+        original_supports_session_id = True
 
     def _patched_execute_tool_calls(
         self,
@@ -397,6 +439,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         iteration: int,
         callback,
         on_tool_confirm=None,
+        session_id: str | None = None,
     ):
         emitted_confirmation_events: set[tuple[str, bool]] = set()
 
@@ -469,6 +512,8 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 original_kwargs["on_tool_confirm"] = (
                     _on_tool_confirm_with_event if on_tool_confirm is not None else None
                 )
+            if original_supports_session_id:
+                original_kwargs["session_id"] = session_id
             return original_execute_tool_calls(
                 self,
                 **original_kwargs,
@@ -536,7 +581,11 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "reason": deny_reason or "User denied execution.",
                 }
             else:
-                tool_result = self._execute_from_toolkits(tool_call.name, effective_arguments)
+                tool_result = self._execute_from_toolkits(
+                    tool_call.name,
+                    effective_arguments,
+                    session_id=session_id,
+                )
             content = json.dumps(tool_result, default=str, ensure_ascii=False)
 
             anthropic_tool_results.append(
@@ -649,9 +698,26 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
 
         return original_inject_observation(self, tool_message, observation)
 
+    def _patched_is_previous_response_not_found_error(
+        self,
+        exc: Exception,
+    ) -> bool:
+        if callable(original_is_previous_response_not_found_error):
+            try:
+                if bool(original_is_previous_response_not_found_error(self, exc)):
+                    return True
+            except Exception:
+                pass
+        return _is_openai_previous_response_fallback_error(exc)
+
     setattr(broth_cls, "_execute_tool_calls", _patched_execute_tool_calls)
     setattr(broth_cls, "_build_observation_messages", _patched_build_observation_messages)
     setattr(broth_cls, "_inject_observation", _patched_inject_observation)
+    setattr(
+        broth_cls,
+        "_is_previous_response_not_found_error",
+        _patched_is_previous_response_not_found_error,
+    )
     setattr(broth_cls, patch_marker, True)
 
 
@@ -940,11 +1006,42 @@ def _is_embedding_model(raw_capabilities: Dict[str, object]) -> bool:
     return model_type == "embedding"
 
 
+def _normalize_ollama_family(raw_family: object) -> str:
+    if not isinstance(raw_family, str):
+        return ""
+    return raw_family.strip().lower()
+
+
+def _is_ollama_embedding_family(raw_family: object) -> bool:
+    family = _normalize_ollama_family(raw_family)
+    return any(
+        family == prefix or family.startswith(f"{prefix}-")
+        for prefix in _OLLAMA_EMBEDDING_FAMILY_PREFIXES
+    )
+
+
+def _is_ollama_embedding_entry(raw_entry: object) -> bool:
+    if not isinstance(raw_entry, dict):
+        return False
+
+    details = raw_entry.get("details")
+    if not isinstance(details, dict):
+        return False
+
+    raw_families: List[object] = []
+    if isinstance(details.get("families"), list):
+        raw_families.extend(details["families"])
+    if "family" in details:
+        raw_families.append(details["family"])
+
+    return any(_is_ollama_embedding_family(raw_family) for raw_family in raw_families)
+
+
 def get_default_model_capabilities() -> Dict[str, object]:
     return _default_model_capabilities()
 
 
-def _fetch_ollama_models() -> List[str]:
+def _fetch_ollama_models(chat_only: bool = False) -> List[str]:
     """Query the local Ollama daemon for all installed model names.
 
     Returns an empty list if Ollama is unreachable or httpx is unavailable.
@@ -962,6 +1059,8 @@ def _fetch_ollama_models() -> List[str]:
         for entry in models:
             name = str(entry.get("name") or entry.get("model") or "").strip()
             if name:
+                if chat_only and _is_ollama_embedding_entry(entry):
+                    continue
                 names.append(name)
         return names
     except Exception:
@@ -987,9 +1086,9 @@ def get_capability_catalog() -> Dict[str, List[str]]:
             _normalize_provider_model_name(provider, model_name),
         )
 
-    # Merge dynamically discovered Ollama models so all locally installed
-    # models appear as chips regardless of model_capabilities.json.
-    for live_model in _fetch_ollama_models():
+    # Merge dynamically discovered Ollama chat models so installed LLMs
+    # appear as chips regardless of model_capabilities.json.
+    for live_model in _fetch_ollama_models(chat_only=True):
         normalized = _normalize_provider_model_name("ollama", live_model)
         if normalized:
             providers["ollama"].append(normalized)
@@ -1212,7 +1311,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
     # Walk miso.builtin_toolkits for concrete implementations
     entries.extend(_enumerate_builtin_submodule_toolkits(toolkit_base, seen))
 
-    # Also pick up any top-level miso exports (python_workspace_toolkit, etc.)
+    # Also pick up any top-level miso exports (workspace_toolkit, etc.)
     # that weren't already found via submodule walk
     try:
         miso_module = importlib.import_module("miso")
@@ -1583,6 +1682,25 @@ def _extract_workspace_roots_from_options(options: Dict[str, object] | None) -> 
     return roots
 
 
+def _extract_toolkit_names(options: Dict[str, object] | None) -> list[str]:
+    if not isinstance(options, dict):
+        return []
+    toolkits = options.get("toolkits")
+    if not isinstance(toolkits, list):
+        return []
+    names: list[str] = []
+    seen: set[str] = set()
+    for entry in toolkits:
+        if not isinstance(entry, str):
+            continue
+        name = entry.strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
 def _should_enable_tools(options: Dict[str, object] | None) -> bool:
     """Return True when the caller explicitly requests tool-enabled mode.
 
@@ -1647,6 +1765,191 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
             continue
 
 
+def _resolve_workspace_toolkit_factory(miso_module: Any) -> Any:
+    """Return the workspace_toolkit factory from Miso builtin toolkits."""
+    workspace_factory = getattr(miso_module, "workspace_toolkit", None)
+    if callable(workspace_factory):
+        return workspace_factory
+    raise RuntimeError("Miso workspace_toolkit is unavailable")
+
+
+def _resolve_workspace_roots(workspace_roots_raw: list[str]) -> list[str]:
+    return [str(_resolve_workspace_root(raw)) for raw in workspace_roots_raw]
+
+
+def _build_workspace_toolkit_for_root(
+    toolkit_factory: Any,
+    *,
+    workspace_root: str,
+) -> Any:
+    build_attempts = []
+    build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
+    build_attempts.append(lambda: toolkit_factory(workspace_root))
+
+    last_type_error = None
+    for build_attempt in build_attempts:
+        try:
+            return build_attempt()
+        except TypeError as error:
+            last_type_error = error
+
+    raise last_type_error or RuntimeError("Failed to create workspace toolkit")
+
+
+def _build_generic_toolkit(
+    toolkit_factory: Any,
+    *,
+    workspace_root: str | None,
+) -> Any:
+    build_attempts = []
+    if workspace_root:
+        build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
+        build_attempts.append(lambda: toolkit_factory(workspace_root))
+    build_attempts.append(lambda: toolkit_factory())
+
+    last_type_error = None
+    for build_attempt in build_attempts:
+        try:
+            return build_attempt()
+        except TypeError as error:
+            last_type_error = error
+
+    raise last_type_error or RuntimeError("Failed to create toolkit")
+
+
+def _try_build_workspace_toolkit_for_roots(
+    toolkit_factory: Any,
+    *,
+    workspace_roots: list[str],
+) -> Any | None:
+    build_attempts = []
+    build_attempts.append(lambda: toolkit_factory(workspace_roots=workspace_roots))
+    build_attempts.append(lambda: toolkit_factory(workspace_roots))
+
+    for build_attempt in build_attempts:
+        try:
+            return build_attempt()
+        except TypeError:
+            continue
+
+    return None
+
+
+def _build_workspace_tool_prefix(workspace_root: str, index: int) -> str:
+    label = Path(workspace_root).name or f"workspace_{index}"
+    slug = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_")
+    slug = slug[:32] or "workspace"
+    return f"workspace_{index}_{slug}"
+
+
+def _build_multi_workspace_proxy_toolkit(
+    miso_module: Any,
+    toolkit_factory: Any,
+    *,
+    workspace_roots: list[str],
+) -> Any:
+    toolkit_cls = getattr(miso_module, "toolkit", None)
+    tool_cls = getattr(miso_module, "tool", None)
+    if not callable(toolkit_cls) or not callable(tool_cls):
+        raise RuntimeError(
+            "Miso multi-workspace fallback requires toolkit and tool exports"
+        )
+
+    merged_toolkit = toolkit_cls()
+    workspace_entries = []
+
+    for index, workspace_root in enumerate(workspace_roots, start=1):
+        source_toolkit = _build_workspace_toolkit_for_root(
+            toolkit_factory,
+            workspace_root=workspace_root,
+        )
+        _mark_workspace_tools_for_confirmation(source_toolkit)
+        workspace_entries.append(
+            {
+                "index": index,
+                "root": workspace_root,
+                "prefix": _build_workspace_tool_prefix(workspace_root, index),
+                "toolkit": source_toolkit,
+            }
+        )
+
+    default_entry = workspace_entries[0]
+    for tool_name, tool_obj in getattr(default_entry["toolkit"], "tools", {}).items():
+        merged_toolkit.tools[tool_name] = tool_obj
+
+    for entry in workspace_entries[1:]:
+        source_toolkit = entry["toolkit"]
+        tool_prefix = entry["prefix"]
+        workspace_root = entry["root"]
+
+        for tool_name, tool_obj in getattr(source_toolkit, "tools", {}).items():
+            proxy_name = f"{tool_prefix}_{tool_name}"
+            proxy_description = (
+                f"{getattr(tool_obj, 'description', '')} "
+                f"Only for workspace '{tool_prefix}' at {workspace_root}."
+            ).strip()
+
+            def _make_proxy(
+                current_toolkit: Any = source_toolkit,
+                current_tool_name: str = tool_name,
+            ) -> Any:
+                def _proxy(**kwargs: Any) -> Any:
+                    return current_toolkit.execute(current_tool_name, kwargs)
+
+                return _proxy
+
+            proxy_tool = tool_cls(
+                name=proxy_name,
+                description=proxy_description,
+                func=_make_proxy(),
+                parameters=list(getattr(tool_obj, "parameters", []) or []),
+                observe=bool(getattr(tool_obj, "observe", False)),
+                requires_confirmation=bool(
+                    getattr(tool_obj, "requires_confirmation", False)
+                    or tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES
+                ),
+            )
+            merged_toolkit.register(proxy_tool)
+
+    workspace_map = [
+        {
+            "tool_prefix": "default",
+            "workspace_root": default_entry["root"],
+            "default": True,
+        }
+    ]
+    workspace_map.extend(
+        {
+            "tool_prefix": entry["prefix"],
+            "workspace_root": entry["root"],
+            "default": False,
+        }
+        for entry in workspace_entries[1:]
+    )
+
+    def list_available_workspaces() -> dict[str, Any]:
+        return {
+            "workspaces": workspace_map,
+            "note": (
+                "Use the original workspace tool names for the default workspace. "
+                "Use the prefixed tool names for additional workspaces."
+            ),
+        }
+
+    merged_toolkit.register(
+        tool_cls(
+            name="list_available_workspaces",
+            description=(
+                "List every available workspace root and the tool-name prefix "
+                "for each additional workspace."
+            ),
+            func=list_available_workspaces,
+        )
+    )
+
+    return merged_toolkit
+
+
 def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
     workspace_roots_raw = _extract_workspace_roots_from_options(options)
     if not workspace_roots_raw:
@@ -1665,40 +1968,83 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
             f"Failed to import miso for workspace toolkit: {import_error}"
         ) from import_error
 
-    # Try multi_workspace_toolkit first (supports named workspaces)
+    toolkit_factory = _resolve_workspace_toolkit_factory(miso_module)
+    resolved_roots = _resolve_workspace_roots(workspace_roots_raw)
+
+    # Try multi_workspace_toolkit first (supports named workspaces).
     multi_factory = getattr(miso_module, "multi_workspace_toolkit", None)
-    if callable(multi_factory) and len(workspace_roots_raw) > 1:
-        resolved = []
-        for raw in workspace_roots_raw:
-            try:
-                resolved.append(str(_resolve_workspace_root(raw)))
-            except RuntimeError:
-                raise
+    if callable(multi_factory) and len(resolved_roots) > 1:
         try:
-            multi_toolkit = multi_factory(workspace_roots=resolved)
+            multi_toolkit = multi_factory(workspace_roots=resolved_roots)
         except TypeError:
-            multi_toolkit = multi_factory(resolved)
+            multi_toolkit = multi_factory(resolved_roots)
         _mark_workspace_tools_for_confirmation(multi_toolkit)
         agent.add_toolkit(multi_toolkit)
         return
 
-    # Single workspace (or multi_workspace_toolkit unavailable): use python_workspace_toolkit
-    toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
-    if not callable(toolkit_factory):
-        raise RuntimeError("miso.python_workspace_toolkit is unavailable")
-
-    workspace_root = _resolve_workspace_root(workspace_roots_raw[0])
-    try:
-        workspace_toolkit = toolkit_factory(
-            workspace_root=str(workspace_root),
-            include_python_runtime=True,
+    if len(resolved_roots) == 1:
+        workspace_toolkit = _build_workspace_toolkit_for_root(
+            toolkit_factory,
+            workspace_root=resolved_roots[0],
         )
-    except TypeError:
-        # Backward compatibility for older signatures.
-        workspace_toolkit = toolkit_factory(workspace_root=str(workspace_root))
+        _mark_workspace_tools_for_confirmation(workspace_toolkit)
+        agent.add_toolkit(workspace_toolkit)
+        return
+
+    # Multi-root fallback when no native multi_workspace_toolkit.
+    workspace_toolkit = _try_build_workspace_toolkit_for_roots(
+        toolkit_factory,
+        workspace_roots=resolved_roots,
+    )
+    if workspace_toolkit is None:
+        workspace_toolkit = _build_multi_workspace_proxy_toolkit(
+            miso_module,
+            toolkit_factory,
+            workspace_roots=resolved_roots,
+        )
 
     _mark_workspace_tools_for_confirmation(workspace_toolkit)
     agent.add_toolkit(workspace_toolkit)
+
+
+def _attach_selected_toolkits(agent: Any, options: Dict[str, object] | None = None) -> None:
+    if not _should_enable_tools(options):
+        return
+
+    toolkit_names = _extract_toolkit_names(options)
+    if not toolkit_names:
+        return
+
+    if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
+        raise RuntimeError("Agent does not support add_toolkit")
+
+    try:
+        miso_module = importlib.import_module("miso")
+    except Exception as import_error:
+        raise RuntimeError(
+            f"Failed to import miso for toolkit attachment: {import_error}"
+        ) from import_error
+
+    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
+    workspace_root = resolved_roots[0] if resolved_roots else None
+
+    for toolkit_name in toolkit_names:
+        if toolkit_name == "workspace_toolkit":
+            # Workspace toolkit is handled separately to support multi-root.
+            continue
+        if toolkit_name == "builtin_toolkit":
+            continue
+
+        toolkit_factory = getattr(miso_module, toolkit_name, None)
+        if not callable(toolkit_factory):
+            raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
+
+        toolkit_instance = _build_generic_toolkit(
+            toolkit_factory,
+            workspace_root=workspace_root,
+        )
+        _mark_workspace_tools_for_confirmation(toolkit_instance)
+        agent.add_toolkit(toolkit_instance)
 
 
 # Block types whose ``text`` field should be extracted as plain content.
@@ -1780,6 +2126,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         agent.api_key = api_key
 
     _attach_workspace_toolkit(agent, options)
+    _attach_selected_toolkits(agent, options)
 
     memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
     memory_runtime = {
@@ -1967,6 +2314,7 @@ def stream_chat_events(
         "seen_final_message": False,
         "last_run_id": "",
         "last_iteration": 0,
+        "bundle": None,
     }
 
     def on_event(event: Dict[str, Any]) -> None:
@@ -2028,8 +2376,10 @@ def stream_chat_events(
             if "on_continuation_request" in run_params:
                 run_kwargs["on_continuation_request"] = continuation_cb
 
-            messages_out, _bundle = agent.run(**run_kwargs)
+            messages_out, bundle = agent.run(**run_kwargs)
             output_holder["messages"] = messages_out
+            if isinstance(bundle, dict) and bundle:
+                output_holder["bundle"] = bundle
         except Exception as run_error:  # pragma: no cover
             output_holder["error"] = run_error
         finally:
@@ -2059,3 +2409,13 @@ def stream_chat_events(
                 "timestamp": time.time(),
                 "content": final_text,
             }
+
+    bundle = output_holder.get("bundle")
+    if isinstance(bundle, dict) and bundle:
+        yield {
+            "type": "stream_summary",
+            "run_id": str(output_holder.get("last_run_id") or ""),
+            "iteration": int(output_holder.get("last_iteration") or 0),
+            "timestamp": time.time(),
+            "bundle": bundle,
+        }

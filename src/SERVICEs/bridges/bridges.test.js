@@ -81,6 +81,23 @@ describe("bridge wrappers", () => {
     });
   });
 
+  test("runtimeBridge.getMemorySize normalizes vector and profile totals", async () => {
+    window.misoAPI = {
+      getMemorySize: jest.fn(async () => ({
+        total: "42",
+        vectorTotal: "24",
+        profileTotal: "18",
+      })),
+    };
+
+    await expect(runtimeBridge.getMemorySize()).resolves.toEqual({
+      total: 42,
+      vectorTotal: 24,
+      profileTotal: 18,
+      error: "",
+    });
+  });
+
   test("runtimeBridge.setChromeTerminalOpen forwards open flag and normalizes payload", async () => {
     window.misoAPI = {
       setChromeTerminalOpen: jest.fn(async (open) => ({

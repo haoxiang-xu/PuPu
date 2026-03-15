@@ -462,6 +462,15 @@ const injectSystemPromptV2IntoPayload = (payload) => {
   };
 };
 
+const normalizeMisoV2Payload = (payload) => {
+  const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
+  const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
+    payloadWithWorkspaceRoot,
+  );
+  const payloadWithMemory = injectMemoryIntoPayload(payloadWithSystemPromptV2);
+  return injectProviderApiKeyIntoPayload(payloadWithMemory);
+};
+
 export const createMisoApi = () => {
   const misoApi = {
     isBridgeAvailable: () =>
@@ -646,19 +655,52 @@ export const createMisoApi = () => {
       }
     },
 
+    replaceSessionMemory: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("misoAPI", "replaceSessionMemory");
+        const normalizedPayload = normalizeMisoV2Payload(payload);
+        const sessionIdRaw =
+          normalizedPayload?.sessionId ?? normalizedPayload?.session_id;
+        const sessionId =
+          typeof sessionIdRaw === "string" ? sessionIdRaw.trim() : "";
+        if (!sessionId) {
+          throw new FrontendApiError(
+            "invalid_session_memory_replace",
+            "session_id is required",
+          );
+        }
+
+        const response = await withTimeout(
+          () =>
+            method({
+              sessionId,
+              session_id: sessionId,
+              messages: Array.isArray(normalizedPayload?.messages)
+                ? normalizedPayload.messages
+                : [],
+              options: isObject(normalizedPayload?.options)
+                ? normalizedPayload.options
+                : {},
+            }),
+          15000,
+          "miso_session_memory_replace_timeout",
+          "Miso session memory replace request timed out",
+        );
+
+        return isObject(response) ? response : { applied: false };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "miso_session_memory_replace_failed",
+          "Failed to replace Miso session memory",
+        );
+      }
+    },
+
     startStreamV2: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("misoAPI", "startStreamV2");
-        const payloadWithWorkspaceRoot =
-          injectWorkspaceRootIntoPayload(payload);
-        const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
-          payloadWithWorkspaceRoot,
-        );
-        const payloadWithMemory = injectMemoryIntoPayload(
-          payloadWithSystemPromptV2,
-        );
-        const normalizedPayload =
-          injectProviderApiKeyIntoPayload(payloadWithMemory);
+        const normalizedPayload = normalizeMisoV2Payload(payload);
         const streamHandle = method(normalizedPayload, handlers);
         if (
           !isObject(streamHandle) ||

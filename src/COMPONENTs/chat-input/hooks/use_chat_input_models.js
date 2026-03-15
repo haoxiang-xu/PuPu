@@ -32,7 +32,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
   useEffect(() => {
     let cancelled = false;
     api.ollama
-      .listModels()
+      .listChatModels()
       .then((models) => {
         if (!cancelled) {
           setLiveOllamaModels(models.map((m) => m.name));

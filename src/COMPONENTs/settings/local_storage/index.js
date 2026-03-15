@@ -679,7 +679,7 @@ export const LocalStorageSettings = () => {
 
   const [entries, setEntries] = useState([]);
   const [attachmentCount, setAttachmentCount] = useState(null);
-  const [vectorMemoryBytes, setVectorMemoryBytes] = useState(null);
+  const [memoryStats, setMemoryStats] = useState(null);
   const [confirmClear, setConfirmClear] = useState(false);
 
   const refresh = useCallback(() => {
@@ -690,17 +690,35 @@ export const LocalStorageSettings = () => {
       })
       .catch(() => {});
     if (!runtimeBridge.isMemorySizeAvailable()) {
+      setMemoryStats(null);
       return;
     }
 
     runtimeBridge
       .getMemorySize()
       .then((result) => {
-        if (result && typeof result.total === "number" && result.total > 0) {
-          setVectorMemoryBytes(result.total);
+        if (!result || typeof result !== "object") {
+          setMemoryStats(null);
+          return;
         }
+        setMemoryStats({
+          total:
+            typeof result.total === "number" && result.total > 0
+              ? result.total
+              : 0,
+          vectorTotal:
+            typeof result.vectorTotal === "number" && result.vectorTotal > 0
+              ? result.vectorTotal
+              : 0,
+          profileTotal:
+            typeof result.profileTotal === "number" && result.profileTotal > 0
+              ? result.profileTotal
+              : 0,
+        });
       })
-      .catch(() => {});
+      .catch(() => {
+        setMemoryStats(null);
+      });
   }, []);
 
   useEffect(() => {
@@ -835,7 +853,12 @@ export const LocalStorageSettings = () => {
                 isDark={isDark}
                 onDelete={handleDelete}
                 attachmentCount={entry.key === "chats" ? attachmentCount : null}
-                vectorMemoryBytes={entry.key === "chats" ? vectorMemoryBytes : null}
+                vectorMemoryBytes={
+                  entry.key === "chats" ? memoryStats?.vectorTotal ?? null : null
+                }
+                profileMemoryBytes={
+                  entry.key === "chats" ? memoryStats?.profileTotal ?? null : null
+                }
               />
             ))}
           </div>

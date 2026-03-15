@@ -73,6 +73,7 @@ describe("ChatInterface stop flow", () => {
           cancel: cancelSpy,
         };
       }),
+      replaceSessionMemory: jest.fn(async () => ({ applied: true })),
       cancelStream: jest.fn(),
       respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
     };
@@ -83,7 +84,7 @@ describe("ChatInterface stop flow", () => {
     delete window.misoAPI;
   });
 
-  test("stopping a stream removes empty assistant placeholders without render-phase warnings", async () => {
+  const renderChat = () =>
     render(
       <ConfigContext.Provider
         value={{
@@ -96,9 +97,52 @@ describe("ChatInterface stop flow", () => {
       </ConfigContext.Provider>,
     );
 
+  const waitForReady = async () => {
     await waitFor(() => {
       expect(window.misoAPI.getStatus).toHaveBeenCalled();
     });
+  };
+
+  const completeAssistantReply = async (content) => {
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "final_message",
+        payload: {
+          content,
+        },
+      });
+      streamHandlers.onDone({});
+    });
+
+    await waitFor(() => {
+      const assistantMessage = [...(lastChatMessagesProps?.messages || [])]
+        .reverse()
+        .find((message) => message.role === "assistant");
+      expect(assistantMessage?.status).toBe("done");
+      expect(assistantMessage?.content).toBe(content);
+    });
+  };
+
+  const sendTurn = async (userContent, assistantContent) => {
+    const nextCallCount = window.misoAPI.startStreamV2.mock.calls.length + 1;
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: userContent },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(nextCallCount);
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    await completeAssistantReply(assistantContent);
+  };
+
+  test("stopping a stream removes empty assistant placeholders without render-phase warnings", async () => {
+    renderChat();
+    await waitForReady();
 
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: "Hello from test" },
@@ -137,21 +181,8 @@ describe("ChatInterface stop flow", () => {
   });
 
   test("records a synthetic confirmation decision as soon as approval is accepted", async () => {
-    render(
-      <ConfigContext.Provider
-        value={{
-          theme: {},
-          onFragment: "main",
-          onThemeMode: "light_mode",
-        }}
-      >
-        <ChatInterface />
-      </ConfigContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(window.misoAPI.getStatus).toHaveBeenCalled();
-    });
+    renderChat();
+    await waitForReady();
 
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: "Run the tool" },
@@ -233,21 +264,8 @@ describe("ChatInterface stop flow", () => {
       }),
     );
 
-    render(
-      <ConfigContext.Provider
-        value={{
-          theme: {},
-          onFragment: "main",
-          onThemeMode: "light_mode",
-        }}
-      >
-        <ChatInterface />
-      </ConfigContext.Provider>,
-    );
-
-    await waitFor(() => {
-      expect(window.misoAPI.getStatus).toHaveBeenCalled();
-    });
+    renderChat();
+    await waitForReady();
 
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: "Memory fallback test" },
@@ -299,21 +317,8 @@ describe("ChatInterface stop flow", () => {
     });
 
     try {
-      render(
-        <ConfigContext.Provider
-          value={{
-            theme: {},
-            onFragment: "main",
-            onThemeMode: "light_mode",
-          }}
-        >
-          <ChatInterface />
-        </ConfigContext.Provider>,
-      );
-
-      await waitFor(() => {
-        expect(window.misoAPI.getStatus).toHaveBeenCalled();
-      });
+      renderChat();
+      await waitForReady();
 
       fireEvent.change(screen.getByTestId("chat-input"), {
         target: { value: "RAF token test" },
@@ -360,5 +365,204 @@ describe("ChatInterface stop flow", () => {
       window.requestAnimationFrame = originalRaf;
       window.cancelAnimationFrame = originalCancelRaf;
     }
+  });
+
+  test("stores the done bundle on the assistant message", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Bundle test" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    const bundle = {
+      consumed_tokens: 21,
+      max_context_window_tokens: 128000,
+      context_window_used_pct: 3.5,
+    };
+
+    streamHandlers.onDone({ bundle });
+
+    const getAssistantMessage = () =>
+      lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+
+    await waitFor(() => {
+      expect(getAssistantMessage()?.status).toBe("done");
+      expect(getAssistantMessage()?.meta?.bundle).toEqual(bundle);
+    });
+  });
+
+  test("resend replaces short-term memory before starting a new stream", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        memory: { enabled: true },
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    await sendTurn("First turn", "A1");
+    await sendTurn("Second turn", "A2");
+
+    const secondUserMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "user" && message.content === "Second turn",
+    );
+
+    await act(async () => {
+      await lastChatMessagesProps.onResendMessage(secondUserMessage);
+    });
+
+    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(replacePayload.session_id).toBe(lastChatMessagesProps.chatId);
+    expect(replacePayload.messages).toEqual([
+      { role: "user", content: "First turn" },
+      { role: "assistant", content: "A1" },
+    ]);
+    expect(
+      window.misoAPI.replaceSessionMemory.mock.invocationCallOrder[0],
+    ).toBeLessThan(window.misoAPI.startStreamV2.mock.invocationCallOrder[2]);
+  });
+
+  test("edit replaces short-term memory before starting a new stream", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        memory: { enabled: true },
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    await sendTurn("First turn", "A1");
+    await sendTurn("Second turn", "A2");
+
+    const secondUserMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "user" && message.content === "Second turn",
+    );
+
+    await act(async () => {
+      await lastChatMessagesProps.onEditMessage(secondUserMessage, "Edited turn");
+    });
+
+    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(replacePayload.messages).toEqual([
+      { role: "user", content: "First turn" },
+      { role: "assistant", content: "A1" },
+    ]);
+    const [streamPayload] = window.misoAPI.startStreamV2.mock.calls[2];
+    expect(streamPayload.message).toBe("Edited turn");
+  });
+
+  test("delete removes the containing turn and syncs remaining memory", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        memory: { enabled: true },
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    await sendTurn("First turn", "A1");
+    await sendTurn("Second turn", "A2");
+
+    const firstAssistantMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "assistant" && message.content === "A1",
+    );
+
+    await act(async () => {
+      await lastChatMessagesProps.onDeleteMessage(firstAssistantMessage);
+    });
+
+    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(replacePayload.messages).toEqual([
+      { role: "user", content: "Second turn" },
+      { role: "assistant", content: "A2" },
+    ]);
+    expect(
+      lastChatMessagesProps.messages.map((message) => message.content),
+    ).toEqual(["Second turn", "A2"]);
+  });
+
+  test("deleting a streaming assistant turn cancels the stream before replacing memory", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        memory: { enabled: true },
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Streaming turn" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    const streamingAssistant = lastChatMessagesProps.messages.find(
+      (message) => message.role === "assistant" && message.status === "streaming",
+    );
+
+    await act(async () => {
+      await lastChatMessagesProps.onDeleteMessage(streamingAssistant);
+    });
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    expect(window.misoAPI.replaceSessionMemory.mock.invocationCallOrder[0]).toBeGreaterThan(
+      cancelSpy.mock.invocationCallOrder[0],
+    );
+    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(replacePayload.messages).toEqual([]);
+    await waitFor(() => {
+      const store = getChatsStore();
+      const activeChat = store.chatsById[store.activeChatId];
+      expect(activeChat.messages).toEqual([]);
+    });
+  });
+
+  test("resend skips session replacement when memory is disabled", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        memory: { enabled: false },
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    await sendTurn("Only turn", "A1");
+
+    const firstUserMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "user" && message.content === "Only turn",
+    );
+
+    await act(async () => {
+      await lastChatMessagesProps.onResendMessage(firstUserMessage);
+    });
+
+    expect(window.misoAPI.replaceSessionMemory).not.toHaveBeenCalled();
+    expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(2);
   });
 });

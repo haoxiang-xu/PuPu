@@ -324,13 +324,73 @@ def _extract_projection_text(payload: Dict[str, object]) -> str:
         rendered = _coerce_memory_text(payload.get(key))
         if rendered:
             if len(rendered) > 12000:
-                return f"{rendered[:12000]}…"
+                return f"{rendered[:12000]}â€¦"
             return rendered
     return ""
 
 
 def _empty_projection_payload() -> Dict[str, object]:
     return {"points": [], "variance": [0.0, 0.0]}
+
+
+def _profile_preview(document: object, *, limit: int = 220) -> str:
+    if not isinstance(document, dict) or not document:
+        return ""
+    try:
+        rendered = json.dumps(document, ensure_ascii=False)
+    except Exception:
+        return ""
+    if len(rendered) <= limit:
+        return rendered
+    return f"{rendered[: limit - 3]}..."
+
+
+def _load_long_term_profiles_payload(data_dir: str) -> Dict[str, object]:
+    from pathlib import Path
+
+    profiles_dir = Path(data_dir) / "memory" / "long_term_profiles"
+    if not profiles_dir.exists():
+        return {
+            "profiles": [],
+            "profile_count": 0,
+            "profile_total_bytes": 0,
+        }
+
+    profiles: List[Dict[str, object]] = []
+    total_bytes = 0
+
+    for profile_path in sorted(
+        profiles_dir.glob("*.json"),
+        key=lambda item: item.name.lower(),
+    ):
+        try:
+            size_bytes = profile_path.stat().st_size
+        except Exception:
+            size_bytes = 0
+        total_bytes += size_bytes
+
+        try:
+            raw_document = json.loads(profile_path.read_text(encoding="utf-8"))
+        except Exception:
+            raw_document = {}
+
+        document = raw_document if isinstance(raw_document, dict) else {}
+        profiles.append(
+            {
+                "id": profile_path.name,
+                "storage_key": profile_path.stem,
+                "size_bytes": size_bytes,
+                "entry_count": len(document),
+                "preview": _profile_preview(document),
+                "document": document,
+            }
+        )
+
+    return {
+        "profiles": profiles,
+        "profile_count": len(profiles),
+        "profile_total_bytes": total_bytes,
+    }
 
 
 def _projection_collection_prefix(tag: object) -> str:
@@ -451,7 +511,7 @@ def _kmeans_2d_numpy(coords_2d: "Any") -> List[int]:
         return [0] * n
 
     rng = _np.random.default_rng(42)
-    # K-means++ init: first centroid random, rest proportional to D²
+    # K-means++ init: first centroid random, rest proportional to DÂ²
     centroid_indices: List[int] = [int(rng.integers(0, n))]
     for _ in range(k - 1):
         c = arr[centroid_indices]
@@ -477,6 +537,31 @@ def _kmeans_2d_numpy(coords_2d: "Any") -> List[int]:
                 centroids[ki] = arr[mask].mean(axis=0)
 
     return labels.tolist()
+
+
+def _normalize_cluster_labels(raw_labels: object, point_count: int) -> List[int]:
+    if point_count <= 0:
+        return []
+
+    candidate = raw_labels
+    if hasattr(candidate, "tolist"):
+        try:
+            candidate = candidate.tolist()
+        except Exception:
+            candidate = []
+
+    normalized: List[int] = []
+    if isinstance(candidate, list):
+        for item in candidate:
+            try:
+                normalized.append(max(0, int(item)))
+            except Exception:
+                normalized.append(0)
+
+    if len(normalized) < point_count:
+        normalized.extend([0] * (point_count - len(normalized)))
+
+    return normalized[:point_count]
 
 
 @api_blueprint.get("/health")
@@ -645,8 +730,6 @@ def chat_stream() -> Response:
     options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
 
     def stream_events() -> Iterable[str]:
-        completion_tokens = 0
-        completion_chars = 0
         started_at = int(time.time() * 1000)
 
         try:
@@ -667,8 +750,6 @@ def chat_stream() -> Response:
                 session_id=thread_id,
             ):
                 normalized_delta = str(delta)
-                completion_chars += len(normalized_delta)
-                completion_tokens += max(1, len(normalized_delta.strip().split()))
                 yield _sse_event("token", {"delta": normalized_delta})
 
             yield _sse_event(
@@ -676,11 +757,6 @@ def chat_stream() -> Response:
                 {
                     "thread_id": thread_id,
                     "finished_at": int(time.time() * 1000),
-                    "usage": {
-                        "prompt_tokens": max(1, len(message.split())),
-                        "completion_tokens": completion_tokens,
-                        "completion_chars": completion_chars,
-                    },
                 },
             )
         except GeneratorExit:  # pragma: no cover
@@ -742,14 +818,14 @@ def memory_projection() -> Response:
         # Resolve the actual Qdrant collection name.
         #
         # New sessions store a random hex `vector_collection_tag` in the session
-        # JSON → collection = chat_{tag}_{safe_session_id}
+        # JSON â†’ collection = chat_{tag}_{safe_session_id}
         #
         # Legacy sessions (tag absent) fall through to `_vector_collection_prefix("")`
         # which returns "chat", giving collection = chat_{safe_session_id}
-        # — matching the legacy naming that was used before the tag system.
+        # â€” matching the legacy naming that was used before the tag system.
         session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
         try:
-            with open(session_file, "r") as _f:
+            with open(session_file, "r", encoding="utf-8") as _f:
                 _state = _json.load(_f)
         except Exception:
             _state = {}
@@ -789,7 +865,7 @@ def memory_projection() -> Response:
 
         vectors = np.array(vector_rows, dtype=np.float64)
 
-        # PCA via numpy thin SVD — center, project onto top-5 right singular vectors
+        # PCA via numpy thin SVD â€” center, project onto top-5 right singular vectors
         try:
             X = vectors - vectors.mean(axis=0)
             _, s, Vt = np.linalg.svd(X, full_matrices=False)
@@ -797,6 +873,13 @@ def memory_projection() -> Response:
             return jsonify(_empty_projection_payload())
         n_pcs = min(5, len(s))
         coords = X @ Vt[:n_pcs].T  # (n, n_pcs)
+        coords_shape = getattr(coords, "shape", ())
+        point_count = min(
+            len(vector_points),
+            int(coords_shape[0]) if len(coords_shape) >= 1 else 0,
+        )
+        if point_count <= 0:
+            return jsonify(_empty_projection_payload())
         total_var = float((s ** 2).sum())
         variance = (
             [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
@@ -804,12 +887,15 @@ def memory_projection() -> Response:
             else [0.0] * 5
         )
         try:
-            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+            cluster_labels = _normalize_cluster_labels(
+                _kmeans_2d_numpy(coords[:point_count, :2]),
+                point_count,
+            )
         except Exception:
-            cluster_labels = [0] * len(vector_points)
+            cluster_labels = [0] * point_count
 
         points = []
-        for i, p in enumerate(vector_points):
+        for i, p in enumerate(vector_points[:point_count]):
             payload = p.payload if isinstance(p.payload, dict) else {}
             full_text = _extract_projection_text(payload)
             turn_start = payload.get("turn_start_index")
@@ -825,13 +911,16 @@ def memory_projection() -> Response:
                         if stripped.lower().startswith(prefix):
                             stripped = stripped[len(prefix):].strip()
                             break
-                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    label = stripped[:52] + ("â€¦" if len(stripped) > 52 else "")
                     break
 
             # content: full text for the tooltip body, capped at 300 chars
-            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+            content = full_text[:300] + ("â€¦" if len(full_text) > 300 else "")
 
-            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
+            pc_vals = [
+                float(coords[i, j]) if len(coords_shape) >= 2 and j < coords_shape[1] else 0.0
+                for j in range(5)
+            ]
             points.append({
                 "id":               str(p.id),
                 "x":                pc_vals[0],
@@ -876,6 +965,7 @@ def long_term_memory_projection() -> Response:
             return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
 
         client = _get_or_create_qdrant_client(data_dir)
+        profile_payload = _load_long_term_profiles_payload(data_dir)
 
         # Discover all collections whose name starts with "long_term"
         all_collections = client.get_collections().collections
@@ -884,7 +974,9 @@ def long_term_memory_projection() -> Response:
         ]
 
         if not lt_names:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
 
         # Scroll every long-term collection and merge
         all_scroll: List[Any] = []
@@ -892,7 +984,9 @@ def long_term_memory_projection() -> Response:
             all_scroll.extend(_scroll_projection_points(client, col_name))
 
         if not all_scroll:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
 
         vector_rows: List[List[float]] = []
         vector_points: List[Any] = []
@@ -913,7 +1007,9 @@ def long_term_memory_projection() -> Response:
             vector_points.append(point)
 
         if not vector_rows:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
 
         vectors = np.array(vector_rows, dtype=np.float64)
 
@@ -921,9 +1017,20 @@ def long_term_memory_projection() -> Response:
             X = vectors - vectors.mean(axis=0)
             _, s, Vt = np.linalg.svd(X, full_matrices=False)
         except Exception:
-            return jsonify(_empty_projection_payload())
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
         n_pcs = min(5, len(s))
         coords = X @ Vt[:n_pcs].T
+        coords_shape = getattr(coords, "shape", ())
+        point_count = min(
+            len(vector_points),
+            int(coords_shape[0]) if len(coords_shape) >= 1 else 0,
+        )
+        if point_count <= 0:
+            payload = _empty_projection_payload()
+            payload.update(profile_payload)
+            return jsonify(payload)
         total_var = float((s ** 2).sum())
         variance = (
             [float(s[i] ** 2 / total_var) if i < len(s) else 0.0 for i in range(5)]
@@ -931,12 +1038,15 @@ def long_term_memory_projection() -> Response:
             else [0.0] * 5
         )
         try:
-            cluster_labels = _kmeans_2d_numpy(coords[:, :2])
+            cluster_labels = _normalize_cluster_labels(
+                _kmeans_2d_numpy(coords[:point_count, :2]),
+                point_count,
+            )
         except Exception:
-            cluster_labels = [0] * len(vector_points)
+            cluster_labels = [0] * point_count
 
         points = []
-        for i, p in enumerate(vector_points):
+        for i, p in enumerate(vector_points[:point_count]):
             payload = p.payload if isinstance(p.payload, dict) else {}
             full_text = _extract_projection_text(payload)
 
@@ -948,12 +1058,15 @@ def long_term_memory_projection() -> Response:
                         if stripped.lower().startswith(prefix):
                             stripped = stripped[len(prefix):].strip()
                             break
-                    label = stripped[:52] + ("…" if len(stripped) > 52 else "")
+                    label = stripped[:52] + ("â€¦" if len(stripped) > 52 else "")
                     break
 
-            content = full_text[:300] + ("…" if len(full_text) > 300 else "")
+            content = full_text[:300] + ("â€¦" if len(full_text) > 300 else "")
 
-            pc_vals = [float(coords[i, j]) if j < coords.shape[1] else 0.0 for j in range(5)]
+            pc_vals = [
+                float(coords[i, j]) if len(coords_shape) >= 2 and j < coords_shape[1] else 0.0
+                for j in range(5)
+            ]
             points.append({
                 "id":      str(p.id),
                 "x":       pc_vals[0],
@@ -969,12 +1082,85 @@ def long_term_memory_projection() -> Response:
                 "content": content,
             })
 
-        return jsonify({"points": points, "variance": variance})
+        return jsonify(
+            {
+                "points": points,
+                "variance": variance,
+                **profile_payload,
+            }
+        )
 
     except Exception as exc:
         if _is_projection_collection_missing_error(exc):
             return jsonify(_empty_projection_payload())
         return jsonify({"error": str(exc)}), 500
+
+
+@api_blueprint.post("/memory/session/replace")
+def replace_memory_session() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    payload = request.get_json(silent=True) or {}
+    session_id_raw = payload.get("session_id") or payload.get("sessionId")
+    session_id = str(session_id_raw or "").strip()
+    if not session_id:
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "session_id is required",
+                }
+            }
+        ), 400
+
+    raw_messages = payload.get("messages")
+    if not isinstance(raw_messages, list):
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "messages must be an array",
+                }
+            }
+        ), 400
+
+    options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
+
+    try:
+        import memory_factory
+
+        result = memory_factory.replace_short_term_session_memory(
+            session_id=session_id,
+            messages=raw_messages,
+            options=options,
+        )
+        return jsonify(result)
+    except ValueError as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": str(exc),
+                }
+            }
+        ), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "memory_replace_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
 
 
 @api_blueprint.post("/chat/stream/v2")
@@ -1017,9 +1203,8 @@ def chat_stream_v2() -> Response:
 
     def stream_events() -> Iterable[str]:
         seq = 0
-        completion_tokens = 0
-        completion_chars = 0
         started_at = int(time.time() * 1000)
+        final_bundle: Dict[str, object] | None = None
         confirmation_cancel_event = threading.Event()
 
         def cancel_pending_confirmations() -> None:
@@ -1054,6 +1239,12 @@ def chat_stream_v2() -> Response:
             ):
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
 
+                if event_type == "stream_summary":
+                    bundle = raw_event.get("bundle")
+                    if isinstance(bundle, dict) and bundle:
+                        final_bundle = bundle
+                    continue
+
                 payload_data = {
                     key: value
                     for key, value in raw_event.items()
@@ -1066,11 +1257,6 @@ def chat_stream_v2() -> Response:
                     sanitized_payload = payload_data
                 else:
                     sanitized_payload = _sanitize_trace_value(payload_data, trace_level)
-
-                delta = raw_event.get("delta")
-                if event_type == "token_delta" and isinstance(delta, str):
-                    completion_chars += len(delta)
-                    completion_tokens += max(1, len(delta.strip().split()))
 
                 run_id = raw_event.get("run_id")
                 normalized_run_id = run_id if isinstance(run_id, str) else ""
@@ -1098,20 +1284,18 @@ def chat_stream_v2() -> Response:
 
             seq += 1
             finished_at = int(time.time() * 1000)
+            done_payload: Dict[str, object] = {
+                "finished_at": finished_at,
+            }
+            if isinstance(final_bundle, dict) and final_bundle:
+                done_payload["bundle"] = final_bundle
             yield _sse_event(
                 "frame",
                 _build_trace_frame(
                     seq=seq,
                     thread_id=thread_id,
                     event_type="done",
-                    payload={
-                        "finished_at": finished_at,
-                        "usage": {
-                            "prompt_tokens": max(1, len(message.split())),
-                            "completion_tokens": completion_tokens,
-                            "completion_chars": completion_chars,
-                        },
-                    },
+                    payload=done_payload,
                     iteration=0,
                     timestamp_ms=finished_at,
                 ),

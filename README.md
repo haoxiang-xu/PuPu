@@ -117,7 +117,7 @@ Manage multiple conversations without losing context or cluttering your workflow
 Contributions are welcome.
 
 By intentionally submitting a contribution, you agree to the terms in
-[CLA.md](./CLA.md). In short:
+[docs/CLA.md](./docs/CLA.md). In short:
 
 - you keep ownership of your contribution;
 - the project may ship your contribution under Apache-2.0; and
@@ -136,8 +136,8 @@ the PuPu name and brand are not automatically included in those rights.
 
 - License text: [LICENSE](./LICENSE)
 - Project notices: [NOTICE](./NOTICE)
-- Contributor terms: [CLA.md](./CLA.md)
-- Brand usage rules: [TRADEMARK_POLICY.md](./TRADEMARK_POLICY.md)
+- Contributor terms: [docs/CLA.md](./docs/CLA.md)
+- Brand usage rules: [docs/TRADEMARK_POLICY.md](./docs/TRADEMARK_POLICY.md)
 
 If you ship a modified fork, rename it and replace PuPu branding unless you
 have written permission to use the marks.

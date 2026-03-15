@@ -1,11 +1,14 @@
 import { useContext, useEffect, useState } from "react";
 import hljs from "highlight.js/lib/common";
+import { createLogger } from "../../SERVICEs/console_logger";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
 /* ── Utilities ─────────────────────────────────────────────────────────────── */
+
+const codeLogger = createLogger("UI", "BUILTIN_COMPONENTs/code/code.js");
 
 const toPx = (v, fb) => {
   if (v == null) return fb;
@@ -23,7 +26,10 @@ const toText = (node) => {
 
 const DEFAULT_MAX_AUTO_DETECT_CHARS = 6000;
 
-const scheduleHighlightTask = (callback, { timeout = 220, delay = 48 } = {}) => {
+const scheduleHighlightTask = (
+  callback,
+  { timeout = 220, delay = 48 } = {},
+) => {
   if (
     typeof window !== "undefined" &&
     typeof window.requestIdleCallback === "function"
@@ -66,7 +72,7 @@ const loadHighlightTheme = async (themeMode) => {
         await import("highlight.js/styles/atom-one-light.css");
       }
     } catch (err) {
-      console.error("[Code] highlight theme load failed:", err);
+      codeLogger.error("theme", "highlight theme load failed", err);
       return;
     }
     const after = Array.from(

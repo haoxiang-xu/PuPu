@@ -3,10 +3,38 @@ const { CHANNELS } = require("../../../shared/channels");
 const createOllamaService = ({ app, shell, spawn, http, https, fs, path }) => {
   let ollamaProcess = null;
   let ollamaStatus = "checking";
+  const OLLAMA_BASE_URL = "http://localhost:11434";
+
+  const requestOllamaJson = (pathname, timeoutMs = 3000) =>
+    new Promise((resolve, reject) => {
+      const url = `${OLLAMA_BASE_URL}${pathname}`;
+      const req = http.get(url, (res) => {
+        let body = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk) => {
+          body += chunk;
+        });
+        res.on("end", () => {
+          if ((res.statusCode || 0) < 200 || (res.statusCode || 0) >= 300) {
+            reject(new Error(`Ollama request failed (${res.statusCode || "unknown"})`));
+            return;
+          }
+          try {
+            resolve(body ? JSON.parse(body) : {});
+          } catch (error) {
+            reject(new Error("Ollama returned invalid JSON"));
+          }
+        });
+      });
+      req.setTimeout(timeoutMs, () => {
+        req.destroy(new Error("Ollama request timed out"));
+      });
+      req.on("error", reject);
+    });
 
   const pingOllama = () =>
     new Promise((resolve) => {
-      const req = http.get("http://localhost:11434", (res) => {
+      const req = http.get(OLLAMA_BASE_URL, (res) => {
         res.resume();
         resolve(true);
       });
@@ -168,6 +196,7 @@ const createOllamaService = ({ app, shell, spawn, http, https, fs, path }) => {
     stopOllama,
     restartOllama,
     getStatus: () => ollamaStatus,
+    listInstalledModels: () => requestOllamaJson("/api/tags"),
     installOllama,
     searchLibrary,
   };
