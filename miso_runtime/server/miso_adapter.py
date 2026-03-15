@@ -31,6 +31,7 @@ _INPUT_MODALITY_ALIAS_MAP = {
 _KNOWN_TOOLKIT_EXPORTS = {
     "toolkit": "core",
     "builtin_toolkit": "builtin",
+    "workspace_toolkit": "builtin",
     "python_workspace_toolkit": "builtin",
     "mcp": "integration",
 }
@@ -386,8 +387,16 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 for parameter in execute_tool_calls_params.values()
             )
         )
+        original_supports_session_id = (
+            "session_id" in execute_tool_calls_params
+            or any(
+                parameter.kind == inspect.Parameter.VAR_KEYWORD
+                for parameter in execute_tool_calls_params.values()
+            )
+        )
     except Exception:
         original_supports_on_tool_confirm = True
+        original_supports_session_id = True
 
     def _patched_execute_tool_calls(
         self,
@@ -397,6 +406,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         iteration: int,
         callback,
         on_tool_confirm=None,
+        session_id: str | None = None,
     ):
         emitted_confirmation_events: set[tuple[str, bool]] = set()
 
@@ -469,6 +479,8 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 original_kwargs["on_tool_confirm"] = (
                     _on_tool_confirm_with_event if on_tool_confirm is not None else None
                 )
+            if original_supports_session_id:
+                original_kwargs["session_id"] = session_id
             return original_execute_tool_calls(
                 self,
                 **original_kwargs,
@@ -536,7 +548,11 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "reason": deny_reason or "User denied execution.",
                 }
             else:
-                tool_result = self._execute_from_toolkits(tool_call.name, effective_arguments)
+                tool_result = self._execute_from_toolkits(
+                    tool_call.name,
+                    effective_arguments,
+                    session_id=session_id,
+                )
             content = json.dumps(tool_result, default=str, ensure_ascii=False)
 
             anthropic_tool_results.append(
@@ -1212,7 +1228,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
     # Walk miso.builtin_toolkits for concrete implementations
     entries.extend(_enumerate_builtin_submodule_toolkits(toolkit_base, seen))
 
-    # Also pick up any top-level miso exports (python_workspace_toolkit, etc.)
+    # Also pick up any top-level miso exports (workspace_toolkit, etc.)
     # that weren't already found via submodule walk
     try:
         miso_module = importlib.import_module("miso")
@@ -1682,10 +1698,13 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
         agent.add_toolkit(multi_toolkit)
         return
 
-    # Single workspace (or multi_workspace_toolkit unavailable): use python_workspace_toolkit
-    toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
+    # Single workspace (or multi_workspace_toolkit unavailable): use workspace_toolkit
+    # (fallback to legacy python_workspace_toolkit if present).
+    toolkit_factory = getattr(miso_module, "workspace_toolkit", None)
     if not callable(toolkit_factory):
-        raise RuntimeError("miso.python_workspace_toolkit is unavailable")
+        toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
+    if not callable(toolkit_factory):
+        raise RuntimeError("miso.workspace_toolkit (or miso.python_workspace_toolkit) is unavailable")
 
     workspace_root = _resolve_workspace_root(workspace_roots_raw[0])
     try:
