@@ -86,6 +86,11 @@ describe("preload API contract", () => {
     exposed.ollamaAPI.getStatus();
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(CHANNELS.OLLAMA.GET_STATUS);
 
+    exposed.ollamaAPI.listInstalledModels();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.OLLAMA.LIST_INSTALLED_MODELS,
+    );
+
     exposed.ollamaLibraryAPI.search("q", "c");
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(CHANNELS.OLLAMA.LIBRARY_SEARCH, {
       query: "q",
@@ -131,6 +136,13 @@ describe("preload API contract", () => {
     try {
       runtimeLogListener({}, { level: "stdout", text: "hello from miso" });
       runtimeLogListener({}, { level: "stderr", text: "oops from miso" });
+      runtimeLogListener(
+        {},
+        {
+          level: "stderr",
+          text: '127.0.0.1 - - [14/Mar/2026 14:09:23] "GET /health HTTP/1.1" 200 -',
+        },
+      );
       runtimeLogListener({}, { level: "stdout", text: "   " });
 
       expect(logSpy).toHaveBeenCalledWith("[miso] hello from miso");

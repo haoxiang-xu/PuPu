@@ -7,8 +7,10 @@ import {
   toFrontendApiError,
   withTimeout,
 } from "./api.shared";
+import { createLogger } from "./console_logger";
 
 const OLLAMA_EMBEDDING_FAMILY_PREFIXES = ["bert", "nomic-bert", "bge"];
+const ollamaLogger = createLogger("OLLAMA", "src/SERVICEs/api.ollama.js");
 
 const normalizeOllamaFamily = (rawFamily) =>
   typeof rawFamily === "string" ? rawFamily.trim().toLowerCase() : "";
@@ -53,6 +55,17 @@ const fetchInstalledOllamaModels = async ({
   failureMessage,
 }) => {
   try {
+    if (hasBridgeMethod("ollamaAPI", "listInstalledModels")) {
+      const method = assertBridgeMethod("ollamaAPI", "listInstalledModels");
+      const payload = await withTimeout(
+        () => method(),
+        3000,
+        timeoutCode,
+        timeoutMessage,
+      );
+      return normalizeInstalledOllamaModels(payload);
+    }
+
     const response = await withTimeout(
       () =>
         fetch(`${OLLAMA_BASE}/api/tags`, {
@@ -75,7 +88,13 @@ const fetchInstalledOllamaModels = async ({
     const json = await safeJson(response);
     return normalizeInstalledOllamaModels(json);
   } catch (error) {
-    throw toFrontendApiError(error, failureCode, failureMessage);
+    const frontendError = toFrontendApiError(error, failureCode, failureMessage);
+    ollamaLogger.error("api_tags_failed", {
+      endpoint: `${OLLAMA_BASE}/api/tags`,
+      code: frontendError.code,
+      message: frontendError.message,
+    });
+    throw frontendError;
   }
 };
 

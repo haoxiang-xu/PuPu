@@ -17,11 +17,16 @@ const runtimeInfo = {
 };
 
 const streamClient = createMisoStreamClient(ipcRenderer);
+const MISO_HTTP_ACCESS_LOG_PATTERN =
+  /^\S+ - - \[[^\]]+\] "[A-Z]+ .* HTTP\/\d\.\d" \d{3} -$/;
+
+const isMisoHttpAccessLog = (text) =>
+  typeof text === "string" && MISO_HTTP_ACCESS_LOG_PATTERN.test(text.trim());
 
 ipcRenderer.on(CHANNELS.MISO.RUNTIME_LOG, (_event, payload = {}) => {
   const level = payload?.level === "stderr" ? "stderr" : "stdout";
   const text = typeof payload?.text === "string" ? payload.text.trim() : "";
-  if (!text) {
+  if (!text || isMisoHttpAccessLog(text)) {
     return;
   }
 

@@ -10,6 +10,7 @@ const CHANNELS = Object.freeze({
   }),
   OLLAMA: Object.freeze({
     GET_STATUS: "ollama-get-status",
+    LIST_INSTALLED_MODELS: "ollama:list-installed-models",
     RESTART: "ollama-restart",
     INSTALL: "ollama:install",
     INSTALL_PROGRESS: "ollama:install-progress",
