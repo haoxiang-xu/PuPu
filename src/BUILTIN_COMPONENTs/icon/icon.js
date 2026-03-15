@@ -9,9 +9,10 @@ import { fileTypeSVGs, LogoSVGs, UISVGs } from "./icon_manifest";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
+const iconLogger = createLogger("UI", "BUILTIN_COMPONENTs/icon/icon.js");
+
 const Icon = ({ src, color, ...props }) => {
   const { theme } = useContext(ConfigContext);
-  const iconLogger = createLogger("UI", "BUILTIN_COMPONENTs/icon/icon.js");
 
   const [component, setComponent] = useState(
     <div className="mini-ui-img-icon" {...props} />,
