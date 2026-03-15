@@ -32,6 +32,7 @@ _INPUT_MODALITY_ALIAS_MAP = {
 _KNOWN_TOOLKIT_EXPORTS = {
     "toolkit": "core",
     "builtin_toolkit": "builtin",
+    "workspace_toolkit": "builtin",
     "python_workspace_toolkit": "builtin",
     "mcp": "integration",
 }
@@ -430,20 +431,6 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         original_supports_on_tool_confirm = True
         original_supports_session_id = True
 
-    try:
-        execute_from_toolkits_params = inspect.signature(
-            original_execute_from_toolkits
-        ).parameters
-        execute_from_toolkits_supports_session_id = (
-            "session_id" in execute_from_toolkits_params
-            or any(
-                parameter.kind == inspect.Parameter.VAR_KEYWORD
-                for parameter in execute_from_toolkits_params.values()
-            )
-        )
-    except Exception:
-        execute_from_toolkits_supports_session_id = True
-
     def _patched_execute_tool_calls(
         self,
         *,
@@ -452,7 +439,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         iteration: int,
         callback,
         on_tool_confirm=None,
-        session_id=None,
+        session_id: str | None = None,
     ):
         emitted_confirmation_events: set[tuple[str, bool]] = set()
 
@@ -594,13 +581,10 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "reason": deny_reason or "User denied execution.",
                 }
             else:
-                execute_kwargs: Dict[str, Any] = {}
-                if execute_from_toolkits_supports_session_id:
-                    execute_kwargs["session_id"] = session_id
                 tool_result = self._execute_from_toolkits(
                     tool_call.name,
                     effective_arguments,
-                    **execute_kwargs,
+                    session_id=session_id,
                 )
             content = json.dumps(tool_result, default=str, ensure_ascii=False)
 
@@ -1327,7 +1311,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
     # Walk miso.builtin_toolkits for concrete implementations
     entries.extend(_enumerate_builtin_submodule_toolkits(toolkit_base, seen))
 
-    # Also pick up any top-level miso exports (python_workspace_toolkit, etc.)
+    # Also pick up any top-level miso exports (workspace_toolkit, etc.)
     # that weren't already found via submodule walk
     try:
         miso_module = importlib.import_module("miso")
@@ -1996,28 +1980,13 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
         agent.add_toolkit(multi_toolkit)
         return
 
-    # Single workspace (or multi_workspace_toolkit unavailable): support both
-    # the legacy ``python_workspace_toolkit`` export and the current
-    # ``workspace_toolkit`` / ``build_builtin_toolkit`` exports.
-    toolkit_factory, include_python_runtime = _resolve_workspace_toolkit_factory(
-        miso_module
-    )
-    resolved_roots = _resolve_workspace_roots(workspace_roots_raw)
-    workspace_toolkit = None
-
-    if len(resolved_roots) > 1:
-        workspace_toolkit = _try_build_workspace_toolkit_for_roots(
-            toolkit_factory,
-            include_python_runtime=include_python_runtime,
-            workspace_roots=resolved_roots,
-        )
-        if workspace_toolkit is None:
-            workspace_toolkit = _build_multi_workspace_proxy_toolkit(
-                miso_module,
-                toolkit_factory,
-                include_python_runtime=include_python_runtime,
-                workspace_roots=resolved_roots,
-            )
+    # Single workspace (or multi_workspace_toolkit unavailable): use workspace_toolkit
+    # (fallback to legacy python_workspace_toolkit if present).
+    toolkit_factory = getattr(miso_module, "workspace_toolkit", None)
+    if not callable(toolkit_factory):
+        toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
+    if not callable(toolkit_factory):
+        raise RuntimeError("miso.workspace_toolkit (or miso.python_workspace_toolkit) is unavailable")
 
     if workspace_toolkit is None:
         workspace_toolkit = _build_workspace_toolkit_for_root(
