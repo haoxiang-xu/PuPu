@@ -19,9 +19,9 @@ class ToolkitsCatalogRouteTests(unittest.TestCase):
         expected_payload = {
             "toolkits": [
                 {
-                    "name": "python_workspace_toolkit",
-                    "class_name": "python_workspace_toolkit",
-                    "module": "miso.builtin_toolkits.python_workspace_toolkit.python_workspace_toolkit",
+                    "name": "workspace_toolkit",
+                    "class_name": "workspace_toolkit",
+                    "module": "miso.builtin_toolkits.workspace_toolkit.workspace_toolkit",
                     "kind": "builtin",
                 }
             ],

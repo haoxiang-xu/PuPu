@@ -33,7 +33,6 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "toolkit": "core",
     "builtin_toolkit": "builtin",
     "workspace_toolkit": "builtin",
-    "python_workspace_toolkit": "builtin",
     "mcp": "integration",
 }
 _DEFAULT_MAX_ITERATIONS = 32
@@ -1746,29 +1745,12 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
             continue
 
 
-def _resolve_workspace_toolkit_factory(miso_module: Any) -> tuple[Any, bool]:
-    """Return the available workspace toolkit factory and legacy-flag.
-
-    Older Miso builds exported ``python_workspace_toolkit`` while current ones
-    export ``workspace_toolkit`` (and may also expose ``build_builtin_toolkit``).
-    PuPu should work with both layouts.
-    """
-    legacy_factory = getattr(miso_module, "python_workspace_toolkit", None)
-    if callable(legacy_factory):
-        return legacy_factory, True
-
+def _resolve_workspace_toolkit_factory(miso_module: Any) -> Any:
+    """Return the workspace_toolkit factory from Miso builtin toolkits."""
     workspace_factory = getattr(miso_module, "workspace_toolkit", None)
     if callable(workspace_factory):
-        return workspace_factory, False
-
-    builtin_factory = getattr(miso_module, "build_builtin_toolkit", None)
-    if callable(builtin_factory):
-        return builtin_factory, False
-
-    raise RuntimeError(
-        "Miso workspace toolkit is unavailable "
-        "(expected python_workspace_toolkit or workspace_toolkit)"
-    )
+        return workspace_factory
+    raise RuntimeError("Miso workspace_toolkit is unavailable")
 
 
 def _resolve_workspace_roots(workspace_roots_raw: list[str]) -> list[str]:
@@ -1778,17 +1760,9 @@ def _resolve_workspace_roots(workspace_roots_raw: list[str]) -> list[str]:
 def _build_workspace_toolkit_for_root(
     toolkit_factory: Any,
     *,
-    include_python_runtime: bool,
     workspace_root: str,
 ) -> Any:
     build_attempts = []
-    if include_python_runtime:
-        build_attempts.append(
-            lambda: toolkit_factory(
-                workspace_root=workspace_root,
-                include_python_runtime=True,
-            )
-        )
     build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
     build_attempts.append(lambda: toolkit_factory(workspace_root))
 
@@ -1805,17 +1779,9 @@ def _build_workspace_toolkit_for_root(
 def _try_build_workspace_toolkit_for_roots(
     toolkit_factory: Any,
     *,
-    include_python_runtime: bool,
     workspace_roots: list[str],
 ) -> Any | None:
     build_attempts = []
-    if include_python_runtime:
-        build_attempts.append(
-            lambda: toolkit_factory(
-                workspace_roots=workspace_roots,
-                include_python_runtime=True,
-            )
-        )
     build_attempts.append(lambda: toolkit_factory(workspace_roots=workspace_roots))
     build_attempts.append(lambda: toolkit_factory(workspace_roots))
 
@@ -1839,7 +1805,6 @@ def _build_multi_workspace_proxy_toolkit(
     miso_module: Any,
     toolkit_factory: Any,
     *,
-    include_python_runtime: bool,
     workspace_roots: list[str],
 ) -> Any:
     toolkit_cls = getattr(miso_module, "toolkit", None)
@@ -1855,7 +1820,6 @@ def _build_multi_workspace_proxy_toolkit(
     for index, workspace_root in enumerate(workspace_roots, start=1):
         source_toolkit = _build_workspace_toolkit_for_root(
             toolkit_factory,
-            include_python_runtime=include_python_runtime,
             workspace_root=workspace_root,
         )
         _mark_workspace_tools_for_confirmation(source_toolkit)
@@ -1963,36 +1927,39 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
             f"Failed to import miso for workspace toolkit: {import_error}"
         ) from import_error
 
-    # Try multi_workspace_toolkit first (supports named workspaces)
+    toolkit_factory = _resolve_workspace_toolkit_factory(miso_module)
+    resolved_roots = _resolve_workspace_roots(workspace_roots_raw)
+
+    # Try multi_workspace_toolkit first (supports named workspaces).
     multi_factory = getattr(miso_module, "multi_workspace_toolkit", None)
-    if callable(multi_factory) and len(workspace_roots_raw) > 1:
-        resolved = []
-        for raw in workspace_roots_raw:
-            try:
-                resolved.append(str(_resolve_workspace_root(raw)))
-            except RuntimeError:
-                raise
+    if callable(multi_factory) and len(resolved_roots) > 1:
         try:
-            multi_toolkit = multi_factory(workspace_roots=resolved)
+            multi_toolkit = multi_factory(workspace_roots=resolved_roots)
         except TypeError:
-            multi_toolkit = multi_factory(resolved)
+            multi_toolkit = multi_factory(resolved_roots)
         _mark_workspace_tools_for_confirmation(multi_toolkit)
         agent.add_toolkit(multi_toolkit)
         return
 
-    # Single workspace (or multi_workspace_toolkit unavailable): use workspace_toolkit
-    # (fallback to legacy python_workspace_toolkit if present).
-    toolkit_factory = getattr(miso_module, "workspace_toolkit", None)
-    if not callable(toolkit_factory):
-        toolkit_factory = getattr(miso_module, "python_workspace_toolkit", None)
-    if not callable(toolkit_factory):
-        raise RuntimeError("miso.workspace_toolkit (or miso.python_workspace_toolkit) is unavailable")
-
-    if workspace_toolkit is None:
+    if len(resolved_roots) == 1:
         workspace_toolkit = _build_workspace_toolkit_for_root(
             toolkit_factory,
-            include_python_runtime=include_python_runtime,
             workspace_root=resolved_roots[0],
+        )
+        _mark_workspace_tools_for_confirmation(workspace_toolkit)
+        agent.add_toolkit(workspace_toolkit)
+        return
+
+    # Multi-root fallback when no native multi_workspace_toolkit.
+    workspace_toolkit = _try_build_workspace_toolkit_for_roots(
+        toolkit_factory,
+        workspace_roots=resolved_roots,
+    )
+    if workspace_toolkit is None:
+        workspace_toolkit = _build_multi_workspace_proxy_toolkit(
+            miso_module,
+            toolkit_factory,
+            workspace_roots=resolved_roots,
         )
 
     _mark_workspace_tools_for_confirmation(workspace_toolkit)
