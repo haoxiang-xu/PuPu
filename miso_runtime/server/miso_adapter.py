@@ -33,6 +33,7 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "toolkit": "core",
     "builtin_toolkit": "builtin",
     "workspace_toolkit": "builtin",
+    "external_api_toolkit": "builtin",
     "mcp": "integration",
 }
 _DEFAULT_MAX_ITERATIONS = 32
@@ -1681,6 +1682,25 @@ def _extract_workspace_roots_from_options(options: Dict[str, object] | None) -> 
     return roots
 
 
+def _extract_toolkit_names(options: Dict[str, object] | None) -> list[str]:
+    if not isinstance(options, dict):
+        return []
+    toolkits = options.get("toolkits")
+    if not isinstance(toolkits, list):
+        return []
+    names: list[str] = []
+    seen: set[str] = set()
+    for entry in toolkits:
+        if not isinstance(entry, str):
+            continue
+        name = entry.strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
 def _should_enable_tools(options: Dict[str, object] | None) -> bool:
     """Return True when the caller explicitly requests tool-enabled mode.
 
@@ -1774,6 +1794,27 @@ def _build_workspace_toolkit_for_root(
             last_type_error = error
 
     raise last_type_error or RuntimeError("Failed to create workspace toolkit")
+
+
+def _build_generic_toolkit(
+    toolkit_factory: Any,
+    *,
+    workspace_root: str | None,
+) -> Any:
+    build_attempts = []
+    if workspace_root:
+        build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
+        build_attempts.append(lambda: toolkit_factory(workspace_root))
+    build_attempts.append(lambda: toolkit_factory())
+
+    last_type_error = None
+    for build_attempt in build_attempts:
+        try:
+            return build_attempt()
+        except TypeError as error:
+            last_type_error = error
+
+    raise last_type_error or RuntimeError("Failed to create toolkit")
 
 
 def _try_build_workspace_toolkit_for_roots(
@@ -1966,6 +2007,46 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
     agent.add_toolkit(workspace_toolkit)
 
 
+def _attach_selected_toolkits(agent: Any, options: Dict[str, object] | None = None) -> None:
+    if not _should_enable_tools(options):
+        return
+
+    toolkit_names = _extract_toolkit_names(options)
+    if not toolkit_names:
+        return
+
+    if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
+        raise RuntimeError("Agent does not support add_toolkit")
+
+    try:
+        miso_module = importlib.import_module("miso")
+    except Exception as import_error:
+        raise RuntimeError(
+            f"Failed to import miso for toolkit attachment: {import_error}"
+        ) from import_error
+
+    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
+    workspace_root = resolved_roots[0] if resolved_roots else None
+
+    for toolkit_name in toolkit_names:
+        if toolkit_name == "workspace_toolkit":
+            # Workspace toolkit is handled separately to support multi-root.
+            continue
+        if toolkit_name == "builtin_toolkit":
+            continue
+
+        toolkit_factory = getattr(miso_module, toolkit_name, None)
+        if not callable(toolkit_factory):
+            raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
+
+        toolkit_instance = _build_generic_toolkit(
+            toolkit_factory,
+            workspace_root=workspace_root,
+        )
+        _mark_workspace_tools_for_confirmation(toolkit_instance)
+        agent.add_toolkit(toolkit_instance)
+
+
 # Block types whose ``text`` field should be extracted as plain content.
 _TEXT_BLOCK_TYPES = {"text", "output_text", "input_text"}
 # Block types that represent model reasoning / thinking.  We wrap them in
@@ -2045,6 +2126,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         agent.api_key = api_key
 
     _attach_workspace_toolkit(agent, options)
+    _attach_selected_toolkits(agent, options)
 
     memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
     memory_runtime = {
