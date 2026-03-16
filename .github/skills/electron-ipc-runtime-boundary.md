@@ -1,16 +1,8 @@
 # Skill: Extend Electron IPC, Preload, and Main Services
 
-Use this guide when a feature crosses the renderer/Electron boundary, or when you need to add a new preload API, IPC channel, or main-process service method.
+Use this guide when the task requires edits inside `electron/**`: new preload bridges, IPC channel constants, `ipcMain` wiring, stream client behavior, or main-process service implementation.
 
-Primary source files:
-
-- preload exposure root: `electron/preload/index.js`
-- preload bridge factories: `electron/preload/bridges/*.js`
-- preload stream client: `electron/preload/stream/miso_stream_client.js`
-- shared channel constants: `electron/shared/channels.js`
-- IPC registration: `electron/main/ipc/register_handlers.js`
-- main services: `electron/main/services/*`
-- renderer wrappers: `src/SERVICEs/api*.js` and `src/SERVICEs/bridges/*.js`
+Do not trigger this for renderer-only refactors inside `src/SERVICEs/api*.js` or `src/SERVICEs/bridges/*.js` when the Electron contract already exists. That belongs to `backend-api-facade.md`. If the feature spans both, do the Electron boundary first, then update the renderer facade.
 
 ---
 
@@ -43,13 +35,13 @@ Current globals exposed into `window` include:
 
 ## 2. Which IPC pattern to use
 
-Use `invoke` / `handle` for one-shot request/response operations:
+Use `invoke` / `handle` for one-shot request and response operations:
 
 - version lookup
 - update state
-- workspace validation
+- workspace validation and picker
 - runtime storage inspection
-- memory projection
+- memory projection and memory replacement
 
 Use `send` / `on` when the operation is evented or streaming:
 
@@ -57,8 +49,9 @@ Use `send` / `on` when the operation is evented or streaming:
 - `miso:stream:start-v2`
 - `miso:stream:cancel`
 - `miso:stream:event`
+- install or update progress events
 
-For Miso streaming, do not hand-roll your own listener management. The current implementation lives in `electron/preload/stream/miso_stream_client.js`.
+For Miso streaming, do not hand-roll listener management. The current implementation lives in `electron/preload/stream/miso_stream_client.js`.
 
 ---
 
@@ -79,6 +72,7 @@ Examples already in the repo:
 - workspace validation path: `runtimeBridge.validateWorkspaceRoot(...)`
 - Miso status path: `api.miso.getStatus()`
 - stream v2 path: `api.miso.startStreamV2(...)`
+- session memory replace path: `api.miso.replaceSessionMemory(...)`
 
 ---
 
@@ -86,7 +80,7 @@ Examples already in the repo:
 
 Use this rule of thumb:
 
-- Miso sidecar lifecycle, status, catalogs, streaming, tool confirmation: `electron/main/services/miso/service.js`
+- Miso sidecar lifecycle, status, catalogs, memory projection, session memory replace, streaming, tool confirmation: `electron/main/services/miso/service.js`
 - workspace picker, runtime storage, devtools toggle: `electron/main/services/runtime/service.js`
 - Ollama lifecycle and library search: `electron/main/services/ollama/service.js`
 - updater: `electron/main/services/update/service.js`
@@ -100,13 +94,13 @@ Do not put filesystem or process-management logic in preload.
 
 Current Electron coverage lives here:
 
-- preload API contract: `electron/tests/preload/api_contract.test.js`
-- preload stream behavior: `electron/tests/preload/miso_stream_client.test.js`
-- IPC channel contract: `electron/tests/main/ipc_channels.test.js`
-- runtime service behavior: `electron/tests/main/runtime_service.test.js`
-- main window behavior: `electron/tests/main/main_window.test.js`
+- preload API contract: `electron/tests/preload/api_contract.test.js` and `electron/tests/preload/api_contract.test.cjs`
+- preload stream behavior: `electron/tests/preload/miso_stream_client.test.js` and `electron/tests/preload/miso_stream_client.test.cjs`
+- IPC channel contract: `electron/tests/main/ipc_channels.test.js` and `electron/tests/main/ipc_channels.test.cjs`
+- runtime service behavior: `electron/tests/main/runtime_service.test.js` and `electron/tests/main/runtime_service.test.cjs`
+- main window behavior: `electron/tests/main/main_window.test.js` and `electron/tests/main/main_window.test.cjs`
 
-If you change exposed methods or channels, update the matching preload and main tests.
+If you change exposed methods or channels, update the matching `.js` and `.cjs` tests that already mirror that surface.
 
 ---
 
@@ -115,22 +109,29 @@ If you change exposed methods or channels, update the matching preload and main 
 - Do not hardcode IPC channel strings outside `electron/shared/channels.js`.
 - Do not import `ipcRenderer` in renderer React code.
 - Do not add a new `window.*API` shape in tests only; wire it in `electron/preload/index.js`.
-- Do not bypass `miso_stream_client.js` for stream start/cancel flows.
+- Do not bypass `miso_stream_client.js` for stream start or cancel flows.
 - Do not move validation or filesystem work into preload just because the UI needs it.
-- Do not forget to update both `.js` and `.cjs` test entrypoints if the existing suite already mirrors both.
+- Do not treat `public/preload.js` as the implementation source of truth. The maintained source is under `electron/preload/**`.
 
 ---
 
 ## 7. Quick checks
 
 ```bash
-rg -n "contextBridge\\.exposeInMainWorld|create.*Bridge|createMisoStreamClient" electron/preload
+rg -n "contextBridge\\.exposeInMainWorld|create.*Bridge|createMisoStreamClient" \
+  electron/preload
 ```
 
 ```bash
-rg -n "CHANNELS\\.|ipcMain\\.(handle|on)" electron/main electron/shared
+rg -n "CHANNELS\\.|ipcMain\\.(handle|on)" \
+  electron/main \
+  electron/shared
 ```
 
 ```bash
-rg -n "window\\.[A-Za-z]+API|ipcRenderer" src --glob '!**/SERVICEs/**'
+rg -n "GET_MEMORY_PROJECTION|GET_LONG_TERM_MEMORY_PROJECTION|REPLACE_SESSION_MEMORY|STREAM_START_V2" \
+  electron/shared/channels.js \
+  electron/main/ipc/register_handlers.js \
+  electron/main/services/miso/service.js \
+  electron/preload/bridges/miso_bridge.js
 ```

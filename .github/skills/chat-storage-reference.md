@@ -1,6 +1,6 @@
 # Skill: Build Chat Features with `src/SERVICEs/chat_storage.js`
 
-Use this guide when you are changing chat persistence, message shape, session metadata, draft handling, or attachment metadata.
+Use this guide when you are changing chat persistence, message shape, session metadata, draft handling, explorer-tree data, or attachment metadata.
 
 This module is the source of truth for chat persistence in the renderer.
 
@@ -42,7 +42,7 @@ The current sanitized session shape includes:
   selectedToolkits: string[],
   selectedWorkspaceIds: string[],
   systemPromptOverrides: {
-    [sectionKey]: string,
+    [sectionKey]: string | null,
   },
   draft: {
     text: string,
@@ -92,11 +92,6 @@ Current normalized message shape:
   meta?: {
     model?: string,
     requestId?: string,
-    usage?: {
-      promptTokens?: number,
-      completionTokens?: number,
-      completionChars?: number,
-    },
     error?: {
       code: string,
       message: string,
@@ -110,7 +105,8 @@ Important details:
 - `status` only applies to assistant messages
 - `traceFrames` are persisted on assistant messages only
 - `attachments` are persisted on user messages only
-- `meta.requestId`, `meta.usage`, and `meta.error` are already part of the storage contract and should not be reinvented elsewhere
+- `meta` currently persists `model`, `requestId`, and `error`
+- `meta.usage` is not currently persisted by `sanitizeMessage(...)`; do not document it as live contract unless the code changes first
 
 ---
 
@@ -132,8 +128,6 @@ Do not rely on them as an exact replay log.
 
 ## 5. Attachment storage is split
 
-This is an easy place to break things.
-
 There are two layers:
 
 - chat metadata in `src/SERVICEs/chat_storage.js`
@@ -142,14 +136,14 @@ There are two layers:
 Rules:
 
 - localStorage keeps lightweight attachment metadata
-- IndexedDB keeps the actual payload blobs/base64 data
+- IndexedDB keeps the actual payload blobs or base64 data
 - the IndexedDB database is `pupu_attachment_payloads`
 - `chat.js` still maintains an in-memory attachment map as the hot cache
 
 Implication:
 
 - never assume localStorage contains attachment payload bytes
-- if you move or reload attachment-related UI, make sure you preserve the IndexedDB lookup path
+- if you move or reload attachment UI, preserve the IndexedDB lookup path
 
 Use:
 
@@ -203,13 +197,15 @@ Core chat mutation APIs:
 - `setChatGeneratedUnread(...)`
 - `cleanupTransientNewChatOnPageLeave(...)`
 
-Tree/explorer APIs:
+Tree and explorer APIs:
 
 - `createFolder(...)`
 - `selectTreeNode(...)`
 - `renameTreeNode(...)`
 - `deleteTreeNodeCascade(...)`
+- `duplicateTreeNodeSubtree(...)`
 - `applyExplorerReorder(...)`
+- `buildExplorerFromTree(...)`
 
 ---
 
@@ -237,11 +233,12 @@ If you omit `source`, debugging state propagation gets much harder.
 
 ## 9. High-risk pitfalls
 
-- Never write raw message objects into storage. `sanitizeMessage` and `sanitizeChatSession` exist because chat payloads drift.
+- Never write raw message objects into storage. `sanitizeMessage` and `sanitizeChatSession` exist because payloads drift.
 - Never assume attachment payloads live in localStorage. They do not.
-- Never update `selectedToolkits` or `systemPromptOverrides` through ad-hoc object mutation. Use the exported setters.
+- Never update `selectedToolkits` or `systemPromptOverrides` through ad hoc object mutation. Use the exported setters.
 - Never persist workspace paths inside chat sessions. Use `selectedWorkspaceIds` and the exported setter.
 - Never persist trace data on arbitrary objects or user messages. Follow the current assistant-message contract.
+- Never document `meta.usage` as already persisted. It is not.
 - Never skip the `source` option on mutations.
 - Never duplicate the store in component-local persistence. `chat_storage.js` is already the source of truth.
 
@@ -250,11 +247,16 @@ If you omit `source`, debugging state propagation gets much harder.
 ## 10. Quick checks
 
 ```bash
-rg -n "sanitizeChatSession|sanitizeMessage|setChatSelectedToolkits|setChatSelectedWorkspaceIds|setChatSystemPromptOverrides|createChatMessageAttachment" \
+rg -n "sanitizeChatSession|sanitizeMessage|requestId|meta\\.error|traceFrames|createChatMessageAttachment" \
   src/SERVICEs/chat_storage.js
 ```
 
 ```bash
 rg -n "pupu_attachment_payloads|saveAttachmentPayload|loadAttachmentPayload" \
   src/SERVICEs/attachment_storage.js
+```
+
+```bash
+rg -n "buildExplorerFromTree|duplicateTreeNodeSubtree|applyExplorerReorder|hasUnreadGeneratedReply" \
+  src/SERVICEs/chat_storage.js
 ```

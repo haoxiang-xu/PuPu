@@ -30,6 +30,7 @@ import {
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
 import { createThinkTagParser } from "./think_tag_parser";
 import { readMemorySettings } from "../../COMPONENTs/settings/memory/storage";
+import { appendTokenUsageRecord } from "../../COMPONENTs/settings/token_usage/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { createLogger } from "../../SERVICEs/console_logger";
 
@@ -164,7 +165,9 @@ const collectTurnMessageIds = (messages, targetMessageId) => {
     return new Set();
   }
 
-  const targetIndex = messages.findIndex((message) => message?.id === targetMessageId);
+  const targetIndex = messages.findIndex(
+    (message) => message?.id === targetMessageId,
+  );
   if (targetIndex < 0) {
     return new Set();
   }
@@ -2016,6 +2019,25 @@ const ChatInterface = () => {
                 };
               });
               syncStreamMessages(nextStreamMessages);
+
+              // Record token usage
+              if (bundle && typeof bundle.consumed_tokens === "number") {
+                const mid = modelIdRef.current || "";
+                const colonIdx = mid.indexOf(":");
+                const prov = colonIdx > 0 ? mid.slice(0, colonIdx) : "unknown";
+                const mod =
+                  colonIdx > 0 ? mid.slice(colonIdx + 1) : mid || "unknown";
+                appendTokenUsageRecord({
+                  timestamp: doneTime,
+                  provider: prov,
+                  model: mod,
+                  model_id: mid || "unknown",
+                  consumed_tokens: bundle.consumed_tokens,
+                  max_context_window_tokens: bundle.max_context_window_tokens,
+                  chatId,
+                });
+              }
+
               streamHandleRef.current = null;
               streamingChatIdRef.current = null;
               activeStreamMessagesRef.current = null;
