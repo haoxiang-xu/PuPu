@@ -22,7 +22,7 @@
 
 PuPu is a cross-platform desktop AI client that lets you chat with local models through Ollama or connect to cloud providers such as OpenAI and Anthropic. It is built for people who want one fast desktop app for everyday AI work, not a browser tab maze.
 
-If you find the project useful, star the repo.
+If you find the project useful, ⭐⭐⭐ star the repo.
 
 ![PuPu UI](./public/assets/v0.1.0-release/social_preview.png)
 

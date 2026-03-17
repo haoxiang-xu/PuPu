@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import api from "../../../SERVICEs/api";
-import SectionLabel from "../components/section_label";
 import ToolkitCard from "../components/toolkit_card";
 import PlaceholderBlock from "../components/placeholder_block";
 import LoadingDots from "../components/loading_dots";
@@ -65,8 +64,7 @@ const ToolkitsPage = ({ isDark }) => {
   }
 
   return (
-    <div>
-      <SectionLabel isDark={isDark}>Built-in</SectionLabel>
+    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
       {visibleToolkits.map((tk, idx) => (
         <ToolkitCard key={idx} toolkit={tk} isDark={isDark} />
       ))}

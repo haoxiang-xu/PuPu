@@ -61,7 +61,7 @@ export const ToolkitModal = ({ open, onClose }) => {
         }}
       />
 
-      <div style={{ padding: "16px 16px 16px", flexShrink: 0 }}>
+      <div style={{ padding: "12px 16px 8px", flexShrink: 0 }}>
         <SegmentedControl
           sections={SECTIONS}
           selected={selectedSection}
@@ -75,7 +75,7 @@ export const ToolkitModal = ({ open, onClose }) => {
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "8px 24px 24px",
+          padding: "4px 16px 16px",
         }}
       >
         {renderContent()}

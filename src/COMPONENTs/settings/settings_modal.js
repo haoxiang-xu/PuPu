@@ -8,6 +8,7 @@ import { LocalStorageSettings } from "./local_storage";
 import { MemorySettings } from "./memory";
 import { RuntimeSettings } from "./runtime";
 import { AppUpdateSettings } from "./app_update";
+import { TokenUsageSettings } from "./token_usage";
 import { DevSettings } from "./dev";
 import { isDevSettingsAvailable } from "./dev/storage";
 
@@ -39,6 +40,12 @@ const BASE_SETTINGS_PAGES = [
     icon: "brain",
     label: "Memory",
     component: MemorySettings,
+  },
+  {
+    key: "token_usage",
+    icon: "bar_chart",
+    label: "Token Usage",
+    component: TokenUsageSettings,
   },
   {
     key: "app_update",
@@ -81,7 +88,9 @@ export const SettingsModal = ({ open, onClose }) => {
     return pages;
   }, []);
   const activePage =
-    settingsPages.find((p) => p.key === selectedPage) || settingsPages[0] || null;
+    settingsPages.find((p) => p.key === selectedPage) ||
+    settingsPages[0] ||
+    null;
   const ActivePageComponent = activePage?.component || AppearanceSettings;
 
   return (

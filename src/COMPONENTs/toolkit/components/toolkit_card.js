@@ -6,118 +6,120 @@ const ToolkitCard = ({ toolkit, isDark }) => {
   const displayName = toDisplayName(toolkit);
   const tools = Array.isArray(toolkit.tools) ? toolkit.tools : [];
 
+  const borderColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
+  const cardBg = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)";
+  const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
+  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+
   return (
     <div
       style={{
-        padding: "13px 16px",
-        borderRadius: 10,
-        background: isDark ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.025)",
-        border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"}`,
-        marginBottom: 8,
+        border: `1px solid ${borderColor}`,
+        borderRadius: 8,
+        backgroundColor: cardBg,
+        padding: "11px 14px 10px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      {/* Header: icon + name + kind tag */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexWrap: "wrap",
+        }}
+      >
         <div
           style={{
             width: 36,
             height: 36,
-            borderRadius: 9,
-            background: kc.bg,
-            border: `1px solid ${kc.border}`,
+            borderRadius: 6,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}
         >
-          <Icon src="tool" style={{ width: 17, height: 17 }} color={kc.color} />
+          <Icon src="tool" style={{ width: 18, height: 18 }} color={kc.color} />
         </div>
 
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 13,
-              fontWeight: 600,
-              fontFamily: "NunitoSans, sans-serif",
-              color: isDark ? "#f0f0f0" : "#1a1a1a",
-              marginBottom: 3,
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {displayName}
-          </div>
-        </div>
+        <span
+          style={{
+            fontSize: 16,
+            fontFamily: "Jost",
+            color: textColor,
+            letterSpacing: "0.1px",
+          }}
+        >
+          {displayName}
+        </span>
 
-        <div
+        <span
           style={{
             fontSize: 10,
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.6px",
-            fontFamily: "Jost, sans-serif",
+            fontFamily: "Jost",
+            fontWeight: 500,
+            letterSpacing: "0.4px",
+            textTransform: "lowercase",
+            padding: "1px 6px",
+            borderRadius: 999,
+            backgroundColor: isDark ? kc.bg : kc.bg,
             color: kc.color,
-            background: kc.bg,
-            border: `1px solid ${kc.border}`,
-            padding: "3px 9px",
-            borderRadius: 5,
+            lineHeight: 1.8,
             flexShrink: 0,
           }}
         >
           {kc.label}
-        </div>
+        </span>
+
+        {tools.length > 0 && (
+          <span
+            style={{
+              fontSize: 11,
+              fontFamily: "Jost",
+              color: mutedColor,
+              marginLeft: "auto",
+              flexShrink: 0,
+            }}
+          >
+            {tools.length} tool{tools.length !== 1 ? "s" : ""}
+          </span>
+        )}
       </div>
 
+      {/* Tool tags */}
       {tools.length > 0 && (
         <div
           style={{
-            marginTop: 10,
-            paddingTop: 10,
-            borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
             display: "flex",
             flexWrap: "wrap",
             gap: 5,
           }}
         >
           {tools.map((tool, idx) => (
-            <div
+            <span
               key={idx}
               title={tool.description || tool.name}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "3px 9px",
-                borderRadius: 5,
-                background: isDark
-                  ? "rgba(255,255,255,0.055)"
-                  : "rgba(0,0,0,0.045)",
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)"}`,
+                fontSize: 11,
+                fontFamily: "Jost",
+                fontWeight: 500,
+                padding: "1px 8px",
+                borderRadius: 999,
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.07)"
+                  : "rgba(0,0,0,0.05)",
+                color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.50)",
+                lineHeight: 1.8,
                 cursor: "default",
+                whiteSpace: "nowrap",
               }}
             >
-              <div
-                style={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: "50%",
-                  background: kc.color,
-                  flexShrink: 0,
-                  opacity: 0.7,
-                }}
-              />
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: "'JetBrains Mono', 'Fira Mono', monospace",
-                  color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.55)",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {tool.name}
-              </span>
-            </div>
+              {tool.name}
+            </span>
           ))}
         </div>
       )}
