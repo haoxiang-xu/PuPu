@@ -36,9 +36,13 @@ const ToolkitsPage = ({ isDark, onToolClick }) => {
       const payload = await api.miso.listToolModalCatalog();
       const list = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
 
-      // Filter out base/abstract and hidden toolkits
+      // Filter out base/abstract, hidden, and built-in MCP toolkits
       const visible = list.filter(
-        (tk) => tk.source !== "core" && !tk.hidden && !isBaseById(tk.toolkitId),
+        (tk) =>
+          tk.source !== "core" &&
+          tk.source !== "plugin" &&
+          !tk.hidden &&
+          !isBaseById(tk.toolkitId),
       );
 
       // Prune persisted defaults that no longer exist
