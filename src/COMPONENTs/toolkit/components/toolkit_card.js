@@ -1,4 +1,7 @@
-import ToolkitIcon from "./toolkit_icon";
+import ToolkitIcon, {
+  isBuiltinToolkitIcon,
+  isFileToolkitIcon,
+} from "./toolkit_icon";
 import { SOURCE_CONFIG } from "../constants";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
@@ -26,6 +29,12 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
   const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
   const tagBg = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+  const hasFileIcon = isFileToolkitIcon(toolkit.toolkitIcon);
+  const iconWrapBackground = isBuiltinToolkitIcon(toolkit.toolkitIcon)
+    ? toolkit.toolkitIcon.backgroundColor
+    : isDark
+      ? "rgba(255,255,255,0.04)"
+      : "rgba(0,0,0,0.03)";
 
   return (
     <div
@@ -47,7 +56,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
           padding: "11px 14px 8px",
         }}
       >
-        {toolkit.toolkitIcon?.content ? (
+        {hasFileIcon ? (
           <ToolkitIcon
             icon={toolkit.toolkitIcon}
             size={36}
@@ -56,6 +65,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
           />
         ) : (
           <div
+            data-testid="toolkit-card-icon-wrap"
             style={{
               width: 32,
               height: 32,
@@ -64,9 +74,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
               alignItems: "center",
               justifyContent: "center",
               flexShrink: 0,
-              background: isDark
-                ? "rgba(255,255,255,0.04)"
-                : "rgba(0,0,0,0.03)",
+              backgroundColor: iconWrapBackground,
             }}
           >
             <ToolkitIcon

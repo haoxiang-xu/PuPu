@@ -1392,6 +1392,10 @@ def _read_toolkit_toml(toolkit_class: type) -> Dict[str, object]:
 
 # ── Icon / README helpers ────────────────────────────────────────────────────
 
+def _looks_like_icon_asset(value: str) -> bool:
+    return Path(value).suffix.lower() in {".svg", ".png"}
+
+
 def _read_icon_payload(icon_path: object) -> Dict[str, str]:
     """Read an icon file and return an IconPayload dict.
 
@@ -1409,6 +1413,7 @@ def _read_icon_payload(icon_path: object) -> Dict[str, str]:
         if suffix == ".svg":
             content = path.read_text(encoding="utf-8", errors="replace")
             return {
+                "type": "file",
                 "mimeType": "image/svg+xml",
                 "content": content,
                 "encoding": "utf8",
@@ -1417,6 +1422,7 @@ def _read_icon_payload(icon_path: object) -> Dict[str, str]:
             raw = path.read_bytes()
             content = base64.b64encode(raw).decode("ascii")
             return {
+                "type": "file",
                 "mimeType": "image/png",
                 "content": content,
                 "encoding": "base64",
@@ -1424,6 +1430,25 @@ def _read_icon_payload(icon_path: object) -> Dict[str, str]:
     except Exception:
         pass
     return {}
+
+
+def _read_builtin_icon_payload(
+    icon_name: object,
+    color: object,
+    background_color: object,
+) -> Dict[str, str]:
+    if not isinstance(icon_name, str) or not icon_name.strip():
+        return {}
+    if not isinstance(color, str) or not color.strip():
+        return {}
+    if not isinstance(background_color, str) or not background_color.strip():
+        return {}
+    return {
+        "type": "builtin",
+        "name": icon_name.strip(),
+        "color": color.strip(),
+        "backgroundColor": background_color.strip(),
+    }
 
 
 def _resolve_toolkit_readme(toolkit_class: type) -> str:
@@ -1501,6 +1526,47 @@ def _get_toolkit_icon_path(toolkit_class: type) -> str:
     return ""
 
 
+def _get_toolkit_icon_payload(toolkit_class: type) -> Dict[str, str]:
+    """Resolve a toolkit icon as either a file payload or a builtin icon."""
+    icon_path = getattr(toolkit_class, "icon_path", None)
+    if isinstance(icon_path, str) and icon_path.strip():
+        payload = _read_icon_payload(icon_path.strip())
+        if payload:
+            return payload
+
+    icon_path = getattr(toolkit_class, "icon", None)
+    if isinstance(icon_path, str) and icon_path.strip():
+        payload = _read_icon_payload(icon_path.strip())
+        if payload:
+            return payload
+
+    toml_data = _read_toolkit_toml(toolkit_class)
+    toml_toolkit = toml_data.get("toolkit") or {}
+    toml_icon = toml_toolkit.get("icon", "")
+    if isinstance(toml_icon, str) and toml_icon.strip():
+        icon_name = toml_icon.strip()
+        if _looks_like_icon_asset(icon_name):
+            toolkit_dir = _resolve_toolkit_dir(toolkit_class)
+            if toolkit_dir is not None:
+                payload = _read_icon_payload(str((toolkit_dir / icon_name).resolve()))
+                if payload:
+                    return payload
+        payload = _read_builtin_icon_payload(
+            icon_name,
+            toml_toolkit.get("color"),
+            toml_toolkit.get("backgroundcolor"),
+        )
+        if payload:
+            return payload
+
+    auto_icon_path = _get_toolkit_icon_path(toolkit_class)
+    if auto_icon_path:
+        payload = _read_icon_payload(auto_icon_path)
+        if payload:
+            return payload
+    return {}
+
+
 def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
     """Return enriched tool rows for the v2 catalog.
 
@@ -1511,6 +1577,7 @@ def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
     """
     basic_tools = _enumerate_toolkit_tools(cls)
     enriched: List[Dict[str, object]] = []
+    toolkit_icon = _get_toolkit_icon_payload(cls)
 
     # Build a lookup from toolkit.toml [[tools]] entries
     toml_data = _read_toolkit_toml(cls)
@@ -1544,7 +1611,7 @@ def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
         toml_entry = toml_tools_by_name.get(tool_name, {})
 
         icon_path = tool_meta.get("icon_path", "") or ""
-        icon_payload = _read_icon_payload(icon_path) if icon_path else {}
+        icon_payload = _read_icon_payload(icon_path) if icon_path else copy.deepcopy(toolkit_icon)
 
         title = (
             str(tool_meta.get("title", "")).strip()
@@ -1622,7 +1689,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
         hidden = bool(toml_display.get("hidden", False))
 
         tools_v2 = _enumerate_toolkit_tools_v2(candidate)
-        toolkit_icon = _read_icon_payload(_get_toolkit_icon_path(candidate))
+        toolkit_icon = _get_toolkit_icon_payload(candidate)
         tags = toml_toolkit.get("tags", [])
         if not isinstance(tags, list):
             tags = []
@@ -1805,7 +1872,7 @@ def get_toolkit_metadata(
             "selectedToolName": tool_name,
         }
 
-    toolkit_icon = _read_icon_payload(_get_toolkit_icon_path(found_class))
+    toolkit_icon = _get_toolkit_icon_payload(found_class)
     readme_markdown = _resolve_toolkit_readme(found_class)
 
     toml_data = _read_toolkit_toml(found_class)

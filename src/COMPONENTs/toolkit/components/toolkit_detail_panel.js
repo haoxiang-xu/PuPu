@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../../../SERVICEs/api";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
-import ToolkitIcon from "./toolkit_icon";
+import ToolkitIcon, {
+  isBuiltinToolkitIcon,
+} from "./toolkit_icon";
 import LoadingDots from "./loading_dots";
 import PlaceholderBlock from "./placeholder_block";
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
@@ -59,6 +61,11 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, isDark, onBack }) => {
 
   const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const detailIconBackground = isBuiltinToolkitIcon(detail?.toolkitIcon)
+    ? detail.toolkitIcon.backgroundColor
+    : isDark
+      ? "rgba(255,255,255,0.04)"
+      : "rgba(0,0,0,0.03)";
 
   return (
     <div
@@ -101,6 +108,7 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, isDark, onBack }) => {
         {detail && (
           <>
             <div
+              data-testid="toolkit-detail-icon-wrap"
               style={{
                 width: 28,
                 height: 28,
@@ -108,9 +116,7 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, isDark, onBack }) => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
-                background: isDark
-                  ? "rgba(255,255,255,0.04)"
-                  : "rgba(0,0,0,0.03)",
+                backgroundColor: detailIconBackground,
                 flexShrink: 0,
               }}
             >

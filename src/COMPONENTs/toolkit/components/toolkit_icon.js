@@ -1,7 +1,37 @@
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import {
+  LogoSVGs,
+  UISVGs,
+} from "../../../BUILTIN_COMPONENTs/icon/icon_manifest";
+
+export const isFileToolkitIcon = (icon) =>
+  Boolean(
+    icon &&
+      (icon.type === "file" || icon.type == null) &&
+      icon.content &&
+      icon.mimeType,
+  );
+
+export const isBuiltinToolkitIcon = (icon) => icon?.type === "builtin";
+
+const isKnownBuiltinIcon = (name) =>
+  typeof name === "string" && (name in UISVGs || name in LogoSVGs);
+
+const getBuiltinIconName = (icon) =>
+  isKnownBuiltinIcon(icon?.name) ? icon.name : "tool";
 
 const ToolkitIcon = ({ icon, size = 18, fallbackColor, style }) => {
-  if (!icon || !icon.content || !icon.mimeType) {
+  if (isBuiltinToolkitIcon(icon)) {
+    return (
+      <Icon
+        src={getBuiltinIconName(icon)}
+        style={{ width: size, height: size, ...style }}
+        color={icon?.color || fallbackColor || "#94a3b8"}
+      />
+    );
+  }
+
+  if (!isFileToolkitIcon(icon)) {
     return (
       <Icon
         src="tool"

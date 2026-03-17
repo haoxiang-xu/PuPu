@@ -5,7 +5,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
@@ -1614,6 +1614,198 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 candidates = miso_adapter._capability_file_candidates()
 
             self.assertIn(capability_file.resolve(), candidates)
+
+
+class MisoAdapterToolkitIconTests(unittest.TestCase):
+    def _build_toolkit_fixture(
+        self,
+        *,
+        icon_value: str,
+        color: str | None = None,
+        backgroundcolor: str | None = None,
+        include_icon_file: bool = False,
+    ) -> tuple[type, str, ModuleType]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        package_dir = Path(temp_dir.name) / "demo_toolkit"
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "runtime.py").write_text("", encoding="utf-8")
+        (package_dir / "README.md").write_text("# Demo Toolkit\n", encoding="utf-8")
+        if include_icon_file:
+            (package_dir / "icon.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" rx="2" fill="#111827"/></svg>\n',
+                encoding="utf-8",
+            )
+
+        color_line = f'color = "{color}"\n' if color is not None else ""
+        background_line = (
+            f'backgroundcolor = "{backgroundcolor}"\n'
+            if backgroundcolor is not None
+            else ""
+        )
+        (package_dir / "toolkit.toml").write_text(
+            f"""
+[toolkit]
+id = "demo"
+name = "Demo Toolkit"
+description = "Toolkit for icon tests."
+factory = "demo_toolkit:DemoToolkit"
+version = "1.0.0"
+readme = "README.md"
+icon = "{icon_value}"
+{color_line}{background_line}tags = ["local", "test"]
+
+[display]
+category = "builtin"
+order = 1
+hidden = false
+
+[compat]
+python = ">=3.9"
+miso = ">=0"
+
+[[tools]]
+name = "echo"
+title = "Echo"
+description = "Echo text back."
+observe = false
+requires_confirmation = false
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+        toolkit_base = type("FakeToolkitBase", (), {})
+        module_name = "miso.builtin_toolkits.demo_toolkit"
+        toolkit_module = ModuleType(module_name)
+        toolkit_module.__file__ = str(package_dir / "runtime.py")
+        toolkit_class = type(
+            "DemoToolkit",
+            (toolkit_base,),
+            {
+                "__module__": module_name,
+                "__doc__": "Toolkit for icon tests.",
+                "echo": lambda self: None,
+            },
+        )
+        setattr(toolkit_module, "DemoToolkit", toolkit_class)
+        return toolkit_base, module_name, toolkit_module
+
+    def _build_import_side_effect(
+        self,
+        *,
+        module_name: str,
+        toolkit_module: ModuleType,
+    ):
+        builtin_pkg = ModuleType("miso.builtin_toolkits")
+        builtin_pkg.__path__ = [str(Path(toolkit_module.__file__).parent.parent)]
+        miso_module = ModuleType("miso")
+
+        def _fake_import_module(name: str, package=None):
+            del package
+            if name == "miso":
+                return miso_module
+            if name == "miso.builtin_toolkits":
+                return builtin_pkg
+            if name == module_name:
+                return toolkit_module
+            raise ImportError(name)
+
+        return _fake_import_module
+
+    def test_get_toolkit_catalog_v2_returns_builtin_icon_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+            color="#0f172a",
+            backgroundcolor="#bae6fd",
+        )
+
+        with mock.patch.object(
+            miso_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            miso_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = miso_adapter.get_toolkit_catalog_v2()
+
+        self.assertEqual(payload["count"], 1)
+        entry = payload["toolkits"][0]
+        self.assertEqual(
+            entry["toolkitIcon"],
+            {
+                "type": "builtin",
+                "name": "terminal",
+                "color": "#0f172a",
+                "backgroundColor": "#bae6fd",
+            },
+        )
+        self.assertEqual(entry["tools"][0]["icon"], entry["toolkitIcon"])
+
+    def test_get_toolkit_metadata_returns_file_icon_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="icon.svg",
+            include_icon_file=True,
+        )
+
+        with mock.patch.object(
+            miso_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            miso_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = miso_adapter.get_toolkit_metadata("DemoToolkit")
+
+        self.assertEqual(payload["toolkitIcon"]["type"], "file")
+        self.assertEqual(payload["toolkitIcon"]["mimeType"], "image/svg+xml")
+        self.assertIn("<svg", payload["toolkitIcon"]["content"])
+
+    def test_invalid_builtin_toolkit_icon_returns_empty_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+        )
+
+        with mock.patch.object(
+            miso_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            miso_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            catalog_payload = miso_adapter.get_toolkit_catalog_v2()
+            metadata_payload = miso_adapter.get_toolkit_metadata("DemoToolkit")
+
+        self.assertEqual(catalog_payload["toolkits"][0]["toolkitIcon"], {})
+        self.assertEqual(metadata_payload["toolkitIcon"], {})
 
 
 if __name__ == "__main__":
