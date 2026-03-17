@@ -15,6 +15,8 @@ from miso_adapter import (
     get_model_name,
     get_runtime_config,
     get_toolkit_catalog,
+    get_toolkit_catalog_v2,
+    get_toolkit_metadata,
     submit_tool_confirmation,
     stream_chat,
     stream_chat_events,
@@ -631,6 +633,40 @@ def toolkits_catalog() -> Response:
         ), 401
 
     return jsonify(get_toolkit_catalog())
+
+
+@api_blueprint.get("/toolkits/catalog/v2")
+def toolkits_catalog_v2() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    return jsonify(get_toolkit_catalog_v2())
+
+
+@api_blueprint.get("/toolkits/<toolkit_id>/metadata")
+def toolkit_metadata(toolkit_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    tool_name = request.args.get("tool_name", None)
+    if isinstance(tool_name, str):
+        tool_name = tool_name.strip() or None
+
+    return jsonify(get_toolkit_metadata(toolkit_id, tool_name))
 
 
 @api_blueprint.post("/chat/tool/confirmation")

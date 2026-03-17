@@ -1,3 +1,5 @@
+import { getDefaultToolkitSelection } from "./default_toolkit_store";
+
 const CHATS_STORAGE_KEY = "chats";
 const CHATS_SCHEMA_VERSION = 2;
 
@@ -254,7 +256,9 @@ const sanitizeSelectedToolkits = (selectedToolkits) => {
   return unique(
     selectedToolkits
       .map((item) =>
-        typeof item === "string" ? trimText(item.trim(), MAX_TOOLKIT_ID_CHARS) : "",
+        typeof item === "string"
+          ? trimText(item.trim(), MAX_TOOLKIT_ID_CHARS)
+          : "",
       )
       .filter(Boolean),
   ).slice(0, MAX_SELECTED_TOOLKITS);
@@ -514,7 +518,9 @@ const sanitizeChatSession = (chat, fallbackId) => {
         : null,
     model: sanitizeModel(chat?.model),
     selectedToolkits: sanitizeSelectedToolkits(chat?.selectedToolkits),
-    selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(chat?.selectedWorkspaceIds),
+    selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
+      chat?.selectedWorkspaceIds,
+    ),
     systemPromptOverrides: sanitizeSystemPromptOverrides(
       chat?.systemPromptOverrides,
     ),
@@ -534,6 +540,11 @@ const sanitizeChatSession = (chat, fallbackId) => {
 
 const createChatSession = (overrides = {}) => {
   const seed = now();
+  const toolkits =
+    Array.isArray(overrides.selectedToolkits) &&
+    overrides.selectedToolkits.length > 0
+      ? overrides.selectedToolkits
+      : getDefaultToolkitSelection("global");
   return sanitizeChatSession(
     {
       id: overrides.id || generateChatId(),
@@ -543,8 +554,10 @@ const createChatSession = (overrides = {}) => {
       lastMessageAt: null,
       threadId: overrides.threadId || null,
       model: overrides.model || { id: DEFAULT_MODEL_ID },
-      selectedToolkits: sanitizeSelectedToolkits(overrides.selectedToolkits),
-      selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(overrides.selectedWorkspaceIds),
+      selectedToolkits: sanitizeSelectedToolkits(toolkits),
+      selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
+        overrides.selectedWorkspaceIds,
+      ),
       systemPromptOverrides: sanitizeSystemPromptOverrides(
         overrides.systemPromptOverrides,
       ),
@@ -2497,7 +2510,11 @@ export const setChatModel = (chatId, model, options = {}) => {
   );
 };
 
-export const setChatSelectedToolkits = (chatId, selectedToolkits, options = {}) => {
+export const setChatSelectedToolkits = (
+  chatId,
+  selectedToolkits,
+  options = {},
+) => {
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -2509,7 +2526,11 @@ export const setChatSelectedToolkits = (chatId, selectedToolkits, options = {}) 
   );
 };
 
-export const setChatSelectedWorkspaceIds = (chatId, selectedWorkspaceIds, options = {}) => {
+export const setChatSelectedWorkspaceIds = (
+  chatId,
+  selectedWorkspaceIds,
+  options = {},
+) => {
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -2521,12 +2542,18 @@ export const setChatSelectedWorkspaceIds = (chatId, selectedWorkspaceIds, option
   );
 };
 
-export const setChatSystemPromptOverrides = (chatId, systemPromptOverrides, options = {}) => {
+export const setChatSystemPromptOverrides = (
+  chatId,
+  systemPromptOverrides,
+  options = {},
+) => {
   return updateChatSessionById(
     chatId,
     (chat) => ({
       ...chat,
-      systemPromptOverrides: sanitizeSystemPromptOverrides(systemPromptOverrides),
+      systemPromptOverrides: sanitizeSystemPromptOverrides(
+        systemPromptOverrides,
+      ),
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_system_prompt_overrides" },

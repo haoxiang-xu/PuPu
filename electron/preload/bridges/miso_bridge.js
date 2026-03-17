@@ -5,6 +5,13 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   getModelCatalog: () => ipcRenderer.invoke(CHANNELS.MISO.GET_MODEL_CATALOG),
   getToolkitCatalog: () =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_TOOLKIT_CATALOG),
+  listToolModalCatalog: () =>
+    ipcRenderer.invoke(CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG),
+  getToolkitDetail: (toolkitId, toolName) =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_TOOLKIT_DETAIL, {
+      toolkitId,
+      toolName,
+    }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.TOOL_CONFIRMATION, payload),
   setChromeTerminalOpen: (open = false) =>

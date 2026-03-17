@@ -31,3 +31,21 @@ export const KIND_CONFIG = {
     border: "rgba(251,146,60,0.20)",
   },
 };
+
+export const SOURCE_CONFIG = {
+  builtin: {
+    label: "Built-in",
+    color: "#34d399",
+    bg: "rgba(52,211,153,0.12)",
+  },
+  local: {
+    label: "Local",
+    color: "#60a5fa",
+    bg: "rgba(96,165,250,0.12)",
+  },
+  plugin: {
+    label: "Plugin",
+    color: "#fb923c",
+    bg: "rgba(251,146,60,0.12)",
+  },
+};

@@ -1,21 +1,43 @@
-import { useContext, useState } from "react";
+import { useCallback, useContext, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { SECTIONS } from "./constants";
 import SegmentedControl from "./components/segmented_control";
 import ToolkitsPage from "./pages/toolkits_page";
+import ToolkitDetailPanel from "./components/toolkit_detail_panel";
 import ComingSoonPage from "./pages/coming_soon_page";
 
 export const ToolkitModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedSection, setSelectedSection] = useState("toolkits");
+  const [selectedToolkit, setSelectedToolkit] = useState(null);
 
   const activeSection = SECTIONS.find((s) => s.key === selectedSection);
 
+  const handleToolClick = useCallback((toolkitId, toolName) => {
+    setSelectedToolkit({ toolkitId, toolName });
+  }, []);
+
+  const handleDetailBack = useCallback(() => {
+    setSelectedToolkit(null);
+  }, []);
+
   const renderContent = () => {
-    if (selectedSection === "toolkits") return <ToolkitsPage isDark={isDark} />;
+    if (selectedSection === "toolkits") {
+      if (selectedToolkit) {
+        return (
+          <ToolkitDetailPanel
+            toolkitId={selectedToolkit.toolkitId}
+            toolName={selectedToolkit.toolName}
+            isDark={isDark}
+            onBack={handleDetailBack}
+          />
+        );
+      }
+      return <ToolkitsPage isDark={isDark} onToolClick={handleToolClick} />;
+    }
     return (
       <ComingSoonPage icon={activeSection?.icon || "tool"} isDark={isDark} />
     );
@@ -65,7 +87,10 @@ export const ToolkitModal = ({ open, onClose }) => {
         <SegmentedControl
           sections={SECTIONS}
           selected={selectedSection}
-          onChange={setSelectedSection}
+          onChange={(key) => {
+            setSelectedSection(key);
+            setSelectedToolkit(null);
+          }}
           isDark={isDark}
         />
       </div>

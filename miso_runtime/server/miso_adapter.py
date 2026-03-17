@@ -2,7 +2,9 @@ import inspect
 import json
 import importlib
 import os
+import base64
 import pkgutil
+import tomllib
 import queue
 import re
 import copy
@@ -1350,6 +1352,479 @@ def get_toolkit_catalog() -> Dict[str, object]:
         "toolkits": entries,
         "count": len(entries),
         "source": _RESOLVED_MISO_SOURCE or "",
+    }
+
+
+# ── Toolkit directory / TOML helpers ─────────────────────────────────────────
+
+def _resolve_toolkit_dir(toolkit_class: type) -> Path | None:
+    """Return the directory that contains the toolkit's Python module."""
+    module_name = getattr(toolkit_class, "__module__", "")
+    if not module_name:
+        return None
+    try:
+        mod = importlib.import_module(module_name)
+    except Exception:
+        return None
+    mod_file = getattr(mod, "__file__", None)
+    if not mod_file:
+        return None
+    return Path(mod_file).parent
+
+
+def _read_toolkit_toml(toolkit_class: type) -> Dict[str, object]:
+    """Read and parse toolkit.toml from the toolkit's directory.
+
+    Returns an empty dict on any failure.
+    """
+    toolkit_dir = _resolve_toolkit_dir(toolkit_class)
+    if toolkit_dir is None:
+        return {}
+    toml_path = toolkit_dir / "toolkit.toml"
+    if not toml_path.is_file():
+        return {}
+    try:
+        with open(toml_path, "rb") as f:
+            return tomllib.load(f)
+    except Exception:
+        return {}
+
+
+# ── Icon / README helpers ────────────────────────────────────────────────────
+
+def _read_icon_payload(icon_path: object) -> Dict[str, str]:
+    """Read an icon file and return an IconPayload dict.
+
+    Returns an empty dict on any failure so the catalog remains usable.
+    """
+    if not isinstance(icon_path, str) or not icon_path.strip():
+        return {}
+
+    path = Path(icon_path.strip())
+    if not path.is_file():
+        return {}
+
+    try:
+        suffix = path.suffix.lower()
+        if suffix == ".svg":
+            content = path.read_text(encoding="utf-8", errors="replace")
+            return {
+                "mimeType": "image/svg+xml",
+                "content": content,
+                "encoding": "utf8",
+            }
+        if suffix == ".png":
+            raw = path.read_bytes()
+            content = base64.b64encode(raw).decode("ascii")
+            return {
+                "mimeType": "image/png",
+                "content": content,
+                "encoding": "base64",
+            }
+    except Exception:
+        pass
+    return {}
+
+
+def _resolve_toolkit_readme(toolkit_class: type) -> str:
+    """Locate and read the README.md that lives beside a toolkit module.
+
+    Resolution order:
+    1. ``[toolkit] readme`` path from toolkit.toml (relative to toolkit dir)
+    2. README.md in the module directory
+    3. README.md in the parent package directory
+    """
+    toolkit_dir = _resolve_toolkit_dir(toolkit_class)
+
+    # 1. Check toolkit.toml readme field
+    if toolkit_dir is not None:
+        toml_data = _read_toolkit_toml(toolkit_class)
+        toml_readme = (toml_data.get("toolkit") or {}).get("readme", "")
+        if isinstance(toml_readme, str) and toml_readme.strip():
+            readme_path = toolkit_dir / toml_readme.strip()
+            if readme_path.is_file():
+                try:
+                    return readme_path.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    pass
+
+    # 2. Look for README.md in the module directory
+    if toolkit_dir is not None:
+        for candidate in ("README.md", "readme.md", "Readme.md"):
+            readme_path = toolkit_dir / candidate
+            if readme_path.is_file():
+                try:
+                    return readme_path.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    return ""
+
+        # 3. Also check the parent package dir (for toolkit packages)
+        parent_dir = toolkit_dir.parent
+        for candidate in ("README.md", "readme.md", "Readme.md"):
+            readme_path = parent_dir / candidate
+            if readme_path.is_file():
+                try:
+                    return readme_path.read_text(encoding="utf-8", errors="replace")
+                except Exception:
+                    return ""
+
+    return ""
+
+
+def _get_toolkit_icon_path(toolkit_class: type) -> str:
+    """Extract icon_path from a toolkit class or auto-discover icon.svg."""
+    # 1. Explicit class attribute
+    icon_path = getattr(toolkit_class, "icon_path", None)
+    if isinstance(icon_path, str) and icon_path.strip():
+        return icon_path.strip()
+    icon_path = getattr(toolkit_class, "icon", None)
+    if isinstance(icon_path, str) and icon_path.strip():
+        return icon_path.strip()
+
+    # 2. Read from toolkit.toml `[toolkit] icon` field
+    toml_data = _read_toolkit_toml(toolkit_class)
+    toml_icon = (toml_data.get("toolkit") or {}).get("icon", "")
+    if isinstance(toml_icon, str) and toml_icon.strip():
+        toolkit_dir = _resolve_toolkit_dir(toolkit_class)
+        if toolkit_dir is not None:
+            resolved = toolkit_dir / toml_icon.strip()
+            if resolved.is_file():
+                return str(resolved)
+
+    # 3. Auto-discover icon.svg / icon.png in the toolkit directory
+    toolkit_dir = _resolve_toolkit_dir(toolkit_class)
+    if toolkit_dir is not None:
+        for candidate in ("icon.svg", "icon.png"):
+            icon_file = toolkit_dir / candidate
+            if icon_file.is_file():
+                return str(icon_file)
+    return ""
+
+
+def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
+    """Return enriched tool rows for the v2 catalog.
+
+    Merges metadata from three sources (highest priority first):
+    1. ``__tool_metadata__`` attribute on the method
+    2. ``[[tools]]`` entry in toolkit.toml (matched by name)
+    3. Basic introspection from ``_enumerate_toolkit_tools``
+    """
+    basic_tools = _enumerate_toolkit_tools(cls)
+    enriched: List[Dict[str, object]] = []
+
+    # Build a lookup from toolkit.toml [[tools]] entries
+    toml_data = _read_toolkit_toml(cls)
+    toml_tools_list = toml_data.get("tools") or []
+    if not isinstance(toml_tools_list, list):
+        toml_tools_list = []
+    toml_tools_by_name: Dict[str, Dict[str, object]] = {}
+    for entry in toml_tools_list:
+        if isinstance(entry, dict):
+            tn = str(entry.get("name", "")).strip()
+            if tn:
+                toml_tools_by_name[tn] = entry
+
+    for tool in basic_tools:
+        tool_name = tool.get("name", "")
+
+        # Try to read per-tool metadata from the toolkit class
+        tool_meta: Dict[str, object] = {}
+        tool_func = None
+        try:
+            tool_func = getattr(cls, tool_name, None)
+        except Exception:
+            pass
+
+        if tool_func is not None:
+            tool_meta = getattr(tool_func, "__tool_metadata__", {}) or {}
+            if not isinstance(tool_meta, dict):
+                tool_meta = {}
+
+        # Merge with toml entry (toml is lower priority than __tool_metadata__)
+        toml_entry = toml_tools_by_name.get(tool_name, {})
+
+        icon_path = tool_meta.get("icon_path", "") or ""
+        icon_payload = _read_icon_payload(icon_path) if icon_path else {}
+
+        title = (
+            str(tool_meta.get("title", "")).strip()
+            or str(toml_entry.get("title", "")).strip()
+            or tool_name
+        )
+        description = (
+            tool.get("description", "")
+            or str(toml_entry.get("description", "")).strip()
+        )
+
+        enriched.append({
+            "name": tool_name,
+            "title": title,
+            "description": description,
+            "icon": icon_payload,
+            "hidden": bool(
+                tool_meta.get("hidden", toml_entry.get("hidden", False))
+            ),
+            "observe": bool(
+                tool_meta.get("observe", toml_entry.get("observe", False))
+            ),
+            "requiresConfirmation": tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES
+                or bool(tool_meta.get(
+                    "requires_confirmation",
+                    toml_entry.get("requires_confirmation", False),
+                )),
+        })
+
+    return enriched
+
+
+def _detect_toolkit_source(kind: str) -> str:
+    """Map toolkit kind to a source label for the v2 catalog."""
+    if kind in ("builtin", "core"):
+        return "builtin"
+    if kind == "integration":
+        return "plugin"
+    return "local"
+
+
+def get_toolkit_catalog_v2() -> Dict[str, object]:
+    """Enriched toolkit catalog with icon payloads, per-tool metadata, and
+    README support for the tool-modal UI."""
+    toolkit_base = _resolve_toolkit_base()
+    if toolkit_base is None:
+        return {
+            "toolkits": [],
+            "count": 0,
+            "source": _RESOLVED_MISO_SOURCE or "",
+        }
+
+    def _build_entry(candidate: type, kind: str) -> Dict[str, object]:
+        """Build a single ToolkitGroup dict, merging toolkit.toml fields."""
+        class_name = candidate.__name__
+        toml_data = _read_toolkit_toml(candidate)
+        toml_toolkit = toml_data.get("toolkit") or {}
+        toml_display = toml_data.get("display") or {}
+
+        toolkit_name = (
+            str(toml_toolkit.get("name", "")).strip() or class_name
+        )
+        toolkit_description = (
+            str(toml_toolkit.get("description", "")).strip()
+            or _clean_docstring(getattr(candidate, "__doc__", "") or "")
+        )
+        source = (
+            _detect_toolkit_source(
+                str(toml_display.get("category", "")).strip() or kind
+            )
+        )
+        display_order = toml_display.get("order", 999)
+        if not isinstance(display_order, (int, float)):
+            display_order = 999
+        hidden = bool(toml_display.get("hidden", False))
+
+        tools_v2 = _enumerate_toolkit_tools_v2(candidate)
+        toolkit_icon = _read_icon_payload(_get_toolkit_icon_path(candidate))
+        tags = toml_toolkit.get("tags", [])
+        if not isinstance(tags, list):
+            tags = []
+
+        return {
+            "toolkitId": class_name,
+            "toolkitName": toolkit_name,
+            "toolkitDescription": toolkit_description,
+            "toolkitIcon": toolkit_icon,
+            "source": source,
+            "toolCount": len(tools_v2),
+            "defaultEnabled": False,
+            "tools": tools_v2,
+            "displayOrder": int(display_order),
+            "hidden": hidden,
+            "tags": [str(t) for t in tags if isinstance(t, str)],
+        }
+
+    # Re-use the same discovery logic as v1
+    entries: List[Dict[str, object]] = []
+    seen: set[str] = set()
+
+    base_module = str(getattr(toolkit_base, "__module__", ""))
+    seen.add(f"{base_module}:{toolkit_base.__name__}")
+
+    # Walk builtin submodules
+    try:
+        builtin_pkg = importlib.import_module("miso.builtin_toolkits")
+    except Exception:
+        builtin_pkg = None
+
+    if builtin_pkg is not None:
+        pkg_path = getattr(builtin_pkg, "__path__", None)
+        if pkg_path:
+            for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
+                full_name = f"miso.builtin_toolkits.{submodule_name}"
+                try:
+                    submodule = importlib.import_module(full_name)
+                except Exception:
+                    continue
+
+                for attr_name in dir(submodule):
+                    candidate = getattr(submodule, attr_name, None)
+                    if not isinstance(candidate, type):
+                        continue
+                    try:
+                        is_sub = issubclass(candidate, toolkit_base)
+                    except Exception:
+                        continue
+                    if not is_sub or candidate is toolkit_base:
+                        continue
+
+                    class_name = candidate.__name__
+                    module_name = str(getattr(candidate, "__module__", full_name))
+                    dedupe_key = f"{module_name}:{class_name}"
+                    if dedupe_key in seen:
+                        continue
+                    seen.add(dedupe_key)
+
+                    entries.append(_build_entry(candidate, "builtin"))
+
+    # Top-level miso exports
+    try:
+        miso_module = importlib.import_module("miso")
+    except Exception:
+        miso_module = None
+
+    if miso_module is not None:
+        for export_name, kind in _KNOWN_TOOLKIT_EXPORTS.items():
+            if export_name == "toolkit":
+                continue
+            candidate = getattr(miso_module, export_name, None)
+            if not isinstance(candidate, type):
+                continue
+            try:
+                is_sub = issubclass(candidate, toolkit_base)
+            except Exception:
+                continue
+            if not is_sub or candidate is toolkit_base:
+                continue
+            class_name = candidate.__name__
+            module_name = str(getattr(candidate, "__module__", ""))
+            dedupe_key = f"{module_name}:{class_name}"
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+
+            entries.append(_build_entry(candidate, kind))
+
+    # Sort by display order from toolkit.toml
+    entries.sort(key=lambda e: (e.get("displayOrder", 999), e.get("toolkitName", "")))
+
+    return {
+        "toolkits": entries,
+        "count": len(entries),
+        "source": _RESOLVED_MISO_SOURCE or "",
+    }
+
+
+def get_toolkit_metadata(
+    toolkit_id: str,
+    tool_name: str | None = None,
+) -> Dict[str, object]:
+    """Return toolkit README markdown + icon for the detail panel."""
+    if not isinstance(toolkit_id, str) or not toolkit_id.strip():
+        return {
+            "toolkitId": "",
+            "toolkitName": "",
+            "toolkitDescription": "",
+            "toolkitIcon": {},
+            "readmeMarkdown": "",
+            "selectedToolName": None,
+        }
+
+    toolkit_id = toolkit_id.strip()
+
+    toolkit_base = _resolve_toolkit_base()
+    if toolkit_base is None:
+        return {
+            "toolkitId": toolkit_id,
+            "toolkitName": toolkit_id,
+            "toolkitDescription": "",
+            "toolkitIcon": {},
+            "readmeMarkdown": "",
+            "selectedToolName": tool_name,
+        }
+
+    # Search for the toolkit class by class_name
+    found_class: type | None = None
+
+    try:
+        builtin_pkg = importlib.import_module("miso.builtin_toolkits")
+        pkg_path = getattr(builtin_pkg, "__path__", None)
+        if pkg_path:
+            for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
+                full_name = f"miso.builtin_toolkits.{submodule_name}"
+                try:
+                    submodule = importlib.import_module(full_name)
+                except Exception:
+                    continue
+                for attr_name in dir(submodule):
+                    candidate = getattr(submodule, attr_name, None)
+                    if (
+                        isinstance(candidate, type)
+                        and issubclass(candidate, toolkit_base)
+                        and candidate is not toolkit_base
+                        and candidate.__name__ == toolkit_id
+                    ):
+                        found_class = candidate
+                        break
+                if found_class:
+                    break
+    except Exception:
+        pass
+
+    # Also check top-level miso exports
+    if found_class is None:
+        try:
+            miso_module = importlib.import_module("miso")
+            for export_name in _KNOWN_TOOLKIT_EXPORTS:
+                candidate = getattr(miso_module, export_name, None)
+                if (
+                    isinstance(candidate, type)
+                    and issubclass(candidate, toolkit_base)
+                    and candidate is not toolkit_base
+                    and candidate.__name__ == toolkit_id
+                ):
+                    found_class = candidate
+                    break
+        except Exception:
+            pass
+
+    if found_class is None:
+        return {
+            "toolkitId": toolkit_id,
+            "toolkitName": toolkit_id,
+            "toolkitDescription": "",
+            "toolkitIcon": {},
+            "readmeMarkdown": "",
+            "selectedToolName": tool_name,
+        }
+
+    toolkit_icon = _read_icon_payload(_get_toolkit_icon_path(found_class))
+    readme_markdown = _resolve_toolkit_readme(found_class)
+
+    toml_data = _read_toolkit_toml(found_class)
+    toml_toolkit = toml_data.get("toolkit") or {}
+    toolkit_name = (
+        str(toml_toolkit.get("name", "")).strip() or found_class.__name__
+    )
+    toolkit_description = (
+        str(toml_toolkit.get("description", "")).strip()
+        or _clean_docstring(getattr(found_class, "__doc__", "") or "")
+    )
+
+    return {
+        "toolkitId": toolkit_id,
+        "toolkitName": toolkit_name,
+        "toolkitDescription": toolkit_description,
+        "toolkitIcon": toolkit_icon,
+        "readmeMarkdown": readme_markdown,
+        "selectedToolName": tool_name,
     }
 
 

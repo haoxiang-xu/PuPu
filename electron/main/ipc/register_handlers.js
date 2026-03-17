@@ -14,6 +14,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_STATUS,
   CHANNELS.MISO.GET_MODEL_CATALOG,
   CHANNELS.MISO.GET_TOOLKIT_CATALOG,
+  CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG,
+  CHANNELS.MISO.GET_TOOLKIT_DETAIL,
   CHANNELS.MISO.TOOL_CONFIRMATION,
   CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.MISO.PICK_WORKSPACE_ROOT,
@@ -100,6 +102,17 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(CHANNELS.MISO.GET_TOOLKIT_CATALOG, async () =>
     misoService.getMisoToolkitCatalogPayload(),
   );
+  ipcMain.handle(CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG, async () =>
+    misoService.getMisoToolModalCatalogPayload(),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.GET_TOOLKIT_DETAIL,
+    async (_event, payload = {}) =>
+      misoService.getMisoToolkitDetailPayload(
+        payload.toolkitId,
+        payload.toolName,
+      ),
+  );
   ipcMain.handle(
     CHANNELS.MISO.TOOL_CONFIRMATION,
     async (_event, payload = {}) =>
@@ -134,8 +147,12 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     const baseMemoryDir = path.join(app.getPath("userData"), "memory");
     const vectorDir = path.join(baseMemoryDir, "qdrant");
     const profileDir = path.join(baseMemoryDir, "long_term_profiles");
-    const vectorResult = runtimeService.getRuntimeDirSize({ dirPath: vectorDir });
-    const profileResult = runtimeService.getRuntimeDirSize({ dirPath: profileDir });
+    const vectorResult = runtimeService.getRuntimeDirSize({
+      dirPath: vectorDir,
+    });
+    const profileResult = runtimeService.getRuntimeDirSize({
+      dirPath: profileDir,
+    });
     const vectorTotal = Number(vectorResult.total) || 0;
     const profileTotal = Number(profileResult.total) || 0;
     const error =
@@ -162,7 +179,8 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(
     CHANNELS.MISO.REPLACE_SESSION_MEMORY,
-    async (_event, payload = {}) => misoService.replaceMisoSessionMemory(payload),
+    async (_event, payload = {}) =>
+      misoService.replaceMisoSessionMemory(payload),
   );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {

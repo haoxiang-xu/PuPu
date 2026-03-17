@@ -1,15 +1,31 @@
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
-import { kindConfig, toDisplayName } from "../utils/toolkit_helpers";
+import ToolkitIcon from "./toolkit_icon";
+import { SOURCE_CONFIG } from "../constants";
+import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
+import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 
-const ToolkitCard = ({ toolkit, isDark }) => {
-  const kc = kindConfig(toolkit.kind);
+const toDisplayName = (toolkit) => {
+  const raw =
+    toolkit.toolkitName ||
+    toolkit.class_name ||
+    toolkit.name ||
+    "Unknown Toolkit";
+  return raw
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
+    .trim();
+};
+
+const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
   const displayName = toDisplayName(toolkit);
   const tools = Array.isArray(toolkit.tools) ? toolkit.tools : [];
+  const sc = SOURCE_CONFIG[toolkit.source] || SOURCE_CONFIG.builtin;
+  const enabled = Boolean(toolkit.defaultEnabled);
 
   const borderColor = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)";
   const cardBg = isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)";
   const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const tagBg = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
 
   return (
     <div
@@ -17,45 +33,67 @@ const ToolkitCard = ({ toolkit, isDark }) => {
         border: `1px solid ${borderColor}`,
         borderRadius: 8,
         backgroundColor: cardBg,
-        padding: "11px 14px 10px",
         display: "flex",
         flexDirection: "column",
-        gap: 6,
+        overflow: "hidden",
       }}
     >
-      {/* Header: icon + name + kind tag */}
+      {/* ── Toolkit header ── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
           gap: 8,
-          flexWrap: "wrap",
+          padding: "11px 14px 8px",
         }}
       >
-        <div
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 6,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexShrink: 0,
-          }}
-        >
-          <Icon src="tool" style={{ width: 18, height: 18 }} color={kc.color} />
-        </div>
+        {toolkit.toolkitIcon?.content ? (
+          <ToolkitIcon
+            icon={toolkit.toolkitIcon}
+            size={36}
+            fallbackColor={sc.color}
+            style={{ flexShrink: 0 }}
+          />
+        ) : (
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 6,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              background: isDark
+                ? "rgba(255,255,255,0.04)"
+                : "rgba(0,0,0,0.03)",
+            }}
+          >
+            <ToolkitIcon
+              icon={toolkit.toolkitIcon}
+              size={18}
+              fallbackColor={sc.color}
+            />
+          </div>
+        )}
 
-        <span
-          style={{
-            fontSize: 16,
-            fontFamily: "Jost",
-            color: textColor,
-            letterSpacing: "0.1px",
-          }}
-        >
-          {displayName}
-        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <span
+            style={{
+              fontSize: 14,
+              fontFamily: "Jost",
+              fontWeight: 600,
+              color: textColor,
+              letterSpacing: "0.1px",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              display: "block",
+            }}
+          >
+            {displayName}
+          </span>
+        </div>
 
         <span
           style={{
@@ -66,13 +104,13 @@ const ToolkitCard = ({ toolkit, isDark }) => {
             textTransform: "lowercase",
             padding: "1px 6px",
             borderRadius: 999,
-            backgroundColor: isDark ? kc.bg : kc.bg,
-            color: kc.color,
+            backgroundColor: sc.bg,
+            color: sc.color,
             lineHeight: 1.8,
             flexShrink: 0,
           }}
         >
-          {kc.label}
+          {sc.label}
         </span>
 
         {tools.length > 0 && (
@@ -81,44 +119,54 @@ const ToolkitCard = ({ toolkit, isDark }) => {
               fontSize: 11,
               fontFamily: "Jost",
               color: mutedColor,
-              marginLeft: "auto",
               flexShrink: 0,
             }}
           >
             {tools.length} tool{tools.length !== 1 ? "s" : ""}
           </span>
         )}
+
+        <Tooltip
+          label="Auto-enable for new chats"
+          position="top"
+          style={{ whiteSpace: "nowrap" }}
+          wrapper_style={{ flexShrink: 0 }}
+        >
+          <SemiSwitch
+            on={enabled}
+            set_on={(val) => {
+              if (onToggleEnabled) onToggleEnabled(toolkit.toolkitId, val);
+            }}
+            style={{ width: 44, height: 22 }}
+          />
+        </Tooltip>
       </div>
 
-      {/* Tool tags */}
+      {/* ── Tool tags ── */}
       {tools.length > 0 && (
         <div
           style={{
             display: "flex",
             flexWrap: "wrap",
-            gap: 5,
+            gap: 6,
+            padding: "4px 14px 11px",
           }}
         >
           {tools.map((tool, idx) => (
             <span
-              key={idx}
-              title={tool.description || tool.name}
+              key={tool.name || idx}
               style={{
-                fontSize: 11,
+                fontSize: 11.5,
                 fontFamily: "Jost",
                 fontWeight: 500,
-                padding: "1px 8px",
-                borderRadius: 999,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.05)",
-                color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.50)",
-                lineHeight: 1.8,
-                cursor: "default",
+                color: mutedColor,
+                background: tagBg,
+                padding: "2px 8px",
+                borderRadius: 5,
                 whiteSpace: "nowrap",
               }}
             >
-              {tool.name}
+              {tool.title || tool.name}
             </span>
           ))}
         </div>

@@ -543,6 +543,68 @@ export const createMisoApi = () => {
       }
     },
 
+    listToolModalCatalog: async () => {
+      if (!hasBridgeMethod("misoAPI", "listToolModalCatalog")) {
+        return { toolkits: [], count: 0, source: "" };
+      }
+
+      try {
+        const method = assertBridgeMethod("misoAPI", "listToolModalCatalog");
+        const payload = await withTimeout(
+          () => method(),
+          8000,
+          "miso_tool_modal_catalog_timeout",
+          "Miso tool modal catalog request timed out",
+        );
+        return payload || { toolkits: [], count: 0, source: "" };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "miso_tool_modal_catalog_failed",
+          "Failed to query Miso tool modal catalog",
+        );
+      }
+    },
+
+    getToolkitDetail: async (toolkitId, toolName) => {
+      if (!hasBridgeMethod("misoAPI", "getToolkitDetail")) {
+        return {
+          toolkitId: toolkitId || "",
+          toolkitName: "",
+          toolkitDescription: "",
+          toolkitIcon: {},
+          readmeMarkdown: "",
+          selectedToolName: toolName || null,
+        };
+      }
+
+      try {
+        const method = assertBridgeMethod("misoAPI", "getToolkitDetail");
+        const payload = await withTimeout(
+          () => method(toolkitId, toolName),
+          6000,
+          "miso_toolkit_detail_timeout",
+          "Miso toolkit detail request timed out",
+        );
+        return (
+          payload || {
+            toolkitId: toolkitId || "",
+            toolkitName: "",
+            toolkitDescription: "",
+            toolkitIcon: {},
+            readmeMarkdown: "",
+            selectedToolName: toolName || null,
+          }
+        );
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "miso_toolkit_detail_failed",
+          "Failed to query Miso toolkit detail",
+        );
+      }
+    },
+
     respondToolConfirmation: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("misoAPI", "respondToolConfirmation");

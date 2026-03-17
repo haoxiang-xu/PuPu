@@ -3,7 +3,7 @@ const { CHANNELS } = require("../../../shared/channels");
 const MISO_HOST = "127.0.0.1";
 const MISO_PORT_RANGE_START = 5879;
 const MISO_PORT_RANGE_END = 5895;
-const MISO_BOOT_TIMEOUT_MS = 60000; 
+const MISO_BOOT_TIMEOUT_MS = 60000;
 const MISO_HEALTH_RETRY_MS = 250;
 const MISO_RESTART_DELAY_MS = 1500;
 const MISO_STREAM_ENDPOINT = "/chat/stream";
@@ -12,6 +12,8 @@ const MISO_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const MISO_HEALTH_ENDPOINT = "/health";
 const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
+const MISO_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
+const MISO_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
 const MISO_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
 const MISO_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
@@ -266,7 +268,10 @@ const createMisoService = ({
         continue;
       }
 
-      const inspection = inspectPythonCommand(candidate.command, candidate.label);
+      const inspection = inspectPythonCommand(
+        candidate.command,
+        candidate.label,
+      );
       if (inspection.ok) {
         return inspection.command;
       }
@@ -530,6 +535,47 @@ const createMisoService = ({
       "Miso toolkit catalog request failed",
       {},
       "Invalid Miso toolkit catalog response",
+    );
+  };
+
+  const getMisoToolModalCatalogPayload = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_TOOL_MODAL_CATALOG_ENDPOINT}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso tool modal catalog request failed",
+      {},
+      "Invalid Miso tool modal catalog response",
+    );
+  };
+
+  const getMisoToolkitDetailPayload = async (toolkitId, toolName) => {
+    ensureMisoReady();
+
+    const safeToolkitId = encodeURIComponent(String(toolkitId || ""));
+    let url = `http://${MISO_HOST}:${misoPort}${MISO_TOOLKIT_DETAIL_ENDPOINT}/${safeToolkitId}/metadata`;
+    if (typeof toolName === "string" && toolName.trim()) {
+      url += `?tool_name=${encodeURIComponent(toolName.trim())}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+    });
+
+    return readJsonResponse(
+      response,
+      "Miso toolkit detail request failed",
+      {},
+      "Invalid Miso toolkit detail response",
     );
   };
 
@@ -1257,6 +1303,8 @@ const createMisoService = ({
     getMisoStatusPayload,
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,
+    getMisoToolModalCatalogPayload,
+    getMisoToolkitDetailPayload,
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,
