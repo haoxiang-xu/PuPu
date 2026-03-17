@@ -72,6 +72,9 @@ describe("ToolkitDetailPanel", () => {
 
     expect(screen.getByTestId("toolkit-detail-icon-wrap")).toHaveStyle({
       backgroundColor: "#bae6fd",
+      width: "32px",
+      height: "32px",
+      borderRadius: "9px",
     });
   });
 });

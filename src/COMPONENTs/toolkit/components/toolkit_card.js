@@ -30,6 +30,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
   const tagBg = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
   const hasFileIcon = isFileToolkitIcon(toolkit.toolkitIcon);
+  const builtinIconWrapSize = 36;
   const iconWrapBackground = isBuiltinToolkitIcon(toolkit.toolkitIcon)
     ? toolkit.toolkitIcon.backgroundColor
     : isDark
@@ -67,9 +68,9 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
           <div
             data-testid="toolkit-card-icon-wrap"
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
+              width: builtinIconWrapSize,
+              height: builtinIconWrapSize,
+              borderRadius: 10,
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -79,7 +80,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled }) => {
           >
             <ToolkitIcon
               icon={toolkit.toolkitIcon}
-              size={18}
+              size={22}
               fallbackColor={sc.color}
             />
           </div>

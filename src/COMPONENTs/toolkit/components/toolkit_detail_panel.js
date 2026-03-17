@@ -61,6 +61,7 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, isDark, onBack }) => {
 
   const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const builtinIconWrapSize = 32;
   const detailIconBackground = isBuiltinToolkitIcon(detail?.toolkitIcon)
     ? detail.toolkitIcon.backgroundColor
     : isDark
@@ -110,9 +111,9 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, isDark, onBack }) => {
             <div
               data-testid="toolkit-detail-icon-wrap"
               style={{
-                width: 28,
-                height: 28,
-                borderRadius: 6,
+                width: builtinIconWrapSize,
+                height: builtinIconWrapSize,
+                borderRadius: 9,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -122,7 +123,7 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, isDark, onBack }) => {
             >
               <ToolkitIcon
                 icon={detail.toolkitIcon}
-                size={16}
+                size={18}
                 fallbackColor="#34d399"
               />
             </div>
