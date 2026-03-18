@@ -156,15 +156,23 @@ const ToolkitsPage = ({ isDark, onToolClick }) => {
           }}
         />
       </div>
-      {filtered.map((tk) => (
-        <ToolkitCard
-          key={tk.toolkitId}
-          toolkit={tk}
-          isDark={isDark}
-          onToggleEnabled={handleToggleEnabled}
-          onToolClick={onToolClick}
-        />
-      ))}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 8,
+        }}
+      >
+        {filtered.map((tk) => (
+          <ToolkitCard
+            key={tk.toolkitId}
+            toolkit={tk}
+            isDark={isDark}
+            onToggleEnabled={handleToggleEnabled}
+            onClick={(toolkitId) => onToolClick?.(toolkitId, null, tk)}
+          />
+        ))}
+      </div>
       {filtered.length === 0 && search.trim() && (
         <PlaceholderBlock
           icon="search"
