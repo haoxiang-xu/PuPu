@@ -361,6 +361,7 @@ export const MemorySettings = ({ onNavigate }) => {
             max={1}
             step={0.05}
             label_format={formatThresholdValue}
+            tooltip_format={formatThresholdValue}
             style={{ width: 160 }}
           />
         </SettingsRow>
@@ -386,12 +387,12 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         <SettingsRow
-          label={`Facts top K — ${settings.long_term_vector_top_k}`}
-          description="How many long-term facts can be recalled into context."
+          label={`Long-term top K — ${settings.long_term_top_k}`}
+          description="How many long-term memories can be recalled for facts, episodes, and playbooks."
         >
           <Slider
-            value={settings.long_term_vector_top_k}
-            set_value={(val) => update({ long_term_vector_top_k: val })}
+            value={settings.long_term_top_k}
+            set_value={(val) => update({ long_term_top_k: val })}
             min={0}
             max={10}
             step={1}
@@ -402,86 +403,17 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         <SettingsRow
-          label={`Facts threshold — ${formatThresholdValue(settings.long_term_vector_min_score)}`}
-          description="Minimum similarity score for recalled fact memories. Set to Off to disable score filtering."
+          label={`Long-term threshold — ${formatThresholdValue(settings.long_term_min_score)}`}
+          description="Minimum similarity score for recalled facts, episodes, and playbooks. Set to Off to disable score filtering."
         >
           <Slider
-            value={settings.long_term_vector_min_score}
-            set_value={(val) =>
-              updateThreshold("long_term_vector_min_score", val)
-            }
+            value={settings.long_term_min_score}
+            set_value={(val) => updateThreshold("long_term_min_score", val)}
             min={0}
             max={1}
             step={0.05}
             label_format={formatThresholdValue}
-            disabled={!settings.long_term_enabled}
-            style={{ width: 160 }}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          label={`Episodes top K — ${settings.long_term_episode_top_k}`}
-          description="How many episodic memories can be recalled when the query asks about previous situations."
-        >
-          <Slider
-            value={settings.long_term_episode_top_k}
-            set_value={(val) => update({ long_term_episode_top_k: val })}
-            min={0}
-            max={10}
-            step={1}
-            label_format={(v) => `${v}`}
-            disabled={!settings.long_term_enabled}
-            style={{ width: 160 }}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          label={`Episodes threshold — ${formatThresholdValue(settings.long_term_episode_min_score)}`}
-          description="Minimum similarity score for recalled episodes. Set to Off to disable score filtering."
-        >
-          <Slider
-            value={settings.long_term_episode_min_score}
-            set_value={(val) =>
-              updateThreshold("long_term_episode_min_score", val)
-            }
-            min={0}
-            max={1}
-            step={0.05}
-            label_format={formatThresholdValue}
-            disabled={!settings.long_term_enabled}
-            style={{ width: 160 }}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          label={`Playbooks top K — ${settings.long_term_playbook_top_k}`}
-          description="How many reusable workflows can be recalled when the query looks procedural."
-        >
-          <Slider
-            value={settings.long_term_playbook_top_k}
-            set_value={(val) => update({ long_term_playbook_top_k: val })}
-            min={0}
-            max={10}
-            step={1}
-            label_format={(v) => `${v}`}
-            disabled={!settings.long_term_enabled}
-            style={{ width: 160 }}
-          />
-        </SettingsRow>
-
-        <SettingsRow
-          label={`Playbooks threshold — ${formatThresholdValue(settings.long_term_playbook_min_score)}`}
-          description="Minimum similarity score for recalled playbooks. Set to Off to disable score filtering."
-        >
-          <Slider
-            value={settings.long_term_playbook_min_score}
-            set_value={(val) =>
-              updateThreshold("long_term_playbook_min_score", val)
-            }
-            min={0}
-            max={1}
-            step={0.05}
-            label_format={formatThresholdValue}
+            tooltip_format={formatThresholdValue}
             disabled={!settings.long_term_enabled}
             style={{ width: 160 }}
           />

@@ -266,6 +266,32 @@ const resolveMemoryEmbeddingModel = (provider, explicitValue, memory) => {
     ? memory.ollama_embedding_model || "nomic-embed-text"
     : memory.openai_embedding_model || "text-embedding-3-small";
 };
+const resolveLongTermTopK = (currentOptions, memory) => {
+  const fallback = memory.long_term_top_k ?? 4;
+  const legacyOverride =
+    currentOptions.memory_long_term_vector_top_k ??
+    currentOptions.memory_long_term_episode_top_k ??
+    currentOptions.memory_long_term_playbook_top_k;
+  return clampIntegerOption(
+    currentOptions.memory_long_term_top_k,
+    clampIntegerOption(legacyOverride, fallback, {
+      min: 0,
+      max: 10,
+    }),
+    { min: 0, max: 10 },
+  );
+};
+const resolveLongTermMinScore = (currentOptions, memory) => {
+  const fallback = memory.long_term_min_score ?? 0;
+  const legacyOverride =
+    currentOptions.memory_long_term_vector_min_score ??
+    currentOptions.memory_long_term_episode_min_score ??
+    currentOptions.memory_long_term_playbook_min_score;
+  return toRuntimeThresholdOption(
+    currentOptions.memory_long_term_min_score,
+    clampThresholdOption(legacyOverride, fallback),
+  );
+};
 
 const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
   const currentOptions = isObject(options) ? options : {};
@@ -319,6 +345,8 @@ const injectMemoryIntoPayload = (payload) => {
     currentOptions.memory_embedding_provider,
     memory.embedding_provider || "auto",
   );
+  const longTermTopK = resolveLongTermTopK(currentOptions, memory);
+  const longTermMinScore = resolveLongTermMinScore(currentOptions, memory);
   const optionsWithMemory = {
     ...currentOptions,
     memory_enabled: true,
@@ -356,33 +384,12 @@ const injectMemoryIntoPayload = (payload) => {
       currentOptions.memory_vector_min_score,
       memory.vector_min_score ?? 0,
     ),
-    memory_long_term_vector_top_k: clampIntegerOption(
-      currentOptions.memory_long_term_vector_top_k,
-      memory.long_term_vector_top_k ?? 4,
-      { min: 0, max: 10 },
-    ),
-    memory_long_term_vector_min_score: toRuntimeThresholdOption(
-      currentOptions.memory_long_term_vector_min_score,
-      memory.long_term_vector_min_score ?? 0,
-    ),
-    memory_long_term_episode_top_k: clampIntegerOption(
-      currentOptions.memory_long_term_episode_top_k,
-      memory.long_term_episode_top_k ?? 2,
-      { min: 0, max: 10 },
-    ),
-    memory_long_term_episode_min_score: toRuntimeThresholdOption(
-      currentOptions.memory_long_term_episode_min_score,
-      memory.long_term_episode_min_score ?? 0,
-    ),
-    memory_long_term_playbook_top_k: clampIntegerOption(
-      currentOptions.memory_long_term_playbook_top_k,
-      memory.long_term_playbook_top_k ?? 2,
-      { min: 0, max: 10 },
-    ),
-    memory_long_term_playbook_min_score: toRuntimeThresholdOption(
-      currentOptions.memory_long_term_playbook_min_score,
-      memory.long_term_playbook_min_score ?? 0,
-    ),
+    memory_long_term_vector_top_k: longTermTopK,
+    memory_long_term_vector_min_score: longTermMinScore,
+    memory_long_term_episode_top_k: longTermTopK,
+    memory_long_term_episode_min_score: longTermMinScore,
+    memory_long_term_playbook_top_k: longTermTopK,
+    memory_long_term_playbook_min_score: longTermMinScore,
   };
 
   return {

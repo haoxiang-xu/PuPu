@@ -45,12 +45,8 @@ export const DEFAULT_MEMORY_SETTINGS = {
   last_n_turns: 8,
   vector_top_k: 4,
   vector_min_score: 0,
-  long_term_vector_top_k: 4,
-  long_term_vector_min_score: 0,
-  long_term_episode_top_k: 2,
-  long_term_episode_min_score: 0,
-  long_term_playbook_top_k: 2,
-  long_term_playbook_min_score: 0,
+  long_term_top_k: 4,
+  long_term_min_score: 0,
 };
 
 export const normalizeMemorySettings = (value) => {
@@ -59,6 +55,14 @@ export const normalizeMemorySettings = (value) => {
     typeof raw.embedding_provider === "string"
       ? raw.embedding_provider.trim().toLowerCase()
       : DEFAULT_MEMORY_SETTINGS.embedding_provider;
+  const legacyLongTermTopK =
+    raw.long_term_vector_top_k ??
+    raw.long_term_episode_top_k ??
+    raw.long_term_playbook_top_k;
+  const legacyLongTermMinScore =
+    raw.long_term_vector_min_score ??
+    raw.long_term_episode_min_score ??
+    raw.long_term_playbook_min_score;
 
   return {
     enabled:
@@ -104,32 +108,14 @@ export const normalizeMemorySettings = (value) => {
       raw.vector_min_score,
       DEFAULT_MEMORY_SETTINGS.vector_min_score,
     ),
-    long_term_vector_top_k: clampInteger(raw.long_term_vector_top_k, {
+    long_term_top_k: clampInteger(raw.long_term_top_k ?? legacyLongTermTopK, {
       min: 0,
       max: 10,
-      fallback: DEFAULT_MEMORY_SETTINGS.long_term_vector_top_k,
+      fallback: DEFAULT_MEMORY_SETTINGS.long_term_top_k,
     }),
-    long_term_vector_min_score: clampThreshold(
-      raw.long_term_vector_min_score,
-      DEFAULT_MEMORY_SETTINGS.long_term_vector_min_score,
-    ),
-    long_term_episode_top_k: clampInteger(raw.long_term_episode_top_k, {
-      min: 0,
-      max: 10,
-      fallback: DEFAULT_MEMORY_SETTINGS.long_term_episode_top_k,
-    }),
-    long_term_episode_min_score: clampThreshold(
-      raw.long_term_episode_min_score,
-      DEFAULT_MEMORY_SETTINGS.long_term_episode_min_score,
-    ),
-    long_term_playbook_top_k: clampInteger(raw.long_term_playbook_top_k, {
-      min: 0,
-      max: 10,
-      fallback: DEFAULT_MEMORY_SETTINGS.long_term_playbook_top_k,
-    }),
-    long_term_playbook_min_score: clampThreshold(
-      raw.long_term_playbook_min_score,
-      DEFAULT_MEMORY_SETTINGS.long_term_playbook_min_score,
+    long_term_min_score: clampThreshold(
+      raw.long_term_min_score ?? legacyLongTermMinScore,
+      DEFAULT_MEMORY_SETTINGS.long_term_min_score,
     ),
   };
 };

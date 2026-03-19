@@ -56,12 +56,8 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
         last_n_turns: 8,
         vector_top_k: 4,
         vector_min_score: 0.45,
-        long_term_vector_top_k: 5,
-        long_term_vector_min_score: 0.61,
-        long_term_episode_top_k: 3,
-        long_term_episode_min_score: 0.58,
-        long_term_playbook_top_k: 2,
-        long_term_playbook_min_score: 0.72,
+        long_term_top_k: 5,
+        long_term_min_score: 0.61,
       },
       model_providers: {
         openai_api_key: "openai-key-123",
@@ -93,12 +89,8 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
         last_n_turns: 8,
         vector_top_k: 4,
         vector_min_score: 0.45,
-        long_term_vector_top_k: 5,
-        long_term_vector_min_score: 0.61,
-        long_term_episode_top_k: 3,
-        long_term_episode_min_score: 0.58,
-        long_term_playbook_top_k: 2,
-        long_term_playbook_min_score: 0.72,
+        long_term_top_k: 5,
+        long_term_min_score: 0.61,
       },
       model_providers: {
         openai_api_key: "openai-key-123",
@@ -124,10 +116,10 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
     expect(payload.options.memory_vector_min_score).toBe(0.45);
     expect(payload.options.memory_long_term_vector_top_k).toBe(5);
     expect(payload.options.memory_long_term_vector_min_score).toBe(0.61);
-    expect(payload.options.memory_long_term_episode_top_k).toBe(3);
-    expect(payload.options.memory_long_term_episode_min_score).toBe(0.58);
-    expect(payload.options.memory_long_term_playbook_top_k).toBe(2);
-    expect(payload.options.memory_long_term_playbook_min_score).toBe(0.72);
+    expect(payload.options.memory_long_term_episode_top_k).toBe(5);
+    expect(payload.options.memory_long_term_episode_min_score).toBe(0.61);
+    expect(payload.options.memory_long_term_playbook_top_k).toBe(5);
+    expect(payload.options.memory_long_term_playbook_min_score).toBe(0.61);
     expect(payload.options.openaiApiKey).toBe("openai-key-123");
     expect(payload.options.openai_api_key).toBe("openai-key-123");
     expect(payload.options.anthropicApiKey).toBe("anthropic-key-456");
@@ -145,12 +137,8 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
         last_n_turns: 8,
         vector_top_k: 4,
         vector_min_score: 0.25,
-        long_term_vector_top_k: 5,
-        long_term_vector_min_score: 0.55,
-        long_term_episode_top_k: 3,
-        long_term_episode_min_score: 0.6,
-        long_term_playbook_top_k: 2,
-        long_term_playbook_min_score: 0.7,
+        long_term_top_k: 5,
+        long_term_min_score: 0.55,
       },
       model_providers: {
         openai_api_key: "openai-key-123",
@@ -186,12 +174,8 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
         last_n_turns: 8,
         vector_top_k: 4,
         vector_min_score: 0.5,
-        long_term_vector_top_k: 6,
-        long_term_vector_min_score: 0.68,
-        long_term_episode_top_k: 4,
-        long_term_episode_min_score: 0.62,
-        long_term_playbook_top_k: 3,
-        long_term_playbook_min_score: 0.74,
+        long_term_top_k: 6,
+        long_term_min_score: 0.68,
       },
       model_providers: {
         openai_api_key: "openai-key-123",
@@ -216,10 +200,10 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
     expect(payload.options.memory_vector_min_score).toBe(0.5);
     expect(payload.options.memory_long_term_vector_top_k).toBe(6);
     expect(payload.options.memory_long_term_vector_min_score).toBe(0.68);
-    expect(payload.options.memory_long_term_episode_top_k).toBe(4);
-    expect(payload.options.memory_long_term_episode_min_score).toBe(0.62);
-    expect(payload.options.memory_long_term_playbook_top_k).toBe(3);
-    expect(payload.options.memory_long_term_playbook_min_score).toBe(0.74);
+    expect(payload.options.memory_long_term_episode_top_k).toBe(6);
+    expect(payload.options.memory_long_term_episode_min_score).toBe(0.68);
+    expect(payload.options.memory_long_term_playbook_top_k).toBe(6);
+    expect(payload.options.memory_long_term_playbook_min_score).toBe(0.68);
   });
 
   test("replaceSessionMemory reuses memory/provider injection path", async () => {
@@ -233,12 +217,8 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
         last_n_turns: 8,
         vector_top_k: 4,
         vector_min_score: 0.4,
-        long_term_vector_top_k: 5,
-        long_term_vector_min_score: 0.66,
-        long_term_episode_top_k: 3,
-        long_term_episode_min_score: 0.63,
-        long_term_playbook_top_k: 2,
-        long_term_playbook_min_score: 0.77,
+        long_term_top_k: 5,
+        long_term_min_score: 0.66,
       },
       model_providers: {
         openai_api_key: "openai-key-123",
