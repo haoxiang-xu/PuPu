@@ -71,14 +71,6 @@ _SYSTEM_PROMPT_V2_BUILTIN_RULES = [
     "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
     "If you need user confirmation or missing information and the ask user toolkit is available, use it to ask the user inline instead of forcing an unnecessary conversation split.",
 ]
-_TOOLKIT_IDENTIFIER_ALIASES = {
-    "interaction_toolkit": "ask_user_toolkit",
-    "interactiontoolkit": "ask_user_toolkit",
-    "askusertoolkit": "ask_user_toolkit",
-}
-_TOOLKIT_DISPLAY_NAME_OVERRIDES = {
-    "ask_user_toolkit": "Ask User Toolkit",
-}
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
@@ -108,63 +100,6 @@ def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
     if "no tool call found for function call output" in text:
         return True
     return False
-
-
-def _canonicalize_toolkit_identifier(raw_identifier: object) -> str:
-    if not isinstance(raw_identifier, str):
-        return ""
-    trimmed = raw_identifier.strip()
-    if not trimmed:
-        return ""
-    lookup_key = trimmed.replace("-", "_").lower()
-    return _TOOLKIT_IDENTIFIER_ALIASES.get(lookup_key, trimmed)
-
-
-def _toolkit_identifier_matches(requested_identifier: object, *candidate_identifiers: object) -> bool:
-    requested = _canonicalize_toolkit_identifier(requested_identifier)
-    if not requested:
-        return False
-    for candidate in candidate_identifiers:
-        if _canonicalize_toolkit_identifier(candidate) == requested:
-            return True
-    return False
-
-
-def _toolkit_runtime_lookup_candidates(raw_identifier: object) -> List[str]:
-    if not isinstance(raw_identifier, str):
-        return []
-
-    candidates: List[str] = []
-
-    def _push(value: str) -> None:
-        candidate = value.strip()
-        if candidate and candidate not in candidates:
-            candidates.append(candidate)
-
-    raw = raw_identifier.strip()
-    if not raw:
-        return candidates
-
-    _push(raw)
-    canonical = _canonicalize_toolkit_identifier(raw)
-    _push(canonical)
-    if canonical == "ask_user_toolkit":
-        _push("interaction_toolkit")
-    return candidates
-
-
-def _resolve_toolkit_display_name(raw_name: object, *, toolkit_identifier: object = "") -> str:
-    name = raw_name.strip() if isinstance(raw_name, str) else ""
-    canonical = _canonicalize_toolkit_identifier(toolkit_identifier or name)
-    override = _TOOLKIT_DISPLAY_NAME_OVERRIDES.get(canonical, "")
-    if override:
-        return override
-    if name:
-        return name
-    if isinstance(toolkit_identifier, str):
-        return toolkit_identifier.strip()
-    return ""
-
 
 def _normalize_tool_confirmation_response(raw: object) -> Dict[str, Any]:
     approved = True
@@ -1357,8 +1292,8 @@ def _enumerate_builtin_submodule_toolkits(
 
             tools = _enumerate_toolkit_tools(candidate)
             entries.append({
-                "name": _canonicalize_toolkit_identifier(submodule_name) or submodule_name,
-                "class_name": _canonicalize_toolkit_identifier(class_name) or class_name,
+                "name": submodule_name,
+                "class_name": class_name,
                 "module": module_name,
                 "kind": "builtin",
                 "tools": tools,
@@ -1414,8 +1349,8 @@ def get_toolkit_catalog() -> Dict[str, object]:
             seen.add(dedupe_key)
             tools = _enumerate_toolkit_tools(candidate)
             entries.append({
-                "name": _canonicalize_toolkit_identifier(export_name) or export_name,
-                "class_name": _canonicalize_toolkit_identifier(class_name) or class_name,
+                "name": export_name,
+                "class_name": class_name,
                 "module": module_name,
                 "kind": kind,
                 "tools": tools,
@@ -1740,14 +1675,12 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
     def _build_entry(candidate: type, kind: str) -> Dict[str, object]:
         """Build a single ToolkitGroup dict, merging toolkit.toml fields."""
         class_name = candidate.__name__
-        toolkit_id = _canonicalize_toolkit_identifier(class_name) or class_name
         toml_data = _read_toolkit_toml(candidate)
         toml_toolkit = toml_data.get("toolkit") or {}
         toml_display = toml_data.get("display") or {}
 
-        toolkit_name = _resolve_toolkit_display_name(
-            str(toml_toolkit.get("name", "")).strip() or class_name,
-            toolkit_identifier=toolkit_id,
+        toolkit_name = (
+            str(toml_toolkit.get("name", "")).strip() or class_name
         )
         toolkit_description = (
             str(toml_toolkit.get("description", "")).strip()
@@ -1770,7 +1703,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
             tags = []
 
         return {
-            "toolkitId": toolkit_id,
+            "toolkitId": class_name,
             "toolkitName": toolkit_name,
             "toolkitDescription": toolkit_description,
             "toolkitIcon": toolkit_icon,
@@ -1879,7 +1812,7 @@ def get_toolkit_metadata(
             "selectedToolName": None,
         }
 
-    toolkit_id = _canonicalize_toolkit_identifier(toolkit_id) or toolkit_id.strip()
+    toolkit_id = toolkit_id.strip()
 
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
@@ -1907,18 +1840,11 @@ def get_toolkit_metadata(
                     continue
                 for attr_name in dir(submodule):
                     candidate = getattr(submodule, attr_name, None)
-                    module_tail = str(getattr(candidate, "__module__", full_name)).rsplit(".", 1)[-1]
                     if (
                         isinstance(candidate, type)
                         and issubclass(candidate, toolkit_base)
                         and candidate is not toolkit_base
-                        and _toolkit_identifier_matches(
-                            toolkit_id,
-                            candidate.__name__,
-                            attr_name,
-                            submodule_name,
-                            module_tail,
-                        )
+                        and candidate.__name__ == toolkit_id
                     ):
                         found_class = candidate
                         break
@@ -1937,11 +1863,7 @@ def get_toolkit_metadata(
                     isinstance(candidate, type)
                     and issubclass(candidate, toolkit_base)
                     and candidate is not toolkit_base
-                    and _toolkit_identifier_matches(
-                        toolkit_id,
-                        candidate.__name__,
-                        export_name,
-                    )
+                    and candidate.__name__ == toolkit_id
                 ):
                     found_class = candidate
                     break
@@ -1963,9 +1885,8 @@ def get_toolkit_metadata(
 
     toml_data = _read_toolkit_toml(found_class)
     toml_toolkit = toml_data.get("toolkit") or {}
-    toolkit_name = _resolve_toolkit_display_name(
-        str(toml_toolkit.get("name", "")).strip() or found_class.__name__,
-        toolkit_identifier=toolkit_id,
+    toolkit_name = (
+        str(toml_toolkit.get("name", "")).strip() or found_class.__name__
     )
     toolkit_description = (
         str(toml_toolkit.get("description", "")).strip()
@@ -2322,7 +2243,7 @@ def _extract_toolkit_names(options: Dict[str, object] | None) -> list[str]:
     for entry in toolkits:
         if not isinstance(entry, str):
             continue
-        name = _canonicalize_toolkit_identifier(entry) or entry.strip()
+        name = entry.strip()
         if not name or name in seen:
             continue
         seen.add(name)
@@ -2664,12 +2585,7 @@ def _attach_selected_toolkits(agent: Any, options: Dict[str, object] | None = No
         if toolkit_name == "builtin_toolkit":
             continue
 
-        toolkit_factory = None
-        for lookup_name in _toolkit_runtime_lookup_candidates(toolkit_name):
-            candidate = getattr(miso_module, lookup_name, None)
-            if callable(candidate):
-                toolkit_factory = candidate
-                break
+        toolkit_factory = getattr(miso_module, toolkit_name, None)
         if not callable(toolkit_factory):
             raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
 

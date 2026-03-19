@@ -1,0 +1,157 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background gradient: deep indigo → vibrant purple -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4338CA"/>
+      <stop offset="55%" stop-color="#6D28D9"/>
+      <stop offset="100%" stop-color="#9333EA"/>
+    </linearGradient>
+
+    <!-- Cursor fill: white → ice blue -->
+    <linearGradient id="cursorFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E0E7FF"/>
+    </linearGradient>
+
+    <!-- Bubble fill: frosted glass white -->
+    <linearGradient id="bubbleFill" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.97"/>
+      <stop offset="100%" stop-color="#DDD6FE" stop-opacity="0.88"/>
+    </linearGradient>
+
+    <!-- Contact point radial glow -->
+    <radialGradient id="contactGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="30%" stop-color="#A5B4FC" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#6D28D9" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Top-left glass shine -->
+    <radialGradient id="topShine" cx="32%" cy="10%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.14"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Bottom ambient light -->
+    <radialGradient id="bottomAmbient" cx="60%" cy="95%" r="50%">
+      <stop offset="0%" stop-color="#7C3AED" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Element drop shadow -->
+    <filter id="elShadow">
+      <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#1E1B4B" flood-opacity="0.28"/>
+    </filter>
+
+    <!-- Soft glow bloom -->
+    <filter id="glowBloom" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Subtle inner shadow for squircle depth -->
+    <filter id="innerDepth" x="-2%" y="-2%" width="104%" height="104%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#312E81" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!--  macOS SQUIRCLE BACKGROUND                       -->
+  <!-- ════════════════════════════════════════════════ -->
+  <rect x="16" y="16" width="480" height="480" rx="112" ry="112" fill="url(#bgGrad)"/>
+  <!-- Glass shine overlay -->
+  <rect x="16" y="16" width="480" height="480" rx="112" ry="112" fill="url(#topShine)"/>
+  <!-- Bottom ambient -->
+  <rect x="16" y="16" width="480" height="480" rx="112" ry="112" fill="url(#bottomAmbient)"/>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!--  AI SPEECH BUBBLE  (upper-right quadrant)        -->
+  <!-- ════════════════════════════════════════════════ -->
+  <g transform="translate(238, 58)" filter="url(#elShadow)">
+    <!-- Bubble body with downward-left tail -->
+    <path d="
+      M 24 0
+      H 176
+      C 193 0, 200 7, 200 24
+      V 106
+      C 200 123, 193 130, 176 130
+      H 92
+      L 64 164
+      L 60 130
+      H 24
+      C 7 130, 0 123, 0 106
+      V 24
+      C 0 7, 7 0, 24 0
+      Z"
+      fill="url(#bubbleFill)"/>
+
+    <!-- ✦ Main AI sparkle star -->
+    <path d="M100 20 L108 52 L140 60 L108 68 L100 100 L92 68 L60 60 L92 52 Z"
+          fill="#6D28D9" opacity="0.85"/>
+
+    <!-- ✦ Secondary sparkle (smaller, upper-right) -->
+    <path d="M156 26 L159 40 L173 43 L159 46 L156 60 L153 46 L139 43 L153 40 Z"
+          fill="#8B5CF6" opacity="0.62"/>
+
+    <!-- ✦ Tertiary sparkle (tiny, lower-left) -->
+    <path d="M52 86 L54 96 L64 98 L54 100 L52 110 L50 100 L40 98 L50 96 Z"
+          fill="#A78BFA" opacity="0.52"/>
+
+    <!-- Accent dots -->
+    <circle cx="164" cy="80" r="3.2" fill="#A78BFA" opacity="0.42"/>
+    <circle cx="46" cy="38" r="2.6" fill="#C4B5FD" opacity="0.38"/>
+    <circle cx="140" cy="105" r="2"  fill="#DDD6FE" opacity="0.3"/>
+  </g>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!--  USER CURSOR  (lower-left quadrant)              -->
+  <!-- ════════════════════════════════════════════════ -->
+  <g transform="translate(108, 205) scale(2.65)" filter="url(#elShadow)">
+    <!-- Classic arrow pointer -->
+    <path d="
+      M 0  0
+      L 0  76
+      L 20 60
+      L 34 90
+      L 48 82
+      L 34 52
+      L 56 52
+      Z"
+      fill="url(#cursorFill)"
+      stroke="#94A3B8"
+      stroke-width="1.2"
+      stroke-linejoin="round"/>
+  </g>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!--  INTERACTION ENERGY ZONE  (center meeting point) -->
+  <!-- ════════════════════════════════════════════════ -->
+
+  <!-- Central glow orb -->
+  <circle cx="268" cy="238" r="34" fill="url(#contactGlow)" filter="url(#glowBloom)"/>
+
+  <!-- Ripple rings expanding from contact -->
+  <circle cx="268" cy="238" r="13" fill="none" stroke="#FFFFFF" stroke-width="2.2" opacity="0.55"/>
+  <circle cx="268" cy="238" r="23" fill="none" stroke="#FFFFFF" stroke-width="1.5" opacity="0.33"/>
+  <circle cx="268" cy="238" r="36" fill="none" stroke="#FFFFFF" stroke-width="1.0" opacity="0.16"/>
+  <circle cx="268" cy="238" r="50" fill="none" stroke="#FFFFFF" stroke-width="0.7" opacity="0.08"/>
+
+  <!-- Tiny energy particles scattered around contact -->
+  <circle cx="244" cy="216" r="3.2" fill="#FFFFFF" opacity="0.65"/>
+  <circle cx="292" cy="228" r="2.6" fill="#FFFFFF" opacity="0.50"/>
+  <circle cx="256" cy="264" r="2.8" fill="#E0E7FF" opacity="0.55"/>
+  <circle cx="284" cy="258" r="2.0" fill="#FFFFFF" opacity="0.40"/>
+  <circle cx="246" cy="252" r="2.0" fill="#C4B5FD" opacity="0.48"/>
+  <circle cx="294" cy="214" r="2.2" fill="#E0E7FF" opacity="0.36"/>
+  <circle cx="230" cy="238" r="1.8" fill="#FFFFFF" opacity="0.30"/>
+  <circle cx="276" cy="206" r="2.4" fill="#FFFFFF" opacity="0.38"/>
+
+  <!-- ════════════════════════════════════════════════ -->
+  <!--  SQUIRCLE BORDER  (subtle definition)            -->
+  <!-- ════════════════════════════════════════════════ -->
+  <rect x="16" y="16" width="480" height="480" rx="112" ry="112"
+        fill="none" stroke="#1E1B4B" stroke-width="1" opacity="0.1"/>
+</svg>

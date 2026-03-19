@@ -1177,46 +1177,6 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertTrue(toolkit_instance.tools["terminal_exec"].requires_confirmation)
         self.assertFalse(toolkit_instance.tools["read_file"].requires_confirmation)
 
-    def test_create_agent_attaches_ask_user_toolkit_via_legacy_interaction_export(self) -> None:
-        class FakeAgent:
-            def __init__(self):
-                self.toolkits = []
-                self.provider = ""
-                self.model = ""
-                self.max_iterations = 0
-
-            def add_toolkit(self, toolkit):
-                self.toolkits.append(toolkit)
-
-        captured = {"called": False}
-
-        def fake_interaction_toolkit():
-            captured["called"] = True
-            return {"toolkit": "interaction_toolkit"}
-
-        with mock.patch.object(
-            miso_adapter,
-            "_BROTH_CLASS",
-            FakeAgent,
-        ), mock.patch.object(
-            miso_adapter,
-            "_IMPORT_ERROR",
-            None,
-        ), mock.patch.object(
-            miso_adapter.importlib,
-            "import_module",
-            return_value=SimpleNamespace(interaction_toolkit=fake_interaction_toolkit),
-        ):
-            agent = miso_adapter._create_agent(
-                {
-                    "modelId": "ollama:llama3",
-                    "toolkits": ["ask_user_toolkit"],
-                }
-            )
-
-        self.assertTrue(captured["called"])
-        self.assertEqual(agent.toolkits, [{"toolkit": "interaction_toolkit"}])
-
     def test_create_agent_rejects_invalid_workspace_root(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -1734,22 +1694,6 @@ requires_confirmation = false
         setattr(toolkit_module, "DemoToolkit", toolkit_class)
         return toolkit_base, module_name, toolkit_module
 
-    def _build_interaction_toolkit_fixture(self):
-        toolkit_base = type("FakeToolkitBase", (), {})
-        module_name = "miso.builtin_toolkits.interaction_toolkit"
-        toolkit_module = ModuleType(module_name)
-        toolkit_module.__file__ = str(Path(tempfile.mkdtemp()) / "runtime.py")
-        toolkit_class = type(
-            "interaction_toolkit",
-            (toolkit_base,),
-            {
-                "__module__": module_name,
-                "__doc__": "Toolkit for inline user questions.",
-            },
-        )
-        setattr(toolkit_module, "interaction_toolkit", toolkit_class)
-        return toolkit_base, module_name, toolkit_module
-
     def _build_import_side_effect(
         self,
         *,
@@ -1809,82 +1753,6 @@ requires_confirmation = false
             },
         )
         self.assertEqual(entry["tools"][0]["icon"], entry["toolkitIcon"])
-
-    def test_get_toolkit_catalog_renames_interaction_toolkit_to_ask_user_toolkit(self) -> None:
-        toolkit_base, module_name, toolkit_module = self._build_interaction_toolkit_fixture()
-
-        with mock.patch.object(
-            miso_adapter,
-            "_resolve_toolkit_base",
-            return_value=toolkit_base,
-        ), mock.patch.object(
-            miso_adapter.importlib,
-            "import_module",
-            side_effect=self._build_import_side_effect(
-                module_name=module_name,
-                toolkit_module=toolkit_module,
-            ),
-        ), mock.patch.object(
-            miso_adapter.pkgutil,
-            "iter_modules",
-            return_value=[(None, "interaction_toolkit", True)],
-        ):
-            payload = miso_adapter.get_toolkit_catalog()
-
-        self.assertEqual(payload["count"], 1)
-        entry = payload["toolkits"][0]
-        self.assertEqual(entry["name"], "ask_user_toolkit")
-        self.assertEqual(entry["class_name"], "ask_user_toolkit")
-
-    def test_get_toolkit_catalog_v2_renames_interaction_toolkit_to_ask_user_toolkit(self) -> None:
-        toolkit_base, module_name, toolkit_module = self._build_interaction_toolkit_fixture()
-
-        with mock.patch.object(
-            miso_adapter,
-            "_resolve_toolkit_base",
-            return_value=toolkit_base,
-        ), mock.patch.object(
-            miso_adapter.importlib,
-            "import_module",
-            side_effect=self._build_import_side_effect(
-                module_name=module_name,
-                toolkit_module=toolkit_module,
-            ),
-        ), mock.patch.object(
-            miso_adapter.pkgutil,
-            "iter_modules",
-            return_value=[(None, "interaction_toolkit", True)],
-        ):
-            payload = miso_adapter.get_toolkit_catalog_v2()
-
-        self.assertEqual(payload["count"], 1)
-        entry = payload["toolkits"][0]
-        self.assertEqual(entry["toolkitId"], "ask_user_toolkit")
-        self.assertEqual(entry["toolkitName"], "Ask User Toolkit")
-
-    def test_get_toolkit_metadata_accepts_ask_user_toolkit_alias(self) -> None:
-        toolkit_base, module_name, toolkit_module = self._build_interaction_toolkit_fixture()
-
-        with mock.patch.object(
-            miso_adapter,
-            "_resolve_toolkit_base",
-            return_value=toolkit_base,
-        ), mock.patch.object(
-            miso_adapter.importlib,
-            "import_module",
-            side_effect=self._build_import_side_effect(
-                module_name=module_name,
-                toolkit_module=toolkit_module,
-            ),
-        ), mock.patch.object(
-            miso_adapter.pkgutil,
-            "iter_modules",
-            return_value=[(None, "interaction_toolkit", True)],
-        ):
-            payload = miso_adapter.get_toolkit_metadata("ask_user_toolkit")
-
-        self.assertEqual(payload["toolkitId"], "ask_user_toolkit")
-        self.assertEqual(payload["toolkitName"], "Ask User Toolkit")
 
     def test_get_toolkit_metadata_returns_file_icon_payload(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
