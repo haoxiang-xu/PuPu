@@ -1,0 +1,70 @@
+name: "Feature request"
+description: "Request a new feature"
+title: "[Feature]: "
+labels: ["new feature", "priority", "must-this-sprint"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: "What do you want to build? Why?"
+      placeholder: "Describe the feature and the problem it solves."
+    validations:
+      required: true
+
+  - type: input
+    id: iteration
+    attributes:
+      label: Iteration
+      description: "User clicks an iteration; if empty, treat as current."
+      placeholder: "current"
+      value: "current"
+    validations:
+      required: false
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      description: "Default is priority."
+      options:
+        - priority
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: sprint
+    attributes:
+      label: Sprint
+      description: "Default is must-this-sprint."
+      options:
+        - must-this-sprint
+      default: 0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: size
+    attributes:
+      label: Size
+      description: "Default is xs."
+      options:
+        - xs
+        - s
+        - m
+        - l
+        - xl
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: false
