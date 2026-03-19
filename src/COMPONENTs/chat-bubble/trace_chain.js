@@ -1,4 +1,4 @@
-import { memo, useState, useContext, useMemo } from "react";
+import { memo, useState, useContext, useMemo, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
@@ -8,6 +8,7 @@ import {
   ASSISTANT_MARKDOWN_FONT_SIZE,
   ASSISTANT_MARKDOWN_LINE_HEIGHT,
 } from "./components/assistant_markdown_metrics";
+import InteractWrapper from "./interact/interact_wrapper";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -218,6 +219,24 @@ const TraceChain = ({
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
 }) => {
+  const handleInteractSubmit = useCallback(
+    (confirmationId, interactType, responseData) => {
+      if (typeof onToolConfirmationDecision !== "function") return;
+      if (interactType === "confirmation") {
+        onToolConfirmationDecision({
+          confirmationId,
+          approved: responseData?.approved ?? false,
+        });
+      } else {
+        onToolConfirmationDecision({
+          confirmationId,
+          approved: true,
+          userResponse: responseData,
+        });
+      }
+    },
+    [onToolConfirmationDecision],
+  );
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
@@ -367,7 +386,9 @@ const TraceChain = ({
         });
       } else if (frame.type === "tool_confirmation_request") {
         const callId =
-          typeof frame.payload?.call_id === "string" ? frame.payload.call_id : "";
+          typeof frame.payload?.call_id === "string"
+            ? frame.payload.call_id
+            : "";
         const toolName =
           typeof frame.payload?.tool_name === "string"
             ? frame.payload.tool_name
@@ -408,7 +429,8 @@ const TraceChain = ({
         const isResolved =
           resolvedDecision === "approved" || resolvedDecision === "denied";
         const isSubmitting =
-          !uiResolved && (uiStatus === "submitting" || uiStatus === "submitted");
+          !uiResolved &&
+          (uiStatus === "submitting" || uiStatus === "submitted");
 
         let statusLabel = "Pending";
         if (resolvedDecision === "approved") {
@@ -463,19 +485,24 @@ const TraceChain = ({
           });
         }
 
-        const actionButtonBaseStyle = {
-          border: "none",
-          borderRadius: 6,
-          padding: "4px 10px",
-          cursor: "pointer",
-          fontSize: 11.5,
-          lineHeight: 1.4,
-          fontFamily: "Menlo, Monaco, Consolas, monospace",
-        };
+        const interactType =
+          typeof frame.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : "confirmation";
+        const interactConfig = frame.payload?.interact_config || {};
+
+        const interactTitle =
+          interactType === "confirmation"
+            ? "Tool Confirmation"
+            : interactType === "multi_choice"
+              ? "Selection"
+              : interactType === "text_input"
+                ? "Input Requested"
+                : "Interaction";
 
         items.push({
           key: `${frame.seq}-tool-confirmation`,
-          title: "Tool Confirmation",
+          title: interactTitle,
           span: spanText,
           status: isResolved ? "done" : "active",
           point: isResolved ? <HammerPoint isDark={isDark} /> : "loading",
@@ -499,48 +526,26 @@ const TraceChain = ({
                 {statusLabel}
               </span>
               {canTakeAction && (
-                <>
-                  <button
-                    onClick={() =>
-                      onToolConfirmationDecision({
-                        confirmationId,
-                        approved: true,
-                      })
-                    }
-                    style={{
-                      ...actionButtonBaseStyle,
-                      color: isDark ? "rgba(209,250,229,0.95)" : "#065f46",
-                      backgroundColor: isDark
-                        ? "rgba(16,185,129,0.22)"
-                        : "rgba(16,185,129,0.16)",
-                    }}
-                  >
-                    Allow
-                  </button>
-                  <button
-                    onClick={() =>
-                      onToolConfirmationDecision({
-                        confirmationId,
-                        approved: false,
-                      })
-                    }
-                    style={{
-                      ...actionButtonBaseStyle,
-                      color: isDark ? "rgba(254,202,202,0.98)" : "#991b1b",
-                      backgroundColor: isDark
-                        ? "rgba(239,68,68,0.2)"
-                        : "rgba(239,68,68,0.14)",
-                    }}
-                  >
-                    Deny
-                  </button>
-                </>
+                <InteractWrapper
+                  type={interactType}
+                  config={interactConfig}
+                  onSubmit={(data) =>
+                    handleInteractSubmit(confirmationId, interactType, data)
+                  }
+                  uiState={confirmationUiState}
+                  isDark={isDark}
+                  disabled={false}
+                />
               )}
             </div>
           ),
           details:
             detailsSections.length > 0 ? (
-              <KVPanel sections={detailsSections} isDark={isDark} color={color} />
+              <KVPanel
+                sections={detailsSections}
+                isDark={isDark}
+                color={color}
+              />
             ) : undefined,
         });
       } else if (frame.type === "tool_call") {
@@ -601,7 +606,9 @@ const TraceChain = ({
         });
       } else if (frame.type === "final_message") {
         const content =
-          typeof frame.payload?.content === "string" ? frame.payload.content : "";
+          typeof frame.payload?.content === "string"
+            ? frame.payload.content
+            : "";
         if (!content.trim()) continue;
         items.push({
           key: `${frame.seq}-final-message`,
@@ -663,6 +670,7 @@ const TraceChain = ({
     startFrame,
     toolResultByCallId,
     confirmationStatusByCallId,
+    handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,
     isDark,

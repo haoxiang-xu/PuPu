@@ -709,6 +709,7 @@ def _log_memory_recall_debug(
     *,
     session_id: str,
     vector_top_k: int,
+    vector_min_score: float | None,
     vector_recall_status: str,
     vector_recall_count: int,
     vector_fallback_reason: str,
@@ -722,6 +723,7 @@ def _log_memory_recall_debug(
             "[miso:memory] recall "
             f"session_id={session_id!r} "
             f"top_k={vector_top_k} "
+            f"min_score={vector_min_score!r} "
             f"status={vector_recall_status!r} "
             f"count={vector_recall_count} "
             f"query={safe_query!r} "
@@ -768,6 +770,47 @@ def _extract_qdrant_payload(hit: object) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _extract_qdrant_score(hit: object) -> float | None:
+    score = hit.get("score") if isinstance(hit, dict) else getattr(hit, "score", None)
+    if isinstance(score, (int, float)):
+        return float(score)
+    return None
+
+
+def _normalize_optional_threshold(value: object) -> float | None:
+    try:
+        numeric = float(value)
+    except Exception:
+        return None
+    if numeric <= 0:
+        return None
+    if numeric > 1:
+        numeric = 1.0
+    if numeric < 0:
+        numeric = 0.0
+    return round(numeric, 4)
+
+
+def _filter_supported_constructor_kwargs(cls: Any, values: dict[str, Any]) -> dict[str, Any]:
+    try:
+        parameters = inspect.signature(cls).parameters
+    except Exception:
+        return dict(values)
+
+    if any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    ):
+        return dict(values)
+
+    allowed_keys = set(parameters.keys())
+    return {
+        key: value
+        for key, value in values.items()
+        if key in allowed_keys
+    }
+
+
 def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
     similarity_search = getattr(vector_adapter, "similarity_search", None)
     if not callable(similarity_search):
@@ -791,7 +834,8 @@ def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
         session_id: str,
         query: str,
         k: int,
-    ) -> list[str]:
+        min_score: float | None = None,
+    ) -> list[dict[str, Any]]:
         collection = self._collection_name(session_id)
         self._ensure_collection(collection)
         query_vec = self._embed_fn([query])[0]
@@ -836,12 +880,31 @@ def _patch_qdrant_similarity_search_compat(vector_adapter: Any) -> Any:
             )
 
         hits = _extract_qdrant_hits(search_results)
-        recalled: list[str] = []
+        recalled: list[dict[str, Any]] = []
         for hit in hits:
             payload = _extract_qdrant_payload(hit)
+            score = _extract_qdrant_score(hit)
+            if min_score is not None:
+                if score is None or score < float(min_score):
+                    continue
+
+            item: dict[str, Any] = {}
+            messages = payload.get("messages")
+            if isinstance(messages, list):
+                item["messages"] = copy.deepcopy(messages)
             text = payload.get("text")
             if isinstance(text, str) and text.strip():
-                recalled.append(text)
+                item["text"] = text
+            role = payload.get("role")
+            if isinstance(role, str) and role.strip():
+                item["role"] = role.strip().lower()
+            index = payload.get("index")
+            if isinstance(index, int):
+                item["index"] = index
+            if score is not None:
+                item["score"] = score
+            if item:
+                recalled.append(item)
         return recalled
 
     setattr(
@@ -967,9 +1030,13 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
             info = {}
 
         vector_top_k = 0
+        vector_min_score = None
         vector_adapter_enabled = False
         try:
             vector_top_k = max(0, int(getattr(self.config, "vector_top_k", 0) or 0))
+            vector_min_score = _normalize_optional_threshold(
+                getattr(self.config, "vector_min_score", None)
+            )
             vector_adapter_enabled = getattr(self.config, "vector_adapter", None) is not None
         except Exception:
             pass
@@ -1002,6 +1069,7 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
             vector_recall_count = len(recalled_items)
 
         info["vector_top_k"] = vector_top_k
+        info["vector_min_score"] = vector_min_score
         info["vector_adapter_enabled"] = vector_adapter_enabled
         info["vector_recall_count"] = vector_recall_count
         info["vector_recall_status"] = vector_recall_status
@@ -1016,6 +1084,7 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
         _log_memory_recall_debug(
             session_id=session_id,
             vector_top_k=vector_top_k,
+            vector_min_score=vector_min_score,
             vector_recall_status=vector_recall_status,
             vector_recall_count=vector_recall_count,
             vector_fallback_reason=vector_fallback_reason,
@@ -1091,39 +1160,79 @@ def create_memory_manager_with_diagnostics(
         long_term_enabled = bool(options.get("memory_long_term_enabled"))
         long_term_config = None
         if long_term_enabled:
-            long_term_config = LongTermMemoryConfig(
-                vector_adapter=QdrantLongTermVectorAdapter(
-                    client=qdrant_client,
-                    embed_fn=embed_fn,
-                    vector_size=vector_size,
-                    collection_prefix=_long_term_collection_prefix(
-                        embedding_signature
+            long_term_kwargs = _filter_supported_constructor_kwargs(
+                LongTermMemoryConfig,
+                {
+                    "vector_adapter": QdrantLongTermVectorAdapter(
+                        client=qdrant_client,
+                        embed_fn=embed_fn,
+                        vector_size=vector_size,
+                        collection_prefix=_long_term_collection_prefix(
+                            embedding_signature
+                        ),
                     ),
-                ),
-                profile_base_dir=_long_term_profiles_dir(data_dir),
-                vector_top_k=max(0, int(options.get("memory_long_term_vector_top_k") or 4)),
-                episode_top_k=max(0, int(options.get("memory_long_term_episode_top_k") or 2)),
-                playbook_top_k=max(0, int(options.get("memory_long_term_playbook_top_k") or 2)),
-                max_fact_items=max(0, int(options.get("memory_long_term_max_fact_items") or 6)),
-                max_episode_items=max(0, int(options.get("memory_long_term_max_episode_items") or 3)),
-                max_playbook_items=max(0, int(options.get("memory_long_term_max_playbook_items") or 2)),
-                extract_every_n_turns=max(
-                    1,
-                    int(options.get("memory_long_term_extract_every_n_turns") or 6),
-                ),
-                embedding_model=str(embed_config.get("model", "") or ""),
+                    "profile_base_dir": _long_term_profiles_dir(data_dir),
+                    "vector_top_k": max(
+                        0,
+                        int(options.get("memory_long_term_vector_top_k") or 4),
+                    ),
+                    "vector_min_score": _normalize_optional_threshold(
+                        options.get("memory_long_term_vector_min_score")
+                    ),
+                    "episode_top_k": max(
+                        0,
+                        int(options.get("memory_long_term_episode_top_k") or 2),
+                    ),
+                    "episode_min_score": _normalize_optional_threshold(
+                        options.get("memory_long_term_episode_min_score")
+                    ),
+                    "playbook_top_k": max(
+                        0,
+                        int(options.get("memory_long_term_playbook_top_k") or 2),
+                    ),
+                    "playbook_min_score": _normalize_optional_threshold(
+                        options.get("memory_long_term_playbook_min_score")
+                    ),
+                    "max_fact_items": max(
+                        0,
+                        int(options.get("memory_long_term_max_fact_items") or 6),
+                    ),
+                    "max_episode_items": max(
+                        0,
+                        int(options.get("memory_long_term_max_episode_items") or 3),
+                    ),
+                    "max_playbook_items": max(
+                        0,
+                        int(options.get("memory_long_term_max_playbook_items") or 2),
+                    ),
+                    "extract_every_n_turns": max(
+                        1,
+                        int(options.get("memory_long_term_extract_every_n_turns") or 6),
+                    ),
+                    "embedding_model": str(embed_config.get("model", "") or ""),
+                },
             )
+            long_term_config = LongTermMemoryConfig(**long_term_kwargs)
 
         last_n = max(1, int(options.get("memory_last_n_turns") or 8))
         top_k = max(0, int(options.get("memory_vector_top_k") or 4))
+        short_term_min_score = _normalize_optional_threshold(
+            options.get("memory_vector_min_score")
+        )
+
+        memory_config_kwargs = _filter_supported_constructor_kwargs(
+            MemoryConfig,
+            {
+                "last_n_turns": last_n,
+                "vector_top_k": top_k,
+                "vector_min_score": short_term_min_score,
+                "vector_adapter": vector_adapter,
+                "long_term": long_term_config,
+            },
+        )
 
         manager = MemoryManager(
-            config=MemoryConfig(
-                last_n_turns=last_n,
-                vector_top_k=top_k,
-                vector_adapter=vector_adapter,
-                long_term=long_term_config,
-            ),
+            config=MemoryConfig(**memory_config_kwargs),
             store=store,
         )
         manager = _patch_memory_prepare_with_diagnostics(manager)

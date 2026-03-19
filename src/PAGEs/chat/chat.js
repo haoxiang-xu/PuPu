@@ -967,7 +967,7 @@ const ChatInterface = () => {
   );
 
   const handleToolConfirmationDecision = useCallback(
-    async ({ confirmationId, approved }) => {
+    async ({ confirmationId, approved, userResponse }) => {
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!normalizedConfirmationId) {
@@ -992,11 +992,15 @@ const ChatInterface = () => {
       }));
 
       try {
-        await api.miso.respondToolConfirmation({
+        const payload = {
           confirmation_id: normalizedConfirmationId,
           approved: Boolean(approved),
           reason: "",
-        });
+        };
+        if (userResponse !== undefined && userResponse !== null) {
+          payload.modified_arguments = { user_response: userResponse };
+        }
+        await api.miso.respondToolConfirmation(payload);
         if (
           confirmationFollowupSignalByIdRef.current.get(
             normalizedConfirmationId,

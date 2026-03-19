@@ -15,6 +15,19 @@ const formatTokenCount = (n) => {
   return String(n);
 };
 
+/* Derive a common unit from the y-axis ceiling so ticks show clean numbers
+   and the suffix appears once as a label. */
+const deriveYAxisUnit = (niceMax) => {
+  if (niceMax >= 1_000_000) return { suffix: "M", divisor: 1_000_000 };
+  if (niceMax >= 1_000) return { suffix: "k", divisor: 1_000 };
+  return { suffix: "", divisor: 1 };
+};
+
+const formatYTick = (val, divisor) => {
+  const scaled = val / divisor;
+  return scaled % 1 === 0 ? String(scaled) : scaled.toFixed(1);
+};
+
 export const BarChart = ({
   data = [],
   height = DEFAULT_HEIGHT,
@@ -35,6 +48,7 @@ export const BarChart = ({
 
   const maxValue = data.reduce((m, d) => Math.max(m, d.value), 0) || 1;
   const niceMax = niceRound(maxValue);
+  const { suffix: yUnit, divisor: yDivisor } = deriveYAxisUnit(niceMax);
 
   const gridLines = Array.from({ length: Y_GRID_LINES + 1 }, (_, i) =>
     Math.round((niceMax / Y_GRID_LINES) * i),
@@ -84,6 +98,21 @@ export const BarChart = ({
           height: "100%",
         }}
       >
+        {yUnit && (
+          <span
+            style={{
+              position: "absolute",
+              right: 4,
+              top: -2,
+              fontSize: 9,
+              color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+              lineHeight: "12px",
+              fontStyle: "italic",
+            }}
+          >
+            {yUnit}
+          </span>
+        )}
         {gridLines.map((val, i) => {
           const pct = (val / niceMax) * 100;
           return (
@@ -98,7 +127,7 @@ export const BarChart = ({
                 lineHeight: "12px",
               }}
             >
-              {valueFormatter(val)}
+              {formatYTick(val, yDivisor)}
             </span>
           );
         })}
@@ -140,7 +169,7 @@ export const BarChart = ({
           style={{
             flex: 1,
             display: "flex",
-            alignItems: "flex-end",
+            alignItems: "stretch",
             gap: data.length > 20 ? 2 : data.length > 10 ? 4 : 6,
             padding: "0 4px",
             position: "relative",
@@ -158,6 +187,7 @@ export const BarChart = ({
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
+                  justifyContent: "flex-end",
                   position: "relative",
                   cursor: "default",
                 }}

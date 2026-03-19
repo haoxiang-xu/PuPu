@@ -10,8 +10,10 @@ import {
   withTimeout,
 } from "./api.shared";
 import { readWorkspaces } from "../COMPONENTs/settings/runtime";
+import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
+const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
 const SYSTEM_PROMPT_V2_SECTION_LIMIT = 2000;
 const SYSTEM_PROMPT_V2_SECTION_KEYS = [
   "personality",
@@ -21,16 +23,6 @@ const SYSTEM_PROMPT_V2_SECTION_KEYS = [
   "context",
   "constraints",
 ];
-const DEFAULT_MEMORY_SETTINGS = {
-  enabled: true,
-  long_term_enabled: true,
-  long_term_extract_every_n_turns: 6,
-  embedding_provider: "auto",
-  ollama_embedding_model: "nomic-embed-text",
-  openai_embedding_model: "text-embedding-3-small",
-  last_n_turns: 8,
-  vector_top_k: 4,
-};
 const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
 const normalizeSystemPromptV2SectionKey = (rawKey) => {
   if (typeof rawKey !== "string") {
@@ -235,20 +227,44 @@ const getStoredWorkspaceRoot = () => {
   return typeof workspaceRoot === "string" ? workspaceRoot.trim() : "";
 };
 
-const readMemorySettingsFromStorage = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return { ...DEFAULT_MEMORY_SETTINGS };
+const clampIntegerOption = (
+  value,
+  fallback,
+  { min = 0, max = Number.MAX_SAFE_INTEGER } = {},
+) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
   }
-  try {
-    const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
-    const storedMemory = isObject(root?.memory) ? root.memory : {};
-    return {
-      ...DEFAULT_MEMORY_SETTINGS,
-      ...storedMemory,
-    };
-  } catch (_error) {
-    return { ...DEFAULT_MEMORY_SETTINGS };
+  return Math.min(max, Math.max(min, Math.floor(numeric)));
+};
+const clampThresholdOption = (value, fallback = 0) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
   }
+  const clamped = Math.min(1, Math.max(0, numeric));
+  return Number(clamped.toFixed(2));
+};
+const toRuntimeThresholdOption = (value, fallback = 0) => {
+  const normalized = clampThresholdOption(value, fallback);
+  return normalized > 0 ? normalized : null;
+};
+const resolveMemoryEmbeddingProvider = (value, fallback) => {
+  const normalized =
+    typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (MEMORY_EMBEDDING_PROVIDERS.has(normalized)) {
+    return normalized;
+  }
+  return MEMORY_EMBEDDING_PROVIDERS.has(fallback) ? fallback : "auto";
+};
+const resolveMemoryEmbeddingModel = (provider, explicitValue, memory) => {
+  if (typeof explicitValue === "string" && explicitValue.trim()) {
+    return explicitValue.trim();
+  }
+  return provider === "ollama"
+    ? memory.ollama_embedding_model || "nomic-embed-text"
+    : memory.openai_embedding_model || "text-embedding-3-small";
 };
 
 const injectOpenAIEmbeddingKeyIfNeeded = (options) => {
@@ -290,63 +306,83 @@ const injectMemoryIntoPayload = (payload) => {
     return payload;
   }
   const currentOptions = isObject(payload.options) ? payload.options : {};
-  if (typeof currentOptions.memory_enabled === "boolean") {
-    if (currentOptions.memory_enabled !== true) {
-      return payload;
-    }
-    const memory = readMemorySettingsFromStorage();
-    const optionsWithLongTerm = {
-      ...currentOptions,
-      memory_namespace:
-        typeof currentOptions.memory_namespace === "string" &&
-        currentOptions.memory_namespace.trim()
-          ? currentOptions.memory_namespace.trim()
-          : DEFAULT_LONG_TERM_MEMORY_NAMESPACE,
-      memory_long_term_enabled:
-        typeof currentOptions.memory_long_term_enabled === "boolean"
-          ? currentOptions.memory_long_term_enabled
-          : memory.long_term_enabled !== false,
-      memory_long_term_extract_every_n_turns: Number.isFinite(
-        Number(currentOptions.memory_long_term_extract_every_n_turns),
-      )
-        ? Math.max(
-            1,
-            Math.floor(
-              Number(currentOptions.memory_long_term_extract_every_n_turns),
-            ),
-          )
-        : Math.max(
-            1,
-            Math.floor(Number(memory.long_term_extract_every_n_turns) || 6),
-          ),
-    };
-    return {
-      ...payload,
-      options: injectOpenAIEmbeddingKeyIfNeeded(optionsWithLongTerm),
-    };
-  }
+  const memory = readMemorySettings();
+  const memoryRequested =
+    currentOptions.memory_enabled === true ||
+    (typeof currentOptions.memory_enabled !== "boolean" && memory.enabled);
 
-  const memory = readMemorySettingsFromStorage();
-  if (!memory.enabled) {
+  if (!memoryRequested) {
     return payload;
   }
 
+  const embeddingProvider = resolveMemoryEmbeddingProvider(
+    currentOptions.memory_embedding_provider,
+    memory.embedding_provider || "auto",
+  );
   const optionsWithMemory = {
     ...currentOptions,
     memory_enabled: true,
-    memory_namespace: DEFAULT_LONG_TERM_MEMORY_NAMESPACE,
+    memory_namespace:
+      typeof currentOptions.memory_namespace === "string" &&
+      currentOptions.memory_namespace.trim()
+        ? currentOptions.memory_namespace.trim()
+        : DEFAULT_LONG_TERM_MEMORY_NAMESPACE,
     memory_long_term_enabled: memory.long_term_enabled !== false,
-    memory_long_term_extract_every_n_turns: Math.max(
-      1,
-      Math.floor(Number(memory.long_term_extract_every_n_turns) || 6),
+    ...(typeof currentOptions.memory_long_term_enabled === "boolean" && {
+      memory_long_term_enabled: currentOptions.memory_long_term_enabled,
+    }),
+    memory_long_term_extract_every_n_turns: clampIntegerOption(
+      currentOptions.memory_long_term_extract_every_n_turns,
+      memory.long_term_extract_every_n_turns ?? 6,
+      { min: 1, max: 20 },
     ),
-    memory_embedding_provider: memory.embedding_provider || "auto",
-    memory_embedding_model:
-      memory.embedding_provider === "ollama"
-        ? memory.ollama_embedding_model || "nomic-embed-text"
-        : memory.openai_embedding_model || "text-embedding-3-small",
-    memory_last_n_turns: memory.last_n_turns ?? 8,
-    memory_vector_top_k: memory.vector_top_k ?? 4,
+    memory_embedding_provider: embeddingProvider,
+    memory_embedding_model: resolveMemoryEmbeddingModel(
+      embeddingProvider,
+      currentOptions.memory_embedding_model,
+      memory,
+    ),
+    memory_last_n_turns: clampIntegerOption(
+      currentOptions.memory_last_n_turns,
+      memory.last_n_turns ?? 8,
+      { min: 1, max: 20 },
+    ),
+    memory_vector_top_k: clampIntegerOption(
+      currentOptions.memory_vector_top_k,
+      memory.vector_top_k ?? 4,
+      { min: 0, max: 10 },
+    ),
+    memory_vector_min_score: toRuntimeThresholdOption(
+      currentOptions.memory_vector_min_score,
+      memory.vector_min_score ?? 0,
+    ),
+    memory_long_term_vector_top_k: clampIntegerOption(
+      currentOptions.memory_long_term_vector_top_k,
+      memory.long_term_vector_top_k ?? 4,
+      { min: 0, max: 10 },
+    ),
+    memory_long_term_vector_min_score: toRuntimeThresholdOption(
+      currentOptions.memory_long_term_vector_min_score,
+      memory.long_term_vector_min_score ?? 0,
+    ),
+    memory_long_term_episode_top_k: clampIntegerOption(
+      currentOptions.memory_long_term_episode_top_k,
+      memory.long_term_episode_top_k ?? 2,
+      { min: 0, max: 10 },
+    ),
+    memory_long_term_episode_min_score: toRuntimeThresholdOption(
+      currentOptions.memory_long_term_episode_min_score,
+      memory.long_term_episode_min_score ?? 0,
+    ),
+    memory_long_term_playbook_top_k: clampIntegerOption(
+      currentOptions.memory_long_term_playbook_top_k,
+      memory.long_term_playbook_top_k ?? 2,
+      { min: 0, max: 10 },
+    ),
+    memory_long_term_playbook_min_score: toRuntimeThresholdOption(
+      currentOptions.memory_long_term_playbook_min_score,
+      memory.long_term_playbook_min_score ?? 0,
+    ),
   };
 
   return {

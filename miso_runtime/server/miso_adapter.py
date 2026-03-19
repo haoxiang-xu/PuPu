@@ -166,6 +166,14 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     description = payload.get("description", "")
     payload["description"] = description if isinstance(description, str) else str(description or "")
 
+    # ── interact extension ──────────────────────────────────────────────
+    # interact_type: "confirmation" (default) | "multi_choice" | "text_input"
+    interact_type = payload.get("interact_type", "confirmation")
+    payload["interact_type"] = interact_type if isinstance(interact_type, str) else "confirmation"
+
+    interact_config = payload.get("interact_config")
+    payload["interact_config"] = interact_config if isinstance(interact_config, dict) else {}
+
     return payload
 
 

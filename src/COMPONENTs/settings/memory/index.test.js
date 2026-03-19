@@ -156,4 +156,28 @@ describe("MemorySettings OpenAI embedding selector", () => {
     renderMemorySettings();
     expect(screen.getByText("No embedding models available.")).toBeInTheDocument();
   });
+
+  test("renders persisted recall top-k and threshold settings", () => {
+    setMemorySettings({
+      vector_top_k: 6,
+      vector_min_score: 0.45,
+      long_term_vector_top_k: 5,
+      long_term_vector_min_score: 0.65,
+      long_term_episode_top_k: 3,
+      long_term_episode_min_score: 0,
+      long_term_playbook_top_k: 2,
+      long_term_playbook_min_score: 0.8,
+    });
+
+    renderMemorySettings();
+
+    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
+    expect(screen.getByText("Recall threshold — 0.45")).toBeInTheDocument();
+    expect(screen.getByText("Facts top K — 5")).toBeInTheDocument();
+    expect(screen.getByText("Facts threshold — 0.65")).toBeInTheDocument();
+    expect(screen.getByText("Episodes top K — 3")).toBeInTheDocument();
+    expect(screen.getByText("Episodes threshold — Off")).toBeInTheDocument();
+    expect(screen.getByText("Playbooks top K — 2")).toBeInTheDocument();
+    expect(screen.getByText("Playbooks threshold — 0.80")).toBeInTheDocument();
+  });
 });

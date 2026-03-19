@@ -470,6 +470,13 @@ class MemoryFactoryTests(unittest.TestCase):
                     "memory_enabled": True,
                     "memory_long_term_enabled": True,
                     "memory_long_term_extract_every_n_turns": 7,
+                    "memory_vector_min_score": 0.41,
+                    "memory_long_term_vector_top_k": 5,
+                    "memory_long_term_vector_min_score": 0.62,
+                    "memory_long_term_episode_top_k": 4,
+                    "memory_long_term_episode_min_score": 0.71,
+                    "memory_long_term_playbook_top_k": 3,
+                    "memory_long_term_playbook_min_score": 0.83,
                     "memory_embedding_provider": "openai",
                     "memory_embedding_model": "text-embedding-3-small",
                     "openaiApiKey": "openai-key-123",
@@ -479,8 +486,15 @@ class MemoryFactoryTests(unittest.TestCase):
 
         self.assertEqual(reason, "")
         self.assertIsNotNone(manager)
+        self.assertEqual(manager.config.vector_min_score, 0.41)
         self.assertIsNotNone(manager.config.long_term)
         self.assertEqual(manager.config.long_term.extract_every_n_turns, 7)
+        self.assertEqual(manager.config.long_term.vector_top_k, 5)
+        self.assertEqual(manager.config.long_term.vector_min_score, 0.62)
+        self.assertEqual(manager.config.long_term.episode_top_k, 4)
+        self.assertEqual(manager.config.long_term.episode_min_score, 0.71)
+        self.assertEqual(manager.config.long_term.playbook_top_k, 3)
+        self.assertEqual(manager.config.long_term.playbook_min_score, 0.83)
         self.assertEqual(
             manager.config.long_term.profile_base_dir,
             os.path.realpath(os.path.join(data_dir, "memory", "long_term_profiles")),
@@ -1411,8 +1425,8 @@ class MemoryFactoryTests(unittest.TestCase):
                 self.calls.append(kwargs)
                 return types.SimpleNamespace(
                     points=[
-                        types.SimpleNamespace(payload={"text": "alpha"}),
-                        types.SimpleNamespace(payload={"text": "beta"}),
+                        types.SimpleNamespace(payload={"text": "alpha"}, score=0.31),
+                        types.SimpleNamespace(payload={"text": "beta"}, score=0.82),
                     ]
                 )
 
@@ -1428,8 +1442,15 @@ class MemoryFactoryTests(unittest.TestCase):
             def _ensure_collection(self, name: str) -> None:
                 self._ensured.append(name)
 
-            def similarity_search(self, *, session_id: str, query: str, k: int):
-                del session_id, query, k
+            def similarity_search(
+                self,
+                *,
+                session_id: str,
+                query: str,
+                k: int,
+                min_score: float | None = None,
+            ):
+                del session_id, query, k, min_score
                 raise AssertionError("Expected compatibility patch to replace this method")
 
         adapter = FakeVectorAdapter()
@@ -1439,9 +1460,10 @@ class MemoryFactoryTests(unittest.TestCase):
             session_id="chat-123",
             query="why not 18.00",
             k=3,
+            min_score=0.5,
         )
 
-        self.assertEqual(recalled, ["alpha", "beta"])
+        self.assertEqual(recalled, [{"text": "beta", "score": 0.82}])
         self.assertEqual(adapter._ensured, ["chat_chat-123"])
         self.assertEqual(len(adapter._client.calls), 1)
         self.assertEqual(adapter._client.calls[0]["collection_name"], "chat_chat-123")
