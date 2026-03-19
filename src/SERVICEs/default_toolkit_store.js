@@ -2,6 +2,23 @@ const STORAGE_KEY = "default_toolkits";
 const MAX_IDS = 100;
 const MAX_ID_LENGTH = 200;
 const SCHEMA_VERSION = 1;
+const TOOLKIT_ID_ALIASES = Object.freeze({
+  interaction_toolkit: "ask_user_toolkit",
+  interactiontoolkit: "ask_user_toolkit",
+  askusertoolkit: "ask_user_toolkit",
+});
+
+export const normalizeToolkitSelectionId = (toolkitId) => {
+  if (typeof toolkitId !== "string") {
+    return "";
+  }
+  const trimmed = toolkitId.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const lookupKey = trimmed.replace(/-/g, "_").toLowerCase();
+  return TOOLKIT_ID_ALIASES[lookupKey] || trimmed;
+};
 
 const readStore = () => {
   if (typeof window === "undefined" || !window.localStorage) {
@@ -37,8 +54,7 @@ const sanitizeIds = (ids) => {
   const seen = new Set();
   const result = [];
   for (const id of ids) {
-    if (typeof id !== "string") continue;
-    const trimmed = id.trim();
+    const trimmed = normalizeToolkitSelectionId(id);
     if (!trimmed || trimmed.length > MAX_ID_LENGTH) continue;
     if (seen.has(trimmed)) continue;
     seen.add(trimmed);
@@ -61,16 +77,21 @@ export const setDefaultToolkitEnabled = (
 ) => {
   const store = readStore();
   const current = sanitizeIds(store.scopes[scopeKey]);
+  const normalizedToolkitId = normalizeToolkitSelectionId(toolkitId);
+
+  if (!normalizedToolkitId) {
+    return current;
+  }
 
   let next;
   if (enabled) {
-    if (current.includes(toolkitId)) {
+    if (current.includes(normalizedToolkitId)) {
       next = current;
     } else {
-      next = [...current, toolkitId];
+      next = [...current, normalizedToolkitId];
     }
   } else {
-    next = current.filter((id) => id !== toolkitId);
+    next = current.filter((id) => id !== normalizedToolkitId);
   }
 
   next = sanitizeIds(next);
@@ -80,7 +101,7 @@ export const setDefaultToolkitEnabled = (
 };
 
 export const removeInvalidToolkitIds = (scopeKey = "global", validIds) => {
-  const validSet = new Set(validIds);
+  const validSet = new Set(sanitizeIds(validIds));
   const store = readStore();
   const current = sanitizeIds(store.scopes[scopeKey]);
   const pruned = current.filter((id) => validSet.has(id));

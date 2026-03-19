@@ -1,4 +1,7 @@
-import { getDefaultToolkitSelection } from "./default_toolkit_store";
+import {
+  getDefaultToolkitSelection,
+  normalizeToolkitSelectionId,
+} from "./default_toolkit_store";
 
 const CHATS_STORAGE_KEY = "chats";
 const CHATS_SCHEMA_VERSION = 2;
@@ -255,11 +258,7 @@ const sanitizeSelectedToolkits = (selectedToolkits) => {
 
   return unique(
     selectedToolkits
-      .map((item) =>
-        typeof item === "string"
-          ? trimText(item.trim(), MAX_TOOLKIT_ID_CHARS)
-          : "",
-      )
+      .map((item) => trimText(normalizeToolkitSelectionId(item), MAX_TOOLKIT_ID_CHARS))
       .filter(Boolean),
   ).slice(0, MAX_SELECTED_TOOLKITS);
 };

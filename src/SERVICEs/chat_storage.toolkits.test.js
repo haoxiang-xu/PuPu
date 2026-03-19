@@ -27,7 +27,15 @@ describe("chat_storage selected toolkits persistence", () => {
 
     setChatSelectedToolkits(
       activeChatId,
-      ["  toolkit.alpha  ", "", "toolkit.alpha", null, "toolkit.beta"],
+      [
+        "  toolkit.alpha  ",
+        "",
+        "toolkit.alpha",
+        null,
+        "toolkit.beta",
+        "interaction_toolkit",
+        "ask_user_toolkit",
+      ],
       { source: "test" },
     );
 
@@ -35,6 +43,20 @@ describe("chat_storage selected toolkits persistence", () => {
     expect(hydrated.chatsById[activeChatId].selectedToolkits).toEqual([
       "toolkit.alpha",
       "toolkit.beta",
+      "ask_user_toolkit",
+    ]);
+  });
+
+  test("hydrates legacy interaction toolkit ids as ask_user_toolkit", () => {
+    const seeded = getChatsStore();
+    const activeChatId = seeded.activeChatId;
+    const legacy = JSON.parse(JSON.stringify(seeded));
+    legacy.chatsById[activeChatId].selectedToolkits = ["interaction_toolkit"];
+    window.localStorage.setItem(chatsStorageConstants.key, JSON.stringify(legacy));
+
+    const hydrated = getChatsStore();
+    expect(hydrated.chatsById[activeChatId].selectedToolkits).toEqual([
+      "ask_user_toolkit",
     ]);
   });
 
