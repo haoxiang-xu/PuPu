@@ -71,7 +71,7 @@ _SYSTEM_PROMPT_V2_SECTION_ALIASES = {
 _SYSTEM_PROMPT_V2_BUILTIN_RULES = [
     "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
     "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
-    "If you need user confirmation or missing information and the ask user toolkit is available, use it to ask the user inline instead of forcing an unnecessary conversation split.",
+    "If you need user confirmation or missing information and the ask user question toolkit is available, use it to ask the user inline instead of forcing an unnecessary conversation split.",
 ]
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
@@ -155,7 +155,7 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
             "description": getattr(request_obj, "description", ""),
         }
 
-    payload["type"] = "tool_confirmation_request"
+    payload["type"] = "tool_call"
 
     if not isinstance(payload.get("tool_name"), str):
         payload["tool_name"] = str(payload.get("tool_name", "") or "")
@@ -167,6 +167,14 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
 
     description = payload.get("description", "")
     payload["description"] = description if isinstance(description, str) else str(description or "")
+
+    confirmation_id = payload.get("confirmation_id", "")
+    if confirmation_id is None:
+        confirmation_id = ""
+    if not isinstance(confirmation_id, str):
+        confirmation_id = str(confirmation_id or "")
+    payload["confirmation_id"] = confirmation_id.strip()
+    payload["requires_confirmation"] = True
 
     if payload.get("tool_name") == _REQUEST_USER_INPUT_TOOL_NAME:
         try:
@@ -499,7 +507,12 @@ def _make_tool_confirm_callback(
 ):
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
-        confirmation_id = str(_uuid.uuid4())
+        request_payload = _build_tool_confirmation_request_payload(request_obj)
+        suppress_event = bool(request_payload.get("_skip_emit_event"))
+        confirmation_id = str(request_payload.get("confirmation_id", "") or "").strip()
+        if not confirmation_id:
+            confirmation_id = str(_uuid.uuid4())
+        request_payload["confirmation_id"] = confirmation_id
         waiter = {
             "event": threading.Event(),
             "response": None,
@@ -510,9 +523,13 @@ def _make_tool_confirm_callback(
             _pending_confirmations[confirmation_id] = waiter
 
         try:
-            request_payload = _build_tool_confirmation_request_payload(request_obj)
-            request_payload["confirmation_id"] = confirmation_id
-            emit_event(request_payload)
+            if not suppress_event:
+                emit_payload = {
+                    key: value
+                    for key, value in request_payload.items()
+                    if key != "_skip_emit_event"
+                }
+                emit_event(emit_payload)
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
             event = waiter.get("event")
@@ -658,7 +675,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     if not isinstance(broth_cls, type):
         return
 
-    patch_marker = "_pupu_tool_confirmation_contract_patch_v5"
+    patch_marker = "_pupu_tool_confirmation_contract_patch_v6"
     if getattr(broth_cls, patch_marker, False):
         return
 
@@ -725,6 +742,137 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         toolkits: List[Any] | None = None,
     ):
         emitted_confirmation_events: set[tuple[str, bool]] = set()
+        emitted_tool_call_ids: set[str] = set()
+        confirmation_payload_by_call_id: Dict[str, Dict[str, Any]] = {}
+
+        def _merge_tool_call_payload(
+            *,
+            tool_name: object,
+            call_id: object,
+            arguments: object,
+            confirmation_payload: Dict[str, Any] | None = None,
+        ) -> Dict[str, Any]:
+            payload: Dict[str, Any] = {
+                "tool_name": tool_name if isinstance(tool_name, str) else str(tool_name or ""),
+                "call_id": call_id if isinstance(call_id, str) else str(call_id or ""),
+                "arguments": arguments if isinstance(arguments, dict) else {},
+            }
+            if not isinstance(confirmation_payload, dict):
+                return payload
+
+            merged_arguments = confirmation_payload.get("arguments")
+            if isinstance(merged_arguments, dict):
+                payload["arguments"] = merged_arguments
+
+            for key in (
+                "confirmation_id",
+                "requires_confirmation",
+                "description",
+                "interact_type",
+                "interact_config",
+            ):
+                if key in confirmation_payload:
+                    payload[key] = confirmation_payload[key]
+            return payload
+
+        def _callback_with_tool_call_normalization(event: object) -> None:
+            if not callable(callback):
+                return
+            if not isinstance(event, dict):
+                callback(event)
+                return
+            if event.get("type") != "tool_call":
+                callback(event)
+                return
+
+            payload = event.get("payload")
+            normalized_payload = payload if isinstance(payload, dict) else {}
+            call_id = normalized_payload.get("call_id", "")
+            call_id = call_id if isinstance(call_id, str) else str(call_id or "")
+            if call_id and call_id in emitted_tool_call_ids:
+                return
+
+            merged_payload = _merge_tool_call_payload(
+                tool_name=normalized_payload.get("tool_name", ""),
+                call_id=call_id,
+                arguments=normalized_payload.get("arguments", {}),
+                confirmation_payload=confirmation_payload_by_call_id.get(call_id),
+            )
+            if call_id:
+                emitted_tool_call_ids.add(call_id)
+            callback({**event, "payload": merged_payload})
+
+        event_callback = _callback_with_tool_call_normalization if callable(callback) else callback
+
+        def _get_confirmation_payload(
+            tool_call: Any,
+            *,
+            description: str = "",
+        ) -> Dict[str, Any] | None:
+            if on_tool_confirm is None:
+                return None
+
+            call_id = getattr(tool_call, "call_id", "")
+            normalized_call_id = call_id if isinstance(call_id, str) else str(call_id or "")
+            if normalized_call_id and normalized_call_id in confirmation_payload_by_call_id:
+                return confirmation_payload_by_call_id[normalized_call_id]
+
+            tool_name = getattr(tool_call, "name", "")
+            normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
+            if not normalized_tool_name:
+                return None
+
+            if normalized_tool_name == _REQUEST_USER_INPUT_TOOL_NAME:
+                payload = _build_tool_confirmation_request_payload(
+                    {
+                        "tool_name": normalized_tool_name,
+                        "call_id": normalized_call_id,
+                        "arguments": getattr(tool_call, "arguments", {}),
+                    }
+                )
+            else:
+                find_tool_kwargs: Dict[str, Any] = {}
+                if find_tool_supports_toolkits:
+                    find_tool_kwargs["toolkits"] = toolkits
+                tool_obj = self._find_tool(normalized_tool_name, **find_tool_kwargs)
+                if not (
+                    tool_obj is not None
+                    and bool(getattr(tool_obj, "requires_confirmation", False))
+                ):
+                    return None
+                payload = _build_tool_confirmation_request_payload(
+                    {
+                        "tool_name": normalized_tool_name,
+                        "call_id": normalized_call_id,
+                        "arguments": getattr(tool_call, "arguments", {}),
+                        "description": description or str(getattr(tool_obj, "description", "") or ""),
+                    }
+                )
+
+            payload["confirmation_id"] = str(payload.get("confirmation_id", "") or "").strip() or str(
+                _uuid.uuid4()
+            )
+            confirmation_payload_by_call_id[normalized_call_id] = payload
+            return payload
+
+        def _emit_tool_call_event(
+            tool_call: Any,
+            *,
+            confirmation_payload: Dict[str, Any] | None = None,
+        ) -> None:
+            merged_payload = _merge_tool_call_payload(
+                tool_name=getattr(tool_call, "name", ""),
+                call_id=getattr(tool_call, "call_id", ""),
+                arguments=getattr(tool_call, "arguments", {}),
+                confirmation_payload=confirmation_payload,
+            )
+            self._emit(
+                event_callback,
+                "tool_call",
+                run_id,
+                iteration=iteration,
+                **merged_payload,
+            )
 
         def _emit_tool_confirmation_event(
             *,
@@ -766,6 +914,30 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             )
 
         def _on_tool_confirm_with_event(request_obj: object) -> Dict[str, Any]:
+            request_payload = _build_tool_confirmation_request_payload(request_obj)
+            call_id = str(request_payload.get("call_id", "") or "").strip()
+            confirmation_payload = confirmation_payload_by_call_id.get(call_id)
+            if isinstance(confirmation_payload, dict):
+                request_payload["confirmation_id"] = str(
+                    confirmation_payload.get("confirmation_id", "") or ""
+                ).strip()
+                request_payload["requires_confirmation"] = True
+                if isinstance(confirmation_payload.get("arguments"), dict):
+                    request_payload["arguments"] = confirmation_payload["arguments"]
+                if not request_payload.get("description"):
+                    request_payload["description"] = confirmation_payload.get("description", "")
+                if not request_payload.get("interact_type"):
+                    request_payload["interact_type"] = confirmation_payload.get(
+                        "interact_type",
+                        "confirmation",
+                    )
+                if not request_payload.get("interact_config"):
+                    request_payload["interact_config"] = confirmation_payload.get(
+                        "interact_config",
+                        {},
+                    )
+            request_payload["_skip_emit_event"] = True
+
             if on_tool_confirm is None:
                 return {
                     "approved": True,
@@ -773,9 +945,8 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "modified_arguments": None,
                 }
 
-            raw_response = on_tool_confirm(request_obj)
+            raw_response = on_tool_confirm(request_payload)
             response = _normalize_tool_confirmation_response(raw_response)
-            request_payload = _build_tool_confirmation_request_payload(request_obj)
             _emit_tool_confirmation_event(
                 approved=bool(response.get("approved", True)),
                 tool_name=str(request_payload.get("tool_name", "") or ""),
@@ -827,14 +998,10 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             if len(tool_calls) > 1:
                 error_text = "request_user_input must be the only tool call in a turn"
                 for tool_call in tool_calls:
-                    self._emit(
-                        callback,
-                        "tool_call",
-                        run_id,
-                        iteration=iteration,
-                        tool_name=tool_call.name,
-                        call_id=tool_call.call_id,
-                        arguments=tool_call.arguments,
+                    confirmation_payload = _get_confirmation_payload(tool_call)
+                    _emit_tool_call_event(
+                        tool_call,
+                        confirmation_payload=confirmation_payload,
                     )
                     tool_result = {
                         "error": error_text,
@@ -855,25 +1022,13 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 return result_messages, False
 
             tool_call = tool_calls[0]
-            self._emit(
-                callback,
-                "tool_call",
-                run_id,
-                iteration=iteration,
-                tool_name=tool_call.name,
-                call_id=tool_call.call_id,
-                arguments=tool_call.arguments,
-            )
 
             try:
-                request_payload = _build_tool_confirmation_request_payload(
-                    {
-                        "tool_name": getattr(tool_call, "name", ""),
-                        "call_id": getattr(tool_call, "call_id", ""),
-                        "arguments": getattr(tool_call, "arguments", {}),
-                    }
-                )
+                request_payload = _get_confirmation_payload(tool_call)
+                if not isinstance(request_payload, dict):
+                    raise ValueError("request_user_input confirmation payload could not be resolved")
             except Exception as exc:
+                _emit_tool_call_event(tool_call)
                 tool_result = {
                     "error": str(exc),
                     "tool": getattr(tool_call, "name", ""),
@@ -892,6 +1047,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 )
                 return result_messages, False
 
+            _emit_tool_call_event(tool_call, confirmation_payload=request_payload)
             raw_response = _on_tool_confirm_with_event(request_payload)
             response = _normalize_tool_confirmation_response(raw_response)
 
@@ -966,11 +1122,19 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             )
 
         if getattr(self, "provider", "") != "anthropic":
+            if on_tool_confirm is not None:
+                for tool_call in tool_calls:
+                    confirmation_payload = _get_confirmation_payload(tool_call)
+                    if isinstance(confirmation_payload, dict):
+                        _emit_tool_call_event(
+                            tool_call,
+                            confirmation_payload=confirmation_payload,
+                        )
             original_kwargs = {
                 "tool_calls": tool_calls,
                 "run_id": run_id,
                 "iteration": iteration,
-                "callback": callback,
+                "callback": event_callback,
             }
             if original_supports_on_tool_confirm:
                 original_kwargs["on_tool_confirm"] = (
@@ -993,14 +1157,10 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         anthropic_tool_results: List[Dict[str, Any]] = []
 
         for tool_call in tool_calls:
-            self._emit(
-                callback,
-                "tool_call",
-                run_id,
-                iteration=iteration,
-                tool_name=tool_call.name,
-                call_id=tool_call.call_id,
-                arguments=tool_call.arguments,
+            confirmation_payload = _get_confirmation_payload(tool_call)
+            _emit_tool_call_event(
+                tool_call,
+                confirmation_payload=confirmation_payload,
             )
 
             find_tool_kwargs: Dict[str, Any] = {}
@@ -1016,32 +1176,18 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 and bool(getattr(tool_obj, "requires_confirmation", False))
                 and on_tool_confirm is not None
             ):
-                confirmation_request = {
-                    "tool_name": tool_call.name,
-                    "call_id": tool_call.call_id,
-                    "arguments": tool_call.arguments if isinstance(tool_call.arguments, dict) else {},
-                    "description": str(getattr(tool_obj, "description", "") or ""),
-                }
-                raw_response = on_tool_confirm(confirmation_request)
-                response = _normalize_tool_confirmation_response(raw_response)
+                confirmation_request = _get_confirmation_payload(
+                    tool_call,
+                    description=str(getattr(tool_obj, "description", "") or ""),
+                )
+                response = _on_tool_confirm_with_event(confirmation_request or {})
 
                 if not response["approved"]:
                     denied = True
                     deny_reason = str(response.get("reason", "") or "")
-                    _emit_tool_confirmation_event(
-                        approved=False,
-                        tool_name=str(tool_call.name or ""),
-                        call_id=str(tool_call.call_id or ""),
-                        reason=deny_reason,
-                    )
                 else:
                     if response.get("modified_arguments") is not None:
                         effective_arguments = response["modified_arguments"]
-                    _emit_tool_confirmation_event(
-                        approved=True,
-                        tool_name=str(tool_call.name or ""),
-                        call_id=str(tool_call.call_id or ""),
-                    )
 
             if denied:
                 tool_result = {

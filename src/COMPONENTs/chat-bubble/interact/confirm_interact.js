@@ -23,11 +23,12 @@ const ConfirmInteract = ({ onSubmit, isDark, disabled }) => {
   if (disabled) return null;
 
   return (
-    <>
+    <div style={{ display: "flex", gap: 6 }}>
       <button
         onClick={() => onSubmit({ approved: true })}
         style={{
           ...ACTION_BUTTON_BASE,
+          flex: 1,
           color: isDark ? "rgba(209,250,229,0.95)" : "#065f46",
           backgroundColor: isDark
             ? "rgba(16,185,129,0.22)"
@@ -40,6 +41,7 @@ const ConfirmInteract = ({ onSubmit, isDark, disabled }) => {
         onClick={() => onSubmit({ approved: false })}
         style={{
           ...ACTION_BUTTON_BASE,
+          flex: 1,
           color: isDark ? "rgba(254,202,202,0.98)" : "#991b1b",
           backgroundColor: isDark
             ? "rgba(239,68,68,0.2)"
@@ -48,7 +50,7 @@ const ConfirmInteract = ({ onSubmit, isDark, disabled }) => {
       >
         Deny
       </button>
-    </>
+    </div>
   );
 };
 

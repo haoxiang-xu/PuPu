@@ -196,10 +196,11 @@ describe("ChatInterface stop flow", () => {
     streamHandlers.onFrame({
       seq: 1,
       ts: 100,
-      type: "tool_confirmation_request",
+      type: "tool_call",
       payload: {
         call_id: "call-1",
         confirmation_id: "confirm-1",
+        requires_confirmation: true,
         tool_name: "terminal_exec",
         arguments: { cmd: "pwd" },
       },

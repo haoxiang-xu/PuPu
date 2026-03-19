@@ -221,10 +221,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "delete_file",
           arguments: { path: "demo.txt" },
         },
@@ -255,10 +256,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "request_user_input",
           interact_type: "single",
           interact_config: {
@@ -292,6 +294,7 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByText("Which stack do you want to use?")).toBeInTheDocument();
     expect(screen.getByText("Web Canvas")).toBeInTheDocument();
     expect(screen.getByText("Other option")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "detail" })).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Other option"));
     fireEvent.change(screen.getByPlaceholderText("Describe it"), {
@@ -314,10 +317,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "delete_file",
           arguments: { path: "demo.txt" },
         },
@@ -351,10 +355,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "terminal_exec",
           arguments: { cmd: "pwd" },
         },
@@ -389,10 +394,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "terminal_exec",
           arguments: { cmd: "pwd" },
         },

@@ -898,7 +898,7 @@ const ChatInterface = () => {
           : [];
         const requestFrame = traceFrames.find(
           (frame) =>
-            frame?.type === "tool_confirmation_request" &&
+            frame?.type === "tool_call" &&
             frame?.payload?.confirmation_id === normalizedConfirmationId,
         );
         if (!requestFrame) {
@@ -1794,7 +1794,7 @@ const ChatInterface = () => {
                 });
               }
 
-              if (frame.type === "tool_confirmation_request") {
+              if (frame.type === "tool_call") {
                 const callId =
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
@@ -1803,7 +1803,10 @@ const ChatInterface = () => {
                   typeof frame.payload?.confirmation_id === "string"
                     ? frame.payload.confirmation_id
                     : "";
-                if (callId && confirmationId) {
+                const requiresConfirmation =
+                  frame.payload?.requires_confirmation === true ||
+                  Boolean(confirmationId);
+                if (callId && confirmationId && requiresConfirmation) {
                   confirmationIdByCallIdRef.current.set(callId, confirmationId);
                   confirmationCallIdByIdRef.current.set(confirmationId, callId);
                   if (
@@ -1875,7 +1878,6 @@ const ChatInterface = () => {
                   const hasToolActivity = (message.traceFrames || []).some(
                     (f) =>
                       f.type === "tool_call" ||
-                      f.type === "tool_confirmation_request" ||
                       f.type === "tool_result",
                   );
 

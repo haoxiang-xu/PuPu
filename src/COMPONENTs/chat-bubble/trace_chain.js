@@ -15,7 +15,6 @@ import InteractWrapper from "./interact/interact_wrapper";
 const DISPLAY_FRAME_TYPES = new Set([
   "reasoning",
   "observation",
-  "tool_confirmation_request",
   "tool_call",
   "tool_result",
   "final_message",
@@ -384,15 +383,13 @@ const TraceChain = ({
               />
             ) : undefined,
         });
-      } else if (frame.type === "tool_confirmation_request") {
-        const callId =
-          typeof frame.payload?.call_id === "string"
-            ? frame.payload.call_id
-            : "";
-        const toolName =
-          typeof frame.payload?.tool_name === "string"
-            ? frame.payload.tool_name
-            : "tool";
+      } else if (frame.type === "tool_call") {
+        const callId = frame.payload?.call_id;
+        if (callId && renderedCallIds.has(callId)) continue;
+        if (callId) renderedCallIds.add(callId);
+
+        const toolName = frame.payload?.tool_name || "tool";
+        const args = frame.payload?.arguments;
         const confirmationId =
           typeof frame.payload?.confirmation_id === "string"
             ? frame.payload.confirmation_id
@@ -401,11 +398,21 @@ const TraceChain = ({
           typeof frame.payload?.description === "string"
             ? frame.payload.description.trim()
             : "";
-        const args = frame.payload?.arguments;
+        const requiresConfirmation =
+          frame.payload?.requires_confirmation === true ||
+          Boolean(confirmationId);
+        const interactType =
+          typeof frame.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : "confirmation";
+        const interactConfig = frame.payload?.interact_config || {};
+        const resultFrame = callId ? toolResultByCallId.get(callId) : null;
+        const result = resultFrame?.payload?.result;
+        const internalDelta =
+          resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
         const confirmationResult = callId
           ? confirmationStatusByCallId.get(callId)
           : "";
-
         const confirmationUiState =
           confirmationId && toolConfirmationUiStateById
             ? toolConfirmationUiStateById[confirmationId] || {}
@@ -425,173 +432,149 @@ const TraceChain = ({
             ? confirmationUiState.decision
             : "";
         const resolvedDecision = confirmationResult || uiDecision;
-
         const isResolved =
           resolvedDecision === "approved" || resolvedDecision === "denied";
         const isSubmitting =
           !uiResolved &&
           (uiStatus === "submitting" || uiStatus === "submitted");
-
-        let statusLabel = "Pending";
-        if (resolvedDecision === "approved") {
-          statusLabel = "Approved";
-        } else if (resolvedDecision === "denied") {
-          statusLabel = "Denied";
-        } else if (uiResolved) {
-          statusLabel = "Submitted";
-        } else if (isSubmitting) {
-          statusLabel = "Submitting...";
-        } else if (uiError) {
-          statusLabel = "Failed to submit";
-        }
-
-        const canTakeAction =
-          !isResolved &&
-          !uiResolved &&
-          !isSubmitting &&
-          confirmationId &&
-          typeof onToolConfirmationDecision === "function";
-
-        const statusColor = isResolved
-          ? resolvedDecision === "approved"
-            ? isDark
-              ? "rgba(110,231,183,0.95)"
-              : "rgba(5,150,105,0.95)"
-            : isDark
-              ? "rgba(252,165,165,0.95)"
-              : "rgba(220,38,38,0.95)"
-          : isDark
-            ? "rgba(255,255,255,0.6)"
-            : "rgba(0,0,0,0.52)";
-
-        const argsPairs = toKVPairs(args);
-        const detailsSections = [];
-        if (description) {
-          detailsSections.push({
-            heading: "description",
-            pairs: [{ key: "text", value: description }],
-          });
-        }
-        if (argsPairs.length) {
-          detailsSections.push({
-            heading: "args",
-            pairs: argsPairs,
-          });
-        }
-        if (uiError) {
-          detailsSections.push({
-            heading: "error",
-            pairs: [{ key: "message", value: uiError }],
-          });
-        }
-
-        const interactType =
-          typeof frame.payload?.interact_type === "string"
-            ? frame.payload.interact_type
-            : "confirmation";
-        const interactConfig = frame.payload?.interact_config || {};
-
-        const interactTitle =
-          interactType === "confirmation"
-            ? "Tool Confirmation"
-            : interactType === "multi_choice" ||
-                interactType === "single" ||
-                interactType === "multi"
-              ? "Selection"
-              : interactType === "text_input"
-                ? "Input Requested"
-                : "Interaction";
-
-        items.push({
-          key: `${frame.seq}-tool-confirmation`,
-          title: interactTitle,
-          span: spanText,
-          status: isResolved ? "done" : "active",
-          point: isResolved ? <HammerPoint isDark={isDark} /> : "loading",
-          body: (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  flexWrap: "wrap",
-                }}
-              >
-                <ToolTag name={toolName} isDark={isDark} />
-                <span
-                  style={{
-                    fontSize: 11.5,
-                    color: statusColor,
-                    fontFamily: "Menlo, Monaco, Consolas, monospace",
-                  }}
-                >
-                  {statusLabel}
-                </span>
-              </div>
-              {interactType !== "confirmation" ? (
-                <InteractWrapper
-                  type={interactType}
-                  config={interactConfig}
-                  onSubmit={(data) =>
-                    handleInteractSubmit(confirmationId, interactType, data)
-                  }
-                  uiState={confirmationUiState}
-                  isDark={isDark}
-                  disabled={!canTakeAction}
-                />
-              ) : canTakeAction ? (
-                <InteractWrapper
-                  type={interactType}
-                  config={interactConfig}
-                  onSubmit={(data) =>
-                    handleInteractSubmit(confirmationId, interactType, data)
-                  }
-                  uiState={confirmationUiState}
-                  isDark={isDark}
-                  disabled={false}
-                />
-              ) : null}
-            </div>
-          ),
-          details:
-            detailsSections.length > 0 ? (
-              <KVPanel
-                sections={detailsSections}
-                isDark={isDark}
-                color={color}
-              />
-            ) : undefined,
-        });
-      } else if (frame.type === "tool_call") {
-        const callId = frame.payload?.call_id;
-        if (callId && renderedCallIds.has(callId)) continue;
-        if (callId) renderedCallIds.add(callId);
-
-        const toolName = frame.payload?.tool_name || "tool";
-        const args = frame.payload?.arguments;
-        const resultFrame = callId ? toolResultByCallId.get(callId) : null;
-        const result = resultFrame?.payload?.result;
-        const internalDelta =
-          resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
+        const isInlineInteraction = requiresConfirmation && confirmationId;
+        const isSelectionInteraction =
+          interactType !== "confirmation" && isInlineInteraction;
 
         const sections = [];
         if (internalDelta != null)
           sections.push({
             pairs: [{ key: "took", value: formatDelta(internalDelta) }],
           });
-        const argPairs = toKVPairs(args);
-        if (argPairs.length)
-          sections.push({ heading: "args", pairs: argPairs });
+        if (!isSelectionInteraction) {
+          if (description) {
+            sections.push({
+              heading: "description",
+              pairs: [{ key: "text", value: description }],
+            });
+          }
+          const argPairs = toKVPairs(args);
+          if (argPairs.length)
+            sections.push({ heading: "args", pairs: argPairs });
+        }
         const resPairs = toKVPairs(result);
         if (resPairs.length)
           sections.push({ heading: "result", pairs: resPairs });
+        if (uiError) {
+          sections.push({
+            heading: "error",
+            pairs: [{ key: "message", value: uiError }],
+          });
+        }
+
+        if (isInlineInteraction) {
+          let statusLabel = "Pending";
+          if (resolvedDecision === "approved") {
+            statusLabel = isSelectionInteraction ? "Selected" : "Approved";
+          } else if (resolvedDecision === "denied") {
+            statusLabel = "Denied";
+          } else if (uiResolved) {
+            statusLabel = isSelectionInteraction ? "Selected" : "Submitted";
+          } else if (isSubmitting) {
+            statusLabel = "Submitting...";
+          } else if (uiError) {
+            statusLabel = "Failed to submit";
+          }
+
+          const canTakeAction =
+            !isResolved &&
+            !uiResolved &&
+            !isSubmitting &&
+            typeof onToolConfirmationDecision === "function";
+
+          const statusColor = isResolved
+            ? resolvedDecision === "approved"
+              ? isDark
+                ? "rgba(110,231,183,0.95)"
+                : "rgba(5,150,105,0.95)"
+              : isDark
+                ? "rgba(252,165,165,0.95)"
+                : "rgba(220,38,38,0.95)"
+            : isDark
+              ? "rgba(255,255,255,0.6)"
+              : "rgba(0,0,0,0.52)";
+
+          const interactTitle =
+            interactType === "confirmation"
+              ? "Tool Confirmation"
+              : interactType === "multi_choice" ||
+                  interactType === "single" ||
+                  interactType === "multi"
+                ? "Selection"
+                : interactType === "text_input"
+                  ? "Input Requested"
+                  : "Interaction";
+
+          items.push({
+            key: `${frame.seq}-tool`,
+            title: interactTitle,
+            span: spanText,
+            status: isResolved ? "done" : "active",
+            point: isResolved ? <HammerPoint isDark={isDark} /> : "loading",
+            body: (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <ToolTag name={toolName} isDark={isDark} />
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      color: statusColor,
+                      fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    }}
+                  >
+                    {statusLabel}
+                  </span>
+                </div>
+                {interactType !== "confirmation" ? (
+                  <InteractWrapper
+                    type={interactType}
+                    config={interactConfig}
+                    onSubmit={(data) =>
+                      handleInteractSubmit(confirmationId, interactType, data)
+                    }
+                    uiState={confirmationUiState}
+                    isDark={isDark}
+                    disabled={!canTakeAction}
+                  />
+                ) : canTakeAction ? (
+                  <InteractWrapper
+                    type={interactType}
+                    config={interactConfig}
+                    onSubmit={(data) =>
+                      handleInteractSubmit(confirmationId, interactType, data)
+                    }
+                    uiState={confirmationUiState}
+                    isDark={isDark}
+                    disabled={false}
+                  />
+                ) : null}
+              </div>
+            ),
+            details:
+              sections.length > 0 ? (
+                <KVPanel sections={sections} isDark={isDark} color={color} />
+              ) : undefined,
+          });
+          continue;
+        }
 
         items.push({
           key: `${frame.seq}-tool`,

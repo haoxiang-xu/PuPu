@@ -277,7 +277,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     "Once you start your final answer, treat that single message as the final deliverable. "
                     "Output may be truncated, so do not depend on follow-up continuation.\n"
                     "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\n"
-                    "If you need user confirmation or missing information and the ask user toolkit is available, "
+                    "If you need user confirmation or missing information and the ask user question toolkit is available, "
                     "use it to ask the user inline instead of forcing an unnecessary conversation split.\n"
                     "Always ask clarifying questions when blocked.",
                 ]
@@ -405,9 +405,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertTrue(emitted_events)
         request_event = emitted_events[0]
-        self.assertEqual(request_event.get("type"), "tool_confirmation_request")
+        self.assertEqual(request_event.get("type"), "tool_call")
         confirmation_id = request_event.get("confirmation_id")
         self.assertIsInstance(confirmation_id, str)
+        self.assertEqual(request_event.get("requires_confirmation"), True)
 
         submitted = miso_adapter.submit_tool_confirmation(
             confirmation_id=confirmation_id,
@@ -612,6 +613,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _inject_observation(self, _tool_message, _observation):
                 return None
 
+            def _find_tool(self, _name):
+                return SimpleNamespace(requires_confirmation=True)
+
             def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
                 self.events.append((event_type, iteration, extra))
 
@@ -646,6 +650,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(agent.executed_arguments, [])
         denied_events = [event for event in agent.events if event[0] == "tool_denied"]
         self.assertEqual(len(denied_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 1)
+        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
+        self.assertEqual(tool_call_events[0][2].get("requires_confirmation"), True)
         denied_content = denied_messages[0]["content"][0]["content"]
         denied_result = json.loads(denied_content)
         self.assertEqual(denied_result["denied"], True)
@@ -673,6 +681,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
         self.assertEqual(len(confirmed_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 2)
+        self.assertIsInstance(tool_call_events[-1][2].get("confirmation_id"), str)
         approved_content = approved_messages[0]["content"][0]["content"]
         approved_result = json.loads(approved_content)
         self.assertEqual(approved_result["ok"], True)
@@ -717,6 +728,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _inject_observation(self, _tool_message, _observation):
                 return None
 
+            def _find_tool(self, _name):
+                return SimpleNamespace(requires_confirmation=True)
+
             def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
                 self.events.append((event_type, iteration, extra))
 
@@ -741,6 +755,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
         self.assertEqual(len(confirmed_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 1)
+        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
         self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
         self.assertTrue(agent.used_original_execute)
         self.assertEqual(agent.session_ids, ["thread-openai-1"])
@@ -758,6 +775,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         denied_events = [event for event in agent.events if event[0] == "tool_denied"]
         self.assertEqual(len(denied_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 1)
+        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
         self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
         self.assertEqual(denied_events[0][2].get("reason"), "denied")
         self.assertEqual(agent.session_ids, ["thread-openai-1", "thread-openai-2"])
@@ -876,6 +896,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             confirmation_requests[0]["interact_config"]["other_placeholder"],
             "Describe it",
         )
+        self.assertIsInstance(confirmation_requests[0]["confirmation_id"], str)
+        self.assertEqual(confirmation_requests[0]["requires_confirmation"], True)
 
         tool_result_payload = json.loads(result_messages[0]["content"][0]["content"])
         self.assertEqual(
@@ -887,6 +909,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             },
         )
         self.assertEqual(agent.events[0][0], "tool_call")
+        self.assertEqual(agent.events[0][2].get("interact_type"), "single")
+        self.assertIsInstance(agent.events[0][2].get("confirmation_id"), str)
         self.assertEqual(agent.events[-1][0], "tool_result")
 
     def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
