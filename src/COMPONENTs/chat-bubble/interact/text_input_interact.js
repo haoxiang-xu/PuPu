@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * TextInputInteract – renders a text input field with a submit button.
+ * TextInputInteract – renders a mini-UI text field with line numbers and a
+ * submit button.
  *
  * config shape:
  *   placeholder – string (default "")
@@ -11,17 +12,12 @@ import { useState } from "react";
  * onSubmit is called with { text: string }
  */
 
-const INPUT_BASE = {
-  borderRadius: 6,
-  padding: "5px 8px",
-  fontSize: 11.5,
-  lineHeight: 1.5,
-  fontFamily: "Menlo, Monaco, Consolas, monospace",
-  width: "100%",
-  boxSizing: "border-box",
-  outline: "none",
-  resize: "vertical",
-};
+const FONT = "Menlo, Monaco, Consolas, monospace";
+const FONT_SIZE = 11.5;
+const LINE_HEIGHT = 1.5;
+const LINE_HEIGHT_PX = Math.round(FONT_SIZE * LINE_HEIGHT);
+const PAD_Y = 6;
+const PAD_X = 8;
 
 const SUBMIT_BASE = {
   border: "none",
@@ -30,10 +26,10 @@ const SUBMIT_BASE = {
   cursor: "pointer",
   fontSize: 11.5,
   lineHeight: 1.4,
-  fontFamily: "Menlo, Monaco, Consolas, monospace",
+  fontFamily: FONT,
 };
 
-const TextInputInteract = ({ config, onSubmit, isDark, disabled }) => {
+const TextInputInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
   const placeholder =
     typeof config?.placeholder === "string" ? config.placeholder : "";
   const maxLength =
@@ -41,7 +37,21 @@ const TextInputInteract = ({ config, onSubmit, isDark, disabled }) => {
       ? config.max_length
       : 0;
   const multiline = config?.multiline === true;
-  const [text, setText] = useState("");
+  const submittedResponse = uiState?.userResponse;
+  const [text, setText] = useState(() =>
+    typeof submittedResponse?.text === "string" ? submittedResponse.text : "",
+  );
+  const taRef = useRef(null);
+  const [lineCount, setLineCount] = useState(1);
+
+  const recount = useCallback(() => {
+    const lines = (text || "").split("\n").length;
+    setLineCount(Math.max(1, lines));
+  }, [text]);
+
+  useEffect(() => {
+    recount();
+  }, [recount]);
 
   const handleSubmit = () => {
     if (disabled || !text.trim()) return;
@@ -55,21 +65,16 @@ const TextInputInteract = ({ config, onSubmit, isDark, disabled }) => {
     }
   };
 
-  const borderColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.12)";
+  const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
   const bgColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)";
+  const gutterBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)";
   const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
-  const placeholderOpacity = 0.35;
-
-  const inputStyle = {
-    ...INPUT_BASE,
-    color: textColor,
-    background: bgColor,
-    border: `1px solid ${borderColor}`,
-    opacity: disabled ? 0.5 : 1,
-    ...(multiline ? { minHeight: 56 } : {}),
-  };
+  const lineNumColor = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)";
+  const gutterWidth = 28;
 
   const isEmpty = !text.trim();
+  const visibleRows = multiline ? Math.max(3, Math.min(lineCount, 10)) : 1;
+  const fieldHeight = visibleRows * LINE_HEIGHT_PX + PAD_Y * 2;
 
   return (
     <div
@@ -77,80 +82,161 @@ const TextInputInteract = ({ config, onSubmit, isDark, disabled }) => {
         display: "flex",
         flexDirection: "column",
         gap: 4,
-        maxWidth: 360,
+        maxWidth: 400,
       }}
     >
-      {multiline ? (
-        <textarea
-          value={text}
-          onChange={(e) => {
-            const val = e.target.value;
-            setText(maxLength ? val.slice(0, maxLength) : val);
-          }}
-          placeholder={placeholder}
-          disabled={disabled}
-          style={{
-            ...inputStyle,
-            /* placeholder color via CSS-in-JS is impractical, rely on opacity */
-          }}
-          rows={3}
-        />
-      ) : (
-        <input
-          type="text"
-          value={text}
-          onChange={(e) => {
-            const val = e.target.value;
-            setText(maxLength ? val.slice(0, maxLength) : val);
-          }}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={disabled}
-          style={inputStyle}
-        />
-      )}
+      {/* ── mini textfield with gutter ── */}
+      <div
+        style={{
+          position: "relative",
+          display: "flex",
+          border: `1px solid ${borderColor}`,
+          borderRadius: 6,
+          overflow: "hidden",
+          background: bgColor,
+          opacity: disabled ? 0.5 : 1,
+        }}
+      >
+        {/* line-number gutter */}
+        {multiline && (
+          <div
+            style={{
+              width: gutterWidth,
+              flexShrink: 0,
+              background: gutterBg,
+              paddingTop: PAD_Y,
+              paddingBottom: PAD_Y,
+              borderRight: `1px solid ${borderColor}`,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+              overflow: "hidden",
+            }}
+          >
+            {Array.from({ length: lineCount }, (_, i) => (
+              <div
+                key={i}
+                style={{
+                  height: LINE_HEIGHT_PX,
+                  lineHeight: `${LINE_HEIGHT_PX}px`,
+                  fontSize: 10,
+                  fontFamily: FONT,
+                  color: lineNumColor,
+                  textAlign: "right",
+                  paddingRight: 6,
+                }}
+              >
+                {i + 1}
+              </div>
+            ))}
+          </div>
+        )}
 
-      {maxLength > 0 && (
+        {/* textarea / input */}
+        {multiline ? (
+          <textarea
+            ref={taRef}
+            value={text}
+            onChange={(e) => {
+              const val = e.target.value;
+              setText(maxLength ? val.slice(0, maxLength) : val);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            rows={visibleRows}
+            style={{
+              flex: 1,
+              border: "none",
+              outline: "none",
+              resize: "none",
+              background: "transparent",
+              color: textColor,
+              fontFamily: FONT,
+              fontSize: FONT_SIZE,
+              lineHeight: LINE_HEIGHT,
+              padding: `${PAD_Y}px ${PAD_X}px`,
+              boxSizing: "border-box",
+              height: fieldHeight,
+              overflow: "auto",
+            }}
+          />
+        ) : (
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => {
+              const val = e.target.value;
+              setText(maxLength ? val.slice(0, maxLength) : val);
+            }}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            style={{
+              flex: 1,
+              border: "none",
+              outline: "none",
+              background: "transparent",
+              color: textColor,
+              fontFamily: FONT,
+              fontSize: FONT_SIZE,
+              lineHeight: LINE_HEIGHT,
+              padding: `${PAD_Y}px ${PAD_X}px`,
+              boxSizing: "border-box",
+            }}
+          />
+        )}
+      </div>
+
+      {/* ── footer row: char count (left) + submit (right) ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+        }}
+      >
         <span
           style={{
             fontSize: 9.5,
-            fontFamily: "Menlo, Monaco, Consolas, monospace",
-            color: textColor,
-            opacity: placeholderOpacity,
-            alignSelf: "flex-end",
+            fontFamily: FONT,
+            color: lineNumColor,
+            userSelect: "none",
           }}
         >
-          {text.length}/{maxLength}
+          {multiline
+            ? `${lineCount} line${lineCount !== 1 ? "s" : ""}${maxLength ? ` · ${text.length}/${maxLength}` : ""}`
+            : maxLength
+              ? `${text.length}/${maxLength}`
+              : ""}
         </span>
-      )}
 
-      {!disabled && (
-        <button
-          onClick={handleSubmit}
-          disabled={isEmpty}
-          style={{
-            ...SUBMIT_BASE,
-            color: isEmpty
-              ? isDark
-                ? "rgba(255,255,255,0.3)"
-                : "rgba(0,0,0,0.3)"
-              : isDark
-                ? "rgba(209,250,229,0.95)"
-                : "#065f46",
-            backgroundColor: isEmpty
-              ? isDark
-                ? "rgba(255,255,255,0.06)"
-                : "rgba(0,0,0,0.04)"
-              : isDark
-                ? "rgba(16,185,129,0.22)"
-                : "rgba(16,185,129,0.16)",
-            cursor: isEmpty ? "default" : "pointer",
-            alignSelf: "flex-start",
-          }}
-        >
-          Submit
-        </button>
-      )}
+        {!disabled && (
+          <button
+            onClick={handleSubmit}
+            disabled={isEmpty}
+            style={{
+              ...SUBMIT_BASE,
+              color: isEmpty
+                ? isDark
+                  ? "rgba(255,255,255,0.3)"
+                  : "rgba(0,0,0,0.3)"
+                : isDark
+                  ? "rgba(209,250,229,0.95)"
+                  : "#065f46",
+              backgroundColor: isEmpty
+                ? isDark
+                  ? "rgba(255,255,255,0.06)"
+                  : "rgba(0,0,0,0.04)"
+                : isDark
+                  ? "rgba(16,185,129,0.22)"
+                  : "rgba(16,185,129,0.16)",
+              cursor: isEmpty ? "default" : "pointer",
+            }}
+          >
+            Submit
+          </button>
+        )}
+      </div>
     </div>
   );
 };

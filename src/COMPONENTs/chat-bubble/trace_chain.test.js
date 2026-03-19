@@ -249,6 +249,66 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
   });
 
+  test("renders selector requests and submits other text responses", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_confirmation_request",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          tool_name: "request_user_input",
+          interact_type: "single",
+          interact_config: {
+            title: "Angry Birds - Tech Stack",
+            question: "Which stack do you want to use?",
+            selection_mode: "single",
+            options: [
+              {
+                label: "Web Canvas",
+                value: "web_canvas",
+                description: "Runs in the browser",
+              },
+            ],
+            allow_other: true,
+            other_label: "Other option",
+            other_placeholder: "Describe it",
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision,
+      toolConfirmationUiStateById: {
+        "confirm-1": { status: "idle", error: "" },
+      },
+    });
+
+    expect(screen.getByText("Which stack do you want to use?")).toBeInTheDocument();
+    expect(screen.getByText("Web Canvas")).toBeInTheDocument();
+    expect(screen.getByText("Other option")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Other option"));
+    fireEvent.change(screen.getByPlaceholderText("Describe it"), {
+      target: { value: "Custom engine" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-1",
+      approved: true,
+      userResponse: {
+        value: "__other__",
+        other_text: "Custom engine",
+      },
+    });
+  });
+
   test("hides tool confirmation actions after confirmation is resolved", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),

@@ -46,6 +46,8 @@ _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "move_file",
     "terminal_exec",
 }
+_REQUEST_USER_INPUT_TOOL_NAME = "request_user_input"
+_HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 _SYSTEM_PROMPT_V2_SECTION_ORDER = (
     "personality",
@@ -166,15 +168,272 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     description = payload.get("description", "")
     payload["description"] = description if isinstance(description, str) else str(description or "")
 
+    if payload.get("tool_name") == _REQUEST_USER_INPUT_TOOL_NAME:
+        try:
+            request_payload = _normalize_request_user_input_request(
+                payload.get("arguments"),
+                request_id=str(payload.get("call_id", "") or ""),
+            )
+        except Exception:
+            request_payload = None
+
+        if isinstance(request_payload, dict):
+            payload["arguments"] = request_payload
+            if not payload["description"]:
+                payload["description"] = request_payload.get("question", "")
+            if not isinstance(payload.get("interact_type"), str) or not str(
+                payload.get("interact_type", "")
+            ).strip():
+                payload["interact_type"] = (
+                    "single"
+                    if request_payload.get("selection_mode") == "single"
+                    else "multi"
+                )
+            if not isinstance(payload.get("interact_config"), (dict, list)) or not payload.get(
+                "interact_config"
+            ):
+                payload["interact_config"] = request_payload
+
     # ── interact extension ──────────────────────────────────────────────
-    # interact_type: "confirmation" (default) | "multi_choice" | "text_input"
+    # interact_type: "confirmation" | "multi_choice" | "text_input" | "single" | "multi"
     interact_type = payload.get("interact_type", "confirmation")
     payload["interact_type"] = interact_type if isinstance(interact_type, str) else "confirmation"
 
     interact_config = payload.get("interact_config")
-    payload["interact_config"] = interact_config if isinstance(interact_config, dict) else {}
+    payload["interact_config"] = interact_config if isinstance(interact_config, (dict, list)) else {}
 
     return payload
+
+
+def _parse_request_user_input_arguments(arguments: object) -> Dict[str, Any]:
+    if arguments is None:
+        return {}
+    if isinstance(arguments, dict):
+        return copy.deepcopy(arguments)
+    if isinstance(arguments, str):
+        raw = arguments.strip()
+        if not raw:
+            return {}
+        parsed = json.loads(raw)
+        if isinstance(parsed, dict):
+            return parsed
+    raise ValueError("human input tool arguments must be a dict or JSON string")
+
+
+def _normalize_request_user_input_request(
+    arguments: object,
+    *,
+    request_id: str,
+) -> Dict[str, Any]:
+    raw = _parse_request_user_input_arguments(arguments)
+
+    title = raw.get("title")
+    if not isinstance(title, str) or not title.strip():
+        raise ValueError("title must be a non-empty string")
+
+    question = raw.get("question")
+    if not isinstance(question, str) or not question.strip():
+        raise ValueError("question must be a non-empty string")
+
+    selection_mode = raw.get("selection_mode")
+    if selection_mode not in {"single", "multiple"}:
+        raise ValueError("selection_mode must be 'single' or 'multiple'")
+
+    raw_options = raw.get("options")
+    if not isinstance(raw_options, list) or not raw_options:
+        raise ValueError("options must be a non-empty array")
+
+    options: List[Dict[str, str]] = []
+    seen_values: set[str] = set()
+    for entry in raw_options:
+        if not isinstance(entry, dict):
+            raise ValueError("each selector option must be an object")
+        label = entry.get("label")
+        value = entry.get("value")
+        if not isinstance(label, str) or not label.strip():
+            raise ValueError("option.label must be a non-empty string")
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("option.value must be a non-empty string")
+        normalized_value = value.strip()
+        if normalized_value == _HUMAN_INPUT_OTHER_VALUE:
+            raise ValueError(
+                f"option.value cannot use reserved value '{_HUMAN_INPUT_OTHER_VALUE}'"
+            )
+        if normalized_value in seen_values:
+            raise ValueError(f"duplicate option value: {normalized_value}")
+        seen_values.add(normalized_value)
+        description = entry.get("description", "")
+        if description is None:
+            description = ""
+        if not isinstance(description, str):
+            raise ValueError("option.description must be a string when provided")
+        options.append(
+            {
+                "label": label.strip(),
+                "value": normalized_value,
+                "description": description,
+            }
+        )
+
+    raw_allow_other = raw.get("allow_other", False)
+    if not isinstance(raw_allow_other, bool):
+        raise ValueError("allow_other must be a boolean")
+    allow_other = raw_allow_other
+
+    other_label = raw.get("other_label", "Other")
+    if other_label is None:
+        other_label = "Other"
+    if not isinstance(other_label, str):
+        raise ValueError("other_label must be a string when provided")
+    other_label = other_label.strip() or "Other"
+
+    other_placeholder = raw.get("other_placeholder", "")
+    if other_placeholder is None:
+        other_placeholder = ""
+    if not isinstance(other_placeholder, str):
+        raise ValueError("other_placeholder must be a string when provided")
+
+    raw_min_selected = raw.get("min_selected")
+    raw_max_selected = raw.get("max_selected")
+    if raw_min_selected is not None and (
+        isinstance(raw_min_selected, bool) or not isinstance(raw_min_selected, int)
+    ):
+        raise ValueError("min_selected must be an integer when provided")
+    if raw_max_selected is not None and (
+        isinstance(raw_max_selected, bool) or not isinstance(raw_max_selected, int)
+    ):
+        raise ValueError("max_selected must be an integer when provided")
+
+    min_selected = raw_min_selected
+    max_selected = raw_max_selected
+    if selection_mode == "single":
+        if min_selected is None:
+            min_selected = 1
+        if max_selected is None:
+            max_selected = 1
+        if min_selected not in {0, 1}:
+            raise ValueError("single selection mode only supports min_selected of 0 or 1")
+        if max_selected != 1:
+            raise ValueError("single selection mode requires max_selected to be 1")
+    else:
+        allowed_total = len(options) + (1 if allow_other else 0)
+        if min_selected is None:
+            min_selected = 1
+        if max_selected is None:
+            max_selected = allowed_total
+
+    if min_selected is None or max_selected is None:
+        raise ValueError("min_selected and max_selected could not be resolved")
+    if min_selected < 0:
+        raise ValueError("min_selected must be >= 0")
+    if max_selected < 1:
+        raise ValueError("max_selected must be >= 1")
+    if min_selected > max_selected:
+        raise ValueError("min_selected cannot be greater than max_selected")
+
+    allowed_total = len(options) + (1 if allow_other else 0)
+    if max_selected > allowed_total:
+        raise ValueError(
+            "max_selected cannot exceed the total number of available selections"
+        )
+
+    return {
+        "request_id": request_id,
+        "kind": "selector",
+        "title": title.strip(),
+        "question": question.strip(),
+        "selection_mode": selection_mode,
+        "options": options,
+        "allow_other": allow_other,
+        "other_label": other_label,
+        "other_placeholder": other_placeholder,
+        "min_selected": min_selected,
+        "max_selected": max_selected,
+    }
+
+
+def _normalize_request_user_input_tool_result(
+    request: Dict[str, Any],
+    raw_response: object,
+) -> Dict[str, Any]:
+    if not isinstance(raw_response, dict):
+        raise ValueError("human input response must be an object")
+
+    request_id = str(request.get("request_id", "") or "")
+    response_request_id = raw_response.get("request_id")
+    if response_request_id is None:
+        response_request_id = request_id
+    if not isinstance(response_request_id, str) or not response_request_id.strip():
+        raise ValueError("request_id must be a non-empty string")
+    if response_request_id.strip() != request_id:
+        raise ValueError("human input response request_id does not match the pending request")
+
+    selected_values_raw = raw_response.get("selected_values")
+    if selected_values_raw is None:
+        if isinstance(raw_response.get("value"), str):
+            selected_values_raw = [raw_response.get("value")]
+        elif isinstance(raw_response.get("values"), list):
+            selected_values_raw = raw_response.get("values")
+
+    if not isinstance(selected_values_raw, list):
+        raise ValueError("selected_values must be an array")
+
+    normalized_values: List[str] = []
+    seen_values: set[str] = set()
+    for value in selected_values_raw:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("selected_values must contain non-empty strings")
+        normalized = value.strip()
+        if normalized in seen_values:
+            raise ValueError(f"duplicate selected value: {normalized}")
+        seen_values.add(normalized)
+        normalized_values.append(normalized)
+
+    min_selected = int(request.get("min_selected") or 0)
+    max_selected = int(request.get("max_selected") or 0)
+    if len(normalized_values) < min_selected:
+        raise ValueError(f"selected_values must contain at least {min_selected} item(s)")
+    if max_selected and len(normalized_values) > max_selected:
+        raise ValueError(f"selected_values cannot contain more than {max_selected} item(s)")
+
+    allowed_values = {
+        str(option.get("value", "")).strip()
+        for option in request.get("options", [])
+        if isinstance(option, dict) and isinstance(option.get("value"), str)
+    }
+    if request.get("allow_other") is True:
+        allowed_values.add(_HUMAN_INPUT_OTHER_VALUE)
+
+    invalid_values = [value for value in normalized_values if value not in allowed_values]
+    if invalid_values:
+        raise ValueError(
+            f"selected_values contains unsupported option(s): {invalid_values}"
+        )
+
+    other_text = raw_response.get("other_text", raw_response.get("otherText"))
+    if other_text is not None:
+        if not isinstance(other_text, str):
+            raise ValueError("other_text must be a string when provided")
+        other_text = other_text.strip() or None
+
+    selected_other = _HUMAN_INPUT_OTHER_VALUE in normalized_values
+    if selected_other:
+        if request.get("allow_other") is not True:
+            raise ValueError("other selection is not allowed for this request")
+        if not other_text:
+            raise ValueError(
+                f"other_text is required when '{_HUMAN_INPUT_OTHER_VALUE}' is selected"
+            )
+    elif other_text:
+        raise ValueError(
+            f"other_text can only be provided when '{_HUMAN_INPUT_OTHER_VALUE}' is selected"
+        )
+
+    return {
+        "submitted": True,
+        "selected_values": normalized_values,
+        "other_text": other_text,
+    }
 
 
 def submit_tool_confirmation(
@@ -399,7 +658,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     if not isinstance(broth_cls, type):
         return
 
-    patch_marker = "_pupu_tool_confirmation_contract_patch_v4"
+    patch_marker = "_pupu_tool_confirmation_contract_patch_v5"
     if getattr(broth_cls, patch_marker, False):
         return
 
@@ -421,25 +680,38 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
     ):
         return
 
-    try:
-        execute_tool_calls_params = inspect.signature(original_execute_tool_calls).parameters
-        original_supports_on_tool_confirm = (
-            "on_tool_confirm" in execute_tool_calls_params
-            or any(
-                parameter.kind == inspect.Parameter.VAR_KEYWORD
-                for parameter in execute_tool_calls_params.values()
-            )
+    def _supports_keyword_argument(target: Any, keyword: str) -> bool:
+        if not callable(target):
+            return False
+        try:
+            parameters = inspect.signature(target).parameters
+        except Exception:
+            return True
+        return keyword in parameters or any(
+            parameter.kind == inspect.Parameter.VAR_KEYWORD
+            for parameter in parameters.values()
         )
-        original_supports_session_id = (
-            "session_id" in execute_tool_calls_params
-            or any(
-                parameter.kind == inspect.Parameter.VAR_KEYWORD
-                for parameter in execute_tool_calls_params.values()
-            )
-        )
-    except Exception:
-        original_supports_on_tool_confirm = True
-        original_supports_session_id = True
+
+    original_supports_on_tool_confirm = _supports_keyword_argument(
+        original_execute_tool_calls,
+        "on_tool_confirm",
+    )
+    original_supports_session_id = _supports_keyword_argument(
+        original_execute_tool_calls,
+        "session_id",
+    )
+    original_supports_toolkits = _supports_keyword_argument(
+        original_execute_tool_calls,
+        "toolkits",
+    )
+    execute_from_toolkits_supports_toolkits = _supports_keyword_argument(
+        original_execute_from_toolkits,
+        "toolkits",
+    )
+    find_tool_supports_toolkits = _supports_keyword_argument(
+        getattr(broth_cls, "_find_tool", None),
+        "toolkits",
+    )
 
     def _patched_execute_tool_calls(
         self,
@@ -450,6 +722,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         callback,
         on_tool_confirm=None,
         session_id: str | None = None,
+        toolkits: List[Any] | None = None,
     ):
         emitted_confirmation_events: set[tuple[str, bool]] = set()
 
@@ -511,6 +784,187 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             )
             return response
 
+        def _build_tool_message_locally(
+            tool_call: Any,
+            tool_result: Dict[str, Any],
+        ) -> Dict[str, Any]:
+            build_tool_message = getattr(self, "_build_tool_message", None)
+            if callable(build_tool_message):
+                try:
+                    return build_tool_message(
+                        tool_call=tool_call,
+                        tool_result=tool_result,
+                    )
+                except Exception:
+                    pass
+
+            content = json.dumps(tool_result, default=str, ensure_ascii=False)
+            if getattr(self, "provider", "") == "openai":
+                return {
+                    "type": "function_call_output",
+                    "call_id": getattr(tool_call, "call_id", ""),
+                    "output": content,
+                }
+            if getattr(self, "provider", "") == "anthropic":
+                return {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": getattr(tool_call, "call_id", ""),
+                            "content": content,
+                        }
+                    ],
+                }
+            return {
+                "role": "tool",
+                "tool_call_id": getattr(tool_call, "call_id", ""),
+                "content": content,
+            }
+
+        def _execute_request_user_input_tool_calls_locally():
+            result_messages: List[Dict[str, Any]] = []
+            if len(tool_calls) > 1:
+                error_text = "request_user_input must be the only tool call in a turn"
+                for tool_call in tool_calls:
+                    self._emit(
+                        callback,
+                        "tool_call",
+                        run_id,
+                        iteration=iteration,
+                        tool_name=tool_call.name,
+                        call_id=tool_call.call_id,
+                        arguments=tool_call.arguments,
+                    )
+                    tool_result = {
+                        "error": error_text,
+                        "tool": tool_call.name,
+                    }
+                    result_messages.append(
+                        _build_tool_message_locally(tool_call, tool_result)
+                    )
+                    self._emit(
+                        callback,
+                        "tool_result",
+                        run_id,
+                        iteration=iteration,
+                        tool_name=tool_call.name,
+                        call_id=tool_call.call_id,
+                        result=tool_result,
+                    )
+                return result_messages, False
+
+            tool_call = tool_calls[0]
+            self._emit(
+                callback,
+                "tool_call",
+                run_id,
+                iteration=iteration,
+                tool_name=tool_call.name,
+                call_id=tool_call.call_id,
+                arguments=tool_call.arguments,
+            )
+
+            try:
+                request_payload = _build_tool_confirmation_request_payload(
+                    {
+                        "tool_name": getattr(tool_call, "name", ""),
+                        "call_id": getattr(tool_call, "call_id", ""),
+                        "arguments": getattr(tool_call, "arguments", {}),
+                    }
+                )
+            except Exception as exc:
+                tool_result = {
+                    "error": str(exc),
+                    "tool": getattr(tool_call, "name", ""),
+                }
+                result_messages.append(
+                    _build_tool_message_locally(tool_call, tool_result)
+                )
+                self._emit(
+                    callback,
+                    "tool_result",
+                    run_id,
+                    iteration=iteration,
+                    tool_name=tool_call.name,
+                    call_id=tool_call.call_id,
+                    result=tool_result,
+                )
+                return result_messages, False
+
+            raw_response = _on_tool_confirm_with_event(request_payload)
+            response = _normalize_tool_confirmation_response(raw_response)
+
+            if not response["approved"]:
+                tool_result = {
+                    "submitted": False,
+                    "reason": str(response.get("reason", "") or ""),
+                }
+            else:
+                modified_arguments = response.get("modified_arguments")
+                user_response = (
+                    modified_arguments.get("user_response")
+                    if isinstance(modified_arguments, dict)
+                    else None
+                )
+                try:
+                    tool_result = _normalize_request_user_input_tool_result(
+                        request_payload.get("interact_config")
+                        if isinstance(request_payload.get("interact_config"), dict)
+                        else {},
+                        {
+                            "request_id": str(getattr(tool_call, "call_id", "") or ""),
+                            **(
+                                user_response
+                                if isinstance(user_response, dict)
+                                else {}
+                            ),
+                        },
+                    )
+                except Exception as exc:
+                    tool_result = {
+                        "error": str(exc),
+                        "tool": getattr(tool_call, "name", ""),
+                    }
+
+            result_messages.append(_build_tool_message_locally(tool_call, tool_result))
+            self._emit(
+                callback,
+                "tool_result",
+                run_id,
+                iteration=iteration,
+                tool_name=tool_call.name,
+                call_id=tool_call.call_id,
+                result=tool_result,
+            )
+            return result_messages, False
+
+        includes_human_input = any(
+            getattr(tool_call, "name", "") == _REQUEST_USER_INPUT_TOOL_NAME
+            for tool_call in tool_calls
+        )
+        if includes_human_input and on_tool_confirm is not None:
+            return _execute_request_user_input_tool_calls_locally()
+        if includes_human_input:
+            original_kwargs = {
+                "tool_calls": tool_calls,
+                "run_id": run_id,
+                "iteration": iteration,
+                "callback": callback,
+            }
+            if original_supports_on_tool_confirm:
+                original_kwargs["on_tool_confirm"] = (
+                    _on_tool_confirm_with_event if on_tool_confirm is not None else None
+                )
+            if original_supports_session_id:
+                original_kwargs["session_id"] = session_id
+            if original_supports_toolkits:
+                original_kwargs["toolkits"] = toolkits
+            return original_execute_tool_calls(
+                self,
+                **original_kwargs,
+            )
+
         if getattr(self, "provider", "") != "anthropic":
             original_kwargs = {
                 "tool_calls": tool_calls,
@@ -524,6 +978,8 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 )
             if original_supports_session_id:
                 original_kwargs["session_id"] = session_id
+            if original_supports_toolkits:
+                original_kwargs["toolkits"] = toolkits
             return original_execute_tool_calls(
                 self,
                 **original_kwargs,
@@ -547,7 +1003,10 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 arguments=tool_call.arguments,
             )
 
-            tool_obj = self._find_tool(tool_call.name)
+            find_tool_kwargs: Dict[str, Any] = {}
+            if find_tool_supports_toolkits:
+                find_tool_kwargs["toolkits"] = toolkits
+            tool_obj = self._find_tool(tool_call.name, **find_tool_kwargs)
             effective_arguments = tool_call.arguments
             denied = False
             deny_reason = ""
@@ -591,10 +1050,15 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "reason": deny_reason or "User denied execution.",
                 }
             else:
+                execute_tool_kwargs: Dict[str, Any] = {
+                    "session_id": session_id,
+                }
+                if execute_from_toolkits_supports_toolkits:
+                    execute_tool_kwargs["toolkits"] = toolkits
                 tool_result = self._execute_from_toolkits(
                     tool_call.name,
                     effective_arguments,
-                    session_id=session_id,
+                    **execute_tool_kwargs,
                 )
             content = json.dumps(tool_result, default=str, ensure_ascii=False)
 

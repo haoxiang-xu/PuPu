@@ -488,6 +488,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.used_original_inject = False
                 self.events = []
                 self.executed_session_ids = []
+                self.find_tool_toolkits = []
+                self.execute_toolkits = []
 
             def _execute_tool_calls(self, **_kwargs):
                 self.used_original_execute = True
@@ -507,13 +509,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _emit(self, _callback, event_type, _run_id, *, iteration, **_extra):
                 self.events.append((event_type, iteration))
 
-            def _find_tool(self, name):
+            def _find_tool(self, name, *, toolkits=None):
+                self.find_tool_toolkits.append(toolkits)
                 if name == "observe_tool":
                     return SimpleNamespace(observe=True)
                 return SimpleNamespace(observe=False)
 
-            def _execute_from_toolkits(self, name, arguments, session_id=None):
+            def _execute_from_toolkits(self, name, arguments, session_id=None, toolkits=None):
                 self.executed_session_ids.append(session_id)
+                self.execute_toolkits.append(toolkits)
                 return {"name": name, "arguments": arguments}
 
         miso_adapter._apply_broth_runtime_patches(FakeBroth)
@@ -529,6 +533,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             iteration=0,
             callback=None,
             session_id="thread-anthropic-1",
+            toolkits=["ask-user-toolkit"],
         )
 
         self.assertEqual(len(result_messages), 1)
@@ -541,6 +546,14 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertFalse(should_observe)
         self.assertFalse(agent.used_original_execute)
         self.assertEqual(agent.executed_session_ids, ["thread-anthropic-1", "thread-anthropic-1"])
+        self.assertEqual(
+            agent.find_tool_toolkits,
+            [["ask-user-toolkit"], ["ask-user-toolkit"]],
+        )
+        self.assertEqual(
+            agent.execute_toolkits,
+            [["ask-user-toolkit"], ["ask-user-toolkit"]],
+        )
 
         merged_observation_messages = agent._build_observation_messages(
             full_messages=[
@@ -671,6 +684,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.used_original_execute = False
                 self.events = []
                 self.session_ids = []
+                self.toolkits_seen = []
 
             def _execute_tool_calls(
                 self,
@@ -681,9 +695,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 callback,
                 on_tool_confirm=None,
                 session_id=None,
+                toolkits=None,
             ):
                 self.used_original_execute = True
                 self.session_ids.append(session_id)
+                self.toolkits_seen.append(toolkits)
                 if on_tool_confirm is not None and tool_calls:
                     request = {
                         "tool_name": tool_calls[0].name,
@@ -721,12 +737,14 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             callback=None,
             on_tool_confirm=lambda _req: {"approved": True},
             session_id="thread-openai-1",
+            toolkits=["ask-user-toolkit"],
         )
         confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
         self.assertEqual(len(confirmed_events), 1)
         self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
         self.assertTrue(agent.used_original_execute)
         self.assertEqual(agent.session_ids, ["thread-openai-1"])
+        self.assertEqual(agent.toolkits_seen, [["ask-user-toolkit"]])
 
         agent.events = []
         _messages, _observe = agent._execute_tool_calls(
@@ -736,12 +754,140 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             callback=None,
             on_tool_confirm=lambda _req: {"approved": False, "reason": "denied"},
             session_id="thread-openai-2",
+            toolkits=["ask-user-toolkit-2"],
         )
         denied_events = [event for event in agent.events if event[0] == "tool_denied"]
         self.assertEqual(len(denied_events), 1)
         self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
         self.assertEqual(denied_events[0][2].get("reason"), "denied")
         self.assertEqual(agent.session_ids, ["thread-openai-1", "thread-openai-2"])
+        self.assertEqual(
+            agent.toolkits_seen,
+            [["ask-user-toolkit"], ["ask-user-toolkit-2"]],
+        )
+
+    def test_apply_broth_runtime_patches_bridges_human_input_into_tool_confirmation(self) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "anthropic"
+                self.forwarded_toolkits = []
+                self.events = []
+
+            def _execute_tool_calls(
+                self,
+                *,
+                tool_calls,
+                run_id,
+                iteration,
+                callback,
+                on_tool_confirm=None,
+                session_id=None,
+                toolkits=None,
+            ):
+                self.forwarded_toolkits.append(toolkits)
+                return [{"role": "tool", "content": "original"}], False, True, {
+                    "request_id": "req-1",
+                    "kind": "select",
+                    "title": "Need input",
+                    "question": "Choose one",
+                    "selection_mode": "single",
+                    "options": [
+                        {
+                            "id": "opt-1",
+                            "label": "Option 1",
+                        }
+                    ],
+                    "allow_other": False,
+                }
+
+            def _build_tool_message(self, *, tool_call, tool_result):
+                return {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call.call_id,
+                            "content": json.dumps(tool_result),
+                        }
+                    ],
+                }
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
+                self.events.append((event_type, iteration, extra))
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+        confirmation_requests = []
+
+        result_messages, should_observe = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-human-1",
+                    name="request_user_input",
+                    arguments={
+                        "title": "Need input",
+                        "question": "Choose one",
+                        "selection_mode": "single",
+                        "options": [
+                            {
+                                "label": "Option 1",
+                                "value": "opt-1",
+                            }
+                        ],
+                        "allow_other": True,
+                        "other_label": "Other option",
+                        "other_placeholder": "Describe it",
+                    },
+                )
+            ],
+            run_id="run-human-1",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda request: (
+                confirmation_requests.append(request)
+                or {
+                    "approved": True,
+                    "modified_arguments": {
+                        "user_response": {
+                            "value": "opt-1",
+                        }
+                    },
+                }
+            ),
+            toolkits=["ask-user-toolkit"],
+        )
+
+        self.assertEqual(agent.forwarded_toolkits, [])
+        self.assertFalse(should_observe)
+        self.assertEqual(len(confirmation_requests), 1)
+        self.assertEqual(confirmation_requests[0]["tool_name"], "request_user_input")
+        self.assertEqual(confirmation_requests[0]["interact_type"], "single")
+        self.assertEqual(
+            confirmation_requests[0]["interact_config"]["other_label"],
+            "Other option",
+        )
+        self.assertEqual(
+            confirmation_requests[0]["interact_config"]["other_placeholder"],
+            "Describe it",
+        )
+
+        tool_result_payload = json.loads(result_messages[0]["content"][0]["content"])
+        self.assertEqual(
+            tool_result_payload,
+            {
+                "submitted": True,
+                "selected_values": ["opt-1"],
+                "other_text": None,
+            },
+        )
+        self.assertEqual(agent.events[0][0], "tool_call")
+        self.assertEqual(agent.events[-1][0], "tool_result")
 
     def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
         self,

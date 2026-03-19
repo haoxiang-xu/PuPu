@@ -10,18 +10,18 @@ import { useState } from "react";
  * onSubmit is called with { selected: string[] }
  */
 
+const ACCENT = "rgba(10,186,181,1)";
+
 const CHOICE_BASE = {
   display: "flex",
-  alignItems: "flex-start",
-  gap: 7,
-  padding: "4px 8px",
-  borderRadius: 6,
+  alignItems: "center",
+  gap: 8,
+  padding: "5px 10px",
+  borderRadius: 5,
   cursor: "pointer",
-  fontFamily: "Menlo, Monaco, Consolas, monospace",
-  fontSize: 11.5,
+  fontSize: 12,
   lineHeight: 1.5,
-  border: "1px solid transparent",
-  transition: "background 0.12s, border-color 0.12s",
+  transition: "background 0.12s",
 };
 
 const SUBMIT_BASE = {
@@ -35,10 +35,84 @@ const SUBMIT_BASE = {
   marginTop: 4,
 };
 
-const MultiChoiceInteract = ({ config, onSubmit, isDark, disabled }) => {
+const Checkbox = ({ checked, isDark }) => (
+  <div
+    style={{
+      width: 14,
+      height: 14,
+      borderRadius: 4,
+      border: checked
+        ? `2px solid ${ACCENT}`
+        : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
+      background: checked ? ACCENT : "transparent",
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.12s",
+      boxSizing: "border-box",
+    }}
+  >
+    {checked && (
+      <svg width="8" height="8" viewBox="0 0 8 8" fill="none">
+        <path
+          d="M1.5 4L3.5 6L6.5 2"
+          stroke="white"
+          strokeWidth="1.4"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    )}
+  </div>
+);
+
+const Radio = ({ checked, isDark }) => (
+  <div
+    style={{
+      width: 14,
+      height: 14,
+      borderRadius: "50%",
+      border: checked
+        ? `2px solid ${ACCENT}`
+        : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
+      background: checked ? ACCENT : "transparent",
+      flexShrink: 0,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      transition: "all 0.12s",
+      boxSizing: "border-box",
+    }}
+  >
+    {checked && (
+      <span
+        style={{
+          width: 6,
+          height: 6,
+          borderRadius: "50%",
+          background: "#fff",
+        }}
+      />
+    )}
+  </div>
+);
+
+const MultiChoiceInteract = ({
+  config,
+  onSubmit,
+  uiState,
+  isDark,
+  disabled,
+}) => {
   const choices = Array.isArray(config?.choices) ? config.choices : [];
   const multiSelect = config?.multi_select === true;
-  const [selected, setSelected] = useState([]);
+  const submittedResponse = uiState?.userResponse;
+  const [selected, setSelected] = useState(() =>
+    Array.isArray(submittedResponse?.selected)
+      ? submittedResponse.selected
+      : [],
+  );
 
   if (choices.length === 0) return null;
 
@@ -57,19 +131,14 @@ const MultiChoiceInteract = ({ config, onSubmit, isDark, disabled }) => {
     onSubmit({ selected });
   };
 
-  const hoverBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)";
-  const activeBorder = isDark
-    ? "rgba(99,179,237,0.5)"
-    : "rgba(59,130,246,0.45)";
-  const textColor = isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.72)";
-  const descColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.42)";
-  const indicatorBg = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
-  const indicatorActive = isDark
-    ? "rgba(99,179,237,0.8)"
-    : "rgba(59,130,246,0.7)";
+  const hoverBg = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
+  const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.38)";
+  const fontFamily = "Jost, sans-serif";
+  const Indicator = multiSelect ? Checkbox : Radio;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
       {choices.map((choice) => {
         const id =
           typeof choice?.id === "string" ? choice.id : String(choice?.id ?? "");
@@ -84,47 +153,21 @@ const MultiChoiceInteract = ({ config, onSubmit, isDark, disabled }) => {
             onClick={() => toggle(id)}
             style={{
               ...CHOICE_BASE,
+              fontFamily,
               background: isSelected ? hoverBg : "transparent",
-              borderColor: isSelected ? activeBorder : "transparent",
-              opacity: disabled ? 0.5 : 1,
+              opacity: disabled ? 0.55 : 1,
               cursor: disabled ? "default" : "pointer",
             }}
           >
-            {/* indicator */}
-            <span
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: multiSelect ? 3 : "50%",
-                border: `1.5px solid ${isSelected ? indicatorActive : isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)"}`,
-                background: isSelected ? indicatorActive : indicatorBg,
-                flexShrink: 0,
-                marginTop: 2,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                transition: "all 0.12s",
-              }}
+            <Indicator checked={isSelected} isDark={isDark} />
+            <div
+              style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
             >
-              {isSelected && (
-                <span
-                  style={{
-                    width: multiSelect ? 8 : 6,
-                    height: multiSelect ? 8 : 6,
-                    borderRadius: multiSelect ? 1 : "50%",
-                    background: "#fff",
-                  }}
-                />
-              )}
-            </span>
-
-            {/* label + description */}
-            <div style={{ display: "flex", flexDirection: "column" }}>
               <span style={{ color: textColor }}>{label}</span>
               {description && (
                 <span
                   style={{
-                    fontSize: 10,
+                    fontSize: Math.round(12 * 0.8),
                     color: descColor,
                     lineHeight: 1.4,
                   }}
@@ -161,7 +204,7 @@ const MultiChoiceInteract = ({ config, onSubmit, isDark, disabled }) => {
                   ? "rgba(16,185,129,0.22)"
                   : "rgba(16,185,129,0.16)",
             cursor: selected.length === 0 ? "default" : "pointer",
-            alignSelf: "flex-start",
+            alignSelf: "flex-end",
           }}
         >
           Submit

@@ -494,7 +494,9 @@ const TraceChain = ({
         const interactTitle =
           interactType === "confirmation"
             ? "Tool Confirmation"
-            : interactType === "multi_choice"
+            : interactType === "multi_choice" ||
+                interactType === "single" ||
+                interactType === "multi"
               ? "Selection"
               : interactType === "text_input"
                 ? "Input Requested"
@@ -510,22 +512,41 @@ const TraceChain = ({
             <div
               style={{
                 display: "flex",
-                alignItems: "center",
-                gap: 8,
-                flexWrap: "wrap",
+                flexDirection: "column",
+                gap: 6,
               }}
             >
-              <ToolTag name={toolName} isDark={isDark} />
-              <span
+              <div
                 style={{
-                  fontSize: 11.5,
-                  color: statusColor,
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  flexWrap: "wrap",
                 }}
               >
-                {statusLabel}
-              </span>
-              {canTakeAction && (
+                <ToolTag name={toolName} isDark={isDark} />
+                <span
+                  style={{
+                    fontSize: 11.5,
+                    color: statusColor,
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  }}
+                >
+                  {statusLabel}
+                </span>
+              </div>
+              {interactType !== "confirmation" ? (
+                <InteractWrapper
+                  type={interactType}
+                  config={interactConfig}
+                  onSubmit={(data) =>
+                    handleInteractSubmit(confirmationId, interactType, data)
+                  }
+                  uiState={confirmationUiState}
+                  isDark={isDark}
+                  disabled={!canTakeAction}
+                />
+              ) : canTakeAction ? (
                 <InteractWrapper
                   type={interactType}
                   config={interactConfig}
@@ -536,7 +557,7 @@ const TraceChain = ({
                   isDark={isDark}
                   disabled={false}
                 />
-              )}
+              ) : null}
             </div>
           ),
           details:

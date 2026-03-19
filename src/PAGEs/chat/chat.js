@@ -1024,6 +1024,7 @@ const ChatInterface = () => {
             error: "",
             resolved: true,
             decision: approved ? "approved" : "denied",
+            userResponse: userResponse ?? null,
           },
         }));
       } catch (error) {
