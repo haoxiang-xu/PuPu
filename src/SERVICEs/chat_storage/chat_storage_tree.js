@@ -9,11 +9,9 @@ import {
 } from "./chat_storage_constants";
 import {
   clone,
-  createChatSession,
   formatRelativeAgeShort,
   isObject,
   isValidTimestamp,
-  sanitizeChatSession,
   sanitizeLabel,
   unique,
 } from "./chat_storage_sanitize";

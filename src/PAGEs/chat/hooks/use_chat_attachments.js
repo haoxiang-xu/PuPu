@@ -399,6 +399,7 @@ export const useChatAttachments = ({
       maxAttachmentBytes,
       maxAttachmentCount,
       rememberAttachmentPayloads,
+      setDraftAttachments,
       setStreamError,
       supportsImageAttachments,
       supportsPdfAttachments,
@@ -444,7 +445,7 @@ export const useChatAttachments = ({
       removeAttachmentPayload(chatId, normalizedAttachmentId);
       deleteAttachmentPayload(normalizedAttachmentId).catch(() => {});
     },
-    [chatId, removeAttachmentPayload],
+    [chatId, removeAttachmentPayload, setDraftAttachments],
   );
 
   const clearAttachmentPayloads = useCallback(() => {

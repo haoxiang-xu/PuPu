@@ -83,6 +83,9 @@ const ChatInterface = () => {
     activeStreamMessagesRef,
     setStreamError,
   });
+  const activeChatIdRef = session.activeChatIdRef;
+  const modelIdRef = session.modelIdRef;
+  const setSelectedModelId = session.setSelectedModelId;
 
   const activeModelCapabilities = useMemo(() => {
     const fallbackCapabilities =
@@ -239,13 +242,12 @@ const ChatInterface = () => {
       setModelCatalog(normalized);
 
       if (
-        (session.modelIdRef.current === "miso-unset" ||
-          !session.modelIdRef.current) &&
+        (modelIdRef.current === "miso-unset" || !modelIdRef.current) &&
         normalized.activeModel
       ) {
-        const currentChatId = session.activeChatIdRef.current;
-        session.modelIdRef.current = normalized.activeModel;
-        session.setSelectedModelId(normalized.activeModel);
+        const currentChatId = activeChatIdRef.current;
+        modelIdRef.current = normalized.activeModel;
+        setSelectedModelId(normalized.activeModel);
         if (currentChatId) {
           storageApi.setChatModel(
             currentChatId,
@@ -257,7 +259,7 @@ const ChatInterface = () => {
     } catch (_error) {
       // ignore transient catalog fetch failures
     }
-  }, [session.activeChatIdRef, session.modelIdRef, session.setSelectedModelId, storageApi]);
+  }, [activeChatIdRef, modelIdRef, setSelectedModelId, storageApi]);
 
   useEffect(() => {
     refreshMisoStatus();

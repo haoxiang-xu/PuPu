@@ -535,7 +535,7 @@ export const useChatStream = ({
         return false;
       }
     },
-    [activeChatIdRef, buildHistoryForModel, modelIdRef],
+    [activeChatIdRef, buildHistoryForModel, modelIdRef, setStreamError],
   );
 
   const runTurnRequest = useCallback(
@@ -922,7 +922,29 @@ export const useChatStream = ({
                     content: systemPrompt,
                   });
                 }
-                misoLogger.log("request_messages", requestMessagesForLog);
+                const requestToolNamesForLog = Array.isArray(
+                  frame.payload?.tool_names,
+                )
+                  ? frame.payload.tool_names.filter(
+                      (name) => typeof name === "string" && name.trim(),
+                    )
+                  : [];
+                const providerForLog =
+                  typeof frame.payload?.provider === "string"
+                    ? frame.payload.provider.trim()
+                    : "";
+                const previousResponseIdForLog =
+                  typeof frame.payload?.previous_response_id === "string"
+                    ? frame.payload.previous_response_id.trim()
+                    : "";
+                misoLogger.log("request_messages", {
+                  messages: requestMessagesForLog,
+                  toolNames: requestToolNamesForLog,
+                  ...(providerForLog ? { provider: providerForLog } : {}),
+                  ...(previousResponseIdForLog
+                    ? { previousResponseId: previousResponseIdForLog }
+                    : {}),
+                });
                 return;
               }
 
@@ -1429,12 +1451,10 @@ export const useChatStream = ({
       buildHistoryForModel,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
-      clearConfirmationResolutionTimer,
       clearResolvedToolConfirmationByCallId,
       hydrateAttachmentPayloads,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
-      messagesRef,
       modelIdRef,
       resolveAttachmentPayloads,
       selectedToolkits,
@@ -1443,6 +1463,7 @@ export const useChatStream = ({
       setInputValue,
       setMessages,
       setSelectedModelId,
+      setStreamError,
       storageApi,
       systemPromptOverrides,
       updateToolConfirmationUiState,
@@ -1497,6 +1518,7 @@ export const useChatStream = ({
     inputValue,
     messages,
     runTurnRequest,
+    setStreamError,
   ]);
 
   const resendTurn = useCallback(
@@ -1574,6 +1596,7 @@ export const useChatStream = ({
       messagesRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
+      setStreamError,
     ],
   );
 
@@ -1649,6 +1672,7 @@ export const useChatStream = ({
       messagesRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
+      setStreamError,
     ],
   );
 
@@ -1706,6 +1730,13 @@ export const useChatStream = ({
   );
 
   useEffect(() => {
+    const confirmationIdByCallId = confirmationIdByCallIdRef.current;
+    const confirmationCallIdById = confirmationCallIdByIdRef.current;
+    const confirmationFollowupSignalById =
+      confirmationFollowupSignalByIdRef.current;
+    const confirmationResolveTimerById =
+      confirmationResolveTimerByIdRef.current;
+
     return () => {
       clearActiveTokenFlushController("dispose");
       if (
@@ -1718,13 +1749,13 @@ export const useChatStream = ({
       streamingChatIdRef.current = null;
       activeStreamMessagesRef.current = null;
       clearAttachmentPayloads();
-      confirmationIdByCallIdRef.current.clear();
-      confirmationCallIdByIdRef.current.clear();
-      confirmationFollowupSignalByIdRef.current.clear();
-      confirmationResolveTimerByIdRef.current.forEach((timerId) => {
+      confirmationIdByCallId.clear();
+      confirmationCallIdById.clear();
+      confirmationFollowupSignalById.clear();
+      confirmationResolveTimerById.forEach((timerId) => {
         clearTimeout(timerId);
       });
-      confirmationResolveTimerByIdRef.current.clear();
+      confirmationResolveTimerById.clear();
       pendingContinuationRequestRef.current = null;
     };
   }, [

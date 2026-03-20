@@ -31,7 +31,6 @@ import {
   buildParentIndex,
   buildTreeNodeLookupByChatId,
   collectSubtreeNodeIds,
-  createChatNode,
   createEmptyStoreV2,
   createFolderNode,
   ensureTreeHasNodeForChat,
