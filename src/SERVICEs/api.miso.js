@@ -11,70 +11,24 @@ import {
 } from "./api.shared";
 import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
+import { sanitizeSystemPromptSections } from "./system_prompt_sections";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
-const SYSTEM_PROMPT_V2_SECTION_LIMIT = 2000;
-const SYSTEM_PROMPT_V2_SECTION_KEYS = [
-  "personality",
-  "rules",
-  "style",
-  "output_format",
-  "context",
-  "constraints",
-];
 const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
-const normalizeSystemPromptV2SectionKey = (rawKey) => {
-  if (typeof rawKey !== "string") {
-    return "";
-  }
-  const normalized = rawKey.trim().toLowerCase();
-  const aliased = normalized === "personally" ? "personality" : normalized;
-  return SYSTEM_PROMPT_V2_SECTION_KEYS.includes(aliased) ? aliased : "";
-};
-
-const normalizeSystemPromptV2SectionValue = (rawValue) => {
-  if (typeof rawValue !== "string") {
-    return "";
-  }
-  const trimmed = rawValue.trim();
-  return trimmed.slice(0, SYSTEM_PROMPT_V2_SECTION_LIMIT);
+const DEFAULT_SYSTEM_PROMPT_V2_SECTIONS = {
+  rules:
+    "Tool use is optional. Use tools only when they materially improve the answer. Output may be truncated, so keep answers concise and front-load the most important information.",
 };
 
 const sanitizeSystemPromptV2Sections = (
   rawSections,
   { allowNull = false, keepEmptyStrings = false } = {},
-) => {
-  if (!isObject(rawSections)) {
-    return {};
-  }
-
-  const sanitized = {};
-  Object.entries(rawSections).forEach(([rawKey, rawValue]) => {
-    const key = normalizeSystemPromptV2SectionKey(rawKey);
-    if (!key) {
-      return;
-    }
-
-    if (rawValue == null) {
-      if (allowNull) {
-        sanitized[key] = null;
-      }
-      return;
-    }
-
-    if (typeof rawValue !== "string") {
-      return;
-    }
-
-    const value = normalizeSystemPromptV2SectionValue(rawValue);
-    if (value || keepEmptyStrings) {
-      sanitized[key] = value;
-    }
+) =>
+  sanitizeSystemPromptSections(rawSections, {
+    allowNull,
+    keepEmptyStrings,
   });
-
-  return sanitized;
-};
 
 const readModelProvidersSettings = () => {
   if (typeof window === "undefined" || !window.localStorage) {
@@ -399,9 +353,20 @@ const injectMemoryIntoPayload = (payload) => {
 };
 
 const getStoredSystemPromptV2Config = () => {
+  const runtimeSettings = readRuntimeSettings();
+  const runtimePromptConfig = isObject(runtimeSettings?.system_prompt_v2)
+    ? runtimeSettings.system_prompt_v2
+    : {};
+  const sections = sanitizeSystemPromptV2Sections(runtimePromptConfig.sections);
   return {
-    enabled: true,
-    sections: {},
+    enabled:
+      typeof runtimePromptConfig.enabled === "boolean"
+        ? runtimePromptConfig.enabled
+        : true,
+    sections:
+      Object.keys(sections).length > 0
+        ? sections
+        : { ...DEFAULT_SYSTEM_PROMPT_V2_SECTIONS },
   };
 };
 
