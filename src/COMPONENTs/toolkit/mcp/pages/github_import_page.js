@@ -133,61 +133,64 @@ const GitHubImportPage = ({ isDark }) => {
           )}
 
           {/* Draft entries */}
-          {result.entries?.length > 0 && result.entries.map((draft, i) => {
-            const firstProfile = draft.profile_candidates?.[0];
-            return (
-              <div
-                key={draft.entry_id || i}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 10,
-                  padding: "10px 12px",
-                  borderRadius: 10,
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}`,
-                  background: isDark
-                    ? "rgba(255,255,255,0.02)"
-                    : "rgba(0,0,0,0.01)",
-                }}
-              >
-                <Icon
-                  src="github"
-                  style={{ width: 18, height: 18, flexShrink: 0 }}
-                  color={isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)"}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 12.5,
-                      fontFamily: "Jost",
-                      fontWeight: 500,
-                      color: textColor,
-                    }}
-                  >
-                    {draft.display_name || `Server ${i + 1}`}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 11,
-                      fontFamily: "Jost",
-                      color: mutedColor,
-                      marginTop: 2,
-                    }}
-                  >
-                    {firstProfile?.runtime || "local"} ·{" "}
-                    {firstProfile?.transport || "stdio"}
-                  </div>
-                </div>
-                <Badge
-                  isDark={isDark}
-                  color="#60a5fa"
-                  bg="rgba(96,165,250,0.12)"
+          {result.entries?.length > 0 &&
+            result.entries.map((draft, i) => {
+              const firstProfile = draft.profile_candidates?.[0];
+              return (
+                <div
+                  key={draft.entry_id || i}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}`,
+                    background: isDark
+                      ? "rgba(255,255,255,0.02)"
+                      : "rgba(0,0,0,0.01)",
+                  }}
                 >
-                  Draft
-                </Badge>
-              </div>
-            );
-          })}
+                  <Icon
+                    src="github"
+                    style={{ width: 18, height: 18, flexShrink: 0 }}
+                    color={
+                      isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.35)"
+                    }
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: 12.5,
+                        fontFamily: "Jost",
+                        fontWeight: 500,
+                        color: textColor,
+                      }}
+                    >
+                      {draft.display_name || `Server ${i + 1}`}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        fontFamily: "Jost",
+                        color: mutedColor,
+                        marginTop: 2,
+                      }}
+                    >
+                      {firstProfile?.runtime || "local"} ·{" "}
+                      {firstProfile?.transport || "stdio"}
+                    </div>
+                  </div>
+                  <Badge
+                    isDark={isDark}
+                    color="#60a5fa"
+                    bg="rgba(96,165,250,0.12)"
+                  >
+                    Draft
+                  </Badge>
+                </div>
+              );
+            })}
 
           {/* Fallback to manual — no entries or all have warnings */}
           {result.entries?.length === 0 && (

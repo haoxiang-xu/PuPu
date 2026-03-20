@@ -1,5 +1,9 @@
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
-import { STATUS_CONFIG, SOURCE_KIND_CONFIG, RUNTIME_CONFIG } from "../constants";
+import {
+  STATUS_CONFIG,
+  SOURCE_KIND_CONFIG,
+  RUNTIME_CONFIG,
+} from "../constants";
 
 /* ── Small pill badge ── */
 export const Badge = ({ label, color, bg, style }) => (
@@ -26,19 +30,25 @@ export const Badge = ({ label, color, bg, style }) => (
 /* ── Status badge ── */
 export const StatusBadge = ({ status, style }) => {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.draft;
-  return <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} style={style} />;
+  return (
+    <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} style={style} />
+  );
 };
 
 /* ── Source kind badge ── */
 export const SourceBadge = ({ sourceKind, style }) => {
   const cfg = SOURCE_KIND_CONFIG[sourceKind] || SOURCE_KIND_CONFIG.manual;
-  return <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} style={style} />;
+  return (
+    <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} style={style} />
+  );
 };
 
 /* ── Runtime badge ── */
 export const RuntimeBadge = ({ runtime, style }) => {
   const cfg = RUNTIME_CONFIG[runtime] || RUNTIME_CONFIG.local;
-  return <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} style={style} />;
+  return (
+    <Badge label={cfg.label} color={cfg.color} bg={cfg.bg} style={style} />
+  );
 };
 
 /* ── Verification badge with icon ── */
@@ -146,9 +156,7 @@ export const PrimaryButton = ({
       fontSize: 13,
       fontWeight: 600,
       color: "#fff",
-      background: disabled
-        ? "rgba(96,165,250,0.35)"
-        : "rgba(96,165,250,0.85)",
+      background: disabled ? "rgba(96,165,250,0.35)" : "rgba(96,165,250,0.85)",
       transition: "background 0.15s ease, opacity 0.15s ease",
       outline: "none",
       opacity: loading ? 0.7 : 1,
@@ -231,7 +239,15 @@ export const FormField = ({ label, required, hint, children, isDark }) => (
 );
 
 /* ── Text input for forms ── */
-export const FormInput = ({ value, onChange, placeholder, type, isDark, disabled, style }) => (
+export const FormInput = ({
+  value,
+  onChange,
+  placeholder,
+  type,
+  isDark,
+  disabled,
+  style,
+}) => (
   <input
     type={type || "text"}
     value={value}
@@ -257,7 +273,14 @@ export const FormInput = ({ value, onChange, placeholder, type, isDark, disabled
 );
 
 /* ── Textarea for forms ── */
-export const FormTextarea = ({ value, onChange, placeholder, isDark, rows, style }) => (
+export const FormTextarea = ({
+  value,
+  onChange,
+  placeholder,
+  isDark,
+  rows,
+  style,
+}) => (
   <textarea
     value={value}
     onChange={(e) => onChange(e.target.value)}

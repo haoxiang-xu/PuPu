@@ -60,10 +60,14 @@ const ManualPage = ({ isDark }) => {
         payload.cwd = form.cwd || undefined;
         payload.env = form.env
           ? Object.fromEntries(
-              form.env.split("\n").filter(Boolean).map((l) => {
-                const idx = l.indexOf("=");
-                return idx > 0 ? [l.slice(0, idx), l.slice(idx + 1)] : null;
-              }).filter(Boolean),
+              form.env
+                .split("\n")
+                .filter(Boolean)
+                .map((l) => {
+                  const idx = l.indexOf("=");
+                  return idx > 0 ? [l.slice(0, idx), l.slice(idx + 1)] : null;
+                })
+                .filter(Boolean),
             )
           : undefined;
         payload.transport = "stdio";
@@ -72,12 +76,16 @@ const ManualPage = ({ isDark }) => {
         payload.transport = form.transport;
         payload.headers = form.headers
           ? Object.fromEntries(
-              form.headers.split("\n").filter(Boolean).map((l) => {
-                const idx = l.indexOf(":");
-                return idx > 0
-                  ? [l.slice(0, idx).trim(), l.slice(idx + 1).trim()]
-                  : null;
-              }).filter(Boolean),
+              form.headers
+                .split("\n")
+                .filter(Boolean)
+                .map((l) => {
+                  const idx = l.indexOf(":");
+                  return idx > 0
+                    ? [l.slice(0, idx).trim(), l.slice(idx + 1).trim()]
+                    : null;
+                })
+                .filter(Boolean),
             )
           : undefined;
         if (form.auth_token) {
@@ -293,8 +301,7 @@ const ManualPage = ({ isDark }) => {
                         borderRadius: 6,
                         fontSize: 11,
                         fontFamily: "JetBrains Mono",
-                        color:
-                          form.transport === t ? "#5b9cf4" : mutedColor,
+                        color: form.transport === t ? "#5b9cf4" : mutedColor,
                         background:
                           form.transport === t
                             ? isDark

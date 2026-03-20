@@ -54,9 +54,7 @@ const InstalledRow = ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: isDark
-            ? "rgba(255,255,255,0.05)"
-            : "rgba(0,0,0,0.04)",
+          background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
           flexShrink: 0,
         }}
       >
@@ -68,12 +66,27 @@ const InstalledRow = ({
       </div>
 
       {/* ── Name & meta ── */}
-      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 3 }}>
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+        }}
+      >
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{
-            fontSize: 12.5, fontFamily: "Jost", fontWeight: 500, color: textColor,
-            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          }}>
+          <span
+            style={{
+              fontSize: 12.5,
+              fontFamily: "Jost",
+              fontWeight: 500,
+              color: textColor,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
             {server.display_name}
           </span>
           <StatusBadge status={server.status} />
@@ -82,7 +95,9 @@ const InstalledRow = ({
           <SourceBadge sourceKind={server.source_kind} />
           <RuntimeBadge runtime={server.runtime} />
           {toolCount > 0 && (
-            <span style={{ fontSize: 11, fontFamily: "Jost", color: mutedColor }}>
+            <span
+              style={{ fontSize: 11, fontFamily: "Jost", color: mutedColor }}
+            >
               {toolCount} tool{toolCount !== 1 ? "s" : ""}
             </span>
           )}
@@ -93,7 +108,9 @@ const InstalledRow = ({
       </div>
 
       {/* ── Actions ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+      <div
+        style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}
+      >
         <ActionButton
           icon="search"
           label="Detail"

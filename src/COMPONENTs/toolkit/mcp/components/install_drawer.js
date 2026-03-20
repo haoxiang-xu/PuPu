@@ -19,7 +19,9 @@ const STEPS = [
 
 /* ── Step indicator ── */
 const StepIndicator = ({ current, isDark }) => (
-  <div style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 16 }}>
+  <div
+    style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 16 }}
+  >
     {STEPS.map((step, i) => {
       const isActive = i === current;
       const isPast = i < current;
@@ -33,27 +35,62 @@ const StepIndicator = ({ current, isDark }) => (
       return (
         <div
           key={step.key}
-          style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 5, position: "relative" }}
+          style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            gap: 5,
+            position: "relative",
+          }}
         >
           {i > 0 && (
-            <div style={{
-              position: "absolute", top: 5, right: "50%", left: "-50%",
-              height: 2, borderRadius: 1,
-              background: isPast ? "#34d399" : isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-            }} />
+            <div
+              style={{
+                position: "absolute",
+                top: 5,
+                right: "50%",
+                left: "-50%",
+                height: 2,
+                borderRadius: 1,
+                background: isPast
+                  ? "#34d399"
+                  : isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.06)",
+              }}
+            />
           )}
-          <div style={{
-            width: 12, height: 12, borderRadius: "50%", background: dotColor, zIndex: 1,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            {isPast && <Icon src="check" style={{ width: 8, height: 8 }} color="#fff" />}
+          <div
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: "50%",
+              background: dotColor,
+              zIndex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {isPast && (
+              <Icon src="check" style={{ width: 8, height: 8 }} color="#fff" />
+            )}
           </div>
-          <span style={{
-            fontSize: 10, fontFamily: "Jost", fontWeight: isActive ? 600 : 400,
-            color: isActive
-              ? isDark ? "#fff" : "#222"
-              : isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
-          }}>
+          <span
+            style={{
+              fontSize: 10,
+              fontFamily: "Jost",
+              fontWeight: isActive ? 600 : 400,
+              color: isActive
+                ? isDark
+                  ? "#fff"
+                  : "#222"
+                : isDark
+                  ? "rgba(255,255,255,0.35)"
+                  : "rgba(0,0,0,0.38)",
+            }}
+          >
             {step.label}
           </span>
         </div>
@@ -65,7 +102,12 @@ const StepIndicator = ({ current, isDark }) => (
 /* ══════════════════════════════════════════════
    Install Drawer — 3-step flow
    ══════════════════════════════════════════════ */
-const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplete: onInstalled }) => {
+const InstallDrawer = ({
+  catalogEntry: entry,
+  isDark,
+  onBack: onClose,
+  onComplete: onInstalled,
+}) => {
   const [step, setStep] = useState(0);
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [config, setConfig] = useState({});
@@ -85,10 +127,9 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
     const newConfig = {};
     (p.fields || []).forEach((f) => {
       if (defaults[f.name] !== undefined) {
-        newConfig[f.name] =
-          Array.isArray(defaults[f.name])
-            ? defaults[f.name].join(" ")
-            : defaults[f.name];
+        newConfig[f.name] = Array.isArray(defaults[f.name])
+          ? defaults[f.name].join(" ")
+          : defaults[f.name];
       }
     });
     setConfig(newConfig);
@@ -108,7 +149,9 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
   const handleTest = useCallback(async () => {
     setTesting(true);
     setTestResult(null);
-    const result = await api.mcp.testInstalledServer({ instance_id: "test-draft" });
+    const result = await api.mcp.testInstalledServer({
+      instance_id: "test-draft",
+    });
     setTestResult(result);
     setTesting(false);
   }, []);
@@ -141,12 +184,25 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
         }}
       >
         <button
-          onClick={step > 0 ? () => { setStep((s) => s - 1); setTestResult(null); } : onClose}
+          onClick={
+            step > 0
+              ? () => {
+                  setStep((s) => s - 1);
+                  setTestResult(null);
+                }
+              : onClose
+          }
           style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            width: 28, height: 28, borderRadius: 6, border: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 28,
+            height: 28,
+            borderRadius: 6,
+            border: "none",
             background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
-            cursor: "pointer", flexShrink: 0,
+            cursor: "pointer",
+            flexShrink: 0,
           }}
         >
           <Icon
@@ -172,12 +228,20 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
       {/* ── Content ── */}
       <div
         className="scrollable"
-        style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12 }}
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+        }}
       >
         {/* ══ Step 0: Select Profile ══ */}
         {step === 0 && (
           <>
-            <SectionLabel isDark={isDark}>Choose an install profile</SectionLabel>
+            <SectionLabel isDark={isDark}>
+              Choose an install profile
+            </SectionLabel>
             {profiles.map((p) => (
               <div
                 key={p.id}
@@ -186,7 +250,9 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
                   padding: "12px 14px",
                   borderRadius: 10,
                   border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`,
-                  background: isDark ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)",
+                  background: isDark
+                    ? "rgba(255,255,255,0.02)"
+                    : "rgba(0,0,0,0.01)",
                   cursor: "pointer",
                   display: "flex",
                   flexDirection: "column",
@@ -195,7 +261,14 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ fontSize: 13, fontFamily: "Jost", fontWeight: 500, color: textColor }}>
+                  <span
+                    style={{
+                      fontSize: 13,
+                      fontFamily: "Jost",
+                      fontWeight: 500,
+                      color: textColor,
+                    }}
+                  >
                     {p.label}
                   </span>
                   <RuntimeBadge runtime={p.runtime} />
@@ -203,24 +276,46 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
                   <Badge
                     label={p.transport}
-                    color={isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)"}
+                    color={
+                      isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)"
+                    }
                     bg={isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)"}
                   />
                   {p.platforms?.length > 0 && (
-                    <span style={{ fontSize: 11, fontFamily: "Jost", color: mutedColor }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontFamily: "Jost",
+                        color: mutedColor,
+                      }}
+                    >
                       {p.platforms.join(", ")}
                     </span>
                   )}
                 </div>
                 {p.requires_secrets?.length > 0 && (
-                  <span style={{ fontSize: 11, fontFamily: "Jost", color: "#fb923c" }}>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "Jost",
+                      color: "#fb923c",
+                    }}
+                  >
                     Requires: {p.requires_secrets.join(", ")}
                   </span>
                 )}
               </div>
             ))}
             {profiles.length === 0 && (
-              <div style={{ padding: 20, textAlign: "center", color: mutedColor, fontSize: 13, fontFamily: "Jost" }}>
+              <div
+                style={{
+                  padding: 20,
+                  textAlign: "center",
+                  color: mutedColor,
+                  fontSize: 13,
+                  fontFamily: "Jost",
+                }}
+              >
                 No install profiles available for this server.
               </div>
             )}
@@ -244,7 +339,9 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
                   placeholder={
                     activeProfile.default_values?.[field.name]
                       ? String(
-                          Array.isArray(activeProfile.default_values[field.name])
+                          Array.isArray(
+                            activeProfile.default_values[field.name],
+                          )
                             ? activeProfile.default_values[field.name].join(" ")
                             : activeProfile.default_values[field.name],
                         )
@@ -295,34 +392,63 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
           <>
             <SectionLabel isDark={isDark}>Review</SectionLabel>
             {/* Source info */}
-            <div style={{
-              padding: "10px 12px", borderRadius: 8,
-              background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-              display: "flex", flexDirection: "column", gap: 6,
-            }}>
+            <div
+              style={{
+                padding: "10px 12px",
+                borderRadius: 8,
+                background: isDark
+                  ? "rgba(255,255,255,0.03)"
+                  : "rgba(0,0,0,0.02)",
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
               <ReviewRow label="Server" value={entry?.name} isDark={isDark} />
-              <ReviewRow label="Runtime" value={activeProfile.runtime} isDark={isDark} />
-              <ReviewRow label="Transport" value={activeProfile.transport} isDark={isDark} />
+              <ReviewRow
+                label="Runtime"
+                value={activeProfile.runtime}
+                isDark={isDark}
+              />
+              <ReviewRow
+                label="Transport"
+                value={activeProfile.transport}
+                isDark={isDark}
+              />
               {config.command && (
                 <ReviewRow
                   label="Command"
-                  value={[config.command, config.args].filter(Boolean).join(" ")}
+                  value={[config.command, config.args]
+                    .filter(Boolean)
+                    .join(" ")}
                   isDark={isDark}
                   mono
                 />
               )}
               {config.url && (
-                <ReviewRow label="URL" value={config.url} isDark={isDark} mono />
+                <ReviewRow
+                  label="URL"
+                  value={config.url}
+                  isDark={isDark}
+                  mono
+                />
               )}
               {config.cwd && (
-                <ReviewRow label="Working Dir" value={config.cwd} isDark={isDark} mono />
+                <ReviewRow
+                  label="Working Dir"
+                  value={config.cwd}
+                  isDark={isDark}
+                  mono
+                />
               )}
               {activeProfile.requires_secrets?.length > 0 && (
                 <ReviewRow
                   label="Secrets"
-                  value={activeProfile.requires_secrets.map((s) =>
-                    secrets[s] ? `${s}: configured` : `${s}: not set`
-                  ).join(", ")}
+                  value={activeProfile.requires_secrets
+                    .map((s) =>
+                      secrets[s] ? `${s}: configured` : `${s}: not set`,
+                    )
+                    .join(", ")}
                   isDark={isDark}
                 />
               )}
@@ -330,12 +456,24 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
 
             {/* Warnings */}
             {entry?.revoked && (
-              <div style={{
-                display: "flex", alignItems: "center", gap: 6, padding: "8px 10px",
-                borderRadius: 8, background: "rgba(239,68,68,0.08)",
-              }}>
-                <Icon src="warning" style={{ width: 14, height: 14 }} color="#ef4444" />
-                <span style={{ fontSize: 12, fontFamily: "Jost", color: "#ef4444" }}>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  background: "rgba(239,68,68,0.08)",
+                }}
+              >
+                <Icon
+                  src="warning"
+                  style={{ width: 14, height: 14 }}
+                  color="#ef4444"
+                />
+                <span
+                  style={{ fontSize: 12, fontFamily: "Jost", color: "#ef4444" }}
+                >
                   This server has been revoked. It cannot be enabled.
                 </span>
               </div>
@@ -376,18 +514,26 @@ const InstallDrawer = ({ catalogEntry: entry, isDark, onBack: onClose, onComplet
 /* ── Inline helper ── */
 const ReviewRow = ({ label, value, isDark, mono }) => (
   <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-    <span style={{
-      fontSize: 11, fontFamily: "Jost", fontWeight: 500, minWidth: 72, flexShrink: 0,
-      color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
-    }}>
+    <span
+      style={{
+        fontSize: 11,
+        fontFamily: "Jost",
+        fontWeight: 500,
+        minWidth: 72,
+        flexShrink: 0,
+        color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+      }}
+    >
       {label}
     </span>
-    <span style={{
-      fontSize: 11.5,
-      fontFamily: mono ? "JetBrains Mono, monospace" : "Jost",
-      color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.7)",
-      wordBreak: "break-all",
-    }}>
+    <span
+      style={{
+        fontSize: 11.5,
+        fontFamily: mono ? "JetBrains Mono, monospace" : "Jost",
+        color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.7)",
+        wordBreak: "break-all",
+      }}
+    >
       {value || "—"}
     </span>
   </div>

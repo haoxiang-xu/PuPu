@@ -8,18 +8,13 @@ const CatalogCard = ({ entry, isDark, onClick }) => {
   const iconBg = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
 
   const runtimes = [
-    ...new Set(
-      (entry.install_profiles || []).map((p) => p.runtime),
-    ),
+    ...new Set((entry.install_profiles || []).map((p) => p.runtime)),
   ];
 
   const toolCount = entry.tool_preview?.length || 0;
 
   return (
-    <div
-      onClick={() => onClick?.(entry)}
-      style={{ cursor: "pointer" }}
-    >
+    <div onClick={() => onClick?.(entry)} style={{ cursor: "pointer" }}>
       <Card
         width="100%"
         height="100%"

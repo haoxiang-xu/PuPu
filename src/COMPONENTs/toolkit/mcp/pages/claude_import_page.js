@@ -21,23 +21,20 @@ const ClaudeImportPage = ({ isDark }) => {
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
   const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.8)";
 
-  const handleImport = useCallback(
-    async (text) => {
-      setLoading(true);
-      setError(null);
-      setImportResult(null);
-      try {
-        const parsed = JSON.parse(text);
-        const result = await api.mcp.importClaudeConfig(parsed);
-        setImportResult(result);
-      } catch (err) {
-        setError(err.message || "Invalid JSON");
-      } finally {
-        setLoading(false);
-      }
-    },
-    [],
-  );
+  const handleImport = useCallback(async (text) => {
+    setLoading(true);
+    setError(null);
+    setImportResult(null);
+    try {
+      const parsed = JSON.parse(text);
+      const result = await api.mcp.importClaudeConfig(parsed);
+      setImportResult(result);
+    } catch (err) {
+      setError(err.message || "Invalid JSON");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleFileUpload = useCallback(
     (e) => {
@@ -67,8 +64,11 @@ const ClaudeImportPage = ({ isDark }) => {
         }}
       >
         Import MCP server configurations from Claude Desktop. Paste the JSON
-        content of your <code style={{ fontFamily: "JetBrains Mono", fontSize: 11 }}>claude_desktop_config.json</code> or
-        upload the file directly.
+        content of your{" "}
+        <code style={{ fontFamily: "JetBrains Mono", fontSize: 11 }}>
+          claude_desktop_config.json
+        </code>{" "}
+        or upload the file directly.
       </p>
 
       {/* ── Mode switcher ── */}
@@ -182,7 +182,8 @@ const ClaudeImportPage = ({ isDark }) => {
       {importResult?.entries?.length > 0 && (
         <>
           <SectionLabel isDark={isDark}>
-            Found {importResult.entries.length} server{importResult.entries.length !== 1 ? "s" : ""}
+            Found {importResult.entries.length} server
+            {importResult.entries.length !== 1 ? "s" : ""}
           </SectionLabel>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {importResult.entries.map((draft, i) => {
@@ -226,10 +227,15 @@ const ClaudeImportPage = ({ isDark }) => {
                         marginTop: 2,
                       }}
                     >
-                      {firstProfile?.runtime || "local"} · {firstProfile?.transport || "stdio"}
+                      {firstProfile?.runtime || "local"} ·{" "}
+                      {firstProfile?.transport || "stdio"}
                     </div>
                   </div>
-                  <Badge isDark={isDark} color="#60a5fa" bg="rgba(96,165,250,0.12)">
+                  <Badge
+                    isDark={isDark}
+                    color="#60a5fa"
+                    bg="rgba(96,165,250,0.12)"
+                  >
                     Draft
                   </Badge>
                 </div>

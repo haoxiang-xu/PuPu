@@ -20,36 +20,47 @@ const InstalledPage = ({ isDark }) => {
     });
   }, []);
 
-  useEffect(() => { fetchServers(); }, [fetchServers]);
-
-  const handleRetest = useCallback(async (server) => {
-    setTestingId(server.instance_id);
-    setTestResult(null);
-    const result = await api.mcp.testInstalledServer({
-      instance_id: server.instance_id,
-    });
-    setTestResult({ ...result, instance_id: server.instance_id });
-    setTestingId(null);
+  useEffect(() => {
     fetchServers();
   }, [fetchServers]);
 
-  const handleToggle = useCallback(async (server) => {
-    if (server.status === "enabled") {
-      await api.mcp.disableInstalledServer({
+  const handleRetest = useCallback(
+    async (server) => {
+      setTestingId(server.instance_id);
+      setTestResult(null);
+      const result = await api.mcp.testInstalledServer({
         instance_id: server.instance_id,
       });
-    } else {
-      await api.mcp.enableInstalledServer({
-        instance_id: server.instance_id,
-      });
-    }
-    fetchServers();
-  }, [fetchServers]);
+      setTestResult({ ...result, instance_id: server.instance_id });
+      setTestingId(null);
+      fetchServers();
+    },
+    [fetchServers],
+  );
 
-  const handleViewDetail = useCallback((server) => {
-    /* For now, trigger a re-test to show detail */
-    handleRetest(server);
-  }, [handleRetest]);
+  const handleToggle = useCallback(
+    async (server) => {
+      if (server.status === "enabled") {
+        await api.mcp.disableInstalledServer({
+          instance_id: server.instance_id,
+        });
+      } else {
+        await api.mcp.enableInstalledServer({
+          instance_id: server.instance_id,
+        });
+      }
+      fetchServers();
+    },
+    [fetchServers],
+  );
+
+  const handleViewDetail = useCallback(
+    (server) => {
+      /* For now, trigger a re-test to show detail */
+      handleRetest(server);
+    },
+    [handleRetest],
+  );
 
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
 
@@ -99,7 +110,10 @@ const InstalledPage = ({ isDark }) => {
 
       {/* ── Server list ── */}
       {servers.map((s) => (
-        <div key={s.instance_id} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div
+          key={s.instance_id}
+          style={{ display: "flex", flexDirection: "column", gap: 6 }}
+        >
           <InstalledRow
             server={s}
             isDark={isDark}
@@ -113,11 +127,13 @@ const InstalledPage = ({ isDark }) => {
               <TestResult result={null} isDark={isDark} />
             </div>
           )}
-          {testResult && testResult.instance_id === s.instance_id && !testingId && (
-            <div style={{ padding: "0 8px" }}>
-              <TestResult result={testResult} isDark={isDark} />
-            </div>
-          )}
+          {testResult &&
+            testResult.instance_id === s.instance_id &&
+            !testingId && (
+              <div style={{ padding: "0 8px" }}>
+                <TestResult result={testResult} isDark={isDark} />
+              </div>
+            )}
         </div>
       ))}
 

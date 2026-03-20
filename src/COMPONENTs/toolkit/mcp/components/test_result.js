@@ -13,11 +13,8 @@ const TestResult = ({ result, testing, isDark }) => {
         {TEST_PHASES.map((phase, i) => {
           const currentIdx = result ? phaseIndex(result.phase) : -1;
           const isActive = testing && i === currentIdx + 1;
-          const isPast = result
-            ? i <= currentIdx
-            : false;
-          const isFailed =
-            result?.status === "failed" && i === currentIdx;
+          const isPast = result ? i <= currentIdx : false;
+          const isFailed = result?.status === "failed" && i === currentIdx;
 
           let dotColor = mutedColor;
           if (isPast && !isFailed) {
@@ -175,60 +172,57 @@ const TestResult = ({ result, testing, isDark }) => {
           </div>
 
           {/* Tool list on success */}
-          {result.status === "success" &&
-            result.tools?.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                <span
+          {result.status === "success" && result.tools?.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Jost",
+                  fontWeight: 600,
+                  color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)",
+                }}
+              >
+                Discovered tools ({result.tool_count})
+              </span>
+              {result.tools.map((t) => (
+                <div
+                  key={t.name}
                   style={{
-                    fontSize: 11,
-                    fontFamily: "Jost",
-                    fontWeight: 600,
-                    color: isDark
-                      ? "rgba(255,255,255,0.5)"
-                      : "rgba(0,0,0,0.45)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    padding: "2px 0",
                   }}
                 >
-                  Discovered tools ({result.tool_count})
-                </span>
-                {result.tools.map((t) => (
-                  <div
-                    key={t.name}
+                  <Icon
+                    src="tool"
+                    style={{ width: 11, height: 11, flexShrink: 0 }}
+                    color={mutedColor}
+                  />
+                  <span
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 6,
-                      padding: "2px 0",
+                      fontSize: 11,
+                      fontFamily: "JetBrains Mono, monospace",
+                      color: isDark
+                        ? "rgba(255,255,255,0.6)"
+                        : "rgba(0,0,0,0.55)",
                     }}
                   >
-                    <Icon
-                      src="tool"
-                      style={{ width: 11, height: 11, flexShrink: 0 }}
-                      color={mutedColor}
-                    />
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontFamily: "JetBrains Mono, monospace",
-                        color: isDark
-                          ? "rgba(255,255,255,0.6)"
-                          : "rgba(0,0,0,0.55)",
-                      }}
-                    >
-                      {t.name}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: 11,
-                        fontFamily: "Jost",
-                        color: mutedColor,
-                      }}
-                    >
-                      {t.description}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
+                    {t.name}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      fontFamily: "Jost",
+                      color: mutedColor,
+                    }}
+                  >
+                    {t.description}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Errors on failure */}
           {result.errors?.length > 0 && (

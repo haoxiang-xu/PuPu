@@ -22,8 +22,18 @@ const MOCK_CATALOG = [
         platforms: ["darwin", "linux", "win32"],
         fields: [
           { name: "command", label: "Command", type: "string", required: true },
-          { name: "args", label: "Arguments", type: "string_array", required: false },
-          { name: "cwd", label: "Working Directory", type: "path", required: false },
+          {
+            name: "args",
+            label: "Arguments",
+            type: "string_array",
+            required: false,
+          },
+          {
+            name: "cwd",
+            label: "Working Directory",
+            type: "path",
+            required: false,
+          },
         ],
         default_values: {
           command: "npx",
@@ -61,7 +71,12 @@ const MOCK_CATALOG = [
         platforms: ["darwin", "linux", "win32"],
         fields: [
           { name: "command", label: "Command", type: "string", required: true },
-          { name: "args", label: "Arguments", type: "string_array", required: false },
+          {
+            name: "args",
+            label: "Arguments",
+            type: "string_array",
+            required: false,
+          },
         ],
         default_values: {
           command: "npx",
@@ -96,7 +111,12 @@ const MOCK_CATALOG = [
         platforms: ["darwin", "linux", "win32"],
         fields: [
           { name: "command", label: "Command", type: "string", required: true },
-          { name: "args", label: "Arguments", type: "string_array", required: false },
+          {
+            name: "args",
+            label: "Arguments",
+            type: "string_array",
+            required: false,
+          },
         ],
         default_values: {
           command: "npx",
@@ -106,7 +126,10 @@ const MOCK_CATALOG = [
       },
     ],
     tool_preview: [
-      { name: "search_repositories", description: "Search GitHub repositories" },
+      {
+        name: "search_repositories",
+        description: "Search GitHub repositories",
+      },
       { name: "create_issue", description: "Create a new issue" },
       { name: "list_pull_requests", description: "List pull requests" },
     ],
@@ -132,7 +155,12 @@ const MOCK_CATALOG = [
         platforms: ["darwin", "linux", "win32"],
         fields: [
           { name: "command", label: "Command", type: "string", required: true },
-          { name: "args", label: "Arguments", type: "string_array", required: false },
+          {
+            name: "args",
+            label: "Arguments",
+            type: "string_array",
+            required: false,
+          },
         ],
         default_values: {
           command: "npx",
@@ -141,9 +169,7 @@ const MOCK_CATALOG = [
         requires_secrets: ["POSTGRES_CONNECTION_STRING"],
       },
     ],
-    tool_preview: [
-      { name: "query", description: "Run a read-only SQL query" },
-    ],
+    tool_preview: [{ name: "query", description: "Run a read-only SQL query" }],
     revoked: false,
   },
   {
@@ -166,7 +192,12 @@ const MOCK_CATALOG = [
         platforms: ["darwin", "linux", "win32"],
         fields: [
           { name: "command", label: "Command", type: "string", required: true },
-          { name: "args", label: "Arguments", type: "string_array", required: false },
+          {
+            name: "args",
+            label: "Arguments",
+            type: "string_array",
+            required: false,
+          },
         ],
         default_values: {
           command: "npx",
@@ -202,7 +233,12 @@ const MOCK_CATALOG = [
         platforms: ["darwin", "linux", "win32"],
         fields: [
           { name: "command", label: "Command", type: "string", required: true },
-          { name: "args", label: "Arguments", type: "string_array", required: false },
+          {
+            name: "args",
+            label: "Arguments",
+            type: "string_array",
+            required: false,
+          },
         ],
         default_values: {
           command: "npx",
@@ -212,8 +248,14 @@ const MOCK_CATALOG = [
       },
     ],
     tool_preview: [
-      { name: "create_entities", description: "Create new entities in the knowledge graph" },
-      { name: "search_nodes", description: "Search for nodes in the knowledge graph" },
+      {
+        name: "create_entities",
+        description: "Create new entities in the knowledge graph",
+      },
+      {
+        name: "search_nodes",
+        description: "Search for nodes in the knowledge graph",
+      },
       { name: "open_nodes", description: "Retrieve specific entities" },
     ],
     revoked: false,
@@ -286,7 +328,12 @@ const MOCK_INSTALLED = [
       tool_count: 0,
       tools: [],
       warnings: [],
-      errors: [{ code: "CONNECT_TIMEOUT", detail: "Failed to reach http://localhost:8080/sse within 30 seconds" }],
+      errors: [
+        {
+          code: "CONNECT_TIMEOUT",
+          detail: "Failed to reach http://localhost:8080/sse within 30 seconds",
+        },
+      ],
     },
     cached_tools: [],
     updated_at: "2025-12-18T08:45:00Z",
@@ -333,10 +380,11 @@ export const mcpMockApi = {
         prefilled_config: val,
         required_fields: val.command ? ["command"] : ["url"],
         required_secrets: val.env
-          ? Object.keys(val.env).filter((k) =>
-              k.toUpperCase().includes("KEY") ||
-              k.toUpperCase().includes("TOKEN") ||
-              k.toUpperCase().includes("SECRET"),
+          ? Object.keys(val.env).filter(
+              (k) =>
+                k.toUpperCase().includes("KEY") ||
+                k.toUpperCase().includes("TOKEN") ||
+                k.toUpperCase().includes("SECRET"),
             )
           : [],
         warnings: [],

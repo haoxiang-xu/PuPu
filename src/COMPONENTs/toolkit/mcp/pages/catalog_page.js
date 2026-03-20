@@ -17,7 +17,9 @@ const CatalogPage = ({ isDark, onInstall }) => {
         setLoading(false);
       }
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const filtered = useMemo(() => {
