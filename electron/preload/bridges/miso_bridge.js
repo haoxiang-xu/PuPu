@@ -40,6 +40,16 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION),
   replaceSessionMemory: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.REPLACE_SESSION_MEMORY, payload),
+  getSessionMemoryExport: (sessionId) =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT, { sessionId }),
+  showSaveDialog: (options = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.SHOW_SAVE_DIALOG, options),
+  showOpenDialog: (options = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.SHOW_OPEN_DIALOG, options),
+  writeFile: (filePath, content) =>
+    ipcRenderer.invoke(CHANNELS.MISO.WRITE_FILE, { filePath, content }),
+  readFile: (filePath) =>
+    ipcRenderer.invoke(CHANNELS.MISO.READ_FILE, { filePath }),
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
   startStreamV2: streamClient.startStreamV2,

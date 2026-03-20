@@ -695,6 +695,16 @@ export const createMisoApi = () => {
       );
     },
 
+    getSessionMemoryExport: async (sessionId) => {
+      const method = assertBridgeMethod("misoAPI", "getSessionMemoryExport");
+      return withTimeout(
+        () => method(sessionId),
+        10000,
+        "session_memory_export_timeout",
+        "Session memory export request timed out",
+      );
+    },
+
     getLongTermMemoryProjection: async () => {
       const method = assertBridgeMethod(
         "misoAPI",

@@ -19,6 +19,7 @@ const MISO_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
 const MISO_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
 const MISO_REPLACE_SESSION_MEMORY_ENDPOINT = "/memory/session/replace";
+const MISO_SESSION_MEMORY_EXPORT_ENDPOINT = "/memory/session/export";
 
 const createMisoService = ({
   app,
@@ -641,6 +642,30 @@ const createMisoService = ({
       "Miso session memory replace request failed",
       {},
       "Invalid Miso session memory replace response",
+    );
+  };
+
+  const getMisoSessionMemoryExport = async (sessionId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof sessionId === "string" ? sessionId.trim() : "";
+    if (!cleanId) {
+      throw new Error("sessionId is required");
+    }
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_SESSION_MEMORY_EXPORT_ENDPOINT}?session_id=${encodeURIComponent(cleanId)}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso session memory export request failed",
+      {},
+      "Invalid Miso session memory export response",
     );
   };
 
@@ -1295,6 +1320,7 @@ const createMisoService = ({
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,
+    getMisoSessionMemoryExport,
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,

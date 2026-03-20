@@ -1198,6 +1198,48 @@ def replace_memory_session() -> Response:
         ), 500
 
 
+@api_blueprint.get("/memory/session/export")
+def export_memory_session() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    session_id = str(request.args.get("session_id", "")).strip()
+    if not session_id:
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "session_id is required",
+                }
+            }
+        ), 400
+
+    data_dir = current_app.config.get("MISO_DATA_DIR", "")
+    if not data_dir:
+        return jsonify({"messages": []})
+
+    from pathlib import Path
+    session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
+    try:
+        with open(session_file, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except Exception:
+        state = {}
+
+    messages = state.get("messages", [])
+    if not isinstance(messages, list):
+        messages = []
+
+    return jsonify({"session_id": session_id, "messages": messages})
+
+
 @api_blueprint.post("/chat/stream/v2")
 def chat_stream_v2() -> Response:
     if not _is_authorized():

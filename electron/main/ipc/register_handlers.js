@@ -28,6 +28,11 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_MEMORY_PROJECTION,
   CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
   CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+  CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
+  CHANNELS.MISO.SHOW_SAVE_DIALOG,
+  CHANNELS.MISO.SHOW_OPEN_DIALOG,
+  CHANNELS.MISO.WRITE_FILE,
+  CHANNELS.MISO.READ_FILE,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -181,6 +186,24 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.MISO.REPLACE_SESSION_MEMORY,
     async (_event, payload = {}) =>
       misoService.replaceMisoSessionMemory(payload),
+  );
+
+  ipcMain.handle(
+    CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
+    async (_event, payload = {}) =>
+      misoService.getMisoSessionMemoryExport(payload.sessionId),
+  );
+  ipcMain.handle(CHANNELS.MISO.SHOW_SAVE_DIALOG, async (_event, payload = {}) =>
+    runtimeService.showSaveDialog(payload),
+  );
+  ipcMain.handle(CHANNELS.MISO.SHOW_OPEN_DIALOG, async (_event, payload = {}) =>
+    runtimeService.showOpenDialog(payload),
+  );
+  ipcMain.handle(CHANNELS.MISO.WRITE_FILE, (_event, payload = {}) =>
+    runtimeService.writeFile(payload),
+  );
+  ipcMain.handle(CHANNELS.MISO.READ_FILE, (_event, payload = {}) =>
+    runtimeService.readFile(payload),
   );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {
