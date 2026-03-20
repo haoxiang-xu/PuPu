@@ -64,9 +64,8 @@ const StorageKeyRow = ({
             flex: 1,
             minWidth: 0,
             display: "flex",
-            alignItems: "center",
-            gap: 6,
-            overflow: "hidden",
+            flexDirection: "column",
+            gap: 4,
           }}
         >
           <span
@@ -77,63 +76,83 @@ const StorageKeyRow = ({
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
-              flexShrink: 1,
             }}
             title={entry.key}
           >
             {entry.key}
           </span>
-          {isChats && attachmentCount !== null && (
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: 10,
-                padding: "1px 6px",
-                borderRadius: 99,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.06)",
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {attachmentCount} cached {attachmentCount === 1 ? "file" : "files"}
-            </span>
-          )}
-          {isChats && vectorMemoryBytes !== null && vectorMemoryBytes > 0 && (
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: 10,
-                padding: "1px 6px",
-                borderRadius: 99,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.06)",
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {formatBytes(vectorMemoryBytes)} vectors
-            </span>
-          )}
-          {isChats && profileMemoryBytes !== null && profileMemoryBytes > 0 && (
-            <span
-              style={{
-                flexShrink: 0,
-                fontSize: 10,
-                padding: "1px 6px",
-                borderRadius: 99,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.06)",
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {formatBytes(profileMemoryBytes)} profiles
-            </span>
-          )}
+          {isChats &&
+            (attachmentCount !== null ||
+              (vectorMemoryBytes !== null && vectorMemoryBytes > 0) ||
+              (profileMemoryBytes !== null && profileMemoryBytes > 0)) && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: "4px 6px",
+                }}
+              >
+                {attachmentCount !== null && (
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 10,
+                      padding: "1px 6px",
+                      borderRadius: 99,
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.07)"
+                        : "rgba(0,0,0,0.06)",
+                      color: isDark
+                        ? "rgba(255,255,255,0.35)"
+                        : "rgba(0,0,0,0.35)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {attachmentCount} cached{" "}
+                    {attachmentCount === 1 ? "file" : "files"}
+                  </span>
+                )}
+                {vectorMemoryBytes !== null && vectorMemoryBytes > 0 && (
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 10,
+                      padding: "1px 6px",
+                      borderRadius: 99,
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.07)"
+                        : "rgba(0,0,0,0.06)",
+                      color: isDark
+                        ? "rgba(255,255,255,0.35)"
+                        : "rgba(0,0,0,0.35)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {formatBytes(vectorMemoryBytes)} vectors
+                  </span>
+                )}
+                {profileMemoryBytes !== null && profileMemoryBytes > 0 && (
+                  <span
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 10,
+                      padding: "1px 6px",
+                      borderRadius: 99,
+                      backgroundColor: isDark
+                        ? "rgba(255,255,255,0.07)"
+                        : "rgba(0,0,0,0.06)",
+                      color: isDark
+                        ? "rgba(255,255,255,0.35)"
+                        : "rgba(0,0,0,0.35)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {formatBytes(profileMemoryBytes)} profiles
+                  </span>
+                )}
+              </div>
+            )}
         </div>
 
         <div
