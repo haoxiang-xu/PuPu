@@ -32,11 +32,35 @@ _INPUT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
 _KNOWN_TOOLKIT_EXPORTS = {
-    "toolkit": "core",
-    "builtin_toolkit": "builtin",
-    "workspace_toolkit": "builtin",
-    "external_api_toolkit": "builtin",
-    "mcp": "integration",
+    "WorkspaceToolkit": "builtin",
+    "TerminalToolkit": "builtin",
+    "ExternalAPIToolkit": "builtin",
+    "AskUserToolkit": "builtin",
+    "MCPToolkit": "integration",
+}
+_TOOLKIT_EXPORT_ID_ALIASES = {
+    "WorkspaceToolkit": "workspace_toolkit",
+    "TerminalToolkit": "terminal_toolkit",
+    "ExternalAPIToolkit": "external_api_toolkit",
+    "AskUserToolkit": "ask-user-toolkit",
+    "MCPToolkit": "mcp",
+}
+_TOOLKIT_NAME_ALIASES = {
+    "workspace": "WorkspaceToolkit",
+    "workspace_toolkit": "WorkspaceToolkit",
+    "WorkspaceToolkit": "WorkspaceToolkit",
+    "terminal": "TerminalToolkit",
+    "terminal_toolkit": "TerminalToolkit",
+    "TerminalToolkit": "TerminalToolkit",
+    "external_api": "ExternalAPIToolkit",
+    "external_api_toolkit": "ExternalAPIToolkit",
+    "ExternalAPIToolkit": "ExternalAPIToolkit",
+    "ask_user": "AskUserToolkit",
+    "ask_user_toolkit": "AskUserToolkit",
+    "ask-user-toolkit": "AskUserToolkit",
+    "AskUserToolkit": "AskUserToolkit",
+    "mcp": "MCPToolkit",
+    "MCPToolkit": "MCPToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
@@ -615,7 +639,21 @@ def _make_continuation_callback(
 
 
 def _is_valid_miso_source(path: Path) -> bool:
-    return (path / "miso" / "__init__.py").exists() and (path / "miso" / "broth.py").exists()
+    if (path / "src" / "miso" / "__init__.py").exists() and (
+        path / "src" / "miso" / "runtime" / "engine.py"
+    ).exists():
+        return True
+    return (path / "miso" / "__init__.py").exists() and (
+        path / "miso" / "runtime" / "engine.py"
+    ).exists()
+
+
+def _miso_import_root(path: Path) -> Path:
+    if (path / "src" / "miso" / "__init__.py").exists():
+        return path / "src"
+    if (path / "miso" / "__init__.py").exists():
+        return path
+    return path
 
 def _candidate_miso_sources() -> List[Path]:
     candidates: List[Path] = []
@@ -640,12 +678,15 @@ def _resolve_miso_source_from_module(miso_module: Any) -> str:
     try:
         module_path = Path(module_file).resolve()
         package_dir = module_path.parent
+        if package_dir.name == "runtime":
+            package_dir = package_dir.parent
         if package_dir.name != "miso":
             return ""
 
-        has_broth = any(package_dir.glob("broth.py*"))
-        if has_broth:
-            return str(package_dir.parent)
+        parent = package_dir.parent
+        if parent.name == "src":
+            return str(parent.parent)
+        return str(parent)
     except Exception:
         return ""
 
@@ -1364,11 +1405,12 @@ def _load_broth_class() -> None:
             continue
 
         source_str = str(source_root)
-        if source_str not in sys.path:
-            sys.path.insert(0, source_str)
+        import_root = str(_miso_import_root(source_root))
+        if import_root not in sys.path:
+            sys.path.insert(0, import_root)
 
         try:
-            from miso import broth as Broth  # type: ignore
+            from miso.runtime import Broth  # type: ignore
 
             _apply_broth_runtime_patches(Broth)
             _BROTH_CLASS = Broth
@@ -1381,14 +1423,14 @@ def _load_broth_class() -> None:
     # Fallback for packaged runtime (for example PyInstaller onefile), where
     # miso modules are bundled and importable without an external source tree.
     try:
-        miso_module = importlib.import_module("miso")
-        Broth = getattr(miso_module, "broth", None)
+        runtime_module = importlib.import_module("miso.runtime")
+        Broth = getattr(runtime_module, "Broth", None)
         if not isinstance(Broth, type):
-            raise RuntimeError("miso.broth is unavailable")
+            raise RuntimeError("miso.runtime.Broth is unavailable")
 
         _apply_broth_runtime_patches(Broth)
         _BROTH_CLASS = Broth
-        _RESOLVED_MISO_SOURCE = _resolve_miso_source_from_module(miso_module)
+        _RESOLVED_MISO_SOURCE = _resolve_miso_source_from_module(runtime_module)
         _IMPORT_ERROR = None
         return
     except Exception as import_error:
@@ -1517,16 +1559,27 @@ def _capability_file_candidates() -> List[Path]:
     candidates: List[Path] = []
 
     if _RESOLVED_MISO_SOURCE:
-        candidates.append(Path(_RESOLVED_MISO_SOURCE) / "miso" / "model_capabilities.json")
+        resolved_source_root = Path(_RESOLVED_MISO_SOURCE)
+        candidates.append(
+            _miso_import_root(resolved_source_root)
+            / "miso"
+            / "runtime"
+            / "resources"
+            / "model_capabilities.json"
+        )
 
     packaged_miso_dir = _packaged_miso_module_dir()
     if packaged_miso_dir is not None:
-        candidates.append(packaged_miso_dir / "model_capabilities.json")
+        candidates.append(packaged_miso_dir / "runtime" / "resources" / "model_capabilities.json")
 
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[2]
-    candidates.append(project_root / "miso_runtime" / "miso" / "model_capabilities.json")
-    candidates.append(project_root.parent / "miso" / "miso" / "model_capabilities.json")
+    candidates.append(
+        project_root / "miso_runtime" / "miso" / "runtime" / "resources" / "model_capabilities.json"
+    )
+    candidates.append(
+        project_root.parent / "miso" / "src" / "miso" / "runtime" / "resources" / "model_capabilities.json"
+    )
 
     unique_candidates: List[Path] = []
     seen = set()
@@ -1778,11 +1831,11 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
 
 def _resolve_toolkit_base():
     try:
-        tool_module = importlib.import_module("miso.tool")
+        tool_module = importlib.import_module("miso.tools")
     except Exception:
         return None
 
-    toolkit_base = getattr(tool_module, "toolkit", None)
+    toolkit_base = getattr(tool_module, "Toolkit", None)
     if isinstance(toolkit_base, type):
         return toolkit_base
     return None
@@ -1876,11 +1929,11 @@ def _enumerate_builtin_submodule_toolkits(
     toolkit_base: type,
     seen: set[str],
 ) -> List[Dict[str, object]]:
-    """Walk miso.builtin_toolkits and return concrete toolkit subclasses."""
+    """Walk miso.toolkits.builtin and return concrete toolkit subclasses."""
     entries: List[Dict[str, object]] = []
 
     try:
-        builtin_pkg = importlib.import_module("miso.builtin_toolkits")
+        builtin_pkg = importlib.import_module("miso.toolkits.builtin")
     except Exception:
         return entries
 
@@ -1889,7 +1942,7 @@ def _enumerate_builtin_submodule_toolkits(
         return entries
 
     for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
-        full_name = f"miso.builtin_toolkits.{submodule_name}"
+        full_name = f"miso.toolkits.builtin.{submodule_name}"
         try:
             submodule = importlib.import_module(full_name)
         except Exception:
@@ -1914,8 +1967,9 @@ def _enumerate_builtin_submodule_toolkits(
             seen.add(dedupe_key)
 
             tools = _enumerate_toolkit_tools(candidate)
+            toolkit_name = _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, submodule_name)
             entries.append({
-                "name": submodule_name,
+                "name": toolkit_name,
                 "class_name": class_name,
                 "module": module_name,
                 "kind": "builtin",
@@ -1941,20 +1995,18 @@ def get_toolkit_catalog() -> Dict[str, object]:
     base_module = str(getattr(toolkit_base, "__module__", ""))
     seen.add(f"{base_module}:{toolkit_base.__name__}")
 
-    # Walk miso.builtin_toolkits for concrete implementations
+    # Walk miso.toolkits.builtin for concrete implementations
     entries.extend(_enumerate_builtin_submodule_toolkits(toolkit_base, seen))
 
-    # Also pick up any top-level miso exports (workspace_toolkit, etc.)
+    # Also pick up exported toolkit classes from miso.toolkits.
     # that weren't already found via submodule walk
     try:
-        miso_module = importlib.import_module("miso")
+        miso_module = importlib.import_module("miso.toolkits")
     except Exception:
         miso_module = None
 
     if miso_module is not None:
         for export_name, kind in _KNOWN_TOOLKIT_EXPORTS.items():
-            if export_name == "toolkit":
-                continue
             candidate = getattr(miso_module, export_name, None)
             if not isinstance(candidate, type):
                 continue
@@ -1972,7 +2024,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
             seen.add(dedupe_key)
             tools = _enumerate_toolkit_tools(candidate)
             entries.append({
-                "name": export_name,
+                "name": _TOOLKIT_EXPORT_ID_ALIASES.get(export_name, export_name),
                 "class_name": class_name,
                 "module": module_name,
                 "kind": kind,
@@ -2326,7 +2378,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
             tags = []
 
         return {
-            "toolkitId": class_name,
+            "toolkitId": _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, class_name),
             "toolkitName": toolkit_name,
             "toolkitDescription": toolkit_description,
             "toolkitIcon": toolkit_icon,
@@ -2348,7 +2400,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
     # Walk builtin submodules
     try:
-        builtin_pkg = importlib.import_module("miso.builtin_toolkits")
+        builtin_pkg = importlib.import_module("miso.toolkits.builtin")
     except Exception:
         builtin_pkg = None
 
@@ -2356,7 +2408,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
         pkg_path = getattr(builtin_pkg, "__path__", None)
         if pkg_path:
             for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
-                full_name = f"miso.builtin_toolkits.{submodule_name}"
+                full_name = f"miso.toolkits.builtin.{submodule_name}"
                 try:
                     submodule = importlib.import_module(full_name)
                 except Exception:
@@ -2382,16 +2434,14 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
                     entries.append(_build_entry(candidate, "builtin"))
 
-    # Top-level miso exports
+    # Exported toolkit classes
     try:
-        miso_module = importlib.import_module("miso")
+        miso_module = importlib.import_module("miso.toolkits")
     except Exception:
         miso_module = None
 
     if miso_module is not None:
         for export_name, kind in _KNOWN_TOOLKIT_EXPORTS.items():
-            if export_name == "toolkit":
-                continue
             candidate = getattr(miso_module, export_name, None)
             if not isinstance(candidate, type):
                 continue
@@ -2450,13 +2500,14 @@ def get_toolkit_metadata(
 
     # Search for the toolkit class by class_name
     found_class: type | None = None
+    normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(toolkit_id, toolkit_id)
 
     try:
-        builtin_pkg = importlib.import_module("miso.builtin_toolkits")
+        builtin_pkg = importlib.import_module("miso.toolkits.builtin")
         pkg_path = getattr(builtin_pkg, "__path__", None)
         if pkg_path:
             for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
-                full_name = f"miso.builtin_toolkits.{submodule_name}"
+                full_name = f"miso.toolkits.builtin.{submodule_name}"
                 try:
                     submodule = importlib.import_module(full_name)
                 except Exception:
@@ -2467,7 +2518,10 @@ def get_toolkit_metadata(
                         isinstance(candidate, type)
                         and issubclass(candidate, toolkit_base)
                         and candidate is not toolkit_base
-                        and candidate.__name__ == toolkit_id
+                        and (
+                            candidate.__name__ == normalized_toolkit_id
+                            or _TOOLKIT_EXPORT_ID_ALIASES.get(candidate.__name__) == toolkit_id
+                        )
                     ):
                         found_class = candidate
                         break
@@ -2479,14 +2533,17 @@ def get_toolkit_metadata(
     # Also check top-level miso exports
     if found_class is None:
         try:
-            miso_module = importlib.import_module("miso")
+            miso_module = importlib.import_module("miso.toolkits")
             for export_name in _KNOWN_TOOLKIT_EXPORTS:
                 candidate = getattr(miso_module, export_name, None)
                 if (
                     isinstance(candidate, type)
                     and issubclass(candidate, toolkit_base)
                     and candidate is not toolkit_base
-                    and candidate.__name__ == toolkit_id
+                    and (
+                        candidate.__name__ == normalized_toolkit_id
+                        or _TOOLKIT_EXPORT_ID_ALIASES.get(candidate.__name__) == toolkit_id
+                    )
                 ):
                     found_class = candidate
                     break
@@ -2939,11 +2996,11 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
 
 
 def _resolve_workspace_toolkit_factory(miso_module: Any) -> Any:
-    """Return the workspace_toolkit factory from Miso builtin toolkits."""
-    workspace_factory = getattr(miso_module, "workspace_toolkit", None)
+    """Return the WorkspaceToolkit constructor from miso.toolkits."""
+    workspace_factory = getattr(miso_module, "WorkspaceToolkit", None)
     if callable(workspace_factory):
         return workspace_factory
-    raise RuntimeError("Miso workspace_toolkit is unavailable")
+    raise RuntimeError("Miso WorkspaceToolkit is unavailable")
 
 
 def _resolve_workspace_roots(workspace_roots_raw: list[str]) -> list[str]:
@@ -3016,16 +3073,22 @@ def _build_workspace_tool_prefix(workspace_root: str, index: int) -> str:
 
 
 def _build_multi_workspace_proxy_toolkit(
-    miso_module: Any,
     toolkit_factory: Any,
     *,
     workspace_roots: list[str],
 ) -> Any:
-    toolkit_cls = getattr(miso_module, "toolkit", None)
-    tool_cls = getattr(miso_module, "tool", None)
+    try:
+        tools_module = importlib.import_module("miso.tools")
+    except Exception as import_error:
+        raise RuntimeError(
+            f"Failed to import miso.tools for multi-workspace fallback: {import_error}"
+        ) from import_error
+
+    toolkit_cls = getattr(tools_module, "Toolkit", None)
+    tool_cls = getattr(tools_module, "Tool", None)
     if not callable(toolkit_cls) or not callable(tool_cls):
         raise RuntimeError(
-            "Miso multi-workspace fallback requires toolkit and tool exports"
+            "Miso multi-workspace fallback requires Toolkit and Tool exports"
         )
 
     merged_toolkit = toolkit_cls()
@@ -3135,25 +3198,26 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
         raise RuntimeError("Agent does not support add_toolkit")
 
     try:
-        miso_module = importlib.import_module("miso")
+        miso_module = importlib.import_module("miso.toolkits")
     except Exception as import_error:
         raise RuntimeError(
-            f"Failed to import miso for workspace toolkit: {import_error}"
+            f"Failed to import miso.toolkits for workspace toolkit: {import_error}"
         ) from import_error
 
     toolkit_factory = _resolve_workspace_toolkit_factory(miso_module)
     resolved_roots = _resolve_workspace_roots(workspace_roots_raw)
 
-    # Try multi_workspace_toolkit first (supports named workspaces).
-    multi_factory = getattr(miso_module, "multi_workspace_toolkit", None)
+    # Try a native multi-root constructor first if the toolkit supports it.
+    multi_factory = getattr(miso_module, "WorkspaceToolkit", None)
     if callable(multi_factory) and len(resolved_roots) > 1:
         try:
             multi_toolkit = multi_factory(workspace_roots=resolved_roots)
         except TypeError:
-            multi_toolkit = multi_factory(resolved_roots)
-        _mark_workspace_tools_for_confirmation(multi_toolkit)
-        agent.add_toolkit(multi_toolkit)
-        return
+            multi_toolkit = None
+        else:
+            _mark_workspace_tools_for_confirmation(multi_toolkit)
+            agent.add_toolkit(multi_toolkit)
+            return
 
     if len(resolved_roots) == 1:
         workspace_toolkit = _build_workspace_toolkit_for_root(
@@ -3171,7 +3235,6 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
     )
     if workspace_toolkit is None:
         workspace_toolkit = _build_multi_workspace_proxy_toolkit(
-            miso_module,
             toolkit_factory,
             workspace_roots=resolved_roots,
         )
@@ -3192,23 +3255,24 @@ def _attach_selected_toolkits(agent: Any, options: Dict[str, object] | None = No
         raise RuntimeError("Agent does not support add_toolkit")
 
     try:
-        miso_module = importlib.import_module("miso")
+        miso_module = importlib.import_module("miso.toolkits")
     except Exception as import_error:
         raise RuntimeError(
-            f"Failed to import miso for toolkit attachment: {import_error}"
+            f"Failed to import miso.toolkits for toolkit attachment: {import_error}"
         ) from import_error
 
     resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
     workspace_root = resolved_roots[0] if resolved_roots else None
 
     for toolkit_name in toolkit_names:
-        if toolkit_name == "workspace_toolkit":
+        normalized_toolkit_name = _TOOLKIT_NAME_ALIASES.get(toolkit_name, toolkit_name)
+        if normalized_toolkit_name == "WorkspaceToolkit":
             # Workspace toolkit is handled separately to support multi-root.
             continue
         if toolkit_name == "builtin_toolkit":
             continue
 
-        toolkit_factory = getattr(miso_module, toolkit_name, None)
+        toolkit_factory = getattr(miso_module, normalized_toolkit_name, None)
         if not callable(toolkit_factory):
             raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
 
@@ -3254,9 +3318,9 @@ def _content_to_text(content: object) -> str:
 
 def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
     if _IMPORT_ERROR is not None:
-        raise RuntimeError(f"Failed to import miso.broth: {_IMPORT_ERROR}")
+        raise RuntimeError(f"Failed to import miso.runtime.Broth: {_IMPORT_ERROR}")
     if _BROTH_CLASS is None:
-        raise RuntimeError("miso.broth is unavailable")
+        raise RuntimeError("miso.runtime.Broth is unavailable")
 
     config = get_runtime_config(options)
 

@@ -21,7 +21,7 @@ class ToolkitsCatalogRouteTests(unittest.TestCase):
                 {
                     "name": "workspace_toolkit",
                     "class_name": "workspace_toolkit",
-                    "module": "miso.builtin_toolkits.workspace_toolkit.workspace_toolkit",
+                    "module": "miso.toolkits.builtin.workspace.workspace",
                     "kind": "builtin",
                 }
             ],

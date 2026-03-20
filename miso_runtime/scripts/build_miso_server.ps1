@@ -83,14 +83,14 @@ $ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $MISO_SOURCE_PATH = if ($env:MISO_SOURCE_PATH) { $env:MISO_SOURCE_PATH } else { Join-Path $ROOT_DIR "..\miso" }
 $MISO_SOURCE_PATH = [System.IO.Path]::GetFullPath($MISO_SOURCE_PATH)
 
-if (-not (Test-Path (Join-Path $MISO_SOURCE_PATH "miso\__init__.py")) -or
-    -not (Test-Path (Join-Path $MISO_SOURCE_PATH "miso\broth.py"))) {
-  Write-Error "Invalid MISO source path: $MISO_SOURCE_PATH`nExpected files: miso\__init__.py and miso\broth.py"
+if (-not (Test-Path (Join-Path $MISO_SOURCE_PATH "src\miso\__init__.py")) -or
+    -not (Test-Path (Join-Path $MISO_SOURCE_PATH "src\miso\runtime\engine.py"))) {
+  Write-Error "Invalid MISO source path: $MISO_SOURCE_PATH`nExpected files: src\miso\__init__.py and src\miso\runtime\engine.py"
   exit 1
 }
 
-$CAPABILITY_JSON = Join-Path $MISO_SOURCE_PATH "miso\model_capabilities.json"
-$DEFAULT_PAYLOADS_JSON = Join-Path $MISO_SOURCE_PATH "miso\model_default_payloads.json"
+$CAPABILITY_JSON = Join-Path $MISO_SOURCE_PATH "src\miso\runtime\resources\model_capabilities.json"
+$DEFAULT_PAYLOADS_JSON = Join-Path $MISO_SOURCE_PATH "src\miso\runtime\resources\model_default_payloads.json"
 
 if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON)) {
   Write-Error "Missing required MISO model metadata files in source path: $MISO_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON"
@@ -125,7 +125,7 @@ if ($env:MISO_BUILD_SKIP_INSTALL -ne "1") {
   Write-Host "Installing dependencies into build venv ..."
   & $VENV_PIP install `
     -r (Join-Path $ROOT_DIR "miso_runtime\server\requirements.txt") `
-    -r (Join-Path $MISO_SOURCE_PATH "requirements.txt") `
+    -e $MISO_SOURCE_PATH `
     pyinstaller
   if ($LASTEXITCODE -ne 0) { Write-Error "pip install failed"; exit 1 }
 }
@@ -182,9 +182,9 @@ $ENTRYPOINT = Join-Path $ROOT_DIR "miso_runtime\server\main.py"
 $env:MISO_SOURCE_PATH = $MISO_SOURCE_PATH
 $existingPythonPath = $env:PYTHONPATH
 if ($existingPythonPath) {
-  $env:PYTHONPATH = "$MISO_SOURCE_PATH;$existingPythonPath"
+  $env:PYTHONPATH = "$MISO_SOURCE_PATH\src;$existingPythonPath"
 } else {
-  $env:PYTHONPATH = $MISO_SOURCE_PATH
+  $env:PYTHONPATH = "$MISO_SOURCE_PATH\src"
 }
 
 # Build with PyInstaller
@@ -201,16 +201,35 @@ $pyinstallerArgs = @(
   "--collect-submodules", "openai",
   "--collect-submodules", "anthropic",
   "--collect-data", "miso",
-  "--add-data", "${CAPABILITY_JSON};miso",
-  "--add-data", "${DEFAULT_PAYLOADS_JSON};miso",
+  "--add-data", "${CAPABILITY_JSON};miso/runtime/resources",
+  "--add-data", "${DEFAULT_PAYLOADS_JSON};miso/runtime/resources",
   "--hidden-import", "miso",
-  "--hidden-import", "miso.broth",
-  "--hidden-import", "miso.tool",
-  "--hidden-import", "miso.response_format",
-  "--hidden-import", "miso.media",
-  "--hidden-import", "miso.mcp",
+  "--hidden-import", "miso.runtime",
+  "--hidden-import", "miso.runtime.engine",
+  "--hidden-import", "miso.runtime.files",
+  "--hidden-import", "miso.runtime.providers",
+  "--hidden-import", "miso.tools",
+  "--hidden-import", "miso.tools.tool",
+  "--hidden-import", "miso.tools.toolkit",
+  "--hidden-import", "miso.tools.registry",
+  "--hidden-import", "miso.tools.catalog",
+  "--hidden-import", "miso.schemas",
+  "--hidden-import", "miso.schemas.response",
+  "--hidden-import", "miso.input",
+  "--hidden-import", "miso.input.media",
+  "--hidden-import", "miso.toolkits",
+  "--hidden-import", "miso.toolkits.mcp",
+  "--hidden-import", "miso.memory",
+  "--hidden-import", "miso.memory.manager",
+  "--hidden-import", "miso.memory.qdrant",
   "--hidden-import", "openai",
   "--hidden-import", "anthropic",
+  "--collect-submodules", "qdrant_client",
+  "--hidden-import", "qdrant_client",
+  "--hidden-import", "qdrant_client.http",
+  "--hidden-import", "qdrant_client.http.models",
+  "--hidden-import", "qdrant_client.local",
+  "--hidden-import", "qdrant_client.local.local_collection",
   $ENTRYPOINT
 )
 

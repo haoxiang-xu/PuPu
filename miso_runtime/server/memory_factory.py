@@ -405,7 +405,7 @@ def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], 
     provider = config["provider"]
 
     if provider == "openai":
-        from miso.memory_qdrant import build_openai_embed_fn
+        from miso.memory.qdrant import build_openai_embed_fn
 
         broth_instance = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
         return build_openai_embed_fn(
@@ -1136,7 +1136,11 @@ def create_memory_manager_with_diagnostics(
 
     try:
         from miso.memory import LongTermMemoryConfig, MemoryConfig, MemoryManager
-        from miso.memory_qdrant import JsonFileSessionStore, QdrantLongTermVectorAdapter, QdrantVectorAdapter
+        from miso.memory.qdrant import (
+            JsonFileSessionStore,
+            QdrantLongTermVectorAdapter,
+            QdrantVectorAdapter,
+        )
 
         qdrant_client = _get_or_create_qdrant_client(data_dir)
         embed_fn, vector_size = _build_embed_runtime(embed_config)
@@ -1261,8 +1265,8 @@ def replace_short_term_session_memory(
     if not data_dir:
         raise RuntimeError("MISO_DATA_DIR not configured")
 
-    from miso.memory import _collect_complete_turns_for_vector_index
-    from miso.memory_qdrant import JsonFileSessionStore, QdrantVectorAdapter
+    from miso.memory.manager import _collect_complete_turns_for_vector_index
+    from miso.memory.qdrant import JsonFileSessionStore, QdrantVectorAdapter
 
     store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
     raw_options = options if isinstance(options, dict) else {}

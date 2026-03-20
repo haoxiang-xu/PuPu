@@ -351,17 +351,19 @@ class MemoryFactoryTests(unittest.TestCase):
         fake_memory_module.MemoryConfig = FakeMemoryConfig
         fake_memory_module.LongTermMemoryConfig = FakeLongTermMemoryConfig
         fake_memory_module.MemoryManager = FakeMemoryManager
-        fake_memory_module._collect_complete_turns_for_vector_index = (
+        fake_memory_manager_module = types.ModuleType("miso.memory.manager")
+        fake_memory_manager_module._collect_complete_turns_for_vector_index = (
             fake_collect_complete_turns_for_vector_index
         )
 
-        fake_memory_qdrant_module = types.ModuleType("miso.memory_qdrant")
+        fake_memory_qdrant_module = types.ModuleType("miso.memory.qdrant")
         fake_memory_qdrant_module.JsonFileSessionStore = FakeJsonFileSessionStore
         fake_memory_qdrant_module.QdrantVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_qdrant_module.QdrantLongTermVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_qdrant_module.build_openai_embed_fn = build_openai_embed_fn
 
         fake_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
+        fake_memory_module.qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
         fake_pkg.memory_qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
 
         fake_client = types.SimpleNamespace(
@@ -373,7 +375,8 @@ class MemoryFactoryTests(unittest.TestCase):
         modules = {
             "miso": fake_pkg,
             "miso.memory": fake_memory_module,
-            "miso.memory_qdrant": fake_memory_qdrant_module,
+            "miso.memory.manager": fake_memory_manager_module,
+            "miso.memory.qdrant": fake_memory_qdrant_module,
         }
 
         return modules, FakeJsonFileSessionStore, fake_client, delete_calls

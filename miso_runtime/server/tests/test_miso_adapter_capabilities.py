@@ -268,18 +268,18 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             }
         )
 
+        expected_rules = "\n".join(
+            [
+                *miso_adapter._SYSTEM_PROMPT_V2_BUILTIN_RULES,
+                "Always ask clarifying questions when blocked.",
+            ]
+        )
         self.assertEqual(
             prompt_text,
             "\n\n".join(
                 [
                     "[Personality]\nHelpful and concise.",
-                    "[Rules]\n"
-                    "Once you start your final answer, treat that single message as the final deliverable. "
-                    "Output may be truncated, so do not depend on follow-up continuation.\n"
-                    "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\n"
-                    "If you need user confirmation or missing information and the ask user question toolkit is available, "
-                    "use it to ask the user inline instead of forcing an unnecessary conversation split.\n"
-                    "Always ask clarifying questions when blocked.",
+                    f"[Rules]\n{expected_rules}",
                 ]
             ),
         )
@@ -302,9 +302,6 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         class FakeToolkitBase:
             pass
 
-        class FakeBuiltinToolkit(FakeToolkitBase):
-            pass
-
         class FakePythonWorkspaceToolkit(FakeToolkitBase):
             pass
 
@@ -312,13 +309,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             pass
 
         def import_module_side_effect(module_name: str):
-            if module_name == "miso.tool":
-                return SimpleNamespace(toolkit=FakeToolkitBase)
-            if module_name == "miso":
+            if module_name == "miso.tools":
+                return SimpleNamespace(Toolkit=FakeToolkitBase)
+            if module_name == "miso.toolkits":
                 return SimpleNamespace(
-                    builtin_toolkit=FakeBuiltinToolkit,
-                    workspace_toolkit=FakePythonWorkspaceToolkit,
-                    mcp=FakeMcpToolkit,
+                    WorkspaceToolkit=FakePythonWorkspaceToolkit,
+                    MCPToolkit=FakeMcpToolkit,
                 )
             raise ImportError(module_name)
 
@@ -333,12 +329,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(
             names,
             [
-                "builtin_toolkit",
                 "workspace_toolkit",
                 "mcp",
             ],
         )
-        self.assertEqual(catalog["count"], 3)
+        self.assertEqual(catalog["count"], 2)
 
     def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
         with mock.patch.object(miso_adapter, "_resolve_toolkit_base", return_value=None):
@@ -1182,7 +1177,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -1222,7 +1217,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent(
@@ -1267,7 +1262,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent(
@@ -1402,9 +1397,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit,
-                    toolkit=FakeToolkit,
-                    tool=FakeTool,
+                    WorkspaceToolkit=fake_workspace_toolkit,
+                    Toolkit=FakeToolkit,
+                    Tool=FakeTool,
                 ),
             ):
                 agent = miso_adapter._create_agent(
@@ -1459,7 +1454,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent({"workspace_root": tmp})
@@ -1503,7 +1498,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 _agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -1535,7 +1530,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         ), mock.patch.object(
             miso_adapter.importlib,
             "import_module",
-            return_value=SimpleNamespace(workspace_toolkit=fake_workspace_toolkit),
+            return_value=SimpleNamespace(WorkspaceToolkit=fake_workspace_toolkit),
         ):
             with tempfile.TemporaryDirectory() as tmp:
                 missing = str(Path(tmp) / "missing")
@@ -1567,7 +1562,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
                 agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -1868,13 +1863,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 source_root = Path(temp_dir)
-                package_dir = source_root / "miso"
+                package_dir = source_root / "src" / "miso" / "runtime"
                 package_dir.mkdir(parents=True, exist_ok=True)
                 (package_dir / "__init__.py").write_text("", encoding="utf-8")
-                (package_dir / "broth.py").write_text("", encoding="utf-8")
 
                 fake_module = SimpleNamespace(
-                    broth=FakeBroth,
+                    Broth=FakeBroth,
                     __file__=str(package_dir / "__init__.py"),
                 )
 
@@ -1941,7 +1935,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             package_dir.mkdir(parents=True, exist_ok=True)
             module_file = package_dir / "__init__.pyc"
             module_file.write_text("", encoding="utf-8")
-            capability_file = package_dir / "model_capabilities.json"
+            capability_file = package_dir / "runtime" / "resources" / "model_capabilities.json"
+            capability_file.parent.mkdir(parents=True, exist_ok=True)
             capability_file.write_text("{}", encoding="utf-8")
 
             fake_module = SimpleNamespace(__file__=str(module_file))
@@ -2016,7 +2011,7 @@ requires_confirmation = false
         )
 
         toolkit_base = type("FakeToolkitBase", (), {})
-        module_name = "miso.builtin_toolkits.demo_toolkit"
+        module_name = "miso.toolkits.builtin.demo_toolkit"
         toolkit_module = ModuleType(module_name)
         toolkit_module.__file__ = str(package_dir / "runtime.py")
         toolkit_class = type(
@@ -2037,15 +2032,15 @@ requires_confirmation = false
         module_name: str,
         toolkit_module: ModuleType,
     ):
-        builtin_pkg = ModuleType("miso.builtin_toolkits")
+        builtin_pkg = ModuleType("miso.toolkits.builtin")
         builtin_pkg.__path__ = [str(Path(toolkit_module.__file__).parent.parent)]
         miso_module = ModuleType("miso")
 
         def _fake_import_module(name: str, package=None):
             del package
-            if name == "miso":
+            if name == "miso.toolkits":
                 return miso_module
-            if name == "miso.builtin_toolkits":
+            if name == "miso.toolkits.builtin":
                 return builtin_pkg
             if name == module_name:
                 return toolkit_module
