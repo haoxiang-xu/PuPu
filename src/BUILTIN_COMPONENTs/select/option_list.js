@@ -69,7 +69,6 @@ const OptionItem = ({
     : baseColor;
   const iconValue = option?.icon;
   const showIcon =
-    !multi &&
     iconValue &&
     (typeof iconValue === "string" || isValidElement(iconValue));
 
@@ -107,13 +106,13 @@ const OptionItem = ({
               "rgba(10, 133, 255, 0.14)")
             : "transparent",
         ...option_style,
-        gap: multi ? 8 : showIcon ? (option_theme?.gap ?? 6) : 0,
+        gap: showIcon ? (option_theme?.gap ?? 6) : multi ? 8 : 0,
       }}
     >
       {/* checkbox for multi-select */}
       {multi && <Checkbox checked={isSelected} isDark={isDark} />}
 
-      {/* icon (single-select only) */}
+      {/* icon */}
       {showIcon ? <>{render_icon(iconValue, fontSize, optionColor)}</> : null}
 
       {/* label + optional description */}

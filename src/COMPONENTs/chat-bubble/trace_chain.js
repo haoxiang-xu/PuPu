@@ -825,7 +825,6 @@ const TraceChain = ({
     toolResultByCallId,
     confirmationStatusByCallId,
     confirmationUserResponseByCallId,
-    interactTypeByCallId,
     toolResultUserResponseByCallId,
     handleInteractSubmit,
     onToolConfirmationDecision,
