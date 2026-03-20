@@ -16,6 +16,7 @@ const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_commit: "memory_commit",
   done: "end",
 });
+const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
 
 const misoLogger = createLogger("MISO", "src/PAGEs/chat/hooks/use_chat_stream.js");
 
@@ -73,6 +74,39 @@ export const useChatStream = ({
   const confirmationFollowupSignalByIdRef = useRef(new Map());
   const confirmationResolveTimerByIdRef = useRef(new Map());
   const activeTokenFlushControllerRef = useRef(null);
+
+  const findToolCallFrameByCallId = useCallback(
+    (callId) => {
+      const normalizedCallId =
+        typeof callId === "string" ? callId.trim() : "";
+      if (!normalizedCallId) {
+        return null;
+      }
+
+      const streamState = activeStreamMessagesRef.current;
+      const streamMessages = Array.isArray(streamState?.messages)
+        ? streamState.messages
+        : [];
+
+      for (const message of streamMessages) {
+        const traceFrames = Array.isArray(message?.traceFrames)
+          ? message.traceFrames
+          : [];
+        const frame = traceFrames.find(
+          (candidate) =>
+            candidate?.type === "tool_call" &&
+            typeof candidate.payload?.call_id === "string" &&
+            candidate.payload.call_id.trim() === normalizedCallId,
+        );
+        if (frame) {
+          return frame;
+        }
+      }
+
+      return null;
+    },
+    [activeStreamMessagesRef],
+  );
 
   useEffect(() => {
     toolConfirmationUiStateByIdRef.current = toolConfirmationUiStateById;
@@ -399,6 +433,53 @@ export const useChatStream = ({
         return;
       }
 
+      const callId =
+        confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
+      const requestFrame = findToolCallFrameByCallId(callId);
+      const toolName =
+        typeof requestFrame?.payload?.tool_name === "string"
+          ? requestFrame.payload.tool_name
+          : "";
+      const interactConfig =
+        requestFrame?.payload?.interact_config &&
+        typeof requestFrame.payload.interact_config === "object"
+          ? requestFrame.payload.interact_config
+          : {};
+      const requestArguments =
+        requestFrame?.payload?.arguments &&
+        typeof requestFrame.payload.arguments === "object"
+          ? requestFrame.payload.arguments
+          : {};
+
+      if (toolName === HUMAN_INPUT_TOOL_NAME) {
+        misoLogger.log("ask_user_question_submit", {
+          confirmationId: normalizedConfirmationId,
+          callId,
+          approved: Boolean(approved),
+          userResponse,
+          interactRequestId:
+            typeof interactConfig.request_id === "string"
+              ? interactConfig.request_id
+              : "",
+          argumentRequestId:
+            typeof requestArguments.request_id === "string"
+              ? requestArguments.request_id
+              : "",
+          question:
+            typeof interactConfig.question === "string"
+              ? interactConfig.question
+              : typeof requestArguments.question === "string"
+                ? requestArguments.question
+                : "",
+          selectionMode:
+            typeof interactConfig.selection_mode === "string"
+              ? interactConfig.selection_mode
+              : typeof requestArguments.selection_mode === "string"
+                ? requestArguments.selection_mode
+                : "",
+        });
+      }
+
       const current =
         toolConfirmationUiStateByIdRef.current[normalizedConfirmationId] || {};
       if (current.status === "submitting" || current.status === "submitted") {
@@ -471,6 +552,7 @@ export const useChatStream = ({
     [
       appendSyntheticToolConfirmationDecision,
       clearConfirmationResolutionTimer,
+      findToolCallFrameByCallId,
       updateToolConfirmationUiState,
     ],
   );
@@ -1069,6 +1151,63 @@ export const useChatStream = ({
                 const requiresConfirmation =
                   frame.payload?.requires_confirmation === true ||
                   Boolean(confirmationId);
+                const toolName =
+                  typeof frame.payload?.tool_name === "string"
+                    ? frame.payload.tool_name
+                    : "";
+                if (toolName === HUMAN_INPUT_TOOL_NAME) {
+                  const interactConfig =
+                    frame.payload?.interact_config &&
+                    typeof frame.payload.interact_config === "object"
+                      ? frame.payload.interact_config
+                      : {};
+                  const requestArguments =
+                    frame.payload?.arguments &&
+                    typeof frame.payload.arguments === "object"
+                      ? frame.payload.arguments
+                      : {};
+                  misoLogger.log("ask_user_question_prompt", {
+                    callId,
+                    confirmationId,
+                    interactRequestId:
+                      typeof interactConfig.request_id === "string"
+                        ? interactConfig.request_id
+                        : "",
+                    argumentRequestId:
+                      typeof requestArguments.request_id === "string"
+                        ? requestArguments.request_id
+                        : "",
+                    question:
+                      typeof interactConfig.question === "string"
+                        ? interactConfig.question
+                        : typeof requestArguments.question === "string"
+                          ? requestArguments.question
+                          : "",
+                    selectionMode:
+                      typeof interactConfig.selection_mode === "string"
+                        ? interactConfig.selection_mode
+                        : typeof requestArguments.selection_mode === "string"
+                          ? requestArguments.selection_mode
+                          : "",
+                    optionValues: Array.isArray(interactConfig.options)
+                      ? interactConfig.options
+                          .map((option) =>
+                            typeof option?.value === "string"
+                              ? option.value
+                              : "",
+                          )
+                          .filter(Boolean)
+                      : Array.isArray(requestArguments.options)
+                        ? requestArguments.options
+                            .map((option) =>
+                              typeof option?.value === "string"
+                                ? option.value
+                                : "",
+                            )
+                            .filter(Boolean)
+                        : [],
+                  });
+                }
                 if (callId && confirmationId && requiresConfirmation) {
                   confirmationIdByCallIdRef.current.set(callId, confirmationId);
                   confirmationCallIdByIdRef.current.set(confirmationId, callId);
@@ -1109,6 +1248,18 @@ export const useChatStream = ({
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
                     : "";
+                const toolName =
+                  typeof frame.payload?.tool_name === "string"
+                    ? frame.payload.tool_name
+                    : typeof frame.payload?.result?.tool === "string"
+                      ? frame.payload.result.tool
+                      : "";
+                if (toolName === HUMAN_INPUT_TOOL_NAME) {
+                  misoLogger.log("ask_user_question_result", {
+                    callId,
+                    result: frame.payload?.result,
+                  });
+                }
                 markConfirmationFollowupSignalByCallId(callId);
               } else if (frame.type === "error" || frame.type === "done") {
                 markAllPendingConfirmationFollowupSignals();

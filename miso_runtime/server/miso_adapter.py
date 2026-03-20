@@ -46,7 +46,7 @@ _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "move_file",
     "terminal_exec",
 }
-_REQUEST_USER_INPUT_TOOL_NAME = "request_user_input"
+_ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
 _HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 _SYSTEM_PROMPT_V2_SECTION_ORDER = (
@@ -162,7 +162,8 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     if not isinstance(payload.get("call_id"), str):
         payload["call_id"] = str(payload.get("call_id", "") or "")
 
-    arguments = payload.get("arguments")
+    raw_arguments = payload.get("arguments")
+    arguments = raw_arguments
     payload["arguments"] = arguments if isinstance(arguments, dict) else {}
 
     description = payload.get("description", "")
@@ -176,10 +177,10 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     payload["confirmation_id"] = confirmation_id.strip()
     payload["requires_confirmation"] = True
 
-    if payload.get("tool_name") == _REQUEST_USER_INPUT_TOOL_NAME:
+    if payload.get("tool_name") == _ASK_USER_QUESTION_TOOL_NAME:
         try:
-            request_payload = _normalize_request_user_input_request(
-                payload.get("arguments"),
+            request_payload = _normalize_ask_user_question_request(
+                raw_arguments,
                 request_id=str(payload.get("call_id", "") or ""),
             )
         except Exception:
@@ -213,7 +214,7 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     return payload
 
 
-def _parse_request_user_input_arguments(arguments: object) -> Dict[str, Any]:
+def _parse_ask_user_question_arguments(arguments: object) -> Dict[str, Any]:
     if arguments is None:
         return {}
     if isinstance(arguments, dict):
@@ -228,12 +229,12 @@ def _parse_request_user_input_arguments(arguments: object) -> Dict[str, Any]:
     raise ValueError("human input tool arguments must be a dict or JSON string")
 
 
-def _normalize_request_user_input_request(
+def _normalize_ask_user_question_request(
     arguments: object,
     *,
     request_id: str,
 ) -> Dict[str, Any]:
-    raw = _parse_request_user_input_arguments(arguments)
+    raw = _parse_ask_user_question_arguments(arguments)
 
     title = raw.get("title")
     if not isinstance(title, str) or not title.strip():
@@ -360,7 +361,7 @@ def _normalize_request_user_input_request(
     }
 
 
-def _normalize_request_user_input_tool_result(
+def _normalize_ask_user_question_tool_result(
     request: Dict[str, Any],
     raw_response: object,
 ) -> Dict[str, Any]:
@@ -374,7 +375,10 @@ def _normalize_request_user_input_tool_result(
     if not isinstance(response_request_id, str) or not response_request_id.strip():
         raise ValueError("request_id must be a non-empty string")
     if response_request_id.strip() != request_id:
-        raise ValueError("human input response request_id does not match the pending request")
+        raise ValueError(
+            "human input response request_id does not match the pending request "
+            f"(expected '{request_id}', got '{response_request_id.strip()}')"
+        )
 
     selected_values_raw = raw_response.get("selected_values")
     if selected_values_raw is None:
@@ -822,7 +826,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             if not normalized_tool_name:
                 return None
 
-            if normalized_tool_name == _REQUEST_USER_INPUT_TOOL_NAME:
+            if normalized_tool_name == _ASK_USER_QUESTION_TOOL_NAME:
                 payload = _build_tool_confirmation_request_payload(
                     {
                         "tool_name": normalized_tool_name,
@@ -993,10 +997,10 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "content": content,
             }
 
-        def _execute_request_user_input_tool_calls_locally():
+        def _execute_ask_user_question_tool_calls_locally():
             result_messages: List[Dict[str, Any]] = []
             if len(tool_calls) > 1:
-                error_text = "request_user_input must be the only tool call in a turn"
+                error_text = "ask_user_question must be the only tool call in a turn"
                 for tool_call in tool_calls:
                     confirmation_payload = _get_confirmation_payload(tool_call)
                     _emit_tool_call_event(
@@ -1026,7 +1030,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             try:
                 request_payload = _get_confirmation_payload(tool_call)
                 if not isinstance(request_payload, dict):
-                    raise ValueError("request_user_input confirmation payload could not be resolved")
+                    raise ValueError("ask_user_question confirmation payload could not be resolved")
             except Exception as exc:
                 _emit_tool_call_event(tool_call)
                 tool_result = {
@@ -1063,24 +1067,33 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     if isinstance(modified_arguments, dict)
                     else None
                 )
+                normalized_user_response = (
+                    dict(user_response)
+                    if isinstance(user_response, dict)
+                    else {}
+                )
+                normalized_user_response.pop("request_id", None)
+                normalized_user_response.pop("call_id", None)
+                interact_request = (
+                    request_payload.get("interact_config")
+                    if isinstance(request_payload.get("interact_config"), dict)
+                    else {}
+                )
                 try:
-                    tool_result = _normalize_request_user_input_tool_result(
-                        request_payload.get("interact_config")
-                        if isinstance(request_payload.get("interact_config"), dict)
-                        else {},
+                    tool_result = _normalize_ask_user_question_tool_result(
+                        interact_request,
                         {
+                            **normalized_user_response,
                             "request_id": str(getattr(tool_call, "call_id", "") or ""),
-                            **(
-                                user_response
-                                if isinstance(user_response, dict)
-                                else {}
-                            ),
                         },
                     )
                 except Exception as exc:
                     tool_result = {
                         "error": str(exc),
                         "tool": getattr(tool_call, "name", ""),
+                        "expected_request_id": str(interact_request.get("request_id", "") or ""),
+                        "call_id": str(getattr(tool_call, "call_id", "") or ""),
+                        "user_response": normalized_user_response,
                     }
 
             result_messages.append(_build_tool_message_locally(tool_call, tool_result))
@@ -1096,11 +1109,11 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             return result_messages, False
 
         includes_human_input = any(
-            getattr(tool_call, "name", "") == _REQUEST_USER_INPUT_TOOL_NAME
+            getattr(tool_call, "name", "") == _ASK_USER_QUESTION_TOOL_NAME
             for tool_call in tool_calls
         )
         if includes_human_input and on_tool_confirm is not None:
-            return _execute_request_user_input_tool_calls_locally()
+            return _execute_ask_user_question_tool_calls_locally()
         if includes_human_input:
             original_kwargs = {
                 "tool_calls": tool_calls,

@@ -849,7 +849,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             tool_calls=[
                 SimpleNamespace(
                     call_id="call-human-1",
-                    name="request_user_input",
+                    name="ask_user_question",
                     arguments={
                         "title": "Need input",
                         "question": "Choose one",
@@ -886,7 +886,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(agent.forwarded_toolkits, [])
         self.assertFalse(should_observe)
         self.assertEqual(len(confirmation_requests), 1)
-        self.assertEqual(confirmation_requests[0]["tool_name"], "request_user_input")
+        self.assertEqual(confirmation_requests[0]["tool_name"], "ask_user_question")
         self.assertEqual(confirmation_requests[0]["interact_type"], "single")
         self.assertEqual(
             confirmation_requests[0]["interact_config"]["other_label"],
@@ -912,6 +912,173 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(agent.events[0][2].get("interact_type"), "single")
         self.assertIsInstance(agent.events[0][2].get("confirmation_id"), str)
         self.assertEqual(agent.events[-1][0], "tool_result")
+
+    def test_apply_broth_runtime_patches_ignores_user_supplied_request_id_for_human_input(
+        self,
+    ) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+
+            def _execute_tool_calls(self, **_kwargs):
+                return [], False
+
+            def _find_tool(self, _name, **_kwargs):
+                return None
+
+            def _build_tool_message(self, *, tool_call, tool_result):
+                return {
+                    "type": "function_call_output",
+                    "call_id": tool_call.call_id,
+                    "output": json.dumps(tool_result),
+                }
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, _event_type, _run_id, *, iteration, **extra):
+                del iteration, extra
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+
+        result_messages, should_observe = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-human-2",
+                    name="ask_user_question",
+                    arguments={
+                        "title": "Need input",
+                        "question": "Choose one",
+                        "selection_mode": "single",
+                        "options": [
+                            {
+                                "label": "Option 1",
+                                "value": "opt-1",
+                            }
+                        ],
+                        "allow_other": False,
+                    },
+                )
+            ],
+            run_id="run-human-2",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda _request: {
+                "approved": True,
+                "modified_arguments": {
+                    "user_response": {
+                        "request_id": "stale-request-id",
+                        "value": "opt-1",
+                    }
+                },
+            },
+            toolkits=["ask-user-toolkit"],
+        )
+
+        self.assertFalse(should_observe)
+        payload = json.loads(result_messages[0]["output"])
+        self.assertEqual(
+            payload,
+            {
+                "submitted": True,
+                "selected_values": ["opt-1"],
+                "other_text": None,
+            },
+        )
+
+    def test_apply_broth_runtime_patches_parses_openai_string_arguments_for_human_input(
+        self,
+    ) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+                self.forwarded_toolkits = None
+                self.events = []
+
+            def _execute_tool_calls(self, **_kwargs):
+                return [], False
+
+            def _find_tool(self, _name, **kwargs):
+                self.forwarded_toolkits = kwargs.get("toolkits")
+                return None
+
+            def _build_tool_message(self, *, tool_call, tool_result):
+                return {
+                    "type": "function_call_output",
+                    "call_id": tool_call.call_id,
+                    "output": json.dumps(tool_result),
+                }
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
+                self.events.append((event_type, iteration, extra))
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+        confirmation_requests = []
+
+        result_messages, should_observe = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-human-openai-1",
+                    name="ask_user_question",
+                    arguments=json.dumps(
+                        {
+                            "title": "Need input",
+                            "question": "Choose one",
+                            "selection_mode": "single",
+                            "options": [
+                                {
+                                    "label": "Option 1",
+                                    "value": "opt-1",
+                                }
+                            ],
+                            "allow_other": False,
+                        }
+                    ),
+                )
+            ],
+            run_id="run-human-openai-1",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda request: (
+                confirmation_requests.append(request)
+                or {
+                    "approved": True,
+                    "modified_arguments": {
+                        "user_response": {
+                            "value": "opt-1",
+                        }
+                    },
+                }
+            ),
+            toolkits=["ask-user-toolkit"],
+        )
+
+        self.assertFalse(should_observe)
+        self.assertEqual(len(confirmation_requests), 1)
+        self.assertEqual(
+            confirmation_requests[0]["interact_config"]["request_id"],
+            "call-human-openai-1",
+        )
+        payload = json.loads(result_messages[0]["output"])
+        self.assertEqual(
+            payload,
+            {
+                "submitted": True,
+                "selected_values": ["opt-1"],
+                "other_text": None,
+            },
+        )
 
     def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
         self,

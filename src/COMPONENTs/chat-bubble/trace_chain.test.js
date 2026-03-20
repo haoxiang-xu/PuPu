@@ -261,7 +261,7 @@ describe("TraceChain final_message draft timeline", () => {
           call_id: "call-1",
           confirmation_id: "confirm-1",
           requires_confirmation: true,
-          tool_name: "request_user_input",
+          tool_name: "ask_user_question",
           interact_type: "single",
           interact_config: {
             title: "Angry Birds - Tech Stack",
