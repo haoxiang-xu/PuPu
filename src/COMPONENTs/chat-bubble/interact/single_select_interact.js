@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * SingleSelectInteract – renders a list of radio-style options.
@@ -115,6 +115,17 @@ const SingleSelectInteract = ({
       ? submittedResponse.other_text
       : "",
   );
+
+  useEffect(() => {
+    if (typeof submittedResponse?.value === "string") {
+      setSelected(submittedResponse.value);
+      setOtherText(
+        typeof submittedResponse?.other_text === "string"
+          ? submittedResponse.other_text
+          : "",
+      );
+    }
+  }, [submittedResponse]);
 
   if (options.length === 0 && !allowOther) return null;
 

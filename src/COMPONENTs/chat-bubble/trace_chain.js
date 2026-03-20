@@ -48,6 +48,78 @@ const toKVPairs = (data) => {
   }));
 };
 
+const normalizePersistedInteractionResponse = (interactType, payload = {}) => {
+  if (!payload || typeof payload !== "object") {
+    return undefined;
+  }
+
+  if (
+    payload.user_response &&
+    typeof payload.user_response === "object" &&
+    !Array.isArray(payload.user_response)
+  ) {
+    return payload.user_response;
+  }
+
+  const otherText =
+    typeof payload.other_text === "string" && payload.other_text.trim()
+      ? payload.other_text.trim()
+      : undefined;
+  const selectedValues = Array.isArray(payload.selected_values)
+    ? payload.selected_values.filter(
+        (value) => typeof value === "string" && value.trim(),
+      )
+    : [];
+
+  if (interactType === "single" && selectedValues.length > 0) {
+    return {
+      value: selectedValues[0],
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  if (interactType === "multi" && selectedValues.length > 0) {
+    return {
+      values: selectedValues,
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  if (
+    interactType === "multi_choice" &&
+    Array.isArray(payload.selected) &&
+    payload.selected.length > 0
+  ) {
+    return {
+      selected: payload.selected.filter(
+        (value) => typeof value === "string" && value.trim(),
+      ),
+    };
+  }
+
+  if (interactType === "text_input" && typeof payload.text === "string") {
+    return { text: payload.text };
+  }
+
+  if (typeof payload.value === "string") {
+    return {
+      value: payload.value,
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  if (Array.isArray(payload.values) && payload.values.length > 0) {
+    return {
+      values: payload.values.filter(
+        (value) => typeof value === "string" && value.trim(),
+      ),
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  return undefined;
+};
+
 /* ─── KVPanel ────────────────────────────────────────────────────────────── */
 
 const MAX_PREVIEW = 300;
@@ -349,6 +421,63 @@ const TraceChain = ({
     return map;
   }, [frames]);
 
+  const confirmationUserResponseByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (
+        (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
+        !frame?.payload?.call_id ||
+        frame?.payload?.user_response === undefined
+      ) {
+        continue;
+      }
+
+      map.set(frame.payload.call_id, frame.payload.user_response);
+    }
+    return map;
+  }, [frames]);
+
+  const interactTypeByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (
+        frame?.type !== "tool_call" ||
+        !frame?.payload?.call_id ||
+        typeof frame?.payload?.interact_type !== "string"
+      ) {
+        continue;
+      }
+      map.set(frame.payload.call_id, frame.payload.interact_type);
+    }
+    return map;
+  }, [frames]);
+
+  const toolResultUserResponseByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (frame?.type !== "tool_result" || !frame?.payload?.call_id) {
+        continue;
+      }
+
+      const interactType =
+        typeof frame?.payload?.interact_type === "string"
+          ? frame.payload.interact_type
+          : interactTypeByCallId.get(frame.payload.call_id) ||
+            (typeof frame?.payload?.tool_name === "string" &&
+            frame.payload.tool_name === "ask_user_question"
+              ? "single"
+              : "");
+      const normalized = normalizePersistedInteractionResponse(
+        interactType,
+        frame.payload?.result,
+      );
+      if (normalized !== undefined) {
+        map.set(frame.payload.call_id, normalized);
+      }
+    }
+    return map;
+  }, [frames, interactTypeByCallId]);
+
   const timelineItems = useMemo(() => {
     const items = [];
     const renderedCallIds = new Set();
@@ -417,21 +546,42 @@ const TraceChain = ({
           confirmationId && toolConfirmationUiStateById
             ? toolConfirmationUiStateById[confirmationId] || {}
             : {};
+        const persistedUserResponse =
+          callId && confirmationUserResponseByCallId.has(callId)
+            ? confirmationUserResponseByCallId.get(callId)
+            : callId && toolResultUserResponseByCallId.has(callId)
+              ? toolResultUserResponseByCallId.get(callId)
+            : undefined;
+        const effectiveConfirmationUiState =
+          persistedUserResponse !== undefined &&
+          confirmationUiState?.userResponse === undefined
+            ? {
+                ...confirmationUiState,
+                userResponse: persistedUserResponse,
+              }
+            : confirmationUiState;
+        const hasPersistedSelectionResult =
+          persistedUserResponse !== undefined && resultFrame != null;
         const uiStatus =
-          typeof confirmationUiState?.status === "string"
-            ? confirmationUiState.status
+          typeof effectiveConfirmationUiState?.status === "string"
+            ? effectiveConfirmationUiState.status
             : "idle";
         const uiError =
-          typeof confirmationUiState?.error === "string"
-            ? confirmationUiState.error
+          typeof effectiveConfirmationUiState?.error === "string"
+            ? effectiveConfirmationUiState.error
             : "";
-        const uiResolved = confirmationUiState?.resolved === true;
+        const uiResolved =
+          effectiveConfirmationUiState?.resolved === true ||
+          hasPersistedSelectionResult;
         const uiDecision =
-          confirmationUiState?.decision === "approved" ||
-          confirmationUiState?.decision === "denied"
-            ? confirmationUiState.decision
+          effectiveConfirmationUiState?.decision === "approved" ||
+          effectiveConfirmationUiState?.decision === "denied"
+            ? effectiveConfirmationUiState.decision
             : "";
-        const resolvedDecision = confirmationResult || uiDecision;
+        const resolvedDecision =
+          confirmationResult ||
+          uiDecision ||
+          (hasPersistedSelectionResult ? "approved" : "");
         const isResolved =
           resolvedDecision === "approved" || resolvedDecision === "denied";
         const isSubmitting =
@@ -550,7 +700,7 @@ const TraceChain = ({
                     onSubmit={(data) =>
                       handleInteractSubmit(confirmationId, interactType, data)
                     }
-                    uiState={confirmationUiState}
+                    uiState={effectiveConfirmationUiState}
                     isDark={isDark}
                     disabled={!canTakeAction}
                   />
@@ -561,7 +711,7 @@ const TraceChain = ({
                     onSubmit={(data) =>
                       handleInteractSubmit(confirmationId, interactType, data)
                     }
-                    uiState={confirmationUiState}
+                    uiState={effectiveConfirmationUiState}
                     isDark={isDark}
                     disabled={false}
                   />
@@ -674,6 +824,9 @@ const TraceChain = ({
     startFrame,
     toolResultByCallId,
     confirmationStatusByCallId,
+    confirmationUserResponseByCallId,
+    interactTypeByCallId,
+    toolResultUserResponseByCallId,
     handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,

@@ -255,6 +255,88 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("persists selector responses in synthetic confirmation trace frames", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Choose the stack" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    streamHandlers.onFrame({
+      seq: 1,
+      ts: 100,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        confirmation_id: "confirm-1",
+        requires_confirmation: true,
+        tool_name: "ask_user_question",
+        interact_type: "single",
+        interact_config: {
+          question: "Which stack do you want to use?",
+          options: [
+            {
+              label: "Web Canvas",
+              value: "web_canvas",
+            },
+          ],
+          allow_other: true,
+          other_label: "Other option",
+        },
+      },
+    });
+
+    await lastChatMessagesProps.onToolConfirmationDecision({
+      confirmationId: "confirm-1",
+      approved: true,
+      userResponse: {
+        value: "__other__",
+        other_text: "Custom engine",
+      },
+    });
+
+    expect(window.misoAPI.respondToolConfirmation).toHaveBeenCalledWith({
+      confirmation_id: "confirm-1",
+      approved: true,
+      reason: "",
+      modified_arguments: {
+        user_response: {
+          value: "__other__",
+          other_text: "Custom engine",
+        },
+      },
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.traceFrames).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool_confirmed",
+            stage: "client",
+            payload: expect.objectContaining({
+              call_id: "call-1",
+              confirmation_id: "confirm-1",
+              synthetic: true,
+              user_response: {
+                value: "__other__",
+                other_text: "Custom engine",
+              },
+            }),
+          }),
+        ]),
+      );
+    });
+  });
+
   test("retries once with history when memory is unavailable", async () => {
     window.localStorage.setItem(
       "settings",

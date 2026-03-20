@@ -44,6 +44,12 @@ const TextInputInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
   const taRef = useRef(null);
   const [lineCount, setLineCount] = useState(1);
 
+  useEffect(() => {
+    if (typeof submittedResponse?.text === "string") {
+      setText(submittedResponse.text);
+    }
+  }, [submittedResponse]);
+
   const recount = useCallback(() => {
     const lines = (text || "").split("\n").length;
     setLineCount(Math.max(1, lines));

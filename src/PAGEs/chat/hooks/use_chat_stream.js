@@ -327,7 +327,7 @@ export const useChatStream = ({
   }, [cancelCurrentStreamAndSettleMessages]);
 
   const appendSyntheticToolConfirmationDecision = useCallback(
-    ({ confirmationId, approved }) => {
+    ({ confirmationId, approved, userResponse }) => {
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!normalizedConfirmationId) {
@@ -397,6 +397,9 @@ export const useChatStream = ({
                 call_id: callId,
                 confirmation_id: normalizedConfirmationId,
                 synthetic: true,
+                ...(userResponse !== undefined
+                  ? { user_response: userResponse }
+                  : {}),
               },
             },
           ],
@@ -521,6 +524,7 @@ export const useChatStream = ({
         appendSyntheticToolConfirmationDecision({
           confirmationId: normalizedConfirmationId,
           approved: Boolean(approved),
+          userResponse,
         });
         updateToolConfirmationUiState((previous) => ({
           ...previous,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * MultiChoiceInteract – renders a list of selectable choices.
@@ -113,6 +113,12 @@ const MultiChoiceInteract = ({
       ? submittedResponse.selected
       : [],
   );
+
+  useEffect(() => {
+    if (Array.isArray(submittedResponse?.selected)) {
+      setSelected(submittedResponse.selected);
+    }
+  }, [submittedResponse]);
 
   if (choices.length === 0) return null;
 

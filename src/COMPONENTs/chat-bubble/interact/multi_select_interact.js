@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 /**
  * MultiSelectInteract – renders a list of checkbox-style options.
@@ -128,6 +128,17 @@ const MultiSelectInteract = ({
       ? submittedResponse.other_text
       : "",
   );
+
+  useEffect(() => {
+    if (Array.isArray(submittedResponse?.values)) {
+      setSelected(submittedResponse.values);
+      setOtherText(
+        typeof submittedResponse?.other_text === "string"
+          ? submittedResponse.other_text
+          : "",
+      );
+    }
+  }, [submittedResponse]);
 
   if (options.length === 0 && !allowOther) return null;
 

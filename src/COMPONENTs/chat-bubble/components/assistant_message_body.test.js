@@ -167,4 +167,38 @@ describe("AssistantMessageBody seamless rendering", () => {
       container.querySelector("[data-markdown-id] html"),
     ).not.toBeInTheDocument();
   });
+
+  test("keeps streaming html code fences safe before the closing fence arrives", () => {
+    const partialHtmlDocumentMarkdown = `下面给你一个**纯前端页面**：
+
+\`\`\`html
+<!DOCTYPE html>
+<html lang="zh">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Demo</title>
+  </head>`;
+
+    const { container } = renderAssistantBody({
+      message: {
+        id: "assistant-streaming-html",
+        role: "assistant",
+        status: "streaming",
+        content: partialHtmlDocumentMarkdown,
+      },
+      isRawTextMode: false,
+      theme: TEST_THEME,
+      hasTraceFrames: false,
+    });
+
+    expect(screen.getByText(/下面给你一个/)).toBeInTheDocument();
+    expect(screen.getByText(/<!DOCTYPE html>/)).toBeInTheDocument();
+    expect(container.querySelector("code.hljs")).toBeInTheDocument();
+    expect(
+      container.querySelector("[data-markdown-id] meta"),
+    ).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-markdown-id] html"),
+    ).not.toBeInTheDocument();
+  });
 });
