@@ -18,6 +18,16 @@ const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
 });
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
 
+const getTraceFrameIteration = (frame) => {
+  const frameIteration = Number(frame?.iteration);
+  if (Number.isFinite(frameIteration)) {
+    return frameIteration;
+  }
+
+  const payloadIteration = Number(frame?.payload?.iteration);
+  return Number.isFinite(payloadIteration) ? payloadIteration : 0;
+};
+
 const misoLogger = createLogger("MISO", "src/PAGEs/chat/hooks/use_chat_stream.js");
 
 export const useChatStream = ({
@@ -1039,10 +1049,7 @@ export const useChatStream = ({
                   typeof frame.payload?.confirmation_id === "string"
                     ? frame.payload.confirmation_id.trim()
                     : "";
-                const iteration =
-                  typeof frame.payload?.iteration === "number"
-                    ? frame.payload.iteration
-                    : 0;
+                const iteration = getTraceFrameIteration(frame);
                 if (confirmationId) {
                   const state = { confirmationId, iteration, status: "idle" };
                   pendingContinuationRequestRef.current = state;
@@ -1053,7 +1060,7 @@ export const useChatStream = ({
 
               if (frame.type === "error") {
                 misoLogger.error(
-                  `error (iteration=${frame.iteration})`,
+                  `error (iteration=${getTraceFrameIteration(frame)})`,
                   frame.payload,
                 );
               }

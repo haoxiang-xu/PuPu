@@ -1230,6 +1230,51 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
 
+    def test_create_agent_accepts_legacy_access_workspace_toolkit_alias(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            captured["workspace_root"] = workspace_root
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_root": tmp,
+                        "toolkits": ["access_workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+
     def test_create_agent_attaches_workspace_toolkit_with_workspace_roots_fallback(self) -> None:
         class FakeAgent:
             def __init__(self):

@@ -482,6 +482,40 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("uses the trace-frame iteration for continuation prompts", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Need more steps" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "continuation_request",
+        iteration: 4,
+        payload: {
+          confirmation_id: "continue-1",
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Agent reached 4 iterations without a final response. Continue?",
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
   test("resend replaces short-term memory before starting a new stream", async () => {
     window.localStorage.setItem(
       "settings",

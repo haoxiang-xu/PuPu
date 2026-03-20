@@ -213,6 +213,41 @@ export const sanitizeModel = (model) => {
   return cleaned;
 };
 
+const TOOLKIT_ID_ALIASES = Object.freeze({
+  workspace: "WorkspaceToolkit",
+  workspace_toolkit: "WorkspaceToolkit",
+  access_workspace_toolkit: "WorkspaceToolkit",
+  workspacetoolkit: "WorkspaceToolkit",
+  terminal: "TerminalToolkit",
+  terminal_toolkit: "TerminalToolkit",
+  run_terminal_toolkit: "TerminalToolkit",
+  terminaltoolkit: "TerminalToolkit",
+  external_api: "ExternalAPIToolkit",
+  external_api_toolkit: "ExternalAPIToolkit",
+  externalapitoolkit: "ExternalAPIToolkit",
+  ask_user: "AskUserToolkit",
+  ask_user_toolkit: "AskUserToolkit",
+  "ask-user-toolkit": "AskUserToolkit",
+  interaction_toolkit: "AskUserToolkit",
+  "interaction-toolkit": "AskUserToolkit",
+  askusertoolkit: "AskUserToolkit",
+  mcp: "MCPToolkit",
+  mcptoolkit: "MCPToolkit",
+});
+
+const normalizeSelectedToolkitId = (value) => {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = trimText(value.trim(), MAX_TOOLKIT_ID_CHARS);
+  if (!trimmed) {
+    return "";
+  }
+
+  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[trimmed.toLowerCase()] || trimmed;
+};
+
 export const sanitizeSelectedToolkits = (selectedToolkits) => {
   if (!Array.isArray(selectedToolkits)) {
     return [];
@@ -220,11 +255,7 @@ export const sanitizeSelectedToolkits = (selectedToolkits) => {
 
   return unique(
     selectedToolkits
-      .map((item) =>
-        typeof item === "string"
-          ? trimText(item.trim(), MAX_TOOLKIT_ID_CHARS)
-          : "",
-      )
+      .map((item) => normalizeSelectedToolkitId(item))
       .filter(Boolean),
   ).slice(0, MAX_SELECTED_TOOLKITS);
 };

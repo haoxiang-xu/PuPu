@@ -1239,6 +1239,7 @@ def chat_stream_v2() -> Response:
     def stream_events() -> Iterable[str]:
         seq = 0
         started_at = int(time.time() * 1000)
+        last_iteration = 0
         final_bundle: Dict[str, object] | None = None
         confirmation_cancel_event = threading.Event()
 
@@ -1296,7 +1297,8 @@ def chat_stream_v2() -> Response:
                 run_id = raw_event.get("run_id")
                 normalized_run_id = run_id if isinstance(run_id, str) else ""
                 iteration = raw_event.get("iteration")
-                normalized_iteration = iteration if isinstance(iteration, int) else 0
+                normalized_iteration = iteration if isinstance(iteration, int) else last_iteration
+                last_iteration = normalized_iteration
                 raw_ts = raw_event.get("timestamp")
                 if isinstance(raw_ts, (int, float)):
                     event_ts_ms = int(float(raw_ts) * 1000)
@@ -1331,7 +1333,7 @@ def chat_stream_v2() -> Response:
                     thread_id=thread_id,
                     event_type="done",
                     payload=done_payload,
-                    iteration=0,
+                    iteration=last_iteration,
                     timestamp_ms=finished_at,
                 ),
             )
@@ -1353,7 +1355,7 @@ def chat_stream_v2() -> Response:
                         "code": code,
                         "message": normalized_message,
                     },
-                    iteration=0,
+                    iteration=last_iteration,
                     timestamp_ms=error_ts,
                 ),
             )
