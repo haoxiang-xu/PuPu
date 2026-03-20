@@ -18,6 +18,7 @@ const createAvailableNet = () => ({
   createServer() {
     const listeners = new Map();
     return {
+      unref() {},
       once(event, callback) {
         listeners.set(event, callback);
       },
@@ -26,6 +27,42 @@ const createAvailableNet = () => ({
         if (typeof onListening === "function") {
           onListening();
         }
+      },
+      close(callback) {
+        if (typeof callback === "function") {
+          callback();
+        }
+      },
+    };
+  },
+});
+
+const createRangeBusyNet = ({ ephemeralPort }) => ({
+  createServer() {
+    const listeners = new Map();
+    let boundPort = null;
+    return {
+      unref() {},
+      once(event, callback) {
+        listeners.set(event, callback);
+      },
+      listen(port) {
+        if (port === 0) {
+          boundPort = ephemeralPort;
+          const onListening = listeners.get("listening");
+          if (typeof onListening === "function") {
+            onListening();
+          }
+          return;
+        }
+
+        const onError = listeners.get("error");
+        if (typeof onError === "function") {
+          onError(new Error("EADDRINUSE"));
+        }
+      },
+      address() {
+        return boundPort == null ? null : { port: boundPort };
       },
       close(callback) {
         if (typeof callback === "function") {
@@ -123,6 +160,67 @@ describe("miso service session memory replacement", () => {
           messages: [{ role: "user", content: "hello" }],
           options: { modelId: "openai:gpt-5" },
         }),
+      }),
+    );
+  });
+
+  test("falls back to an ephemeral port when the preferred miso range is busy", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest.fn().mockResolvedValue({ ok: true });
+
+    process.env.MISO_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createMisoService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createRangeBusyNet({ ephemeralPort: 61234 }),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+
+    expect(spawn).toHaveBeenCalledWith(
+      "/usr/bin/python3.12",
+      ["/app/miso_runtime/server/main.py"],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          MISO_PORT: "61234",
+        }),
+      }),
+    );
+    expect(service.getMisoStatusPayload()).toEqual(
+      expect.objectContaining({
+        port: 61234,
+        url: "http://127.0.0.1:61234",
       }),
     );
   });

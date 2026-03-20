@@ -1,7 +1,14 @@
 const { CHANNELS } = require("../../shared/channels");
 
-const DEV_SERVER_URL =
+const getDevServerUrl = () =>
   process.env.ELECTRON_START_URL || "http://localhost:2907/#";
+const getDevServerOrigin = () => {
+  try {
+    return new URL(getDevServerUrl()).origin;
+  } catch {
+    return "http://localhost:2907";
+  }
+};
 const PROD_ENTRY_HASH = "/";
 const DEV_SERVER_RETRY_MS = 1200;
 const DARWIN_TRAFFIC_LIGHT_X = 14;
@@ -231,10 +238,12 @@ const createMainWindowService = ({
       return;
     }
 
+    const devServerUrl = getDevServerUrl();
+
     try {
-      const response = await fetch(DEV_SERVER_URL, { method: "HEAD" });
+      const response = await fetch(devServerUrl, { method: "HEAD" });
       if (response.ok || response.status < 500) {
-        await mainWindow.loadURL(DEV_SERVER_URL);
+        await mainWindow.loadURL(devServerUrl);
         return;
       }
     } catch {
@@ -298,8 +307,9 @@ const createMainWindowService = ({
     });
 
     mainWindow.webContents.on("will-navigate", (event, url) => {
+      const devServerOrigin = getDevServerOrigin();
       const isLocalAppUrl =
-        url.startsWith("file://") || url.startsWith("http://localhost:2907");
+        url.startsWith("file://") || url.startsWith(devServerOrigin);
       if (!isLocalAppUrl) {
         event.preventDefault();
         shell.openExternal(url);
