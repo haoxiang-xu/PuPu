@@ -7,6 +7,7 @@ import SegmentedControl from "./components/segmented_control";
 import ToolkitsPage from "./pages/toolkits_page";
 import ToolkitDetailPanel from "./components/toolkit_detail_panel";
 import ComingSoonPage from "./pages/coming_soon_page";
+import McpPage from "./mcp/mcp_page";
 
 const SLIDE_DURATION = 260; // ms
 
@@ -63,6 +64,9 @@ export const ToolkitModal = ({ open, onClose }) => {
   const renderContent = () => {
     if (selectedSection === "toolkits") {
       return <ToolkitsPage isDark={isDark} onToolClick={handleToolClick} />;
+    }
+    if (selectedSection === "mcp") {
+      return <McpPage isDark={isDark} />;
     }
     return (
       <ComingSoonPage icon={activeSection?.icon || "tool"} isDark={isDark} />
