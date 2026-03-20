@@ -23,6 +23,8 @@ Current Flask endpoints are:
 - `GET /health`
 - `GET /models/catalog`
 - `GET /toolkits/catalog`
+- `GET /toolkits/catalog/v2`
+- `GET /toolkits/<toolkit_id>/metadata`
 - `GET /memory/projection`
 - `GET /memory/long-term/projection`
 - `POST /chat/tool/confirmation`
@@ -35,6 +37,8 @@ Guidance:
 - `/chat/stream/v2` is the primary streaming contract for the app.
 - `/chat/stream` is still present, but it is the legacy simple SSE path.
 - memory projection now has separate session and long-term routes.
+- `/toolkits/catalog/v2` is the enriched toolkit catalog with icons, README, and full tool metadata.
+- `/toolkits/<toolkit_id>/metadata` returns single-toolkit details; accepts optional `?tool_name=` query param.
 
 When `MISO_AUTH_TOKEN` is configured, protected routes require:
 
@@ -47,7 +51,7 @@ When `MISO_AUTH_TOKEN` is configured, protected routes require:
 For normal chat generation in the renderer, use:
 
 ```js
-api.miso.startStreamV2(payload, handlers)
+api.miso.startStreamV2(payload, handlers);
 ```
 
 That path goes through:
@@ -165,12 +169,32 @@ Use it only when you specifically need the simple token stream and do not need v
 
 ### `GET /toolkits/catalog`
 
-Returns the toolkit catalog used by the tool picker.
+Returns the toolkit catalog used by the tool picker (v1, basic metadata).
 
 Renderer entrypoint:
 
 ```js
-api.miso.getToolkitCatalog()
+api.miso.getToolkitCatalog();
+```
+
+### `GET /toolkits/catalog/v2`
+
+Returns the enriched toolkit catalog with icons, README markdown, and full tool metadata.
+
+Renderer entrypoint:
+
+```js
+api.miso.getToolkitCatalog(); // uses LIST_TOOL_MODAL_CATALOG channel for v2
+```
+
+### `GET /toolkits/<toolkit_id>/metadata`
+
+Returns single-toolkit details including README content. Accepts optional `?tool_name=` query param for tool-level filtering.
+
+Renderer entrypoint:
+
+```js
+api.miso.getToolkitDetail(toolkitId);
 ```
 
 ### `POST /chat/tool/confirmation`
@@ -191,7 +215,7 @@ Request body:
 Renderer entrypoint:
 
 ```js
-api.miso.respondToolConfirmation(payload)
+api.miso.respondToolConfirmation(payload);
 ```
 
 ### `GET /memory/projection`
@@ -207,7 +231,7 @@ session_id=<chat thread or session id>
 Renderer entrypoint:
 
 ```js
-api.miso.getMemoryProjection(sessionId)
+api.miso.getMemoryProjection(sessionId);
 ```
 
 ### `GET /memory/long-term/projection`
@@ -217,7 +241,7 @@ Returns the aggregated long-term memory projection used by the long-term inspect
 Renderer entrypoint:
 
 ```js
-api.miso.getLongTermMemoryProjection()
+api.miso.getLongTermMemoryProjection();
 ```
 
 ### `POST /memory/session/replace`
@@ -238,7 +262,7 @@ Request body:
 Renderer entrypoint:
 
 ```js
-api.miso.replaceSessionMemory(payload)
+api.miso.replaceSessionMemory(payload);
 ```
 
 ---
