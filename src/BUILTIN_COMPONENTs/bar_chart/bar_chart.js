@@ -103,7 +103,7 @@ export const BarChart = ({
             style={{
               position: "absolute",
               right: 4,
-              top: -2,
+              top: -24,
               fontSize: 9,
               color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
               lineHeight: "12px",
