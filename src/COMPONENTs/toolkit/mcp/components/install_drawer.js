@@ -1,5 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
+import Timeline from "../../../../BUILTIN_COMPONENTs/timeline/timeline";
 import {
   PrimaryButton,
   FormField,
@@ -16,88 +17,6 @@ const STEPS = [
   { key: "config", label: "Configure" },
   { key: "review", label: "Review & Test" },
 ];
-
-/* ── Step indicator ── */
-const StepIndicator = ({ current, isDark }) => (
-  <div
-    style={{ display: "flex", alignItems: "center", gap: 0, marginBottom: 16 }}
-  >
-    {STEPS.map((step, i) => {
-      const isActive = i === current;
-      const isPast = i < current;
-      const dotColor = isPast
-        ? "#34d399"
-        : isActive
-          ? "#60a5fa"
-          : isDark
-            ? "rgba(255,255,255,0.15)"
-            : "rgba(0,0,0,0.12)";
-      return (
-        <div
-          key={step.key}
-          style={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            gap: 5,
-            position: "relative",
-          }}
-        >
-          {i > 0 && (
-            <div
-              style={{
-                position: "absolute",
-                top: 5,
-                right: "50%",
-                left: "-50%",
-                height: 2,
-                borderRadius: 1,
-                background: isPast
-                  ? "#34d399"
-                  : isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.06)",
-              }}
-            />
-          )}
-          <div
-            style={{
-              width: 12,
-              height: 12,
-              borderRadius: "50%",
-              background: dotColor,
-              zIndex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {isPast && (
-              <Icon src="check" style={{ width: 8, height: 8 }} color="#fff" />
-            )}
-          </div>
-          <span
-            style={{
-              fontSize: 10,
-              fontFamily: "Jost",
-              fontWeight: isActive ? 600 : 400,
-              color: isActive
-                ? isDark
-                  ? "#fff"
-                  : "#222"
-                : isDark
-                  ? "rgba(255,255,255,0.35)"
-                  : "rgba(0,0,0,0.38)",
-            }}
-          >
-            {step.label}
-          </span>
-        </div>
-      );
-    })}
-  </div>
-);
 
 /* ══════════════════════════════════════════════
    Install Drawer — 3-step flow
@@ -118,6 +37,16 @@ const InstallDrawer = ({
 
   const profiles = entry?.install_profiles || [];
   const activeProfile = selectedProfile || profiles[0];
+
+  const timelineItems = useMemo(
+    () =>
+      STEPS.map((s, i) => ({
+        title: s.label,
+        status: i < step ? "done" : i === step ? "active" : "pending",
+        point: i === 0 ? "start" : i === STEPS.length - 1 ? "end" : undefined,
+      })),
+    [step],
+  );
 
   /* ── Handlers ── */
   const handleSelectProfile = useCallback((p) => {
@@ -183,34 +112,34 @@ const InstallDrawer = ({
           flexShrink: 0,
         }}
       >
-        <button
-          onClick={
-            step > 0
-              ? () => {
-                  setStep((s) => s - 1);
-                  setTestResult(null);
-                }
-              : onClose
-          }
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 28,
-            height: 28,
-            borderRadius: 6,
-            border: "none",
-            background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-          <Icon
-            src="arrow_left"
-            style={{ width: 16, height: 16 }}
-            color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
-          />
-        </button>
+        {step > 0 && (
+          <button
+            onClick={() => {
+              setStep((s) => s - 1);
+              setTestResult(null);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              border: "none",
+              background: isDark
+                ? "rgba(255,255,255,0.06)"
+                : "rgba(0,0,0,0.04)",
+              cursor: "pointer",
+              flexShrink: 0,
+            }}
+          >
+            <Icon
+              src="arrow_left"
+              style={{ width: 16, height: 16 }}
+              color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
+            />
+          </button>
+        )}
         <span
           style={{
             fontSize: 14,
@@ -223,7 +152,7 @@ const InstallDrawer = ({
         </span>
       </div>
 
-      <StepIndicator current={step} isDark={isDark} />
+      <Timeline items={timelineItems} style={{ marginBottom: 16 }} />
 
       {/* ── Content ── */}
       <div

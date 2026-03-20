@@ -110,7 +110,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled, onClick }) => {
                 set_on={(val) => {
                   if (onToggleEnabled) onToggleEnabled(toolkit.toolkitId, val);
                 }}
-                style={{ width: 46, height: 24 }}
+                style={{ width: 56, height: 28 }}
               />
             </Tooltip>
           </div>

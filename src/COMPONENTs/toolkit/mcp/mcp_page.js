@@ -6,7 +6,7 @@ import ClaudeImportPage from "./pages/claude_import_page";
 import GitHubImportPage from "./pages/github_import_page";
 import ManualPage from "./pages/manual_page";
 import InstallDrawer from "./components/install_drawer";
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 const SLIDE_DURATION = 260;
 
@@ -41,41 +41,45 @@ const McpPage = ({ isDark }) => {
   /* ── Tab item ── */
   const TabItem = ({ item }) => {
     const isActive = activeTab === item.key;
-    const activeColor = "#5b9cf4";
+    const activeColor = "rgba(10,186,181,1)";
     const inactiveColor = isDark
       ? "rgba(255,255,255,0.38)"
       : "rgba(0,0,0,0.35)";
 
     return (
-      <button
-        onClick={() => setActiveTab(item.key)}
-        style={{
-          all: "unset",
-          cursor: "pointer",
-          display: "flex",
-          alignItems: "center",
-          gap: 5,
-          padding: "5px 10px",
-          borderRadius: 8,
-          fontSize: 12,
-          fontFamily: "Jost",
-          fontWeight: isActive ? 500 : 400,
-          color: isActive ? activeColor : inactiveColor,
-          background: isActive
-            ? isDark
-              ? "rgba(91,156,244,0.1)"
-              : "rgba(91,156,244,0.06)"
-            : "transparent",
-          transition: "all 0.15s ease",
+      <Button
+        prefix_icon={item.icon}
+        label={item.label}
+        onClick={() => {
+          setActiveTab(item.key);
+          if (drawerVisible) closeDrawer();
         }}
-      >
-        <Icon
-          src={item.icon}
-          style={{ width: 14, height: 14 }}
-          color={isActive ? activeColor : inactiveColor}
-        />
-        {item.label}
-      </button>
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          color: isActive ? activeColor : inactiveColor,
+          paddingVertical: 5,
+          paddingHorizontal: 10,
+          borderRadius: 8,
+          gap: 5,
+          root: {
+            background: isActive
+              ? isDark
+                ? "rgba(10,186,181,0.1)"
+                : "rgba(10,186,181,0.06)"
+              : "transparent",
+          },
+          hoverBackgroundColor: isDark
+            ? "rgba(10,186,181,0.12)"
+            : "rgba(10,186,181,0.08)",
+          activeBackgroundColor: isDark
+            ? "rgba(10,186,181,0.18)"
+            : "rgba(10,186,181,0.12)",
+          content: {
+            icon: { width: 14, height: 14 },
+          },
+        }}
+      />
     );
   };
 
@@ -107,7 +111,7 @@ const McpPage = ({ isDark }) => {
           display: "flex",
           alignItems: "center",
           gap: 2,
-          padding: "0 0 8px",
+          padding: "0 16px 8px",
           borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}`,
           flexShrink: 0,
         }}
@@ -126,7 +130,7 @@ const McpPage = ({ isDark }) => {
             position: "absolute",
             inset: 0,
             overflowY: "auto",
-            padding: "12px 0 0",
+            padding: "12px 16px 0",
           }}
         >
           {renderPage()}
@@ -134,33 +138,68 @@ const McpPage = ({ isDark }) => {
 
         {/* ── Install drawer slide-in ── */}
         {drawerMounted && drawerEntry && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: "100%",
-              backgroundColor: panelBg,
-              zIndex: 3,
-              transform: drawerVisible ? "translateX(0)" : "translateX(100%)",
-              transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
-              boxSizing: "border-box",
-              display: "flex",
-              flexDirection: "column",
-              overflow: "hidden",
-            }}
-          >
-            <InstallDrawer
-              catalogEntry={drawerEntry}
-              isDark={isDark}
-              onBack={closeDrawer}
-              onComplete={() => {
-                closeDrawer();
-                setActiveTab("installed");
+          <>
+            {/* Back button — outside the sliding panel */}
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                left: 8,
+                zIndex: 4,
+                opacity: drawerVisible ? 1 : 0,
+                transition: `opacity ${SLIDE_DURATION}ms ease`,
+                pointerEvents: drawerVisible ? "auto" : "none",
               }}
-            />
-          </div>
+            >
+              <Button
+                prefix_icon="arrow_left"
+                onClick={closeDrawer}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 4,
+                  borderRadius: 6,
+                  opacity: 0.55,
+                  content: {
+                    prefixIconWrap: {
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: 0,
+                    },
+                    icon: { width: 14, height: 14 },
+                  },
+                }}
+              />
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: "100%",
+                backgroundColor: panelBg,
+                zIndex: 3,
+                transform: drawerVisible ? "translateX(0)" : "translateX(100%)",
+                transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+                padding: "40px 40px 0",
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+              }}
+            >
+              <InstallDrawer
+                catalogEntry={drawerEntry}
+                isDark={isDark}
+                onBack={closeDrawer}
+                onComplete={() => {
+                  closeDrawer();
+                  setActiveTab("installed");
+                }}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

@@ -28,7 +28,7 @@ const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
               cursor: "pointer",
               fontFamily: "Jost, sans-serif",
               fontSize: 13,
-              fontWeight: isActive ? 600 : 400,
+              fontWeight: 600,
               letterSpacing: "0.1px",
               color: isActive
                 ? isDark

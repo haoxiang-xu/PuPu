@@ -1,10 +1,8 @@
 /* ── MCP UI Constants ── */
 
 export const MCP_SUB_PAGES = [
-  { key: "catalog", icon: "search", label: "Official" },
+  { key: "catalog", icon: "search", label: "Store" },
   { key: "installed", icon: "server", label: "Installed" },
-  { key: "claude_import", icon: "Anthropic", label: "Claude" },
-  { key: "github_import", icon: "github", label: "GitHub" },
   { key: "manual", icon: "add", label: "Manual" },
 ];
 
@@ -60,7 +58,7 @@ export const STATUS_CONFIG = {
 /* ── Source kind → visual config ── */
 export const SOURCE_KIND_CONFIG = {
   official: {
-    label: "Official",
+    label: "Store",
     color: "#a78bfa",
     bg: "rgba(167,139,250,0.13)",
   },

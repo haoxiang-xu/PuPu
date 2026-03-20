@@ -1,186 +1,207 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import api from "../../../SERVICEs/api";
-import {
-  getDefaultToolkitSelection,
-  setDefaultToolkitEnabled,
-  removeInvalidToolkitIds,
-} from "../../../SERVICEs/default_toolkit_store";
-import { BASE_TOOLKIT_IDENTIFIERS } from "../constants";
-import ToolkitCard from "../components/toolkit_card";
-import PlaceholderBlock from "../components/placeholder_block";
-import LoadingDots from "../components/loading_dots";
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import ToolkitStorePage from "./toolkit_store_page";
+import ToolkitInstalledPage from "./toolkit_installed_page";
+import ToolkitDetailPanel from "../components/toolkit_detail_panel";
 
-const isBaseById = (toolkitId) => {
-  if (!toolkitId) return false;
-  const lower = toolkitId.trim().toLowerCase();
-  return (
-    BASE_TOOLKIT_IDENTIFIERS.has(lower) ||
-    lower.endsWith(".toolkit") ||
-    lower.endsWith(".builtin_toolkit") ||
-    lower.endsWith(".base_toolkit")
+const SLIDE_DURATION = 260;
+
+const TOOLKIT_SUB_PAGES = [
+  { key: "store", icon: "search", label: "Store" },
+  { key: "installed", icon: "tool", label: "Installed" },
+];
+
+const ToolkitsPage = ({ isDark }) => {
+  const [activeTab, setActiveTab] = useState("installed");
+
+  /* ── Detail slide-in state ── */
+  const [selectedToolkit, setSelectedToolkit] = useState(null);
+  const [detailMounted, setDetailMounted] = useState(false);
+  const [detailVisible, setDetailVisible] = useState(false);
+  const slideTimer = useRef(null);
+
+  const openDetail = useCallback((toolkitId, toolName, toolkit) => {
+    setSelectedToolkit({ toolkitId, toolName, toolkit });
+    setDetailMounted(true);
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => setDetailVisible(true)),
+    );
+  }, []);
+
+  const closeDetail = useCallback(() => {
+    setDetailVisible(false);
+    clearTimeout(slideTimer.current);
+    slideTimer.current = setTimeout(() => {
+      setDetailMounted(false);
+      setSelectedToolkit(null);
+    }, SLIDE_DURATION);
+  }, []);
+
+  useEffect(() => () => clearTimeout(slideTimer.current), []);
+
+  const handleToolClick = useCallback(
+    (toolkitId, toolName, toolkit) => {
+      openDetail(toolkitId, toolName, toolkit);
+    },
+    [openDetail],
   );
-};
 
-const ToolkitsPage = ({ isDark, onToolClick }) => {
-  const [loading, setLoading] = useState(true);
-  const [toolkits, setToolkits] = useState([]);
-  const [error, setError] = useState(null);
-  const [search, setSearch] = useState("");
+  const panelBg = isDark ? "#141414" : "#ffffff";
 
-  const loadCatalog = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  /* ── Tab item ── */
+  const TabItem = ({ item }) => {
+    const isActive = activeTab === item.key;
+    const activeColor = "rgba(10,186,181,1)";
+    const inactiveColor = isDark
+      ? "rgba(255,255,255,0.38)"
+      : "rgba(0,0,0,0.35)";
 
-    try {
-      const payload = await api.miso.listToolModalCatalog();
-      const list = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
+    return (
+      <Button
+        prefix_icon={item.icon}
+        label={item.label}
+        onClick={() => {
+          setActiveTab(item.key);
+          if (detailVisible) closeDetail();
+        }}
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          color: isActive ? activeColor : inactiveColor,
+          paddingVertical: 5,
+          paddingHorizontal: 10,
+          borderRadius: 8,
+          gap: 5,
+          root: {
+            background: isActive
+              ? isDark
+                ? "rgba(10,186,181,0.1)"
+                : "rgba(10,186,181,0.06)"
+              : "transparent",
+          },
+          hoverBackgroundColor: isDark
+            ? "rgba(10,186,181,0.12)"
+            : "rgba(10,186,181,0.08)",
+          activeBackgroundColor: isDark
+            ? "rgba(10,186,181,0.18)"
+            : "rgba(10,186,181,0.12)",
+          content: {
+            icon: { width: 14, height: 14 },
+          },
+        }}
+      />
+    );
+  };
 
-      // Filter out base/abstract, hidden, and built-in MCP toolkits
-      const visible = list.filter(
-        (tk) =>
-          tk.source !== "core" &&
-          tk.source !== "plugin" &&
-          !tk.hidden &&
-          !isBaseById(tk.toolkitId),
-      );
-
-      // Prune persisted defaults that no longer exist
-      const validIds = visible.map((tk) => tk.toolkitId);
-      removeInvalidToolkitIds("global", validIds);
-
-      // Merge defaultEnabled from preference store
-      const enabledIds = new Set(getDefaultToolkitSelection("global"));
-      const merged = visible.map((tk) => ({
-        ...tk,
-        defaultEnabled: enabledIds.has(tk.toolkitId),
-      }));
-
-      setToolkits(merged);
-    } catch (err) {
-      setError(err?.message || "Failed to load toolkit catalog");
-    } finally {
-      setLoading(false);
+  /* ── Page content ── */
+  const renderPage = () => {
+    switch (activeTab) {
+      case "store":
+        return <ToolkitStorePage isDark={isDark} />;
+      case "installed":
+        return (
+          <ToolkitInstalledPage isDark={isDark} onToolClick={handleToolClick} />
+        );
+      default:
+        return null;
     }
-  }, []);
-
-  useEffect(() => {
-    loadCatalog();
-  }, [loadCatalog]);
-
-  const handleToggleEnabled = useCallback((toolkitId, enabled) => {
-    const nextIds = setDefaultToolkitEnabled("global", toolkitId, enabled);
-    const enabledSet = new Set(nextIds);
-    setToolkits((prev) =>
-      prev.map((tk) => ({
-        ...tk,
-        defaultEnabled: enabledSet.has(tk.toolkitId),
-      })),
-    );
-  }, []);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return toolkits;
-    return toolkits.filter((tk) => {
-      const name = (tk.toolkitName || tk.toolkitId || "").toLowerCase();
-      const desc = (tk.toolkitDescription || "").toLowerCase();
-      const toolNames = (tk.tools || [])
-        .map((t) => (t.title || t.name || "").toLowerCase())
-        .join(" ");
-      return name.includes(q) || desc.includes(q) || toolNames.includes(q);
-    });
-  }, [toolkits, search]);
-
-  if (loading) return <LoadingDots isDark={isDark} />;
-
-  if (error) {
-    return (
-      <PlaceholderBlock
-        icon="tool"
-        title="Miso not connected"
-        subtitle="Start the Miso runtime to load your tool catalog."
-        isDark={isDark}
-      />
-    );
-  }
-
-  if (toolkits.length === 0) {
-    return (
-      <PlaceholderBlock
-        icon="tool"
-        title="No toolkits found"
-        subtitle="No visible toolkits were registered in the connected Miso runtime."
-        isDark={isDark}
-      />
-    );
-  }
+  };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* ── Sub-nav bar ── */}
       <div
         style={{
-          position: "relative",
           display: "flex",
           alignItems: "center",
+          gap: 2,
+          padding: "0 16px 8px",
+          borderBottom: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)"}`,
+          flexShrink: 0,
         }}
       >
-        <Icon
-          src="search"
-          style={{
-            position: "absolute",
-            left: 10,
-            width: 14,
-            height: 14,
-            pointerEvents: "none",
-            opacity: 0.35,
-          }}
-        />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search toolkits..."
-          style={{
-            width: "100%",
-            padding: "7px 10px 7px 32px",
-            fontSize: 13,
-            fontFamily: "Jost",
-            border: `1px solid ${
-              isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-            }`,
-            borderRadius: 7,
-            background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-            color: isDark ? "#fff" : "#222",
-            outline: "none",
-          }}
-        />
-      </div>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "1fr 1fr",
-          gap: 8,
-        }}
-      >
-        {filtered.map((tk) => (
-          <ToolkitCard
-            key={tk.toolkitId}
-            toolkit={tk}
-            isDark={isDark}
-            onToggleEnabled={handleToggleEnabled}
-            onClick={(toolkitId) => onToolClick?.(toolkitId, null, tk)}
-          />
+        {TOOLKIT_SUB_PAGES.map((item) => (
+          <TabItem key={item.key} item={item} />
         ))}
       </div>
-      {filtered.length === 0 && search.trim() && (
-        <PlaceholderBlock
-          icon="search"
-          title="No results"
-          subtitle={`No toolkits matching "${search.trim()}"`}
-          isDark={isDark}
-        />
-      )}
+
+      {/* ── Page content ── */}
+      <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
+        <div
+          className="scrollable"
+          style={{
+            position: "absolute",
+            inset: 0,
+            overflowY: "auto",
+            padding: "12px 16px 0",
+          }}
+        >
+          {renderPage()}
+        </div>
+
+        {/* ── Detail panel overlay ── */}
+        {detailMounted && selectedToolkit && (
+          <>
+            {/* Back button — outside the sliding panel */}
+            <div
+              style={{
+                position: "absolute",
+                top: 8,
+                left: 8,
+                zIndex: 4,
+                opacity: detailVisible ? 1 : 0,
+                transition: `opacity ${SLIDE_DURATION}ms ease`,
+                pointerEvents: detailVisible ? "auto" : "none",
+              }}
+            >
+              <Button
+                prefix_icon="arrow_left"
+                onClick={closeDetail}
+                style={{
+                  paddingVertical: 4,
+                  paddingHorizontal: 4,
+                  borderRadius: 6,
+                  opacity: 0.55,
+                  content: {
+                    prefixIconWrap: {
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      lineHeight: 0,
+                    },
+                    icon: { width: 14, height: 14 },
+                  },
+                }}
+              />
+            </div>
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: "100%",
+                backgroundColor: panelBg,
+                zIndex: 3,
+                transform: detailVisible ? "translateX(0)" : "translateX(100%)",
+                transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+                padding: "36px 16px 0",
+                boxSizing: "border-box",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <ToolkitDetailPanel
+                toolkitId={selectedToolkit.toolkitId}
+                toolName={selectedToolkit.toolName}
+                tools={selectedToolkit.toolkit?.tools}
+                isDark={isDark}
+                onBack={closeDetail}
+              />
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 };

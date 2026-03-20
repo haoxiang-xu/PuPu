@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import api from "../../../SERVICEs/api";
-import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ToolkitIcon, {
   isBuiltinToolkitIcon,
   isFileToolkitIcon,
@@ -10,7 +9,7 @@ import LoadingDots from "./loading_dots";
 import PlaceholderBlock from "./placeholder_block";
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 
-const ToolkitDetailPanel = ({ toolkitId, toolName, tools, isDark, onBack }) => {
+const ToolkitDetailPanel = ({ toolkitId, toolName, tools, isDark }) => {
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
@@ -85,34 +84,6 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, tools, isDark, onBack }) => {
         height: "100%",
       }}
     >
-      {/* ── Back button ── */}
-      <div
-        style={{
-          padding: "0 0 8px",
-          flexShrink: 0,
-        }}
-      >
-        <Button
-          prefix_icon="arrow_left"
-          onClick={onBack}
-          style={{
-            paddingVertical: 4,
-            paddingHorizontal: 4,
-            borderRadius: 6,
-            opacity: 0.55,
-            content: {
-              prefixIconWrap: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 0,
-              },
-              icon: { width: 14, height: 14 },
-            },
-          }}
-        />
-      </div>
-
       {/* ── Scrollable content ── */}
       <div
         ref={scrollRef}
@@ -120,6 +91,7 @@ const ToolkitDetailPanel = ({ toolkitId, toolName, tools, isDark, onBack }) => {
         style={{
           flex: 1,
           overflowY: "auto",
+          padding: "0 24px",
         }}
       >
         {loading && <LoadingDots isDark={isDark} />}

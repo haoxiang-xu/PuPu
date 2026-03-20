@@ -1,69 +1,30 @@
-import { useCallback, useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { SECTIONS } from "./constants";
 import SegmentedControl from "./components/segmented_control";
 import ToolkitsPage from "./pages/toolkits_page";
-import ToolkitDetailPanel from "./components/toolkit_detail_panel";
 import ComingSoonPage from "./pages/coming_soon_page";
 import McpPage from "./mcp/mcp_page";
-
-const SLIDE_DURATION = 260; // ms
 
 export const ToolkitModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedSection, setSelectedSection] = useState("toolkits");
-  const [selectedToolkit, setSelectedToolkit] = useState(null);
 
-  /* ── Slide-in animation state ── */
-  const [detailMounted, setDetailMounted] = useState(false);
-  const [detailVisible, setDetailVisible] = useState(false);
-  const slideTimer = useRef(null);
-
-  const openDetail = useCallback((toolkitId, toolName, toolkit) => {
-    setSelectedToolkit({ toolkitId, toolName, toolkit });
-    setDetailMounted(true);
-    // next frame → trigger slide-in
-    requestAnimationFrame(() =>
-      requestAnimationFrame(() => setDetailVisible(true)),
-    );
-  }, []);
-
-  const closeDetail = useCallback(() => {
-    setDetailVisible(false);
-    clearTimeout(slideTimer.current);
-    slideTimer.current = setTimeout(() => {
-      setDetailMounted(false);
-      setSelectedToolkit(null);
-    }, SLIDE_DURATION);
-  }, []);
-
-  // Cleanup timer on unmount
-  useEffect(() => () => clearTimeout(slideTimer.current), []);
-
-  // Reset detail when modal closes
+  // Reset when modal closes
   useEffect(() => {
     if (!open) {
-      setDetailMounted(false);
-      setDetailVisible(false);
-      setSelectedToolkit(null);
+      setSelectedSection("toolkits");
     }
   }, [open]);
 
   const activeSection = SECTIONS.find((s) => s.key === selectedSection);
 
-  const handleToolClick = useCallback(
-    (toolkitId, toolName, toolkit) => {
-      openDetail(toolkitId, toolName, toolkit);
-    },
-    [openDetail],
-  );
-
   const renderContent = () => {
     if (selectedSection === "toolkits") {
-      return <ToolkitsPage isDark={isDark} onToolClick={handleToolClick} />;
+      return <ToolkitsPage isDark={isDark} />;
     }
     if (selectedSection === "mcp") {
       return <McpPage isDark={isDark} />;
@@ -115,19 +76,16 @@ export const ToolkitModal = ({ open, onClose }) => {
         }}
       />
 
-      <div style={{ padding: "12px 16px 8px", flexShrink: 0 }}>
+      <div style={{ padding: "12px 16px 8px 16px", flexShrink: 0 }}>
         <SegmentedControl
           sections={SECTIONS}
           selected={selectedSection}
-          onChange={(key) => {
-            setSelectedSection(key);
-            closeDetail();
-          }}
+          onChange={setSelectedSection}
           isDark={isDark}
         />
       </div>
 
-      {/* ── Content area with slide-in overlay ── */}
+      {/* ── Content area ── */}
       <div
         style={{
           flex: 1,
@@ -135,47 +93,17 @@ export const ToolkitModal = ({ open, onClose }) => {
           overflow: "hidden",
         }}
       >
-        {/* Grid / list content — always rendered */}
         <div
           className="scrollable"
           style={{
             position: "absolute",
             inset: 0,
             overflowY: "auto",
-            padding: "4px 16px 16px",
+            padding: "4px 0 16px",
           }}
         >
           {renderContent()}
         </div>
-
-        {/* ── Detail panel overlay — slides in from right ── */}
-        {detailMounted && selectedToolkit && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              right: 0,
-              bottom: 0,
-              width: "100%",
-              backgroundColor: panelBg,
-              zIndex: 3,
-              transform: detailVisible ? "translateX(0)" : "translateX(100%)",
-              transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
-              padding: "8px 16px 16px",
-              boxSizing: "border-box",
-              display: "flex",
-              flexDirection: "column",
-            }}
-          >
-            <ToolkitDetailPanel
-              toolkitId={selectedToolkit.toolkitId}
-              toolName={selectedToolkit.toolName}
-              tools={selectedToolkit.toolkit?.tools}
-              isDark={isDark}
-              onBack={closeDetail}
-            />
-          </div>
-        )}
       </div>
     </Modal>
   );

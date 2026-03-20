@@ -200,7 +200,7 @@ const ManualPage = ({ isDark }) => {
         <>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <ActionButton
-              icon="left_arrow"
+              icon="arrow_left"
               label="Back"
               isDark={isDark}
               onClick={() => {
