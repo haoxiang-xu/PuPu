@@ -41,26 +41,37 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 
 Download the latest release:
 
-- [macOS (Apple Silicon)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-arm64.dmg) · [macOS (Intel)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-intel.dmg)
-- [Windows](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.1.exe)
-- [Linux (.AppImage)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1.AppImage) · [Linux (.deb)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.1.deb)
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-intel.dmg"><img src="./public/assets/download_mac_intel.svg" alt="Mac (Intel)" /></a>
+
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.1.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
+
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1.AppImage"><img src="./public/assets/download_linux_appimage.svg" alt="Linux (.AppImage)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.1.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
 
 ### Windows
 
-1. Download the latest [`.exe` installer](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.1.exe).
+1. Download the latest `.exe` installer:
+
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.1.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
+
 2. Run the installer.
 3. Launch PuPu from the Start menu.
 
 ### macOS
 
-1. Download the latest `.dmg`: [Apple Silicon](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-arm64.dmg) · [Intel](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-intel.dmg).
+1. Download the latest `.dmg`:
+
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-intel.dmg"><img src="./public/assets/download_mac_intel.svg" alt="Mac (Intel)" /></a>
+
 2. Open the disk image.
 3. Drag PuPu into `Applications`.
 4. Launch PuPu from `Applications`.
 
 ### Linux
 
-1. Download the latest [`.AppImage`](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1.AppImage) or [`.deb`](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.1.deb).
+1. Download the latest:
+
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1.AppImage"><img src="./public/assets/download_linux_appimage.svg" alt="Linux (.AppImage)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.1.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
+
 2. If you use the `.deb`, install it with:
 
 ```bash
