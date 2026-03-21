@@ -15,6 +15,8 @@ from miso_adapter import (
     get_model_name,
     get_runtime_config,
     get_toolkit_catalog,
+    get_toolkit_catalog_v2,
+    get_toolkit_metadata,
     submit_tool_confirmation,
     stream_chat,
     stream_chat_events,
@@ -43,7 +45,6 @@ _TRACE_STAGE_BY_EVENT_TYPE = {
     "token_delta": "model",
     "final_message": "model",
     "tool_call": "tool",
-    "tool_confirmation_request": "tool",
     "tool_confirmed": "tool",
     "tool_denied": "tool",
     "tool_result": "tool",
@@ -633,6 +634,40 @@ def toolkits_catalog() -> Response:
     return jsonify(get_toolkit_catalog())
 
 
+@api_blueprint.get("/toolkits/catalog/v2")
+def toolkits_catalog_v2() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    return jsonify(get_toolkit_catalog_v2())
+
+
+@api_blueprint.get("/toolkits/<toolkit_id>/metadata")
+def toolkit_metadata(toolkit_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    tool_name = request.args.get("tool_name", None)
+    if isinstance(tool_name, str):
+        tool_name = tool_name.strip() or None
+
+    return jsonify(get_toolkit_metadata(toolkit_id, tool_name))
+
+
 @api_blueprint.post("/chat/tool/confirmation")
 def chat_tool_confirmation() -> Response:
     if not _is_authorized():
@@ -1163,6 +1198,48 @@ def replace_memory_session() -> Response:
         ), 500
 
 
+@api_blueprint.get("/memory/session/export")
+def export_memory_session() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    session_id = str(request.args.get("session_id", "")).strip()
+    if not session_id:
+        return jsonify(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "session_id is required",
+                }
+            }
+        ), 400
+
+    data_dir = current_app.config.get("MISO_DATA_DIR", "")
+    if not data_dir:
+        return jsonify({"messages": []})
+
+    from pathlib import Path
+    session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
+    try:
+        with open(session_file, "r", encoding="utf-8") as f:
+            state = json.load(f)
+    except Exception:
+        state = {}
+
+    messages = state.get("messages", [])
+    if not isinstance(messages, list):
+        messages = []
+
+    return jsonify({"session_id": session_id, "messages": messages})
+
+
 @api_blueprint.post("/chat/stream/v2")
 def chat_stream_v2() -> Response:
     if not _is_authorized():
@@ -1204,6 +1281,7 @@ def chat_stream_v2() -> Response:
     def stream_events() -> Iterable[str]:
         seq = 0
         started_at = int(time.time() * 1000)
+        last_iteration = 0
         final_bundle: Dict[str, object] | None = None
         confirmation_cancel_event = threading.Event()
 
@@ -1261,7 +1339,8 @@ def chat_stream_v2() -> Response:
                 run_id = raw_event.get("run_id")
                 normalized_run_id = run_id if isinstance(run_id, str) else ""
                 iteration = raw_event.get("iteration")
-                normalized_iteration = iteration if isinstance(iteration, int) else 0
+                normalized_iteration = iteration if isinstance(iteration, int) else last_iteration
+                last_iteration = normalized_iteration
                 raw_ts = raw_event.get("timestamp")
                 if isinstance(raw_ts, (int, float)):
                     event_ts_ms = int(float(raw_ts) * 1000)
@@ -1296,7 +1375,7 @@ def chat_stream_v2() -> Response:
                     thread_id=thread_id,
                     event_type="done",
                     payload=done_payload,
-                    iteration=0,
+                    iteration=last_iteration,
                     timestamp_ms=finished_at,
                 ),
             )
@@ -1318,7 +1397,7 @@ def chat_stream_v2() -> Response:
                         "code": code,
                         "message": normalized_message,
                     },
-                    iteration=0,
+                    iteration=last_iteration,
                     timestamp_ms=error_ts,
                 ),
             )

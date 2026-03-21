@@ -1,9 +1,10 @@
 const { CHANNELS } = require("../../../shared/channels");
+const { createPortFinder } = require("../../../shared/port_utils");
 
 const MISO_HOST = "127.0.0.1";
 const MISO_PORT_RANGE_START = 5879;
 const MISO_PORT_RANGE_END = 5895;
-const MISO_BOOT_TIMEOUT_MS = 60000; 
+const MISO_BOOT_TIMEOUT_MS = 60000;
 const MISO_HEALTH_RETRY_MS = 250;
 const MISO_RESTART_DELAY_MS = 1500;
 const MISO_STREAM_ENDPOINT = "/chat/stream";
@@ -12,10 +13,13 @@ const MISO_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const MISO_HEALTH_ENDPOINT = "/health";
 const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
+const MISO_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
+const MISO_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
 const MISO_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
 const MISO_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
 const MISO_REPLACE_SESSION_MEMORY_ENDPOINT = "/memory/session/replace";
+const MISO_SESSION_MEMORY_EXPORT_ENDPOINT = "/memory/session/export";
 
 const createMisoService = ({
   app,
@@ -41,6 +45,7 @@ const createMisoService = ({
   const misoActiveStreams = new Map();
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  const { findAvailablePort } = createPortFinder(net);
 
   const _parsePosixPsLine = (line) => {
     const match = String(line || "").match(/^\s*(\d+)\s+(\d+)\s+(.*)$/);
@@ -266,7 +271,10 @@ const createMisoService = ({
         continue;
       }
 
-      const inspection = inspectPythonCommand(candidate.command, candidate.label);
+      const inspection = inspectPythonCommand(
+        candidate.command,
+        candidate.label,
+      );
       if (inspection.ok) {
         return inspection.command;
       }
@@ -367,33 +375,13 @@ const createMisoService = ({
     };
   };
 
-  const isPortAvailable = (port) =>
-    new Promise((resolve) => {
-      const server = net.createServer();
-
-      server.once("error", () => {
-        resolve(false);
-      });
-
-      server.once("listening", () => {
-        server.close(() => resolve(true));
-      });
-
-      server.listen(port, MISO_HOST);
-    });
-
   const findAvailableMisoPort = async () => {
-    for (
-      let port = MISO_PORT_RANGE_START;
-      port <= MISO_PORT_RANGE_END;
-      port += 1
-    ) {
-      // eslint-disable-next-line no-await-in-loop
-      if (await isPortAvailable(port)) {
-        return port;
-      }
-    }
-    return MISO_PORT_RANGE_START;
+    return findAvailablePort({
+      host: MISO_HOST,
+      startPort: MISO_PORT_RANGE_START,
+      endPort: MISO_PORT_RANGE_END,
+      fallbackToEphemeral: true,
+    });
   };
 
   const pingMiso = async () => {
@@ -533,6 +521,47 @@ const createMisoService = ({
     );
   };
 
+  const getMisoToolModalCatalogPayload = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_TOOL_MODAL_CATALOG_ENDPOINT}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso tool modal catalog request failed",
+      {},
+      "Invalid Miso tool modal catalog response",
+    );
+  };
+
+  const getMisoToolkitDetailPayload = async (toolkitId, toolName) => {
+    ensureMisoReady();
+
+    const safeToolkitId = encodeURIComponent(String(toolkitId || ""));
+    let url = `http://${MISO_HOST}:${misoPort}${MISO_TOOLKIT_DETAIL_ENDPOINT}/${safeToolkitId}/metadata`;
+    if (typeof toolName === "string" && toolName.trim()) {
+      url += `?tool_name=${encodeURIComponent(toolName.trim())}`;
+    }
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+    });
+
+    return readJsonResponse(
+      response,
+      "Miso toolkit detail request failed",
+      {},
+      "Invalid Miso toolkit detail response",
+    );
+  };
+
   const getMisoMemoryProjection = async (sessionId) => {
     ensureMisoReady();
 
@@ -613,6 +642,30 @@ const createMisoService = ({
       "Miso session memory replace request failed",
       {},
       "Invalid Miso session memory replace response",
+    );
+  };
+
+  const getMisoSessionMemoryExport = async (sessionId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof sessionId === "string" ? sessionId.trim() : "";
+    if (!cleanId) {
+      throw new Error("sessionId is required");
+    }
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_SESSION_MEMORY_EXPORT_ENDPOINT}?session_id=${encodeURIComponent(cleanId)}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso session memory export request failed",
+      {},
+      "Invalid Miso session memory export response",
     );
   };
 
@@ -826,6 +879,11 @@ const createMisoService = ({
       terminateStaleMisoProcesses(entrypoint);
 
       misoPort = await findAvailableMisoPort();
+      if (!misoPort) {
+        misoStatus = "error";
+        misoStatusReason = "Unable to find an open port for the Miso service";
+        return;
+      }
       misoAuthToken = crypto.randomBytes(24).toString("hex");
 
       const devMisoSourcePath = app.isPackaged
@@ -1257,9 +1315,12 @@ const createMisoService = ({
     getMisoStatusPayload,
     getMisoModelCatalogPayload,
     getMisoToolkitCatalogPayload,
+    getMisoToolModalCatalogPayload,
+    getMisoToolkitDetailPayload,
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,
+    getMisoSessionMemoryExport,
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,

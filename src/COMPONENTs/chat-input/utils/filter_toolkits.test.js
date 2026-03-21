@@ -1,21 +1,25 @@
 import { filter_toolkits } from "./filter_toolkits";
 
 describe("filter_toolkits", () => {
-  test("filters out base toolkit identifiers", () => {
+  test("matches toolkit modal visibility for v2 catalog entries", () => {
     const result = filter_toolkits(
       [
-        { kind: "builtin", class_name: "Base_Toolkit", name: "Base" },
-        { kind: "core", class_name: "math_tools", name: "MathTools" },
+        { toolkitId: "builtin_toolkit", source: "builtin", hidden: false },
+        { toolkitId: "workspace_toolkit", source: "builtin", hidden: false },
+        { toolkitId: "custom_toolkit", source: "local", hidden: false },
+        { toolkitId: "mcp", source: "plugin", hidden: false },
+        { toolkitId: "hidden_tools", source: "local", hidden: true },
       ],
       new Set(["base", "base_toolkit", "builtin_toolkit", "toolkit"]),
     );
 
     expect(result).toEqual([
-      { kind: "core", class_name: "math_tools", name: "MathTools" },
+      { toolkitId: "workspace_toolkit", source: "builtin", hidden: false },
+      { toolkitId: "custom_toolkit", source: "local", hidden: false },
     ]);
   });
 
-  test("keeps non-base builtin/core entries", () => {
+  test("keeps non-base builtin/core entries from the legacy catalog shape", () => {
     const result = filter_toolkits(
       [
         { kind: "builtin", class_name: "search_tools", name: "SearchTools" },

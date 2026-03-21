@@ -36,6 +36,25 @@ const snapToMarks = (v, marks) => {
   return closest;
 };
 
+const formatTooltipValue = (value, step, tooltip_format) => {
+  if (tooltip_format) {
+    return tooltip_format(value);
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return "";
+  }
+
+  const stepText = `${step}`;
+  if (stepText.includes(".")) {
+    const precision = Math.min(stepText.split(".")[1].length, 6);
+    return numeric.toFixed(precision);
+  }
+
+  return `${Math.round(numeric)}`;
+};
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Label row (prefix / postfix icon + text)                                                                                    */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -270,9 +289,7 @@ const Slider = ({
 
   /* ── tooltip ───────────────────────────────────────── */
   const tipVisible = show_tooltip && (isDragging || isHovering);
-  const tipText = tooltip_format
-    ? tooltip_format(currentValue)
-    : Math.round(currentValue);
+  const tipText = formatTooltipValue(currentValue, step, tooltip_format);
   const tipBg =
     theme?.tooltip?.backgroundColor ??
     (isDark ? "rgba(200,200,200,0.96)" : "rgba(20,20,20,0.92)");
@@ -658,8 +675,7 @@ const RangeSlider = ({
   const tipColor = theme?.tooltip?.color ?? (isDark ? "#111" : "#FFF");
   const tipShadow = theme?.tooltip?.boxShadow ?? "0 4px 12px rgba(0,0,0,0.15)";
 
-  const makeTipText = (v) =>
-    tooltip_format ? tooltip_format(v) : Math.round(v);
+  const makeTipText = (v) => formatTooltipValue(v, step, tooltip_format);
 
   /* ── transitions ───────────────────────────────────── */
   const thumbVisible = isHovering || !!activeThumb;

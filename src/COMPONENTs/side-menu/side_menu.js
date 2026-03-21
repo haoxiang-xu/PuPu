@@ -21,6 +21,12 @@ import { MemoryInspectModal } from "../memory-inspect/memory_inspect_modal";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
 import { filter_explorer_data } from "./utils/filter_explorer_data";
+import {
+  exportChat,
+  exportFolder,
+  importFromFile,
+  importFromDroppedFile,
+} from "../../SERVICEs/chat_export";
 
 export { sideMenuChatTreeAPI };
 
@@ -86,6 +92,49 @@ const SideMenu = () => {
   const handleInspectMemory = useCallback((sessionId, chatTitle) => {
     setMemoryInspect({ open: true, sessionId, chatTitle: chatTitle || "" });
     setContextMenu((c) => ({ ...c, visible: false }));
+  }, []);
+
+  const handleExport = useCallback(async (node) => {
+    setContextMenu((c) => ({ ...c, visible: false }));
+    if (!node) return;
+    if (node.entity === "chat" && node.chatId) {
+      await exportChat(node.chatId);
+    } else if (node.entity === "folder") {
+      await exportFolder(node.id);
+    }
+  }, []);
+
+  const handleImport = useCallback(
+    async (parentFolderId) => {
+      setContextMenu((c) => ({ ...c, visible: false }));
+      const result = await importFromFile({ parentFolderId });
+      if (result?.store) {
+        setChatStore(result.store);
+      }
+    },
+    [setChatStore],
+  );
+
+  const handleDrop = useCallback(
+    async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const files = Array.from(e.dataTransfer?.files || []);
+      const jsonFile = files.find((f) => f.name.endsWith(".json"));
+      if (!jsonFile) return;
+      const result = await importFromDroppedFile(jsonFile, {
+        parentFolderId: null,
+      });
+      if (result?.store) {
+        setChatStore(result.store);
+      }
+    },
+    [setChatStore],
+  );
+
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
   }, []);
 
   const handleContextMenu = useCallback((storeNode, event) => {
@@ -158,6 +207,8 @@ const SideMenu = () => {
         setClipboard,
         setConfirmDelete,
         onInspectMemory: handleInspectMemory,
+        onExport: handleExport,
+        onImport: handleImport,
       }),
     [
       contextMenu.node,
@@ -166,6 +217,8 @@ const SideMenu = () => {
       handleStartRename,
       setChatStore,
       handleInspectMemory,
+      handleExport,
+      handleImport,
     ],
   );
 
@@ -366,6 +419,8 @@ const SideMenu = () => {
             WebkitAppRegion: "no-drag",
           }}
           onContextMenu={handleBackgroundContextMenu}
+          onDrop={handleDrop}
+          onDragOver={handleDragOver}
         >
           {filteredRoot && filteredRoot.length === 0 ? (
             <div

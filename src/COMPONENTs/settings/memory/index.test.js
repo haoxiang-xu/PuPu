@@ -156,4 +156,20 @@ describe("MemorySettings OpenAI embedding selector", () => {
     renderMemorySettings();
     expect(screen.getByText("No embedding models available.")).toBeInTheDocument();
   });
+
+  test("renders persisted recall top-k and threshold settings", () => {
+    setMemorySettings({
+      vector_top_k: 6,
+      vector_min_score: 0.45,
+      long_term_top_k: 5,
+      long_term_min_score: 0.65,
+    });
+
+    renderMemorySettings();
+
+    expect(screen.getByText("Recall top K — 6")).toBeInTheDocument();
+    expect(screen.getByText("Recall threshold — 0.45")).toBeInTheDocument();
+    expect(screen.getByText("Long-term top K — 5")).toBeInTheDocument();
+    expect(screen.getByText("Long-term threshold — 0.65")).toBeInTheDocument();
+  });
 });

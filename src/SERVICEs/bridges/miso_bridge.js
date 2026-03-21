@@ -44,8 +44,7 @@ export const runtimeBridge = {
     hasBridgeMethod("misoAPI", "openRuntimeFolder"),
   isRuntimeStorageAvailable: () =>
     hasBridgeMethod("misoAPI", "getRuntimeDirSize"),
-  isMemorySizeAvailable: () =>
-    hasBridgeMethod("misoAPI", "getMemorySize"),
+  isMemorySizeAvailable: () => hasBridgeMethod("misoAPI", "getMemorySize"),
 
   setChromeTerminalOpen: async (open = false) => {
     if (!runtimeBridge.isChromeTerminalControlAvailable()) {
@@ -171,7 +170,9 @@ export const runtimeBridge = {
     return {
       ...response,
       entries: Array.isArray(response.entries) ? response.entries : [],
-      total: Number.isFinite(Number(response.total)) ? Number(response.total) : 0,
+      total: Number.isFinite(Number(response.total))
+        ? Number(response.total)
+        : 0,
       error: typeof response.error === "string" ? response.error : "",
     };
   },
@@ -193,7 +194,9 @@ export const runtimeBridge = {
     });
 
     return {
-      total: Number.isFinite(Number(response?.total)) ? Number(response.total) : 0,
+      total: Number.isFinite(Number(response?.total))
+        ? Number(response.total)
+        : 0,
       vectorTotal: Number.isFinite(Number(response?.vectorTotal))
         ? Number(response.vectorTotal)
         : 0,
@@ -221,6 +224,50 @@ export const runtimeBridge = {
       timeoutMessage: "Clear runtime directory request timed out",
       failureCode: "miso_runtime_clear_failed",
       failureMessage: "Failed to clear runtime directory",
+    });
+  },
+
+  isExportImportAvailable: () =>
+    hasBridgeMethod("misoAPI", "showSaveDialog") &&
+    hasBridgeMethod("misoAPI", "writeFile"),
+
+  showSaveDialog: async (options = {}) => {
+    return invokeMiso("showSaveDialog", [options], {
+      timeoutMs: 30000,
+      timeoutCode: "miso_save_dialog_timeout",
+      timeoutMessage: "Save dialog request timed out",
+      failureCode: "miso_save_dialog_failed",
+      failureMessage: "Failed to open save dialog",
+    });
+  },
+
+  showOpenDialog: async (options = {}) => {
+    return invokeMiso("showOpenDialog", [options], {
+      timeoutMs: 30000,
+      timeoutCode: "miso_open_dialog_timeout",
+      timeoutMessage: "Open dialog request timed out",
+      failureCode: "miso_open_dialog_failed",
+      failureMessage: "Failed to open file dialog",
+    });
+  },
+
+  writeFile: async (filePath, content) => {
+    return invokeMiso("writeFile", [filePath, content], {
+      timeoutMs: 15000,
+      timeoutCode: "miso_write_file_timeout",
+      timeoutMessage: "Write file request timed out",
+      failureCode: "miso_write_file_failed",
+      failureMessage: "Failed to write file",
+    });
+  },
+
+  readFile: async (filePath) => {
+    return invokeMiso("readFile", [filePath], {
+      timeoutMs: 15000,
+      timeoutCode: "miso_read_file_timeout",
+      timeoutMessage: "Read file request timed out",
+      failureCode: "miso_read_file_failed",
+      failureMessage: "Failed to read file",
     });
   },
 };

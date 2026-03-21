@@ -5,7 +5,7 @@ import threading
 import time
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+from types import ModuleType, SimpleNamespace
 from unittest import mock
 
 SERVER_ROOT = Path(__file__).resolve().parents[1]
@@ -268,16 +268,18 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             }
         )
 
+        expected_rules = "\n".join(
+            [
+                *miso_adapter._SYSTEM_PROMPT_V2_BUILTIN_RULES,
+                "Always ask clarifying questions when blocked.",
+            ]
+        )
         self.assertEqual(
             prompt_text,
             "\n\n".join(
                 [
                     "[Personality]\nHelpful and concise.",
-                    "[Rules]\n"
-                    "Once you start your final answer, treat that single message as the final deliverable. "
-                    "Output may be truncated, so do not depend on follow-up continuation.\n"
-                    "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.\n"
-                    "Always ask clarifying questions when blocked.",
+                    f"[Rules]\n{expected_rules}",
                 ]
             ),
         )
@@ -300,9 +302,6 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         class FakeToolkitBase:
             pass
 
-        class FakeBuiltinToolkit(FakeToolkitBase):
-            pass
-
         class FakePythonWorkspaceToolkit(FakeToolkitBase):
             pass
 
@@ -310,13 +309,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             pass
 
         def import_module_side_effect(module_name: str):
-            if module_name == "miso.tool":
-                return SimpleNamespace(toolkit=FakeToolkitBase)
-            if module_name == "miso":
+            if module_name == "miso.tools":
+                return SimpleNamespace(Toolkit=FakeToolkitBase)
+            if module_name == "miso.toolkits":
                 return SimpleNamespace(
-                    builtin_toolkit=FakeBuiltinToolkit,
-                    workspace_toolkit=FakePythonWorkspaceToolkit,
-                    mcp=FakeMcpToolkit,
+                    WorkspaceToolkit=FakePythonWorkspaceToolkit,
+                    MCPToolkit=FakeMcpToolkit,
                 )
             raise ImportError(module_name)
 
@@ -331,12 +329,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(
             names,
             [
-                "builtin_toolkit",
                 "workspace_toolkit",
                 "mcp",
             ],
         )
-        self.assertEqual(catalog["count"], 3)
+        self.assertEqual(catalog["count"], 2)
 
     def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
         with mock.patch.object(miso_adapter, "_resolve_toolkit_base", return_value=None):
@@ -403,9 +400,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertTrue(emitted_events)
         request_event = emitted_events[0]
-        self.assertEqual(request_event.get("type"), "tool_confirmation_request")
+        self.assertEqual(request_event.get("type"), "tool_call")
         confirmation_id = request_event.get("confirmation_id")
         self.assertIsInstance(confirmation_id, str)
+        self.assertEqual(request_event.get("requires_confirmation"), True)
 
         submitted = miso_adapter.submit_tool_confirmation(
             confirmation_id=confirmation_id,
@@ -486,6 +484,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.used_original_inject = False
                 self.events = []
                 self.executed_session_ids = []
+                self.find_tool_toolkits = []
+                self.execute_toolkits = []
 
             def _execute_tool_calls(self, **_kwargs):
                 self.used_original_execute = True
@@ -505,13 +505,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _emit(self, _callback, event_type, _run_id, *, iteration, **_extra):
                 self.events.append((event_type, iteration))
 
-            def _find_tool(self, name):
+            def _find_tool(self, name, *, toolkits=None):
+                self.find_tool_toolkits.append(toolkits)
                 if name == "observe_tool":
                     return SimpleNamespace(observe=True)
                 return SimpleNamespace(observe=False)
 
-            def _execute_from_toolkits(self, name, arguments, session_id=None):
+            def _execute_from_toolkits(self, name, arguments, session_id=None, toolkits=None):
                 self.executed_session_ids.append(session_id)
+                self.execute_toolkits.append(toolkits)
                 return {"name": name, "arguments": arguments}
 
         miso_adapter._apply_broth_runtime_patches(FakeBroth)
@@ -527,6 +529,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             iteration=0,
             callback=None,
             session_id="thread-anthropic-1",
+            toolkits=["ask-user-toolkit"],
         )
 
         self.assertEqual(len(result_messages), 1)
@@ -539,6 +542,14 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertFalse(should_observe)
         self.assertFalse(agent.used_original_execute)
         self.assertEqual(agent.executed_session_ids, ["thread-anthropic-1", "thread-anthropic-1"])
+        self.assertEqual(
+            agent.find_tool_toolkits,
+            [["ask-user-toolkit"], ["ask-user-toolkit"]],
+        )
+        self.assertEqual(
+            agent.execute_toolkits,
+            [["ask-user-toolkit"], ["ask-user-toolkit"]],
+        )
 
         merged_observation_messages = agent._build_observation_messages(
             full_messages=[
@@ -597,6 +608,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _inject_observation(self, _tool_message, _observation):
                 return None
 
+            def _find_tool(self, _name):
+                return SimpleNamespace(requires_confirmation=True)
+
             def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
                 self.events.append((event_type, iteration, extra))
 
@@ -631,6 +645,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(agent.executed_arguments, [])
         denied_events = [event for event in agent.events if event[0] == "tool_denied"]
         self.assertEqual(len(denied_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 1)
+        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
+        self.assertEqual(tool_call_events[0][2].get("requires_confirmation"), True)
         denied_content = denied_messages[0]["content"][0]["content"]
         denied_result = json.loads(denied_content)
         self.assertEqual(denied_result["denied"], True)
@@ -658,6 +676,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
         self.assertEqual(len(confirmed_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 2)
+        self.assertIsInstance(tool_call_events[-1][2].get("confirmation_id"), str)
         approved_content = approved_messages[0]["content"][0]["content"]
         approved_result = json.loads(approved_content)
         self.assertEqual(approved_result["ok"], True)
@@ -669,6 +690,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.used_original_execute = False
                 self.events = []
                 self.session_ids = []
+                self.toolkits_seen = []
 
             def _execute_tool_calls(
                 self,
@@ -679,9 +701,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 callback,
                 on_tool_confirm=None,
                 session_id=None,
+                toolkits=None,
             ):
                 self.used_original_execute = True
                 self.session_ids.append(session_id)
+                self.toolkits_seen.append(toolkits)
                 if on_tool_confirm is not None and tool_calls:
                     request = {
                         "tool_name": tool_calls[0].name,
@@ -698,6 +722,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
             def _inject_observation(self, _tool_message, _observation):
                 return None
+
+            def _find_tool(self, _name):
+                return SimpleNamespace(requires_confirmation=True)
 
             def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
                 self.events.append((event_type, iteration, extra))
@@ -719,12 +746,17 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             callback=None,
             on_tool_confirm=lambda _req: {"approved": True},
             session_id="thread-openai-1",
+            toolkits=["ask-user-toolkit"],
         )
         confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
         self.assertEqual(len(confirmed_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 1)
+        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
         self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
         self.assertTrue(agent.used_original_execute)
         self.assertEqual(agent.session_ids, ["thread-openai-1"])
+        self.assertEqual(agent.toolkits_seen, [["ask-user-toolkit"]])
 
         agent.events = []
         _messages, _observe = agent._execute_tool_calls(
@@ -734,12 +766,314 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             callback=None,
             on_tool_confirm=lambda _req: {"approved": False, "reason": "denied"},
             session_id="thread-openai-2",
+            toolkits=["ask-user-toolkit-2"],
         )
         denied_events = [event for event in agent.events if event[0] == "tool_denied"]
         self.assertEqual(len(denied_events), 1)
+        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
+        self.assertEqual(len(tool_call_events), 1)
+        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
         self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
         self.assertEqual(denied_events[0][2].get("reason"), "denied")
         self.assertEqual(agent.session_ids, ["thread-openai-1", "thread-openai-2"])
+        self.assertEqual(
+            agent.toolkits_seen,
+            [["ask-user-toolkit"], ["ask-user-toolkit-2"]],
+        )
+
+    def test_apply_broth_runtime_patches_bridges_human_input_into_tool_confirmation(self) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "anthropic"
+                self.forwarded_toolkits = []
+                self.events = []
+
+            def _execute_tool_calls(
+                self,
+                *,
+                tool_calls,
+                run_id,
+                iteration,
+                callback,
+                on_tool_confirm=None,
+                session_id=None,
+                toolkits=None,
+            ):
+                self.forwarded_toolkits.append(toolkits)
+                return [{"role": "tool", "content": "original"}], False, True, {
+                    "request_id": "req-1",
+                    "kind": "select",
+                    "title": "Need input",
+                    "question": "Choose one",
+                    "selection_mode": "single",
+                    "options": [
+                        {
+                            "id": "opt-1",
+                            "label": "Option 1",
+                        }
+                    ],
+                    "allow_other": False,
+                }
+
+            def _build_tool_message(self, *, tool_call, tool_result):
+                return {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_call.call_id,
+                            "content": json.dumps(tool_result),
+                        }
+                    ],
+                }
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
+                self.events.append((event_type, iteration, extra))
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+        confirmation_requests = []
+
+        result_messages, should_observe = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-human-1",
+                    name="ask_user_question",
+                    arguments={
+                        "title": "Need input",
+                        "question": "Choose one",
+                        "selection_mode": "single",
+                        "options": [
+                            {
+                                "label": "Option 1",
+                                "value": "opt-1",
+                            }
+                        ],
+                        "allow_other": True,
+                        "other_label": "Other option",
+                        "other_placeholder": "Describe it",
+                    },
+                )
+            ],
+            run_id="run-human-1",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda request: (
+                confirmation_requests.append(request)
+                or {
+                    "approved": True,
+                    "modified_arguments": {
+                        "user_response": {
+                            "value": "opt-1",
+                        }
+                    },
+                }
+            ),
+            toolkits=["ask-user-toolkit"],
+        )
+
+        self.assertEqual(agent.forwarded_toolkits, [])
+        self.assertFalse(should_observe)
+        self.assertEqual(len(confirmation_requests), 1)
+        self.assertEqual(confirmation_requests[0]["tool_name"], "ask_user_question")
+        self.assertEqual(confirmation_requests[0]["interact_type"], "single")
+        self.assertEqual(
+            confirmation_requests[0]["interact_config"]["other_label"],
+            "Other option",
+        )
+        self.assertEqual(
+            confirmation_requests[0]["interact_config"]["other_placeholder"],
+            "Describe it",
+        )
+        self.assertIsInstance(confirmation_requests[0]["confirmation_id"], str)
+        self.assertEqual(confirmation_requests[0]["requires_confirmation"], True)
+
+        tool_result_payload = json.loads(result_messages[0]["content"][0]["content"])
+        self.assertEqual(
+            tool_result_payload,
+            {
+                "submitted": True,
+                "selected_values": ["opt-1"],
+                "other_text": None,
+            },
+        )
+        self.assertEqual(agent.events[0][0], "tool_call")
+        self.assertEqual(agent.events[0][2].get("interact_type"), "single")
+        self.assertIsInstance(agent.events[0][2].get("confirmation_id"), str)
+        self.assertEqual(agent.events[-1][0], "tool_result")
+
+    def test_apply_broth_runtime_patches_ignores_user_supplied_request_id_for_human_input(
+        self,
+    ) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+
+            def _execute_tool_calls(self, **_kwargs):
+                return [], False
+
+            def _find_tool(self, _name, **_kwargs):
+                return None
+
+            def _build_tool_message(self, *, tool_call, tool_result):
+                return {
+                    "type": "function_call_output",
+                    "call_id": tool_call.call_id,
+                    "output": json.dumps(tool_result),
+                }
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, _event_type, _run_id, *, iteration, **extra):
+                del iteration, extra
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+
+        result_messages, should_observe = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-human-2",
+                    name="ask_user_question",
+                    arguments={
+                        "title": "Need input",
+                        "question": "Choose one",
+                        "selection_mode": "single",
+                        "options": [
+                            {
+                                "label": "Option 1",
+                                "value": "opt-1",
+                            }
+                        ],
+                        "allow_other": False,
+                    },
+                )
+            ],
+            run_id="run-human-2",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda _request: {
+                "approved": True,
+                "modified_arguments": {
+                    "user_response": {
+                        "request_id": "stale-request-id",
+                        "value": "opt-1",
+                    }
+                },
+            },
+            toolkits=["ask-user-toolkit"],
+        )
+
+        self.assertFalse(should_observe)
+        payload = json.loads(result_messages[0]["output"])
+        self.assertEqual(
+            payload,
+            {
+                "submitted": True,
+                "selected_values": ["opt-1"],
+                "other_text": None,
+            },
+        )
+
+    def test_apply_broth_runtime_patches_parses_openai_string_arguments_for_human_input(
+        self,
+    ) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+                self.forwarded_toolkits = None
+                self.events = []
+
+            def _execute_tool_calls(self, **_kwargs):
+                return [], False
+
+            def _find_tool(self, _name, **kwargs):
+                self.forwarded_toolkits = kwargs.get("toolkits")
+                return None
+
+            def _build_tool_message(self, *, tool_call, tool_result):
+                return {
+                    "type": "function_call_output",
+                    "call_id": tool_call.call_id,
+                    "output": json.dumps(tool_result),
+                }
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
+                self.events.append((event_type, iteration, extra))
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+        confirmation_requests = []
+
+        result_messages, should_observe = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-human-openai-1",
+                    name="ask_user_question",
+                    arguments=json.dumps(
+                        {
+                            "title": "Need input",
+                            "question": "Choose one",
+                            "selection_mode": "single",
+                            "options": [
+                                {
+                                    "label": "Option 1",
+                                    "value": "opt-1",
+                                }
+                            ],
+                            "allow_other": False,
+                        }
+                    ),
+                )
+            ],
+            run_id="run-human-openai-1",
+            iteration=0,
+            callback=None,
+            on_tool_confirm=lambda request: (
+                confirmation_requests.append(request)
+                or {
+                    "approved": True,
+                    "modified_arguments": {
+                        "user_response": {
+                            "value": "opt-1",
+                        }
+                    },
+                }
+            ),
+            toolkits=["ask-user-toolkit"],
+        )
+
+        self.assertFalse(should_observe)
+        self.assertEqual(len(confirmation_requests), 1)
+        self.assertEqual(
+            confirmation_requests[0]["interact_config"]["request_id"],
+            "call-human-openai-1",
+        )
+        payload = json.loads(result_messages[0]["output"])
+        self.assertEqual(
+            payload,
+            {
+                "submitted": True,
+                "selected_values": ["opt-1"],
+                "other_text": None,
+            },
+        )
 
     def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
         self,
@@ -843,7 +1177,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -883,13 +1217,58 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent(
                     {
                         "workspace_root": tmp,
                         "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+
+    def test_create_agent_accepts_legacy_access_workspace_toolkit_alias(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.toolkits = []
+                self.provider = ""
+                self.model = ""
+                self.max_iterations = 0
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            captured["workspace_root"] = workspace_root
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                miso_adapter,
+                "_BROTH_CLASS",
+                FakeAgent,
+            ), mock.patch.object(
+                miso_adapter,
+                "_IMPORT_ERROR",
+                None,
+            ), mock.patch.object(
+                miso_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = miso_adapter._create_agent(
+                    {
+                        "workspace_root": tmp,
+                        "toolkits": ["access_workspace_toolkit"],
                     }
                 )
 
@@ -928,7 +1307,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent(
@@ -1063,9 +1442,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit,
-                    toolkit=FakeToolkit,
-                    tool=FakeTool,
+                    WorkspaceToolkit=fake_workspace_toolkit,
+                    Toolkit=FakeToolkit,
+                    Tool=FakeTool,
                 ),
             ):
                 agent = miso_adapter._create_agent(
@@ -1120,7 +1499,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = miso_adapter._create_agent({"workspace_root": tmp})
@@ -1164,7 +1543,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
                 _agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -1196,7 +1575,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         ), mock.patch.object(
             miso_adapter.importlib,
             "import_module",
-            return_value=SimpleNamespace(workspace_toolkit=fake_workspace_toolkit),
+            return_value=SimpleNamespace(WorkspaceToolkit=fake_workspace_toolkit),
         ):
             with tempfile.TemporaryDirectory() as tmp:
                 missing = str(Path(tmp) / "missing")
@@ -1228,7 +1607,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 miso_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    workspace_toolkit=fake_workspace_toolkit
+                    WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
                 agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -1529,13 +1908,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 source_root = Path(temp_dir)
-                package_dir = source_root / "miso"
+                package_dir = source_root / "src" / "miso" / "runtime"
                 package_dir.mkdir(parents=True, exist_ok=True)
                 (package_dir / "__init__.py").write_text("", encoding="utf-8")
-                (package_dir / "broth.py").write_text("", encoding="utf-8")
 
                 fake_module = SimpleNamespace(
-                    broth=FakeBroth,
+                    Broth=FakeBroth,
                     __file__=str(package_dir / "__init__.py"),
                 )
 
@@ -1602,7 +1980,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             package_dir.mkdir(parents=True, exist_ok=True)
             module_file = package_dir / "__init__.pyc"
             module_file.write_text("", encoding="utf-8")
-            capability_file = package_dir / "model_capabilities.json"
+            capability_file = package_dir / "runtime" / "resources" / "model_capabilities.json"
+            capability_file.parent.mkdir(parents=True, exist_ok=True)
             capability_file.write_text("{}", encoding="utf-8")
 
             fake_module = SimpleNamespace(__file__=str(module_file))
@@ -1614,6 +1993,198 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 candidates = miso_adapter._capability_file_candidates()
 
             self.assertIn(capability_file.resolve(), candidates)
+
+
+class MisoAdapterToolkitIconTests(unittest.TestCase):
+    def _build_toolkit_fixture(
+        self,
+        *,
+        icon_value: str,
+        color: str | None = None,
+        backgroundcolor: str | None = None,
+        include_icon_file: bool = False,
+    ) -> tuple[type, str, ModuleType]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        package_dir = Path(temp_dir.name) / "demo_toolkit"
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "runtime.py").write_text("", encoding="utf-8")
+        (package_dir / "README.md").write_text("# Demo Toolkit\n", encoding="utf-8")
+        if include_icon_file:
+            (package_dir / "icon.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" rx="2" fill="#111827"/></svg>\n',
+                encoding="utf-8",
+            )
+
+        color_line = f'color = "{color}"\n' if color is not None else ""
+        background_line = (
+            f'backgroundcolor = "{backgroundcolor}"\n'
+            if backgroundcolor is not None
+            else ""
+        )
+        (package_dir / "toolkit.toml").write_text(
+            f"""
+[toolkit]
+id = "demo"
+name = "Demo Toolkit"
+description = "Toolkit for icon tests."
+factory = "demo_toolkit:DemoToolkit"
+version = "1.0.0"
+readme = "README.md"
+icon = "{icon_value}"
+{color_line}{background_line}tags = ["local", "test"]
+
+[display]
+category = "builtin"
+order = 1
+hidden = false
+
+[compat]
+python = ">=3.9"
+miso = ">=0"
+
+[[tools]]
+name = "echo"
+title = "Echo"
+description = "Echo text back."
+observe = false
+requires_confirmation = false
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+        toolkit_base = type("FakeToolkitBase", (), {})
+        module_name = "miso.toolkits.builtin.demo_toolkit"
+        toolkit_module = ModuleType(module_name)
+        toolkit_module.__file__ = str(package_dir / "runtime.py")
+        toolkit_class = type(
+            "DemoToolkit",
+            (toolkit_base,),
+            {
+                "__module__": module_name,
+                "__doc__": "Toolkit for icon tests.",
+                "echo": lambda self: None,
+            },
+        )
+        setattr(toolkit_module, "DemoToolkit", toolkit_class)
+        return toolkit_base, module_name, toolkit_module
+
+    def _build_import_side_effect(
+        self,
+        *,
+        module_name: str,
+        toolkit_module: ModuleType,
+    ):
+        builtin_pkg = ModuleType("miso.toolkits.builtin")
+        builtin_pkg.__path__ = [str(Path(toolkit_module.__file__).parent.parent)]
+        miso_module = ModuleType("miso")
+
+        def _fake_import_module(name: str, package=None):
+            del package
+            if name == "miso.toolkits":
+                return miso_module
+            if name == "miso.toolkits.builtin":
+                return builtin_pkg
+            if name == module_name:
+                return toolkit_module
+            raise ImportError(name)
+
+        return _fake_import_module
+
+    def test_get_toolkit_catalog_v2_returns_builtin_icon_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+            color="#0f172a",
+            backgroundcolor="#bae6fd",
+        )
+
+        with mock.patch.object(
+            miso_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            miso_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = miso_adapter.get_toolkit_catalog_v2()
+
+        self.assertEqual(payload["count"], 1)
+        entry = payload["toolkits"][0]
+        self.assertEqual(
+            entry["toolkitIcon"],
+            {
+                "type": "builtin",
+                "name": "terminal",
+                "color": "#0f172a",
+                "backgroundColor": "#bae6fd",
+            },
+        )
+        self.assertEqual(entry["tools"][0]["icon"], entry["toolkitIcon"])
+
+    def test_get_toolkit_metadata_returns_file_icon_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="icon.svg",
+            include_icon_file=True,
+        )
+
+        with mock.patch.object(
+            miso_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            miso_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = miso_adapter.get_toolkit_metadata("DemoToolkit")
+
+        self.assertEqual(payload["toolkitIcon"]["type"], "file")
+        self.assertEqual(payload["toolkitIcon"]["mimeType"], "image/svg+xml")
+        self.assertIn("<svg", payload["toolkitIcon"]["content"])
+
+    def test_invalid_builtin_toolkit_icon_returns_empty_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+        )
+
+        with mock.patch.object(
+            miso_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            miso_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            miso_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            catalog_payload = miso_adapter.get_toolkit_catalog_v2()
+            metadata_payload = miso_adapter.get_toolkit_metadata("DemoToolkit")
+
+        self.assertEqual(catalog_payload["toolkits"][0]["toolkitIcon"], {})
+        self.assertEqual(metadata_payload["toolkitIcon"], {})
 
 
 if __name__ == "__main__":

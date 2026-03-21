@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
@@ -6,20 +6,35 @@ import { SECTIONS } from "./constants";
 import SegmentedControl from "./components/segmented_control";
 import ToolkitsPage from "./pages/toolkits_page";
 import ComingSoonPage from "./pages/coming_soon_page";
+import McpPage from "./mcp/mcp_page";
 
 export const ToolkitModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedSection, setSelectedSection] = useState("toolkits");
 
+  // Reset when modal closes
+  useEffect(() => {
+    if (!open) {
+      setSelectedSection("toolkits");
+    }
+  }, [open]);
+
   const activeSection = SECTIONS.find((s) => s.key === selectedSection);
 
   const renderContent = () => {
-    if (selectedSection === "toolkits") return <ToolkitsPage isDark={isDark} />;
+    if (selectedSection === "toolkits") {
+      return <ToolkitsPage isDark={isDark} />;
+    }
+    if (selectedSection === "mcp") {
+      return <McpPage isDark={isDark} />;
+    }
     return (
       <ComingSoonPage icon={activeSection?.icon || "tool"} isDark={isDark} />
     );
   };
+
+  const panelBg = isDark ? "#141414" : "#ffffff";
 
   return (
     <Modal
@@ -30,7 +45,7 @@ export const ToolkitModal = ({ open, onClose }) => {
         height: 600,
         maxHeight: "80vh",
         padding: 0,
-        backgroundColor: isDark ? "#141414" : "#ffffff",
+        backgroundColor: panelBg,
         color: isDark ? "#fff" : "#222",
         display: "flex",
         flexDirection: "column",
@@ -48,7 +63,7 @@ export const ToolkitModal = ({ open, onClose }) => {
           paddingHorizontal: 6,
           borderRadius: 6,
           opacity: 0.45,
-          zIndex: 2,
+          zIndex: 4,
           content: {
             prefixIconWrap: {
               display: "flex",
@@ -61,7 +76,7 @@ export const ToolkitModal = ({ open, onClose }) => {
         }}
       />
 
-      <div style={{ padding: "12px 16px 8px", flexShrink: 0 }}>
+      <div style={{ padding: "12px 16px 8px 16px", flexShrink: 0 }}>
         <SegmentedControl
           sections={SECTIONS}
           selected={selectedSection}
@@ -70,15 +85,25 @@ export const ToolkitModal = ({ open, onClose }) => {
         />
       </div>
 
+      {/* ── Content area ── */}
       <div
-        className="scrollable"
         style={{
           flex: 1,
-          overflowY: "auto",
-          padding: "4px 16px 16px",
+          position: "relative",
+          overflow: "hidden",
         }}
       >
-        {renderContent()}
+        <div
+          className="scrollable"
+          style={{
+            position: "absolute",
+            inset: 0,
+            overflowY: "auto",
+            padding: "4px 0 16px",
+          }}
+        >
+          {renderContent()}
+        </div>
       </div>
     </Modal>
   );

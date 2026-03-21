@@ -19,7 +19,21 @@ export const toDisplayName = (toolkit) => {
 export const isBuiltinToolkit = (toolkit) =>
   String(toolkit?.kind || "")
     .trim()
-    .toLowerCase() === "builtin";
+    .toLowerCase() === "builtin" ||
+  String(toolkit?.source || "")
+    .trim()
+    .toLowerCase() === "builtin" ||
+  [toolkit?.toolkitId, toolkit?.name, toolkit?.class_name, toolkit?.module]
+    .map((value) =>
+      typeof value === "string" ? value.trim().toLowerCase() : "",
+    )
+    .filter(Boolean)
+    .some(
+      (value) =>
+        BASE_TOOLKIT_IDENTIFIERS.has(value) ||
+        value.endsWith(".builtin_toolkit") ||
+        value.endsWith(".base_toolkit"),
+    );
 
 export const isBaseToolkit = (toolkit) => {
   const candidates = [toolkit?.name, toolkit?.class_name, toolkit?.module]

@@ -1,4 +1,4 @@
-import { memo, useState, useContext, useMemo } from "react";
+import { memo, useState, useContext, useMemo, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
@@ -8,13 +8,13 @@ import {
   ASSISTANT_MARKDOWN_FONT_SIZE,
   ASSISTANT_MARKDOWN_LINE_HEIGHT,
 } from "./components/assistant_markdown_metrics";
+import InteractWrapper from "./interact/interact_wrapper";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
 const DISPLAY_FRAME_TYPES = new Set([
   "reasoning",
   "observation",
-  "tool_confirmation_request",
   "tool_call",
   "tool_result",
   "final_message",
@@ -46,6 +46,78 @@ const toKVPairs = (data) => {
     key: k,
     value: typeof v === "object" ? JSON.stringify(v) : String(v),
   }));
+};
+
+const normalizePersistedInteractionResponse = (interactType, payload = {}) => {
+  if (!payload || typeof payload !== "object") {
+    return undefined;
+  }
+
+  if (
+    payload.user_response &&
+    typeof payload.user_response === "object" &&
+    !Array.isArray(payload.user_response)
+  ) {
+    return payload.user_response;
+  }
+
+  const otherText =
+    typeof payload.other_text === "string" && payload.other_text.trim()
+      ? payload.other_text.trim()
+      : undefined;
+  const selectedValues = Array.isArray(payload.selected_values)
+    ? payload.selected_values.filter(
+        (value) => typeof value === "string" && value.trim(),
+      )
+    : [];
+
+  if (interactType === "single" && selectedValues.length > 0) {
+    return {
+      value: selectedValues[0],
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  if (interactType === "multi" && selectedValues.length > 0) {
+    return {
+      values: selectedValues,
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  if (
+    interactType === "multi_choice" &&
+    Array.isArray(payload.selected) &&
+    payload.selected.length > 0
+  ) {
+    return {
+      selected: payload.selected.filter(
+        (value) => typeof value === "string" && value.trim(),
+      ),
+    };
+  }
+
+  if (interactType === "text_input" && typeof payload.text === "string") {
+    return { text: payload.text };
+  }
+
+  if (typeof payload.value === "string") {
+    return {
+      value: payload.value,
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  if (Array.isArray(payload.values) && payload.values.length > 0) {
+    return {
+      values: payload.values.filter(
+        (value) => typeof value === "string" && value.trim(),
+      ),
+      ...(otherText ? { other_text: otherText } : {}),
+    };
+  }
+
+  return undefined;
 };
 
 /* ─── KVPanel ────────────────────────────────────────────────────────────── */
@@ -218,6 +290,24 @@ const TraceChain = ({
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
 }) => {
+  const handleInteractSubmit = useCallback(
+    (confirmationId, interactType, responseData) => {
+      if (typeof onToolConfirmationDecision !== "function") return;
+      if (interactType === "confirmation") {
+        onToolConfirmationDecision({
+          confirmationId,
+          approved: responseData?.approved ?? false,
+        });
+      } else {
+        onToolConfirmationDecision({
+          confirmationId,
+          approved: true,
+          userResponse: responseData,
+        });
+      }
+    },
+    [onToolConfirmationDecision],
+  );
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
@@ -331,6 +421,63 @@ const TraceChain = ({
     return map;
   }, [frames]);
 
+  const confirmationUserResponseByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (
+        (frame?.type !== "tool_confirmed" && frame?.type !== "tool_denied") ||
+        !frame?.payload?.call_id ||
+        frame?.payload?.user_response === undefined
+      ) {
+        continue;
+      }
+
+      map.set(frame.payload.call_id, frame.payload.user_response);
+    }
+    return map;
+  }, [frames]);
+
+  const interactTypeByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (
+        frame?.type !== "tool_call" ||
+        !frame?.payload?.call_id ||
+        typeof frame?.payload?.interact_type !== "string"
+      ) {
+        continue;
+      }
+      map.set(frame.payload.call_id, frame.payload.interact_type);
+    }
+    return map;
+  }, [frames]);
+
+  const toolResultUserResponseByCallId = useMemo(() => {
+    const map = new Map();
+    for (const frame of frames) {
+      if (frame?.type !== "tool_result" || !frame?.payload?.call_id) {
+        continue;
+      }
+
+      const interactType =
+        typeof frame?.payload?.interact_type === "string"
+          ? frame.payload.interact_type
+          : interactTypeByCallId.get(frame.payload.call_id) ||
+            (typeof frame?.payload?.tool_name === "string" &&
+            frame.payload.tool_name === "ask_user_question"
+              ? "single"
+              : "");
+      const normalized = normalizePersistedInteractionResponse(
+        interactType,
+        frame.payload?.result,
+      );
+      if (normalized !== undefined) {
+        map.set(frame.payload.call_id, normalized);
+      }
+    }
+    return map;
+  }, [frames, interactTypeByCallId]);
+
   const timelineItems = useMemo(() => {
     const items = [];
     const renderedCallIds = new Set();
@@ -365,13 +512,13 @@ const TraceChain = ({
               />
             ) : undefined,
         });
-      } else if (frame.type === "tool_confirmation_request") {
-        const callId =
-          typeof frame.payload?.call_id === "string" ? frame.payload.call_id : "";
-        const toolName =
-          typeof frame.payload?.tool_name === "string"
-            ? frame.payload.tool_name
-            : "tool";
+      } else if (frame.type === "tool_call") {
+        const callId = frame.payload?.call_id;
+        if (callId && renderedCallIds.has(callId)) continue;
+        if (callId) renderedCallIds.add(callId);
+
+        const toolName = frame.payload?.tool_name || "tool";
+        const args = frame.payload?.arguments;
         const confirmationId =
           typeof frame.payload?.confirmation_id === "string"
             ? frame.payload.confirmation_id
@@ -380,192 +527,204 @@ const TraceChain = ({
           typeof frame.payload?.description === "string"
             ? frame.payload.description.trim()
             : "";
-        const args = frame.payload?.arguments;
-        const confirmationResult = callId
-          ? confirmationStatusByCallId.get(callId)
-          : "";
-
-        const confirmationUiState =
-          confirmationId && toolConfirmationUiStateById
-            ? toolConfirmationUiStateById[confirmationId] || {}
-            : {};
-        const uiStatus =
-          typeof confirmationUiState?.status === "string"
-            ? confirmationUiState.status
-            : "idle";
-        const uiError =
-          typeof confirmationUiState?.error === "string"
-            ? confirmationUiState.error
-            : "";
-        const uiResolved = confirmationUiState?.resolved === true;
-        const uiDecision =
-          confirmationUiState?.decision === "approved" ||
-          confirmationUiState?.decision === "denied"
-            ? confirmationUiState.decision
-            : "";
-        const resolvedDecision = confirmationResult || uiDecision;
-
-        const isResolved =
-          resolvedDecision === "approved" || resolvedDecision === "denied";
-        const isSubmitting =
-          !uiResolved && (uiStatus === "submitting" || uiStatus === "submitted");
-
-        let statusLabel = "Pending";
-        if (resolvedDecision === "approved") {
-          statusLabel = "Approved";
-        } else if (resolvedDecision === "denied") {
-          statusLabel = "Denied";
-        } else if (uiResolved) {
-          statusLabel = "Submitted";
-        } else if (isSubmitting) {
-          statusLabel = "Submitting...";
-        } else if (uiError) {
-          statusLabel = "Failed to submit";
-        }
-
-        const canTakeAction =
-          !isResolved &&
-          !uiResolved &&
-          !isSubmitting &&
-          confirmationId &&
-          typeof onToolConfirmationDecision === "function";
-
-        const statusColor = isResolved
-          ? resolvedDecision === "approved"
-            ? isDark
-              ? "rgba(110,231,183,0.95)"
-              : "rgba(5,150,105,0.95)"
-            : isDark
-              ? "rgba(252,165,165,0.95)"
-              : "rgba(220,38,38,0.95)"
-          : isDark
-            ? "rgba(255,255,255,0.6)"
-            : "rgba(0,0,0,0.52)";
-
-        const argsPairs = toKVPairs(args);
-        const detailsSections = [];
-        if (description) {
-          detailsSections.push({
-            heading: "description",
-            pairs: [{ key: "text", value: description }],
-          });
-        }
-        if (argsPairs.length) {
-          detailsSections.push({
-            heading: "args",
-            pairs: argsPairs,
-          });
-        }
-        if (uiError) {
-          detailsSections.push({
-            heading: "error",
-            pairs: [{ key: "message", value: uiError }],
-          });
-        }
-
-        const actionButtonBaseStyle = {
-          border: "none",
-          borderRadius: 6,
-          padding: "4px 10px",
-          cursor: "pointer",
-          fontSize: 11.5,
-          lineHeight: 1.4,
-          fontFamily: "Menlo, Monaco, Consolas, monospace",
-        };
-
-        items.push({
-          key: `${frame.seq}-tool-confirmation`,
-          title: "Tool Confirmation",
-          span: spanText,
-          status: isResolved ? "done" : "active",
-          point: isResolved ? <HammerPoint isDark={isDark} /> : "loading",
-          body: (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                flexWrap: "wrap",
-              }}
-            >
-              <ToolTag name={toolName} isDark={isDark} />
-              <span
-                style={{
-                  fontSize: 11.5,
-                  color: statusColor,
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
-                }}
-              >
-                {statusLabel}
-              </span>
-              {canTakeAction && (
-                <>
-                  <button
-                    onClick={() =>
-                      onToolConfirmationDecision({
-                        confirmationId,
-                        approved: true,
-                      })
-                    }
-                    style={{
-                      ...actionButtonBaseStyle,
-                      color: isDark ? "rgba(209,250,229,0.95)" : "#065f46",
-                      backgroundColor: isDark
-                        ? "rgba(16,185,129,0.22)"
-                        : "rgba(16,185,129,0.16)",
-                    }}
-                  >
-                    Allow
-                  </button>
-                  <button
-                    onClick={() =>
-                      onToolConfirmationDecision({
-                        confirmationId,
-                        approved: false,
-                      })
-                    }
-                    style={{
-                      ...actionButtonBaseStyle,
-                      color: isDark ? "rgba(254,202,202,0.98)" : "#991b1b",
-                      backgroundColor: isDark
-                        ? "rgba(239,68,68,0.2)"
-                        : "rgba(239,68,68,0.14)",
-                    }}
-                  >
-                    Deny
-                  </button>
-                </>
-              )}
-            </div>
-          ),
-          details:
-            detailsSections.length > 0 ? (
-              <KVPanel sections={detailsSections} isDark={isDark} color={color} />
-            ) : undefined,
-        });
-      } else if (frame.type === "tool_call") {
-        const callId = frame.payload?.call_id;
-        if (callId && renderedCallIds.has(callId)) continue;
-        if (callId) renderedCallIds.add(callId);
-
-        const toolName = frame.payload?.tool_name || "tool";
-        const args = frame.payload?.arguments;
+        const requiresConfirmation =
+          frame.payload?.requires_confirmation === true ||
+          Boolean(confirmationId);
+        const interactType =
+          typeof frame.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : "confirmation";
+        const interactConfig = frame.payload?.interact_config || {};
         const resultFrame = callId ? toolResultByCallId.get(callId) : null;
         const result = resultFrame?.payload?.result;
         const internalDelta =
           resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
+        const confirmationResult = callId
+          ? confirmationStatusByCallId.get(callId)
+          : "";
+        const confirmationUiState =
+          confirmationId && toolConfirmationUiStateById
+            ? toolConfirmationUiStateById[confirmationId] || {}
+            : {};
+        const persistedUserResponse =
+          callId && confirmationUserResponseByCallId.has(callId)
+            ? confirmationUserResponseByCallId.get(callId)
+            : callId && toolResultUserResponseByCallId.has(callId)
+              ? toolResultUserResponseByCallId.get(callId)
+            : undefined;
+        const effectiveConfirmationUiState =
+          persistedUserResponse !== undefined &&
+          confirmationUiState?.userResponse === undefined
+            ? {
+                ...confirmationUiState,
+                userResponse: persistedUserResponse,
+              }
+            : confirmationUiState;
+        const hasPersistedSelectionResult =
+          persistedUserResponse !== undefined && resultFrame != null;
+        const uiStatus =
+          typeof effectiveConfirmationUiState?.status === "string"
+            ? effectiveConfirmationUiState.status
+            : "idle";
+        const uiError =
+          typeof effectiveConfirmationUiState?.error === "string"
+            ? effectiveConfirmationUiState.error
+            : "";
+        const uiResolved =
+          effectiveConfirmationUiState?.resolved === true ||
+          hasPersistedSelectionResult;
+        const uiDecision =
+          effectiveConfirmationUiState?.decision === "approved" ||
+          effectiveConfirmationUiState?.decision === "denied"
+            ? effectiveConfirmationUiState.decision
+            : "";
+        const resolvedDecision =
+          confirmationResult ||
+          uiDecision ||
+          (hasPersistedSelectionResult ? "approved" : "");
+        const isResolved =
+          resolvedDecision === "approved" || resolvedDecision === "denied";
+        const isSubmitting =
+          !uiResolved &&
+          (uiStatus === "submitting" || uiStatus === "submitted");
+        const isInlineInteraction = requiresConfirmation && confirmationId;
+        const isSelectionInteraction =
+          interactType !== "confirmation" && isInlineInteraction;
 
         const sections = [];
         if (internalDelta != null)
           sections.push({
             pairs: [{ key: "took", value: formatDelta(internalDelta) }],
           });
-        const argPairs = toKVPairs(args);
-        if (argPairs.length)
-          sections.push({ heading: "args", pairs: argPairs });
+        if (!isSelectionInteraction) {
+          if (description) {
+            sections.push({
+              heading: "description",
+              pairs: [{ key: "text", value: description }],
+            });
+          }
+          const argPairs = toKVPairs(args);
+          if (argPairs.length)
+            sections.push({ heading: "args", pairs: argPairs });
+        }
         const resPairs = toKVPairs(result);
         if (resPairs.length)
           sections.push({ heading: "result", pairs: resPairs });
+        if (uiError) {
+          sections.push({
+            heading: "error",
+            pairs: [{ key: "message", value: uiError }],
+          });
+        }
+
+        if (isInlineInteraction) {
+          let statusLabel = "Pending";
+          if (resolvedDecision === "approved") {
+            statusLabel = isSelectionInteraction ? "Selected" : "Approved";
+          } else if (resolvedDecision === "denied") {
+            statusLabel = "Denied";
+          } else if (uiResolved) {
+            statusLabel = isSelectionInteraction ? "Selected" : "Submitted";
+          } else if (isSubmitting) {
+            statusLabel = "Submitting...";
+          } else if (uiError) {
+            statusLabel = "Failed to submit";
+          }
+
+          const canTakeAction =
+            !isResolved &&
+            !uiResolved &&
+            !isSubmitting &&
+            typeof onToolConfirmationDecision === "function";
+
+          const statusColor = isResolved
+            ? resolvedDecision === "approved"
+              ? isDark
+                ? "rgba(110,231,183,0.95)"
+                : "rgba(5,150,105,0.95)"
+              : isDark
+                ? "rgba(252,165,165,0.95)"
+                : "rgba(220,38,38,0.95)"
+            : isDark
+              ? "rgba(255,255,255,0.6)"
+              : "rgba(0,0,0,0.52)";
+
+          const interactTitle =
+            interactType === "confirmation"
+              ? "Tool Confirmation"
+              : interactType === "multi_choice" ||
+                  interactType === "single" ||
+                  interactType === "multi"
+                ? "Selection"
+                : interactType === "text_input"
+                  ? "Input Requested"
+                  : "Interaction";
+
+          items.push({
+            key: `${frame.seq}-tool`,
+            title: interactTitle,
+            span: spanText,
+            status: isResolved ? "done" : "active",
+            point: isResolved ? <HammerPoint isDark={isDark} /> : "loading",
+            body: (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <ToolTag name={toolName} isDark={isDark} />
+                  <span
+                    style={{
+                      fontSize: 11.5,
+                      color: statusColor,
+                      fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    }}
+                  >
+                    {statusLabel}
+                  </span>
+                </div>
+                {interactType !== "confirmation" ? (
+                  <InteractWrapper
+                    type={interactType}
+                    config={interactConfig}
+                    onSubmit={(data) =>
+                      handleInteractSubmit(confirmationId, interactType, data)
+                    }
+                    uiState={effectiveConfirmationUiState}
+                    isDark={isDark}
+                    disabled={!canTakeAction}
+                  />
+                ) : canTakeAction ? (
+                  <InteractWrapper
+                    type={interactType}
+                    config={interactConfig}
+                    onSubmit={(data) =>
+                      handleInteractSubmit(confirmationId, interactType, data)
+                    }
+                    uiState={effectiveConfirmationUiState}
+                    isDark={isDark}
+                    disabled={false}
+                  />
+                ) : null}
+              </div>
+            ),
+            details:
+              sections.length > 0 ? (
+                <KVPanel sections={sections} isDark={isDark} color={color} />
+              ) : undefined,
+          });
+          continue;
+        }
 
         items.push({
           key: `${frame.seq}-tool`,
@@ -601,7 +760,9 @@ const TraceChain = ({
         });
       } else if (frame.type === "final_message") {
         const content =
-          typeof frame.payload?.content === "string" ? frame.payload.content : "";
+          typeof frame.payload?.content === "string"
+            ? frame.payload.content
+            : "";
         if (!content.trim()) continue;
         items.push({
           key: `${frame.seq}-final-message`,
@@ -663,6 +824,9 @@ const TraceChain = ({
     startFrame,
     toolResultByCallId,
     confirmationStatusByCallId,
+    confirmationUserResponseByCallId,
+    toolResultUserResponseByCallId,
+    handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,
     isDark,

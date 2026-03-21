@@ -221,10 +221,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "delete_file",
           arguments: { path: "demo.txt" },
         },
@@ -249,15 +250,78 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
   });
 
+  test("renders selector requests and submits other text responses", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          requires_confirmation: true,
+          tool_name: "ask_user_question",
+          interact_type: "single",
+          interact_config: {
+            title: "Angry Birds - Tech Stack",
+            question: "Which stack do you want to use?",
+            selection_mode: "single",
+            options: [
+              {
+                label: "Web Canvas",
+                value: "web_canvas",
+                description: "Runs in the browser",
+              },
+            ],
+            allow_other: true,
+            other_label: "Other option",
+            other_placeholder: "Describe it",
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision,
+      toolConfirmationUiStateById: {
+        "confirm-1": { status: "idle", error: "" },
+      },
+    });
+
+    expect(screen.getByText("Which stack do you want to use?")).toBeInTheDocument();
+    expect(screen.getByText("Web Canvas")).toBeInTheDocument();
+    expect(screen.getByText("Other option")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "detail" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Other option"));
+    fireEvent.change(screen.getByPlaceholderText("Describe it"), {
+      target: { value: "Custom engine" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-1",
+      approved: true,
+      userResponse: {
+        value: "__other__",
+        other_text: "Custom engine",
+      },
+    });
+  });
+
   test("hides tool confirmation actions after confirmation is resolved", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "delete_file",
           arguments: { path: "demo.txt" },
         },
@@ -291,10 +355,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "terminal_exec",
           arguments: { cmd: "pwd" },
         },
@@ -329,10 +394,11 @@ describe("TraceChain final_message draft timeline", () => {
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
-        type: "tool_confirmation_request",
+        type: "tool_call",
         payload: {
           call_id: "call-1",
           confirmation_id: "confirm-1",
+          requires_confirmation: true,
           tool_name: "terminal_exec",
           arguments: { cmd: "pwd" },
         },
@@ -356,5 +422,162 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.queryByRole("button", { name: "Allow" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Deny" })).not.toBeInTheDocument();
     expect(screen.getByText("Approved")).toBeInTheDocument();
+  });
+
+  test("restores persisted selector answers from confirmation trace frames", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          requires_confirmation: true,
+          tool_name: "ask_user_question",
+          interact_type: "single",
+          interact_config: {
+            question: "Which stack do you want to use?",
+            options: [
+              {
+                label: "Web Canvas",
+                value: "web_canvas",
+              },
+            ],
+            allow_other: true,
+            other_label: "Other option",
+            other_placeholder: "Describe it",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_confirmed",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          tool_name: "ask_user_question",
+          user_response: {
+            value: "__other__",
+            other_text: "Custom engine",
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      onToolConfirmationDecision: jest.fn(),
+    });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.getByText("Other option")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Custom engine")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+  });
+
+  test("restores persisted selector answers from tool results", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          requires_confirmation: true,
+          tool_name: "ask_user_question",
+          interact_type: "single",
+          interact_config: {
+            question: "Which stack do you want to use?",
+            options: [
+              {
+                label: "Web Canvas",
+                value: "web_canvas",
+              },
+            ],
+            allow_other: true,
+            other_label: "Other option",
+            other_placeholder: "Describe it",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "ask_user_question",
+          result: {
+            submitted: true,
+            selected_values: ["__other__"],
+            other_text: "Custom engine",
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      onToolConfirmationDecision: jest.fn(),
+    });
+
+    expect(screen.getByText("Other option")).toBeInTheDocument();
+    expect(screen.getByDisplayValue("Custom engine")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+  });
+
+  test("restores persisted multi-select answers from tool results", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          requires_confirmation: true,
+          tool_name: "ask_user_question",
+          interact_type: "multi",
+          interact_config: {
+            question: "Which platforms do you want?",
+            options: [
+              {
+                label: "Web",
+                value: "web",
+              },
+              {
+                label: "Desktop",
+                value: "desktop",
+              },
+            ],
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "ask_user_question",
+          result: {
+            submitted: true,
+            selected_values: ["web", "desktop"],
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      onToolConfirmationDecision: jest.fn(),
+    });
+
+    expect(screen.getByText("Web")).toBeInTheDocument();
+    expect(screen.getByText("Desktop")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
   });
 });

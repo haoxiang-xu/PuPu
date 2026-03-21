@@ -17,9 +17,9 @@ const HIGH_PRIORITY_IDLE_TIMEOUT = 120;
 const NORMAL_PRIORITY_IDLE_TIMEOUT = 240;
 const HIGH_PRIORITY_TIMEOUT_DELAY = 32;
 const NORMAL_PRIORITY_TIMEOUT_DELAY = 72;
-const HTML_DOCUMENT_TAG_PATTERN =
-  /<!doctype\s+html\b|<(?:html|head|body|meta|title|link|style|script)\b/i;
-const MARKDOWN_FENCE_PATTERN = /^```/gm;
+const HTML_DOCUMENT_LINE_PATTERN =
+  /^\s*(?:<!doctype\s+html\b|<(?:html|head|body|meta|title|link|style|script)\b)/i;
+const MARKDOWN_FENCE_LINE_PATTERN = /^\s{0,3}([`~]{3,})(.*)$/;
 
 const isHeavyMarkdownContent = (content) => {
   if (typeof content !== "string" || !content) {
@@ -40,20 +40,48 @@ const isHeavyMarkdownContent = (content) => {
   return LARGE_CODE_BLOCK_PATTERN.test(content);
 };
 
-const isInsideFencedCodeBlock = (content, index) => {
-  if (typeof content !== "string" || index < 0) {
-    return false;
+const getNextFenceState = (line, activeFence) => {
+  if (typeof line !== "string") {
+    return activeFence;
   }
 
-  MARKDOWN_FENCE_PATTERN.lastIndex = 0;
-  let fenceCount = 0;
-  let match = MARKDOWN_FENCE_PATTERN.exec(content);
-  while (match && match.index < index) {
-    fenceCount += 1;
-    match = MARKDOWN_FENCE_PATTERN.exec(content);
+  const match = line.match(MARKDOWN_FENCE_LINE_PATTERN);
+  if (!match) {
+    return activeFence;
   }
 
-  return fenceCount % 2 === 1;
+  const marker = match[1];
+  const nextFence = {
+    character: marker.charAt(0),
+    size: marker.length,
+  };
+
+  if (!activeFence) {
+    return nextFence;
+  }
+
+  if (
+    nextFence.character === activeFence.character &&
+    nextFence.size >= activeFence.size
+  ) {
+    return null;
+  }
+
+  return activeFence;
+};
+
+const buildFenceMarker = (content) => {
+  const backtickMatches = content.match(/^\s{0,3}`{3,}/gm) || [];
+  const maxBacktickSize = backtickMatches.reduce((maxSize, match) => {
+    const fenceSize = match.trimStart().length;
+    return fenceSize > maxSize ? fenceSize : maxSize;
+  }, 0);
+
+  if (maxBacktickSize === 0) {
+    return "```";
+  }
+
+  return "`".repeat(maxBacktickSize + 1);
 };
 
 const normalizeHtmlDocumentMarkdown = (content) => {
@@ -61,19 +89,48 @@ const normalizeHtmlDocumentMarkdown = (content) => {
     return "";
   }
 
-  const match = HTML_DOCUMENT_TAG_PATTERN.exec(content);
-  if (!match || isInsideFencedCodeBlock(content, match.index)) {
+  const lines = content.split("\n");
+  let activeFence = null;
+  let htmlLineIndex = -1;
+  let htmlLineFence = null;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    if (HTML_DOCUMENT_LINE_PATTERN.test(lines[index])) {
+      htmlLineIndex = index;
+      htmlLineFence = activeFence;
+      break;
+    }
+
+    activeFence = getNextFenceState(lines[index], activeFence);
+  }
+
+  if (htmlLineIndex < 0) {
     return content;
   }
 
-  const leadingContent = content.slice(0, match.index).trimEnd();
-  const htmlLikeContent = content.slice(match.index).trim();
+  if (htmlLineFence) {
+    let trailingFence = htmlLineFence;
+
+    for (let index = htmlLineIndex; index < lines.length; index += 1) {
+      trailingFence = getNextFenceState(lines[index], trailingFence);
+      if (!trailingFence) {
+        return content;
+      }
+    }
+
+    const closingFence = htmlLineFence.character.repeat(htmlLineFence.size);
+    return `${content}${content.endsWith("\n") ? "" : "\n"}${closingFence}`;
+  }
+
+  const leadingContent = lines.slice(0, htmlLineIndex).join("\n").trimEnd();
+  const htmlLikeContent = lines.slice(htmlLineIndex).join("\n").trim();
 
   if (!htmlLikeContent) {
     return content;
   }
 
-  return `${leadingContent ? `${leadingContent}\n\n` : ""}\`\`\`html\n${htmlLikeContent}\n\`\`\``;
+  const fenceMarker = buildFenceMarker(htmlLikeContent);
+  return `${leadingContent ? `${leadingContent}\n\n` : ""}${fenceMarker}html\n${htmlLikeContent}\n${fenceMarker}`;
 };
 
 const scheduleIdleUpgrade = (callback, priority = "normal") => {

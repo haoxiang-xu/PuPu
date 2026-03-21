@@ -78,7 +78,6 @@ const ChatBubble = ({
   const hasToolActivity = traceFrames.some(
     (f) =>
       f.type === "tool_call" ||
-      f.type === "tool_confirmation_request" ||
       f.type === "tool_result" ||
       f.type === "reasoning" ||
       f.type === "observation",

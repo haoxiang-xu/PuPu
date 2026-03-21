@@ -15,6 +15,8 @@ export const buildSideMenuContextMenuItems = ({
   setClipboard,
   setConfirmDelete,
   onInspectMemory,
+  onExport,
+  onImport,
 }) => {
   const pasteFromClipboard = (parentFolderId) => {
     if (!clipboard) {
@@ -90,6 +92,13 @@ export const buildSideMenuContextMenuItems = ({
       });
     }
 
+    items.push({ type: "separator" });
+    items.push({
+      icon: "upload",
+      label: "Import",
+      onClick: () => onImport && onImport(null),
+    });
+
     return items;
   }
 
@@ -145,6 +154,18 @@ export const buildSideMenuContextMenuItems = ({
 
     items.push({ type: "separator" });
     items.push({
+      icon: "download",
+      label: "Export",
+      onClick: () => onExport && onExport(node),
+    });
+    items.push({
+      icon: "upload",
+      label: "Import",
+      onClick: () => onImport && onImport(node.id),
+    });
+
+    items.push({ type: "separator" });
+    items.push({
       icon: "delete",
       label: "Delete",
       danger: true,
@@ -160,7 +181,8 @@ export const buildSideMenuContextMenuItems = ({
       {
         icon: "brain",
         label: "Inspect Memory",
-        onClick: () => onInspectMemory && onInspectMemory(node.chatId, chatTitle),
+        onClick: () =>
+          onInspectMemory && onInspectMemory(node.chatId, chatTitle),
       },
       { type: "separator" },
       {
@@ -178,6 +200,11 @@ export const buildSideMenuContextMenuItems = ({
             label: chatTitle,
             messages: chatStore?.chatsById?.[node.chatId]?.messages || [],
           }),
+      },
+      {
+        icon: "download",
+        label: "Export",
+        onClick: () => onExport && onExport(node),
       },
       { type: "separator" },
       {

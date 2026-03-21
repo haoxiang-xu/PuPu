@@ -66,6 +66,7 @@ if (!gotSingleInstanceLock) {
     https,
     fs,
     path,
+    net,
   });
 
   const misoService = createMisoService({

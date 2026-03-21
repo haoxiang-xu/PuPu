@@ -363,10 +363,57 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertNotIn("stream_summary", event_types)
         done_frame = next(frame for frame in frames if frame.get("type") == "done")
         self.assertNotIn("usage", done_frame.get("payload", {}))
+        self.assertEqual(done_frame.get("iteration"), 1)
         self.assertEqual(
             done_frame.get("payload", {}).get("bundle", {}).get("consumed_tokens"),
             21,
         )
+
+    def test_chat_stream_v2_preserves_last_iteration_on_terminal_error_frame(self) -> None:
+        def failing_stream_chat_events(**_kwargs):
+            yield {
+                "type": "run_started",
+                "run_id": "run-1",
+                "iteration": 2,
+                "timestamp": 1700000000.0,
+                "provider": "openai",
+                "model": "gpt-5",
+            }
+            raise RuntimeError("boom")
+
+        with mock.patch.object(
+            miso_routes,
+            "stream_chat_events",
+            side_effect=failing_stream_chat_events,
+        ):
+            response = self.client.post(
+                "/chat/stream/v2",
+                json={
+                    "message": "hello",
+                    "history": [],
+                    "options": {"modelId": "openai:gpt-5"},
+                },
+            )
+            payload_text = response.get_data(as_text=True)
+
+        self.assertEqual(response.status_code, 200)
+
+        frames = []
+        for block in payload_text.split("\n\n"):
+            lines = [line for line in block.splitlines() if line.strip()]
+            event_name = ""
+            data_text = ""
+            for line in lines:
+                if line.startswith("event:"):
+                    event_name = line.split(":", 1)[1].strip()
+                if line.startswith("data:"):
+                    data_text = line.split(":", 1)[1].strip()
+            if event_name == "frame" and data_text:
+                frames.append(json.loads(data_text))
+
+        error_frame = next(frame for frame in frames if frame.get("type") == "error")
+        self.assertEqual(error_frame.get("iteration"), 2)
+        self.assertEqual(error_frame.get("payload", {}).get("message"), "boom")
 
     def test_chat_stream_v2_sets_confirmation_cancel_event_on_generator_exit(self) -> None:
         captured_cancel_event = {"value": None}

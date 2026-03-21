@@ -87,14 +87,14 @@ if [[ -n "$TARGET_ARCH" ]]; then
 fi
 
 MISO_SOURCE_PATH="${MISO_SOURCE_PATH:-"$ROOT_DIR/../miso"}"
-if [[ ! -f "$MISO_SOURCE_PATH/miso/__init__.py" || ! -f "$MISO_SOURCE_PATH/miso/broth.py" ]]; then
+if [[ ! -f "$MISO_SOURCE_PATH/src/miso/__init__.py" || ! -f "$MISO_SOURCE_PATH/src/miso/runtime/engine.py" ]]; then
   echo "Invalid MISO source path: $MISO_SOURCE_PATH"
-  echo "Expected files: miso/__init__.py and miso/broth.py"
+  echo "Expected files: src/miso/__init__.py and src/miso/runtime/engine.py"
   exit 1
 fi
 
-CAPABILITY_JSON="$MISO_SOURCE_PATH/miso/model_capabilities.json"
-DEFAULT_PAYLOADS_JSON="$MISO_SOURCE_PATH/miso/model_default_payloads.json"
+CAPABILITY_JSON="$MISO_SOURCE_PATH/src/miso/runtime/resources/model_capabilities.json"
+DEFAULT_PAYLOADS_JSON="$MISO_SOURCE_PATH/src/miso/runtime/resources/model_default_payloads.json"
 if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
   echo "Missing required MISO model metadata files in source path: $MISO_SOURCE_PATH"
   echo "Expected files:"
@@ -141,7 +141,7 @@ fi
 if [[ "${MISO_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
   "$VENV_PIP" install \
     -r "$ROOT_DIR/miso_runtime/server/requirements.txt" \
-    -r "$MISO_SOURCE_PATH/requirements.txt" \
+    -e "$MISO_SOURCE_PATH" \
     pyinstaller
 fi
 
@@ -198,7 +198,7 @@ else
 fi
 
 export MISO_SOURCE_PATH
-export PYTHONPATH="$MISO_SOURCE_PATH${PYTHONPATH:+$PYTHONPATH_SEP$PYTHONPATH}"
+export PYTHONPATH="$MISO_SOURCE_PATH/src${PYTHONPATH:+$PYTHONPATH_SEP$PYTHONPATH}"
 
 PYINSTALLER_ARGS=(
   --clean
@@ -212,16 +212,27 @@ PYINSTALLER_ARGS=(
   --collect-submodules openai
   --collect-submodules anthropic
   --collect-data miso
-  --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}miso"
-  --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}miso"
+  --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}miso/runtime/resources"
+  --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}miso/runtime/resources"
   --hidden-import miso
-  --hidden-import miso.broth
-  --hidden-import miso.tool
-  --hidden-import miso.response_format
-  --hidden-import miso.media
-  --hidden-import miso.mcp
+  --hidden-import miso.runtime
+  --hidden-import miso.runtime.engine
+  --hidden-import miso.runtime.files
+  --hidden-import miso.runtime.providers
+  --hidden-import miso.tools
+  --hidden-import miso.tools.tool
+  --hidden-import miso.tools.toolkit
+  --hidden-import miso.tools.registry
+  --hidden-import miso.tools.catalog
+  --hidden-import miso.schemas
+  --hidden-import miso.schemas.response
+  --hidden-import miso.input
+  --hidden-import miso.input.media
+  --hidden-import miso.toolkits
+  --hidden-import miso.toolkits.mcp
   --hidden-import miso.memory
-  --hidden-import miso.memory_qdrant
+  --hidden-import miso.memory.manager
+  --hidden-import miso.memory.qdrant
   --hidden-import openai
   --hidden-import anthropic
   --collect-submodules qdrant_client

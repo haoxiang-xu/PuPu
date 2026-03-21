@@ -4,6 +4,7 @@ import {
   getChatsStore,
   setChatSelectedToolkits,
 } from "./chat_storage";
+import { sanitizeSelectedToolkits } from "./chat_storage/chat_storage_sanitize";
 
 describe("chat_storage selected toolkits persistence", () => {
   beforeEach(() => {
@@ -35,6 +36,22 @@ describe("chat_storage selected toolkits persistence", () => {
     expect(hydrated.chatsById[activeChatId].selectedToolkits).toEqual([
       "toolkit.alpha",
       "toolkit.beta",
+    ]);
+  });
+
+  test("sanitizeSelectedToolkits migrates legacy toolkit ids to current class ids", () => {
+    expect(
+      sanitizeSelectedToolkits([
+        "access_workspace_toolkit",
+        "run_terminal_toolkit",
+        "interaction_toolkit",
+        "workspace_toolkit",
+        "ask-user-toolkit",
+      ]),
+    ).toEqual([
+      "WorkspaceToolkit",
+      "TerminalToolkit",
+      "AskUserToolkit",
     ]);
   });
 

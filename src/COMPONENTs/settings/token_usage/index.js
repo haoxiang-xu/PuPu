@@ -409,7 +409,7 @@ export const TokenUsageSettings = () => {
             dropdown_style={DD_STYLE}
           />
         </div>
-        <div style={{ padding: "4px 0 16px" }}>
+        <div style={{ padding: "24px 0 16px" }}>
           <BarChart
             data={chartData}
             height={220}

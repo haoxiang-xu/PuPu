@@ -17,6 +17,17 @@ const PROVIDER_OPTIONS = [
   { value: "ollama", label: "Ollama" },
 ];
 const OPENAI_EMBEDDING_FALLBACK_MODEL = "text-embedding-3-small";
+const clampThresholdValue = (value) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, Number(numeric.toFixed(2))));
+};
+const formatThresholdValue = (value) => {
+  const normalized = clampThresholdValue(value);
+  return normalized > 0 ? normalized.toFixed(2) : "Off";
+};
 
 export const MemorySettings = ({ onNavigate }) => {
   const { onThemeMode } = useContext(ConfigContext);
@@ -42,6 +53,12 @@ export const MemorySettings = ({ onNavigate }) => {
       return next;
     });
   }, []);
+  const updateThreshold = useCallback(
+    (key, value) => {
+      update({ [key]: clampThresholdValue(value) });
+    },
+    [update],
+  );
 
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
   const normalizedCurrentOpenAIModel =
@@ -334,6 +351,24 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         <SettingsRow
+          label={`Recall threshold — ${formatThresholdValue(settings.vector_min_score)}`}
+          description="Minimum similarity score for short-term recall. Set to Off to disable score filtering."
+        >
+          <Slider
+            value={settings.vector_min_score}
+            set_value={(val) => updateThreshold("vector_min_score", val)}
+            min={0}
+            max={1}
+            step={0.05}
+            label_format={formatThresholdValue}
+            tooltip_format={formatThresholdValue}
+            style={{ width: 160 }}
+          />
+        </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="Long-Term Memory">
+        <SettingsRow
           label={`Extract every N turns — ${settings.long_term_extract_every_n_turns}`}
           description="Long-term memory extraction runs after this many complete user → assistant turns."
         >
@@ -346,6 +381,40 @@ export const MemorySettings = ({ onNavigate }) => {
             max={20}
             step={1}
             label_format={(v) => `${v}`}
+            disabled={!settings.long_term_enabled}
+            style={{ width: 160 }}
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label={`Long-term top K — ${settings.long_term_top_k}`}
+          description="How many long-term memories can be recalled for facts, episodes, and playbooks."
+        >
+          <Slider
+            value={settings.long_term_top_k}
+            set_value={(val) => update({ long_term_top_k: val })}
+            min={0}
+            max={10}
+            step={1}
+            label_format={(v) => `${v}`}
+            disabled={!settings.long_term_enabled}
+            style={{ width: 160 }}
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label={`Long-term threshold — ${formatThresholdValue(settings.long_term_min_score)}`}
+          description="Minimum similarity score for recalled facts, episodes, and playbooks. Set to Off to disable score filtering."
+        >
+          <Slider
+            value={settings.long_term_min_score}
+            set_value={(val) => updateThreshold("long_term_min_score", val)}
+            min={0}
+            max={1}
+            step={0.05}
+            label_format={formatThresholdValue}
+            tooltip_format={formatThresholdValue}
+            disabled={!settings.long_term_enabled}
             style={{ width: 160 }}
           />
         </SettingsRow>

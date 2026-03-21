@@ -14,6 +14,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_STATUS,
   CHANNELS.MISO.GET_MODEL_CATALOG,
   CHANNELS.MISO.GET_TOOLKIT_CATALOG,
+  CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG,
+  CHANNELS.MISO.GET_TOOLKIT_DETAIL,
   CHANNELS.MISO.TOOL_CONFIRMATION,
   CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.MISO.PICK_WORKSPACE_ROOT,
@@ -26,6 +28,11 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_MEMORY_PROJECTION,
   CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
   CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+  CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
+  CHANNELS.MISO.SHOW_SAVE_DIALOG,
+  CHANNELS.MISO.SHOW_OPEN_DIALOG,
+  CHANNELS.MISO.WRITE_FILE,
+  CHANNELS.MISO.READ_FILE,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -100,6 +107,17 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(CHANNELS.MISO.GET_TOOLKIT_CATALOG, async () =>
     misoService.getMisoToolkitCatalogPayload(),
   );
+  ipcMain.handle(CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG, async () =>
+    misoService.getMisoToolModalCatalogPayload(),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.GET_TOOLKIT_DETAIL,
+    async (_event, payload = {}) =>
+      misoService.getMisoToolkitDetailPayload(
+        payload.toolkitId,
+        payload.toolName,
+      ),
+  );
   ipcMain.handle(
     CHANNELS.MISO.TOOL_CONFIRMATION,
     async (_event, payload = {}) =>
@@ -134,8 +152,12 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     const baseMemoryDir = path.join(app.getPath("userData"), "memory");
     const vectorDir = path.join(baseMemoryDir, "qdrant");
     const profileDir = path.join(baseMemoryDir, "long_term_profiles");
-    const vectorResult = runtimeService.getRuntimeDirSize({ dirPath: vectorDir });
-    const profileResult = runtimeService.getRuntimeDirSize({ dirPath: profileDir });
+    const vectorResult = runtimeService.getRuntimeDirSize({
+      dirPath: vectorDir,
+    });
+    const profileResult = runtimeService.getRuntimeDirSize({
+      dirPath: profileDir,
+    });
     const vectorTotal = Number(vectorResult.total) || 0;
     const profileTotal = Number(profileResult.total) || 0;
     const error =
@@ -162,7 +184,26 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(
     CHANNELS.MISO.REPLACE_SESSION_MEMORY,
-    async (_event, payload = {}) => misoService.replaceMisoSessionMemory(payload),
+    async (_event, payload = {}) =>
+      misoService.replaceMisoSessionMemory(payload),
+  );
+
+  ipcMain.handle(
+    CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
+    async (_event, payload = {}) =>
+      misoService.getMisoSessionMemoryExport(payload.sessionId),
+  );
+  ipcMain.handle(CHANNELS.MISO.SHOW_SAVE_DIALOG, async (_event, payload = {}) =>
+    runtimeService.showSaveDialog(payload),
+  );
+  ipcMain.handle(CHANNELS.MISO.SHOW_OPEN_DIALOG, async (_event, payload = {}) =>
+    runtimeService.showOpenDialog(payload),
+  );
+  ipcMain.handle(CHANNELS.MISO.WRITE_FILE, (_event, payload = {}) =>
+    runtimeService.writeFile(payload),
+  );
+  ipcMain.handle(CHANNELS.MISO.READ_FILE, (_event, payload = {}) =>
+    runtimeService.readFile(payload),
   );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {

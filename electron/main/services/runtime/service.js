@@ -1,4 +1,11 @@
-const createRuntimeService = ({ app, dialog, shell, fs, path, getMainWindow }) => {
+const createRuntimeService = ({
+  app,
+  dialog,
+  shell,
+  fs,
+  path,
+  getMainWindow,
+}) => {
   const expandWorkspacePath = (candidatePath) => {
     if (typeof candidatePath !== "string") {
       return "";
@@ -17,7 +24,10 @@ const createRuntimeService = ({ app, dialog, shell, fs, path, getMainWindow }) =
     return trimmed;
   };
 
-  const validateWorkspaceRootPath = (candidatePath, { allowEmpty = false } = {}) => {
+  const validateWorkspaceRootPath = (
+    candidatePath,
+    { allowEmpty = false } = {},
+  ) => {
     const expanded = expandWorkspacePath(candidatePath);
     if (!expanded) {
       return allowEmpty
@@ -45,7 +55,8 @@ const createRuntimeService = ({ app, dialog, shell, fs, path, getMainWindow }) =
       return {
         valid: false,
         resolvedPath: "",
-        reason: error?.message || `Unable to access workspace root: ${resolvedPath}`,
+        reason:
+          error?.message || `Unable to access workspace root: ${resolvedPath}`,
       };
     }
 
@@ -244,6 +255,91 @@ const createRuntimeService = ({ app, dialog, shell, fs, path, getMainWindow }) =
     }
   };
 
+  const showSaveDialog = async ({ defaultPath = "", filters = [] } = {}) => {
+    const mainWindow = getMainWindow();
+    const targetWindow =
+      mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+
+    const dialogResult = await dialog.showSaveDialog(targetWindow, {
+      title: "Export",
+      defaultPath: defaultPath || app.getPath("downloads"),
+      filters:
+        Array.isArray(filters) && filters.length > 0
+          ? filters
+          : [{ name: "JSON Files", extensions: ["json"] }],
+    });
+
+    if (dialogResult.canceled || !dialogResult.filePath) {
+      return { canceled: true, filePath: "" };
+    }
+
+    return { canceled: false, filePath: String(dialogResult.filePath) };
+  };
+
+  const showOpenDialog = async ({ filters = [], properties = [] } = {}) => {
+    const mainWindow = getMainWindow();
+    const targetWindow =
+      mainWindow && !mainWindow.isDestroyed() ? mainWindow : undefined;
+
+    const dialogResult = await dialog.showOpenDialog(targetWindow, {
+      title: "Import",
+      defaultPath: app.getPath("downloads"),
+      filters:
+        Array.isArray(filters) && filters.length > 0
+          ? filters
+          : [{ name: "JSON Files", extensions: ["json"] }],
+      properties:
+        Array.isArray(properties) && properties.length > 0
+          ? properties
+          : ["openFile"],
+    });
+
+    if (
+      dialogResult.canceled ||
+      !Array.isArray(dialogResult.filePaths) ||
+      !dialogResult.filePaths[0]
+    ) {
+      return { canceled: true, filePaths: [] };
+    }
+
+    return {
+      canceled: false,
+      filePaths: dialogResult.filePaths.map(String),
+    };
+  };
+
+  const writeFile = ({ filePath: targetPath = "", content = "" } = {}) => {
+    const p = typeof targetPath === "string" ? targetPath.trim() : "";
+    if (!p) {
+      return { ok: false, error: "no_path" };
+    }
+
+    try {
+      fs.writeFileSync(p, content, "utf-8");
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+  };
+
+  const readFile = ({ filePath: targetPath = "" } = {}) => {
+    const p = typeof targetPath === "string" ? targetPath.trim() : "";
+    if (!p) {
+      return { ok: false, error: "no_path", content: "" };
+    }
+
+    if (!fs.existsSync(p)) {
+      return { ok: false, error: "not_found", content: "" };
+    }
+
+    try {
+      const content = fs.readFileSync(p, "utf-8");
+      return { ok: true, content };
+    } catch (error) {
+      return { ok: false, error: error.message, content: "" };
+    }
+  };
+
   return {
     validateWorkspaceRootPath,
     pickWorkspaceRoot,
@@ -253,6 +349,10 @@ const createRuntimeService = ({ app, dialog, shell, fs, path, getMainWindow }) =
     getRuntimeDirSize,
     deleteRuntimeEntry,
     clearRuntimeDir,
+    showSaveDialog,
+    showOpenDialog,
+    writeFile,
+    readFile,
   };
 };
 

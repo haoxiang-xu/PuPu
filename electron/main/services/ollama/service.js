@@ -1,9 +1,20 @@
 const { CHANNELS } = require("../../../shared/channels");
+const { createPortFinder } = require("../../../shared/port_utils");
 
-const createOllamaService = ({ app, shell, spawn, http, https, fs, path }) => {
+const createOllamaService = ({
+  app,
+  shell,
+  spawn,
+  http,
+  https,
+  fs,
+  path,
+  net,
+}) => {
   let ollamaProcess = null;
   let ollamaStatus = "checking";
   const OLLAMA_BASE_URL = "http://localhost:11434";
+  const { isPortAvailable } = createPortFinder(net);
 
   const requestOllamaJson = (pathname, timeoutMs = 3000) =>
     new Promise((resolve, reject) => {
@@ -33,22 +44,23 @@ const createOllamaService = ({ app, shell, spawn, http, https, fs, path }) => {
     });
 
   const pingOllama = () =>
-    new Promise((resolve) => {
-      const req = http.get(OLLAMA_BASE_URL, (res) => {
-        res.resume();
-        resolve(true);
-      });
-      req.setTimeout(2000, () => {
-        req.destroy();
-        resolve(false);
-      });
-      req.on("error", () => resolve(false));
-    });
+    requestOllamaJson("/api/tags", 2000)
+      .then(() => true)
+      .catch(() => false);
 
   const startOllama = async () => {
     const already = await pingOllama();
     if (already) {
       ollamaStatus = "already_running";
+      return;
+    }
+
+    const portAvailable = await isPortAvailable({
+      host: "127.0.0.1",
+      port: 11434,
+    });
+    if (!portAvailable) {
+      ollamaStatus = "error";
       return;
     }
 
