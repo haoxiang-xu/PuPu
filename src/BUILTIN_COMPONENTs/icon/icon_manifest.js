@@ -1,5 +1,3 @@
-import { upload } from "@testing-library/user-event/dist/upload";
-
 const Add = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
