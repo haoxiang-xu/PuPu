@@ -6,15 +6,15 @@
     A desktop AI client for local and cloud models, with workspace-aware chat in one clean app.
   </p>
   <p>
-    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest">
+    <a href="#macos">
       <img src="./public/assets/download_mac.svg" alt="Download for Mac" />
     </a>
     &nbsp;&nbsp;
-    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest">
+    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.1.exe">
       <img src="./public/assets/download_windows.svg" alt="Download for Windows" />
     </a>
     &nbsp;&nbsp;
-    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest">
+    <a href="#linux">
       <img src="./public/assets/download_linux.svg" alt="Download for Linux" />
     </a>
   </p>
@@ -41,30 +41,30 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 
 Download the latest release:
 
-- [macOS](https://github.com/haoxiang-xu/PuPu/releases/latest)
-- [Windows](https://github.com/haoxiang-xu/PuPu/releases/latest)
-- [Linux](https://github.com/haoxiang-xu/PuPu/releases/latest)
+- [macOS (Apple Silicon)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-arm64.dmg) · [macOS (Intel)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-intel.dmg)
+- [Windows](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.1.exe)
+- [Linux (.AppImage)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1.AppImage) · [Linux (.deb)](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.1.deb)
 
 ### Windows
 
-1. Download the latest `.exe` installer from the [latest release page](https://github.com/haoxiang-xu/PuPu/releases/latest).
+1. Download the latest [`.exe` installer](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.1.exe).
 2. Run the installer.
 3. Launch PuPu from the Start menu.
 
 ### macOS
 
-1. Download the latest `.dmg` from the [latest release page](https://github.com/haoxiang-xu/PuPu/releases/latest).
+1. Download the latest `.dmg`: [Apple Silicon](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-arm64.dmg) · [Intel](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1-intel.dmg).
 2. Open the disk image.
 3. Drag PuPu into `Applications`.
 4. Launch PuPu from `Applications`.
 
 ### Linux
 
-1. Download the latest `.deb` or `.AppImage` from the [latest release page](https://github.com/haoxiang-xu/PuPu/releases/latest).
+1. Download the latest [`.AppImage`](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.1.AppImage) or [`.deb`](https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.1.deb).
 2. If you use the `.deb`, install it with:
 
 ```bash
-sudo apt install ./PuPu-<version>.deb
+sudo apt install ./PuPu_0.1.1.deb
 ```
 
 3. If your system reports a Chromium sandbox permission error, run:
