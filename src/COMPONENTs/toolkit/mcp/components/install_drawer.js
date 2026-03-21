@@ -1,8 +1,8 @@
 import { useState, useCallback, useMemo } from "react";
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
 import Timeline from "../../../../BUILTIN_COMPONENTs/timeline_v2/timeline";
+import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import {
-  PrimaryButton,
   FormField,
   FormInput,
   SectionLabel,
@@ -35,8 +35,21 @@ const InstallDrawer = ({
   const [testResult, setTestResult] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const profiles = entry?.install_profiles || [];
+  const profiles = useMemo(() => entry?.install_profiles || [], [entry]);
   const activeProfile = selectedProfile || profiles[0];
+
+  const buildProfileConfig = useCallback((profile) => {
+    const defaults = profile?.default_values || {};
+    const nextConfig = {};
+    (profile?.fields || []).forEach((field) => {
+      if (defaults[field.name] !== undefined) {
+        nextConfig[field.name] = Array.isArray(defaults[field.name])
+          ? defaults[field.name].join(" ")
+          : defaults[field.name];
+      }
+    });
+    return nextConfig;
+  }, []);
 
   const timelineItems = useMemo(
     () =>
@@ -51,21 +64,10 @@ const InstallDrawer = ({
   /* ── Handlers ── */
   const handleSelectProfile = useCallback((p) => {
     setSelectedProfile(p);
-    // Pre-fill defaults
-    const defaults = p.default_values || {};
-    const newConfig = {};
-    (p.fields || []).forEach((f) => {
-      if (defaults[f.name] !== undefined) {
-        newConfig[f.name] = Array.isArray(defaults[f.name])
-          ? defaults[f.name].join(" ")
-          : defaults[f.name];
-      }
-    });
-    setConfig(newConfig);
+    setConfig(buildProfileConfig(p));
     setSecrets({});
     setTestResult(null);
-    setStep(1);
-  }, []);
+  }, [buildProfileConfig]);
 
   const handleConfigChange = useCallback((fieldName, value) => {
     setConfig((prev) => ({ ...prev, [fieldName]: value }));
@@ -99,6 +101,156 @@ const InstallDrawer = ({
 
   const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.8)";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const activeAccent = "rgba(10,186,181,1)";
+  const shellBorder = isDark
+    ? "rgba(255,255,255,0.06)"
+    : "rgba(0,0,0,0.05)";
+
+  const canAdvanceFromConfig = useMemo(() => {
+    if (!activeProfile) return false;
+    const hasRequiredFields = (activeProfile.fields || []).every((field) => {
+      if (!field.required) return true;
+      return String(config[field.name] || "").trim().length > 0;
+    });
+    const hasRequiredSecrets = (activeProfile.requires_secrets || []).every(
+      (secretName) => String(secrets[secretName] || "").trim().length > 0,
+    );
+    return hasRequiredFields && hasRequiredSecrets;
+  }, [activeProfile, config, secrets]);
+
+  const isBusy = testing || saving;
+  const canGoNext =
+    !isBusy &&
+    ((step === 0 && Boolean(activeProfile)) ||
+      (step === 1 && canAdvanceFromConfig));
+
+  const handlePrev = useCallback(() => {
+    if (isBusy) return;
+    if (step === 0) {
+      onClose?.();
+      return;
+    }
+    setTestResult(null);
+    setStep((current) => Math.max(0, current - 1));
+  }, [isBusy, onClose, step]);
+
+  const handleNext = useCallback(() => {
+    if (!canGoNext) return;
+
+    if (step === 0) {
+      const profile = activeProfile || profiles[0];
+      if (!profile) return;
+      if (!selectedProfile || selectedProfile.id !== profile.id) {
+        setSelectedProfile(profile);
+        setConfig(buildProfileConfig(profile));
+        setSecrets({});
+      }
+      setTestResult(null);
+      setStep(1);
+      return;
+    }
+
+    if (step === 1) {
+      setTestResult(null);
+      setStep(2);
+    }
+  }, [
+    activeProfile,
+    buildProfileConfig,
+    canGoNext,
+    profiles,
+    selectedProfile,
+    step,
+  ]);
+
+  const arrowButtonStyle = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.68)",
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    root: {
+      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+    },
+    hoverBackgroundColor: isDark
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(0,0,0,0.07)",
+    activeBackgroundColor: isDark
+      ? "rgba(255,255,255,0.12)"
+      : "rgba(0,0,0,0.1)",
+    content: {
+      icon: { width: 14, height: 14 },
+      prefixIconWrap: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
+      },
+    },
+  };
+
+  const ghostButtonStyle = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: isDark ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.7)",
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    gap: 6,
+    root: {
+      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+    },
+    hoverBackgroundColor: isDark
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(0,0,0,0.07)",
+    activeBackgroundColor: isDark
+      ? "rgba(255,255,255,0.12)"
+      : "rgba(0,0,0,0.1)",
+    content: { icon: { width: 14, height: 14 } },
+  };
+
+  const successButtonStyle = {
+    ...ghostButtonStyle,
+    color: "#34d399",
+    root: {
+      background: isDark ? "rgba(52,211,153,0.12)" : "rgba(52,211,153,0.1)",
+    },
+    hoverBackgroundColor: isDark
+      ? "rgba(52,211,153,0.16)"
+      : "rgba(52,211,153,0.14)",
+    activeBackgroundColor: isDark
+      ? "rgba(52,211,153,0.22)"
+      : "rgba(52,211,153,0.18)",
+    content: { icon: { width: 14, height: 14 } },
+  };
+
+  const topBackButtonStyle = {
+    fontSize: 12,
+    fontWeight: 500,
+    color: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.68)",
+    paddingVertical: 5,
+    paddingHorizontal: 5,
+    borderRadius: 8,
+    root: {
+      background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+    },
+    hoverBackgroundColor: isDark
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(0,0,0,0.07)",
+    activeBackgroundColor: isDark
+      ? "rgba(255,255,255,0.12)"
+      : "rgba(0,0,0,0.1)",
+    content: {
+      icon: { width: 14, height: 14 },
+      prefixIconWrap: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        lineHeight: 0,
+      },
+    },
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
@@ -107,45 +259,25 @@ const InstallDrawer = ({
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 8,
+          justifyContent: "space-between",
+          gap: 12,
           marginBottom: 12,
           flexShrink: 0,
         }}
       >
-        {step > 0 && (
-          <button
-            onClick={() => {
-              setStep((s) => s - 1);
-              setTestResult(null);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              border: "none",
-              background: isDark
-                ? "rgba(255,255,255,0.06)"
-                : "rgba(0,0,0,0.04)",
-              cursor: "pointer",
-              flexShrink: 0,
-            }}
-          >
-            <Icon
-              src="arrow_left"
-              style={{ width: 16, height: 16 }}
-              color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
-            />
-          </button>
-        )}
+        <Button
+          prefix_icon="arrow_left"
+          onClick={onClose}
+          disabled={isBusy}
+          style={topBackButtonStyle}
+        />
         <span
           style={{
             fontSize: 14,
             fontFamily: "Jost",
             fontWeight: 600,
             color: textColor,
+            flex: 1,
           }}
         >
           {entry?.name || "Install Server"}
@@ -186,12 +318,19 @@ const InstallDrawer = ({
                 key={p.id}
                 onClick={() => handleSelectProfile(p)}
                 style={{
+                  border:
+                    activeProfile?.id === p.id
+                      ? `1px solid ${isDark ? "rgba(10,186,181,0.45)" : "rgba(10,186,181,0.28)"}`
+                      : `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`,
                   padding: "12px 14px",
                   borderRadius: 10,
-                  border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)"}`,
                   background: isDark
-                    ? "rgba(255,255,255,0.02)"
-                    : "rgba(0,0,0,0.01)",
+                    ? activeProfile?.id === p.id
+                      ? "rgba(10,186,181,0.08)"
+                      : "rgba(255,255,255,0.02)"
+                    : activeProfile?.id === p.id
+                      ? "rgba(10,186,181,0.05)"
+                      : "rgba(0,0,0,0.01)",
                   cursor: "pointer",
                   display: "flex",
                   flexDirection: "column",
@@ -316,13 +455,6 @@ const InstallDrawer = ({
               </>
             )}
 
-            <div style={{ marginTop: 8 }}>
-              <PrimaryButton
-                label="Continue to Review"
-                icon="arrow_right"
-                onClick={() => setStep(2)}
-              />
-            </div>
           </>
         )}
 
@@ -423,28 +555,79 @@ const InstallDrawer = ({
               Connection Test
             </SectionLabel>
             <TestResult result={testResult} testing={testing} isDark={isDark} />
-
-            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-              <PrimaryButton
-                label={testing ? "Testing..." : "Test Connection"}
-                icon="play"
-                onClick={handleTest}
-                loading={testing}
-                disabled={testing}
-              />
-              {testResult?.status === "success" && (
-                <PrimaryButton
-                  label={saving ? "Saving..." : "Enable Server"}
-                  icon="check"
-                  onClick={handleSave}
-                  loading={saving}
-                  disabled={saving || entry?.revoked}
-                  style={{ background: "rgba(52,211,153,0.8)" }}
-                />
-              )}
-            </div>
           </>
         )}
+      </div>
+
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+          gap: 8,
+          padding: "12px 0 16px",
+          marginTop: 12,
+          borderTop: `1px solid ${shellBorder}`,
+          flexShrink: 0,
+        }}
+      >
+        {step === 2 && (
+          <>
+            <Button
+              prefix_icon="play"
+              label={testing ? "Testing..." : "Test Connection"}
+              onClick={handleTest}
+              disabled={testing}
+              style={ghostButtonStyle}
+            />
+            {testResult?.status === "success" && (
+              <Button
+                prefix_icon="check"
+                label={saving ? "Saving..." : "Enable Server"}
+                onClick={handleSave}
+                disabled={saving || entry?.revoked}
+                style={successButtonStyle}
+              />
+            )}
+          </>
+        )}
+
+        <Button
+          prefix_icon="arrow_left"
+          onClick={handlePrev}
+          disabled={isBusy}
+          style={arrowButtonStyle}
+        />
+        <Button
+          prefix_icon="arrow_right"
+          onClick={handleNext}
+          disabled={!canGoNext}
+          style={{
+            ...arrowButtonStyle,
+            color: canGoNext
+              ? activeAccent
+              : arrowButtonStyle.color,
+            root: {
+              background: canGoNext
+                ? isDark
+                  ? "rgba(10,186,181,0.12)"
+                  : "rgba(10,186,181,0.08)"
+                : isDark
+                  ? "rgba(255,255,255,0.05)"
+                  : "rgba(0,0,0,0.04)",
+            },
+            hoverBackgroundColor: canGoNext
+              ? isDark
+                ? "rgba(10,186,181,0.16)"
+                : "rgba(10,186,181,0.12)"
+              : arrowButtonStyle.hoverBackgroundColor,
+            activeBackgroundColor: canGoNext
+              ? isDark
+                ? "rgba(10,186,181,0.22)"
+                : "rgba(10,186,181,0.16)"
+              : arrowButtonStyle.activeBackgroundColor,
+          }}
+        />
       </div>
     </div>
   );

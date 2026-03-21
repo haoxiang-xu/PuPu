@@ -58,7 +58,7 @@ const GitHubImportPage = ({ isDark }) => {
           isDark={isDark}
           placeholder="https://github.com/owner/repo"
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={setUrl}
         />
       </FormField>
 

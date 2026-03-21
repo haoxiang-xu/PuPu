@@ -4,9 +4,7 @@ import ToolkitIcon, {
 } from "./toolkit_icon";
 import { SOURCE_CONFIG } from "../constants";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import Card from "../../../BUILTIN_COMPONENTs/card/card";
-import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 
 const toDisplayName = (toolkit) => {
@@ -26,7 +24,6 @@ const ToolkitRow = ({
   isDark,
   isBuiltin,
   onToggleEnabled,
-  onDelete,
   onClick,
 }) => {
   const displayName = toDisplayName(toolkit);
@@ -195,25 +192,6 @@ const ToolkitRow = ({
                 style={{ width: 56, height: 28 }}
               />
             </Tooltip>
-            <Button
-              prefix_icon="delete"
-              onClick={() => onDelete?.(toolkit.toolkitId)}
-              style={{
-                paddingVertical: 6,
-                paddingHorizontal: 6,
-                borderRadius: 7,
-                opacity: 0.45,
-                content: {
-                  prefixIconWrap: {
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    lineHeight: 0,
-                  },
-                  icon: { width: 14, height: 14 },
-                },
-              }}
-            />
           </div>
         )}
       </Card>

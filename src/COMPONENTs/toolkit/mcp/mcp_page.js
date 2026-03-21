@@ -138,68 +138,34 @@ const McpPage = ({ isDark }) => {
 
         {/* ── Install drawer slide-in ── */}
         {drawerMounted && drawerEntry && (
-          <>
-            {/* Back button — outside the sliding panel */}
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                left: 8,
-                zIndex: 4,
-                opacity: drawerVisible ? 1 : 0,
-                transition: `opacity ${SLIDE_DURATION}ms ease`,
-                pointerEvents: drawerVisible ? "auto" : "none",
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "100%",
+              backgroundColor: panelBg,
+              zIndex: 3,
+              transform: drawerVisible ? "translateX(0)" : "translateX(100%)",
+              transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+              padding: "24px 24px 0",
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <InstallDrawer
+              catalogEntry={drawerEntry}
+              isDark={isDark}
+              onBack={closeDrawer}
+              onComplete={() => {
+                closeDrawer();
+                setActiveTab("installed");
               }}
-            >
-              <Button
-                prefix_icon="arrow_left"
-                onClick={closeDrawer}
-                style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 4,
-                  borderRadius: 6,
-                  opacity: 0.55,
-                  content: {
-                    prefixIconWrap: {
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      lineHeight: 0,
-                    },
-                    icon: { width: 14, height: 14 },
-                  },
-                }}
-              />
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                bottom: 0,
-                width: "100%",
-                backgroundColor: panelBg,
-                zIndex: 3,
-                transform: drawerVisible ? "translateX(0)" : "translateX(100%)",
-                transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
-                padding: "40px 40px 0",
-                boxSizing: "border-box",
-                display: "flex",
-                flexDirection: "column",
-                overflow: "hidden",
-              }}
-            >
-              <InstallDrawer
-                catalogEntry={drawerEntry}
-                isDark={isDark}
-                onBack={closeDrawer}
-                onComplete={() => {
-                  closeDrawer();
-                  setActiveTab("installed");
-                }}
-              />
-            </div>
-          </>
+            />
+          </div>
         )}
       </div>
     </div>

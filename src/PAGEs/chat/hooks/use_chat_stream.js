@@ -4,8 +4,12 @@ import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage"
 import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
 import { createLogger } from "../../../SERVICEs/console_logger";
 import { createThinkTagParser } from "../think_tag_parser";
-import { collectTurnMessageIds, settleStreamingAssistantMessages } from "../utils/chat_turn_utils";
+import {
+  collectTurnMessageIds,
+  settleStreamingAssistantMessages,
+} from "../utils/chat_turn_utils";
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
+import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 
 const STREAM_TRACE_LEVEL = "minimal";
 const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
@@ -28,7 +32,10 @@ const getTraceFrameIteration = (frame) => {
   return Number.isFinite(payloadIteration) ? payloadIteration : 0;
 };
 
-const misoLogger = createLogger("MISO", "src/PAGEs/chat/hooks/use_chat_stream.js");
+const misoLogger = createLogger(
+  "MISO",
+  "src/PAGEs/chat/hooks/use_chat_stream.js",
+);
 
 export const useChatStream = ({
   chatId,
@@ -87,8 +94,7 @@ export const useChatStream = ({
 
   const findToolCallFrameByCallId = useCallback(
     (callId) => {
-      const normalizedCallId =
-        typeof callId === "string" ? callId.trim() : "";
+      const normalizedCallId = typeof callId === "string" ? callId.trim() : "";
       if (!normalizedCallId) {
         return null;
       }
@@ -123,7 +129,9 @@ export const useChatStream = ({
   }, [toolConfirmationUiStateById]);
 
   const isStreaming = streamingChatId === chatId;
-  const hasBackgroundStream = Boolean(streamingChatId && streamingChatId !== chatId);
+  const hasBackgroundStream = Boolean(
+    streamingChatId && streamingChatId !== chatId,
+  );
 
   const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
     const controller = activeTokenFlushControllerRef.current;
@@ -649,7 +657,9 @@ export const useChatStream = ({
       historyOverride = null,
     }) => {
       const trimmedText = typeof text === "string" ? text.trim() : "";
-      const normalizedAttachments = Array.isArray(attachments) ? attachments : [];
+      const normalizedAttachments = Array.isArray(attachments)
+        ? attachments
+        : [];
       const hasAttachments = normalizedAttachments.length > 0;
       const promptText =
         trimmedText ||
@@ -1244,6 +1254,50 @@ export const useChatStream = ({
                           },
                         },
                   );
+
+                  /* ── Auto-approve: if this tool is auto-approved, respond immediately ── */
+                  if (
+                    toolName !== HUMAN_INPUT_TOOL_NAME &&
+                    isToolAutoApproved(toolName)
+                  ) {
+                    const autoPayload = {
+                      confirmation_id: confirmationId,
+                      approved: true,
+                      reason: "",
+                    };
+                    api.miso
+                      .respondToolConfirmation(autoPayload)
+                      .then(() => {
+                        if (
+                          confirmationFollowupSignalByIdRef.current.get(
+                            confirmationId,
+                          ) !== true
+                        ) {
+                          confirmationFollowupSignalByIdRef.current.set(
+                            confirmationId,
+                            false,
+                          );
+                        }
+                        clearConfirmationResolutionTimer(confirmationId);
+                        appendSyntheticToolConfirmationDecision({
+                          confirmationId,
+                          approved: true,
+                        });
+                        updateToolConfirmationUiState((prev) => ({
+                          ...prev,
+                          [confirmationId]: {
+                            ...(prev[confirmationId] || {}),
+                            status: "submitted",
+                            error: "",
+                            resolved: true,
+                            decision: "approved",
+                          },
+                        }));
+                      })
+                      .catch(() => {
+                        /* silent — user can still manually approve */
+                      });
+                  }
                 }
               } else if (
                 frame.type === "tool_confirmed" ||
@@ -1328,7 +1382,8 @@ export const useChatStream = ({
                       (traceFrame) =>
                         traceFrame.type === "final_message" &&
                         typeof traceFrame.payload?.content === "string" &&
-                        traceFrame.payload.content.trim() === currentContentTrimmed,
+                        traceFrame.payload.content.trim() ===
+                          currentContentTrimmed,
                     );
 
                   const syntheticFrame = alreadyCaptured
@@ -1849,7 +1904,10 @@ export const useChatStream = ({
         return;
       }
 
-      const turnMessageIds = collectTurnMessageIds(messagesRef.current, message.id);
+      const turnMessageIds = collectTurnMessageIds(
+        messagesRef.current,
+        message.id,
+      );
       if (turnMessageIds.size === 0) {
         return;
       }

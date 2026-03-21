@@ -107,7 +107,7 @@ const ClaudeImportPage = ({ isDark }) => {
               isDark={isDark}
               placeholder='{ "mcpServers": { ... } }'
               value={jsonText}
-              onChange={(e) => setJsonText(e.target.value)}
+              onChange={setJsonText}
               rows={8}
             />
           </FormField>

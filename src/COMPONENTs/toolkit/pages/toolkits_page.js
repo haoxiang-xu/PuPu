@@ -3,6 +3,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import ToolkitStorePage from "./toolkit_store_page";
 import ToolkitInstalledPage from "./toolkit_installed_page";
 import ToolkitDetailPanel from "../components/toolkit_detail_panel";
+import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 
 const SLIDE_DURATION = 260;
 
@@ -13,6 +14,12 @@ const TOOLKIT_SUB_PAGES = [
 
 const ToolkitsPage = ({ isDark }) => {
   const [activeTab, setActiveTab] = useState("installed");
+
+  /* ── Handlers from ToolkitInstalledPage ── */
+  const installedHandlersRef = useRef(null);
+  const handleHandlersReady = useCallback((handlers) => {
+    installedHandlersRef.current = handlers;
+  }, []);
 
   /* ── Detail slide-in state ── */
   const [selectedToolkit, setSelectedToolkit] = useState(null);
@@ -100,7 +107,11 @@ const ToolkitsPage = ({ isDark }) => {
         return <ToolkitStorePage isDark={isDark} />;
       case "installed":
         return (
-          <ToolkitInstalledPage isDark={isDark} onToolClick={handleToolClick} />
+          <ToolkitInstalledPage
+            isDark={isDark}
+            onToolClick={handleToolClick}
+            onHandlersReady={handleHandlersReady}
+          />
         );
       default:
         return null;
@@ -141,65 +152,54 @@ const ToolkitsPage = ({ isDark }) => {
 
         {/* ── Detail panel overlay ── */}
         {detailMounted && selectedToolkit && (
-          <>
-            {/* Back button — outside the sliding panel */}
-            <div
-              style={{
-                position: "absolute",
-                top: 8,
-                left: 8,
-                zIndex: 4,
-                opacity: detailVisible ? 1 : 0,
-                transition: `opacity ${SLIDE_DURATION}ms ease`,
-                pointerEvents: detailVisible ? "auto" : "none",
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              bottom: 0,
+              width: "100%",
+              backgroundColor: panelBg,
+              zIndex: 3,
+              transform: detailVisible ? "translateX(0)" : "translateX(100%)",
+              transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+              padding: "16px 0 0 24px",
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
+            }}
+          >
+            <ToolkitDetailPanel
+              toolkitId={selectedToolkit.toolkitId}
+              toolName={selectedToolkit.toolName}
+              tools={selectedToolkit.toolkit?.tools}
+              isDark={isDark}
+              isBuiltin={isBuiltinToolkit(selectedToolkit.toolkit)}
+              defaultEnabled={Boolean(
+                selectedToolkit.toolkit?.defaultEnabled,
+              )}
+              onToggleEnabled={(id, val) => {
+                installedHandlersRef.current?.handleToggleEnabled?.(id, val);
+                setSelectedToolkit((prev) =>
+                  prev
+                    ? {
+                        ...prev,
+                        toolkit: {
+                          ...prev.toolkit,
+                          defaultEnabled: val,
+                        },
+                      }
+                    : prev,
+                );
               }}
-            >
-              <Button
-                prefix_icon="arrow_left"
-                onClick={closeDetail}
-                style={{
-                  paddingVertical: 4,
-                  paddingHorizontal: 4,
-                  borderRadius: 6,
-                  opacity: 0.55,
-                  content: {
-                    prefixIconWrap: {
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      lineHeight: 0,
-                    },
-                    icon: { width: 14, height: 14 },
-                  },
-                }}
-              />
-            </div>
-            <div
-              style={{
-                position: "absolute",
-                top: 0,
-                right: 0,
-                bottom: 0,
-                width: "100%",
-                backgroundColor: panelBg,
-                zIndex: 3,
-                transform: detailVisible ? "translateX(0)" : "translateX(100%)",
-                transition: `transform ${SLIDE_DURATION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
-                padding: "36px 16px 0",
-                boxSizing: "border-box",
-                display: "flex",
-                flexDirection: "column",
+              onDelete={(id) => {
+                installedHandlersRef.current?.handleDelete?.(id);
+                closeDetail();
               }}
-            >
-              <ToolkitDetailPanel
-                toolkitId={selectedToolkit.toolkitId}
-                toolName={selectedToolkit.toolName}
-                tools={selectedToolkit.toolkit?.tools}
-                isDark={isDark}
-                onBack={closeDetail}
-              />
-            </div>
-          </>
+              onBack={closeDetail}
+            />
+          </div>
         )}
       </div>
     </div>

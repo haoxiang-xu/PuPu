@@ -42,7 +42,7 @@ const CatalogPage = ({ isDark, onInstall }) => {
         isDark={isDark}
         placeholder="Search servers..."
         value={search}
-        onChange={(e) => setSearch(e.target.value)}
+        onChange={setSearch}
       />
 
       {/* ── Loading ── */}

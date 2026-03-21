@@ -1,4 +1,5 @@
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
+import { Input } from "../../../../BUILTIN_COMPONENTs/input/input";
 import {
   STATUS_CONFIG,
   SOURCE_KIND_CONFIG,
@@ -248,25 +249,20 @@ export const FormInput = ({
   disabled,
   style,
 }) => (
-  <input
+  <Input
     type={type || "text"}
     value={value}
-    onChange={(e) => onChange(e.target.value)}
+    set_value={(nextValue, event) => onChange?.(nextValue, event)}
     placeholder={placeholder}
     disabled={disabled}
     style={{
       width: "100%",
-      padding: "7px 10px",
       fontSize: 13,
       fontFamily: "Jost",
-      border: `1px solid ${
-        isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-      }`,
       borderRadius: 7,
-      background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
       color: isDark ? "#fff" : "#222",
-      outline: "none",
-      boxSizing: "border-box",
+      paddingVertical: 7,
+      paddingHorizontal: 10,
       ...style,
     }}
   />

@@ -789,7 +789,9 @@ const TimelineSteps = ({
 
   /* ── Horizontal steps ── */
   return (
-    <div style={{ display: "flex", flexDirection: "column" }}>
+    <div
+      style={{ display: "flex", flexDirection: "column", width: "100%", minWidth: 0 }}
+    >
       {/* ══ Rail + dots row ═══════════════════════════════════════════════════ */}
       <div
         style={{
@@ -798,6 +800,8 @@ const TimelineSteps = ({
           flexDirection: "row",
           alignItems: "center",
           height: metrics.railRowH,
+          width: "100%",
+          minWidth: 0,
         }}
       >
         {/* background rail */}
@@ -864,6 +868,8 @@ const TimelineSteps = ({
           display: "flex",
           flexDirection: "row",
           marginTop: compact ? 6 : 8,
+          width: "100%",
+          minWidth: 0,
         }}
       >
         {items.map((item, i) => {
@@ -1033,7 +1039,7 @@ const Timeline = ({
     const stepsItems = visibleItems.map(({ item }) => item);
     if (!stepsItems.length) return null;
     return (
-      <div style={{ ...style }}>
+      <div style={{ width: "100%", minWidth: 0, ...style }}>
         <TimelineSteps
           items={stepsItems}
           current_step={current_step}

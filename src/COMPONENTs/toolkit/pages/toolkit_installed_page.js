@@ -10,6 +10,7 @@ import ToolkitRow from "../components/toolkit_row";
 import LoadingDots from "../components/loading_dots";
 import PlaceholderBlock from "../components/placeholder_block";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 
 const isBaseById = (toolkitId) => {
   if (!toolkitId) return false;
@@ -22,10 +23,7 @@ const isBaseById = (toolkitId) => {
   );
 };
 
-const isBuiltinToolkit = (tk) =>
-  String(tk?.kind || "").toLowerCase() === "builtin";
-
-const ToolkitInstalledPage = ({ isDark, onToolClick }) => {
+const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
   const [loading, setLoading] = useState(true);
   const [toolkits, setToolkits] = useState([]);
   const [error, setError] = useState(null);
@@ -82,6 +80,11 @@ const ToolkitInstalledPage = ({ isDark, onToolClick }) => {
   const handleDelete = useCallback((toolkitId) => {
     // TODO: implement actual toolkit deletion when backend supports it
   }, []);
+
+  /* Expose handlers so parent (detail panel) can call them */
+  useEffect(() => {
+    onHandlersReady?.({ handleToggleEnabled, handleDelete });
+  }, [onHandlersReady, handleToggleEnabled, handleDelete]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -185,7 +188,6 @@ const ToolkitInstalledPage = ({ isDark, onToolClick }) => {
           isDark={isDark}
           isBuiltin={isBuiltinToolkit(tk)}
           onToggleEnabled={handleToggleEnabled}
-          onDelete={handleDelete}
           onClick={(toolkitId) => onToolClick?.(toolkitId, null, tk)}
         />
       ))}

@@ -45,8 +45,8 @@ const ManualPage = ({ isDark }) => {
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
   const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.8)";
 
-  const set = (key) => (e) =>
-    setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  const set = (key) => (value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
   const handleSubmit = useCallback(async () => {
     setLoading(true);

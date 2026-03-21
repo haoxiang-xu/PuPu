@@ -20,6 +20,7 @@ jest.mock("./toolkit_icon", () => ({
   __esModule: true,
   default: ({ icon }) => <span data-testid="toolkit-icon">{icon?.type || "fallback"}</span>,
   isBuiltinToolkitIcon: (icon) => icon?.type === "builtin",
+  isFileToolkitIcon: (icon) => icon?.type === "file",
 }));
 
 jest.mock("./loading_dots", () => ({
@@ -72,9 +73,9 @@ describe("ToolkitDetailPanel", () => {
 
     expect(screen.getByTestId("toolkit-detail-icon-wrap")).toHaveStyle({
       backgroundColor: "#bae6fd",
-      width: "32px",
-      height: "32px",
-      borderRadius: "9px",
+      width: "48px",
+      height: "48px",
+      borderRadius: "12px",
     });
   });
 });
