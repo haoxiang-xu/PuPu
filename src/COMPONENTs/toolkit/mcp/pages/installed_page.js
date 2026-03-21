@@ -124,7 +124,7 @@ const InstalledPage = ({ isDark }) => {
           {/* Inline test result when testing this server */}
           {testingId === s.instance_id && (
             <div style={{ padding: "0 8px" }}>
-              <TestResult result={null} isDark={isDark} />
+              <TestResult result={null} testing isDark={isDark} />
             </div>
           )}
           {testResult &&

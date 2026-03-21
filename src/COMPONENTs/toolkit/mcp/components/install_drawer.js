@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo } from "react";
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
-import Timeline from "../../../../BUILTIN_COMPONENTs/timeline/timeline";
+import Timeline from "../../../../BUILTIN_COMPONENTs/timeline_v2/timeline";
 import {
   PrimaryButton,
   FormField,
@@ -152,7 +152,17 @@ const InstallDrawer = ({
         </span>
       </div>
 
-      <Timeline items={timelineItems} style={{ marginBottom: 16 }} />
+      <Timeline
+        items={timelineItems}
+        mode="steps"
+        direction="horizontal"
+        current_step={step}
+        compact
+        inactive_hollow
+        disconnect_line
+        disconnect_gap={8}
+        style={{ marginBottom: 16 }}
+      />
 
       {/* ── Content ── */}
       <div

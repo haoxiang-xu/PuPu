@@ -1,131 +1,132 @@
+import { useMemo } from "react";
 import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
+import Timeline from "../../../../BUILTIN_COMPONENTs/timeline_v2/timeline";
 import { TEST_PHASES, ERROR_LABELS } from "../constants";
 
 const phaseIndex = (phase) => TEST_PHASES.findIndex((p) => p.key === phase);
 
+const TestPhasePoint = ({ variant }) => {
+  const palette = {
+    active: {
+      bg: "#fbbf24",
+      border: "#fbbf24",
+      icon: null,
+      pulse: true,
+    },
+    failed: {
+      bg: "#f87171",
+      border: "#f87171",
+      icon: "close",
+      pulse: false,
+    },
+    success: {
+      bg: "#34d399",
+      border: "#34d399",
+      icon: "check",
+      pulse: false,
+    },
+  };
+  const cfg = palette[variant] || palette.active;
+
+  return (
+    <div
+      style={{
+        width: 10,
+        height: 10,
+        borderRadius: "50%",
+        background: cfg.bg,
+        border: `1px solid ${cfg.border}`,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxSizing: "border-box",
+      }}
+    >
+      {cfg.icon ? (
+        <Icon src={cfg.icon} style={{ width: 6, height: 6 }} color="#fff" />
+      ) : cfg.pulse ? (
+        <div
+          style={{
+            width: 4,
+            height: 4,
+            borderRadius: "50%",
+            background: "#fff",
+            animation: "mcp-pulse 1s ease-in-out infinite",
+          }}
+        />
+      ) : null}
+    </div>
+  );
+};
+
 const TestResult = ({ result, testing, isDark }) => {
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const currentIdx = result ? phaseIndex(result.phase) : -1;
+
+  const currentStep = useMemo(() => {
+    if (testing) {
+      return Math.min(Math.max(currentIdx + 1, 0), TEST_PHASES.length - 1);
+    }
+    if (currentIdx >= 0) {
+      return currentIdx;
+    }
+    return 0;
+  }, [currentIdx, testing]);
+
+  const timelineItems = useMemo(
+    () =>
+      TEST_PHASES.map((phase, i) => {
+        const isFailed = result?.status === "failed" && i === currentIdx;
+        const isActive = testing && i === currentStep;
+        const isSuccess = result?.status === "success" && i === currentIdx;
+        const isPast = i < currentStep || isSuccess;
+
+        return {
+          title: (
+            <span
+              style={{
+                fontSize: 10,
+                fontFamily: "Jost",
+                fontWeight: 500,
+                lineHeight: "14px",
+                color: isFailed ? "#f87171" : isPast ? "#34d399" : mutedColor,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {phase.label}
+            </span>
+          ),
+          point: isFailed ? (
+            <TestPhasePoint variant="failed" />
+          ) : isActive ? (
+            <TestPhasePoint variant="active" />
+          ) : isSuccess ? (
+            <TestPhasePoint variant="success" />
+          ) : undefined,
+        };
+      }),
+    [currentIdx, currentStep, mutedColor, result?.status, testing],
+  );
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* ── Phase progress ── */}
-      <div style={{ display: "flex", alignItems: "center", gap: 0 }}>
-        {TEST_PHASES.map((phase, i) => {
-          const currentIdx = result ? phaseIndex(result.phase) : -1;
-          const isActive = testing && i === currentIdx + 1;
-          const isPast = result ? i <= currentIdx : false;
-          const isFailed = result?.status === "failed" && i === currentIdx;
-
-          let dotColor = mutedColor;
-          if (isPast && !isFailed) {
-            dotColor = "#34d399";
-          }
-          if (isFailed) {
-            dotColor = "#f87171";
-          }
-          if (isActive) {
-            dotColor = "#fbbf24";
-          }
-
-          return (
-            <div
-              key={phase.key}
-              style={{
-                flex: 1,
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                gap: 6,
-                position: "relative",
-              }}
-            >
-              {/* ── Connector line ── */}
-              {i > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: "50%",
-                    left: "-50%",
-                    height: 2,
-                    borderRadius: 1,
-                    background:
-                      isPast && !isFailed
-                        ? "#34d399"
-                        : isDark
-                          ? "rgba(255,255,255,0.08)"
-                          : "rgba(0,0,0,0.06)",
-                    zIndex: 0,
-                  }}
-                />
-              )}
-              {/* ── Dot ── */}
-              <div
-                style={{
-                  width: 14,
-                  height: 14,
-                  borderRadius: "50%",
-                  background: dotColor,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  zIndex: 1,
-                  transition: "background 0.3s ease",
-                }}
-              >
-                {isPast && !isFailed && (
-                  <Icon
-                    src="check"
-                    style={{ width: 9, height: 9 }}
-                    color="#fff"
-                  />
-                )}
-                {isFailed && (
-                  <Icon
-                    src="close"
-                    style={{ width: 9, height: 9 }}
-                    color="#fff"
-                  />
-                )}
-                {isActive && (
-                  <div
-                    style={{
-                      width: 6,
-                      height: 6,
-                      borderRadius: "50%",
-                      background: "#fff",
-                      animation: "mcp-pulse 1s ease-in-out infinite",
-                    }}
-                  />
-                )}
-              </div>
-              {/* ── Label ── */}
-              <span
-                style={{
-                  fontSize: 10,
-                  fontFamily: "Jost",
-                  fontWeight: 500,
-                  color: isPast
-                    ? isFailed
-                      ? "#f87171"
-                      : "#34d399"
-                    : mutedColor,
-                  textAlign: "center",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {phase.label}
-              </span>
-            </div>
-          );
-        })}
-        <style>{`
-          @keyframes mcp-pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-          }
-        `}</style>
-      </div>
+      <Timeline
+        items={timelineItems}
+        mode="steps"
+        direction="horizontal"
+        current_step={currentStep}
+        compact
+        inactive_hollow
+        disconnect_line
+        disconnect_gap={8}
+      />
+      <style>{`
+        @keyframes mcp-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
 
       {/* ── Result details ── */}
       {result && (
