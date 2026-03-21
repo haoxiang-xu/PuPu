@@ -1,3 +1,5 @@
+import { upload } from "@testing-library/user-event/dist/upload";
+
 const Add = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -258,6 +260,15 @@ const DeleteInput = (props) => (
     fill="currentColor"
   >
     <path d="M6.53451 3H20.9993C21.5516 3 21.9993 3.44772 21.9993 4V20C21.9993 20.5523 21.5516 21 20.9993 21H6.53451C6.20015 21 5.88792 20.8329 5.70246 20.5547L0.369122 12.5547C0.145189 12.2188 0.145189 11.7812 0.369122 11.4453L5.70246 3.4453C5.88792 3.1671 6.20015 3 6.53451 3ZM12.9993 10.5858L10.1709 7.75736L8.75668 9.17157L11.5851 12L8.75668 14.8284L10.1709 16.2426L12.9993 13.4142L15.8277 16.2426L17.242 14.8284L14.4135 12L17.242 9.17157L15.8277 7.75736L12.9993 10.5858Z"></path>
+  </svg>
+);
+const Download = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M13 10H18L12 16L6 10H11V3H13V10ZM4 19H20V12H22V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V12H4V19Z"></path>
   </svg>
 );
 const DownloadCloud = (props) => (
@@ -996,6 +1007,15 @@ const Update = (props) => (
     <path d="M22 12C22 17.5228 17.5229 22 12 22C6.4772 22 2 17.5228 2 12C2 6.47715 6.4772 2 12 2V4C7.5817 4 4 7.58172 4 12C4 16.4183 7.5817 20 12 20C16.4183 20 20 16.4183 20 12C20 9.25022 18.6127 6.82447 16.4998 5.38451L16.5 8H14.5V2L20.5 2V4L18.0008 3.99989C20.4293 5.82434 22 8.72873 22 12Z"></path>
   </svg>
 );
+const Upload = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M4 19H20V12H22V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V12H4V19ZM13 9V16H11V9H6L12 3L18 9H13Z"></path>
+  </svg>
+);
 const Windows = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -1037,7 +1057,6 @@ const WindowsRestoreButton = (props) => (
     />
   </svg>
 );
-
 const Shield = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -1214,6 +1233,7 @@ const UISVGs = {
   data: Data,
   delete: Delete,
   delete_input: DeleteInput,
+  download: Download,
   download_cloud: DownloadCloud,
   draft: Draft,
   edit: Edit,
@@ -1287,6 +1307,7 @@ const UISVGs = {
   cloud_upload: CloudUpload,
   user: User,
   update: Update,
+  upload: Upload,
   verified: Verified,
   warning: Warning,
   windows_close_button: WindowsCloseButton,

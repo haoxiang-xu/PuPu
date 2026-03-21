@@ -1665,9 +1665,11 @@ export const useChatStream = ({
     [
       activeChatIdRef,
       activeStreamMessagesRef,
+      appendSyntheticToolConfirmationDecision,
       buildHistoryForModel,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
+      clearConfirmationResolutionTimer,
       clearResolvedToolConfirmationByCallId,
       hydrateAttachmentPayloads,
       markAllPendingConfirmationFollowupSignals,
