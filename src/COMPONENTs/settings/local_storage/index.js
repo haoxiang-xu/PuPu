@@ -419,7 +419,7 @@ const RuntimeFileRow = ({ entry, maxSize, isDark, onDelete }) => {
               hoverBackgroundColor: isDark
                 ? "rgba(255,80,80,0.15)"
                 : "rgba(220,50,50,0.10)",
-              content: { icon: { width: 11, height: 11 } },
+              content: { icon: { width: 14, height: 14 } },
             }}
           />
         </div>
@@ -854,10 +854,14 @@ export const LocalStorageSettings = () => {
                 onDelete={handleDelete}
                 attachmentCount={entry.key === "chats" ? attachmentCount : null}
                 vectorMemoryBytes={
-                  entry.key === "chats" ? memoryStats?.vectorTotal ?? null : null
+                  entry.key === "chats"
+                    ? (memoryStats?.vectorTotal ?? null)
+                    : null
                 }
                 profileMemoryBytes={
-                  entry.key === "chats" ? memoryStats?.profileTotal ?? null : null
+                  entry.key === "chats"
+                    ? (memoryStats?.profileTotal ?? null)
+                    : null
                 }
               />
             ))}

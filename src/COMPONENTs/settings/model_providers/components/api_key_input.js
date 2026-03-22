@@ -78,6 +78,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
           paddingVertical: 2,
           paddingHorizontal: 8,
           borderRadius: 4,
+          fontSize: 14,
           opacity: isDirty ? 1 : 0.35,
           hoverBackgroundColor: isDark
             ? "rgba(255,255,255,0.08)"
@@ -152,7 +153,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         set_value={handleChange}
         type={visible ? "text" : "password"}
         postfix_component={PostfixControls}
-        style={{ width: "100%", fontSize: 14, height: 38 }}
+        style={{ width: "100%", fontSize: 13, height: 34 }}
       />
 
       <span

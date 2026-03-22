@@ -12,7 +12,11 @@ import { useOllamaLibrary } from "./hooks/use_ollama_library";
 
 const OpenAISection = () => (
   <SettingsSection title="OpenAI" icon="open_ai">
-    <APIKeyInput storage_key="openai_api_key" label="API Key" placeholder="sk-..." />
+    <APIKeyInput
+      storage_key="openai_api_key"
+      label="API Key"
+      placeholder="sk-..."
+    />
   </SettingsSection>
 );
 
@@ -104,8 +108,8 @@ const OllamaLibraryBrowser = ({ isDark }) => {
           placeholder="Search models…"
           style={{
             width: "100%",
-            height: 32,
-            fontSize: 12,
+            height: 34,
+            fontSize: 13,
             fontFamily: "Jost",
             borderRadius: 8,
             boxSizing: "border-box",
@@ -141,7 +145,9 @@ const OllamaLibraryBrowser = ({ isDark }) => {
               padding: "28px 0",
             }}
           >
-            <span style={{ fontSize: 12, fontFamily: "Jost", color: mutedColor }}>
+            <span
+              style={{ fontSize: 12, fontFamily: "Jost", color: mutedColor }}
+            >
               {error}
             </span>
             <Button

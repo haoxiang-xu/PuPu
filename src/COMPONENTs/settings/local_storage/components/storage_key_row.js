@@ -191,7 +191,7 @@ const StorageKeyRow = ({
                 ? "rgba(255,80,80,0.15)"
                 : "rgba(220,50,50,0.10)",
               content: {
-                icon: { width: 11, height: 11 },
+                icon: { width: 14, height: 14 },
               },
             }}
           />
