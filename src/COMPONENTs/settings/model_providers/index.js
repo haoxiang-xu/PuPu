@@ -106,6 +106,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
           value={rawQuery}
           set_value={setRawQuery}
           placeholder="Search models…"
+          prefix_icon="search"
           style={{
             width: "100%",
             height: 34,
