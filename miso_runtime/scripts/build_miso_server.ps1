@@ -218,7 +218,6 @@ $pyinstallerArgs = @(
   "--hidden-import", "miso.input",
   "--hidden-import", "miso.input.media",
   "--hidden-import", "miso.toolkits",
-  "--hidden-import", "miso.toolkits.mcp",
   "--hidden-import", "miso.memory",
   "--hidden-import", "miso.memory.manager",
   "--hidden-import", "miso.memory.qdrant",

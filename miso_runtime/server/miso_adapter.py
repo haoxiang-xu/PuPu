@@ -36,14 +36,12 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "TerminalToolkit": "builtin",
     "ExternalAPIToolkit": "builtin",
     "AskUserToolkit": "builtin",
-    "MCPToolkit": "integration",
 }
 _TOOLKIT_EXPORT_ID_ALIASES = {
     "WorkspaceToolkit": "workspace_toolkit",
     "TerminalToolkit": "terminal_toolkit",
     "ExternalAPIToolkit": "external_api_toolkit",
     "AskUserToolkit": "ask-user-toolkit",
-    "MCPToolkit": "mcp",
 }
 _TOOLKIT_NAME_ALIASES = {
     "workspace": "WorkspaceToolkit",
@@ -63,8 +61,6 @@ _TOOLKIT_NAME_ALIASES = {
     "ask_user_toolkit": "AskUserToolkit",
     "ask-user-toolkit": "AskUserToolkit",
     "AskUserToolkit": "AskUserToolkit",
-    "mcp": "MCPToolkit",
-    "MCPToolkit": "MCPToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"

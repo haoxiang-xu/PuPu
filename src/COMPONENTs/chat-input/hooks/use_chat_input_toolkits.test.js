@@ -39,8 +39,8 @@ const TOOLKIT_PAYLOAD = {
       tools: [],
     },
     {
-      toolkitId: "mcp",
-      toolkitName: "MCP Toolkit",
+      toolkitId: "plugin_toolkit",
+      toolkitName: "Plugin Toolkit",
       source: "plugin",
       hidden: false,
       tools: [],

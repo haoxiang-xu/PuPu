@@ -1,7 +1,6 @@
 export const SECTIONS = [
   { key: "toolkits", icon: "tool", label: "Toolkits" },
   { key: "skills", icon: "education", label: "Skills" },
-  { key: "mcp", icon: "mcp", label: "MCP" },
 ];
 
 export const BASE_TOOLKIT_IDENTIFIERS = new Set([

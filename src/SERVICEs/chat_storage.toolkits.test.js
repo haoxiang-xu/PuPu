@@ -55,6 +55,16 @@ describe("chat_storage selected toolkits persistence", () => {
     ]);
   });
 
+  test("sanitizeSelectedToolkits drops removed MCP toolkit ids", () => {
+    expect(
+      sanitizeSelectedToolkits([
+        "WorkspaceToolkit",
+        "mcp",
+        "MCPToolkit",
+      ]),
+    ).toEqual(["WorkspaceToolkit"]);
+  });
+
   test("persists selected toolkits per chat", () => {
     const seeded = getChatsStore();
     const firstChatId = seeded.activeChatId;

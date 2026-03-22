@@ -305,17 +305,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         class FakePythonWorkspaceToolkit(FakeToolkitBase):
             pass
 
-        class FakeMcpToolkit(FakeToolkitBase):
-            pass
-
         def import_module_side_effect(module_name: str):
             if module_name == "miso.tools":
                 return SimpleNamespace(Toolkit=FakeToolkitBase)
             if module_name == "miso.toolkits":
-                return SimpleNamespace(
-                    WorkspaceToolkit=FakePythonWorkspaceToolkit,
-                    MCPToolkit=FakeMcpToolkit,
-                )
+                return SimpleNamespace(WorkspaceToolkit=FakePythonWorkspaceToolkit)
             raise ImportError(module_name)
 
         with mock.patch.object(
@@ -330,10 +324,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             names,
             [
                 "workspace_toolkit",
-                "mcp",
             ],
         )
-        self.assertEqual(catalog["count"], 2)
+        self.assertEqual(catalog["count"], 1)
 
     def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
         with mock.patch.object(miso_adapter, "_resolve_toolkit_base", return_value=None):

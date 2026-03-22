@@ -231,9 +231,9 @@ const TOOLKIT_ID_ALIASES = Object.freeze({
   interaction_toolkit: "AskUserToolkit",
   "interaction-toolkit": "AskUserToolkit",
   askusertoolkit: "AskUserToolkit",
-  mcp: "MCPToolkit",
-  mcptoolkit: "MCPToolkit",
 });
+
+const REMOVED_TOOLKIT_IDS = new Set(["mcp", "mcptoolkit"]);
 
 const normalizeSelectedToolkitId = (value) => {
   if (typeof value !== "string") {
@@ -245,7 +245,12 @@ const normalizeSelectedToolkitId = (value) => {
     return "";
   }
 
-  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[trimmed.toLowerCase()] || trimmed;
+  const lowered = trimmed.toLowerCase();
+  if (REMOVED_TOOLKIT_IDS.has(lowered)) {
+    return "";
+  }
+
+  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[lowered] || trimmed;
 };
 
 export const sanitizeSelectedToolkits = (selectedToolkits) => {

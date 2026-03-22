@@ -1,7 +1,6 @@
 import { createMisoApi } from "./api.miso";
 import { createOllamaApi } from "./api.ollama";
 import { createSystemApi } from "./api.system";
-import { createMcpApi } from "./api.mcp";
 import {
   EMPTY_MODEL_CATALOG,
   FrontendApiError,
@@ -24,7 +23,6 @@ export const api = {
   windowState: system.windowState,
   miso: createMisoApi(),
   ollama: createOllamaApi(),
-  mcp: createMcpApi(),
 };
 
 export {

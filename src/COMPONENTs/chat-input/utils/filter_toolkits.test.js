@@ -7,7 +7,7 @@ describe("filter_toolkits", () => {
         { toolkitId: "builtin_toolkit", source: "builtin", hidden: false },
         { toolkitId: "workspace_toolkit", source: "builtin", hidden: false },
         { toolkitId: "custom_toolkit", source: "local", hidden: false },
-        { toolkitId: "mcp", source: "plugin", hidden: false },
+        { toolkitId: "plugin_toolkit", source: "plugin", hidden: false },
         { toolkitId: "hidden_tools", source: "local", hidden: true },
       ],
       new Set(["base", "base_toolkit", "builtin_toolkit", "toolkit"]),
