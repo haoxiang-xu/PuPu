@@ -668,40 +668,26 @@ const WorkspacesSection = ({ isDark }) => {
 
       {/* Add workspace — minimal */}
       <div
-        onClick={editingId !== null ? undefined : addItem}
         style={{
           display: "flex",
-          alignItems: "center",
-          gap: 6,
-          padding: "10px 2px",
-          cursor: editingId !== null ? "default" : "pointer",
-          opacity: editingId !== null ? 0.3 : 0.5,
-          transition: "opacity 0.12s ease",
-        }}
-        onMouseEnter={(e) => {
-          if (editingId === null) e.currentTarget.style.opacity = "0.8";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.opacity = editingId !== null ? "0.3" : "0.5";
+          justifyContent: "center",
+          marginTop: 12,
+          marginBottom: 4,
         }}
       >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-          <path
-            d="M7 2.5V11.5M2.5 7H11.5"
-            stroke={c.text}
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span
+        <Button
+          label="+ Add Workspace"
+          onClick={addItem}
+          disabled={editingId !== null}
           style={{
+            paddingVertical: 6,
+            paddingHorizontal: 14,
+            borderRadius: 6,
             fontSize: 12,
-            fontFamily: "Jost, sans-serif",
-            color: c.text,
+            opacity: editingId !== null ? 0.3 : 0.6,
+            hoverBackgroundColor: c.hoverBg,
           }}
-        >
-          Add Workspace
-        </span>
+        />
       </div>
 
       <div
