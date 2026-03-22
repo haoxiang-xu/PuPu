@@ -70,6 +70,7 @@ _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "move_file",
     "terminal_exec",
 }
+_WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR = "_pupu_original_tool_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
 _HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
@@ -175,6 +176,7 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     if not payload:
         payload = {
             "tool_name": getattr(request_obj, "tool_name", ""),
+            "tool_display_name": getattr(request_obj, "tool_display_name", ""),
             "call_id": getattr(request_obj, "call_id", ""),
             "arguments": getattr(request_obj, "arguments", {}),
             "description": getattr(request_obj, "description", ""),
@@ -184,6 +186,12 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
 
     if not isinstance(payload.get("tool_name"), str):
         payload["tool_name"] = str(payload.get("tool_name", "") or "")
+    display_name = payload.get("tool_display_name", "")
+    if display_name is None:
+        display_name = ""
+    if not isinstance(display_name, str):
+        display_name = str(display_name or "")
+    payload["tool_display_name"] = display_name.strip()
     if not isinstance(payload.get("call_id"), str):
         payload["call_id"] = str(payload.get("call_id", "") or "")
 
@@ -237,6 +245,37 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     payload["interact_config"] = interact_config if isinstance(interact_config, (dict, list)) else {}
 
     return payload
+
+
+def _set_workspace_proxy_tool_metadata(
+    tool_obj: Any,
+    *,
+    original_tool_name: str,
+) -> None:
+    if not isinstance(original_tool_name, str) or not original_tool_name.strip():
+        return
+    try:
+        setattr(
+            tool_obj,
+            _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
+            original_tool_name.strip(),
+        )
+    except Exception:
+        return
+
+
+def _resolve_tool_display_name(
+    tool_name: object,
+    *,
+    tool_obj: Any = None,
+) -> str:
+    original_name = getattr(tool_obj, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
+    if isinstance(original_name, str) and original_name.strip():
+        return original_name.strip()
+
+    if isinstance(tool_name, str):
+        return tool_name
+    return str(tool_name or "")
 
 
 def _parse_ask_user_question_arguments(arguments: object) -> Dict[str, Any]:
@@ -791,12 +830,56 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         emitted_tool_call_ids: set[str] = set()
         confirmation_payload_by_call_id: Dict[str, Dict[str, Any]] = {}
 
+        def _find_tool_obj(tool_name: object) -> Any:
+            normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
+            if not normalized_tool_name:
+                return None
+
+            find_tool = getattr(self, "_find_tool", None)
+            if not callable(find_tool):
+                return None
+
+            find_tool_kwargs: Dict[str, Any] = {}
+            if find_tool_supports_toolkits:
+                find_tool_kwargs["toolkits"] = toolkits
+
+            try:
+                return find_tool(normalized_tool_name, **find_tool_kwargs)
+            except TypeError:
+                try:
+                    return find_tool(normalized_tool_name)
+                except Exception:
+                    return None
+            except Exception:
+                return None
+
+        def _decorate_tool_payload(
+            payload: Dict[str, Any],
+            *,
+            tool_name: object,
+            tool_obj: Any = None,
+        ) -> Dict[str, Any]:
+            next_payload = dict(payload)
+            display_name = next_payload.get("tool_display_name", "")
+            if isinstance(display_name, str) and display_name.strip():
+                next_payload["tool_display_name"] = display_name.strip()
+                return next_payload
+
+            resolved_display_name = _resolve_tool_display_name(
+                tool_name,
+                tool_obj=tool_obj if tool_obj is not None else _find_tool_obj(tool_name),
+            )
+            if resolved_display_name:
+                next_payload["tool_display_name"] = resolved_display_name
+            return next_payload
+
         def _merge_tool_call_payload(
             *,
             tool_name: object,
             call_id: object,
             arguments: object,
             confirmation_payload: Dict[str, Any] | None = None,
+            tool_obj: Any = None,
         ) -> Dict[str, Any]:
             payload: Dict[str, Any] = {
                 "tool_name": tool_name if isinstance(tool_name, str) else str(tool_name or ""),
@@ -804,7 +887,11 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "arguments": arguments if isinstance(arguments, dict) else {},
             }
             if not isinstance(confirmation_payload, dict):
-                return payload
+                return _decorate_tool_payload(
+                    payload,
+                    tool_name=payload["tool_name"],
+                    tool_obj=tool_obj,
+                )
 
             merged_arguments = confirmation_payload.get("arguments")
             if isinstance(merged_arguments, dict):
@@ -816,10 +903,15 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "description",
                 "interact_type",
                 "interact_config",
+                "tool_display_name",
             ):
                 if key in confirmation_payload:
                     payload[key] = confirmation_payload[key]
-            return payload
+            return _decorate_tool_payload(
+                payload,
+                tool_name=payload["tool_name"],
+                tool_obj=tool_obj,
+            )
 
         def _callback_with_tool_call_normalization(event: object) -> None:
             if not callable(callback):
@@ -827,19 +919,35 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             if not isinstance(event, dict):
                 callback(event)
                 return
-            if event.get("type") != "tool_call":
-                callback(event)
-                return
 
             payload = event.get("payload")
             normalized_payload = payload if isinstance(payload, dict) else {}
+            event_type = event.get("type")
+            tool_name = normalized_payload.get("tool_name", "")
+
+            if event_type in {"tool_result", "tool_confirmed", "tool_denied"}:
+                callback(
+                    {
+                        **event,
+                        "payload": _decorate_tool_payload(
+                            normalized_payload,
+                            tool_name=tool_name,
+                        ),
+                    }
+                )
+                return
+
+            if event_type != "tool_call":
+                callback(event)
+                return
+
             call_id = normalized_payload.get("call_id", "")
             call_id = call_id if isinstance(call_id, str) else str(call_id or "")
             if call_id and call_id in emitted_tool_call_ids:
                 return
 
             merged_payload = _merge_tool_call_payload(
-                tool_name=normalized_payload.get("tool_name", ""),
+                tool_name=tool_name,
                 call_id=call_id,
                 arguments=normalized_payload.get("arguments", {}),
                 confirmation_payload=confirmation_payload_by_call_id.get(call_id),
@@ -854,6 +962,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             tool_call: Any,
             *,
             description: str = "",
+            tool_obj: Any = None,
         ) -> Dict[str, Any] | None:
             if on_tool_confirm is None:
                 return None
@@ -877,10 +986,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     }
                 )
             else:
-                find_tool_kwargs: Dict[str, Any] = {}
-                if find_tool_supports_toolkits:
-                    find_tool_kwargs["toolkits"] = toolkits
-                tool_obj = self._find_tool(normalized_tool_name, **find_tool_kwargs)
+                tool_obj = tool_obj if tool_obj is not None else _find_tool_obj(normalized_tool_name)
                 if not (
                     tool_obj is not None
                     and bool(getattr(tool_obj, "requires_confirmation", False))
@@ -895,6 +1001,10 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     }
                 )
 
+            payload["tool_display_name"] = _resolve_tool_display_name(
+                normalized_tool_name,
+                tool_obj=tool_obj,
+            )
             payload["confirmation_id"] = str(payload.get("confirmation_id", "") or "").strip() or str(
                 _uuid.uuid4()
             )
@@ -905,12 +1015,14 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             tool_call: Any,
             *,
             confirmation_payload: Dict[str, Any] | None = None,
+            tool_obj: Any = None,
         ) -> None:
             merged_payload = _merge_tool_call_payload(
                 tool_name=getattr(tool_call, "name", ""),
                 call_id=getattr(tool_call, "call_id", ""),
                 arguments=getattr(tool_call, "arguments", {}),
                 confirmation_payload=confirmation_payload,
+                tool_obj=tool_obj,
             )
             self._emit(
                 event_callback,
@@ -926,9 +1038,18 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
             tool_name: str,
             call_id: str,
             reason: str = "",
+            tool_obj: Any = None,
         ) -> None:
             normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
             normalized_call_id = call_id if isinstance(call_id, str) else str(call_id or "")
+            extra_payload = _decorate_tool_payload(
+                {
+                    "tool_name": normalized_tool_name,
+                    "call_id": normalized_call_id,
+                },
+                tool_name=normalized_tool_name,
+                tool_obj=tool_obj,
+            )
             decision_key = None
             if normalized_call_id:
                 decision_key = (normalized_call_id, bool(approved))
@@ -944,8 +1065,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "tool_confirmed",
                     run_id,
                     iteration=iteration,
-                    tool_name=normalized_tool_name,
-                    call_id=normalized_call_id,
+                    **extra_payload,
                 )
                 return
 
@@ -954,8 +1074,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "tool_denied",
                 run_id,
                 iteration=iteration,
-                tool_name=normalized_tool_name,
-                call_id=normalized_call_id,
+                **extra_payload,
                 reason=reason if isinstance(reason, str) else str(reason or ""),
             )
 
@@ -970,6 +1089,11 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 request_payload["requires_confirmation"] = True
                 if isinstance(confirmation_payload.get("arguments"), dict):
                     request_payload["arguments"] = confirmation_payload["arguments"]
+                if not request_payload.get("tool_display_name"):
+                    request_payload["tool_display_name"] = confirmation_payload.get(
+                        "tool_display_name",
+                        "",
+                    )
                 if not request_payload.get("description"):
                     request_payload["description"] = confirmation_payload.get("description", "")
                 if not request_payload.get("interact_type"):
@@ -998,6 +1122,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 tool_name=str(request_payload.get("tool_name", "") or ""),
                 call_id=str(request_payload.get("call_id", "") or ""),
                 reason=str(response.get("reason", "") or ""),
+                tool_obj=_find_tool_obj(request_payload.get("tool_name", "")),
             )
             return response
 
@@ -1074,7 +1199,8 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 if not isinstance(request_payload, dict):
                     raise ValueError("ask_user_question confirmation payload could not be resolved")
             except Exception as exc:
-                _emit_tool_call_event(tool_call)
+                tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
+                _emit_tool_call_event(tool_call, tool_obj=tool_obj)
                 tool_result = {
                     "error": str(exc),
                     "tool": getattr(tool_call, "name", ""),
@@ -1087,13 +1213,24 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                     "tool_result",
                     run_id,
                     iteration=iteration,
-                    tool_name=tool_call.name,
-                    call_id=tool_call.call_id,
-                    result=tool_result,
+                    **_decorate_tool_payload(
+                        {
+                            "tool_name": tool_call.name,
+                            "call_id": tool_call.call_id,
+                            "result": tool_result,
+                        },
+                        tool_name=tool_call.name,
+                        tool_obj=tool_obj,
+                    ),
                 )
                 return result_messages, False
 
-            _emit_tool_call_event(tool_call, confirmation_payload=request_payload)
+            tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
+            _emit_tool_call_event(
+                tool_call,
+                confirmation_payload=request_payload,
+                tool_obj=tool_obj,
+            )
             raw_response = _on_tool_confirm_with_event(request_payload)
             response = _normalize_tool_confirmation_response(raw_response)
 
@@ -1144,9 +1281,15 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "tool_result",
                 run_id,
                 iteration=iteration,
-                tool_name=tool_call.name,
-                call_id=tool_call.call_id,
-                result=tool_result,
+                **_decorate_tool_payload(
+                    {
+                        "tool_name": tool_call.name,
+                        "call_id": tool_call.call_id,
+                        "result": tool_result,
+                    },
+                    tool_name=tool_call.name,
+                    tool_obj=tool_obj,
+                ),
             )
             return result_messages, False
 
@@ -1179,11 +1322,16 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         if getattr(self, "provider", "") != "anthropic":
             if on_tool_confirm is not None:
                 for tool_call in tool_calls:
-                    confirmation_payload = _get_confirmation_payload(tool_call)
+                    tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
+                    confirmation_payload = _get_confirmation_payload(
+                        tool_call,
+                        tool_obj=tool_obj,
+                    )
                     if isinstance(confirmation_payload, dict):
                         _emit_tool_call_event(
                             tool_call,
                             confirmation_payload=confirmation_payload,
+                            tool_obj=tool_obj,
                         )
             original_kwargs = {
                 "tool_calls": tool_calls,
@@ -1212,16 +1360,16 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
         anthropic_tool_results: List[Dict[str, Any]] = []
 
         for tool_call in tool_calls:
-            confirmation_payload = _get_confirmation_payload(tool_call)
+            tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
+            confirmation_payload = _get_confirmation_payload(
+                tool_call,
+                tool_obj=tool_obj,
+            )
             _emit_tool_call_event(
                 tool_call,
                 confirmation_payload=confirmation_payload,
+                tool_obj=tool_obj,
             )
-
-            find_tool_kwargs: Dict[str, Any] = {}
-            if find_tool_supports_toolkits:
-                find_tool_kwargs["toolkits"] = toolkits
-            tool_obj = self._find_tool(tool_call.name, **find_tool_kwargs)
             effective_arguments = tool_call.arguments
             denied = False
             deny_reason = ""
@@ -1234,6 +1382,7 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 confirmation_request = _get_confirmation_payload(
                     tool_call,
                     description=str(getattr(tool_obj, "description", "") or ""),
+                    tool_obj=tool_obj,
                 )
                 response = _on_tool_confirm_with_event(confirmation_request or {})
 
@@ -1276,9 +1425,15 @@ def _apply_broth_runtime_patches(broth_cls: Any) -> None:
                 "tool_result",
                 run_id,
                 iteration=iteration,
-                tool_name=tool_call.name,
-                call_id=tool_call.call_id,
-                result=tool_result,
+                **_decorate_tool_payload(
+                    {
+                        "tool_name": tool_call.name,
+                        "call_id": tool_call.call_id,
+                        "result": tool_result,
+                    },
+                    tool_name=tool_call.name,
+                    tool_obj=tool_obj,
+                ),
             )
 
         if anthropic_tool_results:
@@ -3145,6 +3300,10 @@ def _build_multi_workspace_proxy_toolkit(
                     getattr(tool_obj, "requires_confirmation", False)
                     or tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES
                 ),
+            )
+            _set_workspace_proxy_tool_metadata(
+                proxy_tool,
+                original_tool_name=tool_name,
             )
             merged_toolkit.register(proxy_tool)
 

@@ -399,6 +399,10 @@ export const useChatStream = ({
           typeof requestFrame.payload?.tool_name === "string"
             ? requestFrame.payload.tool_name
             : "";
+        const toolDisplayName =
+          typeof requestFrame.payload?.tool_display_name === "string"
+            ? requestFrame.payload.tool_display_name
+            : "";
 
         return {
           ...message,
@@ -412,6 +416,9 @@ export const useChatStream = ({
               stage: "client",
               payload: {
                 tool_name: toolName,
+                ...(toolDisplayName
+                  ? { tool_display_name: toolDisplayName }
+                  : {}),
                 call_id: callId,
                 confirmation_id: normalizedConfirmationId,
                 synthetic: true,

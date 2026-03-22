@@ -15,6 +15,8 @@ const ChatBubble = ({
   toolConfirmationUiStateById = {},
   disableActionButtons = false,
   traceFrames = [],
+  pendingContinuationRequest,
+  onContinuationDecision,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -104,6 +106,8 @@ const ChatBubble = ({
           streamingContent={
             message.status === "streaming" ? message.content : ""
           }
+          pendingContinuationRequest={pendingContinuationRequest}
+          onContinuationDecision={onContinuationDecision}
         />
       )}
       {isAssistant && !hasToolActivity && message.status === "streaming" && (
@@ -192,6 +196,9 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
   previousProps.toolConfirmationUiStateById ===
     nextProps.toolConfirmationUiStateById &&
   previousProps.disableActionButtons === nextProps.disableActionButtons &&
-  previousProps.traceFrames === nextProps.traceFrames;
+  previousProps.traceFrames === nextProps.traceFrames &&
+  previousProps.pendingContinuationRequest ===
+    nextProps.pendingContinuationRequest &&
+  previousProps.onContinuationDecision === nextProps.onContinuationDecision;
 
 export default memo(ChatBubble, areChatBubblePropsEqual);

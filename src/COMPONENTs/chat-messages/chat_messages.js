@@ -13,6 +13,8 @@ const ChatMessages = ({
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  pendingContinuationRequest,
+  onContinuationDecision,
   className = "scrollable",
   initialVisibleCount = 12,
   loadBatchSize = 6,
@@ -103,6 +105,16 @@ const ChatMessages = ({
                   toolConfirmationUiStateById={toolConfirmationUiStateById}
                   disableActionButtons={isStreaming}
                   traceFrames={msg.traceFrames}
+                  pendingContinuationRequest={
+                    messageIndex === messages.length - 1
+                      ? pendingContinuationRequest
+                      : undefined
+                  }
+                  onContinuationDecision={
+                    messageIndex === messages.length - 1
+                      ? onContinuationDecision
+                      : undefined
+                  }
                 />
               </div>
             );

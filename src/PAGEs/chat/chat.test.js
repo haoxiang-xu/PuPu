@@ -9,7 +9,7 @@ jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
   __esModule: true,
   default: (props) => {
     lastChatMessagesProps = props;
-    const { messages = [] } = props;
+    const { messages = [], pendingContinuationRequest } = props;
     return (
       <div data-testid="chat-messages">
         {messages.map((message) => (
@@ -17,6 +17,12 @@ jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
             {message.role}:{message.content}:{message.status || "done"}
           </div>
         ))}
+        {pendingContinuationRequest && (
+          <div>
+            Agent reached {pendingContinuationRequest.iteration} iterations
+            without a final response. Continue?
+          </div>
+        )}
       </div>
     );
   },

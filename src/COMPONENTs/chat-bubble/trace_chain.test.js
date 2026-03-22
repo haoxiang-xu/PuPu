@@ -215,6 +215,53 @@ describe("TraceChain final_message draft timeline", () => {
     expect(styleTag?.textContent).toContain("line-height: 1.6;");
   });
 
+  test("uses tighter markdown spacing for observation details", () => {
+    const { container } = renderTraceChain({
+      frames: [
+        frame({ seq: 1, type: "stream_started", payload: {} }),
+        frame({
+          seq: 2,
+          type: "observation",
+          payload: { observation: "# README\n\n- First item\n- Second item" },
+        }),
+      ],
+      status: "done",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /detail/i }));
+
+    const markdownRoot = container.querySelector("[data-markdown-id]");
+    expect(markdownRoot).toBeInTheDocument();
+
+    const styleTag = markdownRoot.querySelector("style");
+    expect(styleTag?.textContent).toContain("margin-top: 6px;");
+    expect(styleTag?.textContent).toContain("padding-left: 18px;");
+    expect(styleTag?.textContent).toContain("margin: 0;");
+  });
+
+  test("prefers tool_display_name over canonical tool_name in the timeline", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "workspace_2_extra_root_read_file",
+          tool_display_name: "read_file",
+          arguments: { path: "hello.txt" },
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("read_file")).toBeInTheDocument();
+    expect(
+      screen.queryByText("workspace_2_extra_root_read_file"),
+    ).not.toBeInTheDocument();
+  });
+
   test("renders tool confirmation actions and forwards allow decision", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [

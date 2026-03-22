@@ -48,6 +48,18 @@ const toKVPairs = (data) => {
   }));
 };
 
+const getToolDisplayName = (payload) => {
+  const displayName =
+    typeof payload?.tool_display_name === "string"
+      ? payload.tool_display_name.trim()
+      : "";
+  if (displayName) return displayName;
+
+  const toolName =
+    typeof payload?.tool_name === "string" ? payload.tool_name.trim() : "";
+  return toolName || "tool";
+};
+
 const normalizePersistedInteractionResponse = (interactType, payload = {}) => {
   if (!payload || typeof payload !== "object") {
     return undefined;
@@ -123,6 +135,22 @@ const normalizePersistedInteractionResponse = (interactType, payload = {}) => {
 /* ─── KVPanel ────────────────────────────────────────────────────────────── */
 
 const MAX_PREVIEW = 300;
+const TRACE_DETAIL_MARKDOWN_STYLE = Object.freeze({
+  blockGap: 6,
+  paragraphMargin: "0",
+  list: {
+    paddingLeft: 18,
+    margin: "0",
+    itemMargin: "0.1em 0",
+  },
+  blockquote: {
+    margin: "0",
+    paddingLeft: 10,
+  },
+  table: {
+    margin: "0",
+  },
+});
 
 const KVPanel = ({ sections, isDark, color }) => {
   const [expanded, setExpanded] = useState({});
@@ -289,6 +317,8 @@ const TraceChain = ({
   streamingContent = "",
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  pendingContinuationRequest,
+  onContinuationDecision,
 }) => {
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
@@ -507,6 +537,7 @@ const TraceChain = ({
                 fontSize={12}
                 lineHeight={1.65}
                 style={{
+                  ...TRACE_DETAIL_MARKDOWN_STYLE,
                   color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)",
                 }}
               />
@@ -517,7 +548,7 @@ const TraceChain = ({
         if (callId && renderedCallIds.has(callId)) continue;
         if (callId) renderedCallIds.add(callId);
 
-        const toolName = frame.payload?.tool_name || "tool";
+        const toolName = getToolDisplayName(frame.payload);
         const args = frame.payload?.arguments;
         const confirmationId =
           typeof frame.payload?.confirmation_id === "string"
@@ -551,7 +582,7 @@ const TraceChain = ({
             ? confirmationUserResponseByCallId.get(callId)
             : callId && toolResultUserResponseByCallId.has(callId)
               ? toolResultUserResponseByCallId.get(callId)
-            : undefined;
+              : undefined;
         const effectiveConfirmationUiState =
           persistedUserResponse !== undefined &&
           confirmationUiState?.userResponse === undefined
@@ -805,7 +836,7 @@ const TraceChain = ({
             </div>
           ),
         });
-      } else {
+      } else if (!pendingContinuationRequest) {
         items.push({
           key: "__streaming__",
           title: "Thinking…",
@@ -814,6 +845,95 @@ const TraceChain = ({
           point: "loading",
         });
       }
+    }
+
+    if (pendingContinuationRequest) {
+      const isSubmitting = pendingContinuationRequest.status === "submitting";
+      const canAct =
+        !isSubmitting && typeof onContinuationDecision === "function";
+      items.push({
+        key: "__continuation__",
+        title: "Continue?",
+        span: null,
+        status: "active",
+        point: "loading",
+        body: (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+            }}
+          >
+            <span
+              style={{
+                fontSize: 12,
+                color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.52)",
+                fontFamily: "Menlo, Monaco, Consolas, monospace",
+              }}
+            >
+              Agent reached {pendingContinuationRequest.iteration} iterations
+              without a final response.
+            </span>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button
+                disabled={!canAct}
+                onClick={() =>
+                  onContinuationDecision({
+                    confirmationId: pendingContinuationRequest.confirmationId,
+                    approved: true,
+                  })
+                }
+                style={{
+                  padding: "4px 14px",
+                  borderRadius: 6,
+                  border: "none",
+                  background: isDark
+                    ? "rgba(110,231,183,0.18)"
+                    : "rgba(5,150,105,0.12)",
+                  color: isDark
+                    ? "rgba(110,231,183,0.95)"
+                    : "rgba(5,150,105,0.95)",
+                  cursor: canAct ? "pointer" : "default",
+                  fontWeight: 500,
+                  fontSize: 12,
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  opacity: canAct ? 1 : 0.5,
+                }}
+              >
+                Continue
+              </button>
+              <button
+                disabled={!canAct}
+                onClick={() =>
+                  onContinuationDecision({
+                    confirmationId: pendingContinuationRequest.confirmationId,
+                    approved: false,
+                  })
+                }
+                style={{
+                  padding: "4px 14px",
+                  borderRadius: 6,
+                  border: isDark
+                    ? "1px solid rgba(252,165,165,0.3)"
+                    : "1px solid rgba(220,38,38,0.2)",
+                  background: "transparent",
+                  color: isDark
+                    ? "rgba(252,165,165,0.95)"
+                    : "rgba(220,38,38,0.95)",
+                  cursor: canAct ? "pointer" : "default",
+                  fontWeight: 500,
+                  fontSize: 12,
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  opacity: canAct ? 1 : 0.5,
+                }}
+              >
+                Stop
+              </button>
+            </div>
+          </div>
+        ),
+      });
     }
 
     return items;
@@ -829,6 +949,8 @@ const TraceChain = ({
     handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,
+    pendingContinuationRequest,
+    onContinuationDecision,
     isDark,
     color,
   ]);

@@ -78,7 +78,10 @@ export const buildSideMenuContextMenuItems = ({
             { parentFolderId: null },
             { source: "side-menu" },
           );
-          setChatStore(res?.store || getChatsStore());
+          const store = res?.store || getChatsStore();
+          setChatStore(store);
+          const newNode = store?.tree?.nodesById?.[res?.folderId];
+          if (newNode) handleStartRename(newNode);
         },
       },
     ];
@@ -123,7 +126,10 @@ export const buildSideMenuContextMenuItems = ({
             { parentFolderId: node.id },
             { source: "side-menu" },
           );
-          setChatStore(res?.store || getChatsStore());
+          const store = res?.store || getChatsStore();
+          setChatStore(store);
+          const newNode = store?.tree?.nodesById?.[res?.folderId];
+          if (newNode) handleStartRename(newNode);
         },
       },
       { type: "separator" },
