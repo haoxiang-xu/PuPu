@@ -164,87 +164,109 @@ const DefaultWorkspaceSection = ({ isDark }) => {
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
       <SubHeading isDark={isDark}>Default Workspace</SubHeading>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <Input
-          value={workspaceRoot}
-          set_value={(v) => {
-            setWorkspaceRoot(v);
-            setError("");
-            setInfo("");
-          }}
-          style={{ flex: 1, fontSize: 14, height: 34 }}
-        />
-      </div>
-
-      {/* Action buttons — text only, below the input */}
       <div
         style={{
           display: "flex",
-          alignItems: "center",
-          gap: 4,
-          flexWrap: "wrap",
+          flexDirection: "column",
+          border: isDark
+            ? "1px solid rgba(255,255,255,0.08)"
+            : "1px solid rgba(0,0,0,0.12)",
+          borderRadius: 7,
+          overflow: "hidden",
         }}
       >
-        <Button
-          label={isSaving ? "Saving..." : "Save"}
-          onClick={handleSave}
-          disabled={busy || !isDirty}
+        <input
+          type="text"
+          value={workspaceRoot}
+          onChange={(e) => {
+            setWorkspaceRoot(e.target.value);
+            setError("");
+            setInfo("");
+          }}
+          placeholder="Enter workspace path..."
           style={{
-            paddingVertical: 4,
-            paddingHorizontal: 10,
-            borderRadius: 6,
-            fontSize: 13,
-            opacity: isDirty ? 1 : 0.35,
-            hoverBackgroundColor: c.hoverBg,
+            width: "100%",
+            boxSizing: "border-box",
+            padding: "10px 12px",
+            fontSize: 14,
+            fontFamily: "Jost, sans-serif",
+            color: isDark ? "#ccc" : "#222",
+            background: "transparent",
+            border: "none",
+            outline: "none",
           }}
         />
-        {browseSupported && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "flex-end",
+            gap: 4,
+            flexWrap: "wrap",
+            padding: "4px 8px 8px",
+          }}
+        >
           <Button
-            label={isBrowsing ? "..." : "Browse"}
-            onClick={handleBrowse}
-            disabled={busy}
+            label={isSaving ? "Saving..." : "Save"}
+            onClick={handleSave}
+            disabled={busy || !isDirty}
             style={{
               paddingVertical: 4,
               paddingHorizontal: 10,
               borderRadius: 6,
-              fontSize: 13,
-              opacity: 0.6,
+              fontSize: 12,
+              opacity: isDirty ? 1 : 0.35,
               hoverBackgroundColor: c.hoverBg,
             }}
           />
-        )}
-        {savedWorkspaceRoot.trim() && (
-          <Button
-            label="Clear"
-            onClick={handleClear}
-            disabled={busy}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 10,
-              borderRadius: 6,
-              opacity: 0.5,
-              fontSize: 13,
-              hoverBackgroundColor: isDark
-                ? "rgba(239,83,80,0.15)"
-                : "rgba(239,83,80,0.1)",
-            }}
-          />
-        )}
-        {openFolderSupported && savedWorkspaceRoot.trim() && (
-          <Button
-            label={isOpeningFolder ? "..." : "Open in Explorer"}
-            onClick={handleOpenFolder}
-            disabled={busy}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 10,
-              borderRadius: 6,
-              opacity: 0.5,
-              fontSize: 13,
-              hoverBackgroundColor: c.hoverBg,
-            }}
-          />
-        )}
+          {browseSupported && (
+            <Button
+              label={isBrowsing ? "..." : "Browse"}
+              onClick={handleBrowse}
+              disabled={busy}
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                fontSize: 12,
+                opacity: 0.6,
+                hoverBackgroundColor: c.hoverBg,
+              }}
+            />
+          )}
+          {savedWorkspaceRoot.trim() && (
+            <Button
+              label="Clear"
+              onClick={handleClear}
+              disabled={busy}
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                opacity: 0.5,
+                fontSize: 12,
+                hoverBackgroundColor: isDark
+                  ? "rgba(239,83,80,0.15)"
+                  : "rgba(239,83,80,0.1)",
+              }}
+            />
+          )}
+          {openFolderSupported && savedWorkspaceRoot.trim() && (
+            <Button
+              label={isOpeningFolder ? "..." : "Open in Explorer"}
+              onClick={handleOpenFolder}
+              disabled={busy}
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                opacity: 0.5,
+                fontSize: 12,
+                hoverBackgroundColor: c.hoverBg,
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {error && (
