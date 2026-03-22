@@ -97,15 +97,15 @@ const StorageKeyRow = ({
                   <span
                     style={{
                       flexShrink: 0,
-                      fontSize: 10,
+                      fontSize: 11,
                       padding: "1px 6px",
                       borderRadius: 99,
                       backgroundColor: isDark
                         ? "rgba(255,255,255,0.07)"
                         : "rgba(0,0,0,0.06)",
                       color: isDark
-                        ? "rgba(255,255,255,0.35)"
-                        : "rgba(0,0,0,0.35)",
+                        ? "rgba(255,255,255,0.45)"
+                        : "rgba(0,0,0,0.40)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -117,15 +117,15 @@ const StorageKeyRow = ({
                   <span
                     style={{
                       flexShrink: 0,
-                      fontSize: 10,
+                      fontSize: 11,
                       padding: "1px 6px",
                       borderRadius: 99,
                       backgroundColor: isDark
                         ? "rgba(255,255,255,0.07)"
                         : "rgba(0,0,0,0.06)",
                       color: isDark
-                        ? "rgba(255,255,255,0.35)"
-                        : "rgba(0,0,0,0.35)",
+                        ? "rgba(255,255,255,0.45)"
+                        : "rgba(0,0,0,0.40)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >
@@ -136,15 +136,15 @@ const StorageKeyRow = ({
                   <span
                     style={{
                       flexShrink: 0,
-                      fontSize: 10,
+                      fontSize: 11,
                       padding: "1px 6px",
                       borderRadius: 99,
                       backgroundColor: isDark
                         ? "rgba(255,255,255,0.07)"
                         : "rgba(0,0,0,0.06)",
                       color: isDark
-                        ? "rgba(255,255,255,0.35)"
-                        : "rgba(0,0,0,0.35)",
+                        ? "rgba(255,255,255,0.45)"
+                        : "rgba(0,0,0,0.40)",
                       fontVariantNumeric: "tabular-nums",
                     }}
                   >

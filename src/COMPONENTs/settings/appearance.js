@@ -117,6 +117,8 @@ export const AppearanceSettings = () => {
     setSyncWithSystemTheme,
   } = useContext(ConfigContext);
 
+  const isDark = onThemeMode === "dark_mode";
+
   const themeValue = syncWithSystemTheme ? "sync_with_browser" : onThemeMode;
 
   return (
@@ -147,6 +149,9 @@ export const AppearanceSettings = () => {
               fontSize: 13,
               paddingVertical: 4,
               paddingHorizontal: 10,
+              backgroundColor: isDark
+                ? "rgba(255,255,255,0.08)"
+                : "rgba(0,0,0,0.05)",
             }}
             option_style={{ height: 28, padding: "4px 8px", fontSize: 13 }}
             dropdown_style={{ padding: 4 }}

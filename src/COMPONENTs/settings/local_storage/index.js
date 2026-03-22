@@ -71,14 +71,25 @@ const OllamaSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        padding: "3px 8px",
-        borderRadius: 99,
+        fontFamily: "Jost",
+        fontWeight: 500,
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: `1px solid ${
+          amber
+            ? isDark
+              ? "rgba(255,160,0,0.25)"
+              : "rgba(200,120,0,0.18)"
+            : isDark
+              ? "rgba(255,255,255,0.07)"
+              : "rgba(0,0,0,0.07)"
+        }`,
         backgroundColor: amber
           ? isDark
             ? "rgba(255,160,0,0.12)"
             : "rgba(200,120,0,0.08)"
           : isDark
-            ? "rgba(255,255,255,0.06)"
+            ? "rgba(255,255,255,0.07)"
             : "rgba(0,0,0,0.05)",
         color: amber
           ? isDark
@@ -86,7 +97,8 @@ const OllamaSection = ({ isDark }) => {
             : "rgba(160,90,0,0.85)"
           : isDark
             ? "rgba(255,255,255,0.35)"
-            : "rgba(0,0,0,0.35)",
+            : "rgba(0,0,0,0.38)",
+        lineHeight: 1.8,
         fontVariantNumeric: "tabular-nums",
       }}
     >
@@ -524,22 +536,34 @@ const RuntimeSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        padding: "3px 8px",
-        borderRadius: 99,
+        fontFamily: "Jost",
+        fontWeight: 500,
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: `1px solid ${
+          amber
+            ? isDark
+              ? "rgba(255,160,0,0.25)"
+              : "rgba(200,120,0,0.18)"
+            : isDark
+              ? "rgba(255,255,255,0.07)"
+              : "rgba(0,0,0,0.07)"
+        }`,
         backgroundColor: amber
           ? isDark
             ? "rgba(255,160,0,0.12)"
             : "rgba(200,120,0,0.08)"
           : isDark
-            ? "rgba(255,255,255,0.06)"
+            ? "rgba(255,255,255,0.07)"
             : "rgba(0,0,0,0.05)",
         color: amber
           ? isDark
             ? "rgba(255,180,60,0.85)"
             : "rgba(160,90,0,0.85)"
           : isDark
-            ? "rgba(255,255,255,0.45)"
-            : "rgba(0,0,0,0.40)",
+            ? "rgba(255,255,255,0.35)"
+            : "rgba(0,0,0,0.38)",
+        lineHeight: 1.8,
         fontVariantNumeric: "tabular-nums",
       }}
     >
@@ -762,12 +786,16 @@ export const LocalStorageSettings = () => {
             <span
               style={{
                 fontSize: 11,
-                padding: "3px 8px",
-                borderRadius: 99,
+                fontFamily: "Jost",
+                fontWeight: 500,
+                padding: "2px 8px",
+                borderRadius: 999,
+                border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                 backgroundColor: isDark
-                  ? "rgba(255,255,255,0.06)"
+                  ? "rgba(255,255,255,0.07)"
                   : "rgba(0,0,0,0.05)",
-                color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.40)",
+                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
+                lineHeight: 1.8,
                 fontVariantNumeric: "tabular-nums",
               }}
             >
@@ -776,12 +804,16 @@ export const LocalStorageSettings = () => {
             <span
               style={{
                 fontSize: 11,
-                padding: "3px 8px",
-                borderRadius: 99,
+                fontFamily: "Jost",
+                fontWeight: 500,
+                padding: "2px 8px",
+                borderRadius: 999,
+                border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                 backgroundColor: isDark
-                  ? "rgba(255,255,255,0.06)"
+                  ? "rgba(255,255,255,0.07)"
                   : "rgba(0,0,0,0.05)",
-                color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.40)",
+                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
+                lineHeight: 1.8,
                 fontVariantNumeric: "tabular-nums",
               }}
             >

@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Slider from "../../../BUILTIN_COMPONENTs/input/slider";
 import SegmentedButton from "../../../BUILTIN_COMPONENTs/input/segmented_button";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import { SettingsRow, SettingsSection } from "../appearance";
@@ -134,23 +135,29 @@ export const MemorySettings = ({ onNavigate }) => {
           label="Inspect long-term memory"
           description="Visualise all long-term memory vectors in a PCA scatter plot."
         >
-          <button
+          <Button
+            label="Inspect"
             onClick={() => setInspectOpen(true)}
             style={{
               fontSize: 12,
-              padding: "5px 14px",
+              paddingVertical: 5,
+              paddingHorizontal: 14,
               borderRadius: 6,
-              border: `1px solid ${isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.15)"}`,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.04)",
-              color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
+              hoverBackgroundColor: isDark
+                ? "rgba(255,255,255,0.14)"
+                : "rgba(0,0,0,0.10)",
+              background: {
+                hoverBackgroundColor: isDark
+                  ? "rgba(255,255,255,0.14)"
+                  : "rgba(0,0,0,0.10)",
+              },
+              root: {
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.05)",
+              },
             }}
-          >
-            Inspect
-          </button>
+          />
         </SettingsRow>
       </SettingsSection>
 
