@@ -1766,6 +1766,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     )
                 return [{"role": "assistant", "content": "done"}], {
                     "consumed_tokens": 21,
+                    "input_tokens": 13,
+                    "output_tokens": 8,
                     "max_context_window_tokens": 128000,
                     "context_window_used_pct": 3.5,
                 }
@@ -1804,6 +1806,22 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 if event.get("type") == "stream_summary"
             ).get("consumed_tokens"),
             21,
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("input_tokens"),
+            13,
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("output_tokens"),
+            8,
         )
         self.assertGreaterEqual(len(fake_agent.last_messages), 1)
         self.assertEqual(fake_agent.last_messages[0].get("role"), "system")

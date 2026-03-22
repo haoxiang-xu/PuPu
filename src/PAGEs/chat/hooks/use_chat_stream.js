@@ -1504,6 +1504,12 @@ export const useChatStream = ({
                   model,
                   model_id: modelId || "unknown",
                   consumed_tokens: bundle.consumed_tokens,
+                  ...(typeof bundle.input_tokens === "number"
+                    ? { input_tokens: bundle.input_tokens }
+                    : {}),
+                  ...(typeof bundle.output_tokens === "number"
+                    ? { output_tokens: bundle.output_tokens }
+                    : {}),
                   max_context_window_tokens: bundle.max_context_window_tokens,
                   chatId: targetChatId,
                 });
