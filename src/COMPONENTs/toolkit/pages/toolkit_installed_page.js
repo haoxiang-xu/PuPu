@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../../SERVICEs/api";
 import {
   getDefaultToolkitSelection,
@@ -9,7 +9,7 @@ import { BASE_TOOLKIT_IDENTIFIERS } from "../constants";
 import ToolkitRow from "../components/toolkit_row";
 import LoadingDots from "../components/loading_dots";
 import PlaceholderBlock from "../components/placeholder_block";
-import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 
 const isBaseById = (toolkitId) => {
@@ -126,47 +126,23 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       {/* ── Search ── */}
-      <div
+      <Input
+        prefix_icon="search"
+        value={search}
+        set_value={(v) => setSearch(v)}
+        placeholder="Search toolkits..."
         style={{
-          position: "relative",
-          display: "flex",
-          alignItems: "center",
+          width: "100%",
+          fontSize: 13,
+          fontFamily: "Jost",
+          borderRadius: 7,
+          color: isDark ? "#fff" : "#222",
+          paddingVertical: 7,
+          paddingHorizontal: 10,
         }}
-      >
-        <Icon
-          src="search"
-          style={{
-            position: "absolute",
-            left: 10,
-            width: 14,
-            height: 14,
-            pointerEvents: "none",
-            opacity: 0.35,
-          }}
-        />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search toolkits..."
-          style={{
-            width: "100%",
-            padding: "7px 10px 7px 32px",
-            fontSize: 13,
-            fontFamily: "Jost",
-            border: `1px solid ${
-              isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-            }`,
-            borderRadius: 7,
-            background: isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)",
-            color: isDark ? "#fff" : "#222",
-            outline: "none",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>
+      />
 
       {/* ── Header ── */}
       <span
@@ -175,21 +151,36 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
           fontFamily: "Jost",
           fontWeight: 500,
           color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
+          marginTop: 4,
+          marginBottom: 2,
         }}
       >
         {filtered.length} toolkit{filtered.length !== 1 ? "s" : ""} installed
       </span>
 
       {/* ── List ── */}
-      {filtered.map((tk) => (
-        <ToolkitRow
-          key={tk.toolkitId}
-          toolkit={tk}
-          isDark={isDark}
-          isBuiltin={isBuiltinToolkit(tk)}
-          onToggleEnabled={handleToggleEnabled}
-          onClick={(toolkitId) => onToolClick?.(toolkitId, null, tk)}
-        />
+      {filtered.map((tk, idx) => (
+        <React.Fragment key={tk.toolkitId}>
+          {idx > 0 && (
+            <div
+              style={{
+                height: 1,
+                background: isDark
+                  ? "rgba(255,255,255,0.06)"
+                  : "rgba(0,0,0,0.06)",
+                marginLeft: 14,
+                marginRight: 14,
+              }}
+            />
+          )}
+          <ToolkitRow
+            toolkit={tk}
+            isDark={isDark}
+            isBuiltin={isBuiltinToolkit(tk)}
+            onToggleEnabled={handleToggleEnabled}
+            onClick={(toolkitId) => onToolClick?.(toolkitId, null, tk)}
+          />
+        </React.Fragment>
       ))}
 
       {filtered.length === 0 && search.trim() && (

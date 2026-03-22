@@ -312,6 +312,8 @@ class ModelsCatalogRouteTests(unittest.TestCase):
                     "timestamp": 1700000000.5,
                     "bundle": {
                         "consumed_tokens": 21,
+                        "input_tokens": 13,
+                        "output_tokens": 8,
                         "max_context_window_tokens": 128000,
                         "context_window_used_pct": 3.5,
                     },
@@ -367,6 +369,14 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertEqual(
             done_frame.get("payload", {}).get("bundle", {}).get("consumed_tokens"),
             21,
+        )
+        self.assertEqual(
+            done_frame.get("payload", {}).get("bundle", {}).get("input_tokens"),
+            13,
+        )
+        self.assertEqual(
+            done_frame.get("payload", {}).get("bundle", {}).get("output_tokens"),
+            8,
         )
 
     def test_chat_stream_v2_preserves_last_iteration_on_terminal_error_frame(self) -> None:

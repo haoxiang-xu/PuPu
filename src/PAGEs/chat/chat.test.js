@@ -9,7 +9,7 @@ jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
   __esModule: true,
   default: (props) => {
     lastChatMessagesProps = props;
-    const { messages = [] } = props;
+    const { messages = [], pendingContinuationRequest } = props;
     return (
       <div data-testid="chat-messages">
         {messages.map((message) => (
@@ -17,6 +17,12 @@ jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
             {message.role}:{message.content}:{message.status || "done"}
           </div>
         ))}
+        {pendingContinuationRequest && (
+          <div>
+            Agent reached {pendingContinuationRequest.iteration} iterations
+            without a final response. Continue?
+          </div>
+        )}
       </div>
     );
   },
@@ -465,6 +471,8 @@ describe("ChatInterface stop flow", () => {
 
     const bundle = {
       consumed_tokens: 21,
+      input_tokens: 13,
+      output_tokens: 8,
       max_context_window_tokens: 128000,
       context_window_used_pct: 3.5,
     };
@@ -479,6 +487,44 @@ describe("ChatInterface stop flow", () => {
     await waitFor(() => {
       expect(getAssistantMessage()?.status).toBe("done");
       expect(getAssistantMessage()?.meta?.bundle).toEqual(bundle);
+    });
+  });
+
+  test("persists token usage breakdown from the done bundle into localStorage", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Usage breakdown test" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    streamHandlers.onDone({
+      bundle: {
+        consumed_tokens: 21,
+        input_tokens: 13,
+        output_tokens: 8,
+        max_context_window_tokens: 128000,
+      },
+    });
+
+    await waitFor(() => {
+      const tokenUsage = JSON.parse(
+        window.localStorage.getItem("token_usage") || "{}",
+      );
+      expect(tokenUsage.records).toHaveLength(1);
+      expect(tokenUsage.records[0]).toEqual(
+        expect.objectContaining({
+          consumed_tokens: 21,
+          input_tokens: 13,
+          output_tokens: 8,
+          chatId: expect.any(String),
+        }),
+      );
     });
   });
 

@@ -8,7 +8,6 @@ const TOOLKIT_SELECTION_ID_ALIASES = Object.freeze({
   terminal_toolkit: "TerminalToolkit",
   external_api_toolkit: "ExternalAPIToolkit",
   "ask-user-toolkit": "AskUserToolkit",
-  mcp: "MCPToolkit",
 });
 
 const toDisplayName = (toolkit) => {

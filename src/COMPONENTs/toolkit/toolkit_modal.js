@@ -6,7 +6,6 @@ import { SECTIONS } from "./constants";
 import SegmentedControl from "./components/segmented_control";
 import ToolkitsPage from "./pages/toolkits_page";
 import ComingSoonPage from "./pages/coming_soon_page";
-import McpPage from "./mcp/mcp_page";
 
 export const ToolkitModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
@@ -25,9 +24,6 @@ export const ToolkitModal = ({ open, onClose }) => {
   const renderContent = () => {
     if (selectedSection === "toolkits") {
       return <ToolkitsPage isDark={isDark} />;
-    }
-    if (selectedSection === "mcp") {
-      return <McpPage isDark={isDark} />;
     }
     return (
       <ComingSoonPage icon={activeSection?.icon || "tool"} isDark={isDark} />

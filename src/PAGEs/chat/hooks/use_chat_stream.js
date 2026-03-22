@@ -399,6 +399,10 @@ export const useChatStream = ({
           typeof requestFrame.payload?.tool_name === "string"
             ? requestFrame.payload.tool_name
             : "";
+        const toolDisplayName =
+          typeof requestFrame.payload?.tool_display_name === "string"
+            ? requestFrame.payload.tool_display_name
+            : "";
 
         return {
           ...message,
@@ -412,6 +416,9 @@ export const useChatStream = ({
               stage: "client",
               payload: {
                 tool_name: toolName,
+                ...(toolDisplayName
+                  ? { tool_display_name: toolDisplayName }
+                  : {}),
                 call_id: callId,
                 confirmation_id: normalizedConfirmationId,
                 synthetic: true,
@@ -1497,6 +1504,12 @@ export const useChatStream = ({
                   model,
                   model_id: modelId || "unknown",
                   consumed_tokens: bundle.consumed_tokens,
+                  ...(typeof bundle.input_tokens === "number"
+                    ? { input_tokens: bundle.input_tokens }
+                    : {}),
+                  ...(typeof bundle.output_tokens === "number"
+                    ? { output_tokens: bundle.output_tokens }
+                    : {}),
                   max_context_window_tokens: bundle.max_context_window_tokens,
                   chatId: targetChatId,
                 });

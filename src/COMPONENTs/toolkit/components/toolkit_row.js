@@ -4,7 +4,6 @@ import ToolkitIcon, {
 } from "./toolkit_icon";
 import { SOURCE_CONFIG } from "../constants";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
-import Card from "../../../BUILTIN_COMPONENTs/card/card";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 
 const toDisplayName = (toolkit) => {
@@ -44,157 +43,144 @@ const ToolkitRow = ({
 
   return (
     <div
-      className="toolkit-row-wrapper"
       onClick={() => onClick?.(toolkit.toolkitId)}
-      style={{ cursor: "pointer" }}
+      style={{
+        cursor: "pointer",
+        padding: "10px 14px",
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        borderRadius: 10,
+      }}
     >
-      <style>{`
-        .toolkit-row-wrapper > div > div {
-          box-shadow: none !important;
-        }
-      `}</style>
-      <Card
-        width="100%"
-        height="auto"
-        disabled
-        border_radius={10}
-        style={{ cursor: "pointer" }}
-        body_style={{
-          padding: "10px 14px",
-          display: "flex",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        {/* ── Icon ── */}
-        {hasFileIcon ? (
-          <ToolkitIcon
-            icon={toolkit.toolkitIcon}
-            size={iconWrapSize}
-            fallbackColor={sc.color}
-            style={{ borderRadius: 10, flexShrink: 0 }}
-          />
-        ) : (
-          <div
-            style={{
-              width: iconWrapSize,
-              height: iconWrapSize,
-              borderRadius: 10,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: iconWrapBackground,
-              flexShrink: 0,
-            }}
-          >
-            <ToolkitIcon
-              icon={toolkit.toolkitIcon}
-              size={18}
-              fallbackColor={sc.color}
-            />
-          </div>
-        )}
-
-        {/* ── Name & meta ── */}
+      {/* ── Icon ── */}
+      {hasFileIcon ? (
+        <ToolkitIcon
+          icon={toolkit.toolkitIcon}
+          size={iconWrapSize}
+          fallbackColor={sc.color}
+          style={{ borderRadius: 10, flexShrink: 0 }}
+        />
+      ) : (
         <div
           style={{
-            flex: 1,
-            minWidth: 0,
+            width: iconWrapSize,
+            height: iconWrapSize,
+            borderRadius: 10,
             display: "flex",
-            flexDirection: "column",
-            gap: 3,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: iconWrapBackground,
+            flexShrink: 0,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <ToolkitIcon
+            icon={toolkit.toolkitIcon}
+            size={18}
+            fallbackColor={sc.color}
+          />
+        </div>
+      )}
+
+      {/* ── Name & meta ── */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span
+            style={{
+              fontSize: 12.5,
+              fontFamily: "Jost",
+              fontWeight: 500,
+              color: textColor,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {displayName}
+          </span>
+          <span
+            style={{
+              fontSize: 10,
+              fontFamily: "Jost",
+              fontWeight: 500,
+              letterSpacing: "0.4px",
+              textTransform: "lowercase",
+              padding: "1px 7px",
+              borderRadius: 999,
+              backgroundColor: sc.bg,
+              color: sc.color,
+              lineHeight: 1.8,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {sc.label}
+          </span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          {toolkit.toolkitDescription && (
             <span
               style={{
-                fontSize: 12.5,
+                fontSize: 11,
                 fontFamily: "Jost",
-                fontWeight: 500,
-                color: textColor,
+                color: mutedColor,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
                 whiteSpace: "nowrap",
               }}
             >
-              {displayName}
+              {toolkit.toolkitDescription}
             </span>
+          )}
+          {tools.length > 0 && (
             <span
               style={{
-                fontSize: 10,
+                fontSize: 11,
                 fontFamily: "Jost",
-                fontWeight: 500,
-                letterSpacing: "0.4px",
-                textTransform: "lowercase",
-                padding: "1px 7px",
-                borderRadius: 999,
-                backgroundColor: sc.bg,
-                color: sc.color,
-                lineHeight: 1.8,
-                whiteSpace: "nowrap",
+                color: mutedColor,
+                flexShrink: 0,
               }}
             >
-              {sc.label}
+              · {tools.length} tool{tools.length !== 1 ? "s" : ""}
             </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-            {toolkit.toolkitDescription && (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: "Jost",
-                  color: mutedColor,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {toolkit.toolkitDescription}
-              </span>
-            )}
-            {tools.length > 0 && (
-              <span
-                style={{
-                  fontSize: 11,
-                  fontFamily: "Jost",
-                  color: mutedColor,
-                  flexShrink: 0,
-                }}
-              >
-                · {tools.length} tool{tools.length !== 1 ? "s" : ""}
-              </span>
-            )}
-          </div>
+          )}
         </div>
+      </div>
 
-        {/* ── Actions (only for non-builtin) ── */}
-        {!isBuiltin && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              flexShrink: 0,
-            }}
-            onClick={(e) => e.stopPropagation()}
+      {/* ── Actions (only for non-builtin) ── */}
+      {!isBuiltin && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            flexShrink: 0,
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Tooltip
+            label="Auto-enable for new chats"
+            position="top"
+            style={{ whiteSpace: "nowrap" }}
+            wrapper_style={{ flexShrink: 0 }}
           >
-            <Tooltip
-              label="Auto-enable for new chats"
-              position="top"
-              style={{ whiteSpace: "nowrap" }}
-              wrapper_style={{ flexShrink: 0 }}
-            >
-              <SemiSwitch
-                on={enabled}
-                set_on={(val) => {
-                  if (onToggleEnabled) onToggleEnabled(toolkit.toolkitId, val);
-                }}
-                style={{ width: 56, height: 28 }}
-              />
-            </Tooltip>
-          </div>
-        )}
-      </Card>
+            <SemiSwitch
+              on={enabled}
+              set_on={(val) => {
+                if (onToggleEnabled) onToggleEnabled(toolkit.toolkitId, val);
+              }}
+              style={{ width: 56, height: 28 }}
+            />
+          </Tooltip>
+        </div>
+      )}
     </div>
   );
 };

@@ -639,71 +639,12 @@ const ChatInterface = () => {
             onEditMessage={stream.editTurn}
             onToolConfirmationDecision={stream.handleToolConfirmationDecision}
             toolConfirmationUiStateById={stream.toolConfirmationUiStateById}
+            pendingContinuationRequest={stream.pendingContinuationRequest}
+            onContinuationDecision={stream.handleContinuationDecision}
             initialVisibleCount={12}
             loadBatchSize={6}
             topLoadThreshold={80}
           />
-          {stream.pendingContinuationRequest && (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 10,
-                padding: "10px 16px",
-                background: "var(--color-bg-secondary, #1e1e1e)",
-                borderTop: "1px solid var(--color-border, #333)",
-                fontSize: 13,
-              }}
-            >
-              <span
-                style={{ flex: 1, color: "var(--color-text-secondary, #aaa)" }}
-              >
-                Agent reached {stream.pendingContinuationRequest.iteration} iterations
-                without a final response. Continue?
-              </span>
-              <button
-                disabled={stream.pendingContinuationRequest.status === "submitting"}
-                onClick={() =>
-                  stream.handleContinuationDecision({
-                    confirmationId:
-                      stream.pendingContinuationRequest.confirmationId,
-                    approved: true,
-                  })
-                }
-                style={{
-                  padding: "5px 14px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: "var(--color-accent, #4a9eff)",
-                  color: "#fff",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                }}
-              >
-                Continue
-              </button>
-              <button
-                disabled={stream.pendingContinuationRequest.status === "submitting"}
-                onClick={() =>
-                  stream.handleContinuationDecision({
-                    confirmationId:
-                      stream.pendingContinuationRequest.confirmationId,
-                    approved: false,
-                  })
-                }
-                style={{
-                  padding: "5px 14px",
-                  borderRadius: 6,
-                  border: "1px solid var(--color-border, #444)",
-                  background: "transparent",
-                  color: "var(--color-text, #eee)",
-                  cursor: "pointer",
-                }}
-              >
-                Stop
-              </button>
-            </div>
-          )}
           <ChatInput {...sharedChatInputProps} />
         </>
       )}

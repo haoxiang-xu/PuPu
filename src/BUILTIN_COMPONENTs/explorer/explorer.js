@@ -382,6 +382,7 @@ const ExplorerRow = ({
   onDragStart,
   onHoverRow,
   activeNodeId,
+  contextMenuNodeId,
 }) => {
   const isActive =
     !isSource && activeNodeId != null && node.id === activeNodeId;
@@ -406,7 +407,10 @@ const ExplorerRow = ({
   /* ── visual tokens ─────────────────────────────────── */
   const hoverBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
   const activeBg = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
-  const showBg = (hovered || pressed) && !isSource;
+  /* When a context menu is open, only the targeted row shows hover bg */
+  const isContextMenuTarget = contextMenuNodeId != null && node.id === contextMenuNodeId;
+  const suppressHover = contextMenuNodeId != null && !isContextMenuTarget;
+  const showBg = ((hovered && !suppressHover) || isContextMenuTarget || pressed) && !isSource;
 
   const expandIcon = node.expand_icon
     ? node.expand_icon
@@ -904,6 +908,7 @@ const ExplorerBranch = ({
   onDragStart,
   onHoverRow,
   activeNodeId,
+  contextMenuNodeId,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -931,6 +936,7 @@ const ExplorerBranch = ({
           onDragStart={onDragStart}
           onHoverRow={onHoverRow}
           activeNodeId={activeNodeId}
+          contextMenuNodeId={contextMenuNodeId}
         />
         {isFolder && (
           <AnimatedChildren open={isOpen} skipAnimation={isDragging}>
@@ -970,6 +976,7 @@ const ExplorerBranch = ({
                   onDragStart={onDragStart}
                   onHoverRow={onHoverRow}
                   activeNodeId={activeNodeId}
+                  contextMenuNodeId={contextMenuNodeId}
                 />
               )}
             </div>
@@ -1151,6 +1158,7 @@ const Explorer = ({
   on_reorder,
   style,
   active_node_id,
+  context_menu_node_id,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1252,9 +1260,12 @@ const Explorer = ({
     setHoveredId(id);
   }, []);
 
+  /* When a context menu is open, lock the highlight on that node */
+  const effectiveHoveredId = context_menu_node_id || hoveredId;
+
   /* recompute indicator position when hover / structure changes */
   useEffect(() => {
-    if (!hoveredId || dragState.isDragging) {
+    if (!effectiveHoveredId || dragState.isDragging) {
       setIndicator((prev) =>
         prev.visible ? { ...prev, visible: false } : prev,
       );
@@ -1262,7 +1273,7 @@ const Explorer = ({
     }
 
     const scopeIds = collectScopeIds(
-      hoveredId,
+      effectiveHoveredId,
       store.map,
       store.root,
       expanded,
@@ -1307,7 +1318,7 @@ const Explorer = ({
       left: scopeLeft,
       visible: true,
     });
-  }, [hoveredId, store, expanded, dragState.isDragging]);
+  }, [effectiveHoveredId, store, expanded, dragState.isDragging]);
 
   /* ── clear auto-expand timer ─────────────────────────── */
   const clearAutoExpand = useCallback(() => {
@@ -1573,6 +1584,7 @@ const Explorer = ({
         onDragStart={handleRowDragStart}
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
+        contextMenuNodeId={context_menu_node_id}
       />
 
       {/* ── drop indicator ──────────────────────────── */}

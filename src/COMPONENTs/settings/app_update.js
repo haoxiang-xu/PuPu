@@ -252,6 +252,14 @@ export const AppUpdateSettings = () => {
               paddingVertical: 7,
               paddingHorizontal: 14,
               borderRadius: 7,
+              root: {
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.05)",
+              },
+              hoverBackgroundColor: isDark
+                ? "rgba(255,255,255,0.14)"
+                : "rgba(0,0,0,0.10)",
             }}
           />
         </SettingsRow>

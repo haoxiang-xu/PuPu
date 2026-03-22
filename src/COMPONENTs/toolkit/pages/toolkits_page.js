@@ -58,10 +58,6 @@ const ToolkitsPage = ({ isDark }) => {
   /* ── Tab item ── */
   const TabItem = ({ item }) => {
     const isActive = activeTab === item.key;
-    const activeColor = "rgba(10,186,181,1)";
-    const inactiveColor = isDark
-      ? "rgba(255,255,255,0.38)"
-      : "rgba(0,0,0,0.35)";
 
     return (
       <Button
@@ -74,24 +70,11 @@ const ToolkitsPage = ({ isDark }) => {
         style={{
           fontSize: 12,
           fontWeight: 500,
-          color: isActive ? activeColor : inactiveColor,
+          opacity: isActive ? 1 : 0.5,
           paddingVertical: 5,
           paddingHorizontal: 10,
           borderRadius: 8,
           gap: 5,
-          root: {
-            background: isActive
-              ? isDark
-                ? "rgba(10,186,181,0.1)"
-                : "rgba(10,186,181,0.06)"
-              : "transparent",
-          },
-          hoverBackgroundColor: isDark
-            ? "rgba(10,186,181,0.12)"
-            : "rgba(10,186,181,0.08)",
-          activeBackgroundColor: isDark
-            ? "rgba(10,186,181,0.18)"
-            : "rgba(10,186,181,0.12)",
           content: {
             icon: { width: 14, height: 14 },
           },

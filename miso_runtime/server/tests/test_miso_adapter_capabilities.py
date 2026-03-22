@@ -305,17 +305,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         class FakePythonWorkspaceToolkit(FakeToolkitBase):
             pass
 
-        class FakeMcpToolkit(FakeToolkitBase):
-            pass
-
         def import_module_side_effect(module_name: str):
             if module_name == "miso.tools":
                 return SimpleNamespace(Toolkit=FakeToolkitBase)
             if module_name == "miso.toolkits":
-                return SimpleNamespace(
-                    WorkspaceToolkit=FakePythonWorkspaceToolkit,
-                    MCPToolkit=FakeMcpToolkit,
-                )
+                return SimpleNamespace(WorkspaceToolkit=FakePythonWorkspaceToolkit)
             raise ImportError(module_name)
 
         with mock.patch.object(
@@ -330,10 +324,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             names,
             [
                 "workspace_toolkit",
-                "mcp",
             ],
         )
-        self.assertEqual(catalog["count"], 2)
+        self.assertEqual(catalog["count"], 1)
 
     def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
         with mock.patch.object(miso_adapter, "_resolve_toolkit_base", return_value=None):
@@ -1075,6 +1068,86 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             },
         )
 
+    def test_apply_broth_runtime_patches_exposes_workspace_proxy_display_name_to_callback(
+        self,
+    ) -> None:
+        class FakeBroth:
+            def __init__(self):
+                self.provider = "openai"
+
+            def _execute_tool_calls(
+                self,
+                *,
+                tool_calls,
+                run_id,
+                iteration,
+                callback,
+                **_kwargs,
+            ):
+                del run_id, iteration
+                callback(
+                    {
+                        "type": "tool_call",
+                        "payload": {
+                            "tool_name": tool_calls[0].name,
+                            "call_id": tool_calls[0].call_id,
+                            "arguments": tool_calls[0].arguments,
+                        },
+                    }
+                )
+                callback(
+                    {
+                        "type": "tool_result",
+                        "payload": {
+                            "tool_name": tool_calls[0].name,
+                            "call_id": tool_calls[0].call_id,
+                            "result": {"ok": True},
+                        },
+                    }
+                )
+                return [], False
+
+            def _find_tool(self, _name, **_kwargs):
+                tool = SimpleNamespace(observe=False, requires_confirmation=False)
+                setattr(
+                    tool,
+                    miso_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
+                    "read_file",
+                )
+                return tool
+
+            def _build_observation_messages(self, full_messages, tool_messages):
+                return [*full_messages, *tool_messages]
+
+            def _inject_observation(self, _tool_message, _observation):
+                return None
+
+        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        agent = FakeBroth()
+        captured_events = []
+
+        _messages, should_observe = agent._execute_tool_calls(
+            tool_calls=[
+                SimpleNamespace(
+                    call_id="call-workspace-1",
+                    name="workspace_2_extra_root_read_file",
+                    arguments={"path": "hello.txt"},
+                )
+            ],
+            run_id="run-workspace-1",
+            iteration=0,
+            callback=captured_events.append,
+        )
+
+        self.assertFalse(should_observe)
+        self.assertEqual(len(captured_events), 2)
+        self.assertEqual(
+            captured_events[0]["payload"]["tool_name"],
+            "workspace_2_extra_root_read_file",
+        )
+        self.assertEqual(captured_events[0]["payload"]["tool_display_name"], "read_file")
+        self.assertEqual(captured_events[1]["payload"]["tool_display_name"], "read_file")
+
     def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
         self,
     ) -> None:
@@ -1464,6 +1537,14 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertIn("write_file", merged_toolkit.tools)
         self.assertIn("workspace_2_extra_root_read_file", merged_toolkit.tools)
         self.assertIn("workspace_2_extra_root_write_file", merged_toolkit.tools)
+        self.assertEqual(
+            getattr(
+                merged_toolkit.tools["workspace_2_extra_root_read_file"],
+                miso_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
+                "",
+            ),
+            "read_file",
+        )
         self.assertIn("list_available_workspaces", merged_toolkit.tools)
 
         second_workspace_read = merged_toolkit.execute(
@@ -1685,6 +1766,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     )
                 return [{"role": "assistant", "content": "done"}], {
                     "consumed_tokens": 21,
+                    "input_tokens": 13,
+                    "output_tokens": 8,
                     "max_context_window_tokens": 128000,
                     "context_window_used_pct": 3.5,
                 }
@@ -1723,6 +1806,22 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 if event.get("type") == "stream_summary"
             ).get("consumed_tokens"),
             21,
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("input_tokens"),
+            13,
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("output_tokens"),
+            8,
         )
         self.assertGreaterEqual(len(fake_agent.last_messages), 1)
         self.assertEqual(fake_agent.last_messages[0].get("role"), "system")

@@ -446,6 +446,9 @@ const SideMenu = () => {
               on_reorder={handleReorder}
               style={{ width: "100%", fontSize: 13 }}
               active_node_id={selectedNodeId}
+              context_menu_node_id={
+                contextMenu.visible ? contextMenu.node?.id : undefined
+              }
             />
           )}
         </div>
