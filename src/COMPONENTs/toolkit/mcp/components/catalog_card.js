@@ -20,7 +20,7 @@ const CatalogCard = ({ entry, isDark, onClick }) => {
         height="100%"
         disabled
         border_radius={12}
-        style={{ cursor: "pointer" }}
+        style={{ cursor: "pointer", boxShadow: "none" }}
         body_style={{
           padding: "14px",
           display: "flex",
