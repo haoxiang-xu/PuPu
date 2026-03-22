@@ -333,7 +333,9 @@ const TokenBreakdownChart = ({
   emptyMessage = "No input/output breakdown yet",
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
-  const hasUsableData = data.some((entry) => entry.input > 0 || entry.output > 0);
+  const hasUsableData = data.some(
+    (entry) => entry.input > 0 || entry.output > 0,
+  );
 
   if (!data.length || !hasUsableData) {
     return (
@@ -480,7 +482,7 @@ const TokenBreakdownChart = ({
                   <div
                     style={{
                       position: "absolute",
-                      bottom: `calc(${Math.max(entry.input, entry.output) / niceMax * 100}% + 10px)`,
+                      bottom: `calc(${(Math.max(entry.input, entry.output) / niceMax) * 100}% + 10px)`,
                       left: "50%",
                       transform: "translateX(-50%)",
                       backgroundColor: isDark ? "#2a2a2a" : "#fff",
@@ -532,7 +534,8 @@ const TokenBreakdownChart = ({
                 >
                   {BREAKDOWN_SERIES.map((series) => {
                     const value = entry[series.key] || 0;
-                    const pct = value > 0 ? Math.max((value / niceMax) * 100, 1) : 0;
+                    const pct =
+                      value > 0 ? Math.max((value / niceMax) * 100, 1) : 0;
                     return (
                       <div
                         key={series.key}
@@ -708,8 +711,7 @@ export const TokenUsageSettings = () => {
     requestCount,
     avgConsumedTokens,
     topModel,
-  } =
-    useTokenUsageData({ provider, model, range, granularity, records });
+  } = useTokenUsageData({ provider, model, range, granularity, records });
 
   // Clear data
   const handleClear = useCallback(() => {
