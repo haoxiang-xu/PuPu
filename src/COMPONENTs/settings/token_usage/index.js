@@ -387,9 +387,8 @@ export const TokenUsageSettings = () => {
             search_placeholder="Search models…"
             style={{ ...COMPACT_STYLE, minWidth: 90, maxWidth: 160 }}
             option_style={OPT_STYLE}
-            dropdown_style={DD_STYLE}
+            dropdown_style={{ ...DD_STYLE, padding: 6 }}
           />
-          <div style={{ flex: 1 }} />
           <Select
             options={GRANULARITY_OPTIONS}
             value={granularity}
