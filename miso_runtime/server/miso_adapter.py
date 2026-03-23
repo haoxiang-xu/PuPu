@@ -23,6 +23,8 @@ except ImportError:  # pragma: no cover
 _BROTH_CLASS = None
 _IMPORT_ERROR = None
 _RESOLVED_MISO_SOURCE = None
+_PUPU_AGENT_CLASS = None
+_PUPU_AGENT_IMPORT_ERROR = None
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -1598,6 +1600,169 @@ def _load_broth_class() -> None:
 
 
 _load_broth_class()
+
+
+def _load_pupu_agent_class() -> None:
+    global _PUPU_AGENT_CLASS, _PUPU_AGENT_IMPORT_ERROR
+
+    if _PUPU_AGENT_CLASS is not None:
+        return
+    if _BROTH_CLASS is None:
+        _PUPU_AGENT_IMPORT_ERROR = RuntimeError("miso.runtime.Broth is unavailable")
+        return
+
+    try:
+        from miso.agents import Agent as base_agent_cls  # type: ignore
+        from miso.tools import Tool as tool_cls  # type: ignore
+        from miso.tools import Toolkit as toolkit_cls  # type: ignore
+    except Exception as import_error:
+        _PUPU_AGENT_IMPORT_ERROR = import_error
+        return
+
+    class PuPuAgent(base_agent_cls):
+        """PuPu runtime wrapper that preserves toolkit instance semantics."""
+
+        def __init__(
+            self,
+            *,
+            name: str,
+            instructions: str = "",
+            provider: str = "openai",
+            model: str = "gpt-5",
+            api_key: str | None = None,
+            tools: list[Any] | None = None,
+            short_term_memory: Any = None,
+            long_term_memory: Any = None,
+            defaults: dict[str, Any] | None = None,
+            broth_options: dict[str, Any] | None = None,
+            toolkit_catalog_config: Any = None,
+        ):
+            initial_tools = list(tools or [])
+            preserved_toolkits: list[Any] = []
+            runtime_tool_entries: list[Any] = []
+            for item in initial_tools:
+                if isinstance(item, toolkit_cls):
+                    preserved_toolkits.append(item)
+                else:
+                    runtime_tool_entries.append(item)
+
+            super().__init__(
+                name=name,
+                instructions=instructions,
+                provider=provider,
+                model=model,
+                api_key=api_key,
+                tools=runtime_tool_entries,
+                short_term_memory=short_term_memory,
+                long_term_memory=long_term_memory,
+                defaults=defaults,
+                broth_options=broth_options,
+                toolkit_catalog_config=toolkit_catalog_config,
+            )
+            self.toolkits: list[Any] = preserved_toolkits
+            self.max_iterations = 6
+
+        def add_toolkit(self, toolkit: Any) -> None:
+            self.toolkits.append(toolkit)
+
+        def remove_toolkit(self, toolkit: Any) -> None:
+            self.toolkits.remove(toolkit)
+
+        def _build_engine(self, *, runtime_context: Any = None):
+            broth_cls = _BROTH_CLASS
+            if broth_cls is None:
+                raise RuntimeError("miso.runtime.Broth is unavailable")
+
+            core_kwargs: dict[str, Any] = {
+                "provider": self.provider,
+                "model": self.model,
+                "api_key": self.api_key,
+                "memory_manager": self.memory_manager,
+                "toolkit_catalog_config": copy.deepcopy(self.toolkit_catalog_config),
+            }
+
+            try:
+                signature = inspect.signature(broth_cls)
+                supported_init_keys = set(signature.parameters)
+            except (TypeError, ValueError):
+                supported_init_keys = set(core_kwargs)
+
+            init_kwargs = {
+                key: value
+                for key, value in core_kwargs.items()
+                if key in supported_init_keys
+            }
+
+            for key, value in self.broth_options.items():
+                if key in {"provider", "model", "api_key", "memory_manager", "toolkit_catalog_config"}:
+                    continue
+                if key in supported_init_keys:
+                    init_kwargs[key] = copy.deepcopy(value)
+
+            engine = broth_cls(**init_kwargs)
+
+            for key, value in self.broth_options.items():
+                if key in {"provider", "model", "api_key", "memory_manager", "toolkit_catalog_config"}:
+                    continue
+                if key in init_kwargs:
+                    continue
+                if hasattr(engine, key):
+                    setattr(engine, key, copy.deepcopy(value))
+
+            add_toolkit = getattr(engine, "add_toolkit", None)
+            can_add_toolkits = callable(add_toolkit)
+
+            for toolkit in self.toolkits:
+                if can_add_toolkits:
+                    add_toolkit(toolkit)
+                    continue
+                if hasattr(engine, "toolkit"):
+                    engine.toolkit = toolkit
+                    can_add_toolkits = False
+                    continue
+                raise RuntimeError("Agent does not support add_toolkit")
+
+            auxiliary_toolkit = toolkit_cls()
+            has_auxiliary_tools = False
+            for item in self.tools:
+                if isinstance(item, toolkit_cls):
+                    if callable(add_toolkit):
+                        add_toolkit(item)
+                        continue
+                    if hasattr(engine, "toolkit"):
+                        engine.toolkit = item
+                        continue
+                    raise RuntimeError("Agent does not support add_toolkit")
+                if isinstance(item, tool_cls):
+                    auxiliary_toolkit.register(item)
+                    has_auxiliary_tools = True
+                    continue
+                if callable(item):
+                    auxiliary_toolkit.register(item)
+                    has_auxiliary_tools = True
+                    continue
+                raise TypeError(
+                    f"unsupported tool entry for Agent '{self.name}': {type(item).__name__}"
+                )
+
+            if has_auxiliary_tools:
+                if callable(add_toolkit):
+                    add_toolkit(auxiliary_toolkit)
+                elif hasattr(engine, "toolkit"):
+                    engine.toolkit = auxiliary_toolkit
+                else:
+                    raise RuntimeError("Agent does not support add_toolkit")
+
+            default_confirm = self.defaults.get("on_tool_confirm")
+            if callable(default_confirm):
+                engine.on_tool_confirm = default_confirm
+            return engine
+
+    _PUPU_AGENT_CLASS = PuPuAgent
+    _PUPU_AGENT_IMPORT_ERROR = None
+
+
+_load_pupu_agent_class()
 
 
 def _provider_default_model(provider: str) -> str:
@@ -3481,12 +3646,12 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         raise RuntimeError(f"Failed to import miso.runtime.Broth: {_IMPORT_ERROR}")
     if _BROTH_CLASS is None:
         raise RuntimeError("miso.runtime.Broth is unavailable")
+    if _PUPU_AGENT_CLASS is None:
+        _load_pupu_agent_class()
+    if _PUPU_AGENT_CLASS is None:
+        raise RuntimeError(f"Failed to import miso.agents.Agent: {_PUPU_AGENT_IMPORT_ERROR}")
 
     config = get_runtime_config(options)
-
-    agent = _BROTH_CLASS()
-    agent.provider = config["provider"]
-    agent.model = config["model"]
 
     max_iterations = _extract_max_iterations_from_options(options)
     if max_iterations is None:
@@ -3502,7 +3667,6 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         # Tool-call workflows need at least one extra round to produce
         # assistant-facing text after tool outputs are injected.
         max_iterations = max(max_iterations, 2)
-    agent.max_iterations = max_iterations
 
     api_key = (
         _extract_api_key_from_options(options, config["provider"])
@@ -3520,10 +3684,6 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
                 f"Provider '{config['provider']}' requires API key. "
                 "Set MISO_API_KEY or provider-specific API key env vars."
             )
-        agent.api_key = api_key
-
-    _attach_workspace_toolkit(agent, options)
-    _attach_selected_toolkits(agent, options)
 
     memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
     memory_runtime = {
@@ -3531,6 +3691,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         "available": False,
         "reason": "",
     }
+    memory_manager = None
     if memory_requested and not session_id:
         memory_runtime["reason"] = "missing_session_id"
 
@@ -3543,7 +3704,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
                 session_id=session_id,
             )
             if mm is not None:
-                agent.memory_manager = mm
+                memory_manager = mm
                 memory_runtime["available"] = True
             else:
                 memory_runtime["reason"] = (
@@ -3551,6 +3712,19 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
                 )
         except Exception as memory_error:
             memory_runtime["reason"] = f"memory_factory_failed: {memory_error}"
+
+    agent = _PUPU_AGENT_CLASS(
+        name="pupu",
+        provider=config["provider"],
+        model=config["model"],
+        api_key=api_key or None,
+        short_term_memory=memory_manager,
+        broth_options={"max_iterations": max_iterations},
+    )
+    agent.max_iterations = max_iterations
+
+    _attach_workspace_toolkit(agent, options)
+    _attach_selected_toolkits(agent, options)
 
     setattr(agent, "_memory_runtime", memory_runtime)
 

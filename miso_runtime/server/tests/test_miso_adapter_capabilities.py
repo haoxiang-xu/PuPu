@@ -1731,6 +1731,39 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertEqual(agent.max_iterations, 5)
 
+    def test_create_agent_preserves_workspace_pin_execution_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace_root = Path(tmp)
+            target = workspace_root / "notes.txt"
+            target.write_text("hello\n", encoding="utf-8")
+
+            agent = miso_adapter._create_agent(
+                {
+                    "workspace_root": tmp,
+                    "toolkits": ["workspace_toolkit"],
+                }
+            )
+
+            self.assertIsNotNone(miso_adapter._PUPU_AGENT_CLASS)
+            self.assertIsInstance(agent, miso_adapter._PUPU_AGENT_CLASS)
+            self.assertEqual(len(agent.toolkits), 1)
+
+            engine = agent._build_engine()
+            self.assertIs(type(engine), miso_adapter._BROTH_CLASS)
+            self.assertTrue(
+                getattr(type(engine), "_pupu_tool_confirmation_contract_patch_v6", False)
+            )
+
+            result = engine._execute_from_toolkits(
+                "pin_file_context",
+                {"path": "notes.txt"},
+                session_id="thread-1",
+            )
+
+        self.assertEqual(result.get("path"), str(target.resolve()))
+        self.assertTrue(result.get("created"))
+        self.assertFalse(result.get("duplicate", True))
+
     def test_stream_chat_events_passes_on_tool_confirm_to_agent_run(self) -> None:
         class FakeAgent:
             def __init__(self):
