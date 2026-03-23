@@ -1764,6 +1764,53 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertTrue(result.get("created"))
         self.assertFalse(result.get("duplicate", True))
 
+    def test_create_agent_mounts_internal_memory_recall_tools_when_memory_is_available(self) -> None:
+        from miso.memory import MemoryManager
+
+        manager = MemoryManager()
+
+        with mock.patch(
+            "memory_factory.create_memory_manager_with_diagnostics",
+            return_value=(manager, ""),
+        ):
+            agent = miso_adapter._create_agent(
+                {
+                    "provider": "ollama",
+                    "model": "deepseek-r1:14b",
+                    "memory_enabled": True,
+                },
+                session_id="chat-1",
+            )
+
+        engine = agent._build_engine(session_id="chat-1", memory_namespace="user-1")
+        self.assertIsNotNone(engine._find_tool("recall_profile"))
+        self.assertIsNotNone(engine._find_tool("recall_memory"))
+
+    def test_create_agent_skips_internal_memory_recall_tools_when_tool_calling_is_disabled(self) -> None:
+        from miso.memory import MemoryManager
+
+        manager = MemoryManager()
+
+        with mock.patch(
+            "memory_factory.create_memory_manager_with_diagnostics",
+            return_value=(manager, ""),
+        ), mock.patch.object(
+            miso_adapter._PUPU_AGENT_CLASS,
+            "_supports_tool_calling",
+            return_value=False,
+        ):
+            agent = miso_adapter._create_agent(
+                {
+                    "provider": "ollama",
+                    "model": "plain-model",
+                    "memory_enabled": True,
+                },
+                session_id="chat-1",
+            )
+            engine = agent._build_engine(session_id="chat-1", memory_namespace="user-1")
+            self.assertIsNone(engine._find_tool("recall_profile"))
+            self.assertIsNone(engine._find_tool("recall_memory"))
+
     def test_stream_chat_events_passes_on_tool_confirm_to_agent_run(self) -> None:
         class FakeAgent:
             def __init__(self):

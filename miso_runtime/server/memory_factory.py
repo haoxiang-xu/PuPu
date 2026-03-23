@@ -987,6 +987,9 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
         model: str,
         summary_generator: Callable[..., str] | None = None,
         memory_namespace: str | None = None,
+        provider: str | None = None,
+        tool_resolver: Callable[..., Any] | None = None,
+        supports_tools: bool | None = None,
     ) -> list[dict[str, Any]]:
         clean_incoming = _sanitize_dialog_messages(incoming)
 
@@ -1019,6 +1022,12 @@ def _patch_memory_prepare_with_diagnostics(manager: Any) -> Any:
             prepare_kwargs["summary_generator"] = summary_generator
         if "memory_namespace" in prepare_params:
             prepare_kwargs["memory_namespace"] = memory_namespace
+        if "provider" in prepare_params:
+            prepare_kwargs["provider"] = provider
+        if "tool_resolver" in prepare_params:
+            prepare_kwargs["tool_resolver"] = tool_resolver
+        if "supports_tools" in prepare_params:
+            prepare_kwargs["supports_tools"] = supports_tools
 
         prepared = original_prepare(**prepare_kwargs)
         prepared = _sanitize_dialog_messages(prepared)

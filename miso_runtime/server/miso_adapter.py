@@ -1668,7 +1668,13 @@ def _load_pupu_agent_class() -> None:
         def remove_toolkit(self, toolkit: Any) -> None:
             self.toolkits.remove(toolkit)
 
-        def _build_engine(self, *, runtime_context: Any = None):
+        def _build_engine(
+            self,
+            *,
+            runtime_context: Any = None,
+            session_id: str | None = None,
+            memory_namespace: str | None = None,
+        ):
             broth_cls = _BROTH_CLASS
             if broth_cls is None:
                 raise RuntimeError("miso.runtime.Broth is unavailable")
@@ -1712,6 +1718,20 @@ def _load_pupu_agent_class() -> None:
             add_toolkit = getattr(engine, "add_toolkit", None)
             can_add_toolkits = callable(add_toolkit)
 
+            internal_memory_toolkit = self._build_memory_recall_toolkit(
+                runtime_context=runtime_context,
+                session_id=session_id,
+                memory_namespace=memory_namespace,
+            )
+            if internal_memory_toolkit is not None:
+                if can_add_toolkits:
+                    add_toolkit(internal_memory_toolkit)
+                elif hasattr(engine, "toolkit"):
+                    engine.toolkit = internal_memory_toolkit
+                    can_add_toolkits = False
+                else:
+                    raise RuntimeError("Agent does not support add_toolkit")
+
             for toolkit in self.toolkits:
                 if can_add_toolkits:
                     add_toolkit(toolkit)
@@ -1744,6 +1764,10 @@ def _load_pupu_agent_class() -> None:
                 raise TypeError(
                     f"unsupported tool entry for Agent '{self.name}': {type(item).__name__}"
                 )
+
+            if runtime_context is not None and getattr(self, "_subagent_config", None) is not None:
+                auxiliary_toolkit.register(self._build_subagent_tool(runtime_context))
+                has_auxiliary_tools = True
 
             if has_auxiliary_tools:
                 if callable(add_toolkit):
