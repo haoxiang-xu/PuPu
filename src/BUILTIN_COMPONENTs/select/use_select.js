@@ -434,8 +434,13 @@ const useSelect = ({
       return;
     }
     if (multi) {
-      /* multi mode: highlight first item */
-      setHighlightedIndex(flatSelectable.findIndex((o) => o && !o.disabled));
+      // Multi: don't reset highlight on selection changes; only fix if invalid.
+      if (highlightedIndex >= 0) {
+        const current = flatSelectable[highlightedIndex];
+        if (current && !current.disabled) return;
+      }
+      const firstEnabled = flatSelectable.findIndex((o) => o && !o.disabled);
+      setHighlightedIndex(firstEnabled);
       return;
     }
     const si = flatSelectable.findIndex(
@@ -446,7 +451,7 @@ const useSelect = ({
       return;
     }
     setHighlightedIndex(flatSelectable.findIndex((o) => o && !o.disabled));
-  }, [mergedOpen, flatSelectable, selectedValue, multi]);
+  }, [mergedOpen, flatSelectable, selectedValue, multi, highlightedIndex]);
 
   /* ── focus search input on panel mode ── */
   useEffect(() => {
