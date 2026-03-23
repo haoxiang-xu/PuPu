@@ -285,6 +285,7 @@ const OptionList = ({
   multi,
   highlightedIndex,
   setHighlightedIndex,
+  setHighlightedIndexFromHover = setHighlightedIndex,
   select_option,
   on_group_toggle,
   // refs
@@ -329,7 +330,7 @@ const OptionList = ({
         multi={multi}
         isDark={isDark}
         onMouseEnter={() => {
-          if (!option?.disabled) setHighlightedIndex(index);
+          if (!option?.disabled) setHighlightedIndexFromHover(index);
         }}
         onMouseDown={(e) => e.preventDefault()}
         onClick={() => select_option(option)}
@@ -437,7 +438,7 @@ const OptionList = ({
                       isDark={isDark}
                       onMouseEnter={() => {
                         if (!option?.disabled && fi >= 0)
-                          setHighlightedIndex(fi);
+                          setHighlightedIndexFromHover(fi);
                       }}
                       onMouseDown={(e) => e.preventDefault()}
                       onClick={() => select_option(option)}
@@ -485,7 +486,8 @@ const OptionList = ({
             multi={multi}
             isDark={isDark}
             onMouseEnter={() => {
-              if (!option?.disabled && fi >= 0) setHighlightedIndex(fi);
+              if (!option?.disabled && fi >= 0)
+                setHighlightedIndexFromHover(fi);
             }}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => select_option(option)}

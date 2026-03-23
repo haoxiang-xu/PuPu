@@ -217,7 +217,8 @@ const useSelect = ({
 
   /* ── query & highlight ── */
   const [query, setQuery] = useState("");
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  const [highlightedIndex, setHighlightedIndexState] = useState(-1);
+  const shouldScrollHighlightedRef = useRef(true);
 
   /* ── trigger width tracking ── */
   const [triggerWidth, setTriggerWidth] = useState(0);
@@ -327,13 +328,24 @@ const useSelect = ({
           idx = (idx + direction + total) % total;
         }
         if (!flatSelectable[idx]?.disabled) {
-          setHighlightedIndex(idx);
+          shouldScrollHighlightedRef.current = true;
+          setHighlightedIndexState(idx);
           return;
         }
       }
     },
     [flatSelectable, highlightedIndex],
   );
+
+  const setHighlightedIndex = useCallback((nextIndex) => {
+    shouldScrollHighlightedRef.current = true;
+    setHighlightedIndexState(nextIndex);
+  }, []);
+
+  const setHighlightedIndexFromHover = useCallback((nextIndex) => {
+    shouldScrollHighlightedRef.current = false;
+    setHighlightedIndexState(nextIndex);
+  }, []);
 
   const handle_key_down = useCallback(
     (e) => {
@@ -430,28 +442,32 @@ const useSelect = ({
   /* ── highlight management on open ── */
   useEffect(() => {
     if (!mergedOpen) {
-      setHighlightedIndex(-1);
+      shouldScrollHighlightedRef.current = true;
+      setHighlightedIndexState(-1);
       return;
     }
     if (multi) {
-      // Multi: don't reset highlight on selection changes; only fix if invalid.
-      if (highlightedIndex >= 0) {
-        const current = flatSelectable[highlightedIndex];
-        if (current && !current.disabled) return;
-      }
-      const firstEnabled = flatSelectable.findIndex((o) => o && !o.disabled);
-      setHighlightedIndex(firstEnabled);
+      // Multi: preserve the current highlight if it still points to a valid option.
+      shouldScrollHighlightedRef.current = true;
+      setHighlightedIndexState((currentIndex) => {
+        if (currentIndex >= 0) {
+          const current = flatSelectable[currentIndex];
+          if (current && !current.disabled) return currentIndex;
+        }
+        return flatSelectable.findIndex((o) => o && !o.disabled);
+      });
       return;
     }
     const si = flatSelectable.findIndex(
       (o) => o?.value === selectedValue && !o?.disabled,
     );
+    shouldScrollHighlightedRef.current = true;
     if (si >= 0) {
-      setHighlightedIndex(si);
+      setHighlightedIndexState(si);
       return;
     }
-    setHighlightedIndex(flatSelectable.findIndex((o) => o && !o.disabled));
-  }, [mergedOpen, flatSelectable, selectedValue, multi, highlightedIndex]);
+    setHighlightedIndexState(flatSelectable.findIndex((o) => o && !o.disabled));
+  }, [mergedOpen, flatSelectable, selectedValue, multi]);
 
   /* ── focus search input on panel mode ── */
   useEffect(() => {
@@ -465,6 +481,10 @@ const useSelect = ({
   /* ── scrollIntoView for highlighted option ── */
   useEffect(() => {
     if (!mergedOpen || highlightedIndex < 0) return;
+    if (!shouldScrollHighlightedRef.current) {
+      shouldScrollHighlightedRef.current = true;
+      return;
+    }
     const el = optionRefs.current[highlightedIndex];
     if (el?.scrollIntoView) el.scrollIntoView({ block: "nearest" });
   }, [mergedOpen, highlightedIndex]);
@@ -480,6 +500,7 @@ const useSelect = ({
     query,
     highlightedIndex,
     setHighlightedIndex,
+    setHighlightedIndexFromHover,
     triggerWidth,
     // grouped data
     hasGroups,

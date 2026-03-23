@@ -55,6 +55,7 @@ const SinkingSelect = ({
     query,
     highlightedIndex,
     setHighlightedIndex,
+    setHighlightedIndexFromHover,
     triggerWidth,
     hasGroups,
     filteredGroups,
@@ -291,6 +292,7 @@ const SinkingSelect = ({
           selectedValue={selectedValue}
           highlightedIndex={highlightedIndex}
           setHighlightedIndex={setHighlightedIndex}
+          setHighlightedIndexFromHover={setHighlightedIndexFromHover}
           select_option={select_option}
           on_group_toggle={on_group_toggle}
           optionRefs={optionRefs}
@@ -377,6 +379,7 @@ const FloatingSelect = ({
     query,
     highlightedIndex,
     setHighlightedIndex,
+    setHighlightedIndexFromHover,
     triggerWidth,
     hasGroups,
     filteredGroups,
@@ -632,6 +635,7 @@ const FloatingSelect = ({
           selectedValue={selectedValue}
           highlightedIndex={highlightedIndex}
           setHighlightedIndex={setHighlightedIndex}
+          setHighlightedIndexFromHover={setHighlightedIndexFromHover}
           select_option={select_option}
           on_group_toggle={on_group_toggle}
           optionRefs={optionRefs}
@@ -726,6 +730,7 @@ const Select = ({
     query,
     highlightedIndex,
     setHighlightedIndex,
+    setHighlightedIndexFromHover,
     triggerWidth,
     hasGroups,
     filteredGroups,
@@ -982,6 +987,7 @@ const Select = ({
           multi={multi}
           highlightedIndex={highlightedIndex}
           setHighlightedIndex={setHighlightedIndex}
+          setHighlightedIndexFromHover={setHighlightedIndexFromHover}
           select_option={select_option}
           on_group_toggle={on_group_toggle}
           optionRefs={optionRefs}
