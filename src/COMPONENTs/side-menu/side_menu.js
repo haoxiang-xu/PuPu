@@ -406,6 +406,7 @@ const SideMenu = () => {
             userSelect: "none",
             flexShrink: 0,
           }}
+          onContextMenu={handleBackgroundContextMenu}
         >
           Chats
         </div>
