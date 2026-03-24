@@ -7,6 +7,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
 import { ToolkitModal } from "../toolkit/toolkit_modal";
+import { AgentsModal } from "../agents/agents_modal";
 import { WorkspaceModal } from "../workspace/workspace_modal";
 import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
@@ -36,6 +37,7 @@ const SideMenu = () => {
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [contextMenu, setContextMenu] = useState({
@@ -380,6 +382,21 @@ const SideMenu = () => {
           }}
         />
         <Button
+          prefix_icon="bot"
+          label="Agents"
+          onClick={() => setAgentsOpen(true)}
+          style={{
+            width: "100%",
+            justifyContent: "flex-start",
+            fontSize: 14,
+            padding: "5px 8px",
+            borderRadius: 6,
+            marginBottom: 2,
+            WebkitAppRegion: "no-drag",
+            iconSize: 16,
+          }}
+        />
+        <Button
           prefix_icon="folder_2"
           label="Workspace"
           onClick={() => setWorkspaceModalOpen(true)}
@@ -474,6 +491,8 @@ const SideMenu = () => {
       />
 
       <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+
+      <AgentsModal open={agentsOpen} onClose={() => setAgentsOpen(false)} />
 
       <WorkspaceModal
         open={workspaceModalOpen}
