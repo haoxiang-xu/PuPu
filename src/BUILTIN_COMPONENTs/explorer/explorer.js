@@ -543,7 +543,7 @@ const ExplorerRow = ({
             bottom: 0,
             left: depth * INDENT + 3,
             right: 3,
-            borderRadius: 8,
+            borderRadius: 5,
             backgroundColor: isDark
               ? "rgba(255,255,255,0.10)"
               : "rgba(0,0,0,0.082)",
@@ -563,7 +563,7 @@ const ExplorerRow = ({
             bottom: pressed ? 1 : 0,
             left: pressed ? depth * INDENT + 4 : depth * INDENT + 3,
             right: pressed ? 4 : 3,
-            borderRadius: pressed ? 7 : 8,
+            borderRadius: pressed ? 4 : 5,
             backgroundColor: pressed ? activeBgC : hoverBgC,
             transform: showBg ? "scale(1)" : "scale(0.97, 0)",
             opacity: showBg ? 1 : 0,

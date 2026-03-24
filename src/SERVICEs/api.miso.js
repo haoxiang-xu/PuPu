@@ -796,6 +796,26 @@ export const createMisoApi = () => {
       );
     },
 
+    exportCharacter: async (characterId, filePath) => {
+      const method = assertBridgeMethod("misoAPI", "exportCharacter");
+      return withTimeout(
+        () => method(characterId, filePath),
+        30000,
+        "character_export_timeout",
+        "Character export request timed out",
+      );
+    },
+
+    importCharacter: async (filePath) => {
+      const method = assertBridgeMethod("misoAPI", "importCharacter");
+      return withTimeout(
+        () => method(filePath),
+        30000,
+        "character_import_timeout",
+        "Character import request timed out",
+      );
+    },
+
     getLongTermMemoryProjection: async () => {
       const method = assertBridgeMethod(
         "misoAPI",

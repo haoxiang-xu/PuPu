@@ -23,6 +23,7 @@ const MISO_SESSION_MEMORY_EXPORT_ENDPOINT = "/memory/session/export";
 const MISO_CHARACTERS_ENDPOINT = "/characters";
 const MISO_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
 const MISO_CHARACTER_BUILD_ENDPOINT = "/characters/build";
+const MISO_CHARACTER_IMPORT_ENDPOINT = "/characters/import";
 
 const createMisoService = ({
   app,
@@ -814,6 +815,66 @@ const createMisoService = ({
     );
   };
 
+  const exportMisoCharacter = async (characterId, filePath) => {
+    ensureMisoReady();
+
+    const cleanId = typeof characterId === "string" ? characterId.trim() : "";
+    if (!cleanId) {
+      throw new Error("characterId is required");
+    }
+    const cleanPath = typeof filePath === "string" ? filePath.trim() : "";
+    if (!cleanPath) {
+      throw new Error("filePath is required");
+    }
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}/export`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+        },
+        body: JSON.stringify({ file_path: cleanPath }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character export request failed",
+      {},
+      "Invalid Miso character export response",
+    );
+  };
+
+  const importMisoCharacter = async (filePath) => {
+    ensureMisoReady();
+
+    const cleanPath = typeof filePath === "string" ? filePath.trim() : "";
+    if (!cleanPath) {
+      throw new Error("filePath is required");
+    }
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTER_IMPORT_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+        },
+        body: JSON.stringify({ file_path: cleanPath }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character import request failed",
+      {},
+      "Invalid Miso character import response",
+    );
+  };
+
   const submitMisoToolConfirmation = async (payload = {}) => {
     ensureMisoReady();
 
@@ -1472,6 +1533,8 @@ const createMisoService = ({
     deleteMisoCharacter,
     previewMisoCharacterDecision,
     buildMisoCharacterAgentConfig,
+    exportMisoCharacter,
+    importMisoCharacter,
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,

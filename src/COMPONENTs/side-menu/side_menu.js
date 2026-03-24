@@ -71,9 +71,9 @@ const CharacterChatRow = ({ node, depth, isDark }) => {
         gap: 10,
         height: 42,
         margin: "1px 3px",
-        paddingLeft: depth * 16 + 10,
+        paddingLeft: depth * 16 + 9,
         paddingRight: 10,
-        borderRadius: 8,
+        borderRadius: 5,
         cursor: "pointer",
         userSelect: "none",
         WebkitUserSelect: "none",
@@ -90,8 +90,11 @@ const CharacterChatRow = ({ node, depth, isDark }) => {
           alignItems: "center",
           justifyContent: "center",
           background: isDark
-            ? "linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))"
-            : "linear-gradient(160deg, rgba(0,0,0,0.1), rgba(0,0,0,0.03))",
+            ? "rgba(255,255,255,0.06)"
+            : "rgba(0,0,0,0.04)",
+          border: isDark
+            ? "1px solid rgba(255,255,255,0.10)"
+            : "1px solid rgba(0,0,0,0.08)",
           color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
           fontSize: 11,
           fontWeight: 700,

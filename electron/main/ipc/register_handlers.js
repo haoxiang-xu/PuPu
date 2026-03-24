@@ -35,6 +35,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.DELETE_CHARACTER,
   CHANNELS.MISO.PREVIEW_CHARACTER_DECISION,
   CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
+  CHANNELS.MISO.EXPORT_CHARACTER,
+  CHANNELS.MISO.IMPORT_CHARACTER,
   CHANNELS.MISO.SHOW_SAVE_DIALOG,
   CHANNELS.MISO.SHOW_OPEN_DIALOG,
   CHANNELS.MISO.WRITE_FILE,
@@ -222,6 +224,16 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
     async (_event, payload = {}) =>
       misoService.buildMisoCharacterAgentConfig(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.EXPORT_CHARACTER,
+    async (_event, payload = {}) =>
+      misoService.exportMisoCharacter(payload.characterId, payload.filePath),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.IMPORT_CHARACTER,
+    async (_event, payload = {}) =>
+      misoService.importMisoCharacter(payload.filePath),
   );
   ipcMain.handle(CHANNELS.MISO.SHOW_SAVE_DIALOG, async (_event, payload = {}) =>
     runtimeService.showSaveDialog(payload),

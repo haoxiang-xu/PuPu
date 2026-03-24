@@ -41,6 +41,8 @@ const CHANNELS = Object.freeze({
     DELETE_CHARACTER: "miso:delete-character",
     PREVIEW_CHARACTER_DECISION: "miso:preview-character-decision",
     BUILD_CHARACTER_AGENT_CONFIG: "miso:build-character-agent-config",
+    EXPORT_CHARACTER: "miso:export-character",
+    IMPORT_CHARACTER: "miso:import-character",
     SHOW_SAVE_DIALOG: "miso:show-save-dialog",
     SHOW_OPEN_DIALOG: "miso:show-open-dialog",
     WRITE_FILE: "miso:write-file",

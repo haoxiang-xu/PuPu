@@ -53,6 +53,13 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.PREVIEW_CHARACTER_DECISION, payload),
   buildCharacterAgentConfig: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG, payload),
+  exportCharacter: (characterId, filePath) =>
+    ipcRenderer.invoke(CHANNELS.MISO.EXPORT_CHARACTER, {
+      characterId,
+      filePath,
+    }),
+  importCharacter: (filePath) =>
+    ipcRenderer.invoke(CHANNELS.MISO.IMPORT_CHARACTER, { filePath }),
   showSaveDialog: (options = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.SHOW_SAVE_DIALOG, options),
   showOpenDialog: (options = {}) =>

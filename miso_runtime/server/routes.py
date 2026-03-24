@@ -1263,6 +1263,69 @@ def build_character_agent_config() -> Response:
         ), 500
 
 
+@api_blueprint.post("/characters/<character_id>/export")
+def export_character(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    file_path = payload.get("file_path") or payload.get("filePath")
+    if not isinstance(file_path, str) or not file_path.strip():
+        return jsonify({"error": {"code": "invalid_request", "message": "file_path is required"}}), 400
+
+    try:
+        return jsonify(character_store.export_character({
+            "character_id": character_id,
+            "file_path": file_path.strip(),
+        }))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_export_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters/import")
+def import_character() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    file_path = payload.get("file_path") or payload.get("filePath")
+    if not isinstance(file_path, str) or not file_path.strip():
+        return jsonify({"error": {"code": "invalid_request", "message": "file_path is required"}}), 400
+
+    try:
+        return jsonify(character_store.import_character({
+            "file_path": file_path.strip(),
+        }))
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_import_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
 @api_blueprint.post("/memory/session/replace")
 def replace_memory_session() -> Response:
     if not _is_authorized():

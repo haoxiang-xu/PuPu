@@ -321,6 +321,40 @@ export const runtimeBridge = {
     });
   },
 
+  exportCharacter: async (characterId, filePath) => {
+    if (!hasBridgeMethod("misoAPI", "exportCharacter")) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.exportCharacter is unavailable",
+      );
+    }
+
+    return invokeMiso("exportCharacter", [characterId, filePath], {
+      timeoutMs: 30000,
+      timeoutCode: "miso_character_export_timeout",
+      timeoutMessage: "Character export request timed out",
+      failureCode: "miso_character_export_failed",
+      failureMessage: "Failed to export character",
+    });
+  },
+
+  importCharacter: async (filePath) => {
+    if (!hasBridgeMethod("misoAPI", "importCharacter")) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.importCharacter is unavailable",
+      );
+    }
+
+    return invokeMiso("importCharacter", [filePath], {
+      timeoutMs: 30000,
+      timeoutCode: "miso_character_import_timeout",
+      timeoutMessage: "Character import request timed out",
+      failureCode: "miso_character_import_failed",
+      failureMessage: "Failed to import character",
+    });
+  },
+
   deleteRuntimeEntry: async (dirPath, entryName) => {
     return invokeMiso("deleteRuntimeEntry", [dirPath, entryName], {
       timeoutMs: 10000,
