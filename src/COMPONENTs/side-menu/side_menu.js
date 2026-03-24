@@ -58,12 +58,6 @@ const CharacterChatRow = ({ node, depth, isDark }) => {
   const [imageBroken, setImageBroken] = useState(false);
   const avatarSrc = resolveCharacterAvatarSrc(node.characterAvatar);
   const showImage = Boolean(avatarSrc) && !imageBroken;
-  const isActive = node.is_active === true;
-  const background = isActive
-    ? isDark
-      ? "rgba(255,255,255,0.10)"
-      : "rgba(0,0,0,0.082)"
-    : "transparent";
 
   return (
     <div
@@ -83,7 +77,6 @@ const CharacterChatRow = ({ node, depth, isDark }) => {
         cursor: "pointer",
         userSelect: "none",
         WebkitUserSelect: "none",
-        background,
       }}
     >
       <div

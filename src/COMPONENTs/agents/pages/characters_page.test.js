@@ -49,7 +49,7 @@ describe("CharactersPage", () => {
     jest.clearAllMocks();
   });
 
-  test("loads and renders the Nico card in Added", async () => {
+  test("loads and renders the Nico row and auto-selects detail", async () => {
     api.miso.listCharacters.mockResolvedValue({
       characters: [
         {
@@ -72,21 +72,24 @@ describe("CharactersPage", () => {
     expect(screen.getByTestId("characters-added-loading")).toBeInTheDocument();
 
     await waitFor(() =>
-      expect(screen.getByTestId("character-card-nico")).toBeInTheDocument(),
+      expect(screen.getByTestId("character-row-nico")).toBeInTheDocument(),
     );
 
     expect(api.miso.listCharacters).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Nico")).toBeInTheDocument();
+    /* Name appears in both contact row and detail panel */
+    expect(screen.getAllByText("Nico")).toHaveLength(2);
+    /* Subtitle appears in both contact row and detail panel */
     expect(
-      screen.getByText("22-year-old HR at an internet company · zh-CN"),
-    ).toBeInTheDocument();
+      screen.getAllByText("22-year-old HR at an internet company · zh-CN"),
+    ).toHaveLength(2);
+
+    /* Detail panel auto-selected — shows age badge, tags, blurb, Open Chat */
+    expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument();
     expect(screen.getByText("22")).toBeInTheDocument();
     expect(screen.getByText("INFP")).toBeInTheDocument();
     expect(screen.getByText("猫控")).toBeInTheDocument();
     expect(screen.getByText("Open Chat")).toBeInTheDocument();
-    expect(screen.getByTestId("character-avatar-fallback-nico")).toHaveTextContent(
-      "N",
-    );
+    expect(screen.getAllByTestId("character-avatar-fallback-nico")).toHaveLength(2);
   });
 
   test("open chat uses the character chat store entrypoint and closes on success", async () => {
@@ -120,7 +123,7 @@ describe("CharactersPage", () => {
     render(<CharactersPage isDark={false} onOpenChat={onOpenChat} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("character-card-nico")).toBeInTheDocument(),
+      expect(screen.getByTestId("character-row-nico")).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByText("Open Chat"));
@@ -161,7 +164,7 @@ describe("CharactersPage", () => {
     render(<CharactersPage isDark={false} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("character-card-nico")).toBeInTheDocument(),
+      expect(screen.getByTestId("character-row-nico")).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByText("Open Chat"));

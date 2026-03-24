@@ -11,6 +11,10 @@ const CHARACTER_SUB_PAGES = [
 
 const FONT = "Jost, sans-serif";
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  Helpers                                                                                              */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 const resolveAvatarSrc = (character) => {
   const rawPath = character?.avatar?.absolute_path;
   if (typeof rawPath !== "string" || !rawPath.trim()) {
@@ -69,6 +73,25 @@ const subtitleForCharacter = (character) => {
   }
   return parts.join(" · ");
 };
+
+const resolveSourceModelIdFromStore = () => {
+  const store = getChatsStore();
+  const activeChat =
+    store?.activeChatId && store?.chatsById?.[store.activeChatId]
+      ? store.chatsById[store.activeChatId]
+      : null;
+  if (!activeChat || activeChat.kind === "character") {
+    return "";
+  }
+
+  const modelId =
+    typeof activeChat.model?.id === "string" ? activeChat.model.id.trim() : "";
+  return modelId && modelId !== "miso-unset" ? modelId : "";
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  Shared presentational                                                                                */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const CharacterStatePanel = ({
   icon,
@@ -132,7 +155,7 @@ const CharacterStatePanel = ({
   </div>
 );
 
-const CharacterAvatar = ({ character, isDark }) => {
+const CharacterAvatar = ({ character, isDark, size = 54 }) => {
   const [imageBroken, setImageBroken] = useState(false);
   const avatarSrc = resolveAvatarSrc(character);
   const showImage = Boolean(avatarSrc) && !imageBroken;
@@ -140,8 +163,8 @@ const CharacterAvatar = ({ character, isDark }) => {
   return (
     <div
       style={{
-        width: 54,
-        height: 54,
+        width: size,
+        height: size,
         borderRadius: "50%",
         overflow: "hidden",
         flexShrink: 0,
@@ -152,7 +175,7 @@ const CharacterAvatar = ({ character, isDark }) => {
           ? "linear-gradient(160deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))"
           : "linear-gradient(160deg, rgba(0,0,0,0.08), rgba(0,0,0,0.025))",
         color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.74)",
-        fontSize: 18,
+        fontSize: Math.round(size * 0.33),
         fontWeight: 700,
         fontFamily: "NunitoSans, sans-serif",
         letterSpacing: "0.03em",
@@ -174,206 +197,327 @@ const CharacterAvatar = ({ character, isDark }) => {
   );
 };
 
-const resolveSourceModelIdFromStore = () => {
-  const store = getChatsStore();
-  const activeChat =
-    store?.activeChatId && store?.chatsById?.[store.activeChatId]
-      ? store.chatsById[store.activeChatId]
-      : null;
-  if (!activeChat || activeChat.kind === "character") {
-    return "";
-  }
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  Left: Contact Row                                                                                    */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-  const modelId =
-    typeof activeChat.model?.id === "string" ? activeChat.model.id.trim() : "";
-  return modelId && modelId !== "miso-unset" ? modelId : "";
-};
-
-const CharacterCard = ({
-  character,
-  isDark,
-  onOpenChat,
-  isOpening = false,
-  openError = "",
-}) => {
-  const tags = listTagsForCharacter(character);
-  const ageLabel = ageLabelForCharacter(character);
-  const blurb =
-    typeof character?.metadata?.list_blurb === "string"
-      ? character.metadata.list_blurb.trim()
-      : "";
+const CharacterContactRow = ({ character, isDark, isSelected, onClick }) => {
+  const [hovered, setHovered] = useState(false);
   const subtitle = subtitleForCharacter(character);
+
+  const bg = isSelected
+    ? isDark
+      ? "rgba(255,255,255,0.10)"
+      : "rgba(0,0,0,0.082)"
+    : hovered
+      ? isDark
+        ? "rgba(255,255,255,0.07)"
+        : "rgba(0,0,0,0.055)"
+      : "transparent";
 
   return (
     <div
-      data-testid={`character-card-${character?.id || "unknown"}`}
+      data-testid={`character-row-${character?.id || "unknown"}`}
+      onClick={() => onClick && onClick(character)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         display: "flex",
-        gap: 14,
-        padding: "16px 18px",
-        borderRadius: 16,
-        border: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.07)"}`,
-        background: isDark
-          ? "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))"
-          : "linear-gradient(180deg, rgba(255,255,255,0.95), rgba(248,248,248,0.92))",
-        boxShadow: isDark
-          ? "0 12px 32px rgba(0,0,0,0.24)"
-          : "0 10px 28px rgba(0,0,0,0.08)",
+        alignItems: "center",
+        gap: 10,
+        height: 56,
+        padding: "0 12px",
+        margin: "1px 4px",
+        borderRadius: 8,
+        cursor: "pointer",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        background: bg,
+        transition: "background 0.15s ease",
       }}
     >
-      <CharacterAvatar character={character} isDark={isDark} />
+      <CharacterAvatar character={character} isDark={isDark} size={36} />
 
-      <div
-        style={{
-          minWidth: 0,
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          gap: 8,
-        }}
-      >
+      <div style={{ minWidth: 0, flex: 1 }}>
         <div
           style={{
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: 12,
+            fontSize: 13,
+            fontWeight: 600,
+            fontFamily: FONT,
+            color: isDark ? "#fff" : "#171717",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 16,
-                fontWeight: 700,
-                fontFamily: "NunitoSans, sans-serif",
-                color: isDark ? "#fff" : "#171717",
-              }}
-            >
-              {character?.name || "Character"}
-            </div>
-            {subtitle ? (
-              <div
-                style={{
-                  marginTop: 4,
-                  fontSize: 12,
-                  fontFamily: FONT,
-                  color: isDark ? "rgba(255,255,255,0.48)" : "rgba(0,0,0,0.5)",
-                  lineHeight: 1.45,
-                }}
-              >
-                {subtitle}
-              </div>
-            ) : null}
-          </div>
-
-          {ageLabel ? (
-            <div
-              style={{
-                padding: "4px 8px",
-                borderRadius: 999,
-                fontSize: 11,
-                fontWeight: 600,
-                fontFamily: FONT,
-                color: isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.65)",
-                background: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.05)",
-                flexShrink: 0,
-              }}
-            >
-              {ageLabel}
-            </div>
-          ) : null}
+          {character?.name || "Character"}
         </div>
-
-        {blurb ? (
+        {subtitle ? (
           <div
             style={{
-              fontSize: 12.5,
+              marginTop: 2,
+              fontSize: 11.5,
               fontFamily: FONT,
-              color: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.68)",
-              lineHeight: 1.6,
+              color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            {blurb}
+            {subtitle}
           </div>
         ) : null}
-
-        {tags.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 8,
-            }}
-          >
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                style={{
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  fontSize: 11,
-                  fontWeight: 600,
-                  fontFamily: FONT,
-                  color: isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.66)",
-                  background: isDark
-                    ? "rgba(255,255,255,0.07)"
-                    : "rgba(0,0,0,0.05)",
-                }}
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: 12,
-            marginTop: 4,
-          }}
-        >
-          <Button
-            label={isOpening ? "Opening..." : "Open Chat"}
-            onClick={() => onOpenChat && onOpenChat(character)}
-            disabled={isOpening}
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              paddingVertical: 6,
-              paddingHorizontal: 12,
-              borderRadius: 999,
-            }}
-          />
-          {openError ? (
-            <div
-              style={{
-                minWidth: 0,
-                flex: 1,
-                textAlign: "right",
-                fontSize: 11.5,
-                fontFamily: FONT,
-                color: isDark ? "rgba(255,170,170,0.9)" : "rgba(163,28,28,0.86)",
-                lineHeight: 1.45,
-              }}
-            >
-              {openError}
-            </div>
-          ) : null}
-        </div>
       </div>
     </div>
   );
 };
 
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  Right: Detail Panel                                                                                  */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const CharacterDetailPanel = ({
+  character,
+  isDark,
+  onOpenChat,
+  isOpening,
+  openError,
+}) => {
+  if (!character) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          gap: 12,
+        }}
+      >
+        <div
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 12,
+            background: isDark
+              ? "rgba(255,255,255,0.055)"
+              : "rgba(0,0,0,0.045)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon
+            src="user"
+            style={{ width: 22, height: 22 }}
+            color={isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.28)"}
+          />
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            fontFamily: FONT,
+            color: isDark ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)",
+          }}
+        >
+          Select a character
+        </div>
+      </div>
+    );
+  }
+
+  const tags = listTagsForCharacter(character);
+  const ageLabel = ageLabelForCharacter(character);
+  const subtitle = subtitleForCharacter(character);
+  const blurb =
+    typeof character?.metadata?.list_blurb === "string"
+      ? character.metadata.list_blurb.trim()
+      : "";
+
+  return (
+    <div
+      data-testid={`character-detail-${character?.id || "unknown"}`}
+      className="scrollable"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        overflowY: "auto",
+        padding: "32px 32px 24px",
+      }}
+    >
+      {/* ── Header (centered) ─────────────────────────── */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 0,
+        }}
+      >
+        <CharacterAvatar character={character} isDark={isDark} size={72} />
+
+        <div
+          style={{
+            marginTop: 16,
+            fontSize: 20,
+            fontWeight: 700,
+            fontFamily: "NunitoSans, sans-serif",
+            color: isDark ? "#fff" : "#171717",
+            textAlign: "center",
+          }}
+        >
+          {character?.name || "Character"}
+        </div>
+
+        {subtitle ? (
+          <div
+            style={{
+              marginTop: 4,
+              fontSize: 13,
+              fontFamily: FONT,
+              color: isDark ? "rgba(255,255,255,0.48)" : "rgba(0,0,0,0.5)",
+              textAlign: "center",
+            }}
+          >
+            {subtitle}
+          </div>
+        ) : null}
+
+        {ageLabel ? (
+          <div
+            style={{
+              marginTop: 10,
+              padding: "4px 10px",
+              borderRadius: 999,
+              fontSize: 11,
+              fontWeight: 600,
+              fontFamily: FONT,
+              color: isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.65)",
+              background: isDark
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)",
+            }}
+          >
+            {ageLabel}
+          </div>
+        ) : null}
+      </div>
+
+      {/* ── Body ──────────────────────────────────────── */}
+      {(blurb || tags.length > 0) && (
+        <div
+          style={{
+            marginTop: 24,
+            borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+            paddingTop: 20,
+            display: "flex",
+            flexDirection: "column",
+            gap: 16,
+          }}
+        >
+          {blurb ? (
+            <div
+              style={{
+                fontSize: 13,
+                fontFamily: FONT,
+                color: isDark
+                  ? "rgba(255,255,255,0.72)"
+                  : "rgba(0,0,0,0.68)",
+                lineHeight: 1.65,
+              }}
+            >
+              {blurb}
+            </div>
+          ) : null}
+
+          {tags.length > 0 ? (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+              }}
+            >
+              {tags.map((tag) => (
+                <span
+                  key={tag}
+                  style={{
+                    padding: "4px 8px",
+                    borderRadius: 999,
+                    fontSize: 11,
+                    fontWeight: 600,
+                    fontFamily: FONT,
+                    color: isDark
+                      ? "rgba(255,255,255,0.8)"
+                      : "rgba(0,0,0,0.66)",
+                    background: isDark
+                      ? "rgba(255,255,255,0.07)"
+                      : "rgba(0,0,0,0.05)",
+                  }}
+                >
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      {/* ── Spacer ────────────────────────────────────── */}
+      <div style={{ flex: 1, minHeight: 24 }} />
+
+      {/* ── Open Chat ─────────────────────────────────── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <Button
+          label={isOpening ? "Opening..." : "Open Chat"}
+          onClick={() => onOpenChat && onOpenChat(character)}
+          disabled={isOpening}
+          style={{
+            fontSize: 13,
+            fontWeight: 600,
+            paddingVertical: 8,
+            paddingHorizontal: 20,
+            borderRadius: 999,
+          }}
+        />
+        {openError ? (
+          <div
+            style={{
+              minWidth: 0,
+              flex: 1,
+              fontSize: 11.5,
+              fontFamily: FONT,
+              color: isDark
+                ? "rgba(255,170,170,0.9)"
+                : "rgba(163,28,28,0.86)",
+              lineHeight: 1.45,
+            }}
+          >
+            {openError}
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  AddedCharactersPanel — master-detail container                                                       */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
 const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
   const [status, setStatus] = useState("loading");
   const [characters, setCharacters] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
+  const [selectedCharacterId, setSelectedCharacterId] = useState("");
   const [openingCharacterId, setOpeningCharacterId] = useState("");
   const [openErrorById, setOpenErrorById] = useState({});
 
@@ -394,6 +538,9 @@ const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
           : [];
         setCharacters(nextCharacters);
         setStatus(nextCharacters.length > 0 ? "ready" : "empty");
+        if (nextCharacters.length > 0 && nextCharacters[0]?.id) {
+          setSelectedCharacterId(nextCharacters[0].id);
+        }
       } catch (error) {
         if (cancelled) {
           return;
@@ -492,29 +639,65 @@ const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
     );
   }
 
+  const selectedCharacter = characters.find(
+    (c) => c?.id === selectedCharacterId,
+  ) || null;
+
   return (
     <div
       data-testid="characters-added-list"
       style={{
         display: "flex",
-        flexDirection: "column",
-        gap: 12,
-        padding: "18px 16px 20px",
+        height: "100%",
       }}
     >
-      {characters.map((character, index) => (
-        <CharacterCard
-          key={character?.id || character?.name || `character-${index}`}
-          character={character}
+      {/* ── Left: Contact List ────────────────────────── */}
+      <div
+        className="scrollable"
+        style={{
+          width: 260,
+          flexShrink: 0,
+          overflowY: "auto",
+          borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
+          padding: "6px 0",
+        }}
+      >
+        {characters.map((character, index) => (
+          <CharacterContactRow
+            key={character?.id || character?.name || `character-${index}`}
+            character={character}
+            isDark={isDark}
+            isSelected={selectedCharacterId === character?.id}
+            onClick={(c) => setSelectedCharacterId(c?.id || "")}
+          />
+        ))}
+      </div>
+
+      {/* ── Right: Detail Panel ───────────────────────── */}
+      <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+        <CharacterDetailPanel
+          character={selectedCharacter}
           isDark={isDark}
           onOpenChat={handleOpenChat}
-          isOpening={openingCharacterId === character?.id}
-          openError={openErrorById[character?.id] || ""}
+          isOpening={
+            selectedCharacter
+              ? openingCharacterId === selectedCharacter.id
+              : false
+          }
+          openError={
+            selectedCharacter
+              ? openErrorById[selectedCharacter.id] || ""
+              : ""
+          }
         />
-      ))}
+      </div>
     </div>
   );
 };
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  CharactersPage — tab wrapper                                                                         */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const CharactersPage = ({ isDark, onOpenChat }) => {
   const [activeTab, setActiveTab] = useState("added");
@@ -581,7 +764,7 @@ const CharactersPage = ({ isDark, onOpenChat }) => {
         style={{
           flex: 1,
           minHeight: 0,
-          overflowY: activeTab === "added" ? "auto" : "hidden",
+          overflow: "hidden",
         }}
       >
         {renderContent()}
