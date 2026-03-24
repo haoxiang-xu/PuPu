@@ -6,6 +6,7 @@ from typing import Any, Dict, Iterable, List
 
 from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
 
+import character_store
 from miso_adapter import (
     cancel_tool_confirmations,
     get_capability_catalog,
@@ -828,13 +829,12 @@ def memory_projection() -> Response:
 
     try:
         import memory_factory
-        import json as _json
         import numpy as np
-        from pathlib import Path
 
         _data_dir = memory_factory._data_dir
         _normalize_data_dir = memory_factory._normalize_data_dir
         _get_or_create_qdrant_client = memory_factory._get_or_create_qdrant_client
+        _load_session_state = memory_factory._load_session_state
         vector_collection_prefix = getattr(
             memory_factory,
             "_vector_collection_prefix",
@@ -858,12 +858,7 @@ def memory_projection() -> Response:
         # Legacy sessions (tag absent) fall through to `_vector_collection_prefix("")`
         # which returns "chat", giving collection = chat_{safe_session_id}
         # â€” matching the legacy naming that was used before the tag system.
-        session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
-        try:
-            with open(session_file, "r", encoding="utf-8") as _f:
-                _state = _json.load(_f)
-        except Exception:
-            _state = {}
+        _state = _load_session_state(data_dir, session_id)
 
         tag = str(_state.get("vector_collection_tag") or "").strip()
         collection = session_collection_name(
@@ -1131,6 +1126,143 @@ def long_term_memory_projection() -> Response:
         return jsonify({"error": str(exc)}), 500
 
 
+@api_blueprint.get("/characters")
+def list_characters() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        return jsonify(character_store.list_characters())
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_list_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.get("/characters/<character_id>")
+def get_character(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        payload = character_store.get_character(character_id)
+        if payload is None:
+            return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_get_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters")
+def save_character() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    try:
+        return jsonify(character_store.save_character(payload))
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_save_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.delete("/characters/<character_id>")
+def delete_character(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        return jsonify(character_store.delete_character(character_id))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_delete_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters/preview")
+def preview_character_decision() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    try:
+        return jsonify(character_store.preview_character_decision(payload))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_preview_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters/build")
+def build_character_agent_config() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    try:
+        return jsonify(character_store.build_character_agent_config(payload))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_build_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
 @api_blueprint.post("/memory/session/replace")
 def replace_memory_session() -> Response:
     if not _is_authorized():
@@ -1221,17 +1353,12 @@ def export_memory_session() -> Response:
             }
         ), 400
 
-    data_dir = current_app.config.get("MISO_DATA_DIR", "")
+    import memory_factory
+    data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
     if not data_dir:
         return jsonify({"messages": []})
 
-    from pathlib import Path
-    session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
-    try:
-        with open(session_file, "r", encoding="utf-8") as f:
-            state = json.load(f)
-    except Exception:
-        state = {}
+    state = memory_factory._load_session_state(data_dir, session_id)
 
     messages = state.get("messages", [])
     if not isinstance(messages, list):

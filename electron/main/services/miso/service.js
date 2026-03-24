@@ -20,6 +20,9 @@ const MISO_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
 const MISO_REPLACE_SESSION_MEMORY_ENDPOINT = "/memory/session/replace";
 const MISO_SESSION_MEMORY_EXPORT_ENDPOINT = "/memory/session/export";
+const MISO_CHARACTERS_ENDPOINT = "/characters";
+const MISO_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
+const MISO_CHARACTER_BUILD_ENDPOINT = "/characters/build";
 
 const createMisoService = ({
   app,
@@ -666,6 +669,148 @@ const createMisoService = ({
       "Miso session memory export request failed",
       {},
       "Invalid Miso session memory export response",
+    );
+  };
+
+  const listMisoCharacters = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character list request failed",
+      { characters: [], count: 0 },
+      "Invalid Miso character list response",
+    );
+  };
+
+  const getMisoCharacter = async (characterId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof characterId === "string" ? characterId.trim() : "";
+    if (!cleanId) {
+      throw new Error("characterId is required");
+    }
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character get request failed",
+      {},
+      "Invalid Miso character get response",
+    );
+  };
+
+  const saveMisoCharacter = async (payload = {}) => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+        },
+        body: JSON.stringify(
+          payload && typeof payload === "object" ? payload : {},
+        ),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character save request failed",
+      {},
+      "Invalid Miso character save response",
+    );
+  };
+
+  const deleteMisoCharacter = async (characterId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof characterId === "string" ? characterId.trim() : "";
+    if (!cleanId) {
+      throw new Error("characterId is required");
+    }
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      {
+        method: "DELETE",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character delete request failed",
+      {},
+      "Invalid Miso character delete response",
+    );
+  };
+
+  const previewMisoCharacterDecision = async (payload = {}) => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTER_PREVIEW_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+        },
+        body: JSON.stringify(
+          payload && typeof payload === "object" ? payload : {},
+        ),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character preview request failed",
+      {},
+      "Invalid Miso character preview response",
+    );
+  };
+
+  const buildMisoCharacterAgentConfig = async (payload = {}) => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTER_BUILD_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+        },
+        body: JSON.stringify(
+          payload && typeof payload === "object" ? payload : {},
+        ),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso character build request failed",
+      {},
+      "Invalid Miso character build response",
     );
   };
 
@@ -1321,6 +1466,12 @@ const createMisoService = ({
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,
     getMisoSessionMemoryExport,
+    listMisoCharacters,
+    getMisoCharacter,
+    saveMisoCharacter,
+    deleteMisoCharacter,
+    previewMisoCharacterDecision,
+    buildMisoCharacterAgentConfig,
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,

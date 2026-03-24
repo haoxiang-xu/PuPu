@@ -45,6 +45,11 @@ export const runtimeBridge = {
   isRuntimeStorageAvailable: () =>
     hasBridgeMethod("misoAPI", "getRuntimeDirSize"),
   isMemorySizeAvailable: () => hasBridgeMethod("misoAPI", "getMemorySize"),
+  isCharacterApiAvailable: () =>
+    hasBridgeMethod("misoAPI", "listCharacters") &&
+    hasBridgeMethod("misoAPI", "getCharacter") &&
+    hasBridgeMethod("misoAPI", "saveCharacter") &&
+    hasBridgeMethod("misoAPI", "deleteCharacter"),
 
   setChromeTerminalOpen: async (open = false) => {
     if (!runtimeBridge.isChromeTerminalControlAvailable()) {
@@ -205,6 +210,115 @@ export const runtimeBridge = {
         : 0,
       error: typeof response?.error === "string" ? response.error : "",
     };
+  },
+
+  listCharacters: async () => {
+    if (!runtimeBridge.isCharacterApiAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI character methods are unavailable",
+      );
+    }
+
+    const response = await invokeMiso("listCharacters", [], {
+      timeoutMs: 15000,
+      timeoutCode: "miso_character_list_timeout",
+      timeoutMessage: "Character list request timed out",
+      failureCode: "miso_character_list_failed",
+      failureMessage: "Failed to list characters",
+    });
+
+    return {
+      characters: Array.isArray(response?.characters) ? response.characters : [],
+      count: Number.isFinite(Number(response?.count))
+        ? Number(response.count)
+        : 0,
+    };
+  },
+
+  getCharacter: async (characterId) => {
+    if (!runtimeBridge.isCharacterApiAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI character methods are unavailable",
+      );
+    }
+
+    return invokeMiso("getCharacter", [characterId], {
+      timeoutMs: 15000,
+      timeoutCode: "miso_character_get_timeout",
+      timeoutMessage: "Character get request timed out",
+      failureCode: "miso_character_get_failed",
+      failureMessage: "Failed to get character",
+    });
+  },
+
+  saveCharacter: async (payload = {}) => {
+    if (!runtimeBridge.isCharacterApiAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI character methods are unavailable",
+      );
+    }
+
+    return invokeMiso("saveCharacter", [payload], {
+      timeoutMs: 20000,
+      timeoutCode: "miso_character_save_timeout",
+      timeoutMessage: "Character save request timed out",
+      failureCode: "miso_character_save_failed",
+      failureMessage: "Failed to save character",
+    });
+  },
+
+  deleteCharacter: async (characterId) => {
+    if (!runtimeBridge.isCharacterApiAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI character methods are unavailable",
+      );
+    }
+
+    return invokeMiso("deleteCharacter", [characterId], {
+      timeoutMs: 30000,
+      timeoutCode: "miso_character_delete_timeout",
+      timeoutMessage: "Character delete request timed out",
+      failureCode: "miso_character_delete_failed",
+      failureMessage: "Failed to delete character",
+    });
+  },
+
+  previewCharacterDecision: async (payload = {}) => {
+    if (!hasBridgeMethod("misoAPI", "previewCharacterDecision")) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.previewCharacterDecision is unavailable",
+      );
+    }
+
+    return invokeMiso("previewCharacterDecision", [payload], {
+      timeoutMs: 20000,
+      timeoutCode: "miso_character_preview_timeout",
+      timeoutMessage: "Character preview request timed out",
+      failureCode: "miso_character_preview_failed",
+      failureMessage: "Failed to preview character decision",
+    });
+  },
+
+  buildCharacterAgentConfig: async (payload = {}) => {
+    if (!hasBridgeMethod("misoAPI", "buildCharacterAgentConfig")) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.buildCharacterAgentConfig is unavailable",
+      );
+    }
+
+    return invokeMiso("buildCharacterAgentConfig", [payload], {
+      timeoutMs: 20000,
+      timeoutCode: "miso_character_build_timeout",
+      timeoutMessage: "Character build request timed out",
+      failureCode: "miso_character_build_failed",
+      failureMessage: "Failed to build character agent config",
+    });
   },
 
   deleteRuntimeEntry: async (dirPath, entryName) => {

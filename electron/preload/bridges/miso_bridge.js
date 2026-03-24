@@ -42,6 +42,17 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.REPLACE_SESSION_MEMORY, payload),
   getSessionMemoryExport: (sessionId) =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT, { sessionId }),
+  listCharacters: () => ipcRenderer.invoke(CHANNELS.MISO.LIST_CHARACTERS),
+  getCharacter: (characterId) =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_CHARACTER, { characterId }),
+  saveCharacter: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.SAVE_CHARACTER, payload),
+  deleteCharacter: (characterId) =>
+    ipcRenderer.invoke(CHANNELS.MISO.DELETE_CHARACTER, { characterId }),
+  previewCharacterDecision: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.PREVIEW_CHARACTER_DECISION, payload),
+  buildCharacterAgentConfig: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG, payload),
   showSaveDialog: (options = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.SHOW_SAVE_DIALOG, options),
   showOpenDialog: (options = {}) =>

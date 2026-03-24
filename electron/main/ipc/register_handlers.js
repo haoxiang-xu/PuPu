@@ -29,6 +29,12 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
   CHANNELS.MISO.REPLACE_SESSION_MEMORY,
   CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
+  CHANNELS.MISO.LIST_CHARACTERS,
+  CHANNELS.MISO.GET_CHARACTER,
+  CHANNELS.MISO.SAVE_CHARACTER,
+  CHANNELS.MISO.DELETE_CHARACTER,
+  CHANNELS.MISO.PREVIEW_CHARACTER_DECISION,
+  CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
   CHANNELS.MISO.SHOW_SAVE_DIALOG,
   CHANNELS.MISO.SHOW_OPEN_DIALOG,
   CHANNELS.MISO.WRITE_FILE,
@@ -192,6 +198,30 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
     async (_event, payload = {}) =>
       misoService.getMisoSessionMemoryExport(payload.sessionId),
+  );
+  ipcMain.handle(CHANNELS.MISO.LIST_CHARACTERS, async () =>
+    misoService.listMisoCharacters(),
+  );
+  ipcMain.handle(CHANNELS.MISO.GET_CHARACTER, async (_event, payload = {}) =>
+    misoService.getMisoCharacter(payload.characterId),
+  );
+  ipcMain.handle(CHANNELS.MISO.SAVE_CHARACTER, async (_event, payload = {}) =>
+    misoService.saveMisoCharacter(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.DELETE_CHARACTER,
+    async (_event, payload = {}) =>
+      misoService.deleteMisoCharacter(payload.characterId),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.PREVIEW_CHARACTER_DECISION,
+    async (_event, payload = {}) =>
+      misoService.previewMisoCharacterDecision(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
+    async (_event, payload = {}) =>
+      misoService.buildMisoCharacterAgentConfig(payload),
   );
   ipcMain.handle(CHANNELS.MISO.SHOW_SAVE_DIALOG, async (_event, payload = {}) =>
     runtimeService.showSaveDialog(payload),

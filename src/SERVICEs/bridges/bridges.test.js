@@ -98,6 +98,33 @@ describe("bridge wrappers", () => {
     });
   });
 
+  test("runtimeBridge.listCharacters normalizes response", async () => {
+    window.misoAPI = {
+      listCharacters: jest.fn(async () => ({
+        characters: [{ id: "mina" }],
+        count: "1",
+      })),
+      getCharacter: jest.fn(),
+      saveCharacter: jest.fn(),
+      deleteCharacter: jest.fn(),
+    };
+
+    await expect(runtimeBridge.listCharacters()).resolves.toEqual({
+      characters: [{ id: "mina" }],
+      count: 1,
+    });
+  });
+
+  test("runtimeBridge.previewCharacterDecision throws when method is missing", async () => {
+    window.misoAPI = {};
+
+    await expect(
+      runtimeBridge.previewCharacterDecision({ characterId: "mina" }),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+  });
+
   test("runtimeBridge.setChromeTerminalOpen forwards open flag and normalizes payload", async () => {
     window.misoAPI = {
       setChromeTerminalOpen: jest.fn(async (open) => ({
