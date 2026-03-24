@@ -298,6 +298,25 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertEqual(prompt_text, "")
 
+    def test_build_effective_system_prompt_text_appends_agent_instructions(self) -> None:
+        prompt_text = miso_adapter._build_effective_system_prompt_text(
+            {
+                "system_prompt_v2": {
+                    "enabled": True,
+                    "defaults": {
+                        "rules": "Keep answers concise.",
+                    },
+                },
+                "agent_instructions": "You are Nico. Reply as the character.",
+            }
+        )
+
+        self.assertIn("[Rules]", prompt_text)
+        self.assertIn("Keep answers concise.", prompt_text)
+        self.assertTrue(
+            prompt_text.endswith("You are Nico. Reply as the character."),
+        )
+
     def test_get_toolkit_catalog_lists_known_toolkit_exports(self) -> None:
         class FakeToolkitBase:
             pass

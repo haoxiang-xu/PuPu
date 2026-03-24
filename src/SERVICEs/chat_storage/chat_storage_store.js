@@ -9,14 +9,20 @@ import {
   now,
 } from "./chat_storage_constants";
 import {
+  CHARACTER_CHAT_KIND,
+  DEFAULT_CHARACTER_THREAD_ID,
   clone,
   computeChatStats,
   computeLastMessageAt,
   createChatSession,
   estimateBytes,
   isObject,
+  isCharacterChatSession,
   sanitizeAttachment,
   sanitizeChatSession,
+  sanitizeCharacterAvatar,
+  sanitizeCharacterId,
+  sanitizeCharacterName,
   sanitizeLabel,
   sanitizeMessages,
   sanitizeModel,
@@ -50,6 +56,82 @@ import {
 import { normalizeStore } from "./chat_storage_migrate";
 
 const storeSubscribers = new Set();
+
+const isLockedCharacterChat = (chat) => isCharacterChatSession(chat);
+
+const getExplorerLabelForChat = (chat) => {
+  if (isLockedCharacterChat(chat)) {
+    return sanitizeLabel(
+      chat.characterName || chat.title,
+      chat.characterName || chat.title || DEFAULT_CHAT_TITLE,
+    );
+  }
+  return sanitizeLabel(chat?.title, DEFAULT_CHAT_TITLE);
+};
+
+const findCharacterChatId = (store, characterId) => {
+  const normalizedCharacterId = sanitizeCharacterId(characterId);
+  if (!normalizedCharacterId) {
+    return null;
+  }
+
+  const chatsById = isObject(store?.chatsById) ? store.chatsById : {};
+  for (const [chatId, chat] of Object.entries(chatsById)) {
+    if (
+      chat?.kind === CHARACTER_CHAT_KIND &&
+      sanitizeCharacterId(chat?.characterId) === normalizedCharacterId
+    ) {
+      return chatId;
+    }
+  }
+
+  return null;
+};
+
+const resolveCharacterPreferredModelId = (character = {}) => {
+  const candidates = [
+    character?.defaultModelId,
+    character?.default_model,
+    character?.metadata?.defaultModelId,
+    character?.metadata?.default_model,
+  ];
+
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") {
+      continue;
+    }
+    const normalized = candidate.trim();
+    if (normalized && normalized !== "miso-unset") {
+      return normalized;
+    }
+  }
+
+  return "";
+};
+
+const resolveCharacterSourceModelId = (store, explicitModelId, character = {}) => {
+  const preferredModelId = resolveCharacterPreferredModelId(character);
+  if (preferredModelId) {
+    return preferredModelId;
+  }
+
+  if (typeof explicitModelId === "string" && explicitModelId.trim()) {
+    const normalized = explicitModelId.trim();
+    return normalized && normalized !== "miso-unset" ? normalized : "";
+  }
+
+  const activeChat =
+    store?.activeChatId && store?.chatsById?.[store.activeChatId]
+      ? store.chatsById[store.activeChatId]
+      : null;
+  if (!activeChat || activeChat.kind === CHARACTER_CHAT_KIND) {
+    return "";
+  }
+
+  const modelId =
+    typeof activeChat.model?.id === "string" ? activeChat.model.id.trim() : "";
+  return modelId && modelId !== "miso-unset" ? modelId : "";
+};
 
 const touchLru = (store, chatId) => {
   if (!chatId || !store.chatsById[chatId]) {
@@ -284,6 +366,20 @@ const resolveFallbackChatId = (store, preferredChatId = null) => {
   );
 };
 
+const updateCharacterNodeMetadata = (store, chatId, chat) => {
+  const nodeId = ensureTreeHasNodeForChat(store, chatId, {
+    parentFolderId: null,
+  });
+  if (!nodeId || !store.tree.nodesById[nodeId]) {
+    return nodeId;
+  }
+
+  const node = store.tree.nodesById[nodeId];
+  node.label = getExplorerLabelForChat(chat);
+  node.updatedAt = now();
+  return nodeId;
+};
+
 const cleanupTransientActiveChat = (store, preferredNextChatId = null) => {
   const removableChatId = getCleanupCandidateActiveChatId(
     store,
@@ -422,6 +518,127 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
     nodeId: createdNodeId,
     store: clone(next) || next,
   };
+};
+
+export const openCharacterChat = (params = {}, options = {}) => {
+  const source = options.source || "unknown";
+  const character =
+    params?.character && typeof params.character === "object"
+      ? params.character
+      : {};
+  const characterId = sanitizeCharacterId(character.id);
+  const characterName = sanitizeCharacterName(character.name || "Character");
+  const characterAvatar = sanitizeCharacterAvatar(character.avatar);
+  if (!characterId || !characterName) {
+    return {
+      ok: false,
+      error: "Character is missing a valid id or name.",
+      chatId: null,
+      nodeId: null,
+      store: getChatsStore(),
+    };
+  }
+
+  let result = {
+    ok: true,
+    error: "",
+    chatId: null,
+    nodeId: null,
+    created: false,
+    store: null,
+  };
+
+  const next = withStore(
+    (store) => {
+      const existingChatId = findCharacterChatId(store, characterId);
+      if (existingChatId && store.chatsById[existingChatId]) {
+        const preferredModelId = resolveCharacterPreferredModelId(character);
+        const chat = sanitizeChatSession(
+          {
+            ...store.chatsById[existingChatId],
+            kind: CHARACTER_CHAT_KIND,
+            characterId,
+            characterName,
+            characterAvatar:
+              characterAvatar || store.chatsById[existingChatId].characterAvatar,
+            model: preferredModelId
+              ? { id: preferredModelId }
+              : store.chatsById[existingChatId].model,
+            title: characterName,
+            threadId:
+              store.chatsById[existingChatId].threadId ||
+              DEFAULT_CHARACTER_THREAD_ID,
+          },
+          existingChatId,
+        );
+        store.chatsById[existingChatId] = chat;
+        const nodeId = updateCharacterNodeMetadata(store, existingChatId, chat);
+        cleanupTransientActiveChat(store, existingChatId);
+        updateActiveAndSelectedFromChatId(store, existingChatId);
+        result = {
+          ok: true,
+          error: "",
+          chatId: existingChatId,
+          nodeId,
+          created: false,
+          store: null,
+        };
+        store.updatedAt = now();
+        return store;
+      }
+
+      const sourceModelId = resolveCharacterSourceModelId(
+        store,
+        params?.sourceModelId,
+        character,
+      );
+      if (!sourceModelId) {
+        result = {
+          ok: false,
+          error: "Select a model in a normal chat before opening this character.",
+          chatId: null,
+          nodeId: null,
+          created: false,
+          store: null,
+        };
+        return store;
+      }
+
+      const chat = createChatSession({
+        kind: CHARACTER_CHAT_KIND,
+        title: characterName,
+        characterId,
+        characterName,
+        characterAvatar,
+        threadId: DEFAULT_CHARACTER_THREAD_ID,
+        model: { id: sourceModelId },
+        selectedToolkits: [],
+        selectedWorkspaceIds: [],
+        isTransientNewChat: false,
+      });
+      store.chatsById[chat.id] = chat;
+      const nodeId = updateCharacterNodeMetadata(store, chat.id, chat);
+      cleanupTransientActiveChat(store, chat.id);
+      updateActiveAndSelectedFromChatId(store, chat.id);
+      result = {
+        ok: true,
+        error: "",
+        chatId: chat.id,
+        nodeId,
+        created: true,
+        store: null,
+      };
+      store.updatedAt = now();
+      return store;
+    },
+    {
+      source,
+      type: "chat_open_character",
+    },
+  );
+
+  result.store = clone(next) || next;
+  return result;
 };
 
 export const createChatWithMessagesInSelectedContext = (
@@ -565,6 +782,9 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
           if (!sourceChat) {
             return null;
           }
+          if (isLockedCharacterChat(sourceChat)) {
+            return null;
+          }
 
           const initialTitle = sanitizeLabel(
             cloneOptions.overrideLabel ??
@@ -699,6 +919,13 @@ export const renameTreeNode = ({ nodeId, label } = {}, options = {}) => {
       const parentById = buildParentIndex(store.tree);
       const parentFolderId = parentById[nodeId]?.parentId || null;
       const node = store.tree.nodesById[nodeId];
+      if (
+        node.entity === "chat" &&
+        node.chatId &&
+        isLockedCharacterChat(store.chatsById[node.chatId])
+      ) {
+        return store;
+      }
       const fallback =
         node.entity === "folder" ? DEFAULT_FOLDER_LABEL : DEFAULT_CHAT_TITLE;
       const nextLabel = ensureUniqueLabel(
@@ -863,24 +1090,30 @@ const updateChatSessionById = (chatId, updater, options = {}) => {
         store.chatsById[chatId] || { id: chatId },
         chatId,
       );
+      const lockedCharacter = isLockedCharacterChat(existing);
       const candidate = clone(existing) || existing;
       const updated =
         typeof updater === "function" ? updater(candidate) : candidate;
       const cleaned = sanitizeChatSession(updated || candidate, chatId);
 
+      if (lockedCharacter) {
+        cleaned.kind = CHARACTER_CHAT_KIND;
+        cleaned.characterId = existing.characterId;
+        cleaned.characterName = existing.characterName;
+        cleaned.characterAvatar = existing.characterAvatar || null;
+        cleaned.title = existing.characterName || existing.title;
+        cleaned.model = existing.model;
+        cleaned.selectedToolkits = [];
+        cleaned.selectedWorkspaceIds = [];
+        cleaned.systemPromptOverrides = {};
+        cleaned.threadId = existing.threadId || DEFAULT_CHARACTER_THREAD_ID;
+        cleaned.isTransientNewChat = false;
+      }
+
       store.chatsById[chatId] = cleaned;
       touchLru(store, chatId);
 
-      const nodeId = ensureTreeHasNodeForChat(store, chatId, {
-        parentFolderId: null,
-      });
-      if (nodeId && store.tree.nodesById[nodeId]) {
-        store.tree.nodesById[nodeId].label = sanitizeLabel(
-          cleaned.title,
-          DEFAULT_CHAT_TITLE,
-        );
-        store.tree.nodesById[nodeId].updatedAt = now();
-      }
+      updateCharacterNodeMetadata(store, chatId, cleaned);
 
       if (!store.activeChatId) {
         store.activeChatId = chatId;
@@ -972,7 +1205,7 @@ export const setChatModel = (chatId, model, options = {}) => {
     chatId,
     (chat) => ({
       ...chat,
-      model: sanitizeModel(model),
+      model: isLockedCharacterChat(chat) ? chat.model : sanitizeModel(model),
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_model" },
@@ -988,7 +1221,9 @@ export const setChatSelectedToolkits = (
     chatId,
     (chat) => ({
       ...chat,
-      selectedToolkits: sanitizeSelectedToolkits(selectedToolkits),
+      selectedToolkits: isLockedCharacterChat(chat)
+        ? []
+        : sanitizeSelectedToolkits(selectedToolkits),
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_toolkits" },
@@ -1004,7 +1239,9 @@ export const setChatSelectedWorkspaceIds = (
     chatId,
     (chat) => ({
       ...chat,
-      selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(selectedWorkspaceIds),
+      selectedWorkspaceIds: isLockedCharacterChat(chat)
+        ? []
+        : sanitizeSelectedWorkspaceIds(selectedWorkspaceIds),
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_workspace_ids" },

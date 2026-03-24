@@ -18,6 +18,10 @@ import {
 } from "./chat_storage_constants";
 import { sanitizeSystemPromptSections } from "../system_prompt_sections";
 
+export const DEFAULT_CHAT_KIND = "default";
+export const CHARACTER_CHAT_KIND = "character";
+export const DEFAULT_CHARACTER_THREAD_ID = "main";
+
 export const isValidTimestamp = (value) =>
   Number.isFinite(Number(value)) && Number(value) > 0;
 
@@ -285,6 +289,59 @@ export const sanitizeSystemPromptOverrides = (value) =>
     keepEmptyStrings: false,
   });
 
+export const sanitizeChatKind = (value) =>
+  value === CHARACTER_CHAT_KIND ? CHARACTER_CHAT_KIND : DEFAULT_CHAT_KIND;
+
+export const sanitizeCharacterId = (value) =>
+  typeof value === "string" && value.trim()
+    ? trimText(value.trim(), 200)
+    : "";
+
+export const sanitizeCharacterSessionKeyComponent = (
+  value,
+  fallback = "default",
+) => {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+};
+
+export const buildCharacterMemorySessionId = (characterId, threadId = "main") =>
+  `character_${sanitizeCharacterSessionKeyComponent(characterId, "character")}__dm__${sanitizeCharacterSessionKeyComponent(threadId, "main")}`;
+
+export const sanitizeCharacterName = (value) =>
+  sanitizeLabel(value, "").slice(0, MAX_TITLE_CHARS);
+
+export const sanitizeCharacterAvatar = (value) => {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const cleaned = {};
+  const stringFields = [
+    "absolute_path",
+    "relative_path",
+    "data_url",
+    "mime_type",
+    "sha256",
+  ];
+  for (const field of stringFields) {
+    if (typeof value[field] !== "string" || !value[field].trim()) {
+      continue;
+    }
+    cleaned[field] = trimText(value[field].trim(), 4000);
+  }
+
+  return Object.keys(cleaned).length > 0 ? cleaned : null;
+};
+
+export const isCharacterChatSession = (chat) =>
+  sanitizeChatKind(chat?.kind) === CHARACTER_CHAT_KIND &&
+  Boolean(sanitizeCharacterId(chat?.characterId));
+
 export const sanitizeMessage = (message) => {
   if (!isObject(message)) {
     return null;
@@ -465,6 +522,19 @@ export const sanitizeChatSession = (chat, fallbackId) => {
   const title =
     sanitizeLabel(chat?.title, "") ||
     deriveChatTitle(messages, DEFAULT_CHAT_TITLE);
+  const kind = sanitizeChatKind(chat?.kind);
+  const characterId =
+    kind === CHARACTER_CHAT_KIND ? sanitizeCharacterId(chat?.characterId) : "";
+  const characterName =
+    kind === CHARACTER_CHAT_KIND
+      ? sanitizeCharacterName(chat?.characterName || title)
+      : "";
+  const characterAvatar =
+    kind === CHARACTER_CHAT_KIND
+      ? sanitizeCharacterAvatar(chat?.characterAvatar)
+      : null;
+  const resolvedTitle =
+    kind === CHARACTER_CHAT_KIND && characterName ? characterName : title;
 
   const cleaned = {
     id:
@@ -473,7 +543,8 @@ export const sanitizeChatSession = (chat, fallbackId) => {
         : typeof fallbackId === "string" && fallbackId.trim()
           ? fallbackId
           : generateChatId(),
-    title,
+    kind,
+    title: resolvedTitle,
     createdAt,
     updatedAt,
     lastMessageAt: computeLastMessageAt(messages, chat?.lastMessageAt),
@@ -499,22 +570,39 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     },
   };
 
+  if (kind === CHARACTER_CHAT_KIND) {
+    cleaned.characterId = characterId;
+    cleaned.characterName = characterName || resolvedTitle;
+    cleaned.characterAvatar = characterAvatar;
+    cleaned.selectedToolkits = [];
+    cleaned.selectedWorkspaceIds = [];
+    cleaned.systemPromptOverrides = {};
+    cleaned.isTransientNewChat = false;
+    cleaned.threadId =
+      typeof chat?.threadId === "string" && chat.threadId.trim()
+        ? trimText(chat.threadId, 200)
+        : DEFAULT_CHARACTER_THREAD_ID;
+  }
+
   cleaned.stats = computeChatStats(cleaned);
   return cleaned;
 };
 
 export const createChatSession = (overrides = {}) => {
   const seed = now();
-  const toolkits =
-    Array.isArray(overrides.selectedToolkits) &&
-    overrides.selectedToolkits.length > 0
-      ? overrides.selectedToolkits
-      : getDefaultToolkitSelection("global");
+  const hasExplicitToolkits = Array.isArray(overrides.selectedToolkits);
+  const toolkits = hasExplicitToolkits
+    ? overrides.selectedToolkits
+    : getDefaultToolkitSelection("global");
 
   return sanitizeChatSession(
     {
       id: overrides.id || generateChatId(),
       title: overrides.title || DEFAULT_CHAT_TITLE,
+      kind: overrides.kind,
+      characterId: overrides.characterId,
+      characterName: overrides.characterName,
+      characterAvatar: overrides.characterAvatar,
       createdAt: seed,
       updatedAt: seed,
       lastMessageAt: null,

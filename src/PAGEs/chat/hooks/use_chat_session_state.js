@@ -39,10 +39,20 @@ export const useChatSessionState = ({
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState(
     () => initialChat.selectedWorkspaceIds || [],
   );
+  const [activeChatKind, setActiveChatKind] = useState(
+    initialChat.kind === "character" ? "character" : "default",
+  );
+  const [activeCharacterId, setActiveCharacterId] = useState(
+    typeof initialChat.characterId === "string" ? initialChat.characterId : "",
+  );
 
   const activeChatIdRef = useRef(initialChat.id);
   const messagesRef = useRef(initialChat.messages || []);
-  const threadIdRef = useRef(initialChat.id || `chat-${Date.now()}`);
+  const threadIdRef = useRef(
+    typeof initialChat.threadId === "string" && initialChat.threadId.trim()
+      ? initialChat.threadId
+      : initialChat.id || `chat-${Date.now()}`,
+  );
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
@@ -107,10 +117,22 @@ export const useChatSessionState = ({
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
       setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
+      setActiveChatKind(
+        nextActiveChat.kind === "character" ? "character" : "default",
+      );
+      setActiveCharacterId(
+        typeof nextActiveChat.characterId === "string"
+          ? nextActiveChat.characterId
+          : "",
+      );
       systemPromptOverridesRef.current =
         nextActiveChat.systemPromptOverrides || {};
 
-      threadIdRef.current = nextActiveId || `chat-${Date.now()}`;
+      threadIdRef.current =
+        typeof nextActiveChat.threadId === "string" &&
+        nextActiveChat.threadId.trim()
+          ? nextActiveChat.threadId
+          : nextActiveId || `chat-${Date.now()}`;
       modelIdRef.current =
         typeof nextActiveChat.model?.id === "string" &&
         nextActiveChat.model.id.trim()
@@ -163,9 +185,18 @@ export const useChatSessionState = ({
       return;
     }
 
-    threadIdRef.current = currentChatId;
-    setChatThreadId(currentChatId, currentChatId, { source: "chat-page" });
-    setChatModel(currentChatId, { id: modelIdRef.current }, { source: "chat-page" });
+    const currentChat = bootstrapped?.store?.chatsById?.[currentChatId];
+    const isCharacterChat = currentChat?.kind === "character";
+    const resolvedThreadId =
+      typeof currentChat?.threadId === "string" && currentChat.threadId.trim()
+        ? currentChat.threadId
+        : currentChatId;
+
+    threadIdRef.current = resolvedThreadId;
+    setChatThreadId(currentChatId, resolvedThreadId, { source: "chat-page" });
+    if (!isCharacterChat) {
+      setChatModel(currentChatId, { id: modelIdRef.current }, { source: "chat-page" });
+    }
   }, []);
 
   useEffect(() => {
@@ -173,22 +204,28 @@ export const useChatSessionState = ({
     if (!currentChatId) {
       return;
     }
+    if (activeChatKind === "character") {
+      return;
+    }
 
     setChatSelectedToolkits(currentChatId, selectedToolkits, {
       source: "chat-page",
     });
-  }, [selectedToolkits]);
+  }, [activeChatKind, selectedToolkits]);
 
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;
     if (!currentChatId) {
       return;
     }
+    if (activeChatKind === "character") {
+      return;
+    }
 
     setChatSelectedWorkspaceIds(currentChatId, selectedWorkspaceIds, {
       source: "chat-page",
     });
-  }, [selectedWorkspaceIds]);
+  }, [activeChatKind, selectedWorkspaceIds]);
 
   useEffect(() => {
     return () => {
@@ -199,7 +236,7 @@ export const useChatSessionState = ({
   const handleSelectModel = useCallback(
     (modelId, disabled = false) => {
       const currentChatId = activeChatIdRef.current;
-      if (!currentChatId || !modelId || disabled) {
+      if (!currentChatId || !modelId || disabled || activeChatKind === "character") {
         return;
       }
 
@@ -207,7 +244,7 @@ export const useChatSessionState = ({
       setSelectedModelId(modelId);
       setChatModel(currentChatId, { id: modelId }, { source: "chat-page" });
     },
-    [],
+    [activeChatKind],
   );
 
   return {
@@ -230,5 +267,8 @@ export const useChatSessionState = ({
     setSelectedWorkspaceIds,
     systemPromptOverridesRef,
     threadIdRef,
+    activeChatKind,
+    activeCharacterId,
+    isCharacterChat: activeChatKind === "character",
   };
 };

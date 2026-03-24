@@ -1,4 +1,5 @@
 import {
+  buildCharacterMemorySessionId,
   createChatInSelectedContext,
   createChatWithMessagesInSelectedContext,
   createFolder,
@@ -18,6 +19,9 @@ export const buildSideMenuContextMenuItems = ({
   onExport,
   onImport,
 }) => {
+  const isCharacterChatNode = (chatId) =>
+    chatStore?.chatsById?.[chatId]?.kind === "character";
+
   const pasteFromClipboard = (parentFolderId) => {
     if (!clipboard) {
       return;
@@ -25,6 +29,9 @@ export const buildSideMenuContextMenuItems = ({
 
     if (clipboard.type === "chat") {
       const latestStore = getChatsStore();
+      if (latestStore?.chatsById?.[clipboard.chatId]?.kind === "character") {
+        return;
+      }
       const clipboardMessages = Array.isArray(clipboard.messages)
         ? clipboard.messages
         : null;
@@ -181,8 +188,29 @@ export const buildSideMenuContextMenuItems = ({
   }
 
   if (node.entity === "chat") {
-    const chatTitle =
-      chatStore?.chatsById?.[node.chatId]?.title || node.label || "Chat";
+    const chat = chatStore?.chatsById?.[node.chatId];
+    const chatTitle = chat?.title || node.label || "Chat";
+    if (isCharacterChatNode(node.chatId)) {
+      const memorySessionId = buildCharacterMemorySessionId(
+        chat?.characterId,
+        chat?.threadId || "main",
+      );
+      return [
+        {
+          icon: "brain",
+          label: "Inspect Memory",
+          onClick: () =>
+            onInspectMemory && onInspectMemory(memorySessionId, chatTitle),
+        },
+        { type: "separator" },
+        {
+          icon: "delete",
+          label: "Delete",
+          danger: true,
+          onClick: () => setConfirmDelete({ open: true, node }),
+        },
+      ];
+    }
     return [
       {
         icon: "brain",

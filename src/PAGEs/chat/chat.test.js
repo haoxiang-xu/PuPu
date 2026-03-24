@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
-import { getChatsStore } from "../../SERVICEs/chat_storage";
+import { getChatsStore, openCharacterChat, setChatModel } from "../../SERVICEs/chat_storage";
 
 let lastChatMessagesProps = null;
+let lastChatInputProps = null;
 
 jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
   __esModule: true,
@@ -30,23 +31,27 @@ jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
 
 jest.mock("../../COMPONENTs/chat-input/chat_input", () => ({
   __esModule: true,
-  default: ({ value, onChange, onSend, onStop, isStreaming }) => (
-    <div>
-      <input
-        data-testid="chat-input"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <button data-testid="send-button" onClick={onSend}>
-        Send
-      </button>
-      {isStreaming ? (
-        <button data-testid="stop-button" onClick={onStop}>
-          Stop
+  default: (props) => {
+    lastChatInputProps = props;
+    const { value, onChange, onSend, onStop, isStreaming } = props;
+    return (
+      <div>
+        <input
+          data-testid="chat-input"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button data-testid="send-button" onClick={onSend}>
+          Send
         </button>
-      ) : null}
-    </div>
-  ),
+        {isStreaming ? (
+          <button data-testid="stop-button" onClick={onStop}>
+            Stop
+          </button>
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 describe("ChatInterface stop flow", () => {
@@ -57,6 +62,7 @@ describe("ChatInterface stop flow", () => {
   beforeEach(() => {
     window.localStorage.clear();
     lastChatMessagesProps = null;
+    lastChatInputProps = null;
     cancelSpy = jest.fn();
     streamHandlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
@@ -80,6 +86,13 @@ describe("ChatInterface stop flow", () => {
         };
       }),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
+      buildCharacterAgentConfig: jest.fn(async () => ({
+        session_id: "character_nico__dm__main",
+        run_memory_namespace: "character_nico__rel__local_user",
+        default_model: "openai:gpt-4.1",
+        instructions: "You are Nico.",
+        decision: { action: "reply", courtesy_message: null },
+      })),
       cancelStream: jest.fn(),
       respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
     };
@@ -184,6 +197,101 @@ describe("ChatInterface stop flow", () => {
       ),
     );
     expect(hasRenderPhaseWarning).toBe(false);
+  });
+
+  test("character chats hide model/tools/workspace selectors and inject character config into stream", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+        },
+      },
+      { source: "test" },
+    );
+
+    renderChat();
+    await waitForReady();
+
+    await waitFor(() => {
+      expect(lastChatInputProps?.showModelSelector).toBe(false);
+      expect(lastChatInputProps?.showToolSelector).toBe(false);
+      expect(lastChatInputProps?.showWorkspaceSelector).toBe(false);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello Nico" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.misoAPI.buildCharacterAgentConfig).toHaveBeenCalledWith({
+        characterId: "nico",
+        threadId: "main",
+        humanId: "local_user",
+      });
+      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+
+    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    expect(payload.threadId).toBe("character_nico__dm__main");
+    expect(payload.options.modelId).toBe("openai:gpt-4.1");
+    expect(payload.options.memory_enabled).toBe(true);
+    expect(payload.options.memory_namespace).toBe(
+      "character_nico__rel__local_user",
+    );
+    expect(payload.options.agent_instructions).toBe("You are Nico.");
+    expect(payload.options.disable_workspace_root).toBe(true);
+    expect(payload.options.toolkits).toBeUndefined();
+    expect(payload.options.selectedWorkspaceIds).toBeUndefined();
+    expect(payload.options.workspaceRoot).toBeUndefined();
+  });
+
+  test("character chat defer decisions reply locally without starting a stream", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+        },
+      },
+      { source: "test" },
+    );
+    window.misoAPI.buildCharacterAgentConfig.mockResolvedValueOnce({
+      session_id: "character_nico__dm__main",
+      run_memory_namespace: "character_nico__rel__local_user",
+      instructions: "You are Nico.",
+      decision: {
+        action: "defer",
+        courtesy_message: "I'm working right now, later?",
+      },
+    });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Ping" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.misoAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(lastChatMessagesProps?.messages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ role: "user", content: "Ping" }),
+            expect.objectContaining({
+              role: "assistant",
+              content: "I'm working right now, later?",
+              status: "done",
+            }),
+          ]),
+      );
+    });
   });
 
   test("records a synthetic confirmation decision as soon as approval is accepted", async () => {

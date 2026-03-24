@@ -8,6 +8,7 @@ import {
   toChatNodeId,
 } from "./chat_storage_constants";
 import {
+  CHARACTER_CHAT_KIND,
   clone,
   formatRelativeAgeShort,
   isObject,
@@ -800,11 +801,14 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       continue;
     }
 
+    const chat = chatsById?.[node.chatId];
+    const isCharacterChat = chat?.kind === CHARACTER_CHAT_KIND;
     const title = sanitizeLabel(
-      chatsById?.[node.chatId]?.title || node.label,
+      isCharacterChat
+        ? chat?.characterName || chat?.title || node.label
+        : chat?.title || node.label,
       DEFAULT_CHAT_TITLE,
     );
-    const chat = chatsById?.[node.chatId];
     const isGenerating = Boolean(chatGeneratingById[node.chatId]);
     const hasUnreadGeneratedReply = Boolean(chatUnreadGeneratedById[node.chatId]);
     const lastUpdatedAt = isValidTimestamp(chat?.lastMessageAt)
@@ -819,9 +823,14 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
       type: "file",
       entity: "chat",
       chatId: node.chatId,
+      chatKind: isCharacterChat ? CHARACTER_CHAT_KIND : "default",
+      characterId: isCharacterChat ? chat?.characterId || "" : "",
+      characterName: isCharacterChat ? chat?.characterName || title : "",
+      characterAvatar: isCharacterChat ? chat?.characterAvatar || null : null,
+      is_active: selected,
       label: title,
       postfix: updatedAgo || undefined,
-      prefix_icon: "chat",
+      prefix_icon: isCharacterChat ? undefined : "chat",
       is_generating: isGenerating,
       has_unread_generated_reply: hasUnreadGeneratedReply,
       style: selected
@@ -835,7 +844,7 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
         }
       },
       on_double_click: () => {
-        if (!selected) return;
+        if (isCharacterChat || !selected) return;
         if (typeof handlers.onStartRename === "function") {
           handlers.onStartRename(node);
         }

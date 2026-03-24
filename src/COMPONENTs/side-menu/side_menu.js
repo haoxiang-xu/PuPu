@@ -31,6 +31,123 @@ import {
 
 export { sideMenuChatTreeAPI };
 
+const resolveCharacterAvatarSrc = (avatar) => {
+  const rawPath =
+    typeof avatar?.absolute_path === "string"
+      ? avatar.absolute_path.trim()
+      : "";
+  if (!rawPath) {
+    return "";
+  }
+  if (/^(https?:|data:|file:)/i.test(rawPath)) {
+    return rawPath;
+  }
+  const normalized = rawPath.replace(/\\/g, "/");
+  return normalized.startsWith("/")
+    ? encodeURI(`file://${normalized}`)
+    : encodeURI(`file:///${normalized}`);
+};
+
+const characterFallbackInitial = (name) => {
+  const normalized =
+    typeof name === "string" && name.trim() ? name.trim().charAt(0) : "C";
+  return normalized.toUpperCase();
+};
+
+const CharacterChatRow = ({ node, depth, isDark }) => {
+  const [imageBroken, setImageBroken] = useState(false);
+  const avatarSrc = resolveCharacterAvatarSrc(node.characterAvatar);
+  const showImage = Boolean(avatarSrc) && !imageBroken;
+  const isActive = node.is_active === true;
+  const background = isActive
+    ? isDark
+      ? "rgba(255,255,255,0.10)"
+      : "rgba(0,0,0,0.082)"
+    : "transparent";
+
+  return (
+    <div
+      onClick={(event) => node.on_click && node.on_click(node, event)}
+      onContextMenu={(event) =>
+        node.on_context_menu && node.on_context_menu(node, event)
+      }
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        height: 42,
+        margin: "1px 3px",
+        paddingLeft: depth * 16 + 10,
+        paddingRight: 10,
+        borderRadius: 8,
+        cursor: "pointer",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        background,
+      }}
+    >
+      <div
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: "50%",
+          overflow: "hidden",
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: isDark
+            ? "linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))"
+            : "linear-gradient(160deg, rgba(0,0,0,0.1), rgba(0,0,0,0.03))",
+          color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
+          fontSize: 11,
+          fontWeight: 700,
+          fontFamily: "NunitoSans, sans-serif",
+        }}
+      >
+        {showImage ? (
+          <img
+            src={avatarSrc}
+            alt={`${node.characterName || node.label || "character"} avatar`}
+            onError={() => setImageBroken(true)}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          characterFallbackInitial(node.characterName || node.label)
+        )}
+      </div>
+
+      <div
+        style={{
+          minWidth: 0,
+          flex: 1,
+          fontSize: 12.5,
+          fontFamily: "Jost, sans-serif",
+          color: isDark ? "#fff" : "#171717",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {node.label}
+      </div>
+
+      {node.postfix ? (
+        <div
+          style={{
+            flexShrink: 0,
+            fontSize: 11,
+            fontFamily: "Jost, sans-serif",
+            color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.4)",
+          }}
+        >
+          {node.postfix}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment, onThemeMode } =
     useContext(ConfigContext);
@@ -225,13 +342,29 @@ const SideMenu = () => {
   );
 
   const explorerData = useMemo(() => {
-    if (!renaming.nodeId || !explorerModel.data[renaming.nodeId]) {
-      return explorerModel.data;
-    }
-    return {
-      ...explorerModel.data,
-      [renaming.nodeId]: {
-        ...explorerModel.data[renaming.nodeId],
+    const nextData = { ...explorerModel.data };
+
+    Object.entries(nextData).forEach(([nodeId, node]) => {
+      if (node?.entity !== "chat" || node?.chatKind !== "character") {
+        return;
+      }
+
+      nextData[nodeId] = {
+        ...node,
+        component: ({ node: componentNode, depth, isExpanded }) => (
+          <CharacterChatRow
+            node={componentNode}
+            depth={depth}
+            isExpanded={isExpanded}
+            isDark={isDark}
+          />
+        ),
+      };
+    });
+
+    if (renaming.nodeId && nextData[renaming.nodeId]) {
+      nextData[renaming.nodeId] = {
+        ...nextData[renaming.nodeId],
         component: ({ node }) => (
           <RenameRow
             node={node}
@@ -241,8 +374,10 @@ const SideMenu = () => {
             isDark={isDark}
           />
         ),
-      },
-    };
+      };
+    }
+
+    return nextData;
   }, [
     explorerModel.data,
     renaming.nodeId,

@@ -3,6 +3,8 @@ import {
   createChatInSelectedContext,
   createFolder,
   getChatsStore,
+  openCharacterChat,
+  setChatModel,
   setChatMessages,
 } from "../../SERVICEs/chat_storage";
 
@@ -181,5 +183,39 @@ describe("side_menu_context_menu_items root paste", () => {
         expect.objectContaining({ role: "user", content: "fallback content" }),
       ]),
     );
+  });
+
+  test("character chat menu removes rename and copy actions", () => {
+    const initialStore = getChatsStore();
+    setChatModel(initialStore.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    const created = openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+        },
+      },
+      { source: "test" },
+    );
+    const chatStore = getChatsStore();
+    const node = Object.values(chatStore.tree.nodesById).find(
+      (treeNode) => treeNode?.entity === "chat" && treeNode?.chatId === created.chatId,
+    );
+
+    const items = buildSideMenuContextMenuItems({
+      node,
+      clipboard: null,
+      chatStore,
+      setChatStore: jest.fn(),
+      handleStartRename: jest.fn(),
+      setClipboard: jest.fn(),
+      setConfirmDelete: jest.fn(),
+      onInspectMemory: jest.fn(),
+    });
+
+    expect(items.some((item) => item?.label === "Inspect Memory")).toBe(true);
+    expect(items.some((item) => item?.label === "Delete")).toBe(true);
+    expect(items.some((item) => item?.label === "Rename")).toBe(false);
+    expect(items.some((item) => item?.label === "Copy")).toBe(false);
   });
 });

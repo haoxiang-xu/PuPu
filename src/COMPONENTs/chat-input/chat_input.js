@@ -22,13 +22,16 @@ const ChatInput = ({
   selectedModelId,
   onSelectModel,
   modelSelectDisabled = false,
+  showModelSelector = true,
   attachments = [],
   onRemoveAttachment,
   attachmentsEnabled = true,
   attachmentsDisabledReason = "",
   onDropFiles = null,
+  showToolSelector = true,
   selectedToolkits = [],
   onToolkitsChange,
+  showWorkspaceSelector = true,
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
 }) => {
@@ -151,6 +154,7 @@ const ChatInput = ({
                   onAttachFile={onAttachFile}
                   onAttachLink={onAttachLink}
                   modelOptions={modelOptions}
+                  showModelSelector={showModelSelector}
                   selectedModelId={selectedModelId}
                   onSelectModel={onSelectModel}
                   onGroupToggle={handleGroupToggle}
@@ -161,8 +165,10 @@ const ChatInput = ({
                   attachments={attachments}
                   onRemoveAttachment={onRemoveAttachment}
                   isStreaming={isStreaming}
+                  showToolSelector={showToolSelector}
                   selectedToolkits={selectedToolkits}
                   onToolkitsChange={onToolkitsChange}
+                  showWorkspaceSelector={showWorkspaceSelector}
                   selectedWorkspaceIds={selectedWorkspaceIds}
                   onWorkspaceIdsChange={onWorkspaceIdsChange}
                 />

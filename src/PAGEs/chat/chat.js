@@ -156,6 +156,9 @@ const ChatInterface = () => {
     selectedModelId: session.selectedModelId,
     selectedToolkits: session.selectedToolkits,
     selectedWorkspaceIds: session.selectedWorkspaceIds,
+    chatKind: session.activeChatKind,
+    characterId: session.activeCharacterId,
+    threadIdRef: session.threadIdRef,
     systemPromptOverrides: session.systemPromptOverridesRef.current,
     attachmentApi: attachments,
     storageApi,
@@ -242,6 +245,7 @@ const ChatInterface = () => {
       setModelCatalog(normalized);
 
       if (
+        !session.isCharacterChat &&
         (modelIdRef.current === "miso-unset" || !modelIdRef.current) &&
         normalized.activeModel
       ) {
@@ -259,7 +263,13 @@ const ChatInterface = () => {
     } catch (_error) {
       // ignore transient catalog fetch failures
     }
-  }, [activeChatIdRef, modelIdRef, setSelectedModelId, storageApi]);
+  }, [
+    activeChatIdRef,
+    modelIdRef,
+    session.isCharacterChat,
+    setSelectedModelId,
+    storageApi,
+  ]);
 
   useEffect(() => {
     refreshMisoStatus();
@@ -403,7 +413,10 @@ const ChatInterface = () => {
     modelCatalog,
     selectedModelId: session.selectedModelId,
     onSelectModel,
-    modelSelectDisabled: stream.isStreaming,
+    modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
+    showModelSelector: !session.isCharacterChat,
+    showToolSelector: !session.isCharacterChat,
+    showWorkspaceSelector: !session.isCharacterChat,
     selectedToolkits: session.selectedToolkits,
     onToolkitsChange: session.setSelectedToolkits,
     selectedWorkspaceIds: session.selectedWorkspaceIds,

@@ -3,6 +3,7 @@ import sys
 import tempfile
 import types
 import unittest
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -63,6 +64,181 @@ class CharacterRouteTests(unittest.TestCase):
     def tearDown(self) -> None:
         memory_factory._qdrant_clients.clear()
 
+    def test_builtin_nico_is_seeded_once_with_profiles(self) -> None:
+        first_list_response = self.client.get("/characters")
+        self.assertEqual(first_list_response.status_code, 200)
+        first_payload = first_list_response.get_json()
+        self.assertEqual(first_payload["count"], 1)
+        self.assertEqual(first_payload["characters"][0]["id"], "nico")
+        self.assertEqual(first_payload["characters"][0]["name"], "Nico")
+        self.assertEqual(first_payload["characters"][0]["timezone"], "Asia/Shanghai")
+        self.assertEqual(first_payload["characters"][0]["metadata"]["age"], 22)
+        self.assertEqual(first_payload["characters"][0]["metadata"]["mbti"], "INFP")
+
+        second_list_response = self.client.get("/characters")
+        self.assertEqual(second_list_response.status_code, 200)
+        second_payload = second_list_response.get_json()
+        self.assertEqual(second_payload["count"], 1)
+        self.assertEqual(second_payload["characters"][0]["id"], "nico")
+
+        get_response = self.client.get("/characters/nico")
+        self.assertEqual(get_response.status_code, 200)
+        character = get_response.get_json()
+        self.assertEqual(character["role"], "22-year-old HR at an internet company")
+        self.assertEqual(character["metadata"]["list_tags"], ["INFP", "HR", "猫控", "古灵精怪"])
+
+        data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
+        self_profile = memory_factory._load_long_term_profile(
+            data_dir,
+            "character_nico__self",
+        )
+        relationship_profile = memory_factory._load_long_term_profile(
+            data_dir,
+            "character_nico__rel__local_user",
+        )
+        self.assertEqual(
+            self_profile["core_identity"],
+            "22岁，互联网公司 HR，INFP，小蝴蝶型，古灵精怪",
+        )
+        self.assertEqual(relationship_profile["familiarity_stage"], "stranger")
+
+    def test_builtin_nico_legacy_registry_is_upgraded_with_default_model(self) -> None:
+        data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
+        memory_factory._atomic_write_json(
+            memory_factory._character_registry_path(data_dir),
+            {
+                "version": 1,
+                "seed_version": 1,
+                "updated_at": 0,
+                "characters_by_id": {
+                    "nico": {
+                        "spec": {
+                            "id": "nico",
+                            "name": "Nico",
+                            "gender": "female",
+                            "role": "22-year-old HR at an internet company",
+                            "persona": "legacy nico",
+                            "speaking_style": ["casual"],
+                            "talkativeness": 0.38,
+                            "politeness": 0.74,
+                            "autonomy": 0.68,
+                            "timezone": "Asia/Shanghai",
+                            "schedule": {
+                                "timezone": "Asia/Shanghai",
+                                "default_status": "free",
+                                "blocks": [],
+                            },
+                            "metadata": {
+                                "age": 22,
+                                "mbti": "INFP",
+                                "origin": "builtin_seed",
+                            },
+                        },
+                        "avatar": None,
+                        "created_at": 1,
+                        "updated_at": 1,
+                        "known_human_ids": ["local_user"],
+                        "owned_session_ids": ["character_nico__self"],
+                    }
+                },
+            },
+        )
+
+        response = self.client.get("/characters")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["count"], 1)
+        self.assertEqual(
+            payload["characters"][0]["metadata"]["default_model"],
+            "openai:gpt-4.1",
+        )
+
+        with open(
+            memory_factory._character_registry_path(data_dir),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            registry = json.load(handle)
+        self.assertEqual(registry["seed_version"], 2)
+        self.assertEqual(
+            registry["characters_by_id"]["nico"]["spec"]["metadata"]["default_model"],
+            "openai:gpt-4.1",
+        )
+
+    def test_builtin_nico_preview_and_build_use_seeded_profiles(self) -> None:
+        morning_preview = self.client.post(
+            "/characters/preview",
+            json={
+                "character_id": "nico",
+                "now": "2026-03-24T10:30:00+08:00",
+            },
+        )
+        self.assertEqual(morning_preview.status_code, 200)
+        morning_payload = morning_preview.get_json()
+        self.assertEqual(morning_payload["evaluation"]["status"], "working")
+        self.assertEqual(morning_payload["evaluation"]["availability"], "limited")
+
+        night_preview = self.client.post(
+            "/characters/preview",
+            json={
+                "character_id": "nico",
+                "now": "2026-03-24T02:30:00+08:00",
+            },
+        )
+        self.assertEqual(night_preview.status_code, 200)
+        night_payload = night_preview.get_json()
+        self.assertEqual(night_payload["evaluation"]["status"], "sleeping")
+        self.assertEqual(night_payload["evaluation"]["availability"], "offline")
+
+        evening_preview = self.client.post(
+            "/characters/preview",
+            json={
+                "character_id": "nico",
+                "now": "2026-03-24T20:00:00+08:00",
+            },
+        )
+        self.assertEqual(evening_preview.status_code, 200)
+        evening_payload = evening_preview.get_json()
+        self.assertEqual(evening_payload["evaluation"]["availability"], "available")
+
+        build_response = self.client.post(
+            "/characters/build",
+            json={
+                "character_id": "nico",
+                "thread_id": "main thread",
+                "now": "2026-03-24T10:30:00+08:00",
+            },
+        )
+        self.assertEqual(build_response.status_code, 200)
+        build_payload = build_response.get_json()
+        self.assertEqual(build_payload["self_namespace"], "character_nico__self")
+        self.assertEqual(
+            build_payload["relationship_namespace"],
+            "character_nico__rel__local_user",
+        )
+        self.assertEqual(
+            build_payload["self_profile"]["core_identity"],
+            "22岁，互联网公司 HR，INFP，小蝴蝶型，古灵精怪",
+        )
+        self.assertEqual(
+            build_payload["relationship_profile"]["familiarity_stage"],
+            "stranger",
+        )
+        self.assertEqual(build_payload["default_model"], "openai:gpt-4.1")
+
+    def test_delete_seeded_nico_does_not_recreate_it(self) -> None:
+        self.assertEqual(self.client.get("/characters").get_json()["count"], 1)
+
+        delete_response = self.client.delete("/characters/nico")
+        self.assertEqual(delete_response.status_code, 200)
+        self.assertTrue(delete_response.get_json()["ok"])
+
+        list_response = self.client.get("/characters")
+        self.assertEqual(list_response.status_code, 200)
+        list_payload = list_response.get_json()
+        self.assertEqual(list_payload["count"], 0)
+        self.assertEqual(list_payload["characters"], [])
+
     def test_character_crud_preview_and_build_round_trip(self) -> None:
         save_response = self.client.post("/characters", json=_character_payload())
         self.assertEqual(save_response.status_code, 200)
@@ -76,8 +252,11 @@ class CharacterRouteTests(unittest.TestCase):
         list_response = self.client.get("/characters")
         self.assertEqual(list_response.status_code, 200)
         listed = list_response.get_json()
-        self.assertEqual(listed["count"], 1)
-        self.assertEqual(listed["characters"][0]["id"], character_id)
+        self.assertEqual(listed["count"], 2)
+        self.assertEqual(
+            {item["id"] for item in listed["characters"]},
+            {"nico", character_id},
+        )
 
         preview_response = self.client.post(
             "/characters/preview",

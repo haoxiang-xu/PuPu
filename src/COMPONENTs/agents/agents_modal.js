@@ -148,7 +148,7 @@ export const AgentsModal = ({ open, onClose }) => {
           }}
         >
           {selectedSection === "characters" ? (
-            <CharactersPage isDark={isDark} />
+            <CharactersPage isDark={isDark} onOpenChat={onClose} />
           ) : (
             <ComingSoonPlaceholder
               icon={activeSection?.icon || "bot"}

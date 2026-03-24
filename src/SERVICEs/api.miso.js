@@ -376,6 +376,17 @@ const injectWorkspaceRootIntoPayload = (payload) => {
   }
 
   const currentOptions = isObject(payload.options) ? payload.options : {};
+  const disableWorkspaceRoot =
+    currentOptions.disable_workspace_root === true ||
+    currentOptions.disableWorkspaceRoot === true;
+  const explicitWorkspaceRoot =
+    typeof currentOptions.workspaceRoot === "string" &&
+    currentOptions.workspaceRoot.trim()
+      ? currentOptions.workspaceRoot.trim()
+      : typeof currentOptions.workspace_root === "string" &&
+          currentOptions.workspace_root.trim()
+        ? currentOptions.workspace_root.trim()
+        : "";
 
   // Resolve additional workspace paths from per-chat selected IDs
   const selectedIds = Array.isArray(currentOptions.selectedWorkspaceIds)
@@ -400,6 +411,20 @@ const injectWorkspaceRootIntoPayload = (payload) => {
 
   // Strip internal field from options
   const { selectedWorkspaceIds: _omit, ...restOptions } = currentOptions;
+
+  if (disableWorkspaceRoot) {
+    return {
+      ...payload,
+      options: restOptions,
+    };
+  }
+
+  if (explicitWorkspaceRoot) {
+    return {
+      ...payload,
+      options: restOptions,
+    };
+  }
 
   if (allRoots.length === 0) {
     return { ...payload, options: restOptions };

@@ -10,6 +10,7 @@ import time
 from pathlib import Path
 from typing import Any
 
+import character_defaults
 import memory_factory
 
 _REGISTRY_VERSION = 1
@@ -72,6 +73,7 @@ def _avatars_dir(data_dir: str) -> str:
 def _default_registry() -> dict[str, Any]:
     return {
         "version": _REGISTRY_VERSION,
+        "seed_version": 0,
         "updated_at": 0,
         "characters_by_id": {},
     }
@@ -93,6 +95,7 @@ def _load_registry(data_dir: str) -> dict[str, Any]:
         characters_by_id = {}
     return {
         "version": registry.get("version") or _REGISTRY_VERSION,
+        "seed_version": int(registry.get("seed_version") or 0),
         "updated_at": registry.get("updated_at") or 0,
         "characters_by_id": copy.deepcopy(characters_by_id),
     }
@@ -100,6 +103,7 @@ def _load_registry(data_dir: str) -> dict[str, Any]:
 
 def _save_registry(data_dir: str, registry: dict[str, Any]) -> None:
     payload = _default_registry()
+    payload["seed_version"] = int(registry.get("seed_version") or 0)
     payload["updated_at"] = _now_ms()
     payload["characters_by_id"] = copy.deepcopy(
         registry.get("characters_by_id", {})
@@ -236,9 +240,143 @@ def _dedupe_strings(values: list[str]) -> list[str]:
     return result
 
 
+def _seed_long_term_profile_if_missing(
+    data_dir: str,
+    *,
+    namespace: str,
+    profile: dict[str, Any],
+) -> None:
+    profile_path = memory_factory._long_term_profile_path(data_dir, namespace)
+    if os.path.exists(profile_path):
+        return
+
+    from miso.memory.manager import JsonFileLongTermProfileStore
+
+    store = JsonFileLongTermProfileStore(
+        base_dir=memory_factory._long_term_profiles_dir(data_dir),
+    )
+    store.save(namespace, copy.deepcopy(profile))
+
+
+def _seed_builtin_character_profiles_if_missing(
+    data_dir: str,
+    *,
+    character_id: str,
+) -> None:
+    seed_profiles = character_defaults.get_builtin_character_profile_seeds(character_id)
+    if not isinstance(seed_profiles, dict):
+        return
+
+    self_namespace = _character_api()["make_character_self_namespace"](character_id)
+    relationship_namespace = _character_api()["make_character_relationship_namespace"](
+        character_id,
+        _DEFAULT_HUMAN_ID,
+    )
+    _seed_long_term_profile_if_missing(
+        data_dir,
+        namespace=self_namespace,
+        profile=seed_profiles.get("self_profile") or {},
+    )
+    _seed_long_term_profile_if_missing(
+        data_dir,
+        namespace=relationship_namespace,
+        profile=seed_profiles.get("relationship_profile") or {},
+    )
+
+
+def _seed_builtin_character_record(
+    data_dir: str,
+    registry: dict[str, Any],
+    payload: dict[str, Any],
+) -> bool:
+    character_spec = _character_api()["CharacterSpec"].coerce(payload)
+    existing_record = registry["characters_by_id"].get(character_spec.id)
+    if existing_record:
+        changed = False
+        if isinstance(existing_record, dict):
+            existing_spec = (
+                copy.deepcopy(existing_record.get("spec", {}))
+                if isinstance(existing_record.get("spec"), dict)
+                else {}
+            )
+            builtin_spec = character_spec.to_dict()
+            existing_metadata = (
+                copy.deepcopy(existing_spec.get("metadata", {}))
+                if isinstance(existing_spec.get("metadata"), dict)
+                else {}
+            )
+            builtin_metadata = (
+                copy.deepcopy(builtin_spec.get("metadata", {}))
+                if isinstance(builtin_spec.get("metadata"), dict)
+                else {}
+            )
+
+            for key, value in builtin_spec.items():
+                if key == "metadata":
+                    continue
+                if key not in existing_spec:
+                    existing_spec[key] = copy.deepcopy(value)
+                    changed = True
+
+            for key, value in builtin_metadata.items():
+                if key not in existing_metadata:
+                    existing_metadata[key] = copy.deepcopy(value)
+                    changed = True
+
+            if builtin_metadata:
+                existing_spec["metadata"] = existing_metadata
+
+            if changed:
+                existing_record["spec"] = existing_spec
+                existing_record["updated_at"] = _now_ms()
+
+        _seed_builtin_character_profiles_if_missing(
+            data_dir,
+            character_id=character_spec.id,
+        )
+        return changed
+
+    created_at = _now_ms()
+    self_namespace = _character_api()["make_character_self_namespace"](character_spec.id)
+    registry["characters_by_id"][character_spec.id] = {
+        "spec": character_spec.to_dict(),
+        "avatar": None,
+        "created_at": created_at,
+        "updated_at": created_at,
+        "known_human_ids": [_DEFAULT_HUMAN_ID],
+        "owned_session_ids": [self_namespace],
+    }
+    _seed_builtin_character_profiles_if_missing(
+        data_dir,
+        character_id=character_spec.id,
+    )
+    return True
+
+
+def _ensure_default_characters(data_dir: str, registry: dict[str, Any]) -> dict[str, Any]:
+    current_seed_version = int(registry.get("seed_version") or 0)
+    target_seed_version = character_defaults.DEFAULT_CHARACTER_SEED_VERSION
+    if current_seed_version >= target_seed_version:
+        return registry
+
+    changed = False
+    for payload in character_defaults.list_builtin_characters():
+        if _seed_builtin_character_record(data_dir, registry, payload):
+            changed = True
+
+    registry["seed_version"] = target_seed_version
+    if changed or current_seed_version != target_seed_version:
+        _save_registry(data_dir, registry)
+    return registry
+
+
+def _load_seeded_registry(data_dir: str) -> dict[str, Any]:
+    return _ensure_default_characters(data_dir, _load_registry(data_dir))
+
+
 def list_characters() -> dict[str, Any]:
     data_dir = _ensure_data_dir()
-    registry = _load_registry(data_dir)
+    registry = _load_seeded_registry(data_dir)
     characters = [
         _record_to_public(record)
         for record in registry["characters_by_id"].values()
@@ -253,7 +391,7 @@ def list_characters() -> dict[str, Any]:
 
 def get_character(character_id: str) -> dict[str, Any] | None:
     data_dir = _ensure_data_dir()
-    registry = _load_registry(data_dir)
+    registry = _load_seeded_registry(data_dir)
     safe_id = _character_api()["sanitize_character_key_component"](
         character_id,
         fallback="character",
@@ -398,7 +536,7 @@ def build_character_agent_config(payload: dict[str, Any] | None = None) -> dict[
         raise ValueError("character_id is required")
 
     data_dir = _ensure_data_dir()
-    registry = _load_registry(data_dir)
+    registry = _load_seeded_registry(data_dir)
     safe_character_id = _character_api()["sanitize_character_key_component"](
         character_id,
         fallback="character",
@@ -421,6 +559,11 @@ def build_character_agent_config(payload: dict[str, Any] | None = None) -> dict[
         now=raw_payload.get("now"),
         obligations=raw_payload.get("obligations"),
     )
+    metadata = spec.to_dict().get("metadata")
+    if isinstance(metadata, dict):
+        default_model = metadata.get("default_model")
+        if isinstance(default_model, str) and default_model.strip():
+            config["default_model"] = default_model.strip()
 
     record["updated_at"] = _now_ms()
     record["known_human_ids"] = _dedupe_strings(

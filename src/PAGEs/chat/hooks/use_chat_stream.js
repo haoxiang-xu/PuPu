@@ -48,6 +48,9 @@ export const useChatStream = ({
   selectedModelId,
   selectedToolkits,
   selectedWorkspaceIds,
+  chatKind = "default",
+  characterId = "",
+  threadIdRef,
   systemPromptOverrides,
   attachmentApi,
   storageApi,
@@ -82,6 +85,10 @@ export const useChatStream = ({
   const toolConfirmationUiStateByIdRef = useRef({});
   const [pendingContinuationRequest, setPendingContinuationRequest] =
     useState(null);
+  const isCharacterChat =
+    chatKind === "character" &&
+    typeof characterId === "string" &&
+    characterId.trim().length > 0;
   const pendingContinuationRequestRef = useRef(null);
 
   const streamHandleRef = useRef(null);
@@ -91,6 +98,24 @@ export const useChatStream = ({
   const confirmationFollowupSignalByIdRef = useRef(new Map());
   const confirmationResolveTimerByIdRef = useRef(new Map());
   const activeTokenFlushControllerRef = useRef(null);
+
+  const buildCharacterRunConfig = useCallback(async () => {
+    if (!isCharacterChat) {
+      return null;
+    }
+
+    const resolvedThreadId =
+      typeof threadIdRef?.current === "string" && threadIdRef.current.trim()
+        ? threadIdRef.current.trim()
+        : "main";
+
+    const config = await api.miso.buildCharacterAgentConfig({
+      characterId,
+      threadId: resolvedThreadId,
+      humanId: "local_user",
+    });
+    return config && typeof config === "object" ? config : null;
+  }, [characterId, isCharacterChat, threadIdRef]);
 
   const findToolCallFrameByCallId = useCallback(
     (callId) => {
@@ -622,23 +647,38 @@ export const useChatStream = ({
   );
 
   const replaceSessionMemoryForMessages = useCallback(
-    async (targetChatId, nextMessages) => {
-      if (!targetChatId || readMemorySettings().enabled !== true) {
+    async (
+      targetSessionId,
+      nextMessages,
+      {
+        forceMemoryEnabled = false,
+        memoryNamespace = "",
+        modelId = modelIdRef.current,
+      } = {},
+    ) => {
+      if (
+        !targetSessionId ||
+        (forceMemoryEnabled !== true && readMemorySettings().enabled !== true)
+      ) {
         return true;
       }
 
       try {
         const response = await api.miso.replaceSessionMemory({
-          sessionId: targetChatId,
-          messages: buildHistoryForModel(nextMessages, targetChatId),
+          sessionId: targetSessionId,
+          messages: buildHistoryForModel(nextMessages, chatId),
           options: {
-            modelId: modelIdRef.current,
+            modelId,
+            ...(forceMemoryEnabled === true ? { memory_enabled: true } : {}),
+            ...(memoryNamespace
+              ? { memory_namespace: memoryNamespace }
+              : {}),
           },
         });
 
         return response?.applied !== false;
       } catch (error) {
-        if (activeChatIdRef.current === targetChatId) {
+        if (activeChatIdRef.current === chatId) {
           setStreamError(
             error?.message || "Failed to sync short-term memory for this chat.",
           );
@@ -646,7 +686,7 @@ export const useChatStream = ({
         return false;
       }
     },
-    [activeChatIdRef, buildHistoryForModel, modelIdRef, setStreamError],
+    [activeChatIdRef, buildHistoryForModel, chatId, modelIdRef, setStreamError],
   );
 
   const runTurnRequest = useCallback(
@@ -662,6 +702,7 @@ export const useChatStream = ({
       memoryFallbackAttempted = false,
       forceHistoryFallback = false,
       historyOverride = null,
+      characterAgentConfig = null,
     }) => {
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachments)
@@ -761,6 +802,108 @@ export const useChatStream = ({
       } else if ("attachments" in userMessage) {
         delete userMessage.attachments;
       }
+
+      const persistImmediateMessages = (nextImmediateMessages) => {
+        messagesRef.current = nextImmediateMessages;
+        if (activeChatIdRef.current === targetChatId) {
+          setMessages(nextImmediateMessages);
+          return;
+        }
+
+        storageApi.setChatMessages(targetChatId, nextImmediateMessages, {
+          source: "chat-page",
+        });
+      };
+
+      let effectiveModelId = modelIdRef.current;
+      let effectiveThreadId = targetChatId;
+      let effectiveMemoryNamespace = "";
+      let effectiveToolkits = selectedToolkits;
+      let effectiveWorkspaceIds = selectedWorkspaceIds;
+      let forceMemoryEnabled = false;
+
+      let resolvedCharacterConfig = characterAgentConfig;
+      if (isCharacterChat) {
+        if (!resolvedCharacterConfig) {
+          try {
+            resolvedCharacterConfig = await buildCharacterRunConfig();
+          } catch (error) {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return false;
+          }
+        }
+
+        if (!resolvedCharacterConfig?.session_id) {
+          setStreamError("Failed to prepare this character chat.");
+          return false;
+        }
+
+        effectiveThreadId = resolvedCharacterConfig.session_id;
+        effectiveMemoryNamespace =
+          typeof resolvedCharacterConfig.run_memory_namespace === "string"
+            ? resolvedCharacterConfig.run_memory_namespace.trim()
+            : "";
+        if (
+          typeof resolvedCharacterConfig.default_model === "string" &&
+          resolvedCharacterConfig.default_model.trim()
+        ) {
+          effectiveModelId = resolvedCharacterConfig.default_model.trim();
+        }
+        effectiveToolkits = [];
+        effectiveWorkspaceIds = [];
+        forceMemoryEnabled = true;
+
+        const characterDecision =
+          resolvedCharacterConfig.decision &&
+          typeof resolvedCharacterConfig.decision === "object"
+            ? resolvedCharacterConfig.decision
+            : {};
+        const decisionAction =
+          typeof characterDecision.action === "string"
+            ? characterDecision.action.trim().toLowerCase()
+            : "";
+        const courtesyMessage =
+          typeof characterDecision.courtesy_message === "string" &&
+          characterDecision.courtesy_message.trim()
+            ? characterDecision.courtesy_message.trim()
+            : "";
+
+        if (decisionAction === "ignore" || decisionAction === "defer") {
+          const immediateMessages =
+            decisionAction === "defer" && courtesyMessage
+              ? [
+                  ...normalizedBaseMessages,
+                  userMessage,
+                  {
+                    id: assistantMessageId,
+                    role: "assistant",
+                    content: courtesyMessage,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                    status: "done",
+                    meta: {
+                      model: effectiveModelId,
+                    },
+                  },
+                ]
+              : [...normalizedBaseMessages, userMessage];
+
+          persistImmediateMessages(immediateMessages);
+          if (clearComposer) {
+            setInputValue("");
+            setDraftAttachments([]);
+          }
+          setStreamError("");
+          streamHandleRef.current = null;
+          streamingChatIdRef.current = null;
+          activeStreamMessagesRef.current = null;
+          setStreamingChatId(null);
+          return true;
+        }
+      }
+
       const assistantPlaceholder = {
         id: assistantMessageId,
         role: "assistant",
@@ -770,15 +913,18 @@ export const useChatStream = ({
         status: "streaming",
         traceFrames: [],
         meta: {
-          model: modelIdRef.current,
+          model: effectiveModelId,
         },
       };
 
       const memoryEnabled =
-        readMemorySettings().enabled === true && forceHistoryFallback !== true;
+        forceHistoryFallback === true
+          ? false
+          : forceMemoryEnabled === true ||
+            readMemorySettings().enabled === true;
       const historyForModel = Array.isArray(historyOverride)
         ? historyOverride
-        : memoryEnabled
+          : memoryEnabled
           ? []
           : buildHistoryForModel(normalizedBaseMessages, targetChatId);
 
@@ -982,21 +1128,35 @@ export const useChatStream = ({
 
         streamHandle = api.miso.startStreamV2(
           {
-            threadId: targetChatId,
+            threadId: effectiveThreadId,
             message: promptText,
             history: historyForModel,
             attachments: payloadAttachments,
             options: {
-              modelId: modelIdRef.current,
-              ...(forceHistoryFallback === true && {
-                memory_enabled: false,
+              modelId: effectiveModelId,
+              ...(forceHistoryFallback === true
+                ? { memory_enabled: false }
+                : forceMemoryEnabled === true
+                  ? { memory_enabled: true }
+                  : {}),
+              ...(effectiveMemoryNamespace
+                ? { memory_namespace: effectiveMemoryNamespace }
+                : {}),
+              ...(effectiveToolkits.length > 0 && {
+                toolkits: effectiveToolkits,
               }),
-              ...(selectedToolkits.length > 0 && {
-                toolkits: selectedToolkits,
+              ...(effectiveWorkspaceIds.length > 0 && {
+                selectedWorkspaceIds: effectiveWorkspaceIds,
               }),
-              ...(selectedWorkspaceIds.length > 0 && {
-                selectedWorkspaceIds,
-              }),
+              ...(isCharacterChat
+                ? {
+                    agent_instructions:
+                      typeof resolvedCharacterConfig?.instructions === "string"
+                        ? resolvedCharacterConfig.instructions
+                        : "",
+                    disable_workspace_root: true,
+                  }
+                : {}),
               ...(Object.keys(systemPromptOverridesObject).length > 0 && {
                 system_prompt_v2: {
                   overrides: systemPromptOverridesObject,
@@ -1436,18 +1596,22 @@ export const useChatStream = ({
                 typeof meta.thread_id === "string" &&
                 meta.thread_id.trim()
               ) {
-                storageApi.setChatThreadId(targetChatId, targetChatId, {
-                  source: "chat-page",
-                });
+                if (!isCharacterChat) {
+                  storageApi.setChatThreadId(targetChatId, meta.thread_id, {
+                    source: "chat-page",
+                  });
+                }
               }
 
               if (meta && typeof meta.model === "string" && meta.model.trim()) {
-                storageApi.setChatModel(
-                  targetChatId,
-                  { id: meta.model },
-                  { source: "chat-page" },
-                );
-                if (activeChatIdRef.current === targetChatId) {
+                if (!isCharacterChat) {
+                  storageApi.setChatModel(
+                    targetChatId,
+                    { id: meta.model },
+                    { source: "chat-page" },
+                  );
+                }
+                if (!isCharacterChat && activeChatIdRef.current === targetChatId) {
                   modelIdRef.current = meta.model;
                   setSelectedModelId(meta.model);
                 }
@@ -1576,6 +1740,7 @@ export const useChatStream = ({
                   memoryFallbackAttempted: true,
                   forceHistoryFallback: true,
                   historyOverride: retryHistory,
+                  characterAgentConfig: resolvedCharacterConfig,
                 });
                 return;
               }
@@ -1679,12 +1844,14 @@ export const useChatStream = ({
       activeChatIdRef,
       activeStreamMessagesRef,
       appendSyntheticToolConfirmationDecision,
+      buildCharacterRunConfig,
       buildHistoryForModel,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
       clearResolvedToolConfirmationByCallId,
       hydrateAttachmentPayloads,
+      isCharacterChat,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
@@ -1791,9 +1958,24 @@ export const useChatStream = ({
       }
 
       const baseMessages = messagesRef.current.slice(0, messageIndex);
+      const characterConfig = isCharacterChat
+        ? await buildCharacterRunConfig().catch((error) => {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return null;
+          })
+        : null;
+      if (isCharacterChat && !characterConfig?.session_id) {
+        return;
+      }
       const memoryReplaced = await replaceSessionMemoryForMessages(
-        currentChatId,
+        characterConfig?.session_id || currentChatId,
         baseMessages,
+        {
+          forceMemoryEnabled: isCharacterChat,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+        },
       );
       if (!memoryReplaced) {
         return;
@@ -1820,11 +2002,14 @@ export const useChatStream = ({
         clearComposer: false,
         reuseUserMessage: targetMessage,
         missingAttachmentPayloadMode: "degrade",
+        characterAgentConfig: characterConfig,
       });
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
+      buildCharacterRunConfig,
+      isCharacterChat,
       messagesRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
@@ -1867,9 +2052,24 @@ export const useChatStream = ({
       }
 
       const baseMessages = messagesRef.current.slice(0, messageIndex);
+      const characterConfig = isCharacterChat
+        ? await buildCharacterRunConfig().catch((error) => {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return null;
+          })
+        : null;
+      if (isCharacterChat && !characterConfig?.session_id) {
+        return;
+      }
       const memoryReplaced = await replaceSessionMemoryForMessages(
-        currentChatId,
+        characterConfig?.session_id || currentChatId,
         baseMessages,
+        {
+          forceMemoryEnabled: isCharacterChat,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+        },
       );
       if (!memoryReplaced) {
         return;
@@ -1896,11 +2096,14 @@ export const useChatStream = ({
         clearComposer: false,
         reuseUserMessage: targetMessage,
         missingAttachmentPayloadMode: "degrade",
+        characterAgentConfig: characterConfig,
       });
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
+      buildCharacterRunConfig,
+      isCharacterChat,
       messagesRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
@@ -1944,9 +2147,24 @@ export const useChatStream = ({
       const nextMessages = workingMessages.filter(
         (item) => !turnMessageIds.has(item?.id),
       );
+      const characterConfig = isCharacterChat
+        ? await buildCharacterRunConfig().catch((error) => {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return null;
+          })
+        : null;
+      if (isCharacterChat && !characterConfig?.session_id) {
+        return;
+      }
       const memoryReplaced = await replaceSessionMemoryForMessages(
-        currentChatId,
+        characterConfig?.session_id || currentChatId,
         nextMessages,
+        {
+          forceMemoryEnabled: isCharacterChat,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+        },
       );
       if (!memoryReplaced) {
         return;
@@ -1957,10 +2175,13 @@ export const useChatStream = ({
     },
     [
       activeChatIdRef,
+      buildCharacterRunConfig,
       cancelCurrentStreamAndSettleMessages,
+      isCharacterChat,
       messagesRef,
       replaceSessionMemoryForMessages,
       setMessages,
+      setStreamError,
     ],
   );
 
