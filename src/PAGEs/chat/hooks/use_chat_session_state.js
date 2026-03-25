@@ -48,6 +48,10 @@ export const useChatSessionState = ({
 
   const activeChatIdRef = useRef(initialChat.id);
   const messagesRef = useRef(initialChat.messages || []);
+  const initialChatConfigRef = useRef({
+    kind: initialChat.kind,
+    threadId: initialChat.threadId,
+  });
   const threadIdRef = useRef(
     typeof initialChat.threadId === "string" && initialChat.threadId.trim()
       ? initialChat.threadId
@@ -185,11 +189,12 @@ export const useChatSessionState = ({
       return;
     }
 
-    const currentChat = bootstrapped?.store?.chatsById?.[currentChatId];
-    const isCharacterChat = currentChat?.kind === "character";
+    const initialChatConfig = initialChatConfigRef.current;
+    const isCharacterChat = initialChatConfig?.kind === "character";
     const resolvedThreadId =
-      typeof currentChat?.threadId === "string" && currentChat.threadId.trim()
-        ? currentChat.threadId
+      typeof initialChatConfig?.threadId === "string" &&
+      initialChatConfig.threadId.trim()
+        ? initialChatConfig.threadId
         : currentChatId;
 
     threadIdRef.current = resolvedThreadId;

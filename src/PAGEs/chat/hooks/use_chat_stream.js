@@ -1855,6 +1855,7 @@ export const useChatStream = ({
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
+      messagesRef,
       resolveAttachmentPayloads,
       selectedToolkits,
       selectedWorkspaceIds,
