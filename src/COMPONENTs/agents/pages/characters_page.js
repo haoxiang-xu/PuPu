@@ -215,7 +215,7 @@ const CharacterAvatar = ({ character, isDark, size = 54 }) => {
 /*  Left: Contact Row                                                                                    */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const CharacterContactRow = ({ character, isDark, isSelected, onClick }) => {
+const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenChat }) => {
   const [hovered, setHovered] = useState(false);
   const subtitle = subtitleForCharacter(character);
 
@@ -282,6 +282,25 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick }) => {
           </div>
         ) : null}
       </div>
+
+      {hovered && onOpenChat ? (
+        <Button
+          prefix_icon="chat"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenChat(character);
+          }}
+          style={{
+            paddingVertical: 5,
+            paddingHorizontal: 5,
+            borderRadius: 7,
+            opacity: 0.6,
+            content: {
+              icon: { width: 15, height: 15 },
+            },
+          }}
+        />
+      ) : null}
     </div>
   );
 };
@@ -554,24 +573,24 @@ const CharacterDetailPanel = ({
 
 const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
   const [hovered, setHovered] = useState(false);
+  const [imageBroken, setImageBroken] = useState(false);
   const tags = listTagsForCharacter(character);
   const subtitle = subtitleForCharacter(character);
   const blurb =
     typeof character?.metadata?.list_blurb === "string"
       ? character.metadata.list_blurb.trim()
       : "";
+  const avatarSrc = resolveAvatarSrc(character);
+  const showHeroImage = Boolean(avatarSrc) && !imageBroken;
+  const ageLabel = ageLabelForCharacter(character);
+  const statItems = [];
 
-  const cardBg = isDark
-    ? hovered
-      ? "rgba(255,255,255,0.06)"
-      : "rgba(255,255,255,0.03)"
-    : hovered
-      ? "rgba(0,0,0,0.04)"
-      : "rgba(0,0,0,0.02)";
-
-  const cardBorder = isDark
-    ? "1px solid rgba(255,255,255,0.07)"
-    : "1px solid rgba(0,0,0,0.06)";
+  if (ageLabel) {
+    statItems.push({ icon: "user", value: ageLabel });
+  }
+  if (tags.length > 0) {
+    statItems.push({ icon: "copy", value: String(tags.length) });
+  }
 
   return (
     <div
@@ -581,173 +600,233 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
       style={{
         display: "flex",
         flexDirection: "column",
-        alignItems: "center",
-        padding: "24px 16px 16px",
-        borderRadius: 12,
-        background: cardBg,
-        border: cardBorder,
-        transition: "background 0.15s ease, box-shadow 0.2s ease",
+        aspectRatio: "78 / 100",
+        borderRadius: 30,
+        padding: 14,
+        overflow: "hidden",
+        background: isDark ? "#2c2c2e" : "#2f2f31",
+        border: hovered
+          ? "1px solid rgba(255,255,255,0.16)"
+          : "1px solid rgba(255,255,255,0.08)",
+        transition:
+          "transform 0.16s ease, box-shadow 0.2s ease, border-color 0.16s ease",
         boxShadow: hovered
-          ? isDark
-            ? "0 4px 20px rgba(0,0,0,0.3)"
-            : "0 4px 20px rgba(0,0,0,0.06)"
-          : "none",
+          ? "0 14px 34px rgba(0,0,0,0.28)"
+          : "0 8px 22px rgba(0,0,0,0.18)",
+        transform: hovered ? "translateY(-2px)" : "translateY(0)",
         cursor: "default",
         userSelect: "none",
         WebkitUserSelect: "none",
       }}
     >
-      {/* Avatar */}
-      <CharacterAvatar character={character} isDark={isDark} size={72} />
-
-      {/* Name */}
       <div
         style={{
-          marginTop: 14,
-          fontSize: 15,
-          fontWeight: 700,
-          fontFamily: "NunitoSans, sans-serif",
-          color: isDark ? "#fff" : "#171717",
-          textAlign: "center",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
           width: "100%",
+          height: "58%",
+          minHeight: 0,
+          borderRadius: 24,
+          overflow: "hidden",
+          background: showHeroImage
+            ? "#cad3d8"
+            : "linear-gradient(150deg, #dfe4e7 0%, #c0c6cb 42%, #7e8288 100%)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          flexShrink: 0,
         }}
       >
-        {character?.name || "Character"}
-      </div>
-
-      {/* Subtitle */}
-      {subtitle ? (
-        <div
-          style={{
-            marginTop: 3,
-            fontSize: 11.5,
-            fontFamily: FONT,
-            color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
-            textAlign: "center",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            width: "100%",
-          }}
-        >
-          {subtitle}
-        </div>
-      ) : null}
-
-      {/* Blurb */}
-      {blurb ? (
-        <div
-          style={{
-            marginTop: 10,
-            fontSize: 12,
-            fontFamily: FONT,
-            color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
-            lineHeight: 1.55,
-            textAlign: "center",
-            display: "-webkit-box",
-            WebkitLineClamp: 2,
-            WebkitBoxOrient: "vertical",
-            overflow: "hidden",
-            width: "100%",
-          }}
-        >
-          {blurb}
-        </div>
-      ) : null}
-
-      {/* Tags */}
-      {tags.length > 0 ? (
-        <div
-          style={{
-            marginTop: 10,
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: 5,
-            width: "100%",
-          }}
-        >
-          {tags.slice(0, 3).map((tag) => (
-            <span
-              key={tag}
-              style={{
-                padding: "2px 7px",
-                borderRadius: 999,
-                fontSize: 10,
-                fontWeight: 600,
-                fontFamily: FONT,
-                color: isDark
-                  ? "rgba(255,255,255,0.7)"
-                  : "rgba(0,0,0,0.55)",
-                background: isDark
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.045)",
-              }}
-            >
-              {tag}
-            </span>
-          ))}
-          {tags.length > 3 ? (
-            <span
-              style={{
-                padding: "2px 7px",
-                borderRadius: 999,
-                fontSize: 10,
-                fontWeight: 600,
-                fontFamily: FONT,
-                color: isDark
-                  ? "rgba(255,255,255,0.4)"
-                  : "rgba(0,0,0,0.35)",
-              }}
-            >
-              +{tags.length - 3}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
-      {/* Add button */}
-      <div style={{ marginTop: 14, width: "100%" }}>
-        {isAdded ? (
-          <Button
-            prefix_icon="check"
-            label="Added"
-            disabled
+        {showHeroImage ? (
+          <img
+            src={avatarSrc}
+            alt={`${character?.name || "character"} hero`}
+            onError={() => setImageBroken(true)}
             style={{
-              fontSize: 12,
-              fontWeight: 600,
-              paddingVertical: 6,
-              paddingHorizontal: 14,
-              borderRadius: 999,
               width: "100%",
-              opacity: 0.5,
-              content: {
-                icon: { width: 13, height: 13 },
-              },
+              height: "100%",
+              objectFit: "cover",
             }}
           />
         ) : (
-          <Button
-            prefix_icon="add"
-            label={isAdding ? "Adding..." : "Add"}
-            onClick={() => onAdd && onAdd(character)}
-            disabled={isAdding}
+          <div
             style={{
-              fontSize: 12,
-              fontWeight: 600,
-              paddingVertical: 6,
-              paddingHorizontal: 14,
-              borderRadius: 999,
-              width: "100%",
-              content: {
-                icon: { width: 13, height: 13 },
-              },
+              position: "absolute",
+              inset: 0,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "rgba(255,255,255,0.86)",
+              fontSize: 52,
+              fontWeight: 700,
+              fontFamily: "NunitoSans, sans-serif",
             }}
-          />
+          >
+            {fallbackInitial(character)}
+          </div>
         )}
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          padding: "16px 6px 2px",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            minWidth: 0,
+          }}
+        >
+          <div
+            style={{
+              minWidth: 0,
+              flex: 1,
+              fontSize: 18,
+              fontWeight: 700,
+              fontFamily: "NunitoSans, sans-serif",
+              color: "#fff",
+              lineHeight: 1.1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {character?.name || "Character"}
+          </div>
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: "50%",
+              background: "#45d44a",
+              color: "#111",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              boxShadow: "0 4px 10px rgba(69,212,74,0.28)",
+            }}
+          >
+            <Icon src="verified" style={{ width: 14, height: 14 }} />
+          </div>
+        </div>
+
+        {(blurb || subtitle) ? (
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 13,
+              fontFamily: FONT,
+              color: "rgba(255,255,255,0.58)",
+              lineHeight: 1.45,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+              minHeight: 38,
+            }}
+          >
+            {blurb || subtitle}
+          </div>
+        ) : (
+          <div style={{ minHeight: 38 }} />
+        )}
+
+        <div
+          style={{
+            marginTop: "auto",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 16,
+              color: "rgba(255,255,255,0.9)",
+            }}
+          >
+            {statItems.slice(0, 2).map((item) => (
+              <div
+                key={`${item.icon}-${item.value}`}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  fontSize: 11.5,
+                  fontWeight: 600,
+                  fontFamily: FONT,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <Icon
+                  src={item.icon}
+                  style={{ width: 14, height: 14 }}
+                  color="rgba(255,255,255,0.72)"
+                />
+                <span>{item.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {isAdded ? (
+            <button
+              type="button"
+              disabled
+              style={{
+                height: 44,
+                minWidth: 118,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.08)",
+                color: "rgba(255,255,255,0.72)",
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: "NunitoSans, sans-serif",
+              }}
+            >
+              Added
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onAdd && onAdd(character)}
+              disabled={isAdding}
+              style={{
+                height: 44,
+                minWidth: 130,
+                borderRadius: 999,
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: hovered
+                  ? "rgba(255,255,255,0.1)"
+                  : "rgba(255,255,255,0.07)",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: "NunitoSans, sans-serif",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                boxShadow: hovered
+                  ? "0 8px 18px rgba(0,0,0,0.16)"
+                  : "0 4px 10px rgba(0,0,0,0.12)",
+                cursor: isAdding ? "progress" : "pointer",
+              }}
+            >
+              <span>{isAdding ? "Adding..." : "Follow"}</span>
+              <span style={{ fontSize: 22, lineHeight: 0.9, fontWeight: 300 }}>
+                +
+              </span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -900,8 +979,9 @@ const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
           <div
             style={{
               display: "grid",
-              gridTemplateColumns: "repeat(3, 1fr)",
-              gap: 12,
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gap: 16,
+              alignItems: "start",
             }}
           >
             {filteredCharacters.map((character, index) => (
@@ -1028,6 +1108,7 @@ const AddedCharactersPanel = ({
             isDark={isDark}
             isSelected={selectedCharacterId === character?.id}
             onClick={(c) => setSelectedCharacterId(c?.id || "")}
+            onOpenChat={handleOpenChat}
           />
         ))}
       </div>
