@@ -583,14 +583,9 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
   const avatarSrc = resolveAvatarSrc(character);
   const showHeroImage = Boolean(avatarSrc) && !imageBroken;
   const ageLabel = ageLabelForCharacter(character);
-  const statItems = [];
-
-  if (ageLabel) {
-    statItems.push({ icon: "user", value: ageLabel });
-  }
-  if (tags.length > 0) {
-    statItems.push({ icon: "copy", value: String(tags.length) });
-  }
+  const primaryStat = ageLabel ? `${ageLabel} Years` : "Ready to chat";
+  const secondaryStat =
+    tags.length > 0 ? `${tags.length} Traits` : subtitle ? "Profile" : "New";
 
   return (
     <div
@@ -600,19 +595,18 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
       style={{
         display: "flex",
         flexDirection: "column",
-        aspectRatio: "78 / 100",
-        borderRadius: 30,
-        padding: 14,
+        borderRadius: 7,
+        padding: 12,
         overflow: "hidden",
-        background: isDark ? "#2c2c2e" : "#2f2f31",
+        background: isDark ? "#141414" : "#ffffff",
         border: hovered
-          ? "1px solid rgba(255,255,255,0.16)"
+          ? "1px solid rgba(255,255,255,0.18)"
           : "1px solid rgba(255,255,255,0.08)",
         transition:
           "transform 0.16s ease, box-shadow 0.2s ease, border-color 0.16s ease",
         boxShadow: hovered
-          ? "0 14px 34px rgba(0,0,0,0.28)"
-          : "0 8px 22px rgba(0,0,0,0.18)",
+          ? "0 14px 30px rgba(0,0,0,0.26)"
+          : "0 8px 18px rgba(0,0,0,0.16)",
         transform: hovered ? "translateY(-2px)" : "translateY(0)",
         cursor: "default",
         userSelect: "none",
@@ -622,15 +616,16 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
       <div
         style={{
           width: "100%",
-          height: "58%",
+          aspectRatio: "1 / 1",
           minHeight: 0,
-          borderRadius: 24,
+          borderRadius: 7,
           overflow: "hidden",
           background: showHeroImage
-            ? "#cad3d8"
-            : "linear-gradient(150deg, #dfe4e7 0%, #c0c6cb 42%, #7e8288 100%)",
-          border: "1px solid rgba(255,255,255,0.1)",
+            ? "#ccd1d4"
+            : "linear-gradient(145deg, #d8dddf 0%, #c2c7ca 44%, #83868b 100%)",
+          border: "1px solid rgba(255,255,255,0.14)",
           flexShrink: 0,
+          position: "relative",
         }}
       >
         {showHeroImage ? (
@@ -652,8 +647,8 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "rgba(255,255,255,0.86)",
-              fontSize: 52,
+              color: "rgba(255,255,255,0.88)",
+              fontSize: 48,
               fontWeight: 700,
               fontFamily: "NunitoSans, sans-serif",
             }}
@@ -669,14 +664,14 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
           minHeight: 0,
           display: "flex",
           flexDirection: "column",
-          padding: "16px 6px 2px",
+          padding: "14px 4px 2px",
         }}
       >
         <div
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 8,
+            gap: 10,
             minWidth: 0,
           }}
         >
@@ -685,10 +680,11 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
               minWidth: 0,
               flex: 1,
               fontSize: 18,
-              fontWeight: 700,
+              fontWeight: 400,
               fontFamily: "NunitoSans, sans-serif",
               color: "#fff",
-              lineHeight: 1.1,
+              lineHeight: 1.08,
+              letterSpacing: "-0.03em",
               overflow: "hidden",
               textOverflow: "ellipsis",
               whiteSpace: "nowrap",
@@ -701,45 +697,49 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
               width: 24,
               height: 24,
               borderRadius: "50%",
-              background: "#45d44a",
-              color: "#111",
+              border: "1.5px solid rgba(255,255,255,0.72)",
+              color: "rgba(255,255,255,0.9)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               flexShrink: 0,
-              boxShadow: "0 4px 10px rgba(69,212,74,0.28)",
+              background: "rgba(255,255,255,0.02)",
             }}
           >
-            <Icon src="verified" style={{ width: 14, height: 14 }} />
+            <Icon
+              src="verified"
+              style={{ width: 15, height: 15 }}
+              color="rgba(255,255,255,0.92)"
+            />
           </div>
         </div>
 
         {(blurb || subtitle) ? (
           <div
             style={{
-              marginTop: 10,
-              fontSize: 13,
+              marginTop: 14,
+              fontSize: 12,
               fontFamily: FONT,
-              color: "rgba(255,255,255,0.58)",
-              lineHeight: 1.45,
+              color: "rgba(255,255,255,0.78)",
+              lineHeight: 1.35,
               display: "-webkit-box",
               WebkitLineClamp: 2,
               WebkitBoxOrient: "vertical",
               overflow: "hidden",
-              minHeight: 38,
+              minHeight: 32,
             }}
           >
             {blurb || subtitle}
           </div>
         ) : (
-          <div style={{ minHeight: 38 }} />
+          <div style={{ minHeight: 32 }} />
         )}
 
         <div
           style={{
             marginTop: "auto",
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-end",
             justifyContent: "space-between",
             gap: 12,
           }}
@@ -747,32 +747,32 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
           <div
             style={{
               display: "flex",
-              alignItems: "center",
-              gap: 16,
-              color: "rgba(255,255,255,0.9)",
+              alignItems: "flex-end",
+              gap: 14,
+              color: "rgba(255,255,255,0.86)",
+              minWidth: 0,
             }}
           >
-            {statItems.slice(0, 2).map((item) => (
-              <div
-                key={`${item.icon}-${item.value}`}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 7,
-                  fontSize: 11.5,
-                  fontWeight: 600,
-                  fontFamily: FONT,
-                  whiteSpace: "nowrap",
-                }}
-              >
-                <Icon
-                  src={item.icon}
-                  style={{ width: 14, height: 14 }}
-                  color="rgba(255,255,255,0.72)"
-                />
-                <span>{item.value}</span>
-              </div>
-            ))}
+            <div
+              style={{
+                fontSize: 11.5,
+                fontWeight: 400,
+                fontFamily: FONT,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {primaryStat}
+            </div>
+            <div
+              style={{
+                fontSize: 11.5,
+                fontWeight: 400,
+                fontFamily: FONT,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {secondaryStat}
+            </div>
           </div>
 
           {isAdded ? (
@@ -780,15 +780,16 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
               type="button"
               disabled
               style={{
-                height: 44,
-                minWidth: 118,
+                height: 40,
+                minWidth: 120,
                 borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.08)",
-                background: "rgba(255,255,255,0.08)",
-                color: "rgba(255,255,255,0.72)",
+                border: "1px solid rgba(255,255,255,0.14)",
+                background: "rgba(255,255,255,0.04)",
+                color: "rgba(255,255,255,0.74)",
                 fontSize: 13,
-                fontWeight: 700,
+                fontWeight: 600,
                 fontFamily: "NunitoSans, sans-serif",
+                boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)",
               }}
             >
               Added
@@ -799,31 +800,95 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
               onClick={() => onAdd && onAdd(character)}
               disabled={isAdding}
               style={{
-                height: 44,
-                minWidth: 130,
+                height: 40,
+                minWidth: 126,
                 borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.12)",
                 background: hovered
-                  ? "rgba(255,255,255,0.1)"
-                  : "rgba(255,255,255,0.07)",
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(255,255,255,0.05)",
                 color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
+                fontSize: 12.5,
+                fontWeight: 500,
                 fontFamily: "NunitoSans, sans-serif",
                 display: "inline-flex",
                 alignItems: "center",
                 justifyContent: "center",
-                gap: 8,
+                gap: 10,
                 boxShadow: hovered
                   ? "0 8px 18px rgba(0,0,0,0.16)"
-                  : "0 4px 10px rgba(0,0,0,0.12)",
+                  : "0 4px 10px rgba(0,0,0,0.1)",
                 cursor: isAdding ? "progress" : "pointer",
+                flexShrink: 0,
               }}
             >
               <span>{isAdding ? "Adding..." : "Follow"}</span>
-              <span style={{ fontSize: 22, lineHeight: 0.9, fontWeight: 300 }}>
-                +
-              </span>
+              <div
+                style={{
+                  position: "relative",
+                  width: 16,
+                  height: 16,
+                  opacity: 0.9,
+                }}
+              >
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 2,
+                    top: 1,
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    border: "1.5px solid currentColor",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 9,
+                    width: 11,
+                    height: 6,
+                    borderRadius: "7px 7px 5px 5px",
+                    border: "1.5px solid currentColor",
+                    borderTop: "none",
+                  }}
+                />
+                <span
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    top: 5,
+                    width: 8,
+                    height: 8,
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: "50%",
+                      top: 0,
+                      width: 1.5,
+                      height: 8,
+                      background: "currentColor",
+                      transform: "translateX(-50%)",
+                      borderRadius: 999,
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: "50%",
+                      width: 8,
+                      height: 1.5,
+                      background: "currentColor",
+                      transform: "translateY(-50%)",
+                      borderRadius: 999,
+                    }}
+                  />
+                </span>
+              </div>
             </button>
           )}
         </div>
