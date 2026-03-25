@@ -45,6 +45,12 @@ export const useChatSessionState = ({
   const [activeCharacterId, setActiveCharacterId] = useState(
     typeof initialChat.characterId === "string" ? initialChat.characterId : "",
   );
+  const [activeCharacterName, setActiveCharacterName] = useState(
+    typeof initialChat.characterName === "string" ? initialChat.characterName : "",
+  );
+  const [activeCharacterAvatar, setActiveCharacterAvatar] = useState(
+    initialChat.characterAvatar || null,
+  );
 
   const activeChatIdRef = useRef(initialChat.id);
   const messagesRef = useRef(initialChat.messages || []);
@@ -129,6 +135,12 @@ export const useChatSessionState = ({
           ? nextActiveChat.characterId
           : "",
       );
+      setActiveCharacterName(
+        typeof nextActiveChat.characterName === "string"
+          ? nextActiveChat.characterName
+          : "",
+      );
+      setActiveCharacterAvatar(nextActiveChat.characterAvatar || null);
       systemPromptOverridesRef.current =
         nextActiveChat.systemPromptOverrides || {};
 
@@ -274,6 +286,8 @@ export const useChatSessionState = ({
     threadIdRef,
     activeChatKind,
     activeCharacterId,
+    activeCharacterName,
+    activeCharacterAvatar,
     isCharacterChat: activeChatKind === "character",
   };
 };

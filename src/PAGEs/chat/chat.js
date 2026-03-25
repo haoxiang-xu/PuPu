@@ -647,6 +647,9 @@ const ChatInterface = () => {
             chatId={session.activeChatId}
             messages={session.messages}
             isStreaming={stream.isStreaming}
+            isCharacterChat={session.isCharacterChat}
+            characterName={session.activeCharacterName}
+            characterAvatar={session.activeCharacterAvatar}
             onDeleteMessage={stream.deleteTurn}
             onResendMessage={stream.resendTurn}
             onEditMessage={stream.editTurn}
