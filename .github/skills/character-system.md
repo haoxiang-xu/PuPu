@@ -192,13 +192,28 @@ Builtin characters are auto-seeded into the registry on first load via `_ensure_
 - Re-seeding merges: new spec fields and metadata keys are added, but existing user-modified fields are preserved
 - `list_builtin_characters()` returns the full list of builtin character payloads
 
-To add a new builtin character:
+### Seed folder layout
 
-1. Define the character dict in `character_defaults.py` (follow `_NICO_CHARACTER` pattern)
-2. Add optional profile seeds (follow `_NICO_SELF_PROFILE` / `_NICO_RELATIONSHIP_PROFILE` pattern)
-3. Add it to `list_builtin_characters()` return list
-4. Add a case in `get_builtin_character_profile_seeds()` for the new id
-5. Bump `DEFAULT_CHARACTER_SEED_VERSION`
+Builtin character data lives in `miso_runtime/server/character_seeds/`, one subfolder per character:
+
+```
+miso_runtime/server/character_seeds/
+└── nico/
+    ├── spec.json                  # CharacterSpec dict (required)
+    ├── self_profile.json          # self-knowledge seed (optional)
+    └── relationship_profile.json  # default relationship seed (optional)
+```
+
+`character_defaults.py` scans this directory at import time. Each subfolder name is the character id. Only `spec.json` is required — the profile files are optional.
+
+### To add a new builtin character:
+
+1. Create a folder `miso_runtime/server/character_seeds/<character_id>/`
+2. Add `spec.json` (follow `nico/spec.json` as template)
+3. Optionally add `self_profile.json` and `relationship_profile.json`
+4. Bump `DEFAULT_CHARACTER_SEED_VERSION` in `character_defaults.py`
+
+No code changes to `character_defaults.py` are needed — new folders are picked up automatically.
 
 ---
 
@@ -361,10 +376,9 @@ Character chats appear in the side menu explorer alongside normal chats.
 
 ### Backend-only (builtin)
 
-1. Define character dict in `character_defaults.py`
-2. Define self + relationship profile seeds
-3. Register in `list_builtin_characters()` and `get_builtin_character_profile_seeds()`
-4. Bump `DEFAULT_CHARACTER_SEED_VERSION`
+1. Create folder `miso_runtime/server/character_seeds/<id>/`
+2. Add `spec.json` (required), optionally `self_profile.json` and `relationship_profile.json`
+3. Bump `DEFAULT_CHARACTER_SEED_VERSION` in `character_defaults.py`
 
 ### User-created (via API)
 

@@ -1,112 +1,101 @@
 from __future__ import annotations
 
 import copy
+import json
+import logging
+import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_CHARACTER_SEED_VERSION = 2
 
-_NICO_CHARACTER = {
-    "id": "nico",
-    "name": "Nico",
-    "gender": "female",
-    "role": "22-year-old HR at an internet company",
-    "persona": (
-        "22 岁，互联网公司 HR，天天接触各种奇奇怪怪的人。"
-        "INFP、小蝴蝶气质，古灵精怪，表面轻盈但内里敏感。"
-        "刚认识时对 user 不会很热络，讲话偏短、偏观察、带一点距离感；"
-        "熟起来后会明显更能聊，喜欢绕着情绪、关系、暧昧拉扯和共鸣感展开对话。"
-        "喜欢猫。"
-    ),
-    "speaking_style": ["casual", "playful", "empathetic", "observant"],
-    "talkativeness": 0.38,
-    "politeness": 0.74,
-    "autonomy": 0.68,
-    "timezone": "Asia/Shanghai",
-    "schedule": {
-        "timezone": "Asia/Shanghai",
-        "default_status": "free",
-        "blocks": [
-            {
-                "days": ["daily"],
-                "start_time": "01:00",
-                "end_time": "09:00",
-                "status": "sleeping",
-                "availability": "offline",
-                "interruption_tolerance": 0.0,
-            },
-            {
-                "days": ["weekday"],
-                "start_time": "09:30",
-                "end_time": "12:30",
-                "status": "working",
-                "availability": "limited",
-                "interruption_tolerance": 0.3,
-            },
-            {
-                "days": ["weekday"],
-                "start_time": "12:30",
-                "end_time": "14:00",
-                "status": "free",
-                "availability": "available",
-                "interruption_tolerance": 0.82,
-            },
-            {
-                "days": ["weekday"],
-                "start_time": "14:00",
-                "end_time": "18:30",
-                "status": "working",
-                "availability": "limited",
-                "interruption_tolerance": 0.28,
-            },
-            {
-                "days": ["weekday"],
-                "start_time": "19:30",
-                "end_time": "22:30",
-                "status": "free",
-                "availability": "available",
-                "interruption_tolerance": 0.86,
-            },
-        ],
-    },
-    "metadata": {
-        "age": 22,
-        "mbti": "INFP",
-        "likes": ["cats"],
-        "origin": "builtin_seed",
-        "default_model": "openai:gpt-4.1",
-        "list_blurb": "互联网公司 HR，刚开始有点冷，熟了以后很会聊情绪和关系。",
-        "list_tags": ["INFP", "HR", "猫控", "古灵精怪"],
-        "primary_language": "zh-CN",
-    },
-}
+_SEEDS_DIR = os.path.join(os.path.dirname(__file__), "character_seeds")
 
-_NICO_SELF_PROFILE = {
-    "core_identity": "22岁，互联网公司 HR，INFP，小蝴蝶型，古灵精怪",
-    "work_context": "白天经常被候选人、同事和琐事打断，对奇怪的人类行为很有观察欲",
-    "likes": ["cats", "观察人", "情绪共鸣", "轻微套路感的对话"],
-    "public_social_style": "刚认识时短句、克制、不过度热情",
-    "familiar_social_style": "熟了以后更会聊，会主动问情绪、关系和暧昧边界，也喜欢互相试探",
-    "tone_default": "默认简体中文，口语化，灵动一点，但不要过度装可爱",
-}
+_cache: dict[str, Any] | None = None
 
-_NICO_RELATIONSHIP_PROFILE = {
-    "familiarity_stage": "stranger",
-    "current_warmth": "low",
-    "initial_attitude": "对 user 没有特别感觉，不会主动上头",
-    "warmup_rule": "通过持续、自然、尊重边界的互动逐渐升温",
-    "later_topics": ["情绪", "关系", "拉扯感", "共鸣"],
-}
+
+def _load_seeds() -> dict[str, Any]:
+    """Scan character_seeds/ and load all seed definitions.
+
+    Each subfolder is a character id containing:
+      - spec.json              (required)
+      - self_profile.json      (optional)
+      - relationship_profile.json (optional)
+
+    Returns ``{ character_id: { spec, self_profile, relationship_profile } }``.
+    Results are cached after first call.
+    """
+    global _cache
+    if _cache is not None:
+        return _cache
+
+    seeds: dict[str, Any] = {}
+
+    if not os.path.isdir(_SEEDS_DIR):
+        logger.warning("character_seeds directory not found: %s", _SEEDS_DIR)
+        _cache = seeds
+        return seeds
+
+    for entry in sorted(os.listdir(_SEEDS_DIR)):
+        entry_path = os.path.join(_SEEDS_DIR, entry)
+        if not os.path.isdir(entry_path):
+            continue
+
+        spec_path = os.path.join(entry_path, "spec.json")
+        if not os.path.isfile(spec_path):
+            logger.warning("Skipping seed %r: missing spec.json", entry)
+            continue
+
+        try:
+            with open(spec_path, "r", encoding="utf-8") as f:
+                spec = json.load(f)
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Skipping seed %r: failed to read spec.json: %s", entry, exc)
+            continue
+
+        record: dict[str, Any] = {"spec": spec}
+
+        self_profile_path = os.path.join(entry_path, "self_profile.json")
+        if os.path.isfile(self_profile_path):
+            try:
+                with open(self_profile_path, "r", encoding="utf-8") as f:
+                    record["self_profile"] = json.load(f)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Seed %r: failed to read self_profile.json: %s", entry, exc)
+
+        rel_profile_path = os.path.join(entry_path, "relationship_profile.json")
+        if os.path.isfile(rel_profile_path):
+            try:
+                with open(rel_profile_path, "r", encoding="utf-8") as f:
+                    record["relationship_profile"] = json.load(f)
+            except (json.JSONDecodeError, OSError) as exc:
+                logger.warning("Seed %r: failed to read relationship_profile.json: %s", entry, exc)
+
+        seeds[entry] = record
+
+    _cache = seeds
+    return seeds
 
 
 def list_builtin_characters() -> list[dict[str, Any]]:
-    return [copy.deepcopy(_NICO_CHARACTER)]
+    """Return a list of all builtin character spec dicts."""
+    seeds = _load_seeds()
+    return [copy.deepcopy(record["spec"]) for record in seeds.values()]
 
 
 def get_builtin_character_profile_seeds(character_id: str) -> dict[str, dict[str, Any]] | None:
+    """Return self + relationship profile seeds for a builtin character, or None."""
     normalized = str(character_id or "").strip().lower()
-    if normalized != "nico":
+    seeds = _load_seeds()
+    record = seeds.get(normalized)
+    if record is None:
         return None
-    return {
-        "self_profile": copy.deepcopy(_NICO_SELF_PROFILE),
-        "relationship_profile": copy.deepcopy(_NICO_RELATIONSHIP_PROFILE),
-    }
+
+    result: dict[str, dict[str, Any]] = {}
+    if "self_profile" in record:
+        result["self_profile"] = copy.deepcopy(record["self_profile"])
+    if "relationship_profile" in record:
+        result["relationship_profile"] = copy.deepcopy(record["relationship_profile"])
+
+    return result if result else None
