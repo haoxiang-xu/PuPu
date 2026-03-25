@@ -269,6 +269,23 @@ export const runtimeBridge = {
     });
   },
 
+  listSeedCharacters: async () => {
+    const response = await invokeMiso("listSeedCharacters", [], {
+      timeoutMs: 15000,
+      timeoutCode: "miso_seed_character_list_timeout",
+      timeoutMessage: "Seed character list request timed out",
+      failureCode: "miso_seed_character_list_failed",
+      failureMessage: "Failed to list seed characters",
+    });
+
+    return {
+      characters: Array.isArray(response?.characters) ? response.characters : [],
+      count: Number.isFinite(Number(response?.count))
+        ? Number(response.count)
+        : 0,
+    };
+  },
+
   listCharacters: async () => {
     if (!runtimeBridge.isCharacterApiAvailable()) {
       throw new FrontendApiError(

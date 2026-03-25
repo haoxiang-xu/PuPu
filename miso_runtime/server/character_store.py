@@ -334,6 +334,19 @@ def _seed_builtin_character_record(
             if builtin_metadata:
                 existing_spec["metadata"] = existing_metadata
 
+            # Backfill seed avatar if record has no avatar
+            if not isinstance(existing_record.get("avatar"), dict):
+                seed_avatar_path = os.path.join(
+                    character_defaults._SEEDS_DIR, character_spec.id, "avatar.png"
+                )
+                if os.path.isfile(seed_avatar_path):
+                    existing_record["avatar"] = {
+                        "file_name": "avatar.png",
+                        "absolute_path": seed_avatar_path,
+                        "mime_type": "image/png",
+                    }
+                    changed = True
+
             if changed:
                 existing_record["spec"] = existing_spec
                 existing_record["updated_at"] = _now_ms()
@@ -346,9 +359,22 @@ def _seed_builtin_character_record(
 
     created_at = _now_ms()
     self_namespace = _character_api()["make_character_self_namespace"](character_spec.id)
+
+    # Resolve avatar from seed directory if available
+    seed_avatar = None
+    seed_avatar_path = os.path.join(
+        character_defaults._SEEDS_DIR, character_spec.id, "avatar.png"
+    )
+    if os.path.isfile(seed_avatar_path):
+        seed_avatar = {
+            "file_name": "avatar.png",
+            "absolute_path": seed_avatar_path,
+            "mime_type": "image/png",
+        }
+
     registry["characters_by_id"][character_spec.id] = {
         "spec": character_spec.to_dict(),
-        "avatar": None,
+        "avatar": seed_avatar,
         "created_at": created_at,
         "updated_at": created_at,
         "known_human_ids": [_DEFAULT_HUMAN_ID],
@@ -364,11 +390,24 @@ def _seed_builtin_character_record(
 def _ensure_default_characters(data_dir: str, registry: dict[str, Any]) -> dict[str, Any]:
     current_seed_version = int(registry.get("seed_version") or 0)
     target_seed_version = character_defaults.DEFAULT_CHARACTER_SEED_VERSION
-    if current_seed_version >= target_seed_version:
-        return registry
 
     changed = False
-    for payload in character_defaults.list_builtin_characters():
+    builtin_payloads = character_defaults.list_builtin_characters()
+    if current_seed_version >= target_seed_version:
+        # Once the registry is current, only backfill builtin records that still
+        # exist locally. This repairs missing seed assets such as avatar.png
+        # without recreating builtin characters the user explicitly deleted.
+        for payload in builtin_payloads:
+            safe_id = _character_api()["CharacterSpec"].coerce(payload).id
+            if safe_id not in registry["characters_by_id"]:
+                continue
+            if _seed_builtin_character_record(data_dir, registry, payload):
+                changed = True
+        if changed:
+            _save_registry(data_dir, registry)
+        return registry
+
+    for payload in builtin_payloads:
         if _seed_builtin_character_record(data_dir, registry, payload):
             changed = True
 
@@ -408,6 +447,44 @@ def get_character(character_id: str) -> dict[str, Any] | None:
     if not isinstance(record, dict):
         return None
     return _record_to_public(record)
+
+
+def get_character_avatar_asset(character_id: str) -> dict[str, str] | None:
+    data_dir = _ensure_data_dir()
+    registry = _load_seeded_registry(data_dir)
+    safe_id = _character_api()["sanitize_character_key_component"](
+        character_id,
+        fallback="character",
+    )
+    record = registry["characters_by_id"].get(safe_id)
+    if not isinstance(record, dict):
+        return None
+
+    avatar_meta = record.get("avatar")
+    if isinstance(avatar_meta, dict):
+        absolute_path = avatar_meta.get("absolute_path")
+        if isinstance(absolute_path, str) and absolute_path.strip() and os.path.isfile(absolute_path):
+            mime_type = avatar_meta.get("mime_type")
+            if not isinstance(mime_type, str) or not mime_type.strip():
+                ext = os.path.splitext(absolute_path)[1].lower()
+                mime_type = _AVATAR_MIME_BY_EXTENSION.get(ext, "application/octet-stream")
+            return {"path": absolute_path, "mime_type": mime_type}
+
+        relative_path = avatar_meta.get("relative_path")
+        if isinstance(relative_path, str) and relative_path.strip():
+            candidate = os.path.join(data_dir, relative_path)
+            if os.path.isfile(candidate):
+                mime_type = avatar_meta.get("mime_type")
+                if not isinstance(mime_type, str) or not mime_type.strip():
+                    ext = os.path.splitext(candidate)[1].lower()
+                    mime_type = _AVATAR_MIME_BY_EXTENSION.get(ext, "application/octet-stream")
+                return {"path": candidate, "mime_type": mime_type}
+
+    seed_avatar_path = character_defaults.get_seed_avatar_path(safe_id)
+    if seed_avatar_path:
+        return {"path": seed_avatar_path, "mime_type": "image/png"}
+
+    return None
 
 
 def save_character(payload: dict[str, Any] | None = None) -> dict[str, Any]:

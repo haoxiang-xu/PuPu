@@ -6,6 +6,7 @@ import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage
 jest.mock("../../../SERVICEs/api", () => ({
   api: {
     miso: {
+      listSeedCharacters: jest.fn(),
       listCharacters: jest.fn(),
     },
   },
@@ -69,10 +70,13 @@ describe("CharactersPage", () => {
 
     render(<CharactersPage isDark={false} />);
 
-    expect(screen.getByTestId("characters-added-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("characters-loading")).toBeInTheDocument();
 
     await waitFor(() =>
       expect(screen.getByTestId("character-row-nico")).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
     );
 
     expect(api.miso.listCharacters).toHaveBeenCalledTimes(1);
@@ -123,7 +127,7 @@ describe("CharactersPage", () => {
     render(<CharactersPage isDark={false} onOpenChat={onOpenChat} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("character-row-nico")).toBeInTheDocument(),
+      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByText("Open Chat"));
@@ -164,7 +168,7 @@ describe("CharactersPage", () => {
     render(<CharactersPage isDark={false} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("character-row-nico")).toBeInTheDocument(),
+      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
     );
 
     fireEvent.click(screen.getByText("Open Chat"));
@@ -198,9 +202,41 @@ describe("CharactersPage", () => {
     render(<CharactersPage isDark={false} />);
 
     await waitFor(() =>
-      expect(screen.getByTestId("characters-added-error")).toBeInTheDocument(),
+      expect(screen.getByTestId("characters-error")).toBeInTheDocument(),
     );
     expect(screen.getByText("Could not load characters")).toBeInTheDocument();
     expect(screen.getByText("runtime unavailable")).toBeInTheDocument();
+  });
+
+  test("renders avatar images when the API provides avatar urls", async () => {
+    api.miso.listCharacters.mockResolvedValue({
+      characters: [
+        {
+          id: "nico",
+          name: "Nico",
+          role: "22-year-old HR at an internet company",
+          avatar: {
+            url: "http://127.0.0.1:5879/characters/nico/avatar",
+          },
+          metadata: {
+            age: 22,
+            list_tags: ["INFP"],
+            primary_language: "zh-CN",
+          },
+        },
+      ],
+      count: 1,
+    });
+
+    render(<CharactersPage isDark={false} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
+    );
+
+    expect(screen.getAllByAltText("Nico avatar")).toHaveLength(2);
+    expect(
+      screen.queryByTestId("character-avatar-fallback-nico"),
+    ).not.toBeInTheDocument();
   });
 });

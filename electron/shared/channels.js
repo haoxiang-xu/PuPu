@@ -37,6 +37,7 @@ const CHANNELS = Object.freeze({
     GET_LONG_TERM_MEMORY_PROJECTION: "miso:get-long-term-memory-projection",
     REPLACE_SESSION_MEMORY: "miso:replace-session-memory",
     GET_SESSION_MEMORY_EXPORT: "miso:get-session-memory-export",
+    LIST_SEED_CHARACTERS: "miso:list-seed-characters",
     LIST_CHARACTERS: "miso:list-characters",
     GET_CHARACTER: "miso:get-character",
     SAVE_CHARACTER: "miso:save-character",

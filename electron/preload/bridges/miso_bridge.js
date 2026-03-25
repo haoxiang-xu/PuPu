@@ -48,6 +48,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.REPLACE_SESSION_MEMORY, payload),
   getSessionMemoryExport: (sessionId) =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT, { sessionId }),
+  listSeedCharacters: () => ipcRenderer.invoke(CHANNELS.MISO.LIST_SEED_CHARACTERS),
   listCharacters: () => ipcRenderer.invoke(CHANNELS.MISO.LIST_CHARACTERS),
   getCharacter: (characterId) =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_CHARACTER, { characterId }),

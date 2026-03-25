@@ -16,6 +16,7 @@ if MISO_SRC.exists() and str(MISO_SRC) not in sys.path:
     sys.path.insert(0, str(MISO_SRC))
 
 import app as miso_app  # noqa: E402
+import character_defaults  # noqa: E402
 import memory_factory  # noqa: E402
 
 
@@ -102,6 +103,20 @@ class CharacterRouteTests(unittest.TestCase):
         )
         self.assertEqual(relationship_profile["familiarity_stage"], "stranger")
 
+    def test_seed_avatar_route_serves_avatar_png(self) -> None:
+        response = self.client.get("/characters/seeds/nico/avatar")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "image/png")
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        self.assertGreater(len(response.data), 0)
+
+    def test_character_avatar_route_serves_builtin_avatar_png(self) -> None:
+        response = self.client.get("/characters/nico/avatar")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "image/png")
+        self.assertEqual(response.headers.get("Cache-Control"), "no-store")
+        self.assertGreater(len(response.data), 0)
+
     def test_builtin_nico_legacy_registry_is_upgraded_with_default_model(self) -> None:
         data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
         memory_factory._atomic_write_json(
@@ -159,10 +174,81 @@ class CharacterRouteTests(unittest.TestCase):
             encoding="utf-8",
         ) as handle:
             registry = json.load(handle)
-        self.assertEqual(registry["seed_version"], 2)
+        self.assertEqual(
+            registry["seed_version"],
+            character_defaults.DEFAULT_CHARACTER_SEED_VERSION,
+        )
         self.assertEqual(
             registry["characters_by_id"]["nico"]["spec"]["metadata"]["default_model"],
             "openai:gpt-4.1",
+        )
+        self.assertIsInstance(registry["characters_by_id"]["nico"]["avatar"], dict)
+
+    def test_builtin_nico_avatar_backfills_even_when_seed_version_is_current(self) -> None:
+        data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
+        memory_factory._atomic_write_json(
+            memory_factory._character_registry_path(data_dir),
+            {
+                "version": 1,
+                "seed_version": character_defaults.DEFAULT_CHARACTER_SEED_VERSION,
+                "updated_at": 0,
+                "characters_by_id": {
+                    "nico": {
+                        "spec": {
+                            "id": "nico",
+                            "name": "Nico",
+                            "gender": "female",
+                            "role": "22-year-old HR at an internet company",
+                            "persona": "legacy nico",
+                            "speaking_style": ["casual"],
+                            "talkativeness": 0.38,
+                            "politeness": 0.74,
+                            "autonomy": 0.68,
+                            "timezone": "Asia/Shanghai",
+                            "schedule": {
+                                "timezone": "Asia/Shanghai",
+                                "default_status": "free",
+                                "blocks": [],
+                            },
+                            "metadata": {
+                                "age": 22,
+                                "mbti": "INFP",
+                                "origin": "builtin_seed",
+                                "default_model": "openai:gpt-4.1",
+                            },
+                        },
+                        "avatar": None,
+                        "created_at": 1,
+                        "updated_at": 1,
+                        "known_human_ids": ["local_user"],
+                        "owned_session_ids": ["character_nico__self"],
+                    }
+                },
+            },
+        )
+
+        response = self.client.get("/characters")
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["count"], 1)
+        avatar = payload["characters"][0]["avatar"]
+        self.assertIsInstance(avatar, dict)
+        self.assertTrue(
+            avatar["absolute_path"].endswith("/character_seeds/nico/avatar.png"),
+        )
+
+        with open(
+            memory_factory._character_registry_path(data_dir),
+            "r",
+            encoding="utf-8",
+        ) as handle:
+            registry = json.load(handle)
+
+        persisted_avatar = registry["characters_by_id"]["nico"]["avatar"]
+        self.assertIsInstance(persisted_avatar, dict)
+        self.assertEqual(persisted_avatar["mime_type"], "image/png")
+        self.assertTrue(
+            persisted_avatar["absolute_path"].endswith("/character_seeds/nico/avatar.png"),
         )
 
     def test_builtin_nico_preview_and_build_use_seeded_profiles(self) -> None:

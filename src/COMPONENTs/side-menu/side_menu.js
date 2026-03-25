@@ -32,6 +32,11 @@ import {
 export { sideMenuChatTreeAPI };
 
 const resolveCharacterAvatarSrc = (avatar) => {
+  const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
+  if (rawUrl) {
+    return rawUrl;
+  }
+
   const rawPath =
     typeof avatar?.absolute_path === "string"
       ? avatar.absolute_path.trim()

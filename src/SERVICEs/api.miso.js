@@ -730,6 +730,22 @@ export const createMisoApi = () => {
       );
     },
 
+    listSeedCharacters: async () => {
+      const method = assertBridgeMethod("misoAPI", "listSeedCharacters");
+      const response = await withTimeout(
+        () => method(),
+        15000,
+        "seed_character_list_timeout",
+        "Seed character list request timed out",
+      );
+      return {
+        characters: Array.isArray(response?.characters) ? response.characters : [],
+        count: Number.isFinite(Number(response?.count))
+          ? Number(response.count)
+          : 0,
+      };
+    },
+
     listCharacters: async () => {
       const method = assertBridgeMethod("misoAPI", "listCharacters");
       const response = await withTimeout(

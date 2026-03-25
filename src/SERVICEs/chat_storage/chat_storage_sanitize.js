@@ -322,6 +322,7 @@ export const sanitizeCharacterAvatar = (value) => {
 
   const cleaned = {};
   const stringFields = [
+    "url",
     "absolute_path",
     "relative_path",
     "data_url",

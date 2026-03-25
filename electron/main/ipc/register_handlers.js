@@ -31,6 +31,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
   CHANNELS.MISO.REPLACE_SESSION_MEMORY,
   CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
+  CHANNELS.MISO.LIST_SEED_CHARACTERS,
   CHANNELS.MISO.LIST_CHARACTERS,
   CHANNELS.MISO.GET_CHARACTER,
   CHANNELS.MISO.SAVE_CHARACTER,
@@ -210,6 +211,9 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
     async (_event, payload = {}) =>
       misoService.getMisoSessionMemoryExport(payload.sessionId),
+  );
+  ipcMain.handle(CHANNELS.MISO.LIST_SEED_CHARACTERS, async () =>
+    misoService.listMisoSeedCharacters(),
   );
   ipcMain.handle(CHANNELS.MISO.LIST_CHARACTERS, async () =>
     misoService.listMisoCharacters(),

@@ -4,8 +4,9 @@ import threading
 import time
 from typing import Any, Dict, Iterable, List
 
-from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
+from flask import Blueprint, Response, current_app, jsonify, request, send_file, stream_with_context
 
+import character_defaults
 import character_store
 from miso_adapter import (
     cancel_tool_confirmations,
@@ -1126,6 +1127,40 @@ def long_term_memory_projection() -> Response:
         return jsonify({"error": str(exc)}), 500
 
 
+@api_blueprint.get("/characters/seeds")
+def list_seed_characters() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        return jsonify(character_defaults.list_seed_characters())
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "seed_character_list_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.get("/characters/seeds/<character_id>/avatar")
+def get_seed_character_avatar(character_id: str) -> Response:
+    avatar_path = character_defaults.get_seed_avatar_path(character_id)
+    if not avatar_path:
+        return Response(status=404)
+
+    response = send_file(
+        avatar_path,
+        mimetype="image/png",
+        conditional=False,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @api_blueprint.get("/characters")
 def list_characters() -> Response:
     if not _is_authorized():
@@ -1142,6 +1177,22 @@ def list_characters() -> Response:
                 }
             }
         ), 500
+
+
+@api_blueprint.get("/characters/<character_id>/avatar")
+def get_character_avatar(character_id: str) -> Response:
+    avatar_asset = character_store.get_character_avatar_asset(character_id)
+    if not avatar_asset:
+        return Response(status=404)
+
+    response = send_file(
+        avatar_asset["path"],
+        mimetype=avatar_asset["mime_type"],
+        conditional=False,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @api_blueprint.get("/characters/<character_id>")

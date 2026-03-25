@@ -1,13 +1,21 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import Input from "../../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 const CHARACTER_SUB_PAGES = [
   { key: "added", icon: "check", label: "Added" },
   { key: "find", icon: "search", label: "Find" },
 ];
+
+/* ── Character source types (extensible for future store/community) ── */
+const CHARACTER_SOURCES = {
+  SEED: "seed",
+  // COMMUNITY: "community",
+  // STORE: "store",
+};
 
 const FONT = "Jost, sans-serif";
 
@@ -16,6 +24,12 @@ const FONT = "Jost, sans-serif";
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const resolveAvatarSrc = (character) => {
+  const rawUrl =
+    typeof character?.avatar?.url === "string" ? character.avatar.url.trim() : "";
+  if (rawUrl) {
+    return rawUrl;
+  }
+
   const rawPath = character?.avatar?.absolute_path;
   if (typeof rawPath !== "string" || !rawPath.trim()) {
     return "";
@@ -273,7 +287,7 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick }) => {
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  Right: Detail Panel                                                                                  */
+/*  Right: Detail Panel (with delete support)                                                            */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const CharacterDetailPanel = ({
@@ -282,6 +296,8 @@ const CharacterDetailPanel = ({
   onOpenChat,
   isOpening,
   openError,
+  onRemove,
+  isRemoving,
 }) => {
   if (!character) {
     return (
@@ -468,12 +484,12 @@ const CharacterDetailPanel = ({
       {/* ── Spacer ────────────────────────────────────── */}
       <div style={{ flex: 1, minHeight: 24 }} />
 
-      {/* ── Open Chat ─────────────────────────────────── */}
+      {/* ── Actions ───────────────────────────────────── */}
       <div
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 12,
+          gap: 8,
         }}
       >
         <Button
@@ -488,6 +504,29 @@ const CharacterDetailPanel = ({
             borderRadius: 999,
           }}
         />
+        {onRemove ? (
+          <Button
+            prefix_icon="delete"
+            label={isRemoving ? "Removing..." : "Remove"}
+            onClick={() => onRemove(character)}
+            disabled={isRemoving}
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              paddingVertical: 7,
+              paddingHorizontal: 14,
+              borderRadius: 999,
+              opacity: 0.6,
+              color: isDark ? "rgba(255,140,140,0.9)" : "rgba(180,40,40,0.8)",
+              hoverBackgroundColor: isDark
+                ? "rgba(255,100,100,0.12)"
+                : "rgba(200,40,40,0.08)",
+              content: {
+                icon: { width: 14, height: 14 },
+              },
+            }}
+          />
+        ) : null}
         {openError ? (
           <div
             style={{
@@ -510,16 +549,219 @@ const CharacterDetailPanel = ({
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  AddedCharactersPanel — master-detail container                                                       */
+/*  Find: Character Card (grid item)                                                                     */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
+const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
+  const [hovered, setHovered] = useState(false);
+  const tags = listTagsForCharacter(character);
+  const subtitle = subtitleForCharacter(character);
+  const blurb =
+    typeof character?.metadata?.list_blurb === "string"
+      ? character.metadata.list_blurb.trim()
+      : "";
+
+  const cardBg = isDark
+    ? hovered
+      ? "rgba(255,255,255,0.06)"
+      : "rgba(255,255,255,0.03)"
+    : hovered
+      ? "rgba(0,0,0,0.04)"
+      : "rgba(0,0,0,0.02)";
+
+  const cardBorder = isDark
+    ? "1px solid rgba(255,255,255,0.07)"
+    : "1px solid rgba(0,0,0,0.06)";
+
+  return (
+    <div
+      data-testid={`find-card-${character?.id || "unknown"}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "24px 16px 16px",
+        borderRadius: 12,
+        background: cardBg,
+        border: cardBorder,
+        transition: "background 0.15s ease, box-shadow 0.2s ease",
+        boxShadow: hovered
+          ? isDark
+            ? "0 4px 20px rgba(0,0,0,0.3)"
+            : "0 4px 20px rgba(0,0,0,0.06)"
+          : "none",
+        cursor: "default",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      }}
+    >
+      {/* Avatar */}
+      <CharacterAvatar character={character} isDark={isDark} size={72} />
+
+      {/* Name */}
+      <div
+        style={{
+          marginTop: 14,
+          fontSize: 15,
+          fontWeight: 700,
+          fontFamily: "NunitoSans, sans-serif",
+          color: isDark ? "#fff" : "#171717",
+          textAlign: "center",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+          width: "100%",
+        }}
+      >
+        {character?.name || "Character"}
+      </div>
+
+      {/* Subtitle */}
+      {subtitle ? (
+        <div
+          style={{
+            marginTop: 3,
+            fontSize: 11.5,
+            fontFamily: FONT,
+            color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+            textAlign: "center",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            width: "100%",
+          }}
+        >
+          {subtitle}
+        </div>
+      ) : null}
+
+      {/* Blurb */}
+      {blurb ? (
+        <div
+          style={{
+            marginTop: 10,
+            fontSize: 12,
+            fontFamily: FONT,
+            color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
+            lineHeight: 1.55,
+            textAlign: "center",
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+            width: "100%",
+          }}
+        >
+          {blurb}
+        </div>
+      ) : null}
+
+      {/* Tags */}
+      {tags.length > 0 ? (
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: 5,
+            width: "100%",
+          }}
+        >
+          {tags.slice(0, 3).map((tag) => (
+            <span
+              key={tag}
+              style={{
+                padding: "2px 7px",
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 600,
+                fontFamily: FONT,
+                color: isDark
+                  ? "rgba(255,255,255,0.7)"
+                  : "rgba(0,0,0,0.55)",
+                background: isDark
+                  ? "rgba(255,255,255,0.06)"
+                  : "rgba(0,0,0,0.045)",
+              }}
+            >
+              {tag}
+            </span>
+          ))}
+          {tags.length > 3 ? (
+            <span
+              style={{
+                padding: "2px 7px",
+                borderRadius: 999,
+                fontSize: 10,
+                fontWeight: 600,
+                fontFamily: FONT,
+                color: isDark
+                  ? "rgba(255,255,255,0.4)"
+                  : "rgba(0,0,0,0.35)",
+              }}
+            >
+              +{tags.length - 3}
+            </span>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* Add button */}
+      <div style={{ marginTop: 14, width: "100%" }}>
+        {isAdded ? (
+          <Button
+            prefix_icon="check"
+            label="Added"
+            disabled
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              paddingVertical: 6,
+              paddingHorizontal: 14,
+              borderRadius: 999,
+              width: "100%",
+              opacity: 0.5,
+              content: {
+                icon: { width: 13, height: 13 },
+              },
+            }}
+          />
+        ) : (
+          <Button
+            prefix_icon="add"
+            label={isAdding ? "Adding..." : "Add"}
+            onClick={() => onAdd && onAdd(character)}
+            disabled={isAdding}
+            style={{
+              fontSize: 12,
+              fontWeight: 600,
+              paddingVertical: 6,
+              paddingHorizontal: 14,
+              borderRadius: 999,
+              width: "100%",
+              content: {
+                icon: { width: 13, height: 13 },
+              },
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  FindCharactersPanel — card grid with search                                                          */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
   const [status, setStatus] = useState("loading");
   const [characters, setCharacters] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
-  const [selectedCharacterId, setSelectedCharacterId] = useState("");
-  const [openingCharacterId, setOpeningCharacterId] = useState("");
-  const [openErrorById, setOpenErrorById] = useState({});
+  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -529,22 +771,19 @@ const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
       setErrorMessage("");
 
       try {
-        const response = await api.miso.listCharacters();
-        if (cancelled) {
-          return;
-        }
+        /* Load seed characters from the dedicated seeds endpoint.
+         * Future: switch source based on active source tab
+         *   e.g. api.store.listCharacters(), api.community.listCharacters()
+         */
+        const response = await api.miso.listSeedCharacters();
+        if (cancelled) return;
         const nextCharacters = Array.isArray(response?.characters)
           ? response.characters
           : [];
         setCharacters(nextCharacters);
         setStatus(nextCharacters.length > 0 ? "ready" : "empty");
-        if (nextCharacters.length > 0 && nextCharacters[0]?.id) {
-          setSelectedCharacterId(nextCharacters[0].id);
-        }
       } catch (error) {
-        if (cancelled) {
-          return;
-        }
+        if (cancelled) return;
         setCharacters([]);
         setStatus("error");
         setErrorMessage(
@@ -561,11 +800,155 @@ const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
     };
   }, []);
 
+  const filteredCharacters = useMemo(() => {
+    if (!searchQuery.trim()) return characters;
+    const q = searchQuery.toLowerCase().trim();
+    return characters.filter((c) => {
+      const name = (c?.name || "").toLowerCase();
+      const role = (c?.role || "").toLowerCase();
+      const blurb = (c?.metadata?.list_blurb || "").toLowerCase();
+      const tags = (c?.metadata?.list_tags || []).join(" ").toLowerCase();
+      return (
+        name.includes(q) ||
+        role.includes(q) ||
+        blurb.includes(q) ||
+        tags.includes(q)
+      );
+    });
+  }, [characters, searchQuery]);
+
+  if (status === "loading") {
+    return (
+      <CharacterStatePanel
+        icon="search"
+        title="Loading characters..."
+        body="Discovering available characters."
+        isDark={isDark}
+        testId="characters-find-loading"
+      />
+    );
+  }
+
+  if (status === "error") {
+    return (
+      <CharacterStatePanel
+        icon="warning"
+        title="Could not load characters"
+        body={errorMessage}
+        isDark={isDark}
+        testId="characters-find-error"
+      />
+    );
+  }
+
+  if (status === "empty") {
+    return (
+      <CharacterStatePanel
+        icon="search"
+        title="No characters available"
+        body="There are no characters to discover right now."
+        isDark={isDark}
+        testId="characters-find-empty"
+      />
+    );
+  }
+
+  return (
+    <div
+      data-testid="characters-find-panel"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+      }}
+    >
+      {/* ── Search Bar ────────────────────────────────── */}
+      <div style={{ padding: "12px 20px 8px", flexShrink: 0 }}>
+        <Input
+          prefix_icon="search"
+          placeholder="Search characters..."
+          value={searchQuery}
+          set_value={setSearchQuery}
+          style={{
+            width: "100%",
+            fontSize: 13,
+            borderRadius: 10,
+            paddingVertical: 7,
+            paddingHorizontal: 12,
+          }}
+        />
+      </div>
+
+      {/* ── Card Grid ─────────────────────────────────── */}
+      <div
+        className="scrollable"
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "8px 20px 20px",
+        }}
+      >
+        {filteredCharacters.length === 0 ? (
+          <CharacterStatePanel
+            icon="search"
+            title="No results"
+            body={`No characters match "${searchQuery}".`}
+            isDark={isDark}
+            testId="characters-find-no-results"
+          />
+        ) : (
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(3, 1fr)",
+              gap: 12,
+            }}
+          >
+            {filteredCharacters.map((character, index) => (
+              <CharacterCard
+                key={character?.id || `find-${index}`}
+                character={character}
+                isDark={isDark}
+                isAdded={addedIds.has(character?.id)}
+                onAdd={onAdd}
+                isAdding={addingId === character?.id}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  AddedCharactersPanel — master-detail container                                                       */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const AddedCharactersPanel = ({
+  isDark,
+  onOpenChat: onOpenChatSuccess,
+  characters,
+  onRemove,
+  removingId,
+}) => {
+  const [selectedCharacterId, setSelectedCharacterId] = useState("");
+  const [openingCharacterId, setOpeningCharacterId] = useState("");
+  const [openErrorById, setOpenErrorById] = useState({});
+
+  /* auto-select first when list changes */
+  useEffect(() => {
+    if (
+      characters.length > 0 &&
+      !characters.find((c) => c?.id === selectedCharacterId)
+    ) {
+      setSelectedCharacterId(characters[0]?.id || "");
+    }
+  }, [characters, selectedCharacterId]);
+
   const handleOpenChat = async (character) => {
     const characterId = typeof character?.id === "string" ? character.id.trim() : "";
-    if (!characterId) {
-      return;
-    }
+    if (!characterId) return;
 
     setOpeningCharacterId(characterId);
     setOpenErrorById((current) => ({ ...current, [characterId]: "" }));
@@ -603,36 +986,12 @@ const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
     }
   };
 
-  if (status === "loading") {
-    return (
-      <CharacterStatePanel
-        icon="check"
-        title="Loading characters..."
-        body="Pulling your added character list from the runtime."
-        isDark={isDark}
-        testId="characters-added-loading"
-      />
-    );
-  }
-
-  if (status === "error") {
-    return (
-      <CharacterStatePanel
-        icon="warning"
-        title="Could not load characters"
-        body={errorMessage}
-        isDark={isDark}
-        testId="characters-added-error"
-      />
-    );
-  }
-
-  if (status === "empty") {
+  if (characters.length === 0) {
     return (
       <CharacterStatePanel
         icon="user"
         title="No characters added yet"
-        body="Your added character list is empty right now."
+        body='Switch to the "Find" tab to discover and add characters.'
         isDark={isDark}
         testId="characters-added-empty"
       />
@@ -689,6 +1048,12 @@ const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
               ? openErrorById[selectedCharacter.id] || ""
               : ""
           }
+          onRemove={onRemove}
+          isRemoving={
+            selectedCharacter
+              ? removingId === selectedCharacter.id
+              : false
+          }
         />
       </div>
     </div>
@@ -696,13 +1061,85 @@ const AddedCharactersPanel = ({ isDark, onOpenChat: onOpenChatSuccess }) => {
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  CharactersPage — tab wrapper                                                                         */
+/*  CharactersPage — tab wrapper (state lifted here)                                                     */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const CharactersPage = ({ isDark, onOpenChat }) => {
   const [activeTab, setActiveTab] = useState("added");
 
-  const activeItem = CHARACTER_SUB_PAGES.find((p) => p.key === activeTab);
+  /* ── Shared character list state (single source of truth) ── */
+  const [status, setStatus] = useState("loading");
+  const [characters, setCharacters] = useState([]);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [addingId, setAddingId] = useState("");
+  const [removingId, setRemovingId] = useState("");
+
+  const loadCharacters = useCallback(async () => {
+    setStatus("loading");
+    setErrorMessage("");
+    try {
+      const response = await api.miso.listCharacters();
+      const nextCharacters = Array.isArray(response?.characters)
+        ? response.characters
+        : [];
+      setCharacters(nextCharacters);
+      setStatus(nextCharacters.length > 0 ? "ready" : "empty");
+    } catch (error) {
+      setCharacters([]);
+      setStatus("error");
+      setErrorMessage(
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message.trim()
+          : "Could not load characters right now.",
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCharacters();
+  }, [loadCharacters]);
+
+  const addedIds = useMemo(
+    () => new Set(characters.map((c) => c?.id).filter(Boolean)),
+    [characters],
+  );
+
+  /* ── Add character (from Find → Added) ── */
+  const handleAdd = useCallback(
+    async (character) => {
+      const id = character?.id;
+      if (!id || addedIds.has(id)) return;
+      setAddingId(id);
+      try {
+        /* Save character via API so it appears in "Added" */
+        await api.miso.saveCharacter(character);
+        await loadCharacters();
+      } catch {
+        /* silently fail — card stays un-added */
+      } finally {
+        setAddingId("");
+      }
+    },
+    [addedIds, loadCharacters],
+  );
+
+  /* ── Remove character (from Added) ── */
+  const handleRemove = useCallback(
+    async (character) => {
+      const id = character?.id;
+      if (!id) return;
+      setRemovingId(id);
+      try {
+        await api.miso.deleteCharacter(id);
+        await loadCharacters();
+      } catch {
+        /* silently fail */
+      } finally {
+        setRemovingId("");
+      }
+    },
+    [loadCharacters],
+  );
 
   const TabItem = ({ item }) => {
     const isActive = activeTab === item.key;
@@ -728,19 +1165,54 @@ const CharactersPage = ({ isDark, onOpenChat }) => {
   };
 
   const renderContent = () => {
-    if (activeTab === "added") {
-      return <AddedCharactersPanel isDark={isDark} onOpenChat={onOpenChat} />;
+    if (status === "loading") {
+      return (
+        <CharacterStatePanel
+          icon="check"
+          title="Loading characters..."
+          body="Pulling character data from the runtime."
+          isDark={isDark}
+          testId="characters-loading"
+        />
+      );
     }
 
-    return (
-      <CharacterStatePanel
-        icon={activeItem?.icon || "user"}
-        title="Coming soon"
-        body="This section is not yet available."
-        isDark={isDark}
-        testId="characters-coming-soon"
-      />
-    );
+    if (status === "error") {
+      return (
+        <CharacterStatePanel
+          icon="warning"
+          title="Could not load characters"
+          body={errorMessage}
+          isDark={isDark}
+          testId="characters-error"
+        />
+      );
+    }
+
+    if (activeTab === "added") {
+      return (
+        <AddedCharactersPanel
+          isDark={isDark}
+          onOpenChat={onOpenChat}
+          characters={characters}
+          onRemove={handleRemove}
+          removingId={removingId}
+        />
+      );
+    }
+
+    if (activeTab === "find") {
+      return (
+        <FindCharactersPanel
+          isDark={isDark}
+          addedIds={addedIds}
+          onAdd={handleAdd}
+          addingId={addingId}
+        />
+      );
+    }
+
+    return null;
   };
 
   return (

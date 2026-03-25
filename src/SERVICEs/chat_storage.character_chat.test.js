@@ -250,4 +250,25 @@ describe("chat_storage character chat behavior", () => {
     expect(explorerNode.on_double_click).toBeDefined();
     expect(() => explorerNode.on_double_click()).not.toThrow();
   });
+
+  test("openCharacterChat preserves avatar urls for character chats", () => {
+    const initialStore = getChatsStore();
+    setChatModel(initialStore.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+
+    const created = openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+          avatar: { url: "http://127.0.0.1:5879/characters/nico/avatar" },
+          metadata: { default_model: "openai:gpt-4.1" },
+        },
+      },
+      { source: "test" },
+    );
+
+    expect(getChatsStore().chatsById[created.chatId].characterAvatar).toEqual({
+      url: "http://127.0.0.1:5879/characters/nico/avatar",
+    });
+  });
 });

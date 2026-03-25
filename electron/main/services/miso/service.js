@@ -448,6 +448,53 @@ const createMisoService = ({
     }
   };
 
+  const buildMisoUrl = (endpoint) => {
+    ensureMisoReady();
+    return `http://${MISO_HOST}:${misoPort}${endpoint}`;
+  };
+
+  const decorateCharacterAvatar = (character, { seed = false } = {}) => {
+    if (!character || typeof character !== "object" || Array.isArray(character)) {
+      return character;
+    }
+
+    const characterId =
+      typeof character.id === "string" ? character.id.trim() : "";
+    if (!characterId) {
+      return character;
+    }
+
+    const avatarMeta =
+      character.avatar &&
+      typeof character.avatar === "object" &&
+      !Array.isArray(character.avatar)
+        ? character.avatar
+        : null;
+    const isBuiltinSeed =
+      character.metadata &&
+      typeof character.metadata === "object" &&
+      character.metadata.origin === "builtin_seed";
+
+    if (seed && !avatarMeta) {
+      return character;
+    }
+    if (!seed && !avatarMeta && !isBuiltinSeed) {
+      return character;
+    }
+
+    const avatar = avatarMeta ? { ...avatarMeta } : {};
+    avatar.url = buildMisoUrl(
+      seed
+        ? `${MISO_CHARACTERS_ENDPOINT}/seeds/${encodeURIComponent(characterId)}/avatar`
+        : `${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(characterId)}/avatar`,
+    );
+
+    return {
+      ...character,
+      avatar,
+    };
+  };
+
   const readJsonResponse = async (
     response,
     errorPrefix,
@@ -673,23 +720,58 @@ const createMisoService = ({
     );
   };
 
-  const listMisoCharacters = async () => {
+  const listMisoSeedCharacters = async () => {
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}`,
+      buildMisoUrl(`${MISO_CHARACTERS_ENDPOINT}/seeds`),
       {
         method: "GET",
         headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
       },
     );
 
-    return readJsonResponse(
+    const payload = await readJsonResponse(
+      response,
+      "Miso seed character list request failed",
+      { characters: [], count: 0 },
+      "Invalid Miso seed character list response",
+    );
+
+    return {
+      ...payload,
+      characters: Array.isArray(payload.characters)
+        ? payload.characters.map((character) =>
+            decorateCharacterAvatar(character, { seed: true }),
+          )
+        : [],
+    };
+  };
+
+  const listMisoCharacters = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      buildMisoUrl(MISO_CHARACTERS_ENDPOINT),
+      {
+        method: "GET",
+        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      },
+    );
+
+    const payload = await readJsonResponse(
       response,
       "Miso character list request failed",
       { characters: [], count: 0 },
       "Invalid Miso character list response",
     );
+
+    return {
+      ...payload,
+      characters: Array.isArray(payload.characters)
+        ? payload.characters.map((character) => decorateCharacterAvatar(character))
+        : [],
+    };
   };
 
   const getMisoCharacter = async (characterId) => {
@@ -701,19 +783,23 @@ const createMisoService = ({
     }
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      buildMisoUrl(
+        `${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      ),
       {
         method: "GET",
         headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
       },
     );
 
-    return readJsonResponse(
+    const payload = await readJsonResponse(
       response,
       "Miso character get request failed",
       {},
       "Invalid Miso character get response",
     );
+
+    return decorateCharacterAvatar(payload);
   };
 
   const saveMisoCharacter = async (payload = {}) => {
@@ -1527,6 +1613,7 @@ const createMisoService = ({
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,
     getMisoSessionMemoryExport,
+    listMisoSeedCharacters,
     listMisoCharacters,
     getMisoCharacter,
     saveMisoCharacter,
