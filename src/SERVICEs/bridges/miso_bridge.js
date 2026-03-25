@@ -45,6 +45,9 @@ export const runtimeBridge = {
   isRuntimeStorageAvailable: () =>
     hasBridgeMethod("misoAPI", "getRuntimeDirSize"),
   isMemorySizeAvailable: () => hasBridgeMethod("misoAPI", "getMemorySize"),
+  isCharacterStorageAvailable: () =>
+    hasBridgeMethod("misoAPI", "getCharacterStorageSize") &&
+    hasBridgeMethod("misoAPI", "deleteCharacterStorageEntry"),
   isCharacterApiAvailable: () =>
     hasBridgeMethod("misoAPI", "listCharacters") &&
     hasBridgeMethod("misoAPI", "getCharacter") &&
@@ -210,6 +213,60 @@ export const runtimeBridge = {
         : 0,
       error: typeof response?.error === "string" ? response.error : "",
     };
+  },
+
+  getCharacterStorageSize: async () => {
+    if (!runtimeBridge.isCharacterStorageAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.getCharacterStorageSize is unavailable",
+      );
+    }
+
+    const response = await invokeMiso("getCharacterStorageSize", [], {
+      timeoutMs: 10000,
+      timeoutCode: "miso_character_storage_timeout",
+      timeoutMessage: "Character storage request timed out",
+      failureCode: "miso_character_storage_failed",
+      failureMessage: "Failed to get character storage size",
+    });
+
+    return {
+      entries: Array.isArray(response?.entries) ? response.entries : [],
+      total: Number.isFinite(Number(response?.total))
+        ? Number(response.total)
+        : 0,
+      registryTotal: Number.isFinite(Number(response?.registryTotal))
+        ? Number(response.registryTotal)
+        : 0,
+      avatarTotal: Number.isFinite(Number(response?.avatarTotal))
+        ? Number(response.avatarTotal)
+        : 0,
+      sessionTotal: Number.isFinite(Number(response?.sessionTotal))
+        ? Number(response.sessionTotal)
+        : 0,
+      profileTotal: Number.isFinite(Number(response?.profileTotal))
+        ? Number(response.profileTotal)
+        : 0,
+      error: typeof response?.error === "string" ? response.error : "",
+    };
+  },
+
+  deleteCharacterStorageEntry: async (entryName) => {
+    if (!runtimeBridge.isCharacterStorageAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.deleteCharacterStorageEntry is unavailable",
+      );
+    }
+
+    return invokeMiso("deleteCharacterStorageEntry", [entryName], {
+      timeoutMs: 10000,
+      timeoutCode: "miso_character_storage_delete_timeout",
+      timeoutMessage: "Character storage delete request timed out",
+      failureCode: "miso_character_storage_delete_failed",
+      failureMessage: "Failed to delete character storage entry",
+    });
   },
 
   listCharacters: async () => {

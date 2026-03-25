@@ -76,4 +76,138 @@ describe("runtime service chrome terminal control", () => {
       error: "main_window_unavailable",
     });
   });
+
+  test("getCharacterStorageSize aggregates registry, avatars, sessions, and profiles", () => {
+    const userDataPath = "/tmp/pupu";
+    const registryPath = path.join(userDataPath, "characters", "registry.json");
+    const avatarsDir = path.join(userDataPath, "characters", "avatars");
+    const avatarFile = path.join(avatarsDir, "nico.png");
+    const sessionsDir = path.join(userDataPath, "memory", "sessions");
+    const sessionFile = path.join(sessionsDir, "character_nico__self.json");
+    const profilesDir = path.join(
+      userDataPath,
+      "memory",
+      "long_term_profiles",
+    );
+    const profileFile = path.join(
+      profilesDir,
+      "character_nico__rel__local_user.json",
+    );
+
+    const fs = {
+      existsSync: jest.fn((targetPath) =>
+        [
+          registryPath,
+          avatarsDir,
+          avatarFile,
+          sessionsDir,
+          sessionFile,
+          profilesDir,
+          profileFile,
+        ].includes(targetPath),
+      ),
+      statSync: jest.fn((targetPath) => {
+        if (targetPath === registryPath) {
+          return { isDirectory: () => false, size: 100 };
+        }
+        if (targetPath === avatarsDir) {
+          return { isDirectory: () => true };
+        }
+        if (targetPath === avatarFile) {
+          return { isDirectory: () => false, size: 400 };
+        }
+        if (targetPath === sessionFile) {
+          return { isDirectory: () => false, size: 300 };
+        }
+        if (targetPath === profileFile) {
+          return { isDirectory: () => false, size: 200 };
+        }
+        return { isDirectory: () => true };
+      }),
+      readdirSync: jest.fn((targetPath) => {
+        if (targetPath === avatarsDir) {
+          return ["nico.png"];
+        }
+        if (targetPath === sessionsDir) {
+          return ["character_nico__self.json", "ignore.json"];
+        }
+        if (targetPath === profilesDir) {
+          return ["character_nico__rel__local_user.json", "other.json"];
+        }
+        return [];
+      }),
+      rmSync: jest.fn(),
+    };
+
+    const service = createRuntimeService({
+      app: {
+        isPackaged: false,
+        getPath: jest.fn((key) => (key === "userData" ? userDataPath : "/tmp")),
+      },
+      dialog: {
+        showOpenDialog: jest.fn(),
+      },
+      shell: {
+        openPath: jest.fn(),
+      },
+      fs,
+      path,
+      getMainWindow: jest.fn(() => null),
+    });
+
+    expect(service.getCharacterStorageSize()).toEqual({
+      entries: [
+        { name: "avatars", size: 400, isDir: true },
+        { name: "sessions", size: 300, isDir: true },
+        { name: "profiles", size: 200, isDir: true },
+        { name: "registry.json", size: 100, isDir: false },
+      ],
+      total: 1000,
+      registryTotal: 100,
+      avatarTotal: 400,
+      sessionTotal: 300,
+      profileTotal: 200,
+      error: "",
+    });
+  });
+
+  test("deleteCharacterStorageEntry deletes only character-prefixed sessions", () => {
+    const userDataPath = "/tmp/pupu";
+    const sessionsDir = path.join(userDataPath, "memory", "sessions");
+    const fs = {
+      existsSync: jest.fn((targetPath) => targetPath === sessionsDir),
+      statSync: jest.fn(),
+      readdirSync: jest.fn((targetPath) =>
+        targetPath === sessionsDir
+          ? ["character_nico__self.json", "main_chat.json"]
+          : [],
+      ),
+      rmSync: jest.fn(),
+    };
+
+    const service = createRuntimeService({
+      app: {
+        isPackaged: false,
+        getPath: jest.fn((key) => (key === "userData" ? userDataPath : "/tmp")),
+      },
+      dialog: {
+        showOpenDialog: jest.fn(),
+      },
+      shell: {
+        openPath: jest.fn(),
+      },
+      fs,
+      path,
+      getMainWindow: jest.fn(() => null),
+    });
+
+    expect(service.deleteCharacterStorageEntry({ entryName: "sessions" })).toEqual({
+      ok: true,
+    });
+    expect(fs.rmSync).toHaveBeenCalledTimes(1);
+    expect(fs.rmSync).toHaveBeenCalledWith(
+      path.join(sessionsDir, "character_nico__self.json"),
+      { recursive: true, force: true },
+    );
+  });
 });

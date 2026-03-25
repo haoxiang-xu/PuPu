@@ -34,6 +34,12 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   clearRuntimeDir: (dirPath) =>
     ipcRenderer.invoke(CHANNELS.MISO.CLEAR_RUNTIME_DIR, { dirPath }),
   getMemorySize: () => ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_SIZE),
+  getCharacterStorageSize: () =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_CHARACTER_STORAGE_SIZE),
+  deleteCharacterStorageEntry: (entryName) =>
+    ipcRenderer.invoke(CHANNELS.MISO.DELETE_CHARACTER_STORAGE_ENTRY, {
+      entryName,
+    }),
   getMemoryProjection: (sessionId) =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_PROJECTION, { sessionId }),
   getLongTermMemoryProjection: () =>

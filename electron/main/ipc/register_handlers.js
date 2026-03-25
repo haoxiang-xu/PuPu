@@ -25,6 +25,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.MISO.DELETE_RUNTIME_ENTRY,
   CHANNELS.MISO.CLEAR_RUNTIME_DIR,
   CHANNELS.MISO.GET_MEMORY_SIZE,
+  CHANNELS.MISO.GET_CHARACTER_STORAGE_SIZE,
+  CHANNELS.MISO.DELETE_CHARACTER_STORAGE_ENTRY,
   CHANNELS.MISO.GET_MEMORY_PROJECTION,
   CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
   CHANNELS.MISO.REPLACE_SESSION_MEMORY,
@@ -180,6 +182,14 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
       error,
     };
   });
+  ipcMain.handle(CHANNELS.MISO.GET_CHARACTER_STORAGE_SIZE, () =>
+    runtimeService.getCharacterStorageSize(),
+  );
+  ipcMain.handle(
+    CHANNELS.MISO.DELETE_CHARACTER_STORAGE_ENTRY,
+    (_event, payload = {}) =>
+      runtimeService.deleteCharacterStorageEntry(payload),
+  );
 
   ipcMain.handle(
     CHANNELS.MISO.GET_MEMORY_PROJECTION,
