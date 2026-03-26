@@ -213,8 +213,8 @@ const CharacterChatBubble = ({
                 <div
                   style={{
                     position: "absolute",
-                    bottom: -1,
-                    right: -1,
+                    bottom: -4,
+                    right: -4,
                     width: 10,
                     height: 10,
                     borderRadius: "50%",

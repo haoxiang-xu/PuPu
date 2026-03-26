@@ -21,6 +21,7 @@ import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
 import { MemoryInspectModal } from "../memory-inspect/memory_inspect_modal";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
+import { useCharacterAvailability } from "./hooks/use_character_availability";
 import { filter_explorer_data } from "./utils/filter_explorer_data";
 import {
   exportChat,
@@ -59,7 +60,14 @@ const characterFallbackInitial = (name) => {
   return normalized.toUpperCase();
 };
 
-const CharacterChatRow = ({ node, depth, isDark }) => {
+const AVAILABILITY_DOT_COLOR = {
+  available: "#92c353",
+  limited: "#ffaa44",
+  busy: "#d74654",
+  offline: "#93999e",
+};
+
+const CharacterChatRow = ({ node, depth, isDark, characterAvailability }) => {
   const [imageBroken, setImageBroken] = useState(false);
   const avatarSrc = resolveCharacterAvatarSrc(node.characterAvatar);
   const showImage = Boolean(avatarSrc) && !imageBroken;
@@ -86,35 +94,58 @@ const CharacterChatRow = ({ node, depth, isDark }) => {
     >
       <div
         style={{
+          position: "relative",
           width: 24,
           height: 24,
-          borderRadius: "50%",
-          overflow: "hidden",
           flexShrink: 0,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: isDark
-            ? "rgba(255,255,255,0.06)"
-            : "rgba(0,0,0,0.04)",
-          border: isDark
-            ? "1px solid rgba(255,255,255,0.10)"
-            : "1px solid rgba(0,0,0,0.08)",
-          color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
-          fontSize: 11,
-          fontWeight: 700,
-          fontFamily: "NunitoSans, sans-serif",
         }}
       >
-        {showImage ? (
-          <img
-            src={avatarSrc}
-            alt={`${node.characterName || node.label || "character"} avatar`}
-            onError={() => setImageBroken(true)}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: isDark
+              ? "rgba(255,255,255,0.06)"
+              : "rgba(0,0,0,0.04)",
+            border: isDark
+              ? "1px solid rgba(255,255,255,0.10)"
+              : "1px solid rgba(0,0,0,0.08)",
+            color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: "NunitoSans, sans-serif",
+          }}
+        >
+          {showImage ? (
+            <img
+              src={avatarSrc}
+              alt={`${node.characterName || node.label || "character"} avatar`}
+              onError={() => setImageBroken(true)}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            characterFallbackInitial(node.characterName || node.label)
+          )}
+        </div>
+        {AVAILABILITY_DOT_COLOR[characterAvailability] && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: -2,
+              right: -2,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: AVAILABILITY_DOT_COLOR[characterAvailability],
+              border: `1.5px solid ${isDark ? "rgb(32,32,32)" : "rgb(248,248,248)"}`,
+              boxSizing: "content-box",
+            }}
           />
-        ) : (
-          characterFallbackInitial(node.characterName || node.label)
         )}
       </div>
 
@@ -178,6 +209,9 @@ const SideMenu = () => {
   });
 
   const { chatStore, setChatStore, selectedNodeId } = useChatTreeStore();
+  const characterAvailabilityMap = useCharacterAvailability(
+    chatStore?.chatsById,
+  );
 
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
@@ -358,6 +392,9 @@ const SideMenu = () => {
             depth={depth}
             isExpanded={isExpanded}
             isDark={isDark}
+            characterAvailability={
+              characterAvailabilityMap[componentNode.characterId] || ""
+            }
           />
         ),
       };
@@ -386,6 +423,7 @@ const SideMenu = () => {
     handleConfirmRename,
     handleCancelRename,
     isDark,
+    characterAvailabilityMap,
   ]);
 
   const { filteredData, filteredRoot } = useMemo(
