@@ -29,10 +29,18 @@ const formatTimestamp = (ms) => {
   return `${hours}:${minutes}`;
 };
 
+const AVAILABILITY_DOT_COLOR = {
+  available: "#92c353",
+  limited: "#ffaa44",
+  busy: "#d74654",
+  offline: "#93999e",
+};
+
 const CharacterChatBubble = ({
   message,
   characterName = "",
   characterAvatar = null,
+  characterAvailability = "",
   onDeleteMessage,
   onResendMessage,
   onEditMessage,
@@ -155,43 +163,67 @@ const CharacterChatBubble = ({
           {isAssistant && (
             <div
               style={{
+                position: "relative",
                 width: 28,
                 height: 28,
-                borderRadius: "50%",
-                overflow: "hidden",
                 flexShrink: 0,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                background: isDark
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.04)",
-                border: isDark
-                  ? "1px solid rgba(255,255,255,0.10)"
-                  : "1px solid rgba(0,0,0,0.08)",
-                color: isDark
-                  ? "rgba(255,255,255,0.86)"
-                  : "rgba(0,0,0,0.72)",
-                fontSize: 12,
-                fontWeight: 700,
-                fontFamily: "NunitoSans, sans-serif",
                 alignSelf: "flex-start",
                 marginTop: 2,
               }}
             >
-              {showImage ? (
-                <img
-                  src={avatarSrc}
-                  alt={`${characterName || "character"} avatar`}
-                  onError={() => setImageBroken(true)}
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: isDark
+                    ? "rgba(255,255,255,0.06)"
+                    : "rgba(0,0,0,0.04)",
+                  border: isDark
+                    ? "1px solid rgba(255,255,255,0.10)"
+                    : "1px solid rgba(0,0,0,0.08)",
+                  color: isDark
+                    ? "rgba(255,255,255,0.86)"
+                    : "rgba(0,0,0,0.72)",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  fontFamily: "NunitoSans, sans-serif",
+                }}
+              >
+                {showImage ? (
+                  <img
+                    src={avatarSrc}
+                    alt={`${characterName || "character"} avatar`}
+                    onError={() => setImageBroken(true)}
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      objectFit: "cover",
+                    }}
+                  />
+                ) : (
+                  fallbackInitial
+                )}
+              </div>
+              {AVAILABILITY_DOT_COLOR[characterAvailability] && (
+                <div
                   style={{
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "cover",
+                    position: "absolute",
+                    bottom: -1,
+                    right: -1,
+                    width: 10,
+                    height: 10,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      AVAILABILITY_DOT_COLOR[characterAvailability],
+                    border: `2px solid ${isDark ? "rgb(30,30,30)" : "rgb(255,255,255)"}`,
+                    boxSizing: "content-box",
                   }}
                 />
-              ) : (
-                fallbackInitial
               )}
             </div>
           )}
@@ -295,6 +327,7 @@ const areCharacterChatBubblePropsEqual = (previousProps, nextProps) =>
   previousProps.message === nextProps.message &&
   previousProps.characterName === nextProps.characterName &&
   previousProps.characterAvatar === nextProps.characterAvatar &&
+  previousProps.characterAvailability === nextProps.characterAvailability &&
   previousProps.onDeleteMessage === nextProps.onDeleteMessage &&
   previousProps.onResendMessage === nextProps.onResendMessage &&
   previousProps.onEditMessage === nextProps.onEditMessage &&

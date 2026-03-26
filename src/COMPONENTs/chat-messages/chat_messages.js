@@ -12,6 +12,7 @@ const ChatMessages = ({
   isCharacterChat = false,
   characterName = "",
   characterAvatar = null,
+  characterAvailability = "",
   onDeleteMessage,
   onResendMessage,
   onEditMessage,
@@ -105,6 +106,7 @@ const ChatMessages = ({
                     message={msg}
                     characterName={characterName}
                     characterAvatar={characterAvatar}
+                    characterAvailability={characterAvailability}
                     onDeleteMessage={onDeleteMessage}
                     onResendMessage={onResendMessage}
                     onEditMessage={onEditMessage}

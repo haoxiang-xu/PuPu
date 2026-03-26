@@ -37,6 +37,11 @@ const misoLogger = createLogger(
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
 
+const characterLogger = createLogger(
+  "CHARACTER",
+  "src/PAGEs/chat/hooks/use_chat_stream.js",
+);
+
 export const useChatStream = ({
   chatId,
   messages,
@@ -871,6 +876,12 @@ export const useChatStream = ({
             : "";
 
         if (decisionAction === "ignore" || decisionAction === "defer") {
+          characterLogger.log(decisionAction, {
+            characterId,
+            reason: characterDecision.reason || "unknown",
+            courtesyMessage: courtesyMessage || null,
+            evaluation: characterDecision.evaluation || null,
+          });
           const immediateMessages =
             decisionAction === "defer" && courtesyMessage
               ? [

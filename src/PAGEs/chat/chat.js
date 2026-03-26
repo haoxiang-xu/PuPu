@@ -335,6 +335,40 @@ const ChatInterface = () => {
   const isSendDisabled =
     (!misoStatus.ready && !stream.isStreaming) || stream.hasBackgroundStream;
 
+  const [characterAvailability, setCharacterAvailability] = useState("");
+
+  useEffect(() => {
+    if (!session.isCharacterChat || !session.activeCharacterId || !misoStatus.ready) {
+      setCharacterAvailability("");
+      return;
+    }
+
+    let cancelled = false;
+    const fetchAvailability = async () => {
+      try {
+        const result = await api.miso.previewCharacterDecision({
+          characterId: session.activeCharacterId,
+        });
+        if (!cancelled) {
+          const availability =
+            typeof result?.evaluation?.availability === "string"
+              ? result.evaluation.availability
+              : "";
+          setCharacterAvailability(availability);
+        }
+      } catch (_error) {
+        if (!cancelled) setCharacterAvailability("");
+      }
+    };
+
+    fetchAvailability();
+    const timer = setInterval(fetchAvailability, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [session.isCharacterChat, session.activeCharacterId, misoStatus.ready]);
+
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
 
@@ -650,6 +684,7 @@ const ChatInterface = () => {
             isCharacterChat={session.isCharacterChat}
             characterName={session.activeCharacterName}
             characterAvatar={session.activeCharacterAvatar}
+            characterAvailability={characterAvailability}
             onDeleteMessage={stream.deleteTurn}
             onResendMessage={stream.resendTurn}
             onEditMessage={stream.editTurn}
