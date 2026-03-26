@@ -1333,6 +1333,7 @@ def create_memory_manager_with_diagnostics(
                 "vector_min_score": short_term_min_score,
                 "vector_adapter": vector_adapter,
                 "long_term": long_term_config,
+                "deferred_tool_compaction_keep_completed_turns": 0,
             },
         )
 

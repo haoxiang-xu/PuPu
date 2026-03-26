@@ -167,8 +167,7 @@ const CharacterChatBubble = ({
                 width: 28,
                 height: 28,
                 flexShrink: 0,
-                alignSelf: "flex-start",
-                marginTop: 2,
+                alignSelf: "flex-end",
               }}
             >
               <div
