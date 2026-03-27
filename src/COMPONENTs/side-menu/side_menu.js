@@ -32,6 +32,9 @@ import {
 
 export { sideMenuChatTreeAPI };
 
+// Temporary release gate: hide the unfinished Agents entry from main.
+const AGENTS_UI_ENABLED = false;
+
 const resolveCharacterAvatarSrc = (avatar) => {
   const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
   if (rawUrl) {
@@ -555,21 +558,23 @@ const SideMenu = () => {
             iconSize: 16,
           }}
         />
-        <Button
-          prefix_icon="bot"
-          label="Agents"
-          onClick={() => setAgentsOpen(true)}
-          style={{
-            width: "100%",
-            justifyContent: "flex-start",
-            fontSize: 14,
-            padding: "5px 8px",
-            borderRadius: 6,
-            marginBottom: 2,
-            WebkitAppRegion: "no-drag",
-            iconSize: 16,
-          }}
-        />
+        {AGENTS_UI_ENABLED ? (
+          <Button
+            prefix_icon="bot"
+            label="Agents"
+            onClick={() => setAgentsOpen(true)}
+            style={{
+              width: "100%",
+              justifyContent: "flex-start",
+              fontSize: 14,
+              padding: "5px 8px",
+              borderRadius: 6,
+              marginBottom: 2,
+              WebkitAppRegion: "no-drag",
+              iconSize: 16,
+            }}
+          />
+        ) : null}
         <Button
           prefix_icon="folder_2"
           label="Workspace"
@@ -666,7 +671,9 @@ const SideMenu = () => {
 
       <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
 
-      <AgentsModal open={agentsOpen} onClose={() => setAgentsOpen(false)} />
+      {AGENTS_UI_ENABLED ? (
+        <AgentsModal open={agentsOpen} onClose={() => setAgentsOpen(false)} />
+      ) : null}
 
       <WorkspaceModal
         open={workspaceModalOpen}
