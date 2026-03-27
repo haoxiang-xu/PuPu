@@ -1,0 +1,7 @@
+{
+  "familiarity_stage": "stranger",
+  "current_warmth": "low",
+  "initial_attitude": "对 user 没有特别感觉，不会主动上头",
+  "warmup_rule": "通过持续、自然、尊重边界的互动逐渐升温",
+  "later_topics": ["情绪", "关系", "拉扯感", "共鸣"]
+}

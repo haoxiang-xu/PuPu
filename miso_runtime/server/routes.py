@@ -1,11 +1,15 @@
 import json
 import math
+import hmac
+import ipaddress
 import threading
 import time
 from typing import Any, Dict, Iterable, List
 
-from flask import Blueprint, Response, current_app, jsonify, request, stream_with_context
+from flask import Blueprint, Response, current_app, jsonify, request, send_file, stream_with_context
 
+import character_defaults
+import character_store
 from miso_adapter import (
     cancel_tool_confirmations,
     get_capability_catalog,
@@ -140,8 +144,51 @@ def _is_authorized() -> bool:
     expected_token = current_app.config.get("MISO_AUTH_TOKEN", "")
     if not expected_token:
         return True
+
     provided_token = request.headers.get("x-miso-auth", "")
-    return provided_token == expected_token
+    if not isinstance(provided_token, str) or not provided_token.strip():
+        provided_token = request.args.get("miso_auth", "")
+    if not isinstance(provided_token, str):
+        return False
+
+    normalized_token = provided_token.strip()
+    if not normalized_token:
+        return False
+
+    return hmac.compare_digest(normalized_token, str(expected_token))
+
+
+def _is_loopback_request() -> bool:
+    remote_addr = getattr(request, "remote_addr", "")
+    if not isinstance(remote_addr, str):
+        return False
+
+    normalized_remote_addr = remote_addr.strip()
+    if normalized_remote_addr.startswith("::ffff:"):
+        normalized_remote_addr = normalized_remote_addr.split("::ffff:", 1)[1]
+
+    if normalized_remote_addr == "localhost":
+        return True
+
+    try:
+        return ipaddress.ip_address(normalized_remote_addr).is_loopback
+    except ValueError:
+        return False
+
+
+@api_blueprint.before_request
+def reject_non_loopback_requests():
+    if _is_loopback_request():
+        return None
+
+    return jsonify(
+        {
+            "error": {
+                "code": "non_loopback_forbidden",
+                "message": "PuPu local runtime only accepts loopback requests",
+            }
+        }
+    ), 403
 
 
 def _normalize_attachment_modality(raw_modality: object) -> str:
@@ -567,6 +614,16 @@ def _normalize_cluster_labels(raw_labels: object, point_count: int) -> List[int]
 
 @api_blueprint.get("/health")
 def health() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
     return jsonify(
         {
             "status": "ok",
@@ -828,13 +885,12 @@ def memory_projection() -> Response:
 
     try:
         import memory_factory
-        import json as _json
         import numpy as np
-        from pathlib import Path
 
         _data_dir = memory_factory._data_dir
         _normalize_data_dir = memory_factory._normalize_data_dir
         _get_or_create_qdrant_client = memory_factory._get_or_create_qdrant_client
+        _load_session_state = memory_factory._load_session_state
         vector_collection_prefix = getattr(
             memory_factory,
             "_vector_collection_prefix",
@@ -858,12 +914,7 @@ def memory_projection() -> Response:
         # Legacy sessions (tag absent) fall through to `_vector_collection_prefix("")`
         # which returns "chat", giving collection = chat_{safe_session_id}
         # â€” matching the legacy naming that was used before the tag system.
-        session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
-        try:
-            with open(session_file, "r", encoding="utf-8") as _f:
-                _state = _json.load(_f)
-        except Exception:
-            _state = {}
+        _state = _load_session_state(data_dir, session_id)
 
         tag = str(_state.get("vector_collection_tag") or "").strip()
         collection = session_collection_name(
@@ -1131,6 +1182,276 @@ def long_term_memory_projection() -> Response:
         return jsonify({"error": str(exc)}), 500
 
 
+@api_blueprint.get("/characters/seeds")
+def list_seed_characters() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        return jsonify(character_defaults.list_seed_characters())
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "seed_character_list_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.get("/characters/seeds/<character_id>/avatar")
+def get_seed_character_avatar(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    avatar_path = character_defaults.get_seed_avatar_path(character_id)
+    if not avatar_path:
+        return Response(status=404)
+
+    response = send_file(
+        avatar_path,
+        mimetype="image/png",
+        conditional=False,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@api_blueprint.get("/characters")
+def list_characters() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        return jsonify(character_store.list_characters())
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_list_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.get("/characters/<character_id>/avatar")
+def get_character_avatar(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
+    avatar_asset = character_store.get_character_avatar_asset(character_id)
+    if not avatar_asset:
+        return Response(status=404)
+
+    response = send_file(
+        avatar_asset["path"],
+        mimetype=avatar_asset["mime_type"],
+        conditional=False,
+        max_age=0,
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@api_blueprint.get("/characters/<character_id>")
+def get_character(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        payload = character_store.get_character(character_id)
+        if payload is None:
+            return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+        return jsonify(payload)
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_get_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters")
+def save_character() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    try:
+        return jsonify(character_store.save_character(payload))
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_save_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.delete("/characters/<character_id>")
+def delete_character(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    try:
+        return jsonify(character_store.delete_character(character_id))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_delete_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters/preview")
+def preview_character_decision() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    try:
+        return jsonify(character_store.preview_character_decision(payload))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_preview_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters/build")
+def build_character_agent_config() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    try:
+        return jsonify(character_store.build_character_agent_config(payload))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_build_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters/<character_id>/export")
+def export_character(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    file_path = payload.get("file_path") or payload.get("filePath")
+    if not isinstance(file_path, str) or not file_path.strip():
+        return jsonify({"error": {"code": "invalid_request", "message": "file_path is required"}}), 400
+
+    try:
+        return jsonify(character_store.export_character({
+            "character_id": character_id,
+            "file_path": file_path.strip(),
+        }))
+    except KeyError:
+        return jsonify({"error": {"code": "not_found", "message": "Character not found"}}), 404
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_export_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
+@api_blueprint.post("/characters/import")
+def import_character() -> Response:
+    if not _is_authorized():
+        return jsonify({"error": {"code": "unauthorized", "message": "Unauthorized"}}), 401
+
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict):
+        return jsonify({"error": {"code": "invalid_request", "message": "payload must be an object"}}), 400
+
+    file_path = payload.get("file_path") or payload.get("filePath")
+    if not isinstance(file_path, str) or not file_path.strip():
+        return jsonify({"error": {"code": "invalid_request", "message": "file_path is required"}}), 400
+
+    try:
+        return jsonify(character_store.import_character({
+            "file_path": file_path.strip(),
+        }))
+    except ValueError as exc:
+        return jsonify({"error": {"code": "invalid_request", "message": str(exc)}}), 400
+    except Exception as exc:
+        return jsonify(
+            {
+                "error": {
+                    "code": "character_import_failed",
+                    "message": str(exc),
+                }
+            }
+        ), 500
+
+
 @api_blueprint.post("/memory/session/replace")
 def replace_memory_session() -> Response:
     if not _is_authorized():
@@ -1221,17 +1542,12 @@ def export_memory_session() -> Response:
             }
         ), 400
 
-    data_dir = current_app.config.get("MISO_DATA_DIR", "")
+    import memory_factory
+    data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
     if not data_dir:
         return jsonify({"messages": []})
 
-    from pathlib import Path
-    session_file = Path(data_dir) / "memory" / "sessions" / f"{session_id}.json"
-    try:
-        with open(session_file, "r", encoding="utf-8") as f:
-            state = json.load(f)
-    except Exception:
-        state = {}
+    state = memory_factory._load_session_state(data_dir, session_id)
 
     messages = state.get("messages", [])
     if not isinstance(messages, list):

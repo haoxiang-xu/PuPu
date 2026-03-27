@@ -376,6 +376,17 @@ const injectWorkspaceRootIntoPayload = (payload) => {
   }
 
   const currentOptions = isObject(payload.options) ? payload.options : {};
+  const disableWorkspaceRoot =
+    currentOptions.disable_workspace_root === true ||
+    currentOptions.disableWorkspaceRoot === true;
+  const explicitWorkspaceRoot =
+    typeof currentOptions.workspaceRoot === "string" &&
+    currentOptions.workspaceRoot.trim()
+      ? currentOptions.workspaceRoot.trim()
+      : typeof currentOptions.workspace_root === "string" &&
+          currentOptions.workspace_root.trim()
+        ? currentOptions.workspace_root.trim()
+        : "";
 
   // Resolve additional workspace paths from per-chat selected IDs
   const selectedIds = Array.isArray(currentOptions.selectedWorkspaceIds)
@@ -400,6 +411,20 @@ const injectWorkspaceRootIntoPayload = (payload) => {
 
   // Strip internal field from options
   const { selectedWorkspaceIds: _omit, ...restOptions } = currentOptions;
+
+  if (disableWorkspaceRoot) {
+    return {
+      ...payload,
+      options: restOptions,
+    };
+  }
+
+  if (explicitWorkspaceRoot) {
+    return {
+      ...payload,
+      options: restOptions,
+    };
+  }
 
   if (allRoots.length === 0) {
     return { ...payload, options: restOptions };
@@ -702,6 +727,108 @@ export const createMisoApi = () => {
         10000,
         "session_memory_export_timeout",
         "Session memory export request timed out",
+      );
+    },
+
+    listSeedCharacters: async () => {
+      const method = assertBridgeMethod("misoAPI", "listSeedCharacters");
+      const response = await withTimeout(
+        () => method(),
+        15000,
+        "seed_character_list_timeout",
+        "Seed character list request timed out",
+      );
+      return {
+        characters: Array.isArray(response?.characters) ? response.characters : [],
+        count: Number.isFinite(Number(response?.count))
+          ? Number(response.count)
+          : 0,
+      };
+    },
+
+    listCharacters: async () => {
+      const method = assertBridgeMethod("misoAPI", "listCharacters");
+      const response = await withTimeout(
+        () => method(),
+        15000,
+        "character_list_timeout",
+        "Character list request timed out",
+      );
+      return {
+        characters: Array.isArray(response?.characters) ? response.characters : [],
+        count: Number.isFinite(Number(response?.count))
+          ? Number(response.count)
+          : 0,
+      };
+    },
+
+    getCharacter: async (characterId) => {
+      const method = assertBridgeMethod("misoAPI", "getCharacter");
+      return withTimeout(
+        () => method(characterId),
+        15000,
+        "character_get_timeout",
+        "Character get request timed out",
+      );
+    },
+
+    saveCharacter: async (payload = {}) => {
+      const method = assertBridgeMethod("misoAPI", "saveCharacter");
+      return withTimeout(
+        () => method(isObject(payload) ? payload : {}),
+        20000,
+        "character_save_timeout",
+        "Character save request timed out",
+      );
+    },
+
+    deleteCharacter: async (characterId) => {
+      const method = assertBridgeMethod("misoAPI", "deleteCharacter");
+      return withTimeout(
+        () => method(characterId),
+        30000,
+        "character_delete_timeout",
+        "Character delete request timed out",
+      );
+    },
+
+    previewCharacterDecision: async (payload = {}) => {
+      const method = assertBridgeMethod("misoAPI", "previewCharacterDecision");
+      return withTimeout(
+        () => method(isObject(payload) ? payload : {}),
+        20000,
+        "character_preview_timeout",
+        "Character preview request timed out",
+      );
+    },
+
+    buildCharacterAgentConfig: async (payload = {}) => {
+      const method = assertBridgeMethod("misoAPI", "buildCharacterAgentConfig");
+      return withTimeout(
+        () => method(isObject(payload) ? payload : {}),
+        20000,
+        "character_build_timeout",
+        "Character build request timed out",
+      );
+    },
+
+    exportCharacter: async (characterId, filePath) => {
+      const method = assertBridgeMethod("misoAPI", "exportCharacter");
+      return withTimeout(
+        () => method(characterId, filePath),
+        30000,
+        "character_export_timeout",
+        "Character export request timed out",
+      );
+    },
+
+    importCharacter: async (filePath) => {
+      const method = assertBridgeMethod("misoAPI", "importCharacter");
+      return withTimeout(
+        () => method(filePath),
+        30000,
+        "character_import_timeout",
+        "Character import request timed out",
       );
     },
 

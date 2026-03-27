@@ -224,4 +224,167 @@ describe("miso service session memory replacement", () => {
       }),
     );
   });
+
+  test("listMisoSeedCharacters decorates seed avatars with http urls", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            characters: [
+              {
+                id: "nico",
+                name: "Nico",
+                avatar: { absolute_path: "/tmp/nico.png" },
+                metadata: { origin: "builtin_seed" },
+              },
+            ],
+            count: 1,
+          }),
+      });
+
+    process.env.MISO_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createMisoService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await expect(service.listMisoSeedCharacters()).resolves.toEqual({
+      characters: [
+        {
+          id: "nico",
+          name: "Nico",
+          avatar: {
+            absolute_path: "/tmp/nico.png",
+            url: "http://127.0.0.1:5879/characters/seeds/nico/avatar?miso_auth=auth-token-123",
+          },
+          metadata: { origin: "builtin_seed" },
+        },
+      ],
+      count: 1,
+    });
+  });
+
+  test("listMisoCharacters decorates builtin avatars with http urls", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            characters: [
+              {
+                id: "nico",
+                name: "Nico",
+                avatar: null,
+                metadata: { origin: "builtin_seed" },
+              },
+              {
+                id: "mina",
+                name: "Mina",
+                avatar: null,
+                metadata: {},
+              },
+            ],
+            count: 2,
+          }),
+      });
+
+    process.env.MISO_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createMisoService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await expect(service.listMisoCharacters()).resolves.toEqual({
+      characters: [
+        {
+          id: "nico",
+          name: "Nico",
+          avatar: {
+            url: "http://127.0.0.1:5879/characters/nico/avatar?miso_auth=auth-token-123",
+          },
+          metadata: { origin: "builtin_seed" },
+        },
+        {
+          id: "mina",
+          name: "Mina",
+          avatar: null,
+          metadata: {},
+        },
+      ],
+      count: 2,
+    });
+  });
 });

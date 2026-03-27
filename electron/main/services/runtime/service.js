@@ -187,6 +187,42 @@ const createRuntimeService = ({
     return total;
   };
 
+  const getPathSize = (targetPath) => {
+    try {
+      const stat = fs.statSync(targetPath);
+      return stat.isDirectory() ? getDirSize(targetPath) : stat.size;
+    } catch {
+      return 0;
+    }
+  };
+
+  const listFilteredDirEntries = (dirPath, predicate = () => true) => {
+    if (!dirPath || !fs.existsSync(dirPath)) {
+      return [];
+    }
+
+    const entries = [];
+    for (const name of fs.readdirSync(dirPath)) {
+      if (!predicate(name)) {
+        continue;
+      }
+
+      const full = path.join(dirPath, name);
+      try {
+        const stat = fs.statSync(full);
+        entries.push({
+          name,
+          size: stat.isDirectory() ? getDirSize(full) : stat.size,
+          isDir: stat.isDirectory(),
+        });
+      } catch {
+        // ignore individual file errors
+      }
+    }
+
+    return entries;
+  };
+
   const getRuntimeDirSize = ({ dirPath = "" } = {}) => {
     const targetDir =
       typeof dirPath === "string" && dirPath.trim() ? dirPath.trim() : null;
@@ -216,6 +252,126 @@ const createRuntimeService = ({
 
     entries.sort((a, b) => b.size - a.size);
     return { entries, total };
+  };
+
+  const getCharacterStorageSize = () => {
+    const userDataDir = app.getPath("userData");
+    const charactersDir = path.join(userDataDir, "characters");
+    const avatarsDir = path.join(charactersDir, "avatars");
+    const sessionsDir = path.join(userDataDir, "memory", "sessions");
+    const profilesDir = path.join(userDataDir, "memory", "long_term_profiles");
+    const registryPath = path.join(charactersDir, "registry.json");
+
+    const registryExists = fs.existsSync(registryPath);
+    const avatarsExists = fs.existsSync(avatarsDir);
+    const registryTotal = registryExists ? getPathSize(registryPath) : 0;
+    const avatarTotal = avatarsExists ? getPathSize(avatarsDir) : 0;
+    const sessionEntries = listFilteredDirEntries(
+      sessionsDir,
+      (name) => typeof name === "string" && name.startsWith("character_"),
+    );
+    const profileEntries = listFilteredDirEntries(
+      profilesDir,
+      (name) => typeof name === "string" && name.startsWith("character_"),
+    );
+    const sessionTotal = sessionEntries.reduce(
+      (sum, entry) => sum + (Number(entry.size) || 0),
+      0,
+    );
+    const profileTotal = profileEntries.reduce(
+      (sum, entry) => sum + (Number(entry.size) || 0),
+      0,
+    );
+
+    const entries = [];
+    if (registryExists) {
+      entries.push({ name: "registry.json", size: registryTotal, isDir: false });
+    }
+    if (avatarsExists) {
+      entries.push({ name: "avatars", size: avatarTotal, isDir: true });
+    }
+    if (sessionEntries.length > 0) {
+      entries.push({ name: "sessions", size: sessionTotal, isDir: true });
+    }
+    if (profileEntries.length > 0) {
+      entries.push({ name: "profiles", size: profileTotal, isDir: true });
+    }
+
+    entries.sort((a, b) => b.size - a.size);
+
+    return {
+      entries,
+      total: registryTotal + avatarTotal + sessionTotal + profileTotal,
+      registryTotal,
+      avatarTotal,
+      sessionTotal,
+      profileTotal,
+      error: "",
+    };
+  };
+
+  const deleteCharacterStorageEntry = ({ entryName = "" } = {}) => {
+    const safeEntryName =
+      typeof entryName === "string" ? entryName.trim() : "";
+    const userDataDir = app.getPath("userData");
+    const charactersDir = path.join(userDataDir, "characters");
+    const avatarsDir = path.join(charactersDir, "avatars");
+    const sessionsDir = path.join(userDataDir, "memory", "sessions");
+    const profilesDir = path.join(userDataDir, "memory", "long_term_profiles");
+    const registryPath = path.join(charactersDir, "registry.json");
+
+    const removeMatchingEntries = (dirPath, predicate) => {
+      if (!dirPath || !fs.existsSync(dirPath)) {
+        return 0;
+      }
+
+      let deletedCount = 0;
+      for (const name of fs.readdirSync(dirPath)) {
+        if (!predicate(name)) {
+          continue;
+        }
+
+        try {
+          fs.rmSync(path.join(dirPath, name), { recursive: true, force: true });
+          deletedCount += 1;
+        } catch {
+          // ignore individual file errors
+        }
+      }
+      return deletedCount;
+    };
+
+    try {
+      if (safeEntryName === "registry.json") {
+        fs.rmSync(registryPath, { force: true });
+        return { ok: true };
+      }
+
+      if (safeEntryName === "avatars") {
+        removeMatchingEntries(avatarsDir, () => true);
+        return { ok: true };
+      }
+
+      if (safeEntryName === "sessions") {
+        removeMatchingEntries(
+          sessionsDir,
+          (name) => typeof name === "string" && name.startsWith("character_"),
+        );
+        return { ok: true };
+      }
+
+      if (safeEntryName === "profiles") {
+        removeMatchingEntries(
+          profilesDir,
+          (name) => typeof name === "string" && name.startsWith("character_"),
+        );
+        return { ok: true };
+      }
+    } catch (error) {
+      return { ok: false, error: error.message };
+    }
+
+    return { ok: false, error: "invalid" };
   };
 
   const deleteRuntimeEntry = ({ dirPath = "", entryName = "" } = {}) => {
@@ -347,6 +503,8 @@ const createRuntimeService = ({
     openRuntimeFolder,
     setChromeTerminalOpen,
     getRuntimeDirSize,
+    getCharacterStorageSize,
+    deleteCharacterStorageEntry,
     deleteRuntimeEntry,
     clearRuntimeDir,
     showSaveDialog,

@@ -3086,6 +3086,25 @@ def _build_system_prompt_v2_text_from_options(options: Dict[str, object] | None)
     return _compile_system_prompt_v2_text(merged)
 
 
+def _extract_agent_instructions(options: Dict[str, object] | None) -> str:
+    if not isinstance(options, dict):
+        return ""
+    raw_value = options.get("agent_instructions")
+    if not isinstance(raw_value, str):
+        raw_value = options.get("agentInstructions")
+    if not isinstance(raw_value, str):
+        return ""
+    return raw_value.strip()
+
+
+def _build_effective_system_prompt_text(options: Dict[str, object] | None) -> str:
+    system_prompt_text = _build_system_prompt_v2_text_from_options(options)
+    agent_instructions = _extract_agent_instructions(options)
+    if system_prompt_text and agent_instructions:
+        return f"{system_prompt_text}\n\n{agent_instructions}".strip()
+    return system_prompt_text or agent_instructions
+
+
 def _prepend_system_message(
     messages: List[Dict[str, Any]],
     system_prompt_text: str,
@@ -3873,7 +3892,7 @@ def stream_chat_events(
 ) -> Iterable[Dict[str, Any]]:
     agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
-    system_prompt_text = _build_system_prompt_v2_text_from_options(options)
+    system_prompt_text = _build_effective_system_prompt_text(options)
     if system_prompt_text:
         messages = _prepend_system_message(messages, system_prompt_text)
     payload = _build_payload(agent.provider, options)

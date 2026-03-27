@@ -156,6 +156,9 @@ const ChatInterface = () => {
     selectedModelId: session.selectedModelId,
     selectedToolkits: session.selectedToolkits,
     selectedWorkspaceIds: session.selectedWorkspaceIds,
+    chatKind: session.activeChatKind,
+    characterId: session.activeCharacterId,
+    threadIdRef: session.threadIdRef,
     systemPromptOverrides: session.systemPromptOverridesRef.current,
     attachmentApi: attachments,
     storageApi,
@@ -242,6 +245,7 @@ const ChatInterface = () => {
       setModelCatalog(normalized);
 
       if (
+        !session.isCharacterChat &&
         (modelIdRef.current === "miso-unset" || !modelIdRef.current) &&
         normalized.activeModel
       ) {
@@ -259,7 +263,13 @@ const ChatInterface = () => {
     } catch (_error) {
       // ignore transient catalog fetch failures
     }
-  }, [activeChatIdRef, modelIdRef, setSelectedModelId, storageApi]);
+  }, [
+    activeChatIdRef,
+    modelIdRef,
+    session.isCharacterChat,
+    setSelectedModelId,
+    storageApi,
+  ]);
 
   useEffect(() => {
     refreshMisoStatus();
@@ -324,6 +334,40 @@ const ChatInterface = () => {
 
   const isSendDisabled =
     (!misoStatus.ready && !stream.isStreaming) || stream.hasBackgroundStream;
+
+  const [characterAvailability, setCharacterAvailability] = useState("");
+
+  useEffect(() => {
+    if (!session.isCharacterChat || !session.activeCharacterId || !misoStatus.ready) {
+      setCharacterAvailability("");
+      return;
+    }
+
+    let cancelled = false;
+    const fetchAvailability = async () => {
+      try {
+        const result = await api.miso.previewCharacterDecision({
+          characterId: session.activeCharacterId,
+        });
+        if (!cancelled) {
+          const availability =
+            typeof result?.evaluation?.availability === "string"
+              ? result.evaluation.availability
+              : "";
+          setCharacterAvailability(availability);
+        }
+      } catch (_error) {
+        if (!cancelled) setCharacterAvailability("");
+      }
+    };
+
+    fetchAvailability();
+    const timer = setInterval(fetchAvailability, 60000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [session.isCharacterChat, session.activeCharacterId, misoStatus.ready]);
 
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
@@ -403,7 +447,10 @@ const ChatInterface = () => {
     modelCatalog,
     selectedModelId: session.selectedModelId,
     onSelectModel,
-    modelSelectDisabled: stream.isStreaming,
+    modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
+    showModelSelector: !session.isCharacterChat,
+    showToolSelector: !session.isCharacterChat,
+    showWorkspaceSelector: !session.isCharacterChat,
     selectedToolkits: session.selectedToolkits,
     onToolkitsChange: session.setSelectedToolkits,
     selectedWorkspaceIds: session.selectedWorkspaceIds,
@@ -634,6 +681,10 @@ const ChatInterface = () => {
             chatId={session.activeChatId}
             messages={session.messages}
             isStreaming={stream.isStreaming}
+            isCharacterChat={session.isCharacterChat}
+            characterName={session.activeCharacterName}
+            characterAvatar={session.activeCharacterAvatar}
+            characterAvailability={characterAvailability}
             onDeleteMessage={stream.deleteTurn}
             onResendMessage={stream.resendTurn}
             onEditMessage={stream.editTurn}

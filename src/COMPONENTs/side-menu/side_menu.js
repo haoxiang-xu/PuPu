@@ -7,6 +7,7 @@ import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { SettingsModal } from "../settings/settings_modal";
 import { ToolkitModal } from "../toolkit/toolkit_modal";
+import { AgentsModal } from "../agents/agents_modal";
 import { WorkspaceModal } from "../workspace/workspace_modal";
 import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
@@ -20,6 +21,7 @@ import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
 import { MemoryInspectModal } from "../memory-inspect/memory_inspect_modal";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
+import { useCharacterAvailability } from "./hooks/use_character_availability";
 import { filter_explorer_data } from "./utils/filter_explorer_data";
 import {
   exportChat,
@@ -30,12 +32,164 @@ import {
 
 export { sideMenuChatTreeAPI };
 
+// Temporary release gate: hide the unfinished Agents entry from main.
+const AGENTS_UI_ENABLED = false;
+
+const resolveCharacterAvatarSrc = (avatar) => {
+  const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
+  if (rawUrl) {
+    return rawUrl;
+  }
+
+  const rawPath =
+    typeof avatar?.absolute_path === "string"
+      ? avatar.absolute_path.trim()
+      : "";
+  if (!rawPath) {
+    return "";
+  }
+  if (/^(https?:|data:|file:)/i.test(rawPath)) {
+    return rawPath;
+  }
+  const normalized = rawPath.replace(/\\/g, "/");
+  return normalized.startsWith("/")
+    ? encodeURI(`file://${normalized}`)
+    : encodeURI(`file:///${normalized}`);
+};
+
+const characterFallbackInitial = (name) => {
+  const normalized =
+    typeof name === "string" && name.trim() ? name.trim().charAt(0) : "C";
+  return normalized.toUpperCase();
+};
+
+const AVAILABILITY_DOT_COLOR = {
+  available: "#92c353",
+  limited: "#ffaa44",
+  busy: "#d74654",
+  offline: "#93999e",
+};
+
+const CharacterChatRow = ({ node, depth, isDark, characterAvailability }) => {
+  const [imageBroken, setImageBroken] = useState(false);
+  const avatarSrc = resolveCharacterAvatarSrc(node.characterAvatar);
+  const showImage = Boolean(avatarSrc) && !imageBroken;
+
+  return (
+    <div
+      onClick={(event) => node.on_click && node.on_click(node, event)}
+      onContextMenu={(event) =>
+        node.on_context_menu && node.on_context_menu(node, event)
+      }
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        height: 42,
+        margin: "1px 3px",
+        paddingLeft: depth * 16 + 9,
+        paddingRight: 10,
+        borderRadius: 5,
+        cursor: "pointer",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: 24,
+          height: 24,
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: isDark
+              ? "rgba(255,255,255,0.06)"
+              : "rgba(0,0,0,0.04)",
+            border: isDark
+              ? "1px solid rgba(255,255,255,0.10)"
+              : "1px solid rgba(0,0,0,0.08)",
+            color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: "NunitoSans, sans-serif",
+          }}
+        >
+          {showImage ? (
+            <img
+              src={avatarSrc}
+              alt={`${node.characterName || node.label || "character"} avatar`}
+              onError={() => setImageBroken(true)}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            characterFallbackInitial(node.characterName || node.label)
+          )}
+        </div>
+        {AVAILABILITY_DOT_COLOR[characterAvailability] && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: -2,
+              right: -2,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: AVAILABILITY_DOT_COLOR[characterAvailability],
+              border: `1.5px solid ${isDark ? "rgb(32,32,32)" : "rgb(248,248,248)"}`,
+              boxSizing: "content-box",
+            }}
+          />
+        )}
+      </div>
+
+      <div
+        style={{
+          minWidth: 0,
+          flex: 1,
+          fontSize: 12.5,
+          fontFamily: "Jost, sans-serif",
+          color: isDark ? "#fff" : "#171717",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {node.label}
+      </div>
+
+      {node.postfix ? (
+        <div
+          style={{
+            flexShrink: 0,
+            fontSize: 11,
+            fontFamily: "Jost, sans-serif",
+            color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.4)",
+          }}
+        >
+          {node.postfix}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment, onThemeMode } =
     useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [contextMenu, setContextMenu] = useState({
@@ -58,6 +212,9 @@ const SideMenu = () => {
   });
 
   const { chatStore, setChatStore, selectedNodeId } = useChatTreeStore();
+  const characterAvailabilityMap = useCharacterAvailability(
+    chatStore?.chatsById,
+  );
 
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
@@ -223,13 +380,32 @@ const SideMenu = () => {
   );
 
   const explorerData = useMemo(() => {
-    if (!renaming.nodeId || !explorerModel.data[renaming.nodeId]) {
-      return explorerModel.data;
-    }
-    return {
-      ...explorerModel.data,
-      [renaming.nodeId]: {
-        ...explorerModel.data[renaming.nodeId],
+    const nextData = { ...explorerModel.data };
+
+    Object.entries(nextData).forEach(([nodeId, node]) => {
+      if (node?.entity !== "chat" || node?.chatKind !== "character") {
+        return;
+      }
+
+      nextData[nodeId] = {
+        ...node,
+        component: ({ node: componentNode, depth, isExpanded }) => (
+          <CharacterChatRow
+            node={componentNode}
+            depth={depth}
+            isExpanded={isExpanded}
+            isDark={isDark}
+            characterAvailability={
+              characterAvailabilityMap[componentNode.characterId] || ""
+            }
+          />
+        ),
+      };
+    });
+
+    if (renaming.nodeId && nextData[renaming.nodeId]) {
+      nextData[renaming.nodeId] = {
+        ...nextData[renaming.nodeId],
         component: ({ node }) => (
           <RenameRow
             node={node}
@@ -239,8 +415,10 @@ const SideMenu = () => {
             isDark={isDark}
           />
         ),
-      },
-    };
+      };
+    }
+
+    return nextData;
   }, [
     explorerModel.data,
     renaming.nodeId,
@@ -248,6 +426,7 @@ const SideMenu = () => {
     handleConfirmRename,
     handleCancelRename,
     isDark,
+    characterAvailabilityMap,
   ]);
 
   const { filteredData, filteredRoot } = useMemo(
@@ -379,6 +558,23 @@ const SideMenu = () => {
             iconSize: 16,
           }}
         />
+        {AGENTS_UI_ENABLED ? (
+          <Button
+            prefix_icon="bot"
+            label="Agents"
+            onClick={() => setAgentsOpen(true)}
+            style={{
+              width: "100%",
+              justifyContent: "flex-start",
+              fontSize: 14,
+              padding: "5px 8px",
+              borderRadius: 6,
+              marginBottom: 2,
+              WebkitAppRegion: "no-drag",
+              iconSize: 16,
+            }}
+          />
+        ) : null}
         <Button
           prefix_icon="folder_2"
           label="Workspace"
@@ -406,6 +602,7 @@ const SideMenu = () => {
             userSelect: "none",
             flexShrink: 0,
           }}
+          onContextMenu={handleBackgroundContextMenu}
         >
           Chats
         </div>
@@ -473,6 +670,10 @@ const SideMenu = () => {
       />
 
       <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+
+      {AGENTS_UI_ENABLED ? (
+        <AgentsModal open={agentsOpen} onClose={() => setAgentsOpen(false)} />
+      ) : null}
 
       <WorkspaceModal
         open={workspaceModalOpen}

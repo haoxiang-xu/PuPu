@@ -11,6 +11,7 @@ describe("api.miso.startStream workspace root injection", () => {
     window.localStorage.clear();
     window.misoAPI = {
       startStream: jest.fn(() => ({ cancel: jest.fn() })),
+      startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
     };
   });
 
@@ -88,5 +89,27 @@ describe("api.miso.startStream workspace root injection", () => {
     expect(payload.options.workspaceRoot).toBeUndefined();
     expect(payload.options.workspace_root).toBeUndefined();
   });
-});
 
+  test("does not inject workspace roots when disable_workspace_root is enabled", () => {
+    writeSettings({
+      runtime: {
+        workspace_root: "/tmp/global-root",
+      },
+    });
+
+    api.miso.startStreamV2({
+      message: "hello",
+      options: {
+        modelId: "openai:gpt-5",
+        selectedWorkspaceIds: ["workspace-1"],
+        disable_workspace_root: true,
+      },
+    });
+
+    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.disable_workspace_root).toBe(true);
+    expect(payload.options.workspaceRoot).toBeUndefined();
+    expect(payload.options.workspace_root).toBeUndefined();
+    expect(payload.options.workspace_roots).toBeUndefined();
+  });
+});

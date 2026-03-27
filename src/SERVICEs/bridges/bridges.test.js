@@ -98,6 +98,71 @@ describe("bridge wrappers", () => {
     });
   });
 
+  test("runtimeBridge.getCharacterStorageSize normalizes totals", async () => {
+    window.misoAPI = {
+      getCharacterStorageSize: jest.fn(async () => ({
+        total: "42",
+        registryTotal: "10",
+        avatarTotal: "20",
+        sessionTotal: "7",
+        profileTotal: "5",
+        entries: null,
+      })),
+      deleteCharacterStorageEntry: jest.fn(),
+    };
+
+    await expect(runtimeBridge.getCharacterStorageSize()).resolves.toEqual({
+      entries: [],
+      total: 42,
+      registryTotal: 10,
+      avatarTotal: 20,
+      sessionTotal: 7,
+      profileTotal: 5,
+      error: "",
+    });
+  });
+
+  test("runtimeBridge.deleteCharacterStorageEntry forwards entry name", async () => {
+    window.misoAPI = {
+      getCharacterStorageSize: jest.fn(),
+      deleteCharacterStorageEntry: jest.fn(async () => ({ ok: true })),
+    };
+
+    await expect(
+      runtimeBridge.deleteCharacterStorageEntry("avatars"),
+    ).resolves.toEqual({ ok: true });
+    expect(window.misoAPI.deleteCharacterStorageEntry).toHaveBeenCalledWith(
+      "avatars",
+    );
+  });
+
+  test("runtimeBridge.listCharacters normalizes response", async () => {
+    window.misoAPI = {
+      listCharacters: jest.fn(async () => ({
+        characters: [{ id: "mina" }],
+        count: "1",
+      })),
+      getCharacter: jest.fn(),
+      saveCharacter: jest.fn(),
+      deleteCharacter: jest.fn(),
+    };
+
+    await expect(runtimeBridge.listCharacters()).resolves.toEqual({
+      characters: [{ id: "mina" }],
+      count: 1,
+    });
+  });
+
+  test("runtimeBridge.previewCharacterDecision throws when method is missing", async () => {
+    window.misoAPI = {};
+
+    await expect(
+      runtimeBridge.previewCharacterDecision({ characterId: "mina" }),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+  });
+
   test("runtimeBridge.setChromeTerminalOpen forwards open flag and normalizes payload", async () => {
     window.misoAPI = {
       setChromeTerminalOpen: jest.fn(async (open) => ({

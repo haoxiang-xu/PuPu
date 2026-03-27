@@ -34,6 +34,12 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   clearRuntimeDir: (dirPath) =>
     ipcRenderer.invoke(CHANNELS.MISO.CLEAR_RUNTIME_DIR, { dirPath }),
   getMemorySize: () => ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_SIZE),
+  getCharacterStorageSize: () =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_CHARACTER_STORAGE_SIZE),
+  deleteCharacterStorageEntry: (entryName) =>
+    ipcRenderer.invoke(CHANNELS.MISO.DELETE_CHARACTER_STORAGE_ENTRY, {
+      entryName,
+    }),
   getMemoryProjection: (sessionId) =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_MEMORY_PROJECTION, { sessionId }),
   getLongTermMemoryProjection: () =>
@@ -42,6 +48,25 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.REPLACE_SESSION_MEMORY, payload),
   getSessionMemoryExport: (sessionId) =>
     ipcRenderer.invoke(CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT, { sessionId }),
+  listSeedCharacters: () => ipcRenderer.invoke(CHANNELS.MISO.LIST_SEED_CHARACTERS),
+  listCharacters: () => ipcRenderer.invoke(CHANNELS.MISO.LIST_CHARACTERS),
+  getCharacter: (characterId) =>
+    ipcRenderer.invoke(CHANNELS.MISO.GET_CHARACTER, { characterId }),
+  saveCharacter: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.SAVE_CHARACTER, payload),
+  deleteCharacter: (characterId) =>
+    ipcRenderer.invoke(CHANNELS.MISO.DELETE_CHARACTER, { characterId }),
+  previewCharacterDecision: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.PREVIEW_CHARACTER_DECISION, payload),
+  buildCharacterAgentConfig: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG, payload),
+  exportCharacter: (characterId, filePath) =>
+    ipcRenderer.invoke(CHANNELS.MISO.EXPORT_CHARACTER, {
+      characterId,
+      filePath,
+    }),
+  importCharacter: (filePath) =>
+    ipcRenderer.invoke(CHANNELS.MISO.IMPORT_CHARACTER, { filePath }),
   showSaveDialog: (options = {}) =>
     ipcRenderer.invoke(CHANNELS.MISO.SHOW_SAVE_DIALOG, options),
   showOpenDialog: (options = {}) =>

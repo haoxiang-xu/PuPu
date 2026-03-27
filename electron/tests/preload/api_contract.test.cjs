@@ -67,6 +67,13 @@ describe("preload API contract", () => {
       "getRuntimeDirSize",
       "deleteRuntimeEntry",
       "clearRuntimeDir",
+      "getSessionMemoryExport",
+      "listCharacters",
+      "getCharacter",
+      "saveCharacter",
+      "deleteCharacter",
+      "previewCharacterDecision",
+      "buildCharacterAgentConfig",
       "replaceSessionMemory",
       "startStream",
       "startStreamV2",
@@ -107,6 +114,17 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.MISO.REPLACE_SESSION_MEMORY,
       { sessionId: "chat-1", messages: [] },
+    );
+
+    exposed.misoAPI.listCharacters();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.MISO.LIST_CHARACTERS,
+    );
+
+    exposed.misoAPI.buildCharacterAgentConfig({ characterId: "mina" });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
+      { characterId: "mina" },
     );
 
     exposed.themeAPI.setThemeMode("dark_mode");

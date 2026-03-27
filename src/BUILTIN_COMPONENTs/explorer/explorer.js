@@ -502,20 +502,84 @@ const ExplorerRow = ({
 
   /* ── custom component path ─────────────────────────── */
   if (node.component) {
+    const isContextMenuTarget = contextMenuNodeId != null && node.id === contextMenuNodeId;
+    const suppressHover = contextMenuNodeId != null && !isContextMenuTarget;
+    const showBg = ((hovered && !suppressHover) || isContextMenuTarget || pressed) && !isSource;
+    const hoverBgC = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.055)";
+    const activeBgC = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.09)";
+
     return (
       <div
         ref={combinedRef}
+        onMouseDown={(e) => {
+          setPressed(true);
+          if (draggable && e.button === 0 && onDragStart) {
+            onDragStart(e, node.id);
+          }
+        }}
+        onMouseEnter={() => {
+          setHovered(true);
+          if (onHoverRow) onHoverRow(node.id);
+        }}
+        onMouseLeave={() => {
+          setHovered(false);
+          setPressed(false);
+        }}
+        onMouseUp={() => setPressed(false)}
         style={{
-          paddingLeft: depth * INDENT,
+          position: "relative",
           opacity: isSource ? 0 : 1,
           height: isSource ? 0 : undefined,
           overflow: isSource ? "hidden" : undefined,
           transition: "opacity 0.15s ease, height 0.15s ease",
         }}
       >
-        {typeof node.component === "function"
-          ? node.component({ node, depth, isExpanded })
-          : node.component}
+        {/* ── active (selected) background ──────────────── */}
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: depth * INDENT + 3,
+            right: 3,
+            borderRadius: 5,
+            backgroundColor: isDark
+              ? "rgba(255,255,255,0.10)"
+              : "rgba(0,0,0,0.082)",
+            opacity: isActive ? 1 : 0,
+            transition: "opacity 0.15s ease",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
+
+        {/* ── hover / press background ─────────────────── */}
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: pressed ? 1 : 0,
+            bottom: pressed ? 1 : 0,
+            left: pressed ? depth * INDENT + 4 : depth * INDENT + 3,
+            right: pressed ? 4 : 3,
+            borderRadius: pressed ? 4 : 5,
+            backgroundColor: pressed ? activeBgC : hoverBgC,
+            transform: showBg ? "scale(1)" : "scale(0.97, 0)",
+            opacity: showBg ? 1 : 0,
+            transition: showBg
+              ? "transform 0.2s cubic-bezier(0.2,0.9,0.3,1), opacity 0.15s ease, top 0.1s ease, bottom 0.1s ease, left 0.1s ease, right 0.1s ease, border-radius 0.1s ease"
+              : "transform 0.18s cubic-bezier(0.4,0,1,1), opacity 0.12s ease",
+            pointerEvents: "none",
+            zIndex: 0,
+          }}
+        />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+          {typeof node.component === "function"
+            ? node.component({ node, depth, isExpanded })
+            : node.component}
+        </div>
       </div>
     );
   }
@@ -1661,6 +1725,34 @@ const Explorer = ({
                   }}
                 />
               </span>
+            )}
+            {sourceNode.chatKind === "character" && (
+              <div
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: "50%",
+                  overflow: "hidden",
+                  flexShrink: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: isDark
+                    ? "linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))"
+                    : "linear-gradient(160deg, rgba(0,0,0,0.1), rgba(0,0,0,0.03))",
+                  color: isDark
+                    ? "rgba(255,255,255,0.86)"
+                    : "rgba(0,0,0,0.72)",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: "NunitoSans, sans-serif",
+                }}
+              >
+                {(sourceNode.characterName || sourceNode.label || "C")
+                  .trim()
+                  .charAt(0)
+                  .toUpperCase()}
+              </div>
             )}
             {sourceNode.prefix && (
               <span

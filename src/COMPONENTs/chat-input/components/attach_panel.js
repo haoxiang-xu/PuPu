@@ -122,6 +122,7 @@ const AttachPanel = ({
   onAttachFile,
   onAttachLink,
   modelOptions,
+  showModelSelector = true,
   selectedModelId,
   onSelectModel,
   onGroupToggle,
@@ -132,8 +133,10 @@ const AttachPanel = ({
   attachments = [],
   onRemoveAttachment,
   isStreaming = false,
+  showToolSelector = true,
   selectedToolkits = [],
   onToolkitsChange,
+  showWorkspaceSelector = true,
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
 }) => {
@@ -247,7 +250,8 @@ const AttachPanel = ({
         }}
       >
         {/* ── Model selector ── */}
-        {modelOptions &&
+        {showModelSelector &&
+          modelOptions &&
           modelOptions.length > 0 &&
           selectWrap(
             <Select
@@ -296,99 +300,103 @@ const AttachPanel = ({
             </div>
 
             {/* ── Tools selector (icon button + badge trigger) ── */}
-            <div style={{ position: "relative" }}>
-              <Select
-                multi
-                options={toolkitOptions}
-                value={selectedToolkits}
-                set_value={onToolkitsChange || (() => {})}
-                filterable={true}
-                filter_mode="panel"
-                search_placeholder="Search toolkits..."
-                open={openSelector === "tools"}
-                on_open_change={handleToolsOpenChange}
-                dropdown_style={{
-                  maxWidth: 300,
-                  minWidth: 220,
-                  maxHeight: 280,
-                }}
-                dropdown_footer={
-                  selectedToolkits.length > 0 ? (
-                    <ClearAllFooter
-                      onClear={() => (onToolkitsChange || (() => {}))([])}
-                      isDark={isDark}
-                    />
-                  ) : null
-                }
-                custom_trigger={
-                  <div style={{ position: "relative" }}>
-                    <Button
-                      prefix_icon="tool"
-                      title="Select toolkits"
-                      style={{
-                        color:
-                          selectedToolkits.length > 0
-                            ? "rgba(10,186,181,1)"
-                            : color,
-                        fontSize: 14,
-                        borderRadius: floating ? 22 : 16,
-                      }}
-                    />
-                    <Badge count={selectedToolkits.length} />
-                  </div>
-                }
-              />
-            </div>
+            {showToolSelector ? (
+              <div style={{ position: "relative" }}>
+                <Select
+                  multi
+                  options={toolkitOptions}
+                  value={selectedToolkits}
+                  set_value={onToolkitsChange || (() => {})}
+                  filterable={true}
+                  filter_mode="panel"
+                  search_placeholder="Search toolkits..."
+                  open={openSelector === "tools"}
+                  on_open_change={handleToolsOpenChange}
+                  dropdown_style={{
+                    maxWidth: 300,
+                    minWidth: 220,
+                    maxHeight: 280,
+                  }}
+                  dropdown_footer={
+                    selectedToolkits.length > 0 ? (
+                      <ClearAllFooter
+                        onClear={() => (onToolkitsChange || (() => {}))([])}
+                        isDark={isDark}
+                      />
+                    ) : null
+                  }
+                  custom_trigger={
+                    <div style={{ position: "relative" }}>
+                      <Button
+                        prefix_icon="tool"
+                        title="Select toolkits"
+                        style={{
+                          color:
+                            selectedToolkits.length > 0
+                              ? "rgba(10,186,181,1)"
+                              : color,
+                          fontSize: 14,
+                          borderRadius: floating ? 22 : 16,
+                        }}
+                      />
+                      <Badge count={selectedToolkits.length} />
+                    </div>
+                  }
+                />
+              </div>
+            ) : null}
 
             {/* ── Workspace selector (icon button + badge trigger) ── */}
-            <div style={{ position: "relative" }}>
-              <Select
-                multi
-                options={workspaceOptions}
-                value={selectedWorkspaceIds}
-                set_value={onWorkspaceIdsChange || (() => {})}
-                filterable={true}
-                filter_mode="panel"
-                search_placeholder="Search workspaces..."
-                open={openSelector === "workspace"}
-                on_open_change={(next) =>
-                  setOpenSelector(next ? "workspace" : null)
-                }
-                dropdown_style={{
-                  maxWidth: 300,
-                  minWidth: 220,
-                  maxHeight: 260,
-                }}
-                dropdown_footer={
-                  <WorkspaceFooter
-                    hasSelection={selectedWorkspaceIds.length > 0}
-                    onClear={() => (onWorkspaceIdsChange || (() => {}))([])}
-                    onAdd={() => {
-                      setOpenSelector(null);
-                      setWorkspaceModalOpen(true);
-                    }}
-                    isDark={isDark}
-                  />
-                }
-                custom_trigger={
-                  <div style={{ position: "relative" }}>
-                    <Button
-                      prefix_icon="folder_2"
-                      title="Select workspaces"
-                      style={{
-                        color:
-                          selectedWorkspaceIds.length > 0
-                            ? "rgba(10,186,181,1)"
-                            : color,
-                        fontSize: 14,
-                        borderRadius: floating ? 22 : 16,
+            {showWorkspaceSelector ? (
+              <div style={{ position: "relative" }}>
+                <Select
+                  multi
+                  options={workspaceOptions}
+                  value={selectedWorkspaceIds}
+                  set_value={onWorkspaceIdsChange || (() => {})}
+                  filterable={true}
+                  filter_mode="panel"
+                  search_placeholder="Search workspaces..."
+                  open={openSelector === "workspace"}
+                  on_open_change={(next) =>
+                    setOpenSelector(next ? "workspace" : null)
+                  }
+                  dropdown_style={{
+                    maxWidth: 300,
+                    minWidth: 220,
+                    maxHeight: 260,
+                  }}
+                  dropdown_footer={
+                    <WorkspaceFooter
+                      hasSelection={selectedWorkspaceIds.length > 0}
+                      onClear={() => (onWorkspaceIdsChange || (() => {}))([])}
+                      onAdd={() => {
+                        setOpenSelector(null);
+                        setWorkspaceModalOpen(true);
                       }}
+                      isDark={isDark}
                     />
-                    <Badge count={selectedWorkspaceIds.length} />
-                  </div>
-                }
-              />
-            </div>
+                  }
+                  custom_trigger={
+                    <div style={{ position: "relative" }}>
+                      <Button
+                        prefix_icon="folder_2"
+                        title="Select workspaces"
+                        style={{
+                          color:
+                            selectedWorkspaceIds.length > 0
+                              ? "rgba(10,186,181,1)"
+                              : color,
+                          fontSize: 14,
+                          borderRadius: floating ? 22 : 16,
+                        }}
+                      />
+                      <Badge count={selectedWorkspaceIds.length} />
+                    </div>
+                  }
+                />
+              </div>
+            ) : null}
           </div>
         )}
 

@@ -15,6 +15,7 @@ import inspect
 import importlib.util
 import json
 import os
+import re
 import sys
 import threading
 import uuid
@@ -75,8 +76,99 @@ def _long_term_profiles_dir(data_dir: str) -> str:
     return str(p)
 
 
+def _characters_dir(data_dir: str) -> str:
+    from pathlib import Path
+    p = Path(data_dir) / "characters"
+    p.mkdir(parents=True, exist_ok=True)
+    return str(p)
+
+
+def _character_avatars_dir(data_dir: str) -> str:
+    from pathlib import Path
+    p = Path(_characters_dir(data_dir)) / "avatars"
+    p.mkdir(parents=True, exist_ok=True)
+    return str(p)
+
+
+def _character_registry_path(data_dir: str) -> str:
+    return os.path.join(_characters_dir(data_dir), "registry.json")
+
+
 def _qdrant_meta_path(data_dir: str) -> str:
     return os.path.join(_qdrant_path(data_dir), "meta.json")
+
+
+def _session_store_path(data_dir: str, session_id: str) -> str:
+    from miso.memory.qdrant import JsonFileSessionStore
+
+    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    path_getter = getattr(store, "_path", None)
+    if not callable(path_getter):
+        raise RuntimeError("JsonFileSessionStore path helper is unavailable")
+    return str(path_getter(str(session_id or "")))
+
+
+def _long_term_profile_path(data_dir: str, namespace: str) -> str:
+    from miso.memory.manager import JsonFileLongTermProfileStore
+
+    store = JsonFileLongTermProfileStore(base_dir=_long_term_profiles_dir(data_dir))
+    path_getter = getattr(store, "_path", None)
+    if not callable(path_getter):
+        raise RuntimeError("JsonFileLongTermProfileStore path helper is unavailable")
+    return str(path_getter(str(namespace or "")))
+
+
+def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
+    from miso.memory.qdrant import JsonFileSessionStore
+
+    store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
+    try:
+        state = store.load(str(session_id or ""))
+    except Exception:
+        state = {}
+    return state if isinstance(state, dict) else {}
+
+
+def _load_long_term_profile(data_dir: str, namespace: str) -> dict[str, Any]:
+    from miso.memory.manager import JsonFileLongTermProfileStore
+
+    store = JsonFileLongTermProfileStore(base_dir=_long_term_profiles_dir(data_dir))
+    try:
+        profile = store.load(str(namespace or ""))
+    except Exception:
+        profile = {}
+    return profile if isinstance(profile, dict) else {}
+
+
+def _safe_long_term_namespace(namespace: str) -> str:
+    return "".join(
+        c if c.isalnum() or c == "_" else "_"
+        for c in str(namespace or "")
+    )
+
+
+def _list_long_term_collection_names_for_namespace(
+    client: Any,
+    namespace: str,
+) -> list[str]:
+    safe_namespace = _safe_long_term_namespace(namespace)
+    if not safe_namespace:
+        return []
+
+    pattern = re.compile(
+        rf"^long_term(?:_[a-f0-9]{{12}})?_{re.escape(safe_namespace)}$"
+    )
+    try:
+        collections = getattr(client.get_collections(), "collections", [])
+    except Exception:
+        collections = []
+
+    matches: list[str] = []
+    for item in collections:
+        name = getattr(item, "name", "")
+        if isinstance(name, str) and pattern.fullmatch(name):
+            matches.append(name)
+    return matches
 
 
 def _atomic_write_json(path: str, payload: Any) -> None:
@@ -1241,6 +1333,7 @@ def create_memory_manager_with_diagnostics(
                 "vector_min_score": short_term_min_score,
                 "vector_adapter": vector_adapter,
                 "long_term": long_term_config,
+                "deferred_tool_compaction_keep_completed_turns": 0,
             },
         )
 
@@ -1383,3 +1476,115 @@ def replace_short_term_session_memory(
     if cleanup_warning:
         response["cleanup_warning"] = cleanup_warning
     return response
+
+
+def delete_short_term_session_memory(
+    *,
+    session_id: str,
+) -> dict[str, Any]:
+    normalized_session_id = str(session_id or "").strip()
+    if not normalized_session_id:
+        raise ValueError("session_id is required")
+
+    data_dir = _normalize_data_dir(_data_dir())
+    if not data_dir:
+        raise RuntimeError("MISO_DATA_DIR not configured")
+
+    previous_state = _load_session_state(data_dir, normalized_session_id)
+    old_tag = str(previous_state.get("vector_collection_tag", "") or "").strip()
+    collection_names = {
+        _session_collection_name(
+            session_id=normalized_session_id,
+            collection_prefix=_vector_collection_prefix(old_tag),
+        ),
+        _session_collection_name(
+            session_id=normalized_session_id,
+            collection_prefix=_vector_collection_prefix(""),
+        ),
+    }
+
+    deleted_collections: list[str] = []
+    warnings: list[str] = []
+    client = None
+    if _QDRANT_AVAILABLE:
+        try:
+            client = _get_or_create_qdrant_client(data_dir)
+        except Exception as exc:
+            warnings.append(str(exc))
+            client = None
+
+    if client is not None:
+        for collection_name in sorted(collection_names):
+            if not collection_name:
+                continue
+            warning = _delete_collection_best_effort_with_warning(client, collection_name)
+            if warning:
+                warnings.append(f"{collection_name}: {warning}")
+            else:
+                deleted_collections.append(collection_name)
+
+    session_path = _session_store_path(data_dir, normalized_session_id)
+    session_deleted = False
+    if os.path.exists(session_path):
+        try:
+            os.remove(session_path)
+            session_deleted = True
+        except Exception as exc:
+            warnings.append(str(exc))
+
+    return {
+        "session_id": normalized_session_id,
+        "session_deleted": session_deleted,
+        "deleted_collections": deleted_collections,
+        "warnings": warnings,
+    }
+
+
+def delete_long_term_memory_namespace(
+    *,
+    namespace: str,
+) -> dict[str, Any]:
+    normalized_namespace = str(namespace or "").strip()
+    if not normalized_namespace:
+        raise ValueError("namespace is required")
+
+    data_dir = _normalize_data_dir(_data_dir())
+    if not data_dir:
+        raise RuntimeError("MISO_DATA_DIR not configured")
+
+    profile_path = _long_term_profile_path(data_dir, normalized_namespace)
+    profile_deleted = False
+    warnings: list[str] = []
+    if os.path.exists(profile_path):
+        try:
+            os.remove(profile_path)
+            profile_deleted = True
+        except Exception as exc:
+            warnings.append(str(exc))
+
+    deleted_collections: list[str] = []
+    client = None
+    if _QDRANT_AVAILABLE:
+        try:
+            client = _get_or_create_qdrant_client(data_dir)
+        except Exception as exc:
+            warnings.append(str(exc))
+            client = None
+
+    if client is not None:
+        for collection_name in _list_long_term_collection_names_for_namespace(
+            client,
+            normalized_namespace,
+        ):
+            warning = _delete_collection_best_effort_with_warning(client, collection_name)
+            if warning:
+                warnings.append(f"{collection_name}: {warning}")
+            else:
+                deleted_collections.append(collection_name)
+
+    return {
+        "namespace": normalized_namespace,
+        "profile_deleted": profile_deleted,
+        "deleted_collections": deleted_collections,
+        "warnings": warnings,
+    }
