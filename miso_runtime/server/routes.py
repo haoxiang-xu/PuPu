@@ -1,5 +1,7 @@
 import json
 import math
+import hmac
+import ipaddress
 import threading
 import time
 from typing import Any, Dict, Iterable, List
@@ -142,8 +144,51 @@ def _is_authorized() -> bool:
     expected_token = current_app.config.get("MISO_AUTH_TOKEN", "")
     if not expected_token:
         return True
+
     provided_token = request.headers.get("x-miso-auth", "")
-    return provided_token == expected_token
+    if not isinstance(provided_token, str) or not provided_token.strip():
+        provided_token = request.args.get("miso_auth", "")
+    if not isinstance(provided_token, str):
+        return False
+
+    normalized_token = provided_token.strip()
+    if not normalized_token:
+        return False
+
+    return hmac.compare_digest(normalized_token, str(expected_token))
+
+
+def _is_loopback_request() -> bool:
+    remote_addr = getattr(request, "remote_addr", "")
+    if not isinstance(remote_addr, str):
+        return False
+
+    normalized_remote_addr = remote_addr.strip()
+    if normalized_remote_addr.startswith("::ffff:"):
+        normalized_remote_addr = normalized_remote_addr.split("::ffff:", 1)[1]
+
+    if normalized_remote_addr == "localhost":
+        return True
+
+    try:
+        return ipaddress.ip_address(normalized_remote_addr).is_loopback
+    except ValueError:
+        return False
+
+
+@api_blueprint.before_request
+def reject_non_loopback_requests():
+    if _is_loopback_request():
+        return None
+
+    return jsonify(
+        {
+            "error": {
+                "code": "non_loopback_forbidden",
+                "message": "PuPu local runtime only accepts loopback requests",
+            }
+        }
+    ), 403
 
 
 def _normalize_attachment_modality(raw_modality: object) -> str:
@@ -569,6 +614,16 @@ def _normalize_cluster_labels(raw_labels: object, point_count: int) -> List[int]
 
 @api_blueprint.get("/health")
 def health() -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
     return jsonify(
         {
             "status": "ok",
@@ -1147,6 +1202,16 @@ def list_seed_characters() -> Response:
 
 @api_blueprint.get("/characters/seeds/<character_id>/avatar")
 def get_seed_character_avatar(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
     avatar_path = character_defaults.get_seed_avatar_path(character_id)
     if not avatar_path:
         return Response(status=404)
@@ -1181,6 +1246,16 @@ def list_characters() -> Response:
 
 @api_blueprint.get("/characters/<character_id>/avatar")
 def get_character_avatar(character_id: str) -> Response:
+    if not _is_authorized():
+        return jsonify(
+            {
+                "error": {
+                    "code": "unauthorized",
+                    "message": "Invalid auth token",
+                }
+            }
+        ), 401
+
     avatar_asset = character_store.get_character_avatar_asset(character_id)
     if not avatar_asset:
         return Response(status=404)

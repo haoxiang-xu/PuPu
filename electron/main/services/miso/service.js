@@ -453,6 +453,14 @@ const createMisoService = ({
     return `http://${MISO_HOST}:${misoPort}${endpoint}`;
   };
 
+  const buildMisoAssetUrl = (endpoint) => {
+    const baseUrl = buildMisoUrl(endpoint);
+    if (!misoAuthToken) {
+      return baseUrl;
+    }
+    return `${baseUrl}?miso_auth=${encodeURIComponent(misoAuthToken)}`;
+  };
+
   const decorateCharacterAvatar = (character, { seed = false } = {}) => {
     if (!character || typeof character !== "object" || Array.isArray(character)) {
       return character;
@@ -483,7 +491,7 @@ const createMisoService = ({
     }
 
     const avatar = avatarMeta ? { ...avatarMeta } : {};
-    avatar.url = buildMisoUrl(
+    avatar.url = buildMisoAssetUrl(
       seed
         ? `${MISO_CHARACTERS_ENDPOINT}/seeds/${encodeURIComponent(characterId)}/avatar`
         : `${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(characterId)}/avatar`,

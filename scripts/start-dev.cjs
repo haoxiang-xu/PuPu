@@ -7,6 +7,7 @@ const { createPortFinder } = require("../electron/shared/port_utils");
 
 const DEFAULT_WEB_PORT = 2907;
 const DEFAULT_WEB_PORT_RANGE_END = 2925;
+const DEV_SERVER_HOST = "127.0.0.1";
 const REACT_SCRIPTS_ENTRY = path.join(
   __dirname,
   "..",
@@ -87,6 +88,9 @@ const main = async () => {
   }
 
   const { port, preferredPort } = await pickDevServerPort();
+  // Keep the browser origin on localhost so Chromium localStorage/session data
+  // stays on the same origin as prior dev runs, while the server still binds
+  // only to 127.0.0.1.
   const devServerUrl = `http://localhost:${port}/#`;
 
   if (port === preferredPort) {
@@ -105,6 +109,7 @@ const main = async () => {
       env: {
         ...process.env,
         BROWSER: "none",
+        HOST: DEV_SERVER_HOST,
         PORT: String(port),
       },
       stdio: "inherit",

@@ -34,7 +34,7 @@
   },
   "scripts": {
     "start": "npm run start:electron",
-    "start:web": "cross-env BROWSER=none PORT=2907 react-scripts start",
+    "start:web": "cross-env BROWSER=none HOST=127.0.0.1 PORT=2907 react-scripts start",
     "start:electron": "node ./scripts/start-dev.cjs",
     "electron:start": "electron .",
     "react-start": "npm run start:web",

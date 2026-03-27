@@ -292,7 +292,7 @@ describe("miso service session memory replacement", () => {
           name: "Nico",
           avatar: {
             absolute_path: "/tmp/nico.png",
-            url: "http://127.0.0.1:5879/characters/seeds/nico/avatar",
+            url: "http://127.0.0.1:5879/characters/seeds/nico/avatar?miso_auth=auth-token-123",
           },
           metadata: { origin: "builtin_seed" },
         },
@@ -373,7 +373,7 @@ describe("miso service session memory replacement", () => {
           id: "nico",
           name: "Nico",
           avatar: {
-            url: "http://127.0.0.1:5879/characters/nico/avatar",
+            url: "http://127.0.0.1:5879/characters/nico/avatar?miso_auth=auth-token-123",
           },
           metadata: { origin: "builtin_seed" },
         },

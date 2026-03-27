@@ -117,6 +117,37 @@ class CharacterRouteTests(unittest.TestCase):
         self.assertEqual(response.headers.get("Cache-Control"), "no-store")
         self.assertGreater(len(response.data), 0)
 
+    def test_seed_avatar_route_rejects_missing_auth_token_when_configured(self) -> None:
+        authed_app = miso_app.create_app()
+        authed_app.config["MISO_AUTH_TOKEN"] = "secret-token"
+        client = authed_app.test_client()
+
+        response = client.get("/characters/seeds/nico/avatar")
+
+        self.assertEqual(response.status_code, 401)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "unauthorized")
+
+    def test_seed_avatar_route_accepts_query_auth_token(self) -> None:
+        authed_app = miso_app.create_app()
+        authed_app.config["MISO_AUTH_TOKEN"] = "secret-token"
+        client = authed_app.test_client()
+
+        response = client.get("/characters/seeds/nico/avatar?miso_auth=secret-token")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.mimetype, "image/png")
+
+    def test_health_route_rejects_non_loopback_requests(self) -> None:
+        response = self.client.get(
+            "/health",
+            environ_overrides={"REMOTE_ADDR": "192.168.1.10"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        payload = response.get_json()
+        self.assertEqual(payload["error"]["code"], "non_loopback_forbidden")
+
     def test_builtin_nico_legacy_registry_is_upgraded_with_default_model(self) -> None:
         data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
         memory_factory._atomic_write_json(
