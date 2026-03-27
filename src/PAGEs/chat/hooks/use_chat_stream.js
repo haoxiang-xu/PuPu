@@ -1857,6 +1857,7 @@ export const useChatStream = ({
       appendSyntheticToolConfirmationDecision,
       buildCharacterRunConfig,
       buildHistoryForModel,
+      characterId,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,

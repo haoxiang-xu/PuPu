@@ -10,13 +10,6 @@ const CHARACTER_SUB_PAGES = [
   { key: "find", icon: "search", label: "Find" },
 ];
 
-/* ── Character source types (extensible for future store/community) ── */
-const CHARACTER_SOURCES = {
-  SEED: "seed",
-  // COMMUNITY: "community",
-  // STORE: "store",
-};
-
 const FONT = "Jost, sans-serif";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
