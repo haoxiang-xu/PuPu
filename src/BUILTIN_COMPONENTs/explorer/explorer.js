@@ -110,6 +110,77 @@ const isDescendantOf = (map, ancestorId, targetId) => {
   return false;
 };
 
+const resolveCharacterAvatarSrc = (avatar) => {
+  const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
+  if (rawUrl) {
+    return rawUrl;
+  }
+
+  const rawPath =
+    typeof avatar?.absolute_path === "string"
+      ? avatar.absolute_path.trim()
+      : "";
+  if (!rawPath) {
+    return "";
+  }
+  if (/^(https?:|data:|file:)/i.test(rawPath)) {
+    return rawPath;
+  }
+
+  const normalized = rawPath.replace(/\\/g, "/");
+  return normalized.startsWith("/")
+    ? encodeURI(`file://${normalized}`)
+    : encodeURI(`file:///${normalized}`);
+};
+
+const getCharacterFallbackInitial = (name) => {
+  const normalized =
+    typeof name === "string" && name.trim() ? name.trim().charAt(0) : "C";
+  return normalized.toUpperCase();
+};
+
+const CharacterDragAvatar = ({ avatar, name, isDark, size = 20 }) => {
+  const [imageBroken, setImageBroken] = useState(false);
+  const avatarSrc = resolveCharacterAvatarSrc(avatar);
+  const showImage = Boolean(avatarSrc) && !imageBroken;
+
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        overflow: "hidden",
+        flexShrink: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: isDark
+          ? "linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))"
+          : "linear-gradient(160deg, rgba(0,0,0,0.1), rgba(0,0,0,0.03))",
+        border: isDark
+          ? "1px solid rgba(255,255,255,0.10)"
+          : "1px solid rgba(0,0,0,0.08)",
+        color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
+        fontSize: 10,
+        fontWeight: 700,
+        fontFamily: "NunitoSans, sans-serif",
+      }}
+    >
+      {showImage ? (
+        <img
+          src={avatarSrc}
+          alt={`${name || "character"} avatar`}
+          onError={() => setImageBroken(true)}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      ) : (
+        getCharacterFallbackInitial(name)
+      )}
+    </div>
+  );
+};
+
 /** Collect the set of visible IDs that form the highlight scope for `hoveredId`.
  *  - File → parent folder + all its visible descendants
  *  - Folder → itself + all its visible descendants */
@@ -1727,32 +1798,12 @@ const Explorer = ({
               </span>
             )}
             {sourceNode.chatKind === "character" && (
-              <div
-                style={{
-                  width: 20,
-                  height: 20,
-                  borderRadius: "50%",
-                  overflow: "hidden",
-                  flexShrink: 0,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  background: isDark
-                    ? "linear-gradient(160deg, rgba(255,255,255,0.12), rgba(255,255,255,0.04))"
-                    : "linear-gradient(160deg, rgba(0,0,0,0.1), rgba(0,0,0,0.03))",
-                  color: isDark
-                    ? "rgba(255,255,255,0.86)"
-                    : "rgba(0,0,0,0.72)",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  fontFamily: "NunitoSans, sans-serif",
-                }}
-              >
-                {(sourceNode.characterName || sourceNode.label || "C")
-                  .trim()
-                  .charAt(0)
-                  .toUpperCase()}
-              </div>
+              <CharacterDragAvatar
+                avatar={sourceNode.characterAvatar}
+                name={sourceNode.characterName || sourceNode.label || "C"}
+                isDark={isDark}
+                size={20}
+              />
             )}
             {sourceNode.prefix && (
               <span

@@ -36,6 +36,8 @@ const invokeMiso = async (
 export const runtimeBridge = {
   isChromeTerminalControlAvailable: () =>
     hasBridgeMethod("misoAPI", "setChromeTerminalOpen"),
+  isBuildFeatureFlagsSyncAvailable: () =>
+    hasBridgeMethod("misoAPI", "syncBuildFeatureFlagsSnapshot"),
   isWorkspaceValidationAvailable: () =>
     hasBridgeMethod("misoAPI", "validateWorkspaceRoot"),
   isWorkspacePickerAvailable: () =>
@@ -74,6 +76,33 @@ export const runtimeBridge = {
     return {
       ok: Boolean(response?.ok),
       open: typeof response?.open === "boolean" ? response.open : nextOpen,
+      error: typeof response?.error === "string" ? response.error : "",
+    };
+  },
+
+  syncBuildFeatureFlagsSnapshot: async (featureFlags = {}) => {
+    if (!runtimeBridge.isBuildFeatureFlagsSyncAvailable()) {
+      throw new FrontendApiError(
+        "bridge_unavailable",
+        "misoAPI.syncBuildFeatureFlagsSnapshot is unavailable",
+      );
+    }
+
+    const response = await invokeMiso(
+      "syncBuildFeatureFlagsSnapshot",
+      [featureFlags],
+      {
+        timeoutMs: 6000,
+        timeoutCode: "miso_build_feature_flags_snapshot_timeout",
+        timeoutMessage: "Build feature flag snapshot sync timed out",
+        failureCode: "miso_build_feature_flags_snapshot_failed",
+        failureMessage: "Failed to sync build feature flag snapshot",
+      },
+    );
+
+    return {
+      ok: Boolean(response?.ok),
+      path: toTrimmedString(response?.path),
       error: typeof response?.error === "string" ? response.error : "",
     };
   },

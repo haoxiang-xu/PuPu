@@ -3,9 +3,11 @@ const { createRuntimeService } = require("../../main/services/runtime/service");
 
 const createService = ({ app, getMainWindow } = {}) =>
   createRuntimeService({
-    app: app || {
+    app: {
       isPackaged: false,
       getPath: jest.fn(() => "/tmp"),
+      getAppPath: jest.fn(() => "/tmp/app"),
+      ...(app || {}),
     },
     dialog: {
       showOpenDialog: jest.fn(),
@@ -18,6 +20,8 @@ const createService = ({ app, getMainWindow } = {}) =>
       statSync: jest.fn(),
       readdirSync: jest.fn(() => []),
       rmSync: jest.fn(),
+      mkdirSync: jest.fn(),
+      writeFileSync: jest.fn(),
     },
     path,
     getMainWindow: getMainWindow || jest.fn(() => null),
@@ -75,6 +79,57 @@ describe("runtime service chrome terminal control", () => {
       open: true,
       error: "main_window_unavailable",
     });
+  });
+
+  test("syncBuildFeatureFlagsSnapshot writes the current snapshot under app root", () => {
+    const appPath = "/tmp/pupu-app";
+    const fs = {
+      existsSync: jest.fn(() => false),
+      statSync: jest.fn(),
+      readdirSync: jest.fn(() => []),
+      rmSync: jest.fn(),
+      mkdirSync: jest.fn(),
+      writeFileSync: jest.fn(),
+    };
+
+    const service = createRuntimeService({
+      app: {
+        isPackaged: false,
+        getPath: jest.fn(() => "/tmp"),
+        getAppPath: jest.fn(() => appPath),
+      },
+      dialog: {
+        showOpenDialog: jest.fn(),
+      },
+      shell: {
+        openPath: jest.fn(),
+      },
+      fs,
+      path,
+      getMainWindow: jest.fn(() => null),
+    });
+
+    expect(
+      service.syncBuildFeatureFlagsSnapshot({
+        featureFlags: {
+          enable_user_access_to_agent_modal: true,
+        },
+      }),
+    ).toEqual({
+      ok: true,
+      path: path.join(appPath, ".local", "build_feature_flags.snapshot.json"),
+      error: "",
+    });
+
+    expect(fs.mkdirSync).toHaveBeenCalledWith(
+      path.join(appPath, ".local"),
+      { recursive: true },
+    );
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      path.join(appPath, ".local", "build_feature_flags.snapshot.json"),
+      '{\n  "enable_user_access_to_agent_modal": true\n}\n',
+      "utf-8",
+    );
   });
 
   test("getCharacterStorageSize aggregates registry, avatars, sessions, and profiles", () => {
@@ -143,6 +198,7 @@ describe("runtime service chrome terminal control", () => {
       app: {
         isPackaged: false,
         getPath: jest.fn((key) => (key === "userData" ? userDataPath : "/tmp")),
+        getAppPath: jest.fn(() => "/tmp/app"),
       },
       dialog: {
         showOpenDialog: jest.fn(),
@@ -189,6 +245,7 @@ describe("runtime service chrome terminal control", () => {
       app: {
         isPackaged: false,
         getPath: jest.fn((key) => (key === "userData" ? userDataPath : "/tmp")),
+        getAppPath: jest.fn(() => "/tmp/app"),
       },
       dialog: {
         showOpenDialog: jest.fn(),

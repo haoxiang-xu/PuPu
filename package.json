@@ -42,7 +42,7 @@
     "electron-start": "npm run start:electron",
     "version:prepare-build": "node ./scripts/prepare-build-version.cjs",
     "build": "npm run version:prepare-build && cross-env PUPU_VERSION_PREPARED=1 npm run build:web",
-    "build:web": "npm run version:prepare-build && react-scripts build",
+    "build:web": "npm run version:prepare-build && node ./scripts/build-web.cjs",
     "build:miso": "npm run version:prepare-build && bash ./miso_runtime/scripts/build_miso_server.sh",
     "build:miso:mac": "npm run version:prepare-build && bash ./miso_runtime/scripts/build_miso_server.sh macos",
     "build:miso:mac:intel": "npm run version:prepare-build && MISO_TARGET_ARCH=x86_64 bash ./miso_runtime/scripts/build_miso_server.sh macos",

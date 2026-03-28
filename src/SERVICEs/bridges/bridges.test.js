@@ -187,6 +187,30 @@ describe("bridge wrappers", () => {
     });
   });
 
+  test("runtimeBridge.syncBuildFeatureFlagsSnapshot forwards flags and normalizes payload", async () => {
+    window.misoAPI = {
+      syncBuildFeatureFlagsSnapshot: jest.fn(async (featureFlags) => ({
+        ok: true,
+        path: " /tmp/app/.local/build_feature_flags.snapshot.json ",
+        error: "",
+        featureFlags,
+      })),
+    };
+
+    await expect(
+      runtimeBridge.syncBuildFeatureFlagsSnapshot({
+        enable_user_access_to_agent_modal: true,
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      path: "/tmp/app/.local/build_feature_flags.snapshot.json",
+      error: "",
+    });
+    expect(window.misoAPI.syncBuildFeatureFlagsSnapshot).toHaveBeenCalledWith({
+      enable_user_access_to_agent_modal: true,
+    });
+  });
+
   test("ollamaBridge getStatus reports standardized error code", async () => {
     window.ollamaAPI = {
       getStatus: jest.fn(async () => {

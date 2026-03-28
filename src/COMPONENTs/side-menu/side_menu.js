@@ -29,6 +29,10 @@ import {
   importFromFile,
   importFromDroppedFile,
 } from "../../SERVICEs/chat_export";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../SERVICEs/feature_flags";
 
 export { sideMenuChatTreeAPI };
 
@@ -187,6 +191,7 @@ const SideMenu = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
   const [agentsOpen, setAgentsOpen] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [contextMenu, setContextMenu] = useState({
@@ -216,6 +221,8 @@ const SideMenu = () => {
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
   const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const isAgentModalEnabled =
+    featureFlags.enable_user_access_to_agent_modal === true;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -237,6 +244,17 @@ const SideMenu = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    setFeatureFlags(readFeatureFlags());
+    return subscribeFeatureFlags(setFeatureFlags);
+  }, []);
+
+  useEffect(() => {
+    if (!isAgentModalEnabled) {
+      setAgentsOpen(false);
+    }
+  }, [isAgentModalEnabled]);
 
   const closeContextMenu = useCallback(
     () => setContextMenu((c) => ({ ...c, visible: false })),
@@ -555,21 +573,23 @@ const SideMenu = () => {
             iconSize: 16,
           }}
         />
-        <Button
-          prefix_icon="bot"
-          label="Agents"
-          onClick={() => setAgentsOpen(true)}
-          style={{
-            width: "100%",
-            justifyContent: "flex-start",
-            fontSize: 14,
-            padding: "5px 8px",
-            borderRadius: 6,
-            marginBottom: 2,
-            WebkitAppRegion: "no-drag",
-            iconSize: 16,
-          }}
-        />
+        {isAgentModalEnabled && (
+          <Button
+            prefix_icon="bot"
+            label="Agents"
+            onClick={() => setAgentsOpen(true)}
+            style={{
+              width: "100%",
+              justifyContent: "flex-start",
+              fontSize: 14,
+              padding: "5px 8px",
+              borderRadius: 6,
+              marginBottom: 2,
+              WebkitAppRegion: "no-drag",
+              iconSize: 16,
+            }}
+          />
+        )}
         <Button
           prefix_icon="folder_2"
           label="Workspaces"
@@ -666,7 +686,10 @@ const SideMenu = () => {
 
       <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
 
-      <AgentsModal open={agentsOpen} onClose={() => setAgentsOpen(false)} />
+      <AgentsModal
+        open={isAgentModalEnabled && agentsOpen}
+        onClose={() => setAgentsOpen(false)}
+      />
 
       <WorkspaceModal
         open={workspaceModalOpen}

@@ -18,6 +18,10 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN, {
       open: Boolean(open),
     }),
+  syncBuildFeatureFlagsSnapshot: (featureFlags = {}) =>
+    ipcRenderer.invoke(CHANNELS.MISO.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT, {
+      featureFlags,
+    }),
   pickWorkspaceRoot: (defaultPath = "") =>
     ipcRenderer.invoke(CHANNELS.MISO.PICK_WORKSPACE_ROOT, { defaultPath }),
   validateWorkspaceRoot: (path = "") =>

@@ -61,6 +61,7 @@ describe("preload API contract", () => {
       "getToolkitCatalog",
       "respondToolConfirmation",
       "setChromeTerminalOpen",
+      "syncBuildFeatureFlagsSnapshot",
       "pickWorkspaceRoot",
       "validateWorkspaceRoot",
       "openRuntimeFolder",
@@ -108,6 +109,18 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
       { open: true },
+    );
+
+    exposed.misoAPI.syncBuildFeatureFlagsSnapshot({
+      enable_user_access_to_agent_modal: true,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.MISO.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
+      {
+        featureFlags: {
+          enable_user_access_to_agent_modal: true,
+        },
+      },
     );
 
     exposed.misoAPI.replaceSessionMemory({ sessionId: "chat-1", messages: [] });
