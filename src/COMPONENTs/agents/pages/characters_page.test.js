@@ -72,12 +72,10 @@ describe("CharactersPage", () => {
 
     expect(screen.getByTestId("characters-loading")).toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(screen.getByTestId("character-row-nico")).toBeInTheDocument(),
-    );
-    await waitFor(() =>
-      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
-    );
+    expect(await screen.findByTestId("character-row-nico")).toBeInTheDocument();
+    expect(
+      await screen.findByTestId("character-detail-nico"),
+    ).toBeInTheDocument();
 
     expect(api.miso.listCharacters).toHaveBeenCalledTimes(1);
     /* Name appears in both contact row and detail panel */
@@ -93,6 +91,10 @@ describe("CharactersPage", () => {
       "overflow-y: auto; overflow-x: hidden;",
     );
     expect(screen.getByText("22")).toBeInTheDocument();
+    expect(screen.getByText("Work")).toBeInTheDocument();
+    expect(
+      screen.queryByText("互联网公司 HR，刚开始有点冷，熟了以后很会聊情绪和关系。"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("INFP")).toBeInTheDocument();
     expect(screen.getByText("猫控")).toBeInTheDocument();
     expect(screen.getAllByText("Chat").length).toBeGreaterThan(0);
@@ -129,26 +131,27 @@ describe("CharactersPage", () => {
 
     render(<CharactersPage isDark={false} onOpenChat={onOpenChat} />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByTestId("character-detail-nico"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Chat"));
 
-    await waitFor(() => {
-      expect(getChatsStore).toHaveBeenCalled();
+    await waitFor(() =>
       expect(openCharacterChat).toHaveBeenCalledWith(
         expect.objectContaining({
           character: expect.objectContaining({ id: "nico" }),
           sourceModelId: "openai:gpt-5",
         }),
         { source: "characters-page" },
-      );
-      expect(onOpenChat).toHaveBeenCalled();
-      expect(
-        screen.queryByText("Could not open this character chat."),
-      ).not.toBeInTheDocument();
-    });
+      ),
+    );
+
+    expect(getChatsStore).toHaveBeenCalled();
+    expect(onOpenChat).toHaveBeenCalled();
+    expect(
+      screen.queryByText("Could not open this character chat."),
+    ).not.toBeInTheDocument();
   });
 
   test("open chat shows store errors inline", async () => {
@@ -170,19 +173,17 @@ describe("CharactersPage", () => {
 
     render(<CharactersPage isDark={false} />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByTestId("character-detail-nico"),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Chat"));
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          "Select a model in a normal chat before opening this character.",
-        ),
-      ).toBeInTheDocument();
-    });
+    expect(
+      await screen.findByText(
+        "Select a model in a normal chat before opening this character.",
+      ),
+    ).toBeInTheDocument();
   });
 
   test("renders an empty state when no characters exist", async () => {
@@ -193,9 +194,9 @@ describe("CharactersPage", () => {
 
     render(<CharactersPage isDark={true} />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("characters-added-empty")).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByTestId("characters-added-empty"),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Not following any characters yet"),
     ).toBeInTheDocument();
@@ -206,9 +207,7 @@ describe("CharactersPage", () => {
 
     render(<CharactersPage isDark={false} />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("characters-error")).toBeInTheDocument(),
-    );
+    expect(await screen.findByTestId("characters-error")).toBeInTheDocument();
     expect(screen.getByText("Could not load characters")).toBeInTheDocument();
     expect(screen.getByText("runtime unavailable")).toBeInTheDocument();
   });
@@ -235,9 +234,9 @@ describe("CharactersPage", () => {
 
     render(<CharactersPage isDark={false} />);
 
-    await waitFor(() =>
-      expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
-    );
+    expect(
+      await screen.findByTestId("character-detail-nico"),
+    ).toBeInTheDocument();
 
     expect(screen.getAllByAltText("Nico avatar")).toHaveLength(2);
     expect(

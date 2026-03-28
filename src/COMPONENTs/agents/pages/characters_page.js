@@ -82,6 +82,9 @@ const subtitleForCharacter = (character) => {
   return parts.join(" · ");
 };
 
+const workLabelForCharacter = (character) =>
+  typeof character?.role === "string" ? character.role.trim() : "";
+
 const resolveSourceModelIdFromStore = () => {
   const store = getChatsStore();
   const activeChat =
@@ -406,10 +409,7 @@ const CharacterDetailPanel = ({
   const tags = listTagsForCharacter(character);
   const ageLabel = ageLabelForCharacter(character);
   const subtitle = subtitleForCharacter(character);
-  const blurb =
-    typeof character?.metadata?.list_blurb === "string"
-      ? character.metadata.list_blurb.trim()
-      : "";
+  const workLabel = workLabelForCharacter(character);
   const avatarSrc = resolveAvatarSrc(character);
   const showImage = Boolean(avatarSrc) && !imageBroken;
 
@@ -560,7 +560,7 @@ const CharacterDetailPanel = ({
       ) : null}
 
       {/* ── Grouped info sections ── */}
-      {(blurb || tags.length > 0) ? (
+      {(workLabel || tags.length > 0) ? (
         <div
           style={{
             marginTop: 22,
@@ -570,7 +570,7 @@ const CharacterDetailPanel = ({
             overflow: "hidden",
           }}
         >
-          {blurb ? (
+          {workLabel ? (
             <div style={{ padding: "14px 16px" }}>
               <div
                 style={{
@@ -583,7 +583,7 @@ const CharacterDetailPanel = ({
                   marginBottom: 6,
                 }}
               >
-                About
+                Work
               </div>
               <div
                 style={{
@@ -593,12 +593,12 @@ const CharacterDetailPanel = ({
                   lineHeight: 1.6,
                 }}
               >
-                {blurb}
+                {workLabel}
               </div>
             </div>
           ) : null}
 
-          {blurb && tags.length > 0 ? (
+          {workLabel && tags.length > 0 ? (
             <div style={{ height: 1, background: dividerColor, marginLeft: 16 }} />
           ) : null}
 
