@@ -355,8 +355,7 @@ const ToolkitDetailPanel = ({
       <div
         style={{
           flexShrink: 0,
-          padding: "0 24px 16px 0",
-          borderBottom: showHeader ? `1px solid ${dividerColor}` : "none",
+          paddingRight: 24,
         }}
       >
         <div style={{ marginBottom: showHeader ? 12 : 0 }}>
@@ -460,6 +459,16 @@ const ToolkitDetailPanel = ({
               )}
             </div>
           </div>
+        )}
+
+        {showHeader && (
+          <div
+            style={{
+              height: 1,
+              backgroundColor: dividerColor,
+              marginTop: 16,
+            }}
+          />
         )}
       </div>
 
