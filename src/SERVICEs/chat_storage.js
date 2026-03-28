@@ -9,6 +9,7 @@ export {
   duplicateTreeNodeSubtree,
   getChatsStore,
   openCharacterChat,
+  refreshCharacterChatMetadata,
   renameTreeNode,
   selectTreeNode,
   setChatGeneratedUnread,

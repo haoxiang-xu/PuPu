@@ -82,17 +82,20 @@ describe("CharactersPage", () => {
     expect(api.miso.listCharacters).toHaveBeenCalledTimes(1);
     /* Name appears in both contact row and detail panel */
     expect(screen.getAllByText("Nico")).toHaveLength(2);
-    /* Subtitle appears in both contact row and detail panel */
+    /* Subtitle now appears only in the detail panel */
     expect(
       screen.getAllByText("22-year-old HR at an internet company · zh-CN"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
 
     /* Detail panel auto-selected — shows age badge, tags, blurb, Open Chat */
     expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument();
+    expect(screen.getByTestId("character-detail-scroll-region")).toHaveStyle(
+      "overflow-y: auto; overflow-x: hidden;",
+    );
     expect(screen.getByText("22")).toBeInTheDocument();
     expect(screen.getByText("INFP")).toBeInTheDocument();
     expect(screen.getByText("猫控")).toBeInTheDocument();
-    expect(screen.getByText("Open Chat")).toBeInTheDocument();
+    expect(screen.getAllByText("Chat").length).toBeGreaterThan(0);
     expect(screen.getAllByTestId("character-avatar-fallback-nico")).toHaveLength(2);
   });
 
@@ -130,7 +133,7 @@ describe("CharactersPage", () => {
       expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
     );
 
-    fireEvent.click(screen.getByText("Open Chat"));
+    fireEvent.click(screen.getByText("Chat"));
 
     await waitFor(() => {
       expect(getChatsStore).toHaveBeenCalled();
@@ -171,7 +174,7 @@ describe("CharactersPage", () => {
       expect(screen.getByTestId("character-detail-nico")).toBeInTheDocument(),
     );
 
-    fireEvent.click(screen.getByText("Open Chat"));
+    fireEvent.click(screen.getByText("Chat"));
 
     await waitFor(() => {
       expect(
@@ -193,7 +196,9 @@ describe("CharactersPage", () => {
     await waitFor(() =>
       expect(screen.getByTestId("characters-added-empty")).toBeInTheDocument(),
     );
-    expect(screen.getByText("No characters added yet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Not following any characters yet"),
+    ).toBeInTheDocument();
   });
 
   test("renders an error state when loading fails", async () => {

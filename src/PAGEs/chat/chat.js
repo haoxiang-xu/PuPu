@@ -11,6 +11,7 @@ import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import {
   bootstrapChatsStore,
+  refreshCharacterChatMetadata,
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
@@ -289,11 +290,28 @@ const ChatInterface = () => {
     }
 
     refreshModelCatalog();
+    let cancelled = false;
+    const refreshPersistedCharacterAvatars = async () => {
+      try {
+        const response = await api.miso.listCharacters();
+        if (cancelled) {
+          return;
+        }
+        refreshCharacterChatMetadata(response?.characters || [], {
+          source: "character-avatar-refresh",
+        });
+      } catch (_error) {
+        // ignore transient character catalog failures
+      }
+    };
+
+    refreshPersistedCharacterAvatars();
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
     });
 
     return () => {
+      cancelled = true;
       unsubscribeModelCatalogRefresh();
     };
   }, [misoStatus.ready, refreshModelCatalog]);

@@ -93,6 +93,21 @@ export const useChatSessionState = ({
       }
 
       if (nextActiveId === currentActiveId) {
+        setActiveChatKind(
+          nextActiveChat.kind === "character" ? "character" : "default",
+        );
+        setActiveCharacterId(
+          typeof nextActiveChat.characterId === "string"
+            ? nextActiveChat.characterId
+            : "",
+        );
+        setActiveCharacterName(
+          typeof nextActiveChat.characterName === "string"
+            ? nextActiveChat.characterName
+            : "",
+        );
+        setActiveCharacterAvatar(nextActiveChat.characterAvatar || null);
+
         if (event.type === "chat_update_messages") {
           setMessages(nextActiveChat.messages || []);
           return;

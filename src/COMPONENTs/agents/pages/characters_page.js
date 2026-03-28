@@ -1,11 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSprings, animated, to as interpolate } from "react-spring";
+import { useDrag } from "@use-gesture/react";
 import { api } from "../../../SERVICEs/api";
 import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 const CHARACTER_SUB_PAGES = [
-  { key: "added", icon: "check", label: "Added" },
+  { key: "added", icon: "check", label: "Following" },
   { key: "find", icon: "search", label: "Discover" },
 ];
 
@@ -209,7 +211,6 @@ const CharacterAvatar = ({ character, isDark, size = 54 }) => {
 
 const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenChat }) => {
   const [hovered, setHovered] = useState(false);
-  const subtitle = subtitleForCharacter(character);
 
   const bg = isSelected
     ? isDark
@@ -231,8 +232,8 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
         display: "flex",
         alignItems: "center",
         gap: 10,
-        minHeight: 54,
-        padding: "8px 12px",
+        minHeight: 48,
+        padding: "6px 12px",
         margin: 0,
         borderRadius: 7,
         cursor: "pointer",
@@ -259,24 +260,9 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
         >
           {character?.name || "Character"}
         </div>
-        {subtitle ? (
-          <div
-            style={{
-              marginTop: 2,
-              fontSize: 11.5,
-              fontFamily: FONT,
-              color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {subtitle}
-          </div>
-        ) : null}
       </div>
 
-      {hovered && onOpenChat ? (
+      {onOpenChat ? (
         <Button
           prefix_icon="chat"
           onClick={(e) => {
@@ -287,7 +273,8 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
             paddingVertical: 5,
             paddingHorizontal: 5,
             borderRadius: 7,
-            opacity: 0.6,
+            opacity: hovered || isSelected ? 0.72 : 0.42,
+            flexShrink: 0,
             content: {
               icon: { width: 15, height: 15 },
             },
@@ -302,6 +289,61 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
 /*  Right: Detail Panel (with delete support)                                                            */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+/* ── Circular action button for detail panel ── */
+const DetailActionCircle = ({ icon, label, color, isDark, onClick, disabled }) => {
+  const [hovered, setHovered] = useState(false);
+  const baseColor = color || (isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)");
+
+  return (
+    <button
+      type="button"
+      onClick={disabled ? undefined : onClick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      disabled={disabled}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        gap: 5,
+        background: "none",
+        border: "none",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.4 : 1,
+        padding: 0,
+      }}
+    >
+      <div
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          background: isDark
+            ? hovered ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)"
+            : hovered ? "rgba(0,0,0,0.08)" : "rgba(0,0,0,0.04)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          transition: "background 0.15s ease, transform 0.15s ease",
+          transform: hovered ? "scale(1.08)" : "scale(1)",
+        }}
+      >
+        <Icon src={icon} style={{ width: 19, height: 19 }} color={baseColor} />
+      </div>
+      <span
+        style={{
+          fontSize: 10.5,
+          fontWeight: 500,
+          fontFamily: FONT,
+          color: baseColor,
+        }}
+      >
+        {label}
+      </span>
+    </button>
+  );
+};
+
 const CharacterDetailPanel = ({
   character,
   isDark,
@@ -311,6 +353,12 @@ const CharacterDetailPanel = ({
   onRemove,
   isRemoving,
 }) => {
+  const [imageBroken, setImageBroken] = useState(false);
+
+  useEffect(() => {
+    setImageBroken(false);
+  }, [character?.id]);
+
   if (!character) {
     return (
       <div
@@ -362,274 +410,333 @@ const CharacterDetailPanel = ({
     typeof character?.metadata?.list_blurb === "string"
       ? character.metadata.list_blurb.trim()
       : "";
+  const avatarSrc = resolveAvatarSrc(character);
+  const showImage = Boolean(avatarSrc) && !imageBroken;
+
+  const groupBg = isDark ? "rgba(255,255,255,0.045)" : "rgba(0,0,0,0.03)";
+  const dividerColor = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)";
 
   return (
     <div
       data-testid={`character-detail-${character?.id || "unknown"}`}
-      className="scrollable"
       style={{
+        width: "100%",
+        boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        height: "100%",
-        overflowY: "auto",
-        padding: "32px 32px 24px",
+        alignItems: "center",
+        padding: "28px 24px 28px",
+        gap: 0,
       }}
     >
-      {/* ── Header (centered) ─────────────────────────── */}
+      {/* ── Square avatar ── */}
       <div
         style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: 0,
+          width: 160,
+          height: 160,
+          borderRadius: 7,
+          overflow: "hidden",
+          flexShrink: 0,
+          background: isDark
+            ? "linear-gradient(145deg, #2a2d30 0%, #1a1d20 100%)"
+            : "linear-gradient(145deg, #d8dddf 0%, #c2c7ca 100%)",
         }}
       >
-        <CharacterAvatar character={character} isDark={isDark} size={72} />
+        {showImage ? (
+          <img
+            src={avatarSrc}
+            alt={`${character?.name || "character"} avatar`}
+            onError={() => setImageBroken(true)}
+            draggable={false}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              pointerEvents: "none",
+            }}
+          />
+        ) : (
+          <div
+            data-testid={`character-avatar-fallback-${character?.id || "unknown"}`}
+            style={{
+              width: "100%",
+              height: "100%",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.3)",
+              fontSize: 56,
+              fontWeight: 700,
+              fontFamily: "NunitoSans, sans-serif",
+            }}
+          >
+            {fallbackInitial(character)}
+          </div>
+        )}
+      </div>
 
+      {/* ── Name + subtitle ── */}
+      <div style={{ marginTop: 16, textAlign: "center" }}>
         <div
           style={{
-            marginTop: 16,
             fontSize: 20,
             fontWeight: 700,
             fontFamily: "NunitoSans, sans-serif",
             color: isDark ? "#fff" : "#171717",
-            textAlign: "center",
           }}
         >
-          {character?.name || "Character"}
+          <span>{character?.name || "Character"}</span>
+          {ageLabel ? (
+            <span
+              style={{
+                fontWeight: 400,
+                marginLeft: 8,
+                color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.35)",
+              }}
+            >
+              {ageLabel}
+            </span>
+          ) : null}
         </div>
-
         {subtitle ? (
           <div
             style={{
               marginTop: 4,
-              fontSize: 13,
+              fontSize: 12.5,
               fontFamily: FONT,
-              color: isDark ? "rgba(255,255,255,0.48)" : "rgba(0,0,0,0.5)",
-              textAlign: "center",
+              color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
             }}
           >
             {subtitle}
           </div>
         ) : null}
+      </div>
 
-        {ageLabel ? (
-          <div
-            style={{
-              marginTop: 10,
-              padding: "4px 10px",
-              borderRadius: 999,
-              fontSize: 11,
-              fontWeight: 600,
-              fontFamily: FONT,
-              color: isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.65)",
-              background: isDark
-                ? "rgba(255,255,255,0.07)"
-                : "rgba(0,0,0,0.05)",
-            }}
-          >
-            {ageLabel}
-          </div>
+      {/* ── Circular action buttons row ── */}
+      <div
+        style={{
+          marginTop: 20,
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "center",
+          gap: 28,
+        }}
+      >
+        <DetailActionCircle
+          icon="chat"
+          label={isOpening ? "Opening..." : "Chat"}
+          isDark={isDark}
+          onClick={() => onOpenChat && onOpenChat(character)}
+          disabled={isOpening}
+        />
+        {onRemove ? (
+          <DetailActionCircle
+            icon="close"
+            label={isRemoving ? "..." : "Unfollow"}
+            color={isDark ? "rgba(255,140,140,0.8)" : "rgba(180,40,40,0.7)"}
+            isDark={isDark}
+            onClick={() => onRemove(character)}
+            disabled={isRemoving}
+          />
         ) : null}
       </div>
 
-      {/* ── Body ──────────────────────────────────────── */}
-      {(blurb || tags.length > 0) && (
+      {/* ── Error message ── */}
+      {openError ? (
         <div
           style={{
-            marginTop: 24,
-            borderTop: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
-            paddingTop: 20,
-            display: "flex",
-            flexDirection: "column",
-            gap: 16,
+            marginTop: 10,
+            fontSize: 11.5,
+            fontFamily: FONT,
+            color: isDark
+              ? "rgba(255,170,170,0.9)"
+              : "rgba(163,28,28,0.86)",
+            textAlign: "center",
+            lineHeight: 1.45,
+          }}
+        >
+          {openError}
+        </div>
+      ) : null}
+
+      {/* ── Grouped info sections ── */}
+      {(blurb || tags.length > 0) ? (
+        <div
+          style={{
+            marginTop: 22,
+            width: "100%",
+            borderRadius: 10,
+            background: groupBg,
+            overflow: "hidden",
           }}
         >
           {blurb ? (
-            <div
-              style={{
-                fontSize: 13,
-                fontFamily: FONT,
-                color: isDark
-                  ? "rgba(255,255,255,0.72)"
-                  : "rgba(0,0,0,0.68)",
-                lineHeight: 1.65,
-              }}
-            >
-              {blurb}
+            <div style={{ padding: "14px 16px" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: FONT,
+                  color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 6,
+                }}
+              >
+                About
+              </div>
+              <div
+                style={{
+                  fontSize: 13,
+                  fontFamily: FONT,
+                  color: isDark ? "rgba(255,255,255,0.72)" : "rgba(0,0,0,0.65)",
+                  lineHeight: 1.6,
+                }}
+              >
+                {blurb}
+              </div>
             </div>
+          ) : null}
+
+          {blurb && tags.length > 0 ? (
+            <div style={{ height: 1, background: dividerColor, marginLeft: 16 }} />
           ) : null}
 
           {tags.length > 0 ? (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-              }}
-            >
-              {tags.map((tag) => (
-                <span
-                  key={tag}
-                  style={{
-                    padding: "4px 8px",
-                    borderRadius: 999,
-                    fontSize: 11,
-                    fontWeight: 600,
-                    fontFamily: FONT,
-                    color: isDark
-                      ? "rgba(255,255,255,0.8)"
-                      : "rgba(0,0,0,0.66)",
-                    background: isDark
-                      ? "rgba(255,255,255,0.07)"
-                      : "rgba(0,0,0,0.05)",
-                  }}
-                >
-                  {tag}
-                </span>
-              ))}
+            <div style={{ padding: "14px 16px" }}>
+              <div
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  fontFamily: FONT,
+                  color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.06em",
+                  marginBottom: 8,
+                }}
+              >
+                Traits
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    style={{
+                      padding: "4px 10px",
+                      borderRadius: 999,
+                      fontSize: 11,
+                      fontWeight: 600,
+                      fontFamily: FONT,
+                      color: isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.58)",
+                      background: isDark
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.05)",
+                    }}
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
             </div>
           ) : null}
         </div>
-      )}
-
-      {/* ── Spacer ────────────────────────────────────── */}
-      <div style={{ flex: 1, minHeight: 24 }} />
-
-      {/* ── Actions ───────────────────────────────────── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <Button
-          label={isOpening ? "Opening..." : "Open Chat"}
-          onClick={() => onOpenChat && onOpenChat(character)}
-          disabled={isOpening}
-          style={{
-            fontSize: 13,
-            fontWeight: 600,
-            paddingVertical: 8,
-            paddingHorizontal: 20,
-            borderRadius: 999,
-          }}
-        />
-        {onRemove ? (
-          <Button
-            prefix_icon="delete"
-            label={isRemoving ? "Removing..." : "Remove"}
-            onClick={() => onRemove(character)}
-            disabled={isRemoving}
-            style={{
-              fontSize: 12,
-              fontWeight: 500,
-              paddingVertical: 7,
-              paddingHorizontal: 14,
-              borderRadius: 999,
-              opacity: 0.6,
-              color: isDark ? "rgba(255,140,140,0.9)" : "rgba(180,40,40,0.8)",
-              hoverBackgroundColor: isDark
-                ? "rgba(255,100,100,0.12)"
-                : "rgba(200,40,40,0.08)",
-              content: {
-                icon: { width: 14, height: 14 },
-              },
-            }}
-          />
-        ) : null}
-        {openError ? (
-          <div
-            style={{
-              minWidth: 0,
-              flex: 1,
-              fontSize: 11.5,
-              fontFamily: FONT,
-              color: isDark
-                ? "rgba(255,170,170,0.9)"
-                : "rgba(163,28,28,0.86)",
-              lineHeight: 1.45,
-            }}
-          >
-            {openError}
-          </div>
-        ) : null}
-      </div>
+      ) : null}
     </div>
   );
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  Find: Character Card (grid item)                                                                     */
+/*  Swipe card helpers                                                                                     */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
-  const [hovered, setHovered] = useState(false);
+const SWIPE_THRESHOLD = 100;
+const SWIPE_VELOCITY = 0.4;
+const FLY_OUT_DISTANCE = 1200;
+
+const toSpring = (i, gone, currentIndex) => {
+  if (gone.has(i)) {
+    const dir = gone.get(i);
+    return {
+      x: dir * FLY_OUT_DISTANCE,
+      rot: dir * 15,
+      scale: 0.9,
+      opacity: 0,
+      config: { friction: 50, tension: 200 },
+    };
+  }
+  const offset = i - currentIndex;
+  return {
+    x: 0,
+    rot: 0,
+    scale: offset === 0 ? 1 : 1 - offset * 0.04,
+    opacity: offset <= 2 ? 1 : 0,
+    y: offset * 8,
+    config: { friction: 28, tension: 180 },
+  };
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  SwipeCard — single unified card (left image + right info)                                              */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const SwipeCardContent = ({ character, isDark, dragX }) => {
   const [imageBroken, setImageBroken] = useState(false);
+  const avatarSrc = resolveAvatarSrc(character);
+  const showImage = Boolean(avatarSrc) && !imageBroken;
   const tags = listTagsForCharacter(character);
+  const ageLabel = ageLabelForCharacter(character);
   const subtitle = subtitleForCharacter(character);
   const blurb =
     typeof character?.metadata?.list_blurb === "string"
       ? character.metadata.list_blurb.trim()
       : "";
-  const avatarSrc = resolveAvatarSrc(character);
-  const showHeroImage = Boolean(avatarSrc) && !imageBroken;
-  const ageLabel = ageLabelForCharacter(character);
-  const primaryStat = ageLabel ? `${ageLabel} Years` : "Ready to chat";
-  const secondaryStat =
-    tags.length > 0 ? `${tags.length} Traits` : subtitle ? "Profile" : "New";
+
+  const likeOpacity = dragX
+    ? dragX.to((x) => Math.min(0.55, Math.max(0, (x / SWIPE_THRESHOLD) * 0.55)))
+    : 0;
+  const nopeOpacity = dragX
+    ? dragX.to((x) => Math.min(0.55, Math.max(0, (-x / SWIPE_THRESHOLD) * 0.55)))
+    : 0;
 
   return (
     <div
-      data-testid={`find-card-${character?.id || "unknown"}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
       style={{
+        width: "100%",
+        height: "100%",
         display: "flex",
-        flexDirection: "column",
         borderRadius: 7,
-        padding: 12,
         overflow: "hidden",
-        background: isDark ? "#141414" : "#ffffff",
-        border: hovered
-          ? "1px solid rgba(255,255,255,0.18)"
-          : "1px solid rgba(255,255,255,0.08)",
-        transition:
-          "transform 0.16s ease, box-shadow 0.2s ease, border-color 0.16s ease",
-        boxShadow: hovered
-          ? "0 14px 30px rgba(0,0,0,0.26)"
-          : "0 8px 18px rgba(0,0,0,0.16)",
-        transform: hovered ? "translateY(-2px)" : "translateY(0)",
-        cursor: "default",
+        background: isDark ? "#1a1a1a" : "#ffffff",
+        boxShadow: "0 18px 50px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.15)",
+        position: "relative",
         userSelect: "none",
         WebkitUserSelect: "none",
       }}
     >
+      {/* ── Left: Image ── */}
       <div
         style={{
-          width: "100%",
           aspectRatio: "1 / 1",
-          minHeight: 0,
-          borderRadius: 7,
-          overflow: "hidden",
-          background: showHeroImage
-            ? "#ccd1d4"
-            : "linear-gradient(145deg, #d8dddf 0%, #c2c7ca 44%, #83868b 100%)",
-          border: "1px solid rgba(255,255,255,0.14)",
+          height: "100%",
           flexShrink: 0,
           position: "relative",
+          overflow: "hidden",
+          background: showImage
+            ? "#2a2a2a"
+            : "linear-gradient(145deg, #3a3d42 0%, #2a2d30 44%, #1a1d20 100%)",
         }}
       >
-        {showHeroImage ? (
+        {showImage ? (
           <img
             src={avatarSrc}
-            alt={`${character?.name || "character"} hero`}
+            alt={character?.name || "character"}
             onError={() => setImageBroken(true)}
+            draggable={false}
             style={{
               width: "100%",
               height: "100%",
               objectFit: "cover",
+              pointerEvents: "none",
             }}
           />
         ) : (
@@ -640,8 +747,8 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "rgba(255,255,255,0.88)",
-              fontSize: 48,
+              color: "rgba(255,255,255,0.7)",
+              fontSize: 72,
               fontWeight: 700,
               fontFamily: "NunitoSans, sans-serif",
             }}
@@ -649,241 +756,221 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
             {fallbackInitial(character)}
           </div>
         )}
-      </div>
 
-      <div
-        style={{
-          flex: 1,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "column",
-          padding: "14px 4px 2px",
-        }}
-      >
+        {/* Bottom gradient overlay with name */}
         <div
           style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            minWidth: 0,
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: "48px 20px 18px",
+            background: "linear-gradient(transparent, rgba(0,0,0,0.65))",
           }}
         >
           <div
             style={{
-              minWidth: 0,
-              flex: 1,
-              fontSize: 18,
-              fontWeight: 400,
-              fontFamily: "NunitoSans, sans-serif",
+              fontSize: 22,
+              fontWeight: 700,
               color: "#fff",
-              lineHeight: 1.08,
-              letterSpacing: "-0.03em",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              fontFamily: "NunitoSans, sans-serif",
+              textShadow: "0 1px 4px rgba(0,0,0,0.3)",
             }}
           >
             {character?.name || "Character"}
-          </div>
-          <div
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: "50%",
-              border: "1.5px solid rgba(255,255,255,0.72)",
-              color: "rgba(255,255,255,0.9)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flexShrink: 0,
-              background: "rgba(255,255,255,0.02)",
-            }}
-          >
-            <Icon
-              src="verified"
-              style={{ width: 15, height: 15 }}
-              color="rgba(255,255,255,0.92)"
-            />
+            {ageLabel ? (
+              <span style={{ fontWeight: 400, marginLeft: 8 }}>{ageLabel}</span>
+            ) : null}
           </div>
         </div>
 
-        {(blurb || subtitle) ? (
+        {/* LIKE full overlay */}
+        <animated.div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(135deg, rgba(74,222,128,0.85), rgba(34,197,94,0.7))",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            opacity: likeOpacity,
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <Icon src="heart" style={{ width: 28, height: 28 }} color="#fff" />
+          </div>
+          <div style={{
+            color: "#fff",
+            fontSize: 22,
+            fontWeight: 800,
+            fontFamily: "NunitoSans, sans-serif",
+            letterSpacing: 4,
+            textShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          }}>
+            LIKE
+          </div>
+        </animated.div>
+
+        {/* NOPE full overlay */}
+        <animated.div
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "linear-gradient(135deg, rgba(248,113,113,0.85), rgba(239,68,68,0.7))",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            opacity: nopeOpacity,
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.25)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}>
+            <Icon src="close" style={{ width: 26, height: 26 }} color="#fff" />
+          </div>
+          <div style={{
+            color: "#fff",
+            fontSize: 22,
+            fontWeight: 800,
+            fontFamily: "NunitoSans, sans-serif",
+            letterSpacing: 4,
+            textShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          }}>
+            NOPE
+          </div>
+        </animated.div>
+      </div>
+
+      {/* ── Right: Info ── */}
+      <div
+        style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          padding: "24px 22px 20px",
+          minWidth: 0,
+          overflow: "hidden",
+        }}
+      >
+        {subtitle ? (
           <div
             style={{
-              marginTop: 14,
               fontSize: 12,
+              fontWeight: 500,
               fontFamily: FONT,
-              color: "rgba(255,255,255,0.78)",
-              lineHeight: 1.35,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-              minHeight: 32,
+              color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)",
+              marginBottom: 4,
+              textTransform: "uppercase",
+              letterSpacing: "0.06em",
             }}
           >
-            {blurb || subtitle}
+            {subtitle}
           </div>
-        ) : (
-          <div style={{ minHeight: 32 }} />
-        )}
+        ) : null}
 
         <div
           style={{
-            marginTop: "auto",
-            display: "flex",
-            alignItems: "flex-end",
-            justifyContent: "space-between",
-            gap: 12,
+            fontSize: 20,
+            fontWeight: 700,
+            fontFamily: "NunitoSans, sans-serif",
+            color: isDark ? "#fff" : "#171717",
+            lineHeight: 1.2,
           }}
         >
+          {character?.name || "Character"}
+          {ageLabel ? (
+            <span
+              style={{
+                fontWeight: 400,
+                marginLeft: 8,
+                color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)",
+              }}
+            >
+              {ageLabel}
+            </span>
+          ) : null}
+        </div>
+
+        {blurb ? (
           <div
             style={{
-              display: "flex",
-              alignItems: "flex-end",
-              gap: 14,
-              color: "rgba(255,255,255,0.86)",
-              minWidth: 0,
+              marginTop: 16,
+              fontSize: 13,
+              fontFamily: FONT,
+              color: isDark ? "rgba(255,255,255,0.68)" : "rgba(0,0,0,0.6)",
+              lineHeight: 1.6,
+              display: "-webkit-box",
+              WebkitLineClamp: 4,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
             }}
           >
-            <div
-              style={{
-                fontSize: 11.5,
-                fontWeight: 400,
-                fontFamily: FONT,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {primaryStat}
-            </div>
-            <div
-              style={{
-                fontSize: 11.5,
-                fontWeight: 400,
-                fontFamily: FONT,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {secondaryStat}
-            </div>
+            {blurb}
           </div>
+        ) : null}
 
-          {isAdded ? (
-            <button
-              type="button"
-              disabled
-              style={{
-                height: 40,
-                minWidth: 120,
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.14)",
-                background: "rgba(255,255,255,0.04)",
-                color: "rgba(255,255,255,0.74)",
-                fontSize: 13,
-                fontWeight: 600,
-                fontFamily: "NunitoSans, sans-serif",
-                boxShadow: "inset 0 1px 1px rgba(255,255,255,0.05)",
-              }}
-            >
-              Added
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onAdd && onAdd(character)}
-              disabled={isAdding}
-              style={{
-                height: 40,
-                minWidth: 126,
-                borderRadius: 999,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: hovered
-                  ? "rgba(255,255,255,0.08)"
-                  : "rgba(255,255,255,0.05)",
-                color: "#fff",
-                fontSize: 12.5,
-                fontWeight: 500,
-                fontFamily: "NunitoSans, sans-serif",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 10,
-                boxShadow: hovered
-                  ? "0 8px 18px rgba(0,0,0,0.16)"
-                  : "0 4px 10px rgba(0,0,0,0.1)",
-                cursor: isAdding ? "progress" : "pointer",
-                flexShrink: 0,
-              }}
-            >
-              <span>{isAdding ? "Adding..." : "Follow"}</span>
-              <div
+        {tags.length > 0 ? (
+          <div
+            style={{
+              marginTop: 16,
+              display: "flex",
+              flexWrap: "wrap",
+              gap: 6,
+            }}
+          >
+            {tags.slice(0, 6).map((tag) => (
+              <span
+                key={tag}
                 style={{
-                  position: "relative",
-                  width: 16,
-                  height: 16,
-                  opacity: 0.9,
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  fontFamily: FONT,
+                  color: isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.6)",
+                  background: isDark
+                    ? "rgba(255,255,255,0.08)"
+                    : "rgba(0,0,0,0.05)",
                 }}
               >
-                <span
-                  style={{
-                    position: "absolute",
-                    left: 2,
-                    top: 1,
-                    width: 7,
-                    height: 7,
-                    borderRadius: "50%",
-                    border: "1.5px solid currentColor",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 9,
-                    width: 11,
-                    height: 6,
-                    borderRadius: "7px 7px 5px 5px",
-                    border: "1.5px solid currentColor",
-                    borderTop: "none",
-                  }}
-                />
-                <span
-                  style={{
-                    position: "absolute",
-                    right: 0,
-                    top: 5,
-                    width: 8,
-                    height: 8,
-                  }}
-                >
-                  <span
-                    style={{
-                      position: "absolute",
-                      left: "50%",
-                      top: 0,
-                      width: 1.5,
-                      height: 8,
-                      background: "currentColor",
-                      transform: "translateX(-50%)",
-                      borderRadius: 999,
-                    }}
-                  />
-                  <span
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: "50%",
-                      width: 8,
-                      height: 1.5,
-                      background: "currentColor",
-                      transform: "translateY(-50%)",
-                      borderRadius: 999,
-                    }}
-                  />
-                </span>
-              </div>
-            </button>
-          )}
+                {tag}
+              </span>
+            ))}
+          </div>
+        ) : null}
+
+        <div style={{ flex: 1 }} />
+
+        <div
+          style={{
+            fontSize: 11,
+            fontFamily: FONT,
+            color: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)",
+            textAlign: "center",
+            marginTop: 8,
+          }}
+        >
+          Drag or use buttons below
         </div>
       </div>
     </div>
@@ -891,7 +978,300 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  DiscoverCharactersPanel — card grid                                                                   */
+/*  SwipeStack — Tinder-style stacked cards with drag                                                      */
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const SwipeStack = ({ characters, isDark, onSwipeRight, onSwipeLeft }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const goneRef = useRef(new Map());
+  const gone = goneRef.current;
+
+  const [springs, api] = useSprings(characters.length, (i) =>
+    toSpring(i, gone, 0),
+  );
+
+  const triggerSwipe = useCallback(
+    (dir) => {
+      if (currentIndex >= characters.length) return;
+      const i = currentIndex;
+      gone.set(i, dir);
+
+      api.start((idx) => toSpring(idx, gone, i + 1));
+      setCurrentIndex(i + 1);
+
+      if (dir > 0) {
+        onSwipeRight && onSwipeRight(characters[i]);
+      } else {
+        onSwipeLeft && onSwipeLeft(characters[i]);
+      }
+    },
+    [currentIndex, characters, gone, api, onSwipeRight, onSwipeLeft],
+  );
+
+  const bind = useDrag(
+    ({ args: [index], active, movement: [mx], velocity: [vx], direction: [dx] }) => {
+      if (index !== currentIndex) return;
+
+      const trigger = Math.abs(mx) > SWIPE_THRESHOLD || vx > SWIPE_VELOCITY;
+      const dir = dx > 0 ? 1 : -1;
+
+      if (!active && trigger) {
+        triggerSwipe(dir);
+        return;
+      }
+
+      if (active) {
+        api.start((i) => {
+          if (i !== index) return;
+          return {
+            x: mx,
+            rot: mx / 20,
+            scale: 1,
+            config: { friction: 50, tension: 800 },
+          };
+        });
+      } else {
+        api.start((i) => {
+          if (i !== index) return;
+          return {
+            x: 0,
+            rot: 0,
+            scale: 1,
+            config: { friction: 28, tension: 180 },
+          };
+        });
+      }
+    },
+    { filterTaps: true },
+  );
+
+  const allGone = currentIndex >= characters.length;
+
+  /* ── Come back later state ── */
+  if (allGone) {
+    return (
+      <div
+        data-testid="characters-find-empty-swipe"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          gap: 16,
+          padding: 32,
+          textAlign: "center",
+        }}
+      >
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 20,
+            background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            marginBottom: 4,
+          }}
+        >
+          <span style={{ fontSize: 32 }}>&#9749;</span>
+        </div>
+        <div
+          style={{
+            fontSize: 18,
+            fontWeight: 700,
+            fontFamily: "NunitoSans, sans-serif",
+            color: isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.7)",
+          }}
+        >
+          You've seen everyone!
+        </div>
+        <div
+          style={{
+            fontSize: 13,
+            fontFamily: FONT,
+            color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+            maxWidth: 280,
+            lineHeight: 1.6,
+          }}
+        >
+          Come back later for new characters. We're always adding new faces.
+        </div>
+        <Button
+          label="Start Over"
+          onClick={() => {
+            goneRef.current = new Map();
+            setCurrentIndex(0);
+            api.start((i) => toSpring(i, goneRef.current, 0));
+          }}
+          style={{
+            marginTop: 8,
+            fontSize: 13,
+            fontWeight: 600,
+            paddingVertical: 8,
+            paddingHorizontal: 20,
+            backgroundColor: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-testid="characters-find-panel"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        height: "100%",
+        alignItems: "center",
+      }}
+    >
+      {/* ── Card stack area ── */}
+      <div
+        style={{
+          flex: 1,
+          width: "100%",
+          position: "relative",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "12px 24px 0",
+        }}
+      >
+        {springs.map((spring, i) => {
+          if (i < currentIndex - 1) return null;
+          const character = characters[i];
+          const isTop = i === currentIndex;
+
+          return (
+            <animated.div
+              key={character?.id || `swipe-${i}`}
+              {...(isTop ? bind(i) : {})}
+              style={{
+                position: "absolute",
+                width: "92%",
+                maxWidth: 720,
+                height: "88%",
+                willChange: "transform, opacity",
+                zIndex: characters.length - i,
+                touchAction: "none",
+                cursor: isTop ? "grab" : "default",
+                x: spring.x,
+                y: spring.y || 0,
+                opacity: spring.opacity,
+                transform: interpolate(
+                  [spring.rot, spring.scale],
+                  (r, s) => `rotate(${r}deg) scale(${s})`,
+                ),
+              }}
+            >
+              <SwipeCardContent
+                character={character}
+                isDark={isDark}
+                dragX={isTop ? spring.x : null}
+              />
+            </animated.div>
+          );
+        })}
+      </div>
+
+      {/* ── Action buttons ── */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 8,
+          padding: "12px 0 16px",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 28,
+          }}
+        >
+          {/* Skip button — solid red glow */}
+          <button
+            type="button"
+            onClick={() => triggerSwipe(-1)}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              border: "none",
+              background: "#ef4444",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "none",
+              transition: "transform 0.15s ease, box-shadow 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.12)";
+              e.currentTarget.style.boxShadow = "0 0 12px rgba(239,68,68,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            <Icon src="close" style={{ width: 22, height: 22 }} color="#fff" />
+          </button>
+
+          {/* Follow / Add button — solid green glow */}
+          <button
+            type="button"
+            onClick={() => triggerSwipe(1)}
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              border: "none",
+              background: "#22c55e",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              cursor: "pointer",
+              boxShadow: "none",
+              transition: "transform 0.15s ease, box-shadow 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = "scale(1.12)";
+              e.currentTarget.style.boxShadow = "0 0 12px rgba(34,197,94,0.4)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+              e.currentTarget.style.boxShadow = "none";
+            }}
+          >
+            <Icon src="heart_outline" style={{ width: 24, height: 24 }} color="#fff" />
+          </button>
+        </div>
+
+        {/* Counter */}
+        <div
+          style={{
+            fontSize: 11,
+            fontFamily: FONT,
+            color: isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)",
+          }}
+        >
+          {currentIndex + 1} / {characters.length}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+/*  FindCharactersPanel — loads seed characters, renders SwipeStack                                        */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
@@ -907,10 +1287,6 @@ const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
       setErrorMessage("");
 
       try {
-        /* Load seed characters from the dedicated seeds endpoint.
-         * Future: switch source based on active source tab
-         *   e.g. api.store.listCharacters(), api.community.listCharacters()
-         */
         const response = await api.miso.listSeedCharacters();
         if (cancelled) return;
         const nextCharacters = Array.isArray(response?.characters)
@@ -973,44 +1349,16 @@ const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
   }
 
   return (
-    <div
-      data-testid="characters-find-panel"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        height: "100%",
+    <SwipeStack
+      characters={characters}
+      isDark={isDark}
+      onSwipeRight={(character) => {
+        if (!addedIds.has(character?.id)) {
+          onAdd && onAdd(character);
+        }
       }}
-    >
-      {/* ── Card Grid ─────────────────────────────────── */}
-      <div
-        className="scrollable"
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "12px 20px 20px",
-        }}
-      >
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-            gap: 16,
-            alignItems: "start",
-          }}
-        >
-          {characters.map((character, index) => (
-            <CharacterCard
-              key={character?.id || `find-${index}`}
-              character={character}
-              isDark={isDark}
-              isAdded={addedIds.has(character?.id)}
-              onAdd={onAdd}
-              isAdding={addingId === character?.id}
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+      onSwipeLeft={() => {}}
+    />
   );
 };
 
@@ -1083,8 +1431,8 @@ const AddedCharactersPanel = ({
     return (
       <CharacterStatePanel
         icon="user"
-        title="No characters added yet"
-        body='Switch to the "Discover" tab to discover and add characters.'
+        title="Not following any characters yet"
+        body='Switch to the "Discover" tab to discover and follow characters.'
         isDark={isDark}
         testId="characters-added-empty"
       />
@@ -1101,6 +1449,7 @@ const AddedCharactersPanel = ({
       style={{
         display: "flex",
         height: "100%",
+        minHeight: 0,
         gap: 16,
         padding: "12px 0 8px 8px",
         boxSizing: "border-box",
@@ -1149,28 +1498,48 @@ const AddedCharactersPanel = ({
       </div>
 
       {/* ── Right: Detail Panel ───────────────────────── */}
-      <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
-        <CharacterDetailPanel
-          character={selectedCharacter}
-          isDark={isDark}
-          onOpenChat={handleOpenChat}
-          isOpening={
-            selectedCharacter
-              ? openingCharacterId === selectedCharacter.id
-              : false
-          }
-          openError={
-            selectedCharacter
-              ? openErrorById[selectedCharacter.id] || ""
-              : ""
-          }
-          onRemove={onRemove}
-          isRemoving={
-            selectedCharacter
-              ? removingId === selectedCharacter.id
-              : false
-          }
-        />
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+          display: "flex",
+        }}
+      >
+        <div
+          data-testid="character-detail-scroll-region"
+          className="scrollable"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+            paddingRight: 6,
+            paddingBottom: 10,
+          }}
+        >
+          <CharacterDetailPanel
+            character={selectedCharacter}
+            isDark={isDark}
+            onOpenChat={handleOpenChat}
+            isOpening={
+              selectedCharacter
+                ? openingCharacterId === selectedCharacter.id
+                : false
+            }
+            openError={
+              selectedCharacter
+                ? openErrorById[selectedCharacter.id] || ""
+                : ""
+            }
+            onRemove={onRemove}
+            isRemoving={
+              selectedCharacter
+                ? removingId === selectedCharacter.id
+                : false
+            }
+          />
+        </div>
       </div>
     </div>
   );

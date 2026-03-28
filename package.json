@@ -19,7 +19,9 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "@use-gesture/react": "^10.3.1",
     "cross-env": "^7.0.3",
+    "electron-updater": "^6.6.2",
     "highlight.js": "^11.9.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -29,8 +31,7 @@
     "react-spring": "^10.0.3",
     "three": "^0.183.0",
     "vanilla-tilt": "^1.8.1",
-    "web-vitals": "^2.1.4",
-    "electron-updater": "^6.6.2"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "npm run start:electron",

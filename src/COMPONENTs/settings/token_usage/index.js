@@ -596,41 +596,53 @@ const TokenBreakdownChart = ({
 /*  Stat Card                                                                                                                  */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const StatCard = ({ label, value, isDark, fontFamily }) => (
-  <div
-    style={{
-      flex: 1,
-      minWidth: 110,
-      padding: "14px 16px",
-      borderRadius: 10,
-      backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
-      border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
-    }}
-  >
+const StatCard = ({ label, value, isDark, fontFamily }) => {
+  const testId = `token-usage-stat-${label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")}`;
+
+  return (
     <div
+      data-testid={testId}
       style={{
-        fontSize: 11,
-        color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
-        fontFamily,
-        textTransform: "uppercase",
-        letterSpacing: "0.5px",
-        marginBottom: 4,
+        minWidth: 0,
+        padding: "14px 16px",
+        borderRadius: 10,
+        backgroundColor: isDark
+          ? "rgba(255,255,255,0.04)"
+          : "rgba(0,0,0,0.03)",
+        border: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
       }}
     >
-      {label}
+      <div
+        style={{
+          fontSize: 11,
+          color: isDark ? "rgba(255,255,255,0.4)" : "rgba(0,0,0,0.4)",
+          fontFamily,
+          textTransform: "uppercase",
+          letterSpacing: "0.5px",
+          marginBottom: 4,
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: 20,
+          fontWeight: 400,
+          color: isDark ? "#fff" : "#222",
+          fontFamily,
+          lineHeight: 1.2,
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
     </div>
-    <div
-      style={{
-        fontSize: 20,
-        fontWeight: 400,
-        color: isDark ? "#fff" : "#222",
-        fontFamily,
-      }}
-    >
-      {value}
-    </div>
-  </div>
-);
+  );
+};
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  TokenUsageSettings — main settings page component                                                                          */
@@ -720,15 +732,27 @@ export const TokenUsageSettings = () => {
   }, []);
 
   return (
-    <div>
+    <div
+      data-testid="token-usage-page"
+      style={{
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflowX: "hidden",
+      }}
+    >
       {/* ── Summary stats ───────────────────────────────────────────────── */}
       <SettingsSection title="Overview">
         <div
+          data-testid="token-usage-overview-grid"
           style={{
-            display: "flex",
+            display: "grid",
+            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
             gap: 10,
-            flexWrap: "wrap",
             padding: "14px 0",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
           }}
         >
           <StatCard
@@ -773,13 +797,17 @@ export const TokenUsageSettings = () => {
       {/* ── Chart + inline filters ─────────────────────────────────────── */}
       <SettingsSection title="Usage">
         <div
+          data-testid="token-usage-filters"
           style={{
             display: "flex",
-            gap: 6,
+            gap: 8,
+            rowGap: 8,
             alignItems: "center",
             padding: "10px 0 6px",
-            flexWrap: "nowrap",
-            overflow: "hidden",
+            flexWrap: "wrap",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
           }}
         >
           <Select
@@ -790,7 +818,9 @@ export const TokenUsageSettings = () => {
             show_trigger_icon={true}
             style={{
               ...COMPACT_STYLE,
-              minWidth: provider !== ALL && PROVIDER_ICON[provider] ? 40 : 52,
+              flex: "1 1 116px",
+              minWidth: provider !== ALL && PROVIDER_ICON[provider] ? 44 : 68,
+              maxWidth: "100%",
             }}
             option_style={OPT_STYLE}
             dropdown_style={DD_STYLE}
@@ -801,7 +831,12 @@ export const TokenUsageSettings = () => {
             set_value={setModel}
             filterable={modelOptions.length > 6}
             search_placeholder="Search models…"
-            style={{ ...COMPACT_STYLE, minWidth: 90, maxWidth: 160 }}
+            style={{
+              ...COMPACT_STYLE,
+              flex: "2 1 220px",
+              minWidth: 120,
+              maxWidth: "100%",
+            }}
             option_style={OPT_STYLE}
             dropdown_style={{ ...DD_STYLE, padding: 6 }}
           />
@@ -810,7 +845,12 @@ export const TokenUsageSettings = () => {
             value={granularity}
             set_value={setGranularity}
             filterable={false}
-            style={{ ...COMPACT_STYLE, minWidth: 56 }}
+            style={{
+              ...COMPACT_STYLE,
+              flex: "1 1 108px",
+              minWidth: 84,
+              maxWidth: "100%",
+            }}
             option_style={OPT_STYLE}
             dropdown_style={DD_STYLE}
           />
@@ -819,12 +859,24 @@ export const TokenUsageSettings = () => {
             value={range}
             set_value={setRange}
             filterable={false}
-            style={{ ...COMPACT_STYLE, minWidth: 48 }}
+            style={{
+              ...COMPACT_STYLE,
+              flex: "1 1 96px",
+              minWidth: 74,
+              maxWidth: "100%",
+            }}
             option_style={OPT_STYLE}
             dropdown_style={DD_STYLE}
           />
         </div>
-        <div style={{ padding: "24px 0 16px" }}>
+        <div
+          style={{
+            padding: "24px 0 16px",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+          }}
+        >
           <ChartTitle
             title="Consumed Usage"
             description="Total tokens consumed per selected time bucket."
@@ -837,7 +889,14 @@ export const TokenUsageSettings = () => {
             emptyMessage="No token usage data yet"
           />
         </div>
-        <div style={{ padding: "8px 0 16px" }}>
+        <div
+          style={{
+            padding: "8px 0 16px",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+          }}
+        >
           <ChartTitle
             title="Input / Output Breakdown"
             description="Separated token flow for requests and responses."
@@ -860,10 +919,15 @@ export const TokenUsageSettings = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexWrap: "wrap",
+            gap: 12,
             padding: "14px 0",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
           }}
         >
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
                 fontSize: 14,

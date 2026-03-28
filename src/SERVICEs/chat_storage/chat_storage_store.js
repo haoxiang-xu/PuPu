@@ -1287,6 +1287,85 @@ export const setChatTitle = (chatId, title, options = {}) => {
   );
 };
 
+export const refreshCharacterChatMetadata = (characters, options = {}) => {
+  if (!Array.isArray(characters) || characters.length === 0) {
+    return clone(getChatsStore()) || getChatsStore();
+  }
+
+  const byCharacterId = new Map();
+  for (const character of characters) {
+    const characterId = sanitizeCharacterId(character?.id);
+    if (!characterId) {
+      continue;
+    }
+    byCharacterId.set(characterId, character);
+  }
+
+  if (byCharacterId.size === 0) {
+    return clone(getChatsStore()) || getChatsStore();
+  }
+
+  const next = withStore(
+    (store) => {
+      for (const [chatId, chat] of Object.entries(store.chatsById || {})) {
+        if (chat?.kind !== CHARACTER_CHAT_KIND) {
+          continue;
+        }
+
+        const characterId = sanitizeCharacterId(chat?.characterId);
+        const latestCharacter = byCharacterId.get(characterId);
+        if (!latestCharacter) {
+          continue;
+        }
+
+        const nextCharacterName =
+          sanitizeCharacterName(
+            latestCharacter?.name || chat?.characterName || chat?.title,
+          ) ||
+          chat?.characterName ||
+          chat?.title ||
+          DEFAULT_CHAT_TITLE;
+        const nextCharacterAvatar =
+          sanitizeCharacterAvatar(latestCharacter?.avatar) ||
+          chat?.characterAvatar ||
+          null;
+
+        const currentName =
+          typeof chat?.characterName === "string" ? chat.characterName : "";
+        const currentAvatar = JSON.stringify(chat?.characterAvatar || null);
+        const incomingAvatar = JSON.stringify(nextCharacterAvatar || null);
+
+        if (
+          nextCharacterName === currentName &&
+          incomingAvatar === currentAvatar
+        ) {
+          continue;
+        }
+
+        const cleaned = sanitizeChatSession(
+          {
+            ...chat,
+            title: nextCharacterName,
+            characterName: nextCharacterName,
+            characterAvatar: nextCharacterAvatar,
+          },
+          chatId,
+        );
+        store.chatsById[chatId] = cleaned;
+        updateCharacterNodeMetadata(store, chatId, cleaned);
+      }
+
+      return store;
+    },
+    {
+      ...options,
+      type: options.type || "chat_refresh_character_metadata",
+    },
+  );
+
+  return clone(next) || next;
+};
+
 export const cleanupTransientNewChatOnPageLeave = (options = {}) => {
   const source = options.source || "unknown";
   const snapshot = readStore();
