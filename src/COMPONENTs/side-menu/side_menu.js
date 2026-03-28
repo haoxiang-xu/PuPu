@@ -572,7 +572,7 @@ const SideMenu = () => {
         />
         <Button
           prefix_icon="folder_2"
-          label="Workspace"
+          label="Workspaces"
           onClick={() => setWorkspaceModalOpen(true)}
           style={{
             width: "100%",

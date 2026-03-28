@@ -2,12 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
-import Input from "../../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 const CHARACTER_SUB_PAGES = [
   { key: "added", icon: "check", label: "Added" },
-  { key: "find", icon: "search", label: "Find" },
+  { key: "find", icon: "search", label: "Discover" },
 ];
 
 const FONT = "Jost, sans-serif";
@@ -214,12 +213,12 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
 
   const bg = isSelected
     ? isDark
-      ? "rgba(255,255,255,0.10)"
-      : "rgba(0,0,0,0.082)"
+      ? "rgba(255,255,255,0.09)"
+      : "rgba(0,0,0,0.065)"
     : hovered
       ? isDark
-        ? "rgba(255,255,255,0.07)"
-        : "rgba(0,0,0,0.055)"
+        ? "rgba(255,255,255,0.055)"
+        : "rgba(0,0,0,0.045)"
       : "transparent";
 
   return (
@@ -232,15 +231,16 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
         display: "flex",
         alignItems: "center",
         gap: 10,
-        height: 56,
-        padding: "0 12px",
-        margin: "1px 4px",
-        borderRadius: 8,
+        minHeight: 54,
+        padding: "8px 12px",
+        margin: 0,
+        borderRadius: 7,
         cursor: "pointer",
         userSelect: "none",
         WebkitUserSelect: "none",
         background: bg,
-        transition: "background 0.15s ease",
+        opacity: isSelected ? 1 : 0.8,
+        transition: "background 0.15s ease, opacity 0.15s ease",
       }}
     >
       <CharacterAvatar character={character} isDark={isDark} size={36} />
@@ -891,14 +891,13 @@ const CharacterCard = ({ character, isDark, isAdded, onAdd, isAdding }) => {
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-/*  FindCharactersPanel — card grid with search                                                          */
+/*  DiscoverCharactersPanel — card grid                                                                   */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
   const [status, setStatus] = useState("loading");
   const [characters, setCharacters] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -936,23 +935,6 @@ const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
       cancelled = true;
     };
   }, []);
-
-  const filteredCharacters = useMemo(() => {
-    if (!searchQuery.trim()) return characters;
-    const q = searchQuery.toLowerCase().trim();
-    return characters.filter((c) => {
-      const name = (c?.name || "").toLowerCase();
-      const role = (c?.role || "").toLowerCase();
-      const blurb = (c?.metadata?.list_blurb || "").toLowerCase();
-      const tags = (c?.metadata?.list_tags || []).join(" ").toLowerCase();
-      return (
-        name.includes(q) ||
-        role.includes(q) ||
-        blurb.includes(q) ||
-        tags.includes(q)
-      );
-    });
-  }, [characters, searchQuery]);
 
   if (status === "loading") {
     return (
@@ -999,61 +981,34 @@ const FindCharactersPanel = ({ isDark, addedIds, onAdd, addingId }) => {
         height: "100%",
       }}
     >
-      {/* ── Search Bar ────────────────────────────────── */}
-      <div style={{ padding: "12px 20px 8px", flexShrink: 0 }}>
-        <Input
-          prefix_icon="search"
-          placeholder="Search characters..."
-          value={searchQuery}
-          set_value={setSearchQuery}
-          style={{
-            width: "100%",
-            fontSize: 13,
-            borderRadius: 10,
-            paddingVertical: 7,
-            paddingHorizontal: 12,
-          }}
-        />
-      </div>
-
       {/* ── Card Grid ─────────────────────────────────── */}
       <div
         className="scrollable"
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "8px 20px 20px",
+          padding: "12px 20px 20px",
         }}
       >
-        {filteredCharacters.length === 0 ? (
-          <CharacterStatePanel
-            icon="search"
-            title="No results"
-            body={`No characters match "${searchQuery}".`}
-            isDark={isDark}
-            testId="characters-find-no-results"
-          />
-        ) : (
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
-              gap: 16,
-              alignItems: "start",
-            }}
-          >
-            {filteredCharacters.map((character, index) => (
-              <CharacterCard
-                key={character?.id || `find-${index}`}
-                character={character}
-                isDark={isDark}
-                isAdded={addedIds.has(character?.id)}
-                onAdd={onAdd}
-                isAdding={addingId === character?.id}
-              />
-            ))}
-          </div>
-        )}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: 16,
+            alignItems: "start",
+          }}
+        >
+          {characters.map((character, index) => (
+            <CharacterCard
+              key={character?.id || `find-${index}`}
+              character={character}
+              isDark={isDark}
+              isAdded={addedIds.has(character?.id)}
+              onAdd={onAdd}
+              isAdding={addingId === character?.id}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1129,7 +1084,7 @@ const AddedCharactersPanel = ({
       <CharacterStatePanel
         icon="user"
         title="No characters added yet"
-        body='Switch to the "Find" tab to discover and add characters.'
+        body='Switch to the "Discover" tab to discover and add characters.'
         isDark={isDark}
         testId="characters-added-empty"
       />
@@ -1146,29 +1101,51 @@ const AddedCharactersPanel = ({
       style={{
         display: "flex",
         height: "100%",
+        gap: 16,
+        padding: "12px 0 8px 8px",
+        boxSizing: "border-box",
       }}
     >
       {/* ── Left: Contact List ────────────────────────── */}
       <div
-        className="scrollable"
         style={{
           width: 260,
           flexShrink: 0,
-          overflowY: "auto",
-          borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"}`,
-          padding: "6px 0",
+          minWidth: 0,
+          backgroundColor: isDark
+            ? "rgba(255,255,255,0.035)"
+            : "rgba(255,255,255,0.82)",
+          borderRadius: 7,
+          display: "flex",
+          flexDirection: "column",
+          padding: "10px",
+          overflow: "hidden",
         }}
       >
-        {characters.map((character, index) => (
-          <CharacterContactRow
-            key={character?.id || character?.name || `character-${index}`}
-            character={character}
-            isDark={isDark}
-            isSelected={selectedCharacterId === character?.id}
-            onClick={(c) => setSelectedCharacterId(c?.id || "")}
-            onOpenChat={handleOpenChat}
-          />
-        ))}
+        <div
+          className="scrollable"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            paddingRight: 2,
+            paddingBottom: 2,
+          }}
+        >
+          {characters.map((character, index) => (
+            <CharacterContactRow
+              key={character?.id || character?.name || `character-${index}`}
+              character={character}
+              isDark={isDark}
+              isSelected={selectedCharacterId === character?.id}
+              onClick={(c) => setSelectedCharacterId(c?.id || "")}
+              onOpenChat={handleOpenChat}
+            />
+          ))}
+        </div>
       </div>
 
       {/* ── Right: Detail Panel ───────────────────────── */}
@@ -1243,7 +1220,7 @@ const CharactersPage = ({ isDark, onOpenChat }) => {
     [characters],
   );
 
-  /* ── Add character (from Find → Added) ── */
+  /* ── Add character (from Discover → Added) ── */
   const handleAdd = useCallback(
     async (character) => {
       const id = character?.id;
