@@ -801,10 +801,9 @@ export const TokenUsageSettings = () => {
           style={{
             display: "flex",
             gap: 8,
-            rowGap: 8,
             alignItems: "center",
             padding: "10px 0 6px",
-            flexWrap: "wrap",
+            flexWrap: "nowrap",
             width: "100%",
             maxWidth: "100%",
             minWidth: 0,
@@ -818,9 +817,8 @@ export const TokenUsageSettings = () => {
             show_trigger_icon={true}
             style={{
               ...COMPACT_STYLE,
-              flex: "1 1 116px",
+              flex: "1 1 0",
               minWidth: provider !== ALL && PROVIDER_ICON[provider] ? 44 : 68,
-              maxWidth: "100%",
             }}
             option_style={OPT_STYLE}
             dropdown_style={DD_STYLE}
@@ -833,9 +831,8 @@ export const TokenUsageSettings = () => {
             search_placeholder="Search models…"
             style={{
               ...COMPACT_STYLE,
-              flex: "2 1 220px",
-              minWidth: 120,
-              maxWidth: "100%",
+              flex: "2 1 0",
+              minWidth: 0,
             }}
             option_style={OPT_STYLE}
             dropdown_style={{ ...DD_STYLE, padding: 6 }}
@@ -847,9 +844,8 @@ export const TokenUsageSettings = () => {
             filterable={false}
             style={{
               ...COMPACT_STYLE,
-              flex: "1 1 108px",
-              minWidth: 84,
-              maxWidth: "100%",
+              flex: "1 1 0",
+              minWidth: 0,
             }}
             option_style={OPT_STYLE}
             dropdown_style={DD_STYLE}
@@ -861,9 +857,8 @@ export const TokenUsageSettings = () => {
             filterable={false}
             style={{
               ...COMPACT_STYLE,
-              flex: "1 1 96px",
-              minWidth: 74,
-              maxWidth: "100%",
+              flex: "1 1 0",
+              minWidth: 0,
             }}
             option_style={OPT_STYLE}
             dropdown_style={DD_STYLE}
