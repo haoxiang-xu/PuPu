@@ -976,16 +976,6 @@ const SwipeStack = ({ characters, isDark, onSwipeRight, onSwipeLeft }) => {
     }, FLY_OUT_MS + 50);
   }, [characters, onSwipeRight, onSwipeLeft]);
 
-  /* mouse handlers for drag */
-  const onPointerDown = useCallback((e) => {
-    e.preventDefault();
-    dragRef.current = { active: true, startX: e.clientX, dx: 0 };
-    const el = cardRef.current;
-    if (el) el.style.cursor = "grabbing";
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", onPointerUp);
-  }, []);
-
   const onPointerMove = useCallback((e) => {
     if (!dragRef.current.active) return;
     const dx = e.clientX - dragRef.current.startX;
@@ -1012,6 +1002,16 @@ const SwipeStack = ({ characters, isDark, onSwipeRight, onSwipeLeft }) => {
       applyDrag(0, true);
     }
   }, [applyDrag, triggerSwipe, onPointerMove]);
+
+  /* mouse handlers for drag */
+  const onPointerDown = useCallback((e) => {
+    e.preventDefault();
+    dragRef.current = { active: true, startX: e.clientX, dx: 0 };
+    const el = cardRef.current;
+    if (el) el.style.cursor = "grabbing";
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+  }, [onPointerMove, onPointerUp]);
 
   const allGone = currentIndex >= characters.length && flyingRef.current.length === 0;
 
@@ -1511,7 +1511,7 @@ const CharactersPage = ({ isDark, onOpenChat }) => {
   const [status, setStatus] = useState("loading");
   const [characters, setCharacters] = useState([]);
   const [errorMessage, setErrorMessage] = useState("");
-  const [addingId, setAddingId] = useState("");
+  const [, setAddingId] = useState("");
   const [removingId, setRemovingId] = useState("");
 
   const fetchCharacters = useCallback(async () => {
