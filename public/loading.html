@@ -32,7 +32,7 @@
         align-items: center;
         justify-content: center;
         height: 100vh;
-        gap: 28px;
+        gap: 12px;
       }
 
       .logo {
@@ -61,6 +61,32 @@
         animation: spin 0.85s linear infinite;
       }
 
+      .brand-credit {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--fg, rgba(255, 255, 255, 0.75));
+        font-family: "Jost", "Segoe UI", system-ui, sans-serif;
+        font-size: 9px;
+        font-weight: 400;
+        letter-spacing: 2.2px;
+        text-transform: uppercase;
+        opacity: 0.42;
+        animation: brandfade 0.5s ease both;
+        animation-delay: 0.35s;
+      }
+
+      .brand-credit svg {
+        width: 18px;
+        height: 18px;
+        display: block;
+      }
+
+      .brand-credit .brand-name {
+        font-weight: 500;
+        letter-spacing: 2.5px;
+      }
+
       @keyframes fadein {
         from {
           opacity: 0;
@@ -77,11 +103,40 @@
           transform: rotate(360deg);
         }
       }
+
+      @keyframes brandfade {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 0.42;
+          transform: translateY(0);
+        }
+      }
     </style>
   </head>
   <body>
     <div class="container">
       <div class="logo">PuPu</div>
+      <div class="brand-credit" aria-label="Powered by Unchain">
+        <span>Powered by</span>
+        <svg viewBox="0 0 11 11" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path
+            d="M3.04507 1.716C1.76856 1.89992 1.08145 3.31492 1.7263 4.43182L3.03371 6.69633C3.67856 7.81323 5.24754 7.92568 6.04507 6.91215"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M7.97809 9.2602C9.2546 9.07628 9.94171 7.66128 9.29687 6.54438L7.98945 4.27986C7.34461 3.16296 5.77562 3.05052 4.97809 4.06404"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+        </svg>
+        <span class="brand-name">Unchain</span>
+      </div>
       <div class="spinner-wrapper"><div class="spinner"></div></div>
     </div>
     <script>
