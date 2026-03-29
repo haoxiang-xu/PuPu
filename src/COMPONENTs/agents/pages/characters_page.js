@@ -290,47 +290,37 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
 /*  Right: Detail Panel (with delete support)                                                            */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-/* ── Circular action button for detail panel ── */
+/* ── Circular action button for detail panel (using Button component) ── */
 const DetailActionCircle = ({ icon, label, color, isDark, onClick, disabled }) => {
-  const [hovered, setHovered] = useState(false);
   const baseColor = color || (isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)");
 
   return (
-    <button
-      type="button"
+    <div
       onClick={disabled ? undefined : onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      disabled={disabled}
       style={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         gap: 5,
-        background: "none",
-        border: "none",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.4 : 1,
-        padding: 0,
       }}
     >
-      <div
+      <Button
+        prefix_icon={icon}
+        disabled={disabled}
         style={{
-          width: 44,
-          height: 44,
-          borderRadius: "50%",
-          background: isDark
-            ? hovered ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)"
-            : hovered ? "rgba(0,0,0,0.08)" : "rgba(0,0,0,0.04)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          transition: "background 0.15s ease, transform 0.15s ease",
-          transform: hovered ? "scale(1.08)" : "scale(1)",
+          iconOnlyPaddingVertical: 16,
+          iconOnlyPaddingHorizontal: 16,
+          borderRadius: 999,
+          color: baseColor,
+          backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.04)",
+          hoverBackgroundColor: isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)",
+          content: {
+            icon: { width: 19, height: 19 },
+          },
         }}
-      >
-        <Icon src={icon} style={{ width: 19, height: 19 }} color={baseColor} />
-      </div>
+      />
       <span
         style={{
           fontSize: 10.5,
@@ -341,7 +331,7 @@ const DetailActionCircle = ({ icon, label, color, isDark, onClick, disabled }) =
       >
         {label}
       </span>
-    </button>
+    </div>
   );
 };
 

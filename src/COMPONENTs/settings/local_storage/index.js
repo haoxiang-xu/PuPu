@@ -1,11 +1,21 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { SettingsSection } from "../appearance";
 import { listAttachmentEntries } from "../../../SERVICEs/attachment_storage";
 import { fetchOllamaModels } from "./utils/ollama_models";
-import { formatBytes, readLocalStorageEntries } from "./utils/storage_metrics";
+import {
+  formatBytes,
+  readLocalStorageEntriesAsync,
+} from "./utils/storage_metrics";
 import StorageKeyRow from "./components/storage_key_row";
 import StorageBar from "./components/storage_bar";
 import OllamaModelRow from "./components/ollama_model_row";
@@ -1009,56 +1019,98 @@ const CharactersSection = ({ isDark }) => {
   );
 };
 
+let _cachedLocalStorageEntries = null;
+let _cachedAttachmentCount = null;
+let _cachedMemoryStats = null;
+
+const normalizeMemoryStats = (result) => {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+  return {
+    total:
+      typeof result.total === "number" && result.total > 0 ? result.total : 0,
+    vectorTotal:
+      typeof result.vectorTotal === "number" && result.vectorTotal > 0
+        ? result.vectorTotal
+        : 0,
+    profileTotal:
+      typeof result.profileTotal === "number" && result.profileTotal > 0
+        ? result.profileTotal
+        : 0,
+  };
+};
+
 export const LocalStorageSettings = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
-  const [entries, setEntries] = useState([]);
-  const [attachmentCount, setAttachmentCount] = useState(null);
-  const [memoryStats, setMemoryStats] = useState(null);
+  const [entries, setEntries] = useState(() => _cachedLocalStorageEntries ?? []);
+  const [attachmentCount, setAttachmentCount] = useState(
+    () => _cachedAttachmentCount,
+  );
+  const [memoryStats, setMemoryStats] = useState(() => _cachedMemoryStats);
+  const [isLoading, setIsLoading] = useState(
+    () => _cachedLocalStorageEntries === null,
+  );
   const [confirmClear, setConfirmClear] = useState(false);
+  const mountedRef = useRef(true);
+  const refreshIdRef = useRef(0);
+  const refreshAbortRef = useRef(null);
 
-  const refresh = useCallback(() => {
-    setEntries(readLocalStorageEntries());
-    listAttachmentEntries()
-      .then((all) => {
-        setAttachmentCount(all.length);
-      })
-      .catch(() => {});
-    if (!runtimeBridge.isMemorySizeAvailable()) {
-      setMemoryStats(null);
+  const refresh = useCallback(async () => {
+    const refreshId = refreshIdRef.current + 1;
+    refreshIdRef.current = refreshId;
+    refreshAbortRef.current?.abort();
+    const controller =
+      typeof AbortController === "function" ? new AbortController() : null;
+    refreshAbortRef.current = controller;
+    setIsLoading(true);
+
+    const entriesPromise = readLocalStorageEntriesAsync({
+      signal: controller?.signal,
+    });
+    const attachmentPromise = listAttachmentEntries()
+      .then((all) => (Array.isArray(all) ? all.length : null))
+      .catch(() => null);
+    const memoryPromise = runtimeBridge.isMemorySizeAvailable()
+      ? runtimeBridge
+          .getMemorySize()
+          .then((result) => normalizeMemoryStats(result))
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    const [nextEntries, nextAttachmentCount, nextMemoryStats] =
+      await Promise.all([entriesPromise, attachmentPromise, memoryPromise]);
+
+    if (
+      !mountedRef.current ||
+      refreshIdRef.current !== refreshId ||
+      controller?.signal.aborted
+    ) {
       return;
     }
 
-    runtimeBridge
-      .getMemorySize()
-      .then((result) => {
-        if (!result || typeof result !== "object") {
-          setMemoryStats(null);
-          return;
-        }
-        setMemoryStats({
-          total:
-            typeof result.total === "number" && result.total > 0
-              ? result.total
-              : 0,
-          vectorTotal:
-            typeof result.vectorTotal === "number" && result.vectorTotal > 0
-              ? result.vectorTotal
-              : 0,
-          profileTotal:
-            typeof result.profileTotal === "number" && result.profileTotal > 0
-              ? result.profileTotal
-              : 0,
-        });
-      })
-      .catch(() => {
-        setMemoryStats(null);
-      });
+    _cachedLocalStorageEntries = nextEntries;
+    _cachedAttachmentCount = nextAttachmentCount;
+    _cachedMemoryStats = nextMemoryStats;
+
+    startTransition(() => {
+      setEntries(nextEntries);
+      setAttachmentCount(nextAttachmentCount);
+      setMemoryStats(nextMemoryStats);
+      setIsLoading(false);
+    });
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     refresh();
+    return () => {
+      mountedRef.current = false;
+      refreshIdRef.current += 1;
+      refreshAbortRef.current?.abort();
+    };
   }, [refresh]);
 
   const handleDelete = useCallback(
@@ -1095,42 +1147,72 @@ export const LocalStorageSettings = () => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                fontSize: 11,
-                fontFamily: "Jost",
-                fontWeight: 500,
-                padding: "2px 8px",
-                borderRadius: 999,
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.05)",
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
-                lineHeight: 1.8,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {entries.length} {entries.length === 1 ? "key" : "keys"}
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                fontFamily: "Jost",
-                fontWeight: 500,
-                padding: "2px 8px",
-                borderRadius: 999,
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.05)",
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
-                lineHeight: 1.8,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {formatBytes(totalSize)} total
-            </span>
+            {(!isLoading || entries.length > 0) && (
+              <>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "Jost",
+                    fontWeight: 500,
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.07)"
+                      : "rgba(0,0,0,0.05)",
+                    color: isDark
+                      ? "rgba(255,255,255,0.35)"
+                      : "rgba(0,0,0,0.38)",
+                    lineHeight: 1.8,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {entries.length} {entries.length === 1 ? "key" : "keys"}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "Jost",
+                    fontWeight: 500,
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.07)"
+                      : "rgba(0,0,0,0.05)",
+                    color: isDark
+                      ? "rgba(255,255,255,0.35)"
+                      : "rgba(0,0,0,0.38)",
+                    lineHeight: 1.8,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatBytes(totalSize)} total
+                </span>
+              </>
+            )}
+            {isLoading && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Jost",
+                  fontWeight: 500,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.07)"
+                    : "rgba(0,0,0,0.05)",
+                  color: isDark
+                    ? "rgba(255,255,255,0.35)"
+                    : "rgba(0,0,0,0.38)",
+                  lineHeight: 1.8,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                loading…
+              </span>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -1175,7 +1257,19 @@ export const LocalStorageSettings = () => {
           </div>
         )}
 
-        {entries.length === 0 ? (
+        {isLoading && entries.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "32px 0",
+              fontSize: 13,
+              color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+              fontFamily: theme?.font?.fontFamily || "inherit",
+            }}
+          >
+            Reading local storage…
+          </div>
+        ) : entries.length === 0 ? (
           <div
             style={{
               textAlign: "center",
