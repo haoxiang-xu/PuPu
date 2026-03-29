@@ -8,7 +8,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CHARACTER_SEED_VERSION = 3
+DEFAULT_CHARACTER_SEED_VERSION = 4
 
 _SEEDS_DIR = os.path.join(os.path.dirname(__file__), "character_seeds")
 

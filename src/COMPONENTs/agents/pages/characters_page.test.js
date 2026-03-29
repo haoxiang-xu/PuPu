@@ -8,6 +8,8 @@ jest.mock("../../../SERVICEs/api", () => ({
     miso: {
       listSeedCharacters: jest.fn(),
       listCharacters: jest.fn(),
+      saveCharacter: jest.fn(),
+      deleteCharacter: jest.fn(),
     },
   },
 }));
@@ -242,5 +244,112 @@ describe("CharactersPage", () => {
     expect(
       screen.queryByTestId("character-avatar-fallback-nico"),
     ).not.toBeInTheDocument();
+  });
+
+  test("discover swipe removes the followed card without remounting the stack", async () => {
+    api.miso.listCharacters
+      .mockResolvedValueOnce({
+        characters: [],
+        count: 0,
+      })
+      .mockResolvedValueOnce({
+        characters: [
+          {
+            id: "nico",
+            name: "Nico",
+            role: "22-year-old HR at an internet company",
+            metadata: { age: 22, list_tags: ["INFP"], primary_language: "zh-CN" },
+          },
+        ],
+        count: 1,
+      });
+    api.miso.listSeedCharacters.mockResolvedValue({
+      characters: [
+        {
+          id: "nico",
+          name: "Nico",
+          role: "22-year-old HR at an internet company",
+          metadata: { age: 22, list_tags: ["INFP"], primary_language: "zh-CN" },
+        },
+        {
+          id: "mia",
+          name: "Mia",
+          role: "Product designer",
+          metadata: { age: 26, list_tags: ["INTJ"], primary_language: "ja-JP" },
+        },
+      ],
+      count: 2,
+    });
+    api.miso.saveCharacter.mockResolvedValue({ ok: true, id: "nico" });
+
+    render(<CharactersPage isDark={false} />);
+
+    expect(await screen.findByTestId("characters-added-empty")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Discover"));
+
+    expect(await screen.findByTestId("swipe-card-nico")).toBeInTheDocument();
+    expect(screen.getByTestId("swipe-card-nico")).toHaveStyle("pointer-events: auto");
+    expect(screen.getByTestId("swipe-card-mia")).toHaveStyle("pointer-events: none");
+
+    fireEvent.click(screen.getByTestId("icon-heart_outline").closest("button"));
+
+    expect(screen.getByTestId("swipe-card-nico")).toBeInTheDocument();
+    expect(api.miso.saveCharacter).not.toHaveBeenCalled();
+
+    await waitFor(() =>
+      expect(api.miso.saveCharacter).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "nico" }),
+      ),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("swipe-card-nico")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("swipe-card-mia")).toHaveStyle("pointer-events: auto");
+    expect(api.miso.listSeedCharacters).toHaveBeenCalledTimes(1);
+  });
+
+  test("discover skip keeps the outgoing card for the exit animation, then removes it", async () => {
+    api.miso.listCharacters.mockResolvedValue({
+      characters: [],
+      count: 0,
+    });
+    api.miso.listSeedCharacters.mockResolvedValue({
+      characters: [
+        {
+          id: "nico",
+          name: "Nico",
+          role: "22-year-old HR at an internet company",
+          metadata: { age: 22, list_tags: ["INFP"], primary_language: "zh-CN" },
+        },
+        {
+          id: "mia",
+          name: "Mia",
+          role: "Product designer",
+          metadata: { age: 26, list_tags: ["INTJ"], primary_language: "ja-JP" },
+        },
+      ],
+      count: 2,
+    });
+
+    render(<CharactersPage isDark={false} />);
+
+    expect(await screen.findByTestId("characters-added-empty")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Discover"));
+
+    expect(await screen.findByTestId("swipe-card-nico")).toBeInTheDocument();
+    expect(screen.getByTestId("swipe-card-mia")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByTestId("icon-close").at(-1).closest("button"));
+
+    expect(screen.getByTestId("swipe-card-nico")).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("swipe-card-nico")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("swipe-card-mia")).toHaveStyle("pointer-events: auto");
+    expect(api.miso.saveCharacter).not.toHaveBeenCalled();
   });
 });

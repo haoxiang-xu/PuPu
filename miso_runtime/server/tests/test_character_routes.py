@@ -65,43 +65,79 @@ class CharacterRouteTests(unittest.TestCase):
     def tearDown(self) -> None:
         memory_factory._qdrant_clients.clear()
 
-    def test_builtin_nico_is_seeded_once_with_profiles(self) -> None:
+    def test_builtin_characters_are_seeded_once_with_profiles(self) -> None:
         first_list_response = self.client.get("/characters")
         self.assertEqual(first_list_response.status_code, 200)
         first_payload = first_list_response.get_json()
-        self.assertEqual(first_payload["count"], 1)
-        self.assertEqual(first_payload["characters"][0]["id"], "nico")
-        self.assertEqual(first_payload["characters"][0]["name"], "Nico")
-        self.assertEqual(first_payload["characters"][0]["timezone"], "Asia/Shanghai")
-        self.assertEqual(first_payload["characters"][0]["metadata"]["age"], 22)
-        self.assertEqual(first_payload["characters"][0]["metadata"]["mbti"], "INFP")
+        self.assertEqual(first_payload["count"], 2)
+        first_characters = {
+            item["id"]: item for item in first_payload["characters"]
+        }
+        self.assertEqual(set(first_characters), {"lena", "nico"})
+        self.assertEqual(first_characters["nico"]["name"], "Nico")
+        self.assertEqual(first_characters["nico"]["timezone"], "Asia/Shanghai")
+        self.assertEqual(first_characters["nico"]["metadata"]["age"], 22)
+        self.assertEqual(first_characters["nico"]["metadata"]["mbti"], "INFP")
+        self.assertEqual(first_characters["lena"]["name"], "Lena Sato")
+        self.assertEqual(first_characters["lena"]["timezone"], "Asia/Tokyo")
+        self.assertEqual(first_characters["lena"]["metadata"]["age"], 24)
+        self.assertEqual(first_characters["lena"]["metadata"]["mbti"], "ENFP")
 
         second_list_response = self.client.get("/characters")
         self.assertEqual(second_list_response.status_code, 200)
         second_payload = second_list_response.get_json()
-        self.assertEqual(second_payload["count"], 1)
-        self.assertEqual(second_payload["characters"][0]["id"], "nico")
+        self.assertEqual(second_payload["count"], 2)
+        self.assertEqual(
+            {item["id"] for item in second_payload["characters"]},
+            {"lena", "nico"},
+        )
 
-        get_response = self.client.get("/characters/nico")
-        self.assertEqual(get_response.status_code, 200)
-        character = get_response.get_json()
-        self.assertEqual(character["role"], "22-year-old HR at an internet company")
-        self.assertEqual(character["metadata"]["list_tags"], ["INFP", "HR", "猫控", "古灵精怪"])
+        nico_response = self.client.get("/characters/nico")
+        self.assertEqual(nico_response.status_code, 200)
+        nico = nico_response.get_json()
+        self.assertEqual(nico["role"], "22-year-old HR at an internet company")
+        self.assertEqual(nico["metadata"]["list_tags"], ["INFP", "HR", "猫控", "古灵精怪"])
+
+        lena_response = self.client.get("/characters/lena")
+        self.assertEqual(lena_response.status_code, 200)
+        lena = lena_response.get_json()
+        self.assertEqual(
+            lena["role"],
+            "24-year-old Japanese-French dessert stylist and visual designer",
+        )
+        self.assertEqual(
+            lena["metadata"]["list_tags"],
+            ["ENFP", "设计师", "甜品控", "古灵精怪"],
+        )
 
         data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
-        self_profile = memory_factory._load_long_term_profile(
+        nico_self_profile = memory_factory._load_long_term_profile(
             data_dir,
             "character_nico__self",
         )
-        relationship_profile = memory_factory._load_long_term_profile(
+        nico_relationship_profile = memory_factory._load_long_term_profile(
             data_dir,
             "character_nico__rel__local_user",
         )
         self.assertEqual(
-            self_profile["core_identity"],
+            nico_self_profile["core_identity"],
             "22岁，互联网公司 HR，INFP，小蝴蝶型，古灵精怪",
         )
-        self.assertEqual(relationship_profile["familiarity_stage"], "stranger")
+        self.assertEqual(nico_relationship_profile["familiarity_stage"], "stranger")
+
+        lena_self_profile = memory_factory._load_long_term_profile(
+            data_dir,
+            "character_lena__self",
+        )
+        lena_relationship_profile = memory_factory._load_long_term_profile(
+            data_dir,
+            "character_lena__rel__local_user",
+        )
+        self.assertEqual(
+            lena_self_profile["core_identity"],
+            "24岁，日法混血甜品视觉设计师，甜甜的，脑子快，有点小坏",
+        )
+        self.assertEqual(lena_relationship_profile["familiarity_stage"], "stranger")
 
     def test_seed_avatar_route_serves_avatar_png(self) -> None:
         response = self.client.get("/characters/seeds/nico/avatar")
@@ -193,9 +229,10 @@ class CharacterRouteTests(unittest.TestCase):
         response = self.client.get("/characters")
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
-        self.assertEqual(payload["count"], 1)
+        self.assertEqual(payload["count"], 2)
+        characters_by_id = {item["id"]: item for item in payload["characters"]}
         self.assertEqual(
-            payload["characters"][0]["metadata"]["default_model"],
+            characters_by_id["nico"]["metadata"]["default_model"],
             "openai:gpt-4.1",
         )
 
@@ -214,6 +251,7 @@ class CharacterRouteTests(unittest.TestCase):
             "openai:gpt-4.1",
         )
         self.assertIsInstance(registry["characters_by_id"]["nico"]["avatar"], dict)
+        self.assertIn("lena", registry["characters_by_id"])
 
     def test_builtin_nico_avatar_backfills_even_when_seed_version_is_current(self) -> None:
         data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
@@ -344,7 +382,7 @@ class CharacterRouteTests(unittest.TestCase):
         self.assertEqual(build_payload["default_model"], "openai:gpt-4.1")
 
     def test_delete_seeded_nico_does_not_recreate_it(self) -> None:
-        self.assertEqual(self.client.get("/characters").get_json()["count"], 1)
+        self.assertEqual(self.client.get("/characters").get_json()["count"], 2)
 
         delete_response = self.client.delete("/characters/nico")
         self.assertEqual(delete_response.status_code, 200)
@@ -353,8 +391,11 @@ class CharacterRouteTests(unittest.TestCase):
         list_response = self.client.get("/characters")
         self.assertEqual(list_response.status_code, 200)
         list_payload = list_response.get_json()
-        self.assertEqual(list_payload["count"], 0)
-        self.assertEqual(list_payload["characters"], [])
+        self.assertEqual(list_payload["count"], 1)
+        self.assertEqual(
+            {item["id"] for item in list_payload["characters"]},
+            {"lena"},
+        )
 
     def test_character_crud_preview_and_build_round_trip(self) -> None:
         save_response = self.client.post("/characters", json=_character_payload())
@@ -369,10 +410,10 @@ class CharacterRouteTests(unittest.TestCase):
         list_response = self.client.get("/characters")
         self.assertEqual(list_response.status_code, 200)
         listed = list_response.get_json()
-        self.assertEqual(listed["count"], 2)
+        self.assertEqual(listed["count"], 3)
         self.assertEqual(
             {item["id"] for item in listed["characters"]},
-            {"nico", character_id},
+            {"lena", "nico", character_id},
         )
 
         preview_response = self.client.post(
