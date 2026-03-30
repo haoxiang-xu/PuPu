@@ -53,7 +53,7 @@ describe("preload API contract", () => {
   });
 
   test("unchain API keeps required method surface", () => {
-    const miso = exposed.unchainAPI;
+    const unchain = exposed.unchainAPI;
 
     [
       "getStatus",
@@ -80,7 +80,7 @@ describe("preload API contract", () => {
       "startStreamV2",
       "cancelStream",
     ].forEach((method) => {
-      expect(typeof miso[method]).toBe("function");
+      expect(typeof unchain[method]).toBe("function");
     });
   });
 

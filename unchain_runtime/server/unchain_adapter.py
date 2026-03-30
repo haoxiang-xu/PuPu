@@ -32,7 +32,7 @@ def _ensure_unchain_on_path() -> None:
             sys.path.insert(0, _source)
             return
     _project_root = str(Path(__file__).resolve().parents[2])
-    _sibling = os.path.join(os.path.dirname(_project_root), "miso", "src")
+    _sibling = os.path.join(os.path.dirname(_project_root), "unchain", "src")
     if os.path.isdir(_sibling) and _sibling not in sys.path:
         sys.path.insert(0, _sibling)
 
@@ -579,7 +579,7 @@ def _capability_file_candidates() -> List[Path]:
         project_root / "unchain_runtime" / "runtime" / "resources" / "model_capabilities.json"
     )
     candidates.append(
-        project_root.parent / "miso" / "src" / "miso" / "runtime" / "resources" / "model_capabilities.json"
+        project_root.parent / "unchain" / "src" / "unchain" / "runtime" / "resources" / "model_capabilities.json"
     )
 
     unique_candidates: List[Path] = []

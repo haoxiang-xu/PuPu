@@ -257,7 +257,7 @@ const createUnchainService = ({
         command: resolvePuPuVenvPythonPath(),
       },
       {
-        label: "miso .venv",
+        label: "unchain .venv",
         command: resolveMisoVenvPythonPath(),
       },
     ];
@@ -288,7 +288,7 @@ const createUnchainService = ({
     throw new Error(
       [
         `PuPu requires a Python ${UNCHAIN_REQUIRED_PYTHON_VERSION} runtime in .venv.`,
-        "Initialize ./scripts/init_python312_venv.sh in PuPu and ../miso/scripts/init_python312_venv.sh in miso.",
+        "Initialize ./scripts/init_python312_venv.sh in PuPu and ../unchain/scripts/init_python312_venv.sh in unchain.",
         ...failures,
       ].join(" "),
     );
@@ -458,7 +458,7 @@ const createUnchainService = ({
     if (!unchainAuthToken) {
       return baseUrl;
     }
-    return `${baseUrl}?miso_auth=${encodeURIComponent(unchainAuthToken)}`;
+    return `${baseUrl}?unchain_auth=${encodeURIComponent(unchainAuthToken)}`;
   };
 
   const decorateCharacterAvatar = (character, { seed = false } = {}) => {
@@ -1236,7 +1236,7 @@ const createUnchainService = ({
         unchainProcess = null;
 
         terminateAllMisoStreams("error", {
-          code: "miso_process_error",
+          code: "unchain_process_error",
           message: error.message || "Miso process failed to start",
         });
 
@@ -1261,7 +1261,7 @@ const createUnchainService = ({
         unchainStatus = "error";
         unchainStatusReason = `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`;
         terminateAllMisoStreams("error", {
-          code: "miso_process_exit",
+          code: "unchain_process_exit",
           message: `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`,
         });
         scheduleMisoRestart();
@@ -1455,7 +1455,7 @@ const createUnchainService = ({
           ? `: ${unchainStatusReason.trim()}`
           : "";
       emitMisoStreamEvent(sender.id, requestId, "error", {
-        code: "miso_not_ready",
+        code: "unchain_not_ready",
         message: `Miso service is not ready (${unchainStatus})${reasonSuffix}`,
       });
       return;

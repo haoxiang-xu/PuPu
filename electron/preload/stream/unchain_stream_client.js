@@ -1,7 +1,7 @@
 const { CHANNELS } = require("../../shared/channels");
 
 const createRequestId = () =>
-  `miso-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  `unchain-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
 const createMisoStreamClient = (ipcRenderer) => {
   const activeMisoStreamCleanups = new Map();

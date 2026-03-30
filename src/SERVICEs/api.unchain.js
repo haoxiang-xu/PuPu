@@ -563,14 +563,14 @@ export const createMisoApi = () => {
         const payload = await withTimeout(
           () => method(),
           6000,
-          "miso_toolkit_catalog_timeout",
+          "unchain_toolkit_catalog_timeout",
           "Miso toolkit catalog request timed out",
         );
         return payload || { toolkits: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_toolkit_catalog_failed",
+          "unchain_toolkit_catalog_failed",
           "Failed to query Miso toolkit catalog",
         );
       }
@@ -586,14 +586,14 @@ export const createMisoApi = () => {
         const payload = await withTimeout(
           () => method(),
           8000,
-          "miso_tool_modal_catalog_timeout",
+          "unchain_tool_modal_catalog_timeout",
           "Miso tool modal catalog request timed out",
         );
         return payload || { toolkits: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_tool_modal_catalog_failed",
+          "unchain_tool_modal_catalog_failed",
           "Failed to query Miso tool modal catalog",
         );
       }
@@ -616,7 +616,7 @@ export const createMisoApi = () => {
         const payload = await withTimeout(
           () => method(toolkitId, toolName),
           6000,
-          "miso_toolkit_detail_timeout",
+          "unchain_toolkit_detail_timeout",
           "Miso toolkit detail request timed out",
         );
         return (
@@ -632,7 +632,7 @@ export const createMisoApi = () => {
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_toolkit_detail_failed",
+          "unchain_toolkit_detail_failed",
           "Failed to query Miso toolkit detail",
         );
       }
@@ -676,7 +676,7 @@ export const createMisoApi = () => {
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_tool_confirmation_failed",
+          "unchain_tool_confirmation_failed",
           "Failed to submit tool confirmation",
         );
       }
@@ -704,7 +704,7 @@ export const createMisoApi = () => {
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_stream_start_failed",
+          "unchain_stream_start_failed",
           "Failed to start Miso stream",
         );
       }
@@ -890,7 +890,7 @@ export const createMisoApi = () => {
                 : {},
             }),
           15000,
-          "miso_session_memory_replace_timeout",
+          "unchain_session_memory_replace_timeout",
           "Miso session memory replace request timed out",
         );
 
@@ -898,7 +898,7 @@ export const createMisoApi = () => {
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_session_memory_replace_failed",
+          "unchain_session_memory_replace_failed",
           "Failed to replace Miso session memory",
         );
       }
@@ -922,7 +922,7 @@ export const createMisoApi = () => {
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_stream_v2_start_failed",
+          "unchain_stream_v2_start_failed",
           "Failed to start Miso v2 stream",
         );
       }

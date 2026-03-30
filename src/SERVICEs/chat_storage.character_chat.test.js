@@ -283,7 +283,7 @@ describe("chat_storage character chat behavior", () => {
           id: "nico",
           name: "Nico",
           avatar: {
-            url: "http://127.0.0.1:5879/characters/nico/avatar?miso_auth=stale-token",
+            url: "http://127.0.0.1:5879/characters/nico/avatar?unchain_auth=stale-token",
           },
           metadata: { default_model: "openai:gpt-4.1" },
         },
@@ -297,7 +297,7 @@ describe("chat_storage character chat behavior", () => {
           id: "nico",
           name: "Nico",
           avatar: {
-            url: "http://127.0.0.1:5879/characters/nico/avatar?miso_auth=fresh-token",
+            url: "http://127.0.0.1:5879/characters/nico/avatar?unchain_auth=fresh-token",
           },
         },
       ],
@@ -305,7 +305,7 @@ describe("chat_storage character chat behavior", () => {
     );
 
     expect(getChatsStore().chatsById[created.chatId].characterAvatar).toEqual({
-      url: "http://127.0.0.1:5879/characters/nico/avatar?miso_auth=fresh-token",
+      url: "http://127.0.0.1:5879/characters/nico/avatar?unchain_auth=fresh-token",
     });
   });
 });

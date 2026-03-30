@@ -67,9 +67,9 @@ export const runtimeBridge = {
     const nextOpen = Boolean(open);
     const response = await invokeMiso("setChromeTerminalOpen", [nextOpen], {
       timeoutMs: 6000,
-      timeoutCode: "miso_chrome_terminal_timeout",
+      timeoutCode: "unchain_chrome_terminal_timeout",
       timeoutMessage: "Chrome terminal toggle request timed out",
-      failureCode: "miso_chrome_terminal_failed",
+      failureCode: "unchain_chrome_terminal_failed",
       failureMessage: "Failed to toggle Chrome terminal",
     });
 
@@ -93,9 +93,9 @@ export const runtimeBridge = {
       [featureFlags],
       {
         timeoutMs: 6000,
-        timeoutCode: "miso_build_feature_flags_snapshot_timeout",
+        timeoutCode: "unchain_build_feature_flags_snapshot_timeout",
         timeoutMessage: "Build feature flag snapshot sync timed out",
-        failureCode: "miso_build_feature_flags_snapshot_failed",
+        failureCode: "unchain_build_feature_flags_snapshot_failed",
         failureMessage: "Failed to sync build feature flag snapshot",
       },
     );
@@ -117,9 +117,9 @@ export const runtimeBridge = {
 
     const response = await invokeMiso("validateWorkspaceRoot", [path], {
       timeoutMs: 6000,
-      timeoutCode: "miso_validate_workspace_timeout",
+      timeoutCode: "unchain_validate_workspace_timeout",
       timeoutMessage: "Workspace path validation timed out",
-      failureCode: "miso_validate_workspace_failed",
+      failureCode: "unchain_validate_workspace_failed",
       failureMessage: "Failed to validate workspace path",
     });
 
@@ -149,9 +149,9 @@ export const runtimeBridge = {
 
     const response = await invokeMiso("pickWorkspaceRoot", [defaultPath], {
       timeoutMs: 20000,
-      timeoutCode: "miso_pick_workspace_timeout",
+      timeoutCode: "unchain_pick_workspace_timeout",
       timeoutMessage: "Workspace picker request timed out",
-      failureCode: "miso_pick_workspace_failed",
+      failureCode: "unchain_pick_workspace_failed",
       failureMessage: "Failed to open workspace picker",
     });
 
@@ -171,9 +171,9 @@ export const runtimeBridge = {
 
     const response = await invokeMiso("openRuntimeFolder", [path], {
       timeoutMs: 10000,
-      timeoutCode: "miso_open_runtime_folder_timeout",
+      timeoutCode: "unchain_open_runtime_folder_timeout",
       timeoutMessage: "Open runtime folder request timed out",
-      failureCode: "miso_open_runtime_folder_failed",
+      failureCode: "unchain_open_runtime_folder_failed",
       failureMessage: "Failed to open runtime folder",
     });
 
@@ -224,9 +224,9 @@ export const runtimeBridge = {
 
     const response = await invokeMiso("getMemorySize", [], {
       timeoutMs: 10000,
-      timeoutCode: "miso_memory_size_timeout",
+      timeoutCode: "unchain_memory_size_timeout",
       timeoutMessage: "Memory size request timed out",
-      failureCode: "miso_memory_size_failed",
+      failureCode: "unchain_memory_size_failed",
       failureMessage: "Failed to get memory size",
     });
 
@@ -254,9 +254,9 @@ export const runtimeBridge = {
 
     const response = await invokeMiso("getCharacterStorageSize", [], {
       timeoutMs: 10000,
-      timeoutCode: "miso_character_storage_timeout",
+      timeoutCode: "unchain_character_storage_timeout",
       timeoutMessage: "Character storage request timed out",
-      failureCode: "miso_character_storage_failed",
+      failureCode: "unchain_character_storage_failed",
       failureMessage: "Failed to get character storage size",
     });
 
@@ -291,9 +291,9 @@ export const runtimeBridge = {
 
     return invokeMiso("deleteCharacterStorageEntry", [entryName], {
       timeoutMs: 10000,
-      timeoutCode: "miso_character_storage_delete_timeout",
+      timeoutCode: "unchain_character_storage_delete_timeout",
       timeoutMessage: "Character storage delete request timed out",
-      failureCode: "miso_character_storage_delete_failed",
+      failureCode: "unchain_character_storage_delete_failed",
       failureMessage: "Failed to delete character storage entry",
     });
   },
@@ -301,9 +301,9 @@ export const runtimeBridge = {
   listSeedCharacters: async () => {
     const response = await invokeMiso("listSeedCharacters", [], {
       timeoutMs: 15000,
-      timeoutCode: "miso_seed_character_list_timeout",
+      timeoutCode: "unchain_seed_character_list_timeout",
       timeoutMessage: "Seed character list request timed out",
-      failureCode: "miso_seed_character_list_failed",
+      failureCode: "unchain_seed_character_list_failed",
       failureMessage: "Failed to list seed characters",
     });
 
@@ -325,9 +325,9 @@ export const runtimeBridge = {
 
     const response = await invokeMiso("listCharacters", [], {
       timeoutMs: 15000,
-      timeoutCode: "miso_character_list_timeout",
+      timeoutCode: "unchain_character_list_timeout",
       timeoutMessage: "Character list request timed out",
-      failureCode: "miso_character_list_failed",
+      failureCode: "unchain_character_list_failed",
       failureMessage: "Failed to list characters",
     });
 
@@ -349,9 +349,9 @@ export const runtimeBridge = {
 
     return invokeMiso("getCharacter", [characterId], {
       timeoutMs: 15000,
-      timeoutCode: "miso_character_get_timeout",
+      timeoutCode: "unchain_character_get_timeout",
       timeoutMessage: "Character get request timed out",
-      failureCode: "miso_character_get_failed",
+      failureCode: "unchain_character_get_failed",
       failureMessage: "Failed to get character",
     });
   },
@@ -366,9 +366,9 @@ export const runtimeBridge = {
 
     return invokeMiso("saveCharacter", [payload], {
       timeoutMs: 20000,
-      timeoutCode: "miso_character_save_timeout",
+      timeoutCode: "unchain_character_save_timeout",
       timeoutMessage: "Character save request timed out",
-      failureCode: "miso_character_save_failed",
+      failureCode: "unchain_character_save_failed",
       failureMessage: "Failed to save character",
     });
   },
@@ -383,9 +383,9 @@ export const runtimeBridge = {
 
     return invokeMiso("deleteCharacter", [characterId], {
       timeoutMs: 30000,
-      timeoutCode: "miso_character_delete_timeout",
+      timeoutCode: "unchain_character_delete_timeout",
       timeoutMessage: "Character delete request timed out",
-      failureCode: "miso_character_delete_failed",
+      failureCode: "unchain_character_delete_failed",
       failureMessage: "Failed to delete character",
     });
   },
@@ -400,9 +400,9 @@ export const runtimeBridge = {
 
     return invokeMiso("previewCharacterDecision", [payload], {
       timeoutMs: 20000,
-      timeoutCode: "miso_character_preview_timeout",
+      timeoutCode: "unchain_character_preview_timeout",
       timeoutMessage: "Character preview request timed out",
-      failureCode: "miso_character_preview_failed",
+      failureCode: "unchain_character_preview_failed",
       failureMessage: "Failed to preview character decision",
     });
   },
@@ -417,9 +417,9 @@ export const runtimeBridge = {
 
     return invokeMiso("buildCharacterAgentConfig", [payload], {
       timeoutMs: 20000,
-      timeoutCode: "miso_character_build_timeout",
+      timeoutCode: "unchain_character_build_timeout",
       timeoutMessage: "Character build request timed out",
-      failureCode: "miso_character_build_failed",
+      failureCode: "unchain_character_build_failed",
       failureMessage: "Failed to build character agent config",
     });
   },
@@ -434,9 +434,9 @@ export const runtimeBridge = {
 
     return invokeMiso("exportCharacter", [characterId, filePath], {
       timeoutMs: 30000,
-      timeoutCode: "miso_character_export_timeout",
+      timeoutCode: "unchain_character_export_timeout",
       timeoutMessage: "Character export request timed out",
-      failureCode: "miso_character_export_failed",
+      failureCode: "unchain_character_export_failed",
       failureMessage: "Failed to export character",
     });
   },
@@ -451,9 +451,9 @@ export const runtimeBridge = {
 
     return invokeMiso("importCharacter", [filePath], {
       timeoutMs: 30000,
-      timeoutCode: "miso_character_import_timeout",
+      timeoutCode: "unchain_character_import_timeout",
       timeoutMessage: "Character import request timed out",
-      failureCode: "miso_character_import_failed",
+      failureCode: "unchain_character_import_failed",
       failureMessage: "Failed to import character",
     });
   },
@@ -485,9 +485,9 @@ export const runtimeBridge = {
   showSaveDialog: async (options = {}) => {
     return invokeMiso("showSaveDialog", [options], {
       timeoutMs: 30000,
-      timeoutCode: "miso_save_dialog_timeout",
+      timeoutCode: "unchain_save_dialog_timeout",
       timeoutMessage: "Save dialog request timed out",
-      failureCode: "miso_save_dialog_failed",
+      failureCode: "unchain_save_dialog_failed",
       failureMessage: "Failed to open save dialog",
     });
   },
@@ -495,9 +495,9 @@ export const runtimeBridge = {
   showOpenDialog: async (options = {}) => {
     return invokeMiso("showOpenDialog", [options], {
       timeoutMs: 30000,
-      timeoutCode: "miso_open_dialog_timeout",
+      timeoutCode: "unchain_open_dialog_timeout",
       timeoutMessage: "Open dialog request timed out",
-      failureCode: "miso_open_dialog_failed",
+      failureCode: "unchain_open_dialog_failed",
       failureMessage: "Failed to open file dialog",
     });
   },
@@ -505,9 +505,9 @@ export const runtimeBridge = {
   writeFile: async (filePath, content) => {
     return invokeMiso("writeFile", [filePath, content], {
       timeoutMs: 15000,
-      timeoutCode: "miso_write_file_timeout",
+      timeoutCode: "unchain_write_file_timeout",
       timeoutMessage: "Write file request timed out",
-      failureCode: "miso_write_file_failed",
+      failureCode: "unchain_write_file_failed",
       failureMessage: "Failed to write file",
     });
   },
@@ -515,9 +515,9 @@ export const runtimeBridge = {
   readFile: async (filePath) => {
     return invokeMiso("readFile", [filePath], {
       timeoutMs: 15000,
-      timeoutCode: "miso_read_file_timeout",
+      timeoutCode: "unchain_read_file_timeout",
       timeoutMessage: "Read file request timed out",
-      failureCode: "miso_read_file_failed",
+      failureCode: "unchain_read_file_failed",
       failureMessage: "Failed to read file",
     });
   },

@@ -35,7 +35,7 @@ ipcRenderer.on(CHANNELS.MISO.RUNTIME_LOG, (_event, payload = {}) => {
     return;
   }
 
-  console.log(`[miso] ${text}`);
+  console.log(`[unchain] ${text}`);
 });
 
 contextBridge.exposeInMainWorld("runtime", runtimeInfo);

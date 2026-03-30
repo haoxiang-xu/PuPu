@@ -278,7 +278,7 @@ describe("bridge wrappers", () => {
     };
 
     await expect(runtimeBridge.setChromeTerminalOpen(true)).rejects.toMatchObject({
-      code: "miso_chrome_terminal_failed",
+      code: "unchain_chrome_terminal_failed",
     });
   });
 });

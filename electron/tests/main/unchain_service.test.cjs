@@ -87,7 +87,7 @@ describe("unchain service session memory replacement", () => {
     jest.clearAllMocks();
   });
 
-  test("replaceUnchainSessionMemory posts the normalized payload to miso", async () => {
+  test("replaceUnchainSessionMemory posts the normalized payload to unchain", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
     const spawnSync = jest.fn(() => ({

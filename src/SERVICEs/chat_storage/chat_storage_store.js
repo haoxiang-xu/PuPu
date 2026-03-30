@@ -101,7 +101,7 @@ const resolveCharacterPreferredModelId = (character = {}) => {
       continue;
     }
     const normalized = candidate.trim();
-    if (normalized && normalized !== "miso-unset") {
+    if (normalized && normalized !== "unchain-unset") {
       return normalized;
     }
   }
@@ -117,7 +117,7 @@ const resolveCharacterSourceModelId = (store, explicitModelId, character = {}) =
 
   if (typeof explicitModelId === "string" && explicitModelId.trim()) {
     const normalized = explicitModelId.trim();
-    return normalized && normalized !== "miso-unset" ? normalized : "";
+    return normalized && normalized !== "unchain-unset" ? normalized : "";
   }
 
   const activeChat =
@@ -130,7 +130,7 @@ const resolveCharacterSourceModelId = (store, explicitModelId, character = {}) =
 
   const modelId =
     typeof activeChat.model?.id === "string" ? activeChat.model.id.trim() : "";
-  return modelId && modelId !== "miso-unset" ? modelId : "";
+  return modelId && modelId !== "unchain-unset" ? modelId : "";
 };
 
 const touchLru = (store, chatId) => {

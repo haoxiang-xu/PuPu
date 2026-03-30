@@ -1,4 +1,4 @@
-import { createMisoApi } from "./api.miso";
+import { createUnchainApi } from "./api.unchain";
 import { createOllamaApi } from "./api.ollama";
 import { createSystemApi } from "./api.system";
 import {
@@ -21,7 +21,7 @@ export const api = {
   runtime: system.runtime,
   theme: system.theme,
   windowState: system.windowState,
-  "unchain: createMisoApi(),
+  "unchain: createUnchainApi(),
   ollama: createOllamaApi(),
 };
 
