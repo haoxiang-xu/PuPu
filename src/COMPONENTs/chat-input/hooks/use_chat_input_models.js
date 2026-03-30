@@ -22,7 +22,7 @@ const make_initial_collapsed = (selectedModelId) => {
 };
 
 const read_configured_providers = () => {
-  const stored = readModelProviders();
+  const stored = readModelProviders() || {};
   return {
     hasOpenAI: !!stored.openai_api_key,
     hasAnthropic: !!stored.anthropic_api_key,

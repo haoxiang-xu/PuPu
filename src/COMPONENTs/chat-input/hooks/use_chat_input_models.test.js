@@ -42,6 +42,11 @@ describe("useChatInputModels", () => {
   beforeEach(() => {
     api.ollama.listChatModels.mockReset();
     api.ollama.listModels.mockReset();
+    const { readModelProviders } = require("../../settings/model_providers/storage");
+    readModelProviders.mockReturnValue({
+      openai_api_key: "sk-test",
+      anthropic_api_key: "sk-ant-test",
+    });
   });
 
   test("uses chat-only live Ollama models for selector options", async () => {
@@ -127,11 +132,6 @@ describe("useChatInputModels", () => {
     const options = readOptions();
     expect(options.find((g) => g.group === "OpenAI")).toBeUndefined();
     expect(options.find((g) => g.group === "Anthropic")).toBeUndefined();
-
-    readModelProviders.mockReturnValue({
-      openai_api_key: "sk-test",
-      anthropic_api_key: "sk-ant-test",
-    });
   });
 
   test("shows only OpenAI group when only OpenAI key is configured", async () => {
@@ -155,10 +155,5 @@ describe("useChatInputModels", () => {
     const options = readOptions();
     expect(options.find((g) => g.group === "OpenAI")).toBeDefined();
     expect(options.find((g) => g.group === "Anthropic")).toBeUndefined();
-
-    readModelProviders.mockReturnValue({
-      openai_api_key: "sk-test",
-      anthropic_api_key: "sk-ant-test",
-    });
   });
 });
