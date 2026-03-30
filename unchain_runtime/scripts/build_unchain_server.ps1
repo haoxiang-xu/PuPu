@@ -3,14 +3,14 @@
   Build the unchain-server binary for Windows using PyInstaller.
 
 .DESCRIPTION
-  PowerShell equivalent of build_miso_server.sh for Windows.
+  PowerShell equivalent of build_unchain_server.sh for Windows.
 
 .PARAMETER TargetOS
   Target OS (default: windows). Only "windows" is supported on this script.
 
 .EXAMPLE
-  .\unchain_runtime\scripts\build_miso_server.ps1
-  .\unchain_runtime\scripts\build_miso_server.ps1 windows
+  .\unchain_runtime\scripts\build_unchain_server.ps1
+  .\unchain_runtime\scripts\build_unchain_server.ps1 windows
 #>
 
 param(
@@ -84,13 +84,13 @@ $UNCHAIN_SOURCE_PATH = if ($env:UNCHAIN_SOURCE_PATH) { $env:UNCHAIN_SOURCE_PATH 
 $UNCHAIN_SOURCE_PATH = [System.IO.Path]::GetFullPath($UNCHAIN_SOURCE_PATH)
 
 if (-not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\miso\__init__.py")) -or
-    -not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\miso\runtime\engine.py"))) {
-  Write-Error "Invalid MISO source path: $UNCHAIN_SOURCE_PATH`nExpected files: src\miso\__init__.py and src\miso\runtime\engine.py"
+    -not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\__init__.py"))) {
+  Write-Error "Invalid MISO source path: $UNCHAIN_SOURCE_PATH`nExpected files: src\miso\__init__.py and src\unchain\__init__.py"
   exit 1
 }
 
-$CAPABILITY_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\miso\runtime\resources\model_capabilities.json"
-$DEFAULT_PAYLOADS_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\miso\runtime\resources\model_default_payloads.json"
+$CAPABILITY_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources\model_capabilities.json"
+$DEFAULT_PAYLOADS_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources\model_default_payloads.json"
 
 if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON)) {
   Write-Error "Missing required MISO model metadata files in source path: $UNCHAIN_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON"
@@ -99,7 +99,7 @@ if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON
 
 # Python / venv setup
 $resolvedPython = Resolve-Python312Command
-$VENV_DIR = if ($env:UNCHAIN_BUILD_VENV) { $env:UNCHAIN_BUILD_VENV } else { Join-Path $ROOT_DIR ".venv-miso-build" }
+$VENV_DIR = if ($env:UNCHAIN_BUILD_VENV) { $env:UNCHAIN_BUILD_VENV } else { Join-Path $ROOT_DIR ".venv-unchain-build" }
 
 $VENV_PY = Join-Path $VENV_DIR "Scripts\python.exe"
 $VENV_PIP = Join-Path $VENV_DIR "Scripts\pip.exe"

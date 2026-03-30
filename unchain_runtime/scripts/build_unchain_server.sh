@@ -4,13 +4,13 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  build_miso_server.sh [macos|linux|windows] [x86_64|arm64|universal2]
+  build_unchain_server.sh [macos|linux|windows] [x86_64|arm64|universal2]
 
 Environment variables:
-  UNCHAIN_SOURCE_PATH      Path to miso source repo (default: ../miso)
+  UNCHAIN_SOURCE_PATH      Path to unchain source repo (default: ../unchain)
   UNCHAIN_PYTHON_BIN       Python 3.12 executable to create build venv
                         (default resolution: python3.12 -> python3 -> python)
-  UNCHAIN_BUILD_VENV       Build venv path (default: ./.venv-miso-build)
+  UNCHAIN_BUILD_VENV       Build venv path (default: ./.venv-unchain-build)
   UNCHAIN_TARGET_ARCH      macOS target arch for PyInstaller
   UNCHAIN_BUILD_SKIP_INSTALL
                         Set to 1 to skip pip install step
@@ -86,17 +86,17 @@ if [[ -n "$TARGET_ARCH" ]]; then
   fi
 fi
 
-UNCHAIN_SOURCE_PATH="${UNCHAIN_SOURCE_PATH:-"$ROOT_DIR/../miso"}"
-if [[ ! -f "$UNCHAIN_SOURCE_PATH/src/unchain/__init__.py" || ! -f "$UNCHAIN_SOURCE_PATH/src/miso/runtime/engine.py" ]]; then
-  echo "Invalid MISO source path: $UNCHAIN_SOURCE_PATH"
-  echo "Expected files: src/unchain/__init__.py and src/miso/runtime/engine.py"
+UNCHAIN_SOURCE_PATH="${UNCHAIN_SOURCE_PATH:-"$ROOT_DIR/../unchain"}"
+if [[ ! -f "$UNCHAIN_SOURCE_PATH/src/unchain/__init__.py" || ! -f "$UNCHAIN_SOURCE_PATH/src/unchain/__init__.py" ]]; then
+  echo "Invalid unchain source path: $UNCHAIN_SOURCE_PATH"
+  echo "Expected files: src/unchain/__init__.py and src/unchain/__init__.py"
   exit 1
 fi
 
-CAPABILITY_JSON="$UNCHAIN_SOURCE_PATH/src/miso/runtime/resources/model_capabilities.json"
-DEFAULT_PAYLOADS_JSON="$UNCHAIN_SOURCE_PATH/src/miso/runtime/resources/model_default_payloads.json"
+CAPABILITY_JSON="$UNCHAIN_SOURCE_PATH/src/unchain/runtime/resources/model_capabilities.json"
+DEFAULT_PAYLOADS_JSON="$UNCHAIN_SOURCE_PATH/src/unchain/runtime/resources/model_default_payloads.json"
 if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
-  echo "Missing required MISO model metadata files in source path: $UNCHAIN_SOURCE_PATH"
+  echo "Missing required unchain model metadata files in source path: $UNCHAIN_SOURCE_PATH"
   echo "Expected files:"
   echo "  $CAPABILITY_JSON"
   echo "  $DEFAULT_PAYLOADS_JSON"
@@ -104,7 +104,7 @@ if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
 fi
 
 PYTHON_BIN="$(resolve_python312)"
-VENV_DIR="${UNCHAIN_BUILD_VENV:-"$ROOT_DIR/.venv-miso-build"}"
+VENV_DIR="${UNCHAIN_BUILD_VENV:-"$ROOT_DIR/.venv-unchain-build"}"
 if [[ -x "$VENV_DIR/bin/python" ]]; then
   VENV_PY="$VENV_DIR/bin/python"
   VENV_PIP="$VENV_DIR/bin/pip"
@@ -208,30 +208,30 @@ PYINSTALLER_ARGS=(
   --distpath "$DIST_DIR"
   --workpath "$BUILD_DIR"
   --specpath "$SPEC_DIR"
-  --collect-submodules miso
+  --collect-submodules unchain
   --collect-submodules openai
   --collect-submodules anthropic
-  --collect-data miso
-  --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}miso/runtime/resources"
-  --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}miso/runtime/resources"
-  --hidden-import miso
+  --collect-data unchain
+  --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}unchain/runtime/resources"
+  --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}unchain/runtime/resources"
+  --hidden-import unchain
   --hidden-import unchain.runtime
   --hidden-import unchain.runtime.engine
   --hidden-import unchain.runtime.files
   --hidden-import unchain.runtime.providers
-  --hidden-import miso.tools
-  --hidden-import miso.tools.tool
-  --hidden-import miso.tools.toolkit
-  --hidden-import miso.tools.registry
-  --hidden-import miso.tools.catalog
-  --hidden-import miso.schemas
-  --hidden-import miso.schemas.response
-  --hidden-import miso.input
-  --hidden-import miso.input.media
-  --hidden-import miso.toolkits
-  --hidden-import miso.memory
-  --hidden-import miso.memory.manager
-  --hidden-import miso.memory.qdrant
+  --hidden-import unchain.tools
+  --hidden-import unchain.tools.tool
+  --hidden-import unchain.tools.toolkit
+  --hidden-import unchain.tools.registry
+  --hidden-import unchain.tools.catalog
+  --hidden-import unchain.schemas
+  --hidden-import unchain.schemas.response
+  --hidden-import unchain.input
+  --hidden-import unchain.input.media
+  --hidden-import unchain.toolkits
+  --hidden-import unchain.memory
+  --hidden-import unchain.memory.manager
+  --hidden-import unchain.memory.qdrant
   --hidden-import openai
   --hidden-import anthropic
   --collect-submodules qdrant_client
