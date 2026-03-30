@@ -20,11 +20,37 @@ try:
 except ImportError:  # pragma: no cover
     _httpx = None  # type: ignore
 
-_BROTH_CLASS = None
-_IMPORT_ERROR = None
-_RESOLVED_MISO_SOURCE = None
-_PUPU_AGENT_CLASS = None
-_PUPU_AGENT_IMPORT_ERROR = None
+# Ensure miso/unchain source is on sys.path (dev mode uses MISO_SOURCE_PATH env)
+def _ensure_miso_on_path() -> None:
+    _source = os.environ.get("MISO_SOURCE_PATH", "").strip()
+    if _source:
+        _src_dir = os.path.join(_source, "src")
+        if os.path.isdir(_src_dir) and _src_dir not in sys.path:
+            sys.path.insert(0, _src_dir)
+            return
+        if os.path.isdir(_source) and _source not in sys.path:
+            sys.path.insert(0, _source)
+            return
+    # Fallback: sibling miso repo
+    _project_root = str(Path(__file__).resolve().parents[2])
+    _sibling = os.path.join(os.path.dirname(_project_root), "miso", "src")
+    if os.path.isdir(_sibling) and _sibling not in sys.path:
+        sys.path.insert(0, _sibling)
+
+_ensure_miso_on_path()
+
+# Import miso first to resolve circular deps, then import unchain agent
+try:
+    import miso as _miso  # noqa: F401 — bootstraps unchain import chain
+    from unchain.agent import Agent as _UnchainAgent
+    from unchain.agent.modules import ToolsModule as _ToolsModule
+    from unchain.agent.modules import MemoryModule as _MemoryModule
+    from unchain.agent.modules import PoliciesModule as _PoliciesModule
+except ImportError:
+    _UnchainAgent = None  # type: ignore
+    _ToolsModule = None  # type: ignore
+    _MemoryModule = None  # type: ignore
+    _PoliciesModule = None  # type: ignore
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -212,32 +238,6 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     payload["confirmation_id"] = confirmation_id.strip()
     payload["requires_confirmation"] = True
 
-    if payload.get("tool_name") == _ASK_USER_QUESTION_TOOL_NAME:
-        try:
-            request_payload = _normalize_ask_user_question_request(
-                raw_arguments,
-                request_id=str(payload.get("call_id", "") or ""),
-            )
-        except Exception:
-            request_payload = None
-
-        if isinstance(request_payload, dict):
-            payload["arguments"] = request_payload
-            if not payload["description"]:
-                payload["description"] = request_payload.get("question", "")
-            if not isinstance(payload.get("interact_type"), str) or not str(
-                payload.get("interact_type", "")
-            ).strip():
-                payload["interact_type"] = (
-                    "single"
-                    if request_payload.get("selection_mode") == "single"
-                    else "multi"
-                )
-            if not isinstance(payload.get("interact_config"), (dict, list)) or not payload.get(
-                "interact_config"
-            ):
-                payload["interact_config"] = request_payload
-
     # ── interact extension ──────────────────────────────────────────────
     # interact_type: "confirmation" | "multi_choice" | "text_input" | "single" | "multi"
     interact_type = payload.get("interact_type", "confirmation")
@@ -278,240 +278,6 @@ def _resolve_tool_display_name(
     if isinstance(tool_name, str):
         return tool_name
     return str(tool_name or "")
-
-
-def _parse_ask_user_question_arguments(arguments: object) -> Dict[str, Any]:
-    if arguments is None:
-        return {}
-    if isinstance(arguments, dict):
-        return copy.deepcopy(arguments)
-    if isinstance(arguments, str):
-        raw = arguments.strip()
-        if not raw:
-            return {}
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict):
-            return parsed
-    raise ValueError("human input tool arguments must be a dict or JSON string")
-
-
-def _normalize_ask_user_question_request(
-    arguments: object,
-    *,
-    request_id: str,
-) -> Dict[str, Any]:
-    raw = _parse_ask_user_question_arguments(arguments)
-
-    title = raw.get("title")
-    if not isinstance(title, str) or not title.strip():
-        raise ValueError("title must be a non-empty string")
-
-    question = raw.get("question")
-    if not isinstance(question, str) or not question.strip():
-        raise ValueError("question must be a non-empty string")
-
-    selection_mode = raw.get("selection_mode")
-    if selection_mode not in {"single", "multiple"}:
-        raise ValueError("selection_mode must be 'single' or 'multiple'")
-
-    raw_options = raw.get("options")
-    if not isinstance(raw_options, list) or not raw_options:
-        raise ValueError("options must be a non-empty array")
-
-    options: List[Dict[str, str]] = []
-    seen_values: set[str] = set()
-    for entry in raw_options:
-        if not isinstance(entry, dict):
-            raise ValueError("each selector option must be an object")
-        label = entry.get("label")
-        value = entry.get("value")
-        if not isinstance(label, str) or not label.strip():
-            raise ValueError("option.label must be a non-empty string")
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError("option.value must be a non-empty string")
-        normalized_value = value.strip()
-        if normalized_value == _HUMAN_INPUT_OTHER_VALUE:
-            raise ValueError(
-                f"option.value cannot use reserved value '{_HUMAN_INPUT_OTHER_VALUE}'"
-            )
-        if normalized_value in seen_values:
-            raise ValueError(f"duplicate option value: {normalized_value}")
-        seen_values.add(normalized_value)
-        description = entry.get("description", "")
-        if description is None:
-            description = ""
-        if not isinstance(description, str):
-            raise ValueError("option.description must be a string when provided")
-        options.append(
-            {
-                "label": label.strip(),
-                "value": normalized_value,
-                "description": description,
-            }
-        )
-
-    raw_allow_other = raw.get("allow_other", False)
-    if not isinstance(raw_allow_other, bool):
-        raise ValueError("allow_other must be a boolean")
-    allow_other = raw_allow_other
-
-    other_label = raw.get("other_label", "Other")
-    if other_label is None:
-        other_label = "Other"
-    if not isinstance(other_label, str):
-        raise ValueError("other_label must be a string when provided")
-    other_label = other_label.strip() or "Other"
-
-    other_placeholder = raw.get("other_placeholder", "")
-    if other_placeholder is None:
-        other_placeholder = ""
-    if not isinstance(other_placeholder, str):
-        raise ValueError("other_placeholder must be a string when provided")
-
-    raw_min_selected = raw.get("min_selected")
-    raw_max_selected = raw.get("max_selected")
-    if raw_min_selected is not None and (
-        isinstance(raw_min_selected, bool) or not isinstance(raw_min_selected, int)
-    ):
-        raise ValueError("min_selected must be an integer when provided")
-    if raw_max_selected is not None and (
-        isinstance(raw_max_selected, bool) or not isinstance(raw_max_selected, int)
-    ):
-        raise ValueError("max_selected must be an integer when provided")
-
-    min_selected = raw_min_selected
-    max_selected = raw_max_selected
-    if selection_mode == "single":
-        if min_selected is None:
-            min_selected = 1
-        if max_selected is None:
-            max_selected = 1
-        if min_selected not in {0, 1}:
-            raise ValueError("single selection mode only supports min_selected of 0 or 1")
-        if max_selected != 1:
-            raise ValueError("single selection mode requires max_selected to be 1")
-    else:
-        allowed_total = len(options) + (1 if allow_other else 0)
-        if min_selected is None:
-            min_selected = 1
-        if max_selected is None:
-            max_selected = allowed_total
-
-    if min_selected is None or max_selected is None:
-        raise ValueError("min_selected and max_selected could not be resolved")
-    if min_selected < 0:
-        raise ValueError("min_selected must be >= 0")
-    if max_selected < 1:
-        raise ValueError("max_selected must be >= 1")
-    if min_selected > max_selected:
-        raise ValueError("min_selected cannot be greater than max_selected")
-
-    allowed_total = len(options) + (1 if allow_other else 0)
-    if max_selected > allowed_total:
-        raise ValueError(
-            "max_selected cannot exceed the total number of available selections"
-        )
-
-    return {
-        "request_id": request_id,
-        "kind": "selector",
-        "title": title.strip(),
-        "question": question.strip(),
-        "selection_mode": selection_mode,
-        "options": options,
-        "allow_other": allow_other,
-        "other_label": other_label,
-        "other_placeholder": other_placeholder,
-        "min_selected": min_selected,
-        "max_selected": max_selected,
-    }
-
-
-def _normalize_ask_user_question_tool_result(
-    request: Dict[str, Any],
-    raw_response: object,
-) -> Dict[str, Any]:
-    if not isinstance(raw_response, dict):
-        raise ValueError("human input response must be an object")
-
-    request_id = str(request.get("request_id", "") or "")
-    response_request_id = raw_response.get("request_id")
-    if response_request_id is None:
-        response_request_id = request_id
-    if not isinstance(response_request_id, str) or not response_request_id.strip():
-        raise ValueError("request_id must be a non-empty string")
-    if response_request_id.strip() != request_id:
-        raise ValueError(
-            "human input response request_id does not match the pending request "
-            f"(expected '{request_id}', got '{response_request_id.strip()}')"
-        )
-
-    selected_values_raw = raw_response.get("selected_values")
-    if selected_values_raw is None:
-        if isinstance(raw_response.get("value"), str):
-            selected_values_raw = [raw_response.get("value")]
-        elif isinstance(raw_response.get("values"), list):
-            selected_values_raw = raw_response.get("values")
-
-    if not isinstance(selected_values_raw, list):
-        raise ValueError("selected_values must be an array")
-
-    normalized_values: List[str] = []
-    seen_values: set[str] = set()
-    for value in selected_values_raw:
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError("selected_values must contain non-empty strings")
-        normalized = value.strip()
-        if normalized in seen_values:
-            raise ValueError(f"duplicate selected value: {normalized}")
-        seen_values.add(normalized)
-        normalized_values.append(normalized)
-
-    min_selected = int(request.get("min_selected") or 0)
-    max_selected = int(request.get("max_selected") or 0)
-    if len(normalized_values) < min_selected:
-        raise ValueError(f"selected_values must contain at least {min_selected} item(s)")
-    if max_selected and len(normalized_values) > max_selected:
-        raise ValueError(f"selected_values cannot contain more than {max_selected} item(s)")
-
-    allowed_values = {
-        str(option.get("value", "")).strip()
-        for option in request.get("options", [])
-        if isinstance(option, dict) and isinstance(option.get("value"), str)
-    }
-    if request.get("allow_other") is True:
-        allowed_values.add(_HUMAN_INPUT_OTHER_VALUE)
-
-    invalid_values = [value for value in normalized_values if value not in allowed_values]
-    if invalid_values:
-        raise ValueError(
-            f"selected_values contains unsupported option(s): {invalid_values}"
-        )
-
-    other_text = raw_response.get("other_text", raw_response.get("otherText"))
-    if other_text is not None:
-        if not isinstance(other_text, str):
-            raise ValueError("other_text must be a string when provided")
-        other_text = other_text.strip() or None
-
-    selected_other = _HUMAN_INPUT_OTHER_VALUE in normalized_values
-    if selected_other:
-        if request.get("allow_other") is not True:
-            raise ValueError("other selection is not allowed for this request")
-        if not other_text:
-            raise ValueError(
-                f"other_text is required when '{_HUMAN_INPUT_OTHER_VALUE}' is selected"
-            )
-    elif other_text:
-        raise ValueError(
-            f"other_text can only be provided when '{_HUMAN_INPUT_OTHER_VALUE}' is selected"
-        )
-
-    return {
-        "submitted": True,
-        "selected_values": normalized_values,
-        "other_text": other_text,
-    }
 
 
 def submit_tool_confirmation(
@@ -680,1115 +446,6 @@ def _make_continuation_callback(
     return on_continuation_request
 
 
-def _is_valid_miso_source(path: Path) -> bool:
-    if (path / "src" / "miso" / "__init__.py").exists() and (
-        path / "src" / "miso" / "runtime" / "engine.py"
-    ).exists():
-        return True
-    return (path / "miso" / "__init__.py").exists() and (
-        path / "miso" / "runtime" / "engine.py"
-    ).exists()
-
-
-def _miso_import_root(path: Path) -> Path:
-    if (path / "src" / "miso" / "__init__.py").exists():
-        return path / "src"
-    if (path / "miso" / "__init__.py").exists():
-        return path
-    return path
-
-def _candidate_miso_sources() -> List[Path]:
-    candidates: List[Path] = []
-
-    configured = os.environ.get("MISO_SOURCE_PATH", "").strip()
-    if configured:
-        candidates.append(Path(configured).expanduser().resolve())
-
-    current_file = Path(__file__).resolve()
-    project_root = current_file.parents[2]
-    sibling_miso_repo = project_root.parent / "miso"
-    candidates.append(sibling_miso_repo)
-
-    return candidates
-
-
-def _resolve_miso_source_from_module(miso_module: Any) -> str:
-    module_file = getattr(miso_module, "__file__", "")
-    if not isinstance(module_file, str) or not module_file.strip():
-        return ""
-
-    try:
-        module_path = Path(module_file).resolve()
-        package_dir = module_path.parent
-        if package_dir.name == "runtime":
-            package_dir = package_dir.parent
-        if package_dir.name != "miso":
-            return ""
-
-        parent = package_dir.parent
-        if parent.name == "src":
-            return str(parent.parent)
-        return str(parent)
-    except Exception:
-        return ""
-
-    return ""
-
-
-def _packaged_miso_module_dir() -> Path | None:
-    try:
-        miso_module = importlib.import_module("miso")
-    except Exception:
-        return None
-
-    module_file = getattr(miso_module, "__file__", "")
-    if not isinstance(module_file, str) or not module_file.strip():
-        return None
-
-    try:
-        module_path = Path(module_file).resolve()
-        package_dir = module_path.parent
-    except Exception:
-        return None
-
-    if package_dir.name != "miso":
-        return None
-
-    return package_dir
-
-
-def _apply_broth_runtime_patches(broth_cls: Any) -> None:
-    """Apply PuPu compatibility patches to upstream Broth runtime."""
-    if not isinstance(broth_cls, type):
-        return
-
-    patch_marker = "_pupu_tool_confirmation_contract_patch_v6"
-    if getattr(broth_cls, patch_marker, False):
-        return
-
-    original_execute_tool_calls = getattr(broth_cls, "_execute_tool_calls", None)
-    original_execute_from_toolkits = getattr(broth_cls, "_execute_from_toolkits", None)
-    original_build_observation_messages = getattr(
-        broth_cls, "_build_observation_messages", None
-    )
-    original_inject_observation = getattr(broth_cls, "_inject_observation", None)
-    original_is_previous_response_not_found_error = getattr(
-        broth_cls,
-        "_is_previous_response_not_found_error",
-        None,
-    )
-    if not (
-        callable(original_execute_tool_calls)
-        and callable(original_build_observation_messages)
-        and callable(original_inject_observation)
-    ):
-        return
-
-    def _supports_keyword_argument(target: Any, keyword: str) -> bool:
-        if not callable(target):
-            return False
-        try:
-            parameters = inspect.signature(target).parameters
-        except Exception:
-            return True
-        return keyword in parameters or any(
-            parameter.kind == inspect.Parameter.VAR_KEYWORD
-            for parameter in parameters.values()
-        )
-
-    original_supports_on_tool_confirm = _supports_keyword_argument(
-        original_execute_tool_calls,
-        "on_tool_confirm",
-    )
-    original_supports_session_id = _supports_keyword_argument(
-        original_execute_tool_calls,
-        "session_id",
-    )
-    original_supports_toolkits = _supports_keyword_argument(
-        original_execute_tool_calls,
-        "toolkits",
-    )
-    execute_from_toolkits_supports_toolkits = _supports_keyword_argument(
-        original_execute_from_toolkits,
-        "toolkits",
-    )
-    find_tool_supports_toolkits = _supports_keyword_argument(
-        getattr(broth_cls, "_find_tool", None),
-        "toolkits",
-    )
-
-    def _patched_execute_tool_calls(
-        self,
-        *,
-        tool_calls: List[Any],
-        run_id: str,
-        iteration: int,
-        callback,
-        on_tool_confirm=None,
-        session_id: str | None = None,
-        toolkits: List[Any] | None = None,
-    ):
-        emitted_confirmation_events: set[tuple[str, bool]] = set()
-        emitted_tool_call_ids: set[str] = set()
-        confirmation_payload_by_call_id: Dict[str, Dict[str, Any]] = {}
-
-        def _find_tool_obj(tool_name: object) -> Any:
-            normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
-            if not normalized_tool_name:
-                return None
-
-            find_tool = getattr(self, "_find_tool", None)
-            if not callable(find_tool):
-                return None
-
-            find_tool_kwargs: Dict[str, Any] = {}
-            if find_tool_supports_toolkits:
-                find_tool_kwargs["toolkits"] = toolkits
-
-            try:
-                return find_tool(normalized_tool_name, **find_tool_kwargs)
-            except TypeError:
-                try:
-                    return find_tool(normalized_tool_name)
-                except Exception:
-                    return None
-            except Exception:
-                return None
-
-        def _decorate_tool_payload(
-            payload: Dict[str, Any],
-            *,
-            tool_name: object,
-            tool_obj: Any = None,
-        ) -> Dict[str, Any]:
-            next_payload = dict(payload)
-            display_name = next_payload.get("tool_display_name", "")
-            if isinstance(display_name, str) and display_name.strip():
-                next_payload["tool_display_name"] = display_name.strip()
-                return next_payload
-
-            resolved_display_name = _resolve_tool_display_name(
-                tool_name,
-                tool_obj=tool_obj if tool_obj is not None else _find_tool_obj(tool_name),
-            )
-            if resolved_display_name:
-                next_payload["tool_display_name"] = resolved_display_name
-            return next_payload
-
-        def _merge_tool_call_payload(
-            *,
-            tool_name: object,
-            call_id: object,
-            arguments: object,
-            confirmation_payload: Dict[str, Any] | None = None,
-            tool_obj: Any = None,
-        ) -> Dict[str, Any]:
-            payload: Dict[str, Any] = {
-                "tool_name": tool_name if isinstance(tool_name, str) else str(tool_name or ""),
-                "call_id": call_id if isinstance(call_id, str) else str(call_id or ""),
-                "arguments": arguments if isinstance(arguments, dict) else {},
-            }
-            if not isinstance(confirmation_payload, dict):
-                return _decorate_tool_payload(
-                    payload,
-                    tool_name=payload["tool_name"],
-                    tool_obj=tool_obj,
-                )
-
-            merged_arguments = confirmation_payload.get("arguments")
-            if isinstance(merged_arguments, dict):
-                payload["arguments"] = merged_arguments
-
-            for key in (
-                "confirmation_id",
-                "requires_confirmation",
-                "description",
-                "interact_type",
-                "interact_config",
-                "tool_display_name",
-            ):
-                if key in confirmation_payload:
-                    payload[key] = confirmation_payload[key]
-            return _decorate_tool_payload(
-                payload,
-                tool_name=payload["tool_name"],
-                tool_obj=tool_obj,
-            )
-
-        def _callback_with_tool_call_normalization(event: object) -> None:
-            if not callable(callback):
-                return
-            if not isinstance(event, dict):
-                callback(event)
-                return
-
-            payload = event.get("payload")
-            normalized_payload = payload if isinstance(payload, dict) else {}
-            event_type = event.get("type")
-            tool_name = normalized_payload.get("tool_name", "")
-
-            if event_type in {"tool_result", "tool_confirmed", "tool_denied"}:
-                callback(
-                    {
-                        **event,
-                        "payload": _decorate_tool_payload(
-                            normalized_payload,
-                            tool_name=tool_name,
-                        ),
-                    }
-                )
-                return
-
-            if event_type != "tool_call":
-                callback(event)
-                return
-
-            call_id = normalized_payload.get("call_id", "")
-            call_id = call_id if isinstance(call_id, str) else str(call_id or "")
-            if call_id and call_id in emitted_tool_call_ids:
-                return
-
-            merged_payload = _merge_tool_call_payload(
-                tool_name=tool_name,
-                call_id=call_id,
-                arguments=normalized_payload.get("arguments", {}),
-                confirmation_payload=confirmation_payload_by_call_id.get(call_id),
-            )
-            if call_id:
-                emitted_tool_call_ids.add(call_id)
-            callback({**event, "payload": merged_payload})
-
-        event_callback = _callback_with_tool_call_normalization if callable(callback) else callback
-
-        def _get_confirmation_payload(
-            tool_call: Any,
-            *,
-            description: str = "",
-            tool_obj: Any = None,
-        ) -> Dict[str, Any] | None:
-            if on_tool_confirm is None:
-                return None
-
-            call_id = getattr(tool_call, "call_id", "")
-            normalized_call_id = call_id if isinstance(call_id, str) else str(call_id or "")
-            if normalized_call_id and normalized_call_id in confirmation_payload_by_call_id:
-                return confirmation_payload_by_call_id[normalized_call_id]
-
-            tool_name = getattr(tool_call, "name", "")
-            normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
-            if not normalized_tool_name:
-                return None
-
-            if normalized_tool_name == _ASK_USER_QUESTION_TOOL_NAME:
-                payload = _build_tool_confirmation_request_payload(
-                    {
-                        "tool_name": normalized_tool_name,
-                        "call_id": normalized_call_id,
-                        "arguments": getattr(tool_call, "arguments", {}),
-                    }
-                )
-            else:
-                tool_obj = tool_obj if tool_obj is not None else _find_tool_obj(normalized_tool_name)
-                if not (
-                    tool_obj is not None
-                    and bool(getattr(tool_obj, "requires_confirmation", False))
-                ):
-                    return None
-                payload = _build_tool_confirmation_request_payload(
-                    {
-                        "tool_name": normalized_tool_name,
-                        "call_id": normalized_call_id,
-                        "arguments": getattr(tool_call, "arguments", {}),
-                        "description": description or str(getattr(tool_obj, "description", "") or ""),
-                    }
-                )
-
-            payload["tool_display_name"] = _resolve_tool_display_name(
-                normalized_tool_name,
-                tool_obj=tool_obj,
-            )
-            payload["confirmation_id"] = str(payload.get("confirmation_id", "") or "").strip() or str(
-                _uuid.uuid4()
-            )
-            confirmation_payload_by_call_id[normalized_call_id] = payload
-            return payload
-
-        def _emit_tool_call_event(
-            tool_call: Any,
-            *,
-            confirmation_payload: Dict[str, Any] | None = None,
-            tool_obj: Any = None,
-        ) -> None:
-            merged_payload = _merge_tool_call_payload(
-                tool_name=getattr(tool_call, "name", ""),
-                call_id=getattr(tool_call, "call_id", ""),
-                arguments=getattr(tool_call, "arguments", {}),
-                confirmation_payload=confirmation_payload,
-                tool_obj=tool_obj,
-            )
-            self._emit(
-                event_callback,
-                "tool_call",
-                run_id,
-                iteration=iteration,
-                **merged_payload,
-            )
-
-        def _emit_tool_confirmation_event(
-            *,
-            approved: bool,
-            tool_name: str,
-            call_id: str,
-            reason: str = "",
-            tool_obj: Any = None,
-        ) -> None:
-            normalized_tool_name = tool_name if isinstance(tool_name, str) else str(tool_name or "")
-            normalized_call_id = call_id if isinstance(call_id, str) else str(call_id or "")
-            extra_payload = _decorate_tool_payload(
-                {
-                    "tool_name": normalized_tool_name,
-                    "call_id": normalized_call_id,
-                },
-                tool_name=normalized_tool_name,
-                tool_obj=tool_obj,
-            )
-            decision_key = None
-            if normalized_call_id:
-                decision_key = (normalized_call_id, bool(approved))
-                if decision_key in emitted_confirmation_events:
-                    return
-
-            if decision_key is not None:
-                emitted_confirmation_events.add(decision_key)
-
-            if approved:
-                self._emit(
-                    callback,
-                    "tool_confirmed",
-                    run_id,
-                    iteration=iteration,
-                    **extra_payload,
-                )
-                return
-
-            self._emit(
-                callback,
-                "tool_denied",
-                run_id,
-                iteration=iteration,
-                **extra_payload,
-                reason=reason if isinstance(reason, str) else str(reason or ""),
-            )
-
-        def _on_tool_confirm_with_event(request_obj: object) -> Dict[str, Any]:
-            request_payload = _build_tool_confirmation_request_payload(request_obj)
-            call_id = str(request_payload.get("call_id", "") or "").strip()
-            confirmation_payload = confirmation_payload_by_call_id.get(call_id)
-            if isinstance(confirmation_payload, dict):
-                request_payload["confirmation_id"] = str(
-                    confirmation_payload.get("confirmation_id", "") or ""
-                ).strip()
-                request_payload["requires_confirmation"] = True
-                if isinstance(confirmation_payload.get("arguments"), dict):
-                    request_payload["arguments"] = confirmation_payload["arguments"]
-                if not request_payload.get("tool_display_name"):
-                    request_payload["tool_display_name"] = confirmation_payload.get(
-                        "tool_display_name",
-                        "",
-                    )
-                if not request_payload.get("description"):
-                    request_payload["description"] = confirmation_payload.get("description", "")
-                if not request_payload.get("interact_type"):
-                    request_payload["interact_type"] = confirmation_payload.get(
-                        "interact_type",
-                        "confirmation",
-                    )
-                if not request_payload.get("interact_config"):
-                    request_payload["interact_config"] = confirmation_payload.get(
-                        "interact_config",
-                        {},
-                    )
-            request_payload["_skip_emit_event"] = True
-
-            if on_tool_confirm is None:
-                return {
-                    "approved": True,
-                    "reason": "",
-                    "modified_arguments": None,
-                }
-
-            raw_response = on_tool_confirm(request_payload)
-            response = _normalize_tool_confirmation_response(raw_response)
-            _emit_tool_confirmation_event(
-                approved=bool(response.get("approved", True)),
-                tool_name=str(request_payload.get("tool_name", "") or ""),
-                call_id=str(request_payload.get("call_id", "") or ""),
-                reason=str(response.get("reason", "") or ""),
-                tool_obj=_find_tool_obj(request_payload.get("tool_name", "")),
-            )
-            return response
-
-        def _build_tool_message_locally(
-            tool_call: Any,
-            tool_result: Dict[str, Any],
-        ) -> Dict[str, Any]:
-            build_tool_message = getattr(self, "_build_tool_message", None)
-            if callable(build_tool_message):
-                try:
-                    return build_tool_message(
-                        tool_call=tool_call,
-                        tool_result=tool_result,
-                    )
-                except Exception:
-                    pass
-
-            content = json.dumps(tool_result, default=str, ensure_ascii=False)
-            if getattr(self, "provider", "") == "openai":
-                return {
-                    "type": "function_call_output",
-                    "call_id": getattr(tool_call, "call_id", ""),
-                    "output": content,
-                }
-            if getattr(self, "provider", "") == "anthropic":
-                return {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": getattr(tool_call, "call_id", ""),
-                            "content": content,
-                        }
-                    ],
-                }
-            return {
-                "role": "tool",
-                "tool_call_id": getattr(tool_call, "call_id", ""),
-                "content": content,
-            }
-
-        def _execute_ask_user_question_tool_calls_locally():
-            result_messages: List[Dict[str, Any]] = []
-            if len(tool_calls) > 1:
-                error_text = "ask_user_question must be the only tool call in a turn"
-                for tool_call in tool_calls:
-                    confirmation_payload = _get_confirmation_payload(tool_call)
-                    _emit_tool_call_event(
-                        tool_call,
-                        confirmation_payload=confirmation_payload,
-                    )
-                    tool_result = {
-                        "error": error_text,
-                        "tool": tool_call.name,
-                    }
-                    result_messages.append(
-                        _build_tool_message_locally(tool_call, tool_result)
-                    )
-                    self._emit(
-                        callback,
-                        "tool_result",
-                        run_id,
-                        iteration=iteration,
-                        tool_name=tool_call.name,
-                        call_id=tool_call.call_id,
-                        result=tool_result,
-                    )
-                return result_messages, False
-
-            tool_call = tool_calls[0]
-
-            try:
-                request_payload = _get_confirmation_payload(tool_call)
-                if not isinstance(request_payload, dict):
-                    raise ValueError("ask_user_question confirmation payload could not be resolved")
-            except Exception as exc:
-                tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
-                _emit_tool_call_event(tool_call, tool_obj=tool_obj)
-                tool_result = {
-                    "error": str(exc),
-                    "tool": getattr(tool_call, "name", ""),
-                }
-                result_messages.append(
-                    _build_tool_message_locally(tool_call, tool_result)
-                )
-                self._emit(
-                    callback,
-                    "tool_result",
-                    run_id,
-                    iteration=iteration,
-                    **_decorate_tool_payload(
-                        {
-                            "tool_name": tool_call.name,
-                            "call_id": tool_call.call_id,
-                            "result": tool_result,
-                        },
-                        tool_name=tool_call.name,
-                        tool_obj=tool_obj,
-                    ),
-                )
-                return result_messages, False
-
-            tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
-            _emit_tool_call_event(
-                tool_call,
-                confirmation_payload=request_payload,
-                tool_obj=tool_obj,
-            )
-            raw_response = _on_tool_confirm_with_event(request_payload)
-            response = _normalize_tool_confirmation_response(raw_response)
-
-            if not response["approved"]:
-                tool_result = {
-                    "submitted": False,
-                    "reason": str(response.get("reason", "") or ""),
-                }
-            else:
-                modified_arguments = response.get("modified_arguments")
-                user_response = (
-                    modified_arguments.get("user_response")
-                    if isinstance(modified_arguments, dict)
-                    else None
-                )
-                normalized_user_response = (
-                    dict(user_response)
-                    if isinstance(user_response, dict)
-                    else {}
-                )
-                normalized_user_response.pop("request_id", None)
-                normalized_user_response.pop("call_id", None)
-                interact_request = (
-                    request_payload.get("interact_config")
-                    if isinstance(request_payload.get("interact_config"), dict)
-                    else {}
-                )
-                try:
-                    tool_result = _normalize_ask_user_question_tool_result(
-                        interact_request,
-                        {
-                            **normalized_user_response,
-                            "request_id": str(getattr(tool_call, "call_id", "") or ""),
-                        },
-                    )
-                except Exception as exc:
-                    tool_result = {
-                        "error": str(exc),
-                        "tool": getattr(tool_call, "name", ""),
-                        "expected_request_id": str(interact_request.get("request_id", "") or ""),
-                        "call_id": str(getattr(tool_call, "call_id", "") or ""),
-                        "user_response": normalized_user_response,
-                    }
-
-            result_messages.append(_build_tool_message_locally(tool_call, tool_result))
-            self._emit(
-                callback,
-                "tool_result",
-                run_id,
-                iteration=iteration,
-                **_decorate_tool_payload(
-                    {
-                        "tool_name": tool_call.name,
-                        "call_id": tool_call.call_id,
-                        "result": tool_result,
-                    },
-                    tool_name=tool_call.name,
-                    tool_obj=tool_obj,
-                ),
-            )
-            return result_messages, False
-
-        includes_human_input = any(
-            getattr(tool_call, "name", "") == _ASK_USER_QUESTION_TOOL_NAME
-            for tool_call in tool_calls
-        )
-        if includes_human_input and on_tool_confirm is not None:
-            return _execute_ask_user_question_tool_calls_locally()
-        if includes_human_input:
-            original_kwargs = {
-                "tool_calls": tool_calls,
-                "run_id": run_id,
-                "iteration": iteration,
-                "callback": callback,
-            }
-            if original_supports_on_tool_confirm:
-                original_kwargs["on_tool_confirm"] = (
-                    _on_tool_confirm_with_event if on_tool_confirm is not None else None
-                )
-            if original_supports_session_id:
-                original_kwargs["session_id"] = session_id
-            if original_supports_toolkits:
-                original_kwargs["toolkits"] = toolkits
-            return original_execute_tool_calls(
-                self,
-                **original_kwargs,
-            )
-
-        if getattr(self, "provider", "") != "anthropic":
-            if on_tool_confirm is not None:
-                for tool_call in tool_calls:
-                    tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
-                    confirmation_payload = _get_confirmation_payload(
-                        tool_call,
-                        tool_obj=tool_obj,
-                    )
-                    if isinstance(confirmation_payload, dict):
-                        _emit_tool_call_event(
-                            tool_call,
-                            confirmation_payload=confirmation_payload,
-                            tool_obj=tool_obj,
-                        )
-            original_kwargs = {
-                "tool_calls": tool_calls,
-                "run_id": run_id,
-                "iteration": iteration,
-                "callback": event_callback,
-            }
-            if original_supports_on_tool_confirm:
-                original_kwargs["on_tool_confirm"] = (
-                    _on_tool_confirm_with_event if on_tool_confirm is not None else None
-                )
-            if original_supports_session_id:
-                original_kwargs["session_id"] = session_id
-            if original_supports_toolkits:
-                original_kwargs["toolkits"] = toolkits
-            return original_execute_tool_calls(
-                self,
-                **original_kwargs,
-            )
-
-        result_messages: List[Dict[str, Any]] = []
-        # Anthropic enforces strict tool_use/tool_result adjacency. Running the
-        # optional observation sub-pass can introduce synthetic follow-up prompts
-        # that break this contract, so keep observation disabled for Anthropic.
-        should_observe = False
-        anthropic_tool_results: List[Dict[str, Any]] = []
-
-        for tool_call in tool_calls:
-            tool_obj = _find_tool_obj(getattr(tool_call, "name", ""))
-            confirmation_payload = _get_confirmation_payload(
-                tool_call,
-                tool_obj=tool_obj,
-            )
-            _emit_tool_call_event(
-                tool_call,
-                confirmation_payload=confirmation_payload,
-                tool_obj=tool_obj,
-            )
-            effective_arguments = tool_call.arguments
-            denied = False
-            deny_reason = ""
-
-            if (
-                tool_obj is not None
-                and bool(getattr(tool_obj, "requires_confirmation", False))
-                and on_tool_confirm is not None
-            ):
-                confirmation_request = _get_confirmation_payload(
-                    tool_call,
-                    description=str(getattr(tool_obj, "description", "") or ""),
-                    tool_obj=tool_obj,
-                )
-                response = _on_tool_confirm_with_event(confirmation_request or {})
-
-                if not response["approved"]:
-                    denied = True
-                    deny_reason = str(response.get("reason", "") or "")
-                else:
-                    if response.get("modified_arguments") is not None:
-                        effective_arguments = response["modified_arguments"]
-
-            if denied:
-                tool_result = {
-                    "denied": True,
-                    "tool": tool_call.name,
-                    "reason": deny_reason or "User denied execution.",
-                }
-            else:
-                execute_tool_kwargs: Dict[str, Any] = {
-                    "session_id": session_id,
-                }
-                if execute_from_toolkits_supports_toolkits:
-                    execute_tool_kwargs["toolkits"] = toolkits
-                tool_result = self._execute_from_toolkits(
-                    tool_call.name,
-                    effective_arguments,
-                    **execute_tool_kwargs,
-                )
-            content = json.dumps(tool_result, default=str, ensure_ascii=False)
-
-            anthropic_tool_results.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": tool_call.call_id,
-                    "content": content,
-                }
-            )
-
-            self._emit(
-                callback,
-                "tool_result",
-                run_id,
-                iteration=iteration,
-                **_decorate_tool_payload(
-                    {
-                        "tool_name": tool_call.name,
-                        "call_id": tool_call.call_id,
-                        "result": tool_result,
-                    },
-                    tool_name=tool_call.name,
-                    tool_obj=tool_obj,
-                ),
-            )
-
-        if anthropic_tool_results:
-            result_messages.append(
-                {
-                    "role": "user",
-                    "content": anthropic_tool_results,
-                }
-            )
-
-        return result_messages, should_observe
-
-    def _patched_build_observation_messages(
-        self,
-        full_messages: List[Dict[str, Any]],
-        tool_messages: List[Dict[str, Any]],
-    ):
-        observe_messages = original_build_observation_messages(
-            self,
-            full_messages,
-            tool_messages,
-        )
-        if getattr(self, "provider", "") != "anthropic":
-            return observe_messages
-
-        if len(observe_messages) < 2:
-            return observe_messages
-
-        prompt_message = observe_messages[-1]
-        tool_result_message = observe_messages[-2]
-        if not (
-            isinstance(prompt_message, dict)
-            and isinstance(tool_result_message, dict)
-            and prompt_message.get("role") == "user"
-            and tool_result_message.get("role") == "user"
-        ):
-            return observe_messages
-
-        prompt_text = prompt_message.get("content")
-        tool_result_content = tool_result_message.get("content")
-        if not (isinstance(prompt_text, str) and isinstance(tool_result_content, list)):
-            return observe_messages
-
-        has_tool_result = any(
-            isinstance(block, dict) and block.get("type") == "tool_result"
-            for block in tool_result_content
-        )
-        if not has_tool_result:
-            return observe_messages
-
-        merged_tool_result_message = copy.deepcopy(tool_result_message)
-        merged_blocks = merged_tool_result_message.get("content")
-        if not isinstance(merged_blocks, list):
-            return observe_messages
-        merged_blocks.append(
-            {
-                "type": "text",
-                "text": prompt_text,
-            }
-        )
-        return [*observe_messages[:-2], merged_tool_result_message]
-
-    def _patched_inject_observation(
-        self,
-        tool_message: Dict[str, Any],
-        observation: str,
-    ):
-        if getattr(self, "provider", "") == "anthropic":
-            content = tool_message.get("content")
-            if isinstance(content, list):
-                for index in range(len(content) - 1, -1, -1):
-                    block = content[index]
-                    if not (isinstance(block, dict) and block.get("type") == "tool_result"):
-                        continue
-
-                    existing = block.get("content", "")
-                    try:
-                        parsed = (
-                            json.loads(existing)
-                            if isinstance(existing, str) and existing.strip()
-                            else {}
-                        )
-                        if not isinstance(parsed, dict):
-                            parsed = {"result": parsed}
-                        parsed["observation"] = observation
-                        block["content"] = json.dumps(parsed, default=str, ensure_ascii=False)
-                    except Exception:
-                        suffix = f"\n[OBSERVATION] {observation}"
-                        base = existing if isinstance(existing, str) else str(existing)
-                        block["content"] = f"{base}{suffix}" if base else suffix.strip()
-                    return
-
-        return original_inject_observation(self, tool_message, observation)
-
-    def _patched_is_previous_response_not_found_error(
-        self,
-        exc: Exception,
-    ) -> bool:
-        if callable(original_is_previous_response_not_found_error):
-            try:
-                if bool(original_is_previous_response_not_found_error(self, exc)):
-                    return True
-            except Exception:
-                pass
-        return _is_openai_previous_response_fallback_error(exc)
-
-    setattr(broth_cls, "_execute_tool_calls", _patched_execute_tool_calls)
-    setattr(broth_cls, "_build_observation_messages", _patched_build_observation_messages)
-    setattr(broth_cls, "_inject_observation", _patched_inject_observation)
-    setattr(
-        broth_cls,
-        "_is_previous_response_not_found_error",
-        _patched_is_previous_response_not_found_error,
-    )
-    setattr(broth_cls, patch_marker, True)
-
-
-def _load_broth_class() -> None:
-    global _BROTH_CLASS, _IMPORT_ERROR, _RESOLVED_MISO_SOURCE
-
-    errors: List[str] = []
-    for source_root in _candidate_miso_sources():
-        if not _is_valid_miso_source(source_root):
-            errors.append(f"invalid source: {source_root}")
-            continue
-
-        source_str = str(source_root)
-        import_root = str(_miso_import_root(source_root))
-        if import_root not in sys.path:
-            sys.path.insert(0, import_root)
-
-        try:
-            from miso.runtime import Broth  # type: ignore
-
-            _apply_broth_runtime_patches(Broth)
-            _BROTH_CLASS = Broth
-            _RESOLVED_MISO_SOURCE = source_str
-            _IMPORT_ERROR = None
-            return
-        except Exception as import_error:  # pragma: no cover
-            errors.append(f"import failed at {source_root}: {import_error}")
-
-    # Fallback for packaged runtime (for example PyInstaller onefile), where
-    # miso modules are bundled and importable without an external source tree.
-    try:
-        runtime_module = importlib.import_module("miso.runtime")
-        Broth = getattr(runtime_module, "Broth", None)
-        if not isinstance(Broth, type):
-            raise RuntimeError("miso.runtime.Broth is unavailable")
-
-        _apply_broth_runtime_patches(Broth)
-        _BROTH_CLASS = Broth
-        _RESOLVED_MISO_SOURCE = _resolve_miso_source_from_module(runtime_module)
-        _IMPORT_ERROR = None
-        return
-    except Exception as import_error:
-        errors.append(f"runtime import failed: {import_error}")
-
-    _BROTH_CLASS = None
-    _RESOLVED_MISO_SOURCE = None
-    _IMPORT_ERROR = RuntimeError("; ".join(errors) if errors else "miso source not found")
-
-
-_load_broth_class()
-
-
-def _load_pupu_agent_class() -> None:
-    global _PUPU_AGENT_CLASS, _PUPU_AGENT_IMPORT_ERROR
-
-    if _PUPU_AGENT_CLASS is not None:
-        return
-    if _BROTH_CLASS is None:
-        _PUPU_AGENT_IMPORT_ERROR = RuntimeError("miso.runtime.Broth is unavailable")
-        return
-
-    try:
-        from miso.agents import Agent as base_agent_cls  # type: ignore
-        from miso.tools import Tool as tool_cls  # type: ignore
-        from miso.tools import Toolkit as toolkit_cls  # type: ignore
-    except Exception as import_error:
-        _PUPU_AGENT_IMPORT_ERROR = import_error
-        return
-
-    class PuPuAgent(base_agent_cls):
-        """PuPu runtime wrapper that preserves toolkit instance semantics."""
-
-        def __init__(
-            self,
-            *,
-            name: str,
-            instructions: str = "",
-            provider: str = "openai",
-            model: str = "gpt-5",
-            api_key: str | None = None,
-            tools: list[Any] | None = None,
-            short_term_memory: Any = None,
-            long_term_memory: Any = None,
-            defaults: dict[str, Any] | None = None,
-            broth_options: dict[str, Any] | None = None,
-            toolkit_catalog_config: Any = None,
-        ):
-            initial_tools = list(tools or [])
-            preserved_toolkits: list[Any] = []
-            runtime_tool_entries: list[Any] = []
-            for item in initial_tools:
-                if isinstance(item, toolkit_cls):
-                    preserved_toolkits.append(item)
-                else:
-                    runtime_tool_entries.append(item)
-
-            super().__init__(
-                name=name,
-                instructions=instructions,
-                provider=provider,
-                model=model,
-                api_key=api_key,
-                tools=runtime_tool_entries,
-                short_term_memory=short_term_memory,
-                long_term_memory=long_term_memory,
-                defaults=defaults,
-                broth_options=broth_options,
-                toolkit_catalog_config=toolkit_catalog_config,
-            )
-            self.toolkits: list[Any] = preserved_toolkits
-            self.max_iterations = 6
-
-        def add_toolkit(self, toolkit: Any) -> None:
-            self.toolkits.append(toolkit)
-
-        def remove_toolkit(self, toolkit: Any) -> None:
-            self.toolkits.remove(toolkit)
-
-        def _build_engine(
-            self,
-            *,
-            runtime_context: Any = None,
-            session_id: str | None = None,
-            memory_namespace: str | None = None,
-        ):
-            broth_cls = _BROTH_CLASS
-            if broth_cls is None:
-                raise RuntimeError("miso.runtime.Broth is unavailable")
-
-            core_kwargs: dict[str, Any] = {
-                "provider": self.provider,
-                "model": self.model,
-                "api_key": self.api_key,
-                "memory_manager": self.memory_manager,
-                "toolkit_catalog_config": copy.deepcopy(self.toolkit_catalog_config),
-            }
-
-            try:
-                signature = inspect.signature(broth_cls)
-                supported_init_keys = set(signature.parameters)
-            except (TypeError, ValueError):
-                supported_init_keys = set(core_kwargs)
-
-            init_kwargs = {
-                key: value
-                for key, value in core_kwargs.items()
-                if key in supported_init_keys
-            }
-
-            for key, value in self.broth_options.items():
-                if key in {"provider", "model", "api_key", "memory_manager", "toolkit_catalog_config"}:
-                    continue
-                if key in supported_init_keys:
-                    init_kwargs[key] = copy.deepcopy(value)
-
-            engine = broth_cls(**init_kwargs)
-
-            for key, value in self.broth_options.items():
-                if key in {"provider", "model", "api_key", "memory_manager", "toolkit_catalog_config"}:
-                    continue
-                if key in init_kwargs:
-                    continue
-                if hasattr(engine, key):
-                    setattr(engine, key, copy.deepcopy(value))
-
-            add_toolkit = getattr(engine, "add_toolkit", None)
-            can_add_toolkits = callable(add_toolkit)
-
-            internal_memory_toolkit = self._build_memory_recall_toolkit(
-                runtime_context=runtime_context,
-                session_id=session_id,
-                memory_namespace=memory_namespace,
-            )
-            if internal_memory_toolkit is not None:
-                if can_add_toolkits:
-                    add_toolkit(internal_memory_toolkit)
-                elif hasattr(engine, "toolkit"):
-                    engine.toolkit = internal_memory_toolkit
-                    can_add_toolkits = False
-                else:
-                    raise RuntimeError("Agent does not support add_toolkit")
-
-            for toolkit in self.toolkits:
-                if can_add_toolkits:
-                    add_toolkit(toolkit)
-                    continue
-                if hasattr(engine, "toolkit"):
-                    engine.toolkit = toolkit
-                    can_add_toolkits = False
-                    continue
-                raise RuntimeError("Agent does not support add_toolkit")
-
-            auxiliary_toolkit = toolkit_cls()
-            has_auxiliary_tools = False
-            for item in self.tools:
-                if isinstance(item, toolkit_cls):
-                    if callable(add_toolkit):
-                        add_toolkit(item)
-                        continue
-                    if hasattr(engine, "toolkit"):
-                        engine.toolkit = item
-                        continue
-                    raise RuntimeError("Agent does not support add_toolkit")
-                if isinstance(item, tool_cls):
-                    auxiliary_toolkit.register(item)
-                    has_auxiliary_tools = True
-                    continue
-                if callable(item):
-                    auxiliary_toolkit.register(item)
-                    has_auxiliary_tools = True
-                    continue
-                raise TypeError(
-                    f"unsupported tool entry for Agent '{self.name}': {type(item).__name__}"
-                )
-
-            if runtime_context is not None and getattr(self, "_subagent_config", None) is not None:
-                auxiliary_toolkit.register(self._build_subagent_tool(runtime_context))
-                has_auxiliary_tools = True
-
-            if has_auxiliary_tools:
-                if callable(add_toolkit):
-                    add_toolkit(auxiliary_toolkit)
-                elif hasattr(engine, "toolkit"):
-                    engine.toolkit = auxiliary_toolkit
-                else:
-                    raise RuntimeError("Agent does not support add_toolkit")
-
-            default_confirm = self.defaults.get("on_tool_confirm")
-            if callable(default_confirm):
-                engine.on_tool_confirm = default_confirm
-            return engine
-
-    _PUPU_AGENT_CLASS = PuPuAgent
-    _PUPU_AGENT_IMPORT_ERROR = None
-
-
-_load_pupu_agent_class()
-
-
 def _provider_default_model(provider: str) -> str:
     if provider == "openai":
         return "gpt-5"
@@ -1877,7 +534,7 @@ def _get_runtime_config(overrides: Dict[str, str] | None = None) -> Dict[str, st
     return {
         "provider": provider,
         "model": model,
-        "source": _RESOLVED_MISO_SOURCE or "",
+        "source": "",
     }
 
 
@@ -1888,8 +545,8 @@ def get_runtime_config(options: Dict[str, object] | None = None) -> Dict[str, st
 
 def get_model_name(options: Dict[str, object] | None = None) -> str:
     config = get_runtime_config(options)
-    if not _BROTH_CLASS:
-        return "miso-unavailable"
+    if not config.get("model"):
+        return "model-unavailable"
     return f"{config['provider']}:{config['model']}"
 
 
@@ -1903,19 +560,14 @@ def _default_model_capabilities() -> Dict[str, object]:
 def _capability_file_candidates() -> List[Path]:
     candidates: List[Path] = []
 
-    if _RESOLVED_MISO_SOURCE:
-        resolved_source_root = Path(_RESOLVED_MISO_SOURCE)
-        candidates.append(
-            _miso_import_root(resolved_source_root)
-            / "miso"
-            / "runtime"
-            / "resources"
-            / "model_capabilities.json"
-        )
-
-    packaged_miso_dir = _packaged_miso_module_dir()
-    if packaged_miso_dir is not None:
-        candidates.append(packaged_miso_dir / "runtime" / "resources" / "model_capabilities.json")
+    # Try to find model_capabilities.json via miso package
+    try:
+        import miso.runtime.resources as _res_pkg
+        _res_dir = Path(_res_pkg.__file__).parent if hasattr(_res_pkg, "__file__") else None
+        if _res_dir is not None:
+            candidates.append(_res_dir / "model_capabilities.json")
+    except Exception:
+        pass
 
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[2]
@@ -2330,7 +982,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
         return {
             "toolkits": [],
             "count": 0,
-            "source": _RESOLVED_MISO_SOURCE or "",
+            "source": "",
         }
 
     entries: List[Dict[str, object]] = []
@@ -2379,7 +1031,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
     return {
         "toolkits": entries,
         "count": len(entries),
-        "source": _RESOLVED_MISO_SOURCE or "",
+        "source": "",
     }
 
 
@@ -2689,7 +1341,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
         return {
             "toolkits": [],
             "count": 0,
-            "source": _RESOLVED_MISO_SOURCE or "",
+            "source": "",
         }
 
     def _build_entry(candidate: type, kind: str) -> Dict[str, object]:
@@ -2811,7 +1463,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
     return {
         "toolkits": entries,
         "count": len(entries),
-        "source": _RESOLVED_MISO_SOURCE or "",
+        "source": "",
     }
 
 
@@ -3554,16 +2206,13 @@ def _build_multi_workspace_proxy_toolkit(
     return merged_toolkit
 
 
-def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = None) -> None:
+def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
     workspace_roots_raw = _extract_workspace_roots_from_options(options)
     if not workspace_roots_raw:
-        return
+        return []
 
     if not _should_enable_tools(options):
-        return
-
-    if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
-        raise RuntimeError("Agent does not support add_toolkit")
+        return []
 
     try:
         miso_module = importlib.import_module("miso.toolkits")
@@ -3584,8 +2233,7 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
             multi_toolkit = None
         else:
             _mark_workspace_tools_for_confirmation(multi_toolkit)
-            agent.add_toolkit(multi_toolkit)
-            return
+            return [multi_toolkit]
 
     if len(resolved_roots) == 1:
         workspace_toolkit = _build_workspace_toolkit_for_root(
@@ -3593,8 +2241,7 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
             workspace_root=resolved_roots[0],
         )
         _mark_workspace_tools_for_confirmation(workspace_toolkit)
-        agent.add_toolkit(workspace_toolkit)
-        return
+        return [workspace_toolkit]
 
     # Multi-root fallback when no native multi_workspace_toolkit.
     workspace_toolkit = _try_build_workspace_toolkit_for_roots(
@@ -3608,19 +2255,16 @@ def _attach_workspace_toolkit(agent: Any, options: Dict[str, object] | None = No
         )
 
     _mark_workspace_tools_for_confirmation(workspace_toolkit)
-    agent.add_toolkit(workspace_toolkit)
+    return [workspace_toolkit]
 
 
-def _attach_selected_toolkits(agent: Any, options: Dict[str, object] | None = None) -> None:
+def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
     if not _should_enable_tools(options):
-        return
+        return []
 
     toolkit_names = _extract_toolkit_names(options)
     if not toolkit_names:
-        return
-
-    if not hasattr(agent, "add_toolkit") or not callable(agent.add_toolkit):
-        raise RuntimeError("Agent does not support add_toolkit")
+        return []
 
     try:
         miso_module = importlib.import_module("miso.toolkits")
@@ -3631,11 +2275,11 @@ def _attach_selected_toolkits(agent: Any, options: Dict[str, object] | None = No
 
     resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
     workspace_root = resolved_roots[0] if resolved_roots else None
+    result: list = []
 
     for toolkit_name in toolkit_names:
         normalized_toolkit_name = _TOOLKIT_NAME_ALIASES.get(toolkit_name, toolkit_name)
         if normalized_toolkit_name == "WorkspaceToolkit":
-            # Workspace toolkit is handled separately to support multi-root.
             continue
         if toolkit_name == "builtin_toolkit":
             continue
@@ -3649,7 +2293,9 @@ def _attach_selected_toolkits(agent: Any, options: Dict[str, object] | None = No
             workspace_root=workspace_root,
         )
         _mark_workspace_tools_for_confirmation(toolkit_instance)
-        agent.add_toolkit(toolkit_instance)
+        result.append(toolkit_instance)
+
+    return result
 
 
 # Block types whose ``text`` field should be extracted as plain content.
@@ -3685,14 +2331,12 @@ def _content_to_text(content: object) -> str:
 
 
 def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
-    if _IMPORT_ERROR is not None:
-        raise RuntimeError(f"Failed to import miso.runtime.Broth: {_IMPORT_ERROR}")
-    if _BROTH_CLASS is None:
-        raise RuntimeError("miso.runtime.Broth is unavailable")
-    if _PUPU_AGENT_CLASS is None:
-        _load_pupu_agent_class()
-    if _PUPU_AGENT_CLASS is None:
-        raise RuntimeError(f"Failed to import miso.agents.Agent: {_PUPU_AGENT_IMPORT_ERROR}")
+    UnchainAgent = _UnchainAgent
+    ToolsModule = _ToolsModule
+    MemoryModule = _MemoryModule
+    PoliciesModule = _PoliciesModule
+    if UnchainAgent is None:
+        raise RuntimeError("unchain agent is unavailable — check miso/unchain installation")
 
     config = get_runtime_config(options)
 
@@ -3707,8 +2351,6 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         else:
             max_iterations = _DEFAULT_MAX_ITERATIONS
     if _extract_workspace_roots_from_options(options) and _should_enable_tools(options):
-        # Tool-call workflows need at least one extra round to produce
-        # assistant-facing text after tool outputs are injected.
         max_iterations = max(max_iterations, 2)
 
     api_key = (
@@ -3756,21 +2398,32 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         except Exception as memory_error:
             memory_runtime["reason"] = f"memory_factory_failed: {memory_error}"
 
-    agent = _PUPU_AGENT_CLASS(
+    # Collect toolkits
+    toolkits = _build_workspace_toolkits(options)
+    toolkits.extend(_build_selected_toolkits(options))
+
+    # System prompt
+    system_prompt = _build_effective_system_prompt_text(options)
+
+    # Build modules
+    modules: list = []
+    if toolkits:
+        modules.append(ToolsModule(tools=tuple(toolkits)))
+    if memory_manager is not None:
+        modules.append(MemoryModule(memory=memory_manager))
+    modules.append(PoliciesModule(max_iterations=max_iterations))
+
+    agent = UnchainAgent(
         name="pupu",
+        instructions=system_prompt or "",
         provider=config["provider"],
         model=config["model"],
         api_key=api_key or None,
-        short_term_memory=memory_manager,
-        broth_options={"max_iterations": max_iterations},
+        modules=tuple(modules),
     )
-    agent.max_iterations = max_iterations
-
-    _attach_workspace_toolkit(agent, options)
-    _attach_selected_toolkits(agent, options)
-
-    setattr(agent, "_memory_runtime", memory_runtime)
-
+    agent._memory_runtime = memory_runtime
+    agent._max_iterations = max_iterations
+    agent._toolkits = toolkits
     return agent
 
 
@@ -3803,35 +2456,6 @@ def _memory_runtime_from_agent(agent: Any) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # unchain adapter helpers
 # ---------------------------------------------------------------------------
-
-def _build_unchain_agent(pupu_agent):
-    """Convert a legacy PuPuAgent (with attached toolkits/memory) into an unchain Agent."""
-    from unchain.agent import Agent as UnchainAgent
-    from unchain.agent.modules import ToolsModule, MemoryModule, PoliciesModule
-
-    modules: list = []
-
-    all_tools: list = list(getattr(pupu_agent, "toolkits", []))
-    all_tools.extend(list(getattr(pupu_agent, "tools", [])))
-    if all_tools:
-        modules.append(ToolsModule(tools=tuple(all_tools)))
-
-    mm = getattr(pupu_agent, "memory_manager", None)
-    if mm is not None:
-        modules.append(MemoryModule(memory=mm))
-
-    max_iter = getattr(pupu_agent, "max_iterations", 32)
-    modules.append(PoliciesModule(max_iterations=int(max_iter)))
-
-    return UnchainAgent(
-        name="pupu",
-        instructions=getattr(pupu_agent, "instructions", "") or "",
-        provider=pupu_agent.provider,
-        model=pupu_agent.model,
-        api_key=pupu_agent.api_key,
-        modules=tuple(modules),
-    )
-
 
 def _build_bundle_from_result(result, agent) -> Dict[str, Any]:
     """Build a PuPu-compatible bundle dict from a KernelRunResult."""
@@ -3966,15 +2590,13 @@ def stream_chat(
             if isinstance(final_text, str):
                 output_holder["final_text"] = final_text
 
-    unchain_agent = _build_unchain_agent(agent)
-
     def run_agent() -> None:
         try:
-            result = unchain_agent.run(
+            result = agent.run(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
-                max_iterations=agent.max_iterations,
+                max_iterations=agent._max_iterations,
                 **({"session_id": session_id} if session_id else {}),
             )
             output_holder["messages"] = result.messages
@@ -4016,9 +2638,6 @@ def stream_chat_events(
 ) -> Iterable[Dict[str, Any]]:
     agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
-    system_prompt_text = _build_effective_system_prompt_text(options)
-    if system_prompt_text:
-        messages = _prepend_system_message(messages, system_prompt_text)
     payload = _build_payload(agent.provider, options)
     memory_runtime = _memory_runtime_from_agent(agent)
     if memory_runtime["requested"] and not memory_runtime["available"]:
@@ -4055,47 +2674,15 @@ def stream_chat_events(
         "bundle": None,
     }
 
-    unchain_agent = _build_unchain_agent(agent)
-
     # Build workspace tool display name map for multi-workspace proxy tools
     _ws_display_names: Dict[str, str] = {}
-    for _tk in getattr(agent, "toolkits", []):
+    for _tk in getattr(agent, "_toolkits", []):
         for _tn, _to in getattr(_tk, "tools", {}).items():
             _orig = getattr(_to, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
             if isinstance(_orig, str) and _orig.strip() and _orig != _tn:
-                # Extract workspace label from prefix: workspace_{N}_{slug}_{tool}
                 _prefix = _tn[: -len(_orig) - 1] if _tn.endswith("_" + _orig) else ""
                 _ws_label = _prefix.split("_", 2)[2] if _prefix.count("_") >= 2 else _prefix
                 _ws_display_names[_tn] = f"{_orig} @{_ws_label}" if _ws_label else _orig
-
-    # Patch QdrantClient to survive deepcopy by returning self
-    _mm = getattr(agent, "memory_manager", None)
-    if _mm is not None:
-        _va = getattr(getattr(_mm, "config", None), "vector_adapter", None)
-        _client = getattr(_va, "_client", None) if _va is not None else None
-        if _client is not None and not hasattr(_client, "__deepcopy__"):
-            _client.__deepcopy__ = lambda memo: _client
-            _client.__copy__ = lambda: _client
-        _strategy = getattr(_mm, "strategy", None)
-        _sva = getattr(_strategy, "vector_adapter", None) if _strategy is not None else None
-        _sclient = getattr(_sva, "_client", None) if _sva is not None else None
-        if _sclient is not None and not hasattr(_sclient, "__deepcopy__"):
-            _sclient.__deepcopy__ = lambda memo: _sclient
-            _sclient.__copy__ = lambda: _sclient
-        # Also patch the adapter itself
-        if _va is not None and not hasattr(_va, "__deepcopy__"):
-            _va.__deepcopy__ = lambda memo: _va
-        if _sva is not None and _sva is not _va and not hasattr(_sva, "__deepcopy__"):
-            _sva.__deepcopy__ = lambda memo: _sva
-        # Patch long_term adapter if present
-        _lt = getattr(getattr(_mm, "config", None), "long_term", None)
-        _ltva = getattr(_lt, "vector_adapter", None) if _lt is not None else None
-        _ltclient = getattr(_ltva, "_client", None) if _ltva is not None else None
-        if _ltclient is not None and not hasattr(_ltclient, "__deepcopy__"):
-            _ltclient.__deepcopy__ = lambda memo: _ltclient
-            _ltclient.__copy__ = lambda: _ltclient
-        if _ltva is not None and not hasattr(_ltva, "__deepcopy__"):
-            _ltva.__deepcopy__ = lambda memo: _ltva
 
     def on_event(event: Dict[str, Any]) -> None:
         if not isinstance(event, dict):
@@ -4156,11 +2743,11 @@ def stream_chat_events(
     def run_agent() -> None:
         try:
             memory_namespace = str(options.get("memory_namespace") or "").strip()
-            result = unchain_agent.run(
+            result = agent.run(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
-                max_iterations=agent.max_iterations,
+                max_iterations=agent._max_iterations,
                 on_tool_confirm=confirm_cb,
                 on_human_input=human_input_cb,
                 on_max_iterations=max_iterations_cb,
