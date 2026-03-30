@@ -268,6 +268,29 @@ const ToolTag = ({ name, isDark }) => (
   </span>
 );
 
+/* count badge shown next to ToolTag when consecutive calls are grouped */
+const CountBadge = ({ count, isDark }) => (
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0 5px",
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.055)",
+      fontFamily: "Menlo, Monaco, Consolas, monospace",
+      fontSize: "0.72em",
+      color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+    }}
+  >
+    ×{count}
+  </span>
+);
+
 /* hollow circle point marker for tool_call */
 const HammerPoint = ({ isDark }) => (
   <div
@@ -767,6 +790,8 @@ const TraceChain = ({
             sections.length > 0 ? (
               <KVPanel sections={sections} isDark={isDark} color={color} />
             ) : undefined,
+          _toolName: toolName,
+          _sections: sections,
         });
       } else if (frame.type === "error") {
         const msg = frame.payload?.message || "Unknown error";
@@ -936,7 +961,50 @@ const TraceChain = ({
       });
     }
 
-    return items;
+    /* ── group consecutive identical tool calls ── */
+    const grouped = [];
+    let i = 0;
+    while (i < items.length) {
+      const item = items[i];
+      if (!item._toolName) {
+        grouped.push(item);
+        i++;
+        continue;
+      }
+      /* collect consecutive run of the same tool name */
+      const run = [item];
+      while (
+        i + run.length < items.length &&
+        items[i + run.length]._toolName === item._toolName
+      ) {
+        run.push(items[i + run.length]);
+      }
+      i += run.length;
+      if (run.length === 1) {
+        grouped.push(item);
+        continue;
+      }
+      /* merge run into a single batched item */
+      const allSections = run.flatMap((r) => r._sections || []);
+      grouped.push({
+        key: run.map((r) => r.key).join("+"),
+        title: (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <ToolTag name={item._toolName} isDark={isDark} />
+            <CountBadge count={run.length} isDark={isDark} />
+          </span>
+        ),
+        span: run[run.length - 1].span,
+        status: "done",
+        point: <HammerPoint isDark={isDark} />,
+        details:
+          allSections.length > 0 ? (
+            <KVPanel sections={allSections} isDark={isDark} color={color} />
+          ) : undefined,
+      });
+    }
+
+    return grouped;
   }, [
     displayFrames,
     isStreaming,
