@@ -13,6 +13,17 @@ jest.mock("../../../SERVICEs/api", () => ({
   },
 }));
 
+jest.mock("../../settings/model_providers/storage", () => ({
+  readModelProviders: jest.fn(() => ({
+    openai_api_key: "sk-test",
+    anthropic_api_key: "sk-ant-test",
+  })),
+}));
+
+jest.mock("../../../SERVICEs/model_catalog_refresh", () => ({
+  subscribeModelCatalogRefresh: jest.fn(() => () => {}),
+}));
+
 const HookHarness = ({ modelCatalog, selectedModelId = "" }) => {
   const { modelOptions } = useChatInputModels({
     model_catalog: modelCatalog,
@@ -93,5 +104,61 @@ describe("useChatInputModels", () => {
     expect(
       ollamaGroup.options.find((option) => option.label === "nomic-embed-text"),
     ).toBeUndefined();
+  });
+
+  test("hides OpenAI and Anthropic groups when no API keys are configured", async () => {
+    const { readModelProviders } = require("../../settings/model_providers/storage");
+    readModelProviders.mockReturnValue({});
+    api.ollama.listChatModels.mockResolvedValue([]);
+
+    render(
+      <HookHarness
+        modelCatalog={{
+          providers: {
+            ollama: [],
+            openai: ["gpt-4o"],
+            anthropic: ["claude-3-7-sonnet-latest"],
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1));
+    const options = readOptions();
+    expect(options.find((g) => g.group === "OpenAI")).toBeUndefined();
+    expect(options.find((g) => g.group === "Anthropic")).toBeUndefined();
+
+    readModelProviders.mockReturnValue({
+      openai_api_key: "sk-test",
+      anthropic_api_key: "sk-ant-test",
+    });
+  });
+
+  test("shows only OpenAI group when only OpenAI key is configured", async () => {
+    const { readModelProviders } = require("../../settings/model_providers/storage");
+    readModelProviders.mockReturnValue({ openai_api_key: "sk-test" });
+    api.ollama.listChatModels.mockResolvedValue([]);
+
+    render(
+      <HookHarness
+        modelCatalog={{
+          providers: {
+            ollama: [],
+            openai: ["gpt-4o"],
+            anthropic: ["claude-3-7-sonnet-latest"],
+          },
+        }}
+      />,
+    );
+
+    await waitFor(() => expect(api.ollama.listChatModels).toHaveBeenCalledTimes(1));
+    const options = readOptions();
+    expect(options.find((g) => g.group === "OpenAI")).toBeDefined();
+    expect(options.find((g) => g.group === "Anthropic")).toBeUndefined();
+
+    readModelProviders.mockReturnValue({
+      openai_api_key: "sk-test",
+      anthropic_api_key: "sk-ant-test",
+    });
   });
 });
