@@ -40,26 +40,26 @@ def _now_ms() -> int:
 
 
 def _character_api():
-    from miso.characters import (
-        CharacterAgent,
-        CharacterSpec,
-        decide_character_response,
+    from unchain.character import (
+        CharacterIdentitySpec,
         evaluate_character,
+        decide_character_response,
         generate_character_id,
         make_character_relationship_namespace,
         make_character_self_namespace,
         sanitize_character_key_component,
+        build_character_agent_config,
     )
 
     return {
-        "CharacterAgent": CharacterAgent,
-        "CharacterSpec": CharacterSpec,
-        "decide_character_response": decide_character_response,
+        "CharacterSpec": CharacterIdentitySpec,
         "evaluate_character": evaluate_character,
+        "decide_character_response": decide_character_response,
         "generate_character_id": generate_character_id,
         "make_character_relationship_namespace": make_character_relationship_namespace,
         "make_character_self_namespace": make_character_self_namespace,
         "sanitize_character_key_component": sanitize_character_key_component,
+        "build_character_agent_config": build_character_agent_config,
     }
 
 
@@ -633,7 +633,7 @@ def build_character_agent_config(payload: dict[str, Any] | None = None) -> dict[
     thread_id = raw_payload.get("thread_id") or raw_payload.get("threadId") or "default"
     human_id = raw_payload.get("human_id") or raw_payload.get("humanId") or _DEFAULT_HUMAN_ID
     spec = _character_api()["CharacterSpec"].coerce(record.get("spec"))
-    config = _character_api()["CharacterAgent"].build_config(
+    config = _character_api()["build_character_agent_config"](
         character=spec,
         thread_id=str(thread_id),
         human_id=str(human_id),
