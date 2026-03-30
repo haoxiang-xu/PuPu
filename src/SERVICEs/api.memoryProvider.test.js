@@ -246,4 +246,21 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.anthropicApiKey).toBe("anthropic-key-456");
     expect(payload.options.anthropic_api_key).toBe("anthropic-key-456");
   });
+
+  test("preserves agent_orchestration when normalizing startStreamV2 payload", () => {
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: {
+        modelId: "openai:gpt-5",
+        agent_orchestration: {
+          mode: "developer_waiting_approval",
+        },
+      },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.agent_orchestration).toEqual({
+      mode: "developer_waiting_approval",
+    });
+  });
 });

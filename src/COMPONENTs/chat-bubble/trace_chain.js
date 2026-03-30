@@ -621,14 +621,19 @@ const TraceChain = ({
   const interactTypeByCallId = useMemo(() => {
     const map = new Map();
     for (const frame of frames) {
-      if (
-        frame?.type !== "tool_call" ||
-        !frame?.payload?.call_id ||
-        typeof frame?.payload?.interact_type !== "string"
-      ) {
+      if (frame?.type !== "tool_call" || !frame?.payload?.call_id) {
         continue;
       }
-      map.set(frame.payload.call_id, frame.payload.interact_type);
+      const rc = frame.payload?.render_component;
+      const itype =
+        typeof rc?.type === "string" && rc.type
+          ? rc.type
+          : typeof frame.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : "";
+      if (itype) {
+        map.set(frame.payload.call_id, itype);
+      }
     }
     return map;
   }, [frames]);
@@ -640,14 +645,17 @@ const TraceChain = ({
         continue;
       }
 
+      const rcType = frame?.payload?.render_component?.type;
       const interactType =
-        typeof frame?.payload?.interact_type === "string"
-          ? frame.payload.interact_type
-          : interactTypeByCallId.get(frame.payload.call_id) ||
-            (typeof frame?.payload?.tool_name === "string" &&
-            frame.payload.tool_name === "ask_user_question"
-              ? "single"
-              : "");
+        typeof rcType === "string" && rcType
+          ? rcType
+          : typeof frame?.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : interactTypeByCallId.get(frame.payload.call_id) ||
+              (typeof frame?.payload?.tool_name === "string" &&
+              frame.payload.tool_name === "ask_user_question"
+                ? "single"
+                : "");
       const normalized = normalizePersistedInteractionResponse(
         interactType,
         frame.payload?.result,
@@ -712,11 +720,17 @@ const TraceChain = ({
         const requiresConfirmation =
           frame.payload?.requires_confirmation === true ||
           Boolean(confirmationId);
+        const rc = frame.payload?.render_component;
         const interactType =
-          typeof frame.payload?.interact_type === "string"
-            ? frame.payload.interact_type
-            : "confirmation";
-        const interactConfig = frame.payload?.interact_config || {};
+          typeof rc?.type === "string" && rc.type
+            ? rc.type
+            : typeof frame.payload?.interact_type === "string"
+              ? frame.payload.interact_type
+              : "confirmation";
+        const interactConfig =
+          rc?.config && typeof rc.config === "object"
+            ? rc.config
+            : frame.payload?.interact_config || {};
         const resultFrame = callId ? toolResultByCallId.get(callId) : null;
         const result = resultFrame?.payload?.result;
         const internalDelta =

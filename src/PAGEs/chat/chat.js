@@ -12,6 +12,7 @@ import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import {
   bootstrapChatsStore,
   refreshCharacterChatMetadata,
+  setChatAgentOrchestration,
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
@@ -69,6 +70,7 @@ const ChatInterface = () => {
 
   const storageApi = useMemo(
     () => ({
+      setChatAgentOrchestration,
       setChatGeneratedUnread,
       setChatMessages,
       setChatModel,
@@ -155,6 +157,7 @@ const ChatInterface = () => {
     draftAttachments,
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
+    agentOrchestration: session.agentOrchestration,
     selectedToolkits: session.selectedToolkits,
     selectedWorkspaceIds: session.selectedWorkspaceIds,
     chatKind: session.activeChatKind,
@@ -171,6 +174,7 @@ const ChatInterface = () => {
     messagesRef: session.messagesRef,
     modelIdRef: session.modelIdRef,
     setSelectedModelId: session.setSelectedModelId,
+    setAgentOrchestration: session.setAgentOrchestration,
     activeStreamMessagesRef,
   });
 

@@ -3,6 +3,7 @@ import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
   setChatMessages,
+  setChatAgentOrchestration,
   setChatModel,
   setChatSelectedToolkits,
   setChatSelectedWorkspaceIds,
@@ -32,6 +33,9 @@ export const useChatSessionState = ({
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
       : "unchain-unset",
+  );
+  const [agentOrchestration, setAgentOrchestration] = useState(
+    () => initialChat.agentOrchestration || { mode: "default" },
   );
   const [selectedToolkits, setSelectedToolkits] = useState(
     () => initialChat.selectedToolkits || [],
@@ -139,7 +143,10 @@ export const useChatSessionState = ({
       setStreamError("");
       setMessages(nextActiveChat.messages || []);
       setInputValue(nextActiveChat.draft?.text || "");
-      setDraftAttachments(nextActiveChat.draft?.attachments || []);
+        setDraftAttachments(nextActiveChat.draft?.attachments || []);
+      setAgentOrchestration(
+        nextActiveChat.agentOrchestration || { mode: "default" },
+      );
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
       setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
       setActiveChatKind(
@@ -254,6 +261,20 @@ export const useChatSessionState = ({
       return;
     }
 
+    setChatAgentOrchestration(currentChatId, agentOrchestration, {
+      source: "chat-page",
+    });
+  }, [activeChatKind, agentOrchestration]);
+
+  useEffect(() => {
+    const currentChatId = activeChatIdRef.current;
+    if (!currentChatId) {
+      return;
+    }
+    if (activeChatKind === "character") {
+      return;
+    }
+
     setChatSelectedWorkspaceIds(currentChatId, selectedWorkspaceIds, {
       source: "chat-page",
     });
@@ -293,6 +314,8 @@ export const useChatSessionState = ({
     modelIdRef,
     selectedModelId,
     setSelectedModelId,
+    agentOrchestration,
+    setAgentOrchestration,
     selectedToolkits,
     setSelectedToolkits,
     selectedWorkspaceIds,

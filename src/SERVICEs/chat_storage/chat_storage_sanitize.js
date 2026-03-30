@@ -21,6 +21,9 @@ import { sanitizeSystemPromptSections } from "../system_prompt_sections";
 export const DEFAULT_CHAT_KIND = "default";
 export const CHARACTER_CHAT_KIND = "character";
 export const DEFAULT_CHARACTER_THREAD_ID = "main";
+export const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({
+  mode: "default",
+});
 
 export const isValidTimestamp = (value) =>
   Number.isFinite(Number(value)) && Number(value) > 0;
@@ -215,6 +218,22 @@ export const sanitizeModel = (model) => {
   }
 
   return cleaned;
+};
+
+export const sanitizeAgentOrchestration = (agentOrchestration) => {
+  if (!isObject(agentOrchestration)) {
+    return { ...DEFAULT_AGENT_ORCHESTRATION };
+  }
+
+  const mode =
+    typeof agentOrchestration.mode === "string" &&
+    ["default", "developer_waiting_approval"].includes(
+      agentOrchestration.mode.trim(),
+    )
+      ? agentOrchestration.mode.trim()
+      : DEFAULT_AGENT_ORCHESTRATION.mode;
+
+  return { mode };
 };
 
 const TOOLKIT_ID_ALIASES = Object.freeze({
@@ -495,6 +514,7 @@ export const computeChatStats = (chat) => ({
   approxBytes: estimateBytes({
     threadId: chat.threadId,
     model: chat.model,
+    agentOrchestration: chat.agentOrchestration,
     selectedToolkits: chat.selectedToolkits,
     systemPromptOverrides: chat.systemPromptOverrides,
     draft: chat.draft,
@@ -554,6 +574,7 @@ export const sanitizeChatSession = (chat, fallbackId) => {
         ? trimText(chat.threadId, 200)
         : null,
     model: sanitizeModel(chat?.model),
+    agentOrchestration: sanitizeAgentOrchestration(chat?.agentOrchestration),
     selectedToolkits: sanitizeSelectedToolkits(chat?.selectedToolkits),
     selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
       chat?.selectedWorkspaceIds,
@@ -575,6 +596,7 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     cleaned.characterId = characterId;
     cleaned.characterName = characterName || resolvedTitle;
     cleaned.characterAvatar = characterAvatar;
+    cleaned.agentOrchestration = { ...DEFAULT_AGENT_ORCHESTRATION };
     cleaned.selectedToolkits = [];
     cleaned.selectedWorkspaceIds = [];
     cleaned.systemPromptOverrides = {};
@@ -609,6 +631,9 @@ export const createChatSession = (overrides = {}) => {
       lastMessageAt: null,
       threadId: overrides.threadId || null,
       model: overrides.model || { id: DEFAULT_MODEL_ID },
+      agentOrchestration: sanitizeAgentOrchestration(
+        overrides.agentOrchestration,
+      ),
       selectedToolkits: sanitizeSelectedToolkits(toolkits),
       selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
         overrides.selectedWorkspaceIds,

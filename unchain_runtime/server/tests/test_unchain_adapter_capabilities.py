@@ -1732,6 +1732,102 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertEqual(agent.max_iterations, unchain_adapter._DEFAULT_MAX_ITERATIONS)
 
+    def test_create_agent_builds_general_router_with_downgraded_model_and_developer_template(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "modelId": "openai:gpt-5",
+                "openai_api_key": "test-key",
+                "toolkits": ["ask-user-toolkit"],
+            }
+        )
+
+        self.assertEqual(agent.name, "pupu_general")
+        self.assertEqual(agent.model, "gpt-4.1")
+        self.assertEqual(agent.allowed_tools, ("handoff_to_subagent",))
+        self.assertEqual(agent._display_model, "openai:gpt-5")
+        self.assertEqual(agent._general_model_id, "openai:gpt-4.1")
+        self.assertEqual(agent._developer_model_id, "openai:gpt-5")
+
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertIn("SubagentModule", module_names)
+        self.assertNotIn("ToolsModule", module_names)
+
+        subagent_module = next(
+            module for module in agent.spec.modules if type(module).__name__ == "SubagentModule"
+        )
+        self.assertEqual([template.name for template in subagent_module.templates], ["developer"])
+        self.assertEqual(subagent_module.templates[0].allowed_modes, ("handoff",))
+        self.assertEqual(subagent_module.templates[0].memory_policy, "scoped_persistent")
+        self.assertEqual(subagent_module.templates[0].agent.name, "pupu_developer")
+        self.assertEqual(subagent_module.templates[0].agent.model, "gpt-5")
+        child_module_names = [
+            type(module).__name__
+            for module in subagent_module.templates[0].agent.spec.modules
+        ]
+        self.assertIn("ToolsModule", child_module_names)
+        self.assertNotIn("SubagentModule", child_module_names)
+
+    def test_create_agent_routes_waiting_approval_mode_directly_to_developer(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "modelId": "openai:gpt-5",
+                "openai_api_key": "test-key",
+                "toolkits": ["ask-user-toolkit"],
+                "agent_orchestration": {"mode": "developer_waiting_approval"},
+            }
+        )
+
+        self.assertEqual(agent.name, "pupu_developer")
+        self.assertEqual(agent.model, "gpt-5")
+        self.assertEqual(agent._orchestration_role, "developer")
+        self.assertEqual(agent._orchestration_next_mode, "default")
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertIn("ToolsModule", module_names)
+        self.assertNotIn("SubagentModule", module_names)
+
+    def test_create_agent_falls_back_to_selected_model_when_general_downgrade_is_unavailable(self) -> None:
+        with mock.patch.object(
+            unchain_adapter,
+            "get_capability_catalog",
+            return_value={
+                "openai": ["gpt-5"],
+                "anthropic": [],
+                "ollama": [],
+            },
+        ):
+            agent = unchain_adapter._create_agent(
+                {
+                    "modelId": "openai:gpt-5",
+                    "openai_api_key": "test-key",
+                }
+            )
+
+        self.assertEqual(agent.name, "pupu_general")
+        self.assertEqual(agent.model, "gpt-5")
+        self.assertEqual(agent._general_model_id, "openai:gpt-5")
+
+    def test_resolve_general_runtime_config_downgrades_anthropic_and_keeps_ollama_selected_model(self) -> None:
+        with mock.patch.object(
+            unchain_adapter,
+            "get_capability_catalog",
+            return_value={
+                "openai": ["gpt-4.1", "gpt-5"],
+                "anthropic": ["claude-sonnet-4", "claude-sonnet-4-6"],
+                "ollama": ["llama3.2"],
+            },
+        ):
+            anthropic_config = unchain_adapter._resolve_general_runtime_config(
+                {"modelId": "anthropic:claude-sonnet-4-6"}
+            )
+            ollama_config = unchain_adapter._resolve_general_runtime_config(
+                {"modelId": "ollama:llama3.2"}
+            )
+
+        self.assertEqual(anthropic_config["provider"], "anthropic")
+        self.assertEqual(anthropic_config["model"], "claude-sonnet-4")
+        self.assertEqual(ollama_config["provider"], "ollama")
+        self.assertEqual(ollama_config["model"], "llama3.2")
+
     def test_create_agent_prefers_options_max_iterations_over_env(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -1837,6 +1933,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.max_iterations = 3
                 self.received_on_tool_confirm = False
                 self.last_messages = []
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-4.1"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "general"
                 self._memory_runtime = {
                     "requested": False,
                     "available": False,
@@ -1850,6 +1950,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 callback=None,
                 max_iterations=None,
                 on_tool_confirm=None,
+                **_kwargs,
             ):
                 self.received_on_tool_confirm = callable(on_tool_confirm)
                 self.last_messages = list(messages or [])
@@ -1863,13 +1964,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                             "content": "done",
                         }
                     )
-                return [{"role": "assistant", "content": "done"}], {
-                    "consumed_tokens": 21,
-                    "input_tokens": 13,
-                    "output_tokens": 8,
-                    "max_context_window_tokens": 128000,
-                    "context_window_used_pct": 3.5,
-                }
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=21,
+                    input_tokens=13,
+                    output_tokens=8,
+                    status="completed",
+                    iteration=1,
+                    previous_response_id=None,
+                )
 
         fake_agent = FakeAgent()
 
@@ -1922,10 +2025,33 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             ).get("output_tokens"),
             8,
         )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("model"),
+            "openai:gpt-4.1",
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("display_model"),
+            "openai:gpt-5",
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("agent_orchestration", {}).get("mode"),
+            "default",
+        )
         self.assertGreaterEqual(len(fake_agent.last_messages), 1)
-        self.assertEqual(fake_agent.last_messages[0].get("role"), "system")
-        self.assertIn("[Personality]", fake_agent.last_messages[0].get("content", ""))
-        self.assertIn("[Rules]", fake_agent.last_messages[0].get("content", ""))
+        self.assertEqual(fake_agent.last_messages[-1].get("role"), "user")
+        self.assertEqual(fake_agent.last_messages[-1].get("content"), "hello")
 
     def test_stream_chat_events_emits_memory_unavailable_and_stops_when_history_empty(self) -> None:
         class FakeAgent:
@@ -1963,6 +2089,77 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(events[1]["type"], "error")
         self.assertEqual(events[1]["code"], "memory_unavailable")
 
+    def test_stream_chat_events_marks_developer_handoff_in_stream_summary_bundle(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-4.1"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "general"
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
+
+            def run(self, messages, payload=None, callback=None, max_iterations=None, **_kwargs):
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "subagent_handoff",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "template": "developer",
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 1,
+                            "timestamp": time.time(),
+                            "content": "plan ready",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "plan ready"}],
+                    consumed_tokens=34,
+                    input_tokens=20,
+                    output_tokens=14,
+                    status="completed",
+                    iteration=1,
+                    previous_response_id=None,
+                )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="implement this",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                )
+            )
+
+        bundle = next(
+            event.get("bundle", {})
+            for event in events
+            if event.get("type") == "stream_summary"
+        )
+        self.assertEqual(bundle.get("model"), "openai:gpt-5")
+        self.assertEqual(bundle.get("active_agent"), "developer")
+        self.assertEqual(
+            bundle.get("agent_orchestration", {}).get("mode"),
+            "developer_waiting_approval",
+        )
+
     def test_stream_chat_events_emits_memory_prepare_failure_but_runs_with_history(self) -> None:
         class FakeAgent:
             def __init__(self):
@@ -1983,6 +2180,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 max_iterations=None,
                 on_tool_confirm=None,
                 session_id=None,
+                **_kwargs,
             ):
                 self.run_called = True
                 if callable(callback):
@@ -1995,7 +2193,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                             "content": "done",
                         }
                     )
-                return [{"role": "assistant", "content": "done"}], {}
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
 
         fake_agent = FakeAgent()
 
@@ -2036,6 +2242,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 on_tool_confirm=None,
                 session_id=None,
                 memory_namespace=None,
+                **_kwargs,
             ):
                 self.run_kwargs = {
                     "messages": messages,
@@ -2054,7 +2261,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                             "content": "done",
                         }
                     )
-                return [{"role": "assistant", "content": "done"}], {}
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
 
         fake_agent = FakeAgent()
 

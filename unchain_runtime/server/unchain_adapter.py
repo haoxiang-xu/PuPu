@@ -96,6 +96,15 @@ _TOOLKIT_NAME_ALIASES = {
 }
 _DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
+_AGENT_ORCHESTRATION_DEFAULT = "default"
+_AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"
+_GENERAL_MODEL_BY_PROVIDER = {
+    "openai": "gpt-4.1",
+    "anthropic": "claude-sonnet-4",
+}
+_GENERAL_AGENT_NAME = "pupu_general"
+_DEVELOPER_AGENT_NAME = "pupu_developer"
+_DEVELOPER_SUBAGENT_TEMPLATE = "developer"
 _CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "write_file",
     "delete_file",
@@ -134,6 +143,58 @@ _SYSTEM_PROMPT_V2_BUILTIN_RULES = [
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
+
+_GENERAL_AGENT_RUNTIME_PROMPT = """
+You are the default general chat agent for PuPu.
+
+Your job is limited to:
+1. answer ordinary non-development conversation directly, without tools
+2. immediately hand off development work to the developer specialist
+
+Use the developer specialist whenever the request involves code, files, tests,
+debugging, terminal usage, implementation, architecture, repositories,
+workspace context, or selected toolkits.
+
+If the latest assistant message is a development plan awaiting approval and the
+user is replying to that plan, hand off to the developer specialist again.
+
+Do not try to partially implement, inspect code, or reason through a coding
+task yourself. When the task is development-related, call
+handoff_to_subagent(target="developer") immediately and let the specialist
+finish the turn.
+""".strip()
+
+_DEVELOPER_AGENT_PLAN_PROMPT = """
+You are the dedicated developer specialist for PuPu.
+
+You have the user's exact selected model, workspace access, and selected
+toolkits. You must not create subagents in this version.
+
+This is the planning turn. Produce a complete implementation plan and stop.
+Do not execute code changes yet.
+
+The plan must:
+- be decision-complete for implementation
+- separate parallelizable work from sequential work when possible
+- call out assumptions, risks, and validation steps
+- end by clearly waiting for user approval before execution
+""".strip()
+
+_DEVELOPER_AGENT_APPROVAL_PROMPT = """
+You are the dedicated developer specialist for PuPu.
+
+You have the user's exact selected model, workspace access, and selected
+toolkits. You must not create subagents in this version.
+
+The previous turn should already have produced a plan. Interpret the user's
+latest message against that plan:
+- if the user is approving or asking you to proceed, execute the approved plan
+- if the user is revising scope or asking plan questions, answer with an
+  updated complete plan and stop again without executing
+
+Be conservative with tool use and iteration count. Prefer the cheapest path
+that still produces a correct result.
+""".strip()
 
 
 def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
@@ -249,6 +310,19 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
 
     interact_config = payload.get("interact_config")
     payload["interact_config"] = interact_config if isinstance(interact_config, (dict, list)) else {}
+
+    # ── render_component (v1) ──────────────────────────────────────────
+    # Dual-write: emit render_component alongside legacy interact_type/interact_config.
+    # Frontend prefers render_component when present, falls back to legacy fields.
+    raw_rc = payload.get("render_component")
+    if isinstance(raw_rc, dict) and raw_rc:
+        payload["render_component"] = raw_rc
+    else:
+        payload["render_component"] = {
+            "version": 1,
+            "type": payload["interact_type"],
+            "config": payload["interact_config"] if isinstance(payload["interact_config"], dict) else {},
+        }
 
     return payload
 
@@ -552,6 +626,81 @@ def get_model_name(options: Dict[str, object] | None = None) -> str:
     if not config.get("model"):
         return "model-unavailable"
     return f"{config['provider']}:{config['model']}"
+
+
+def _format_model_id(provider: str, model: str) -> str:
+    normalized_provider = str(provider or "").strip().lower()
+    normalized_model = str(model or "").strip()
+    if not normalized_provider or not normalized_model:
+        return "model-unavailable"
+    return f"{normalized_provider}:{normalized_model}"
+
+
+def _normalize_agent_orchestration_mode(value: object) -> str:
+    if isinstance(value, str):
+        normalized = value.strip()
+        if normalized in {
+            _AGENT_ORCHESTRATION_DEFAULT,
+            _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL,
+        }:
+            return normalized
+    return _AGENT_ORCHESTRATION_DEFAULT
+
+
+def _extract_agent_orchestration_mode(options: Dict[str, object] | None) -> str:
+    if not isinstance(options, dict):
+        return _AGENT_ORCHESTRATION_DEFAULT
+    raw = options.get("agent_orchestration")
+    if isinstance(raw, dict):
+        return _normalize_agent_orchestration_mode(raw.get("mode"))
+    return _normalize_agent_orchestration_mode(
+        options.get("agentOrchestrationMode") or options.get("agent_orchestration_mode")
+    )
+
+
+def _build_agent_orchestration_payload(mode: str) -> Dict[str, str]:
+    return {"mode": _normalize_agent_orchestration_mode(mode)}
+
+
+def _compose_runtime_instructions(*parts: str) -> str:
+    normalized_parts = []
+    for part in parts:
+        text = str(part or "").strip()
+        if text:
+            normalized_parts.append(text)
+    return "\n\n".join(normalized_parts)
+
+
+def _model_is_available_for_provider(provider: str, model: str) -> bool:
+    normalized_provider = str(provider or "").strip().lower()
+    normalized_model = _normalize_provider_model_name(normalized_provider, str(model or "").strip())
+    if not normalized_provider or not normalized_model:
+        return False
+    return normalized_model in set(get_capability_catalog().get(normalized_provider, []))
+
+
+def _resolve_general_runtime_config(options: Dict[str, object] | None = None) -> Dict[str, str]:
+    selected = get_runtime_config(options)
+    provider = selected.get("provider", "")
+    selected_model = selected.get("model", "")
+    downgrade_target = _GENERAL_MODEL_BY_PROVIDER.get(provider, "").strip()
+    if provider == "ollama" or not downgrade_target:
+        return {
+            "provider": provider,
+            "model": selected_model,
+            "source": "selected",
+        }
+    normalized_downgrade = _normalize_provider_model_name(provider, downgrade_target)
+    resolved_model = (
+        normalized_downgrade
+        if _model_is_available_for_provider(provider, normalized_downgrade)
+        else selected_model
+    )
+    return {
+        "provider": provider,
+        "model": resolved_model,
+        "source": "downgraded" if resolved_model == normalized_downgrade else "selected",
+    }
 
 
 def _default_model_capabilities() -> Dict[str, object]:
@@ -2334,16 +2483,7 @@ def _content_to_text(content: object) -> str:
     return str(content)
 
 
-def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
-    UnchainAgent = _UnchainAgent
-    ToolsModule = _ToolsModule
-    MemoryModule = _MemoryModule
-    PoliciesModule = _PoliciesModule
-    if UnchainAgent is None:
-        raise RuntimeError("unchain agent is unavailable — check unchain installation")
-
-    config = get_runtime_config(options)
-
+def _resolve_agent_max_iterations(options: Dict[str, object] | None = None) -> int:
     max_iterations = _extract_max_iterations_from_options(options)
     if max_iterations is None:
         max_iterations_raw = os.environ.get("UNCHAIN_MAX_ITERATIONS", "").strip()
@@ -2356,9 +2496,12 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
             max_iterations = _DEFAULT_MAX_ITERATIONS
     if _extract_workspace_roots_from_options(options) and _should_enable_tools(options):
         max_iterations = max(max_iterations, 2)
+    return max_iterations
 
+
+def _resolve_agent_api_key(options: Dict[str, object] | None, provider: str) -> str:
     api_key = (
-        _extract_api_key_from_options(options, config["provider"])
+        _extract_api_key_from_options(options, provider)
         or (
             os.environ.get("UNCHAIN_API_KEY")
             or os.environ.get("OPENAI_API_KEY")
@@ -2367,13 +2510,19 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         ).strip()
     )
 
-    if config["provider"] in {"openai", "anthropic"}:
-        if not api_key:
-            raise RuntimeError(
-                f"Provider '{config['provider']}' requires API key. "
-                "Set UNCHAIN_API_KEY or provider-specific API key env vars."
-            )
+    if provider in {"openai", "anthropic"} and not api_key:
+        raise RuntimeError(
+            f"Provider '{provider}' requires API key. "
+            "Set UNCHAIN_API_KEY or provider-specific API key env vars."
+        )
+    return api_key
 
+
+def _resolve_memory_runtime(
+    options: Dict[str, object] | None = None,
+    *,
+    session_id: str = "",
+) -> tuple[Dict[str, Any], Any]:
     memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
     memory_runtime = {
         "requested": memory_requested,
@@ -2401,88 +2550,193 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
                 )
         except Exception as memory_error:
             memory_runtime["reason"] = f"memory_factory_failed: {memory_error}"
+    return memory_runtime, memory_manager
 
-    # Collect toolkits
+
+def _build_requested_toolkits(options: Dict[str, object] | None = None) -> list:
     toolkits = _build_workspace_toolkits(options)
     toolkits.extend(_build_selected_toolkits(options))
+    return toolkits
 
-    # System prompt
-    system_prompt = _build_effective_system_prompt_text(options)
 
-    # Build modules
+def _build_developer_agent(
+    *,
+    UnchainAgent,
+    ToolsModule,
+    MemoryModule,
+    PoliciesModule,
+    provider: str,
+    model: str,
+    api_key: str,
+    system_prompt: str,
+    max_iterations: int,
+    toolkits: list,
+    memory_manager: Any,
+    planning_turn: bool,
+):
     modules: list = []
     if toolkits:
         modules.append(ToolsModule(tools=tuple(toolkits)))
     if memory_manager is not None:
         modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
-
-    # Subagent module — gives the agent delegate / spawn_worker_batch tools
-    SubagentModule = _SubagentModule
-    SubagentTemplate = _SubagentTemplate
-    SubagentPolicy = _SubagentPolicy
-    _subagents_enabled = (
-        SubagentModule is not None
-        and SubagentTemplate is not None
-        and SubagentPolicy is not None
-        and toolkits  # subagents only useful when tools are available
-        and _should_enable_tools(options)
-    )
-    if _subagents_enabled:
-        worker_agent = UnchainAgent(
-            name="pupu_worker",
-            instructions=(
-                "You are a focused worker agent. "
-                "Complete the delegated task precisely and concisely. "
-                "Return only the result — do not explain your process."
-            ),
-            provider=config["provider"],
-            model=config["model"],
-            api_key=api_key or None,
-            modules=(ToolsModule(tools=tuple(toolkits)),),
-        )
-        subagent_templates = (
-            SubagentTemplate(
-                name="worker",
-                description=(
-                    "A general-purpose worker that can handle delegated "
-                    "subtasks using all available tools. Use this to "
-                    "parallelize independent tasks or delegate focused "
-                    "subtasks that don't need the full conversation context."
-                ),
-                agent=worker_agent,
-                allowed_modes=("delegate", "worker"),
-                output_mode="summary",
-                memory_policy="ephemeral",
-                parallel_safe=True,
-            ),
-        )
-        modules.append(
-            SubagentModule(
-                templates=subagent_templates,
-                policy=SubagentPolicy(
-                    max_depth=3,
-                    max_children_per_parent=6,
-                    max_total_subagents=20,
-                    max_parallel_workers=3,
-                    worker_timeout_seconds=60.0,
-                    allow_dynamic_workers=False,
-                    allow_dynamic_delegate=False,
-                ),
-            )
-        )
-
-    agent = UnchainAgent(
-        name="pupu",
-        instructions=system_prompt or "",
-        provider=config["provider"],
-        model=config["model"],
+    return UnchainAgent(
+        name=_DEVELOPER_AGENT_NAME,
+        instructions=_compose_runtime_instructions(
+            system_prompt,
+            _DEVELOPER_AGENT_PLAN_PROMPT if planning_turn else _DEVELOPER_AGENT_APPROVAL_PROMPT,
+        ),
+        provider=provider,
+        model=model,
         api_key=api_key or None,
         modules=tuple(modules),
     )
+
+
+def _build_general_agent(
+    *,
+    UnchainAgent,
+    MemoryModule,
+    PoliciesModule,
+    SubagentModule,
+    SubagentTemplate,
+    SubagentPolicy,
+    provider: str,
+    model: str,
+    api_key: str,
+    system_prompt: str,
+    max_iterations: int,
+    memory_manager: Any,
+    developer_agent: Any,
+):
+    modules: list = []
+    if memory_manager is not None:
+        modules.append(MemoryModule(memory=memory_manager))
+    modules.append(PoliciesModule(max_iterations=max_iterations))
+    modules.append(
+        SubagentModule(
+            templates=(
+                SubagentTemplate(
+                    name=_DEVELOPER_SUBAGENT_TEMPLATE,
+                    description=(
+                        "The dedicated software engineering specialist for coding, "
+                        "implementation, debugging, testing, architecture, and "
+                        "workspace or toolkit-driven work."
+                    ),
+                    agent=developer_agent,
+                    allowed_modes=("handoff",),
+                    output_mode="last_message",
+                    memory_policy="scoped_persistent",
+                    parallel_safe=False,
+                ),
+            ),
+            policy=SubagentPolicy(
+                max_depth=1,
+                max_children_per_parent=1,
+                max_total_subagents=1,
+                max_parallel_workers=1,
+                worker_timeout_seconds=60.0,
+                allow_dynamic_workers=False,
+                allow_dynamic_delegate=False,
+            ),
+        )
+    )
+    return UnchainAgent(
+        name=_GENERAL_AGENT_NAME,
+        instructions=_compose_runtime_instructions(
+            system_prompt,
+            _GENERAL_AGENT_RUNTIME_PROMPT,
+        ),
+        provider=provider,
+        model=model,
+        api_key=api_key or None,
+        modules=tuple(modules),
+        allowed_tools=("handoff_to_subagent",),
+    )
+
+
+def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
+    UnchainAgent = _UnchainAgent
+    ToolsModule = _ToolsModule
+    MemoryModule = _MemoryModule
+    PoliciesModule = _PoliciesModule
+    SubagentModule = _SubagentModule
+    SubagentTemplate = _SubagentTemplate
+    SubagentPolicy = _SubagentPolicy
+    if UnchainAgent is None:
+        raise RuntimeError("unchain agent is unavailable — check unchain installation")
+
+    selected_config = get_runtime_config(options)
+    general_config = _resolve_general_runtime_config(options)
+    display_model = _format_model_id(selected_config["provider"], selected_config["model"])
+    max_iterations = _resolve_agent_max_iterations(options)
+    api_key = _resolve_agent_api_key(options, selected_config["provider"])
+    memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
+    toolkits = _build_requested_toolkits(options)
+    system_prompt = _build_effective_system_prompt_text(options)
+    orchestration_mode = _extract_agent_orchestration_mode(options)
+
+    if orchestration_mode == _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL:
+        agent = _build_developer_agent(
+            UnchainAgent=UnchainAgent,
+            ToolsModule=ToolsModule,
+            MemoryModule=MemoryModule,
+            PoliciesModule=PoliciesModule,
+            provider=selected_config["provider"],
+            model=selected_config["model"],
+            api_key=api_key,
+            system_prompt=system_prompt,
+            max_iterations=max_iterations,
+            toolkits=toolkits,
+            memory_manager=memory_manager,
+            planning_turn=False,
+        )
+        agent._orchestration_role = "developer"
+        agent._orchestration_mode = orchestration_mode
+        agent._orchestration_next_mode = _AGENT_ORCHESTRATION_DEFAULT
+    else:
+        if SubagentModule is None or SubagentTemplate is None or SubagentPolicy is None:
+            raise RuntimeError("unchain subagent module is unavailable — check unchain installation")
+        developer_agent = _build_developer_agent(
+            UnchainAgent=UnchainAgent,
+            ToolsModule=ToolsModule,
+            MemoryModule=MemoryModule,
+            PoliciesModule=PoliciesModule,
+            provider=selected_config["provider"],
+            model=selected_config["model"],
+            api_key=api_key,
+            system_prompt=system_prompt,
+            max_iterations=max_iterations,
+            toolkits=toolkits,
+            memory_manager=memory_manager,
+            planning_turn=True,
+        )
+        agent = _build_general_agent(
+            UnchainAgent=UnchainAgent,
+            MemoryModule=MemoryModule,
+            PoliciesModule=PoliciesModule,
+            SubagentModule=SubagentModule,
+            SubagentTemplate=SubagentTemplate,
+            SubagentPolicy=SubagentPolicy,
+            provider=general_config["provider"],
+            model=general_config["model"],
+            api_key=api_key,
+            system_prompt=system_prompt,
+            max_iterations=max_iterations,
+            memory_manager=memory_manager,
+            developer_agent=developer_agent,
+        )
+        agent._orchestration_role = "general"
+        agent._orchestration_mode = orchestration_mode
+        agent._orchestration_next_mode = _AGENT_ORCHESTRATION_DEFAULT
+
     agent._memory_runtime = memory_runtime
     agent._max_iterations = max_iterations
     agent._toolkits = toolkits
+    agent._display_model = display_model
+    agent._selected_model = display_model
+    agent._developer_model_id = display_model
+    agent._general_model_id = _format_model_id(general_config["provider"], general_config["model"])
     return agent
 
 
@@ -2516,10 +2770,22 @@ def _memory_runtime_from_agent(agent: Any) -> Dict[str, Any]:
 # unchain adapter helpers
 # ---------------------------------------------------------------------------
 
-def _build_bundle_from_result(result, agent) -> Dict[str, Any]:
+def _build_bundle_from_result(
+    result,
+    agent,
+    *,
+    model: str | None = None,
+    active_agent: str | None = None,
+    orchestration_mode: str | None = None,
+) -> Dict[str, Any]:
     """Build a PuPu-compatible bundle dict from a KernelRunResult."""
     return {
-        "model": getattr(agent, "model", ""),
+        "model": str(model or getattr(agent, "model", "") or ""),
+        "display_model": str(getattr(agent, "_display_model", "") or ""),
+        "active_agent": str(active_agent or getattr(agent, "_orchestration_role", "general") or "general"),
+        "agent_orchestration": _build_agent_orchestration_payload(
+            orchestration_mode or getattr(agent, "_orchestration_next_mode", _AGENT_ORCHESTRATION_DEFAULT)
+        ),
         "consumed_tokens": int(getattr(result, "consumed_tokens", 0) or 0),
         "input_tokens": int(getattr(result, "input_tokens", 0) or 0),
         "output_tokens": int(getattr(result, "output_tokens", 0) or 0),
@@ -2541,6 +2807,7 @@ def _make_human_input_callback(emit_event, cancel_event=None):
         confirmation_id = str(_uuid.uuid4())
         interact_config = request.to_dict()
 
+        hi_interact_type = "single" if getattr(request, "selection_mode", "") == "single" else "multi"
         emit_payload = {
             "type": "tool_call",
             "tool_name": "ask_user_question",
@@ -2550,8 +2817,13 @@ def _make_human_input_callback(emit_event, cancel_event=None):
             "description": getattr(request, "question", ""),
             "confirmation_id": confirmation_id,
             "requires_confirmation": True,
-            "interact_type": "single" if getattr(request, "selection_mode", "") == "single" else "multi",
+            "interact_type": hi_interact_type,
             "interact_config": interact_config,
+            "render_component": {
+                "version": 1,
+                "type": hi_interact_type,
+                "config": interact_config if isinstance(interact_config, dict) else {},
+            },
         }
 
         waiter: Dict[str, Any] = {
@@ -2651,11 +2923,15 @@ def stream_chat(
 
     def run_agent() -> None:
         try:
+            resolved_max_iterations = int(
+                getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
+                or _DEFAULT_MAX_ITERATIONS
+            )
             result = agent.run(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
-                max_iterations=agent._max_iterations,
+                max_iterations=resolved_max_iterations,
                 **({"session_id": session_id} if session_id else {}),
             )
             output_holder["messages"] = result.messages
@@ -2731,6 +3007,7 @@ def stream_chat_events(
         "last_run_id": "",
         "last_iteration": 0,
         "bundle": None,
+        "developer_handoff": False,
     }
 
     # Build workspace tool display name map for multi-workspace proxy tools
@@ -2767,6 +3044,11 @@ def stream_chat_events(
                 event["tool_display_name"] = _ws_display_names[tn]
         if event_type == "final_message":
             output_holder["seen_final_message"] = True
+        if (
+            event_type == "subagent_handoff"
+            and str(event.get("template") or "").strip() == _DEVELOPER_SUBAGENT_TEMPLATE
+        ):
+            output_holder["developer_handoff"] = True
         run_id = event.get("run_id")
         if isinstance(run_id, str):
             output_holder["last_run_id"] = run_id
@@ -2802,11 +3084,15 @@ def stream_chat_events(
     def run_agent() -> None:
         try:
             memory_namespace = str(options.get("memory_namespace") or "").strip()
+            resolved_max_iterations = int(
+                getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
+                or _DEFAULT_MAX_ITERATIONS
+            )
             result = agent.run(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
-                max_iterations=agent._max_iterations,
+                max_iterations=resolved_max_iterations,
                 on_tool_confirm=confirm_cb,
                 on_human_input=human_input_cb,
                 on_max_iterations=max_iterations_cb,
@@ -2814,7 +3100,31 @@ def stream_chat_events(
                 **({"memory_namespace": memory_namespace} if memory_namespace else {}),
             )
             output_holder["messages"] = result.messages
-            bundle = _build_bundle_from_result(result, agent)
+            developer_handoff = bool(output_holder.get("developer_handoff"))
+            active_agent = "developer" if developer_handoff else str(
+                getattr(agent, "_orchestration_role", "general") or "general"
+            )
+            bundle_model = str(
+                (
+                    getattr(agent, "_developer_model_id", "")
+                    if active_agent == "developer"
+                    else getattr(agent, "_general_model_id", "")
+                )
+                or getattr(agent, "_display_model", "")
+                or _format_model_id(getattr(agent, "provider", ""), getattr(agent, "model", ""))
+            )
+            next_mode = (
+                _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL
+                if developer_handoff
+                else _AGENT_ORCHESTRATION_DEFAULT
+            )
+            bundle = _build_bundle_from_result(
+                result,
+                agent,
+                model=bundle_model,
+                active_agent=active_agent,
+                orchestration_mode=next_mode,
+            )
             if bundle:
                 output_holder["bundle"] = bundle
         except Exception as run_error:

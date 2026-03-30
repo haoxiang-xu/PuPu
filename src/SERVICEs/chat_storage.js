@@ -14,6 +14,7 @@ export {
   selectTreeNode,
   setChatGeneratedUnread,
   setChatMessages,
+  setChatAgentOrchestration,
   setChatModel,
   setChatSelectedToolkits,
   setChatSelectedWorkspaceIds,

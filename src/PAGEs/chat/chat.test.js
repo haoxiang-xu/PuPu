@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
 import { getChatsStore, openCharacterChat, setChatModel } from "../../SERVICEs/chat_storage";
+import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
@@ -291,6 +292,89 @@ describe("ChatInterface stop flow", () => {
             }),
           ]),
       );
+    });
+  });
+
+  test("persists agent orchestration between turns and records token usage from bundle.model", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Implement the feature" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    const [firstPayload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(firstPayload.options.agent_orchestration).toEqual({
+      mode: "default",
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "final_message",
+        payload: {
+          content: "Here is the plan.",
+        },
+      });
+      streamHandlers.onDone({
+        bundle: {
+          model: "openai:gpt-4.1",
+          display_model: "openai:gpt-5",
+          active_agent: "developer",
+          agent_orchestration: {
+            mode: "developer_waiting_approval",
+          },
+          consumed_tokens: 21,
+          input_tokens: 13,
+          output_tokens: 8,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        getChatsStore().chatsById[getChatsStore().activeChatId].agentOrchestration,
+      ).toEqual({
+        mode: "developer_waiting_approval",
+      });
+    });
+
+    expect(
+      getChatsStore().chatsById[getChatsStore().activeChatId].model,
+    ).toEqual({ id: "openai:gpt-5" });
+    expect(readTokenUsageRecords()).toEqual([
+      expect.objectContaining({
+        provider: "openai",
+        model: "gpt-4.1",
+        model_id: "openai:gpt-4.1",
+        consumed_tokens: 21,
+        input_tokens: 13,
+        output_tokens: 8,
+      }),
+    ]);
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Proceed" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+
+    const [secondPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
+    expect(secondPayload.options.agent_orchestration).toEqual({
+      mode: "developer_waiting_approval",
     });
   });
 

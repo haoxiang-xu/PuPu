@@ -12,6 +12,7 @@ import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 
 const STREAM_TRACE_LEVEL = "minimal";
+const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -21,6 +22,19 @@ const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   done: "end",
 });
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
+
+const normalizeAgentOrchestration = (value) => {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof value.mode === "string" &&
+    ["default", "developer_waiting_approval"].includes(value.mode.trim())
+  ) {
+    return { mode: value.mode.trim() };
+  }
+  return { ...DEFAULT_AGENT_ORCHESTRATION };
+};
 
 const getTraceFrameIteration = (frame) => {
   const frameIteration = Number(frame?.iteration);
@@ -51,6 +65,7 @@ export const useChatStream = ({
   draftAttachments,
   setDraftAttachments,
   selectedModelId,
+  agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
   chatKind = "default",
@@ -67,6 +82,7 @@ export const useChatStream = ({
   messagesRef,
   modelIdRef,
   setSelectedModelId,
+  setAgentOrchestration,
   activeStreamMessagesRef,
 }) => {
   const {
@@ -825,6 +841,9 @@ export const useChatStream = ({
       let effectiveMemoryNamespace = "";
       let effectiveToolkits = selectedToolkits;
       let effectiveWorkspaceIds = selectedWorkspaceIds;
+      let effectiveAgentOrchestration = normalizeAgentOrchestration(
+        agentOrchestration,
+      );
       let forceMemoryEnabled = false;
 
       let resolvedCharacterConfig = characterAgentConfig;
@@ -858,6 +877,7 @@ export const useChatStream = ({
         }
         effectiveToolkits = [];
         effectiveWorkspaceIds = [];
+        effectiveAgentOrchestration = { ...DEFAULT_AGENT_ORCHESTRATION };
         forceMemoryEnabled = true;
 
         const characterDecision =
@@ -1159,6 +1179,9 @@ export const useChatStream = ({
               ...(effectiveWorkspaceIds.length > 0 && {
                 selectedWorkspaceIds: effectiveWorkspaceIds,
               }),
+              ...(!isCharacterChat && {
+                agent_orchestration: effectiveAgentOrchestration,
+              }),
               ...(isCharacterChat
                 ? {
                     agent_instructions:
@@ -1433,11 +1456,16 @@ export const useChatStream = ({
                         },
                   );
 
-                  /* ── Auto-approve: if this tool is auto-approved, respond immediately ── */
-                  if (
+                  /* ── Auto-approve: only for "confirmation" type, never for user-input types ── */
+                  const rcType =
+                    typeof frame.payload?.render_component?.type === "string"
+                      ? frame.payload.render_component.type
+                      : "";
+                  const isAutoApprovable =
                     toolName !== HUMAN_INPUT_TOOL_NAME &&
-                    isToolAutoApproved(toolName)
-                  ) {
+                    (!rcType || rcType === "confirmation") &&
+                    isToolAutoApproved(toolName);
+                  if (isAutoApprovable) {
                     const autoPayload = {
                       confirmation_id: confirmationId,
                       approved: true,
@@ -1643,6 +1671,10 @@ export const useChatStream = ({
                 done?.bundle && typeof done.bundle === "object"
                   ? { ...done.bundle }
                   : undefined;
+              const nextAgentOrchestration =
+                bundle && bundle.agent_orchestration
+                  ? normalizeAgentOrchestration(bundle.agent_orchestration)
+                  : null;
 
               const nextStreamMessages = streamMessages.map((message) => {
                 if (message.id !== assistantMessageId) return message;
@@ -1664,8 +1696,25 @@ export const useChatStream = ({
               });
               syncStreamMessages(nextStreamMessages);
 
+              if (!isCharacterChat && nextAgentOrchestration) {
+                storageApi.setChatAgentOrchestration(
+                  targetChatId,
+                  nextAgentOrchestration,
+                  { source: "chat-page" },
+                );
+                if (
+                  typeof setAgentOrchestration === "function" &&
+                  activeChatIdRef.current === targetChatId
+                ) {
+                  setAgentOrchestration(nextAgentOrchestration);
+                }
+              }
+
               if (bundle && typeof bundle.consumed_tokens === "number") {
-                const modelId = modelIdRef.current || "";
+                const modelId =
+                  typeof bundle.model === "string" && bundle.model.trim()
+                    ? bundle.model.trim()
+                    : modelIdRef.current || "";
                 const colonIndex = modelId.indexOf(":");
                 const provider =
                   colonIndex > 0 ? modelId.slice(0, colonIndex) : "unknown";
@@ -1863,6 +1912,7 @@ export const useChatStream = ({
       clearConfirmationResolutionTimer,
       clearResolvedToolConfirmationByCallId,
       hydrateAttachmentPayloads,
+      agentOrchestration,
       isCharacterChat,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
@@ -1874,6 +1924,7 @@ export const useChatStream = ({
       setDraftAttachments,
       setInputValue,
       setMessages,
+      setAgentOrchestration,
       setSelectedModelId,
       setStreamError,
       storageApi,

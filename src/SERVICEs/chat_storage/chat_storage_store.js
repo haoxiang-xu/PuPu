@@ -19,6 +19,7 @@ import {
   isObject,
   isCharacterChatSession,
   sanitizeAttachment,
+  sanitizeAgentOrchestration,
   sanitizeChatSession,
   sanitizeCharacterAvatar,
   sanitizeCharacterId,
@@ -807,6 +808,7 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
               ...copiedChat,
               title: copiedTitle,
               threadId: null,
+              agentOrchestration: { mode: "default" },
               selectedToolkits: sanitizeSelectedToolkits(
                 sourceChat.selectedToolkits,
               ),
@@ -1209,6 +1211,24 @@ export const setChatModel = (chatId, model, options = {}) => {
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_model" },
+  );
+};
+
+export const setChatAgentOrchestration = (
+  chatId,
+  agentOrchestration,
+  options = {},
+) => {
+  return updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      agentOrchestration: isLockedCharacterChat(chat)
+        ? { mode: "default" }
+        : sanitizeAgentOrchestration(agentOrchestration),
+      updatedAt: now(),
+    }),
+    { ...options, type: "chat_update_agent_orchestration" },
   );
 };
 
