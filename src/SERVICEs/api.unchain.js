@@ -504,7 +504,7 @@ const normalizeMisoV2Payload = (payload) => {
   return injectProviderApiKeyIntoPayload(payloadWithMemory);
 };
 
-export const createMisoApi = () => {
+export const createUnchainApi = () => {
   const unchainApi = {
     isBridgeAvailable: () =>
       hasBridgeMethod("unchainAPI", "getStatus") &&
@@ -946,4 +946,4 @@ export const createMisoApi = () => {
   return unchainApi;
 };
 
-export default createMisoApi;
+export default createUnchainApi;

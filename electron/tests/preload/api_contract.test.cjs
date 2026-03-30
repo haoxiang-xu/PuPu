@@ -107,7 +107,7 @@ describe("preload API contract", () => {
 
     exposed.unchainAPI.setChromeTerminalOpen(true);
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
+      CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
       { open: true },
     );
 
@@ -115,7 +115,7 @@ describe("preload API contract", () => {
       enable_user_access_to_agent_modal: true,
     });
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
+      CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
       {
         featureFlags: {
           enable_user_access_to_agent_modal: true,
@@ -125,18 +125,18 @@ describe("preload API contract", () => {
 
     exposed.unchainAPI.replaceSessionMemory({ sessionId: "chat-1", messages: [] });
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+      CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
       { sessionId: "chat-1", messages: [] },
     );
 
     exposed.unchainAPI.listCharacters();
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.LIST_CHARACTERS,
+      CHANNELS.UNCHAIN.LIST_CHARACTERS,
     );
 
     exposed.unchainAPI.buildCharacterAgentConfig({ characterId: "mina" });
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
+      CHANNELS.UNCHAIN.BUILD_CHARACTER_AGENT_CONFIG,
       { characterId: "mina" },
     );
 
@@ -155,7 +155,7 @@ describe("preload API contract", () => {
 
   test("forwards unchain runtime logs to chrome console", () => {
     const runtimeLogCall = ipcRenderer.on.mock.calls.find(
-      (call) => call[0] === CHANNELS.MISO.RUNTIME_LOG,
+      (call) => call[0] === CHANNELS.UNCHAIN.RUNTIME_LOG,
     );
 
     expect(runtimeLogCall).toBeDefined();

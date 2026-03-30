@@ -53,10 +53,10 @@ const createMisoStreamClient = (ipcRenderer) => {
       }
     };
 
-    ipcRenderer.on(CHANNELS.MISO.STREAM_EVENT, listener);
+    ipcRenderer.on(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
 
     const cleanup = () => {
-      ipcRenderer.removeListener(CHANNELS.MISO.STREAM_EVENT, listener);
+      ipcRenderer.removeListener(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
     };
 
     activeMisoStreamCleanups.set(requestId, cleanup);
@@ -146,10 +146,10 @@ const createMisoStreamClient = (ipcRenderer) => {
       }
     };
 
-    ipcRenderer.on(CHANNELS.MISO.STREAM_EVENT, listener);
+    ipcRenderer.on(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
 
     const cleanup = () => {
-      ipcRenderer.removeListener(CHANNELS.MISO.STREAM_EVENT, listener);
+      ipcRenderer.removeListener(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
     };
 
     activeMisoStreamCleanups.set(requestId, cleanup);
@@ -159,7 +159,7 @@ const createMisoStreamClient = (ipcRenderer) => {
     const requestId = createRequestId();
     registerMisoStreamListener(requestId, handlers);
 
-    ipcRenderer.send(CHANNELS.MISO.STREAM_START, {
+    ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_START, {
       requestId,
       payload,
     });
@@ -167,7 +167,7 @@ const createMisoStreamClient = (ipcRenderer) => {
     return {
       requestId,
       cancel: () => {
-        ipcRenderer.send(CHANNELS.MISO.STREAM_CANCEL, { requestId });
+        ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
         cleanupMisoStreamListener(requestId);
       },
     };
@@ -177,7 +177,7 @@ const createMisoStreamClient = (ipcRenderer) => {
     if (typeof requestId !== "string" || !requestId.trim()) {
       return;
     }
-    ipcRenderer.send(CHANNELS.MISO.STREAM_CANCEL, { requestId });
+    ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
     cleanupMisoStreamListener(requestId);
   };
 
@@ -185,7 +185,7 @@ const createMisoStreamClient = (ipcRenderer) => {
     const requestId = createRequestId();
     registerMisoStreamV2Listener(requestId, handlers);
 
-    ipcRenderer.send(CHANNELS.MISO.STREAM_START_V2, {
+    ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_START_V2, {
       requestId,
       payload,
     });
@@ -193,7 +193,7 @@ const createMisoStreamClient = (ipcRenderer) => {
     return {
       requestId,
       cancel: () => {
-        ipcRenderer.send(CHANNELS.MISO.STREAM_CANCEL, { requestId });
+        ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
         cleanupMisoStreamListener(requestId);
       },
     };

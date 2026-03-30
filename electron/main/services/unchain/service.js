@@ -1024,7 +1024,7 @@ const createUnchainService = ({
       return;
     }
 
-    target.send(CHANNELS.MISO.STREAM_EVENT, {
+    target.send(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId,
       event,
       data,
@@ -1054,7 +1054,7 @@ const createUnchainService = ({
         continue;
       }
       try {
-        target.send(CHANNELS.MISO.RUNTIME_LOG, {
+        target.send(CHANNELS.UNCHAIN.RUNTIME_LOG, {
           level: normalizedLevel,
           text: normalizedText,
         });

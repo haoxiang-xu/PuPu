@@ -23,7 +23,7 @@ const UNCHAIN_HTTP_ACCESS_LOG_PATTERN =
 const isMisoHttpAccessLog = (text) =>
   typeof text === "string" && UNCHAIN_HTTP_ACCESS_LOG_PATTERN.test(text.trim());
 
-ipcRenderer.on(CHANNELS.MISO.RUNTIME_LOG, (_event, payload = {}) => {
+ipcRenderer.on(CHANNELS.UNCHAIN.RUNTIME_LOG, (_event, payload = {}) => {
   const level = payload?.level === "stderr" ? "stderr" : "stdout";
   const text = typeof payload?.text === "string" ? payload.text.trim() : "";
   if (!text || isMisoHttpAccessLog(text)) {

@@ -11,7 +11,7 @@ jest.mock("../../SERVICEs/api.unchain", () => {
   };
   return {
     __mockApi: api,
-    createMisoApi: () => api,
+    createUnchainApi: () => api,
   };
 });
 

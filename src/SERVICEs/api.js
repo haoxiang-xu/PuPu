@@ -21,7 +21,7 @@ export const api = {
   runtime: system.runtime,
   theme: system.theme,
   windowState: system.windowState,
-  "unchain: createUnchainApi(),
+  unchain: createUnchainApi(),
   ollama: createOllamaApi(),
 };
 

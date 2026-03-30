@@ -38,23 +38,23 @@ describe("unchain stream preload client", () => {
     const handle = client.startStream({ message: "hi" }, { onMeta, onToken, onDone });
 
     expect(typeof handle.requestId).toBe("string");
-    expect(ipcRenderer.send).toHaveBeenCalledWith(CHANNELS.MISO.STREAM_START, {
+    expect(ipcRenderer.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_START, {
       requestId: handle.requestId,
       payload: { message: "hi" },
     });
     expect(client.__debug.getActiveListenerCount()).toBe(1);
 
-    ipcRenderer.emit(CHANNELS.MISO.STREAM_EVENT, {
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: handle.requestId,
       event: "meta",
       data: { hello: "world" },
     });
-    ipcRenderer.emit(CHANNELS.MISO.STREAM_EVENT, {
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: handle.requestId,
       event: "token",
       data: { delta: "abc" },
     });
-    ipcRenderer.emit(CHANNELS.MISO.STREAM_EVENT, {
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: handle.requestId,
       event: "done",
       data: { ok: true },
@@ -76,7 +76,7 @@ describe("unchain stream preload client", () => {
     const handle = client.startStream({}, {});
     client.cancelStream(handle.requestId);
 
-    expect(ipcRenderer.send).toHaveBeenLastCalledWith(CHANNELS.MISO.STREAM_CANCEL, {
+    expect(ipcRenderer.send).toHaveBeenLastCalledWith(CHANNELS.UNCHAIN.STREAM_CANCEL, {
       requestId: handle.requestId,
     });
     expect(client.__debug.getActiveListenerCount()).toBe(0);
@@ -96,7 +96,7 @@ describe("unchain stream preload client", () => {
       { onFrame, onMeta, onToken, onDone, onError },
     );
 
-    ipcRenderer.emit(CHANNELS.MISO.STREAM_EVENT, {
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: handle.requestId,
       event: "frame",
       data: {
@@ -106,7 +106,7 @@ describe("unchain stream preload client", () => {
       },
     });
 
-    ipcRenderer.emit(CHANNELS.MISO.STREAM_EVENT, {
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: handle.requestId,
       event: "frame",
       data: {
@@ -115,7 +115,7 @@ describe("unchain stream preload client", () => {
       },
     });
 
-    ipcRenderer.emit(CHANNELS.MISO.STREAM_EVENT, {
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
       requestId: handle.requestId,
       event: "done",
       data: { cancelled: true },
