@@ -27,7 +27,7 @@ Add a new feature to the chat interface (new frame type, input enhancement, mess
 
 5. For features that need backend support:
    - Follow `/add-miso-endpoint` pattern
-   - Or add a new SSE frame type to `miso_runtime/server/routes.py`
+   - Or add a new SSE frame type to `unchain_runtime/server/routes.py`
    - Handle the frame in `use_chat_stream.js` onFrame handler
 
 6. Follow conventions:

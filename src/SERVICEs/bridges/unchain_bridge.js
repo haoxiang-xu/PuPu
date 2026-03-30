@@ -14,14 +14,14 @@ const invokeMiso = async (
   args,
   {
     timeoutMs = 5000,
-    timeoutCode = "miso_bridge_timeout",
+    timeoutCode = "unchain_bridge_timeout",
     timeoutMessage = "Miso bridge request timed out",
-    failureCode = "miso_bridge_failed",
+    failureCode = "unchain_bridge_failed",
     failureMessage = "Miso bridge request failed",
   } = {},
 ) => {
   try {
-    const method = assertBridgeMethod("misoAPI", methodName);
+    const method = assertBridgeMethod("unchainAPI", methodName);
     return await withTimeout(
       () => method(...args),
       timeoutMs,
@@ -35,32 +35,32 @@ const invokeMiso = async (
 
 export const runtimeBridge = {
   isChromeTerminalControlAvailable: () =>
-    hasBridgeMethod("misoAPI", "setChromeTerminalOpen"),
+    hasBridgeMethod("unchainAPI", "setChromeTerminalOpen"),
   isBuildFeatureFlagsSyncAvailable: () =>
-    hasBridgeMethod("misoAPI", "syncBuildFeatureFlagsSnapshot"),
+    hasBridgeMethod("unchainAPI", "syncBuildFeatureFlagsSnapshot"),
   isWorkspaceValidationAvailable: () =>
-    hasBridgeMethod("misoAPI", "validateWorkspaceRoot"),
+    hasBridgeMethod("unchainAPI", "validateWorkspaceRoot"),
   isWorkspacePickerAvailable: () =>
-    hasBridgeMethod("misoAPI", "pickWorkspaceRoot"),
+    hasBridgeMethod("unchainAPI", "pickWorkspaceRoot"),
   isOpenRuntimeFolderAvailable: () =>
-    hasBridgeMethod("misoAPI", "openRuntimeFolder"),
+    hasBridgeMethod("unchainAPI", "openRuntimeFolder"),
   isRuntimeStorageAvailable: () =>
-    hasBridgeMethod("misoAPI", "getRuntimeDirSize"),
-  isMemorySizeAvailable: () => hasBridgeMethod("misoAPI", "getMemorySize"),
+    hasBridgeMethod("unchainAPI", "getRuntimeDirSize"),
+  isMemorySizeAvailable: () => hasBridgeMethod("unchainAPI", "getMemorySize"),
   isCharacterStorageAvailable: () =>
-    hasBridgeMethod("misoAPI", "getCharacterStorageSize") &&
-    hasBridgeMethod("misoAPI", "deleteCharacterStorageEntry"),
+    hasBridgeMethod("unchainAPI", "getCharacterStorageSize") &&
+    hasBridgeMethod("unchainAPI", "deleteCharacterStorageEntry"),
   isCharacterApiAvailable: () =>
-    hasBridgeMethod("misoAPI", "listCharacters") &&
-    hasBridgeMethod("misoAPI", "getCharacter") &&
-    hasBridgeMethod("misoAPI", "saveCharacter") &&
-    hasBridgeMethod("misoAPI", "deleteCharacter"),
+    hasBridgeMethod("unchainAPI", "listCharacters") &&
+    hasBridgeMethod("unchainAPI", "getCharacter") &&
+    hasBridgeMethod("unchainAPI", "saveCharacter") &&
+    hasBridgeMethod("unchainAPI", "deleteCharacter"),
 
   setChromeTerminalOpen: async (open = false) => {
     if (!runtimeBridge.isChromeTerminalControlAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.setChromeTerminalOpen is unavailable",
+        "unchainAPI.setChromeTerminalOpen is unavailable",
       );
     }
 
@@ -84,7 +84,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isBuildFeatureFlagsSyncAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.syncBuildFeatureFlagsSnapshot is unavailable",
+        "unchainAPI.syncBuildFeatureFlagsSnapshot is unavailable",
       );
     }
 
@@ -111,7 +111,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isWorkspaceValidationAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.validateWorkspaceRoot is unavailable",
+        "unchainAPI.validateWorkspaceRoot is unavailable",
       );
     }
 
@@ -143,7 +143,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isWorkspacePickerAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.pickWorkspaceRoot is unavailable",
+        "unchainAPI.pickWorkspaceRoot is unavailable",
       );
     }
 
@@ -165,7 +165,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isOpenRuntimeFolderAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.openRuntimeFolder is unavailable",
+        "unchainAPI.openRuntimeFolder is unavailable",
       );
     }
 
@@ -188,15 +188,15 @@ export const runtimeBridge = {
     if (!runtimeBridge.isRuntimeStorageAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.getRuntimeDirSize is unavailable",
+        "unchainAPI.getRuntimeDirSize is unavailable",
       );
     }
 
     const response = await invokeMiso("getRuntimeDirSize", [dirPath], {
       timeoutMs: 15000,
-      timeoutCode: "miso_runtime_size_timeout",
+      timeoutCode: "unchain_runtime_size_timeout",
       timeoutMessage: "Runtime size request timed out",
-      failureCode: "miso_runtime_size_failed",
+      failureCode: "unchain_runtime_size_failed",
       failureMessage: "Failed to get runtime directory size",
     });
 
@@ -218,7 +218,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isMemorySizeAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.getMemorySize is unavailable",
+        "unchainAPI.getMemorySize is unavailable",
       );
     }
 
@@ -248,7 +248,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isCharacterStorageAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.getCharacterStorageSize is unavailable",
+        "unchainAPI.getCharacterStorageSize is unavailable",
       );
     }
 
@@ -285,7 +285,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isCharacterStorageAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.deleteCharacterStorageEntry is unavailable",
+        "unchainAPI.deleteCharacterStorageEntry is unavailable",
       );
     }
 
@@ -319,7 +319,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isCharacterApiAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI character methods are unavailable",
+        "unchainAPI character methods are unavailable",
       );
     }
 
@@ -343,7 +343,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isCharacterApiAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI character methods are unavailable",
+        "unchainAPI character methods are unavailable",
       );
     }
 
@@ -360,7 +360,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isCharacterApiAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI character methods are unavailable",
+        "unchainAPI character methods are unavailable",
       );
     }
 
@@ -377,7 +377,7 @@ export const runtimeBridge = {
     if (!runtimeBridge.isCharacterApiAvailable()) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI character methods are unavailable",
+        "unchainAPI character methods are unavailable",
       );
     }
 
@@ -391,10 +391,10 @@ export const runtimeBridge = {
   },
 
   previewCharacterDecision: async (payload = {}) => {
-    if (!hasBridgeMethod("misoAPI", "previewCharacterDecision")) {
+    if (!hasBridgeMethod("unchainAPI", "previewCharacterDecision")) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.previewCharacterDecision is unavailable",
+        "unchainAPI.previewCharacterDecision is unavailable",
       );
     }
 
@@ -408,10 +408,10 @@ export const runtimeBridge = {
   },
 
   buildCharacterAgentConfig: async (payload = {}) => {
-    if (!hasBridgeMethod("misoAPI", "buildCharacterAgentConfig")) {
+    if (!hasBridgeMethod("unchainAPI", "buildCharacterAgentConfig")) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.buildCharacterAgentConfig is unavailable",
+        "unchainAPI.buildCharacterAgentConfig is unavailable",
       );
     }
 
@@ -425,10 +425,10 @@ export const runtimeBridge = {
   },
 
   exportCharacter: async (characterId, filePath) => {
-    if (!hasBridgeMethod("misoAPI", "exportCharacter")) {
+    if (!hasBridgeMethod("unchainAPI", "exportCharacter")) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.exportCharacter is unavailable",
+        "unchainAPI.exportCharacter is unavailable",
       );
     }
 
@@ -442,10 +442,10 @@ export const runtimeBridge = {
   },
 
   importCharacter: async (filePath) => {
-    if (!hasBridgeMethod("misoAPI", "importCharacter")) {
+    if (!hasBridgeMethod("unchainAPI", "importCharacter")) {
       throw new FrontendApiError(
         "bridge_unavailable",
-        "misoAPI.importCharacter is unavailable",
+        "unchainAPI.importCharacter is unavailable",
       );
     }
 
@@ -461,9 +461,9 @@ export const runtimeBridge = {
   deleteRuntimeEntry: async (dirPath, entryName) => {
     return invokeMiso("deleteRuntimeEntry", [dirPath, entryName], {
       timeoutMs: 10000,
-      timeoutCode: "miso_runtime_delete_timeout",
+      timeoutCode: "unchain_runtime_delete_timeout",
       timeoutMessage: "Delete runtime entry request timed out",
-      failureCode: "miso_runtime_delete_failed",
+      failureCode: "unchain_runtime_delete_failed",
       failureMessage: "Failed to delete runtime entry",
     });
   },
@@ -471,16 +471,16 @@ export const runtimeBridge = {
   clearRuntimeDir: async (dirPath) => {
     return invokeMiso("clearRuntimeDir", [dirPath], {
       timeoutMs: 15000,
-      timeoutCode: "miso_runtime_clear_timeout",
+      timeoutCode: "unchain_runtime_clear_timeout",
       timeoutMessage: "Clear runtime directory request timed out",
-      failureCode: "miso_runtime_clear_failed",
+      failureCode: "unchain_runtime_clear_failed",
       failureMessage: "Failed to clear runtime directory",
     });
   },
 
   isExportImportAvailable: () =>
-    hasBridgeMethod("misoAPI", "showSaveDialog") &&
-    hasBridgeMethod("misoAPI", "writeFile"),
+    hasBridgeMethod("unchainAPI", "showSaveDialog") &&
+    hasBridgeMethod("unchainAPI", "writeFile"),
 
   showSaveDialog: async (options = {}) => {
     return invokeMiso("showSaveDialog", [options], {

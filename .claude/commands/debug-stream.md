@@ -13,19 +13,19 @@ Diagnose why a chat stream is stuck, erroring, or not completing.
    |---------|-------------|----------|
    | No stream at all | Electron bridge | `electron/main/services/miso/service.js` |
    | Stream starts, no tokens | Provider SDK / API timeout | `miso/src/unchain/providers/model_io.py` |
-   | Stuck after tool_call | Confirmation deadlock | `miso_runtime/server/miso_adapter.py` (line ~325) |
-   | No continue prompt | Max iterations / callback | `miso_runtime/server/miso_adapter.py` (line ~385) |
-   | Error not shown in UI | SSE parsing / frame handling | `electron/preload/stream/miso_stream_client.js` |
+   | Stuck after tool_call | Confirmation deadlock | `unchain_runtime/server/unchain_adapter.py` (line ~325) |
+   | No continue prompt | Max iterations / callback | `unchain_runtime/server/unchain_adapter.py` (line ~385) |
+   | Error not shown in UI | SSE parsing / frame handling | `electron/preload/stream/unchain_stream_client.js` |
    | Tokens stream but no done | SSE termination | `electron/main/services/miso/service.js` (streamMisoSseToRenderer) |
 
 2. Trace the request path end-to-end:
    ```
-   use_chat_stream.js → api.miso.startStreamV2()
-     → miso_stream_client.js (IPC send STREAM_START_V2)
-       → register_handlers.js → misoService.handleStreamStartV2()
+   use_chat_stream.js → api.unchain.startStreamV2()
+     → unchain_stream_client.js (IPC send STREAM_START_V2)
+       → register_handlers.js → unchainService.handleStreamStartV2()
          → HTTP POST to Flask /chat/stream/v2
            → routes.py: chat_stream_v2() → stream_events() generator
-             → miso_adapter.py: stream_chat_events()
+             → unchain_adapter.py: stream_chat_events()
                → agent.run() in worker thread
                  → unchain kernel → provider SDK
    ```

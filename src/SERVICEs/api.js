@@ -21,7 +21,7 @@ export const api = {
   runtime: system.runtime,
   theme: system.theme,
   windowState: system.windowState,
-  miso: createMisoApi(),
+  "unchain: createMisoApi(),
   ollama: createOllamaApi(),
 };
 

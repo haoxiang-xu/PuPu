@@ -1,6 +1,6 @@
 const path = require("path");
 const { EventEmitter } = require("events");
-const { createMisoService } = require("../../main/services/miso/service");
+const { createUnchainService } = require("../../main/services/unchain/service");
 
 const createFakeSpawnProcess = () => {
   const proc = new EventEmitter();
@@ -73,21 +73,21 @@ const createRangeBusyNet = ({ ephemeralPort }) => ({
   },
 });
 
-describe("miso service session memory replacement", () => {
+describe("unchain service session memory replacement", () => {
   const originalFetch = global.fetch;
-  const originalEnvPython = process.env.MISO_PYTHON_BIN;
+  const originalEnvPython = process.env.UNCHAIN_PYTHON_BIN;
 
   afterEach(() => {
     global.fetch = originalFetch;
     if (originalEnvPython == null) {
-      delete process.env.MISO_PYTHON_BIN;
+      delete process.env.UNCHAIN_PYTHON_BIN;
     } else {
-      process.env.MISO_PYTHON_BIN = originalEnvPython;
+      process.env.UNCHAIN_PYTHON_BIN = originalEnvPython;
     }
     jest.clearAllMocks();
   });
 
-  test("replaceMisoSessionMemory posts the normalized payload to miso", async () => {
+  test("replaceUnchainSessionMemory posts the normalized payload to miso", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
     const spawnSync = jest.fn(() => ({
@@ -112,9 +112,9 @@ describe("miso service session memory replacement", () => {
           }),
       });
 
-    process.env.MISO_PYTHON_BIN = "/usr/bin/python3.12";
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
-    const service = createMisoService({
+    const service = createUnchainService({
       app: {
         isPackaged: false,
         getAppPath: jest.fn(() => "/app"),
@@ -140,7 +140,7 @@ describe("miso service session memory replacement", () => {
     });
 
     await service.startMiso();
-    await service.replaceMisoSessionMemory({
+    await service.replaceUnchainSessionMemory({
       sessionId: "chat-1",
       messages: [{ role: "user", content: "hello" }],
       options: { modelId: "openai:gpt-5" },
@@ -153,7 +153,7 @@ describe("miso service session memory replacement", () => {
         method: "POST",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "x-miso-auth": "auth-token-123",
+          "x-unchain-auth": "auth-token-123",
         }),
         body: JSON.stringify({
           session_id: "chat-1",
@@ -164,7 +164,7 @@ describe("miso service session memory replacement", () => {
     );
   });
 
-  test("falls back to an ephemeral port when the preferred miso range is busy", async () => {
+  test("falls back to an ephemeral port when the preferred unchain range is busy", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
     const spawnSync = jest.fn(() => ({
@@ -179,9 +179,9 @@ describe("miso service session memory replacement", () => {
 
     global.fetch = jest.fn().mockResolvedValue({ ok: true });
 
-    process.env.MISO_PYTHON_BIN = "/usr/bin/python3.12";
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
-    const service = createMisoService({
+    const service = createUnchainService({
       app: {
         isPackaged: false,
         getAppPath: jest.fn(() => "/app"),
@@ -210,10 +210,10 @@ describe("miso service session memory replacement", () => {
 
     expect(spawn).toHaveBeenCalledWith(
       "/usr/bin/python3.12",
-      ["/app/miso_runtime/server/main.py"],
+      ["/app/unchain_runtime/server/main.py"],
       expect.objectContaining({
         env: expect.objectContaining({
-          MISO_PORT: "61234",
+          UNCHAIN_PORT: "61234",
         }),
       }),
     );
@@ -257,9 +257,9 @@ describe("miso service session memory replacement", () => {
           }),
       });
 
-    process.env.MISO_PYTHON_BIN = "/usr/bin/python3.12";
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
-    const service = createMisoService({
+    const service = createUnchainService({
       app: {
         isPackaged: false,
         getAppPath: jest.fn(() => "/app"),
@@ -292,7 +292,7 @@ describe("miso service session memory replacement", () => {
           name: "Nico",
           avatar: {
             absolute_path: "/tmp/nico.png",
-            url: "http://127.0.0.1:5879/characters/seeds/nico/avatar?miso_auth=auth-token-123",
+            url: "http://127.0.0.1:5879/characters/seeds/nico/avatar?unchain_auth=auth-token-123",
           },
           metadata: { origin: "builtin_seed" },
         },
@@ -339,9 +339,9 @@ describe("miso service session memory replacement", () => {
           }),
       });
 
-    process.env.MISO_PYTHON_BIN = "/usr/bin/python3.12";
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
 
-    const service = createMisoService({
+    const service = createUnchainService({
       app: {
         isPackaged: false,
         getAppPath: jest.fn(() => "/app"),
@@ -373,7 +373,7 @@ describe("miso service session memory replacement", () => {
           id: "nico",
           name: "Nico",
           avatar: {
-            url: "http://127.0.0.1:5879/characters/nico/avatar?miso_auth=auth-token-123",
+            url: "http://127.0.0.1:5879/characters/nico/avatar?unchain_auth=auth-token-123",
           },
           metadata: { origin: "builtin_seed" },
         },

@@ -24,7 +24,7 @@ jest.mock("../../SERVICEs/bridges/theme_bridge", () => ({
     setThemeMode: jest.fn(),
   },
 }));
-jest.mock("../../SERVICEs/bridges/miso_bridge", () => ({
+jest.mock("../../SERVICEs/bridges/unchain_bridge", () => ({
   runtimeBridge: {
     isChromeTerminalControlAvailable: jest.fn(() => false),
     setChromeTerminalOpen: jest.fn(),

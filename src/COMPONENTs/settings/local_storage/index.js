@@ -22,7 +22,7 @@ import OllamaModelRow from "./components/ollama_model_row";
 import ConfirmClearAll from "./components/confirm_clear_all";
 import ConfirmDeleteModal from "./components/confirm_delete_modal";
 import { api } from "../../../SERVICEs/api";
-import { runtimeBridge } from "../../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 
 const OllamaSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
@@ -745,7 +745,7 @@ const CharactersSection = ({ isDark }) => {
     try {
       const [storageResult, listResult] = await Promise.all([
         runtimeBridge.getCharacterStorageSize(),
-        api.miso.listCharacters(),
+        api.unchain.listCharacters(),
       ]);
 
       setEntries(
@@ -783,7 +783,7 @@ const CharactersSection = ({ isDark }) => {
     setErrorMessage("");
 
     try {
-      const listResult = await api.miso.listCharacters();
+      const listResult = await api.unchain.listCharacters();
       const characters = Array.isArray(listResult?.characters)
         ? listResult.characters
         : [];
@@ -794,7 +794,7 @@ const CharactersSection = ({ isDark }) => {
         if (!characterId) {
           continue;
         }
-        await api.miso.deleteCharacter(characterId);
+        await api.unchain.deleteCharacter(characterId);
       }
 
       await load();

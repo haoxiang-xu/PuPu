@@ -11,9 +11,9 @@ SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
-MISO_SRC = SERVER_ROOT.parents[2] / "miso" / "src"
-if MISO_SRC.exists() and str(MISO_SRC) not in sys.path:
-    sys.path.insert(0, str(MISO_SRC))
+UNCHAIN_SRC = SERVER_ROOT.parents[2] / "miso" / "src"
+if UNCHAIN_SRC.exists() and str(UNCHAIN_SRC) not in sys.path:
+    sys.path.insert(0, str(UNCHAIN_SRC))
 
 import app as miso_app  # noqa: E402
 import character_defaults  # noqa: E402
@@ -54,7 +54,7 @@ class CharacterRouteTests(unittest.TestCase):
         self.addCleanup(self.tempdir.cleanup)
         self.env_patch = mock.patch.dict(
             os.environ,
-            {"MISO_DATA_DIR": self.tempdir.name},
+            {"UNCHAIN_DATA_DIR": self.tempdir.name},
             clear=False,
         )
         self.env_patch.start()
@@ -155,7 +155,7 @@ class CharacterRouteTests(unittest.TestCase):
 
     def test_seed_avatar_route_rejects_missing_auth_token_when_configured(self) -> None:
         authed_app = miso_app.create_app()
-        authed_app.config["MISO_AUTH_TOKEN"] = "secret-token"
+        authed_app.config["UNCHAIN_AUTH_TOKEN"] = "secret-token"
         client = authed_app.test_client()
 
         response = client.get("/characters/seeds/nico/avatar")
@@ -166,7 +166,7 @@ class CharacterRouteTests(unittest.TestCase):
 
     def test_seed_avatar_route_accepts_query_auth_token(self) -> None:
         authed_app = miso_app.create_app()
-        authed_app.config["MISO_AUTH_TOKEN"] = "secret-token"
+        authed_app.config["UNCHAIN_AUTH_TOKEN"] = "secret-token"
         client = authed_app.test_client()
 
         response = client.get("/characters/seeds/nico/avatar?miso_auth=secret-token")

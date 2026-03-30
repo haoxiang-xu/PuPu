@@ -43,7 +43,7 @@ const useChatInputToolkits = () => {
     setLoadFailed(false);
 
     try {
-      const { toolkits: list = [] } = await api.miso.listToolModalCatalog();
+      const { toolkits: list = [] } = await api.unchain.listToolModalCatalog();
       if (!mountedRef.current || requestId !== requestIdRef.current) {
         return;
       }

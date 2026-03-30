@@ -397,7 +397,7 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as data_dir, \
-            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
             mock.patch.object(
@@ -455,7 +455,7 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as data_dir, \
-            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
             mock.patch.object(
@@ -555,7 +555,7 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as data_dir, \
-            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
             mock.patch.object(
@@ -623,7 +623,7 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as data_dir, \
-            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
             mock.patch.object(
@@ -689,7 +689,7 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as data_dir, \
-            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
             mock.patch.object(
@@ -805,7 +805,7 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as data_dir, \
-            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", True), \
             mock.patch.object(
@@ -874,7 +874,7 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         with tempfile.TemporaryDirectory() as data_dir, \
-            mock.patch.dict(os.environ, {"MISO_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
             mock.patch.dict(sys.modules, modules), \
             mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False), \
             mock.patch.object(

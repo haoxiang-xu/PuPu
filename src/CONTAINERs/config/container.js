@@ -30,7 +30,7 @@ import {
   isDevSettingsAvailable,
   readDevSettings,
 } from "../../COMPONENTs/settings/dev/storage";
-import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 const SETTINGS_STORAGE_KEY = "settings";

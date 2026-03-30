@@ -39,7 +39,7 @@ export const useCharacterAvailability = (chatsById) => {
       await Promise.all(
         characterIds.map(async (cid) => {
           try {
-            const result = await api.miso.previewCharacterDecision({
+            const result = await api.unchain.previewCharacterDecision({
               characterId: cid,
             });
             const val =

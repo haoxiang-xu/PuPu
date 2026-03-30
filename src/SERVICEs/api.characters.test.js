@@ -1,10 +1,10 @@
 import { api } from "./api";
 
-describe("api.miso character methods", () => {
-  const originalMisoApi = window.misoAPI;
+describe("api.unchain character methods", () => {
+  const originalMisoApi = window.unchainAPI;
 
   beforeEach(() => {
-    window.misoAPI = {
+    window.unchainAPI = {
       listCharacters: jest.fn(async () => ({
         characters: [{ id: "mina" }],
         count: 1,
@@ -25,11 +25,11 @@ describe("api.miso character methods", () => {
   });
 
   afterAll(() => {
-    window.misoAPI = originalMisoApi;
+    window.unchainAPI = originalMisoApi;
   });
 
   test("listCharacters normalizes the bridge response", async () => {
-    await expect(api.miso.listCharacters()).resolves.toEqual({
+    await expect(api.unchain.listCharacters()).resolves.toEqual({
       characters: [{ id: "mina" }],
       count: 1,
     });
@@ -37,16 +37,16 @@ describe("api.miso character methods", () => {
 
   test("saveCharacter forwards the payload", async () => {
     const payload = { name: "Mina" };
-    await api.miso.saveCharacter(payload);
+    await api.unchain.saveCharacter(payload);
 
-    expect(window.misoAPI.saveCharacter).toHaveBeenCalledWith(payload);
+    expect(window.unchainAPI.saveCharacter).toHaveBeenCalledWith(payload);
   });
 
   test("buildCharacterAgentConfig forwards the payload", async () => {
     const payload = { characterId: "mina", threadId: "main thread" };
-    await api.miso.buildCharacterAgentConfig(payload);
+    await api.unchain.buildCharacterAgentConfig(payload);
 
-    expect(window.misoAPI.buildCharacterAgentConfig).toHaveBeenCalledWith(
+    expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledWith(
       payload,
     );
   });

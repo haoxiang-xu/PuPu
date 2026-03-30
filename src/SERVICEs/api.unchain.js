@@ -505,61 +505,61 @@ const normalizeMisoV2Payload = (payload) => {
 };
 
 export const createMisoApi = () => {
-  const misoApi = {
+  const unchainApi = {
     isBridgeAvailable: () =>
-      hasBridgeMethod("misoAPI", "getStatus") &&
-      hasBridgeMethod("misoAPI", "startStream") &&
-      hasBridgeMethod("misoAPI", "startStreamV2"),
+      hasBridgeMethod("unchainAPI", "getStatus") &&
+      hasBridgeMethod("unchainAPI", "startStream") &&
+      hasBridgeMethod("unchainAPI", "startStreamV2"),
 
     getStatus: async () => {
       try {
-        const method = assertBridgeMethod("misoAPI", "getStatus");
+        const method = assertBridgeMethod("unchainAPI", "getStatus");
         const status = await withTimeout(
           () => method(),
           4000,
-          "miso_status_timeout",
+          "unchain_status_timeout",
           "Miso status request timed out",
         );
         return normalizeMisoStatus(status);
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_status_failed",
+          "unchain_status_failed",
           "Failed to query Miso status",
         );
       }
     },
 
     getModelCatalog: async () => {
-      if (!hasBridgeMethod("misoAPI", "getModelCatalog")) {
+      if (!hasBridgeMethod("unchainAPI", "getModelCatalog")) {
         return normalizeModelCatalog(EMPTY_MODEL_CATALOG);
       }
 
       try {
-        const method = assertBridgeMethod("misoAPI", "getModelCatalog");
+        const method = assertBridgeMethod("unchainAPI", "getModelCatalog");
         const payload = await withTimeout(
           () => method(),
           6000,
-          "miso_model_catalog_timeout",
+          "unchain_model_catalog_timeout",
           "Miso model catalog request timed out",
         );
         return normalizeModelCatalog(payload);
       } catch (error) {
         throw toFrontendApiError(
           error,
-          "miso_model_catalog_failed",
+          "unchain_model_catalog_failed",
           "Failed to query Miso model catalog",
         );
       }
     },
 
     getToolkitCatalog: async () => {
-      if (!hasBridgeMethod("misoAPI", "getToolkitCatalog")) {
+      if (!hasBridgeMethod("unchainAPI", "getToolkitCatalog")) {
         return { toolkits: [], count: 0, source: "" };
       }
 
       try {
-        const method = assertBridgeMethod("misoAPI", "getToolkitCatalog");
+        const method = assertBridgeMethod("unchainAPI", "getToolkitCatalog");
         const payload = await withTimeout(
           () => method(),
           6000,
@@ -577,12 +577,12 @@ export const createMisoApi = () => {
     },
 
     listToolModalCatalog: async () => {
-      if (!hasBridgeMethod("misoAPI", "listToolModalCatalog")) {
+      if (!hasBridgeMethod("unchainAPI", "listToolModalCatalog")) {
         return { toolkits: [], count: 0, source: "" };
       }
 
       try {
-        const method = assertBridgeMethod("misoAPI", "listToolModalCatalog");
+        const method = assertBridgeMethod("unchainAPI", "listToolModalCatalog");
         const payload = await withTimeout(
           () => method(),
           8000,
@@ -600,7 +600,7 @@ export const createMisoApi = () => {
     },
 
     getToolkitDetail: async (toolkitId, toolName) => {
-      if (!hasBridgeMethod("misoAPI", "getToolkitDetail")) {
+      if (!hasBridgeMethod("unchainAPI", "getToolkitDetail")) {
         return {
           toolkitId: toolkitId || "",
           toolkitName: "",
@@ -612,7 +612,7 @@ export const createMisoApi = () => {
       }
 
       try {
-        const method = assertBridgeMethod("misoAPI", "getToolkitDetail");
+        const method = assertBridgeMethod("unchainAPI", "getToolkitDetail");
         const payload = await withTimeout(
           () => method(toolkitId, toolName),
           6000,
@@ -640,7 +640,7 @@ export const createMisoApi = () => {
 
     respondToolConfirmation: async (payload = {}) => {
       try {
-        const method = assertBridgeMethod("misoAPI", "respondToolConfirmation");
+        const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");
         const confirmationIdRaw = payload?.confirmation_id;
         const confirmationId =
           typeof confirmationIdRaw === "string" ? confirmationIdRaw.trim() : "";
@@ -684,7 +684,7 @@ export const createMisoApi = () => {
 
     startStream: (payload, handlers = {}) => {
       try {
-        const method = assertBridgeMethod("misoAPI", "startStream");
+        const method = assertBridgeMethod("unchainAPI", "startStream");
         const payloadWithWorkspaceRoot =
           injectWorkspaceRootIntoPayload(payload);
         const normalizedPayload = injectProviderApiKeyIntoPayload(
@@ -711,7 +711,7 @@ export const createMisoApi = () => {
     },
 
     getMemoryProjection: async (sessionId) => {
-      const method = assertBridgeMethod("misoAPI", "getMemoryProjection");
+      const method = assertBridgeMethod("unchainAPI", "getMemoryProjection");
       return withTimeout(
         () => method(sessionId),
         10000,
@@ -721,7 +721,7 @@ export const createMisoApi = () => {
     },
 
     getSessionMemoryExport: async (sessionId) => {
-      const method = assertBridgeMethod("misoAPI", "getSessionMemoryExport");
+      const method = assertBridgeMethod("unchainAPI", "getSessionMemoryExport");
       return withTimeout(
         () => method(sessionId),
         10000,
@@ -731,7 +731,7 @@ export const createMisoApi = () => {
     },
 
     listSeedCharacters: async () => {
-      const method = assertBridgeMethod("misoAPI", "listSeedCharacters");
+      const method = assertBridgeMethod("unchainAPI", "listSeedCharacters");
       const response = await withTimeout(
         () => method(),
         15000,
@@ -747,7 +747,7 @@ export const createMisoApi = () => {
     },
 
     listCharacters: async () => {
-      const method = assertBridgeMethod("misoAPI", "listCharacters");
+      const method = assertBridgeMethod("unchainAPI", "listCharacters");
       const response = await withTimeout(
         () => method(),
         15000,
@@ -763,7 +763,7 @@ export const createMisoApi = () => {
     },
 
     getCharacter: async (characterId) => {
-      const method = assertBridgeMethod("misoAPI", "getCharacter");
+      const method = assertBridgeMethod("unchainAPI", "getCharacter");
       return withTimeout(
         () => method(characterId),
         15000,
@@ -773,7 +773,7 @@ export const createMisoApi = () => {
     },
 
     saveCharacter: async (payload = {}) => {
-      const method = assertBridgeMethod("misoAPI", "saveCharacter");
+      const method = assertBridgeMethod("unchainAPI", "saveCharacter");
       return withTimeout(
         () => method(isObject(payload) ? payload : {}),
         20000,
@@ -783,7 +783,7 @@ export const createMisoApi = () => {
     },
 
     deleteCharacter: async (characterId) => {
-      const method = assertBridgeMethod("misoAPI", "deleteCharacter");
+      const method = assertBridgeMethod("unchainAPI", "deleteCharacter");
       return withTimeout(
         () => method(characterId),
         30000,
@@ -793,7 +793,7 @@ export const createMisoApi = () => {
     },
 
     previewCharacterDecision: async (payload = {}) => {
-      const method = assertBridgeMethod("misoAPI", "previewCharacterDecision");
+      const method = assertBridgeMethod("unchainAPI", "previewCharacterDecision");
       return withTimeout(
         () => method(isObject(payload) ? payload : {}),
         20000,
@@ -803,7 +803,7 @@ export const createMisoApi = () => {
     },
 
     buildCharacterAgentConfig: async (payload = {}) => {
-      const method = assertBridgeMethod("misoAPI", "buildCharacterAgentConfig");
+      const method = assertBridgeMethod("unchainAPI", "buildCharacterAgentConfig");
       return withTimeout(
         () => method(isObject(payload) ? payload : {}),
         20000,
@@ -813,7 +813,7 @@ export const createMisoApi = () => {
     },
 
     exportCharacter: async (characterId, filePath) => {
-      const method = assertBridgeMethod("misoAPI", "exportCharacter");
+      const method = assertBridgeMethod("unchainAPI", "exportCharacter");
       return withTimeout(
         () => method(characterId, filePath),
         30000,
@@ -823,7 +823,7 @@ export const createMisoApi = () => {
     },
 
     importCharacter: async (filePath) => {
-      const method = assertBridgeMethod("misoAPI", "importCharacter");
+      const method = assertBridgeMethod("unchainAPI", "importCharacter");
       return withTimeout(
         () => method(filePath),
         30000,
@@ -834,7 +834,7 @@ export const createMisoApi = () => {
 
     getLongTermMemoryProjection: async () => {
       const method = assertBridgeMethod(
-        "misoAPI",
+        "unchainAPI",
         "getLongTermMemoryProjection",
       );
       return withTimeout(
@@ -850,12 +850,12 @@ export const createMisoApi = () => {
         return;
       }
 
-      if (!hasBridgeMethod("misoAPI", "cancelStream")) {
+      if (!hasBridgeMethod("unchainAPI", "cancelStream")) {
         return;
       }
 
       try {
-        const method = assertBridgeMethod("misoAPI", "cancelStream");
+        const method = assertBridgeMethod("unchainAPI", "cancelStream");
         method(requestId);
       } catch (_error) {
         // cancellation is best-effort
@@ -864,7 +864,7 @@ export const createMisoApi = () => {
 
     replaceSessionMemory: async (payload = {}) => {
       try {
-        const method = assertBridgeMethod("misoAPI", "replaceSessionMemory");
+        const method = assertBridgeMethod("unchainAPI", "replaceSessionMemory");
         const normalizedPayload = normalizeMisoV2Payload(payload);
         const sessionIdRaw =
           normalizedPayload?.sessionId ?? normalizedPayload?.session_id;
@@ -906,7 +906,7 @@ export const createMisoApi = () => {
 
     startStreamV2: (payload, handlers = {}) => {
       try {
-        const method = assertBridgeMethod("misoAPI", "startStreamV2");
+        const method = assertBridgeMethod("unchainAPI", "startStreamV2");
         const normalizedPayload = normalizeMisoV2Payload(payload);
         const streamHandle = method(normalizedPayload, handlers);
         if (
@@ -930,7 +930,7 @@ export const createMisoApi = () => {
   };
 
   const retrieveMisoModelList = async (provider = null) => {
-    const catalog = await misoApi.getModelCatalog();
+    const catalog = await unchainApi.getModelCatalog();
     if (typeof provider !== "string" || !provider.trim()) {
       return catalog.providers;
     }
@@ -940,10 +940,10 @@ export const createMisoApi = () => {
       : [];
   };
 
-  misoApi.retrieveModelList = retrieveMisoModelList;
-  misoApi.listModels = retrieveMisoModelList;
+  unchainApi.retrieveModelList = retrieveMisoModelList;
+  unchainApi.listModels = retrieveMisoModelList;
 
-  return misoApi;
+  return unchainApi;
 };
 
 export default createMisoApi;

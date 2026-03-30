@@ -43,7 +43,7 @@ _qdrant_clients_lock = threading.Lock()
 # ---------------------------------------------------------------------------
 
 def _data_dir() -> str:
-    return os.environ.get("MISO_DATA_DIR", "").strip()
+    return os.environ.get("UNCHAIN_DATA_DIR", "").strip()
 
 
 def _normalize_data_dir(data_dir: str) -> str:
@@ -812,7 +812,7 @@ def _log_memory_recall_debug(
         safe_query = _clip_for_log(query_text, 120) if query_text else ""
         safe_recalled = [_clip_for_log(item, 120) for item in recalled_items[:5]]
         _safe_console_print(
-            "[miso:memory] recall "
+            "[unchain:memory] recall "
             f"session_id={session_id!r} "
             f"top_k={vector_top_k} "
             f"min_score={vector_min_score!r} "
@@ -1216,7 +1216,7 @@ def create_memory_manager_with_diagnostics(
 
     where manager is None when:
     - qdrant-client is not installed
-    - MISO_DATA_DIR env var is not set
+    - UNCHAIN_DATA_DIR env var is not set
     - memory_enabled is falsy in options
     - no embedding provider can be resolved
     - any import / construction error occurs
@@ -1226,7 +1226,7 @@ def create_memory_manager_with_diagnostics(
 
     data_dir = _normalize_data_dir(_data_dir())
     if not data_dir:
-        return None, "missing_miso_data_dir"
+        return None, "missing_data_dir"
 
     if not options.get("memory_enabled"):
         return None, "memory_disabled"
@@ -1365,7 +1365,7 @@ def replace_short_term_session_memory(
 
     data_dir = _normalize_data_dir(_data_dir())
     if not data_dir:
-        raise RuntimeError("MISO_DATA_DIR not configured")
+        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
 
     from unchain.memory.manager import _collect_complete_turns_for_vector_index
     from unchain.memory.qdrant import JsonFileSessionStore, QdrantVectorAdapter
@@ -1488,7 +1488,7 @@ def delete_short_term_session_memory(
 
     data_dir = _normalize_data_dir(_data_dir())
     if not data_dir:
-        raise RuntimeError("MISO_DATA_DIR not configured")
+        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
 
     previous_state = _load_session_state(data_dir, normalized_session_id)
     old_tag = str(previous_state.get("vector_collection_tag", "") or "").strip()
@@ -1550,7 +1550,7 @@ def delete_long_term_memory_namespace(
 
     data_dir = _normalize_data_dir(_data_dir())
     if not data_dir:
-        raise RuntimeError("MISO_DATA_DIR not configured")
+        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
 
     profile_path = _long_term_profile_path(data_dir, normalized_namespace)
     profile_deleted = False

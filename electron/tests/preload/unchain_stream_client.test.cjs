@@ -1,7 +1,7 @@
 const { CHANNELS } = require("../../shared/channels");
 const {
   createMisoStreamClient,
-} = require("../../preload/stream/miso_stream_client");
+} = require("../../preload/stream/unchain_stream_client");
 
 const createMockIpcRenderer = () => {
   const listeners = new Map();
@@ -27,7 +27,7 @@ const createMockIpcRenderer = () => {
   };
 };
 
-describe("miso stream preload client", () => {
+describe("unchain stream preload client", () => {
   test("startStream forwards events and auto-cleans on done", () => {
     const ipcRenderer = createMockIpcRenderer();
     const client = createMisoStreamClient(ipcRenderer);

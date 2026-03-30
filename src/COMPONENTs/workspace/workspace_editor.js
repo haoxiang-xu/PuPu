@@ -9,7 +9,7 @@ import {
   makeWorkspaceId,
   validateWorkspaceRoot,
 } from "../settings/runtime";
-import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 
 /* ── Theme colours ───────────────────────────────────────────────────────── */
 

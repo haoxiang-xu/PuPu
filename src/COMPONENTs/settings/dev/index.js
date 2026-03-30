@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
-import { runtimeBridge } from "../../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 import {
   FEATURE_FLAG_DEFINITIONS,
   readFeatureFlags,

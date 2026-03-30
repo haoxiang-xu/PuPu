@@ -20,9 +20,9 @@ try:
 except ImportError:  # pragma: no cover
     _httpx = None  # type: ignore
 
-# Ensure miso/unchain source is on sys.path (dev mode uses MISO_SOURCE_PATH env)
-def _ensure_miso_on_path() -> None:
-    _source = os.environ.get("MISO_SOURCE_PATH", "").strip()
+# Ensure unchain source is on sys.path (dev mode uses UNCHAIN_SOURCE_PATH env)
+def _ensure_unchain_on_path() -> None:
+    _source = os.environ.get("UNCHAIN_SOURCE_PATH", "").strip()
     if _source:
         _src_dir = os.path.join(_source, "src")
         if os.path.isdir(_src_dir) and _src_dir not in sys.path:
@@ -31,13 +31,12 @@ def _ensure_miso_on_path() -> None:
         if os.path.isdir(_source) and _source not in sys.path:
             sys.path.insert(0, _source)
             return
-    # Fallback: sibling miso repo
     _project_root = str(Path(__file__).resolve().parents[2])
     _sibling = os.path.join(os.path.dirname(_project_root), "miso", "src")
     if os.path.isdir(_sibling) and _sibling not in sys.path:
         sys.path.insert(0, _sibling)
 
-_ensure_miso_on_path()
+_ensure_unchain_on_path()
 
 # Import unchain agent modules
 try:
@@ -517,14 +516,14 @@ def _parse_model_overrides(options: Dict[str, object] | None) -> Dict[str, str]:
 
 
 def _get_runtime_config(overrides: Dict[str, str] | None = None) -> Dict[str, str]:
-    base_provider = os.environ.get("MISO_PROVIDER", "ollama").strip().lower() or "ollama"
+    base_provider = os.environ.get("UNCHAIN_PROVIDER", "ollama").strip().lower() or "ollama"
     provider = base_provider if base_provider in {"openai", "anthropic", "ollama"} else "ollama"
 
     provider_override = (overrides or {}).get("provider", "").strip().lower()
     if provider_override in {"openai", "anthropic", "ollama"}:
         provider = provider_override
 
-    env_model = os.environ.get("MISO_MODEL", _provider_default_model(provider)).strip()
+    env_model = os.environ.get("UNCHAIN_MODEL", _provider_default_model(provider)).strip()
     model = env_model or _provider_default_model(provider)
 
     if provider_override and provider_override in {"openai", "anthropic", "ollama"}:
@@ -577,7 +576,7 @@ def _capability_file_candidates() -> List[Path]:
     current_file = Path(__file__).resolve()
     project_root = current_file.parents[2]
     candidates.append(
-        project_root / "miso_runtime" / "miso" / "runtime" / "resources" / "model_capabilities.json"
+        project_root / "unchain_runtime" / "runtime" / "resources" / "model_capabilities.json"
     )
     candidates.append(
         project_root.parent / "miso" / "src" / "miso" / "runtime" / "resources" / "model_capabilities.json"
@@ -931,11 +930,11 @@ def _enumerate_builtin_submodule_toolkits(
     toolkit_base: type,
     seen: set[str],
 ) -> List[Dict[str, object]]:
-    """Walk miso.toolkits.builtin and return concrete toolkit subclasses."""
+    """Walk unchain.toolkits.builtin and return concrete toolkit subclasses."""
     entries: List[Dict[str, object]] = []
 
     try:
-        builtin_pkg = importlib.import_module("miso.toolkits.builtin")
+        builtin_pkg = importlib.import_module("unchain.toolkits.builtin")
     except Exception:
         return entries
 
@@ -944,7 +943,7 @@ def _enumerate_builtin_submodule_toolkits(
         return entries
 
     for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
-        full_name = f"miso.toolkits.builtin.{submodule_name}"
+        full_name = f"unchain.toolkits.builtin.{submodule_name}"
         try:
             submodule = importlib.import_module(full_name)
         except Exception:
@@ -997,19 +996,19 @@ def get_toolkit_catalog() -> Dict[str, object]:
     base_module = str(getattr(toolkit_base, "__module__", ""))
     seen.add(f"{base_module}:{toolkit_base.__name__}")
 
-    # Walk miso.toolkits.builtin for concrete implementations
+    # Walk unchain.toolkits.builtin for concrete implementations
     entries.extend(_enumerate_builtin_submodule_toolkits(toolkit_base, seen))
 
-    # Also pick up exported toolkit classes from miso.toolkits.
+    # Also pick up exported toolkit classes from unchain.toolkits.
     # that weren't already found via submodule walk
     try:
-        miso_module = importlib.import_module("unchain.toolkits")
+        toolkit_module = importlib.import_module("unchain.toolkits")
     except Exception:
-        miso_module = None
+        toolkit_module = None
 
-    if miso_module is not None:
+    if toolkit_module is not None:
         for export_name, kind in _KNOWN_TOOLKIT_EXPORTS.items():
-            candidate = getattr(miso_module, export_name, None)
+            candidate = getattr(toolkit_module, export_name, None)
             if not isinstance(candidate, type):
                 continue
             try:
@@ -1402,7 +1401,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
     # Walk builtin submodules
     try:
-        builtin_pkg = importlib.import_module("miso.toolkits.builtin")
+        builtin_pkg = importlib.import_module("unchain.toolkits.builtin")
     except Exception:
         builtin_pkg = None
 
@@ -1410,7 +1409,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
         pkg_path = getattr(builtin_pkg, "__path__", None)
         if pkg_path:
             for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
-                full_name = f"miso.toolkits.builtin.{submodule_name}"
+                full_name = f"unchain.toolkits.builtin.{submodule_name}"
                 try:
                     submodule = importlib.import_module(full_name)
                 except Exception:
@@ -1438,13 +1437,13 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
     # Exported toolkit classes
     try:
-        miso_module = importlib.import_module("unchain.toolkits")
+        toolkit_module = importlib.import_module("unchain.toolkits")
     except Exception:
-        miso_module = None
+        toolkit_module = None
 
-    if miso_module is not None:
+    if toolkit_module is not None:
         for export_name, kind in _KNOWN_TOOLKIT_EXPORTS.items():
-            candidate = getattr(miso_module, export_name, None)
+            candidate = getattr(toolkit_module, export_name, None)
             if not isinstance(candidate, type):
                 continue
             try:
@@ -1505,11 +1504,11 @@ def get_toolkit_metadata(
     normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(toolkit_id, toolkit_id)
 
     try:
-        builtin_pkg = importlib.import_module("miso.toolkits.builtin")
+        builtin_pkg = importlib.import_module("unchain.toolkits.builtin")
         pkg_path = getattr(builtin_pkg, "__path__", None)
         if pkg_path:
             for _finder, submodule_name, _ispkg in pkgutil.iter_modules(pkg_path):
-                full_name = f"miso.toolkits.builtin.{submodule_name}"
+                full_name = f"unchain.toolkits.builtin.{submodule_name}"
                 try:
                     submodule = importlib.import_module(full_name)
                 except Exception:
@@ -1532,12 +1531,12 @@ def get_toolkit_metadata(
     except Exception:
         pass
 
-    # Also check top-level miso exports
+    # Also check top-level unchain exports
     if found_class is None:
         try:
-            miso_module = importlib.import_module("unchain.toolkits")
+            toolkit_module = importlib.import_module("unchain.toolkits")
             for export_name in _KNOWN_TOOLKIT_EXPORTS:
-                candidate = getattr(miso_module, export_name, None)
+                candidate = getattr(toolkit_module, export_name, None)
                 if (
                     isinstance(candidate, type)
                     and issubclass(candidate, toolkit_base)
@@ -1876,8 +1875,8 @@ def _extract_api_key_from_options(options: Dict[str, object] | None, provider: s
         options.get(provider_snake_key),
         options.get("apiKey"),
         options.get("api_key"),
-        options.get("misoApiKey"),
-        options.get("miso_api_key"),
+        options.get("unchainApiKey"),
+        options.get("unchain_api_key"),
     ]
 
     for candidate in candidates:
@@ -2016,9 +2015,9 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
             continue
 
 
-def _resolve_workspace_toolkit_factory(miso_module: Any) -> Any:
-    """Return the WorkspaceToolkit constructor from miso.toolkits."""
-    workspace_factory = getattr(miso_module, "WorkspaceToolkit", None)
+def _resolve_workspace_toolkit_factory(toolkit_module: Any) -> Any:
+    """Return the WorkspaceToolkit constructor from unchain.toolkits."""
+    workspace_factory = getattr(toolkit_module, "WorkspaceToolkit", None)
     if callable(workspace_factory):
         return workspace_factory
     raise RuntimeError("Miso WorkspaceToolkit is unavailable")
@@ -2220,17 +2219,17 @@ def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
         return []
 
     try:
-        miso_module = importlib.import_module("unchain.toolkits")
+        toolkit_module = importlib.import_module("unchain.toolkits")
     except Exception as import_error:
         raise RuntimeError(
             f"Failed to import unchain.toolkits for workspace toolkit: {import_error}"
         ) from import_error
 
-    toolkit_factory = _resolve_workspace_toolkit_factory(miso_module)
+    toolkit_factory = _resolve_workspace_toolkit_factory(toolkit_module)
     resolved_roots = _resolve_workspace_roots(workspace_roots_raw)
 
     # Try a native multi-root constructor first if the toolkit supports it.
-    multi_factory = getattr(miso_module, "WorkspaceToolkit", None)
+    multi_factory = getattr(toolkit_module, "WorkspaceToolkit", None)
     if callable(multi_factory) and len(resolved_roots) > 1:
         try:
             multi_toolkit = multi_factory(workspace_roots=resolved_roots)
@@ -2272,7 +2271,7 @@ def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
         return []
 
     try:
-        miso_module = importlib.import_module("unchain.toolkits")
+        toolkit_module = importlib.import_module("unchain.toolkits")
     except Exception as import_error:
         raise RuntimeError(
             f"Failed to import unchain.toolkits for toolkit attachment: {import_error}"
@@ -2289,7 +2288,7 @@ def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
         if toolkit_name == "builtin_toolkit":
             continue
 
-        toolkit_factory = getattr(miso_module, normalized_toolkit_name, None)
+        toolkit_factory = getattr(toolkit_module, normalized_toolkit_name, None)
         if not callable(toolkit_factory):
             raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
 
@@ -2341,13 +2340,13 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
     MemoryModule = _MemoryModule
     PoliciesModule = _PoliciesModule
     if UnchainAgent is None:
-        raise RuntimeError("unchain agent is unavailable — check miso/unchain installation")
+        raise RuntimeError("unchain agent is unavailable — check unchain installation")
 
     config = get_runtime_config(options)
 
     max_iterations = _extract_max_iterations_from_options(options)
     if max_iterations is None:
-        max_iterations_raw = os.environ.get("MISO_MAX_ITERATIONS", "").strip()
+        max_iterations_raw = os.environ.get("UNCHAIN_MAX_ITERATIONS", "").strip()
         if max_iterations_raw:
             try:
                 max_iterations = max(1, int(max_iterations_raw))
@@ -2361,7 +2360,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
     api_key = (
         _extract_api_key_from_options(options, config["provider"])
         or (
-            os.environ.get("MISO_API_KEY")
+            os.environ.get("UNCHAIN_API_KEY")
             or os.environ.get("OPENAI_API_KEY")
             or os.environ.get("ANTHROPIC_API_KEY")
             or ""
@@ -2372,7 +2371,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         if not api_key:
             raise RuntimeError(
                 f"Provider '{config['provider']}' requires API key. "
-                "Set MISO_API_KEY or provider-specific API key env vars."
+                "Set UNCHAIN_API_KEY or provider-specific API key env vars."
             )
 
     memory_requested = bool(isinstance(options, dict) and options.get("memory_enabled"))
@@ -2665,7 +2664,7 @@ def stream_chat(
         finally:
             token_queue.put(done_marker)
 
-    worker = threading.Thread(target=run_agent, name="miso-runner", daemon=True)
+    worker = threading.Thread(target=run_agent, name="unchain-runner", daemon=True)
     worker.start()
 
     while True:
@@ -2795,7 +2794,7 @@ def stream_chat_events(
 
         cancel_watcher = threading.Thread(
             target=watch_stream_cancel,
-            name="miso-stream-confirm-cancel",
+            name="unchain-stream-confirm-cancel",
             daemon=True,
         )
         cancel_watcher.start()
@@ -2825,7 +2824,7 @@ def stream_chat_events(
         finally:
             event_queue.put(done_marker)
 
-    worker = threading.Thread(target=run_agent, name="miso-runner-events", daemon=True)
+    worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
     worker.start()
 
     while True:

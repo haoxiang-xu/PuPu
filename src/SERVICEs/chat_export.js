@@ -1,5 +1,5 @@
 import { api } from "./api";
-import { runtimeBridge } from "./bridges/miso_bridge";
+import { runtimeBridge } from "./bridges/unchain_bridge";
 import {
   getChatsStore,
   createChatWithMessagesInSelectedContext,
@@ -21,7 +21,7 @@ const buildChatExportPayload = async (chatId, store) => {
 
   let sessionMemory = null;
   try {
-    const res = await api.miso.getSessionMemoryExport(chatId);
+    const res = await api.unchain.getSessionMemoryExport(chatId);
     if (Array.isArray(res?.messages) && res.messages.length > 0) {
       sessionMemory = res.messages;
     }
@@ -57,7 +57,7 @@ const buildFolderExportPayload = async (nodeId, store) => {
   const chatIds = Object.keys(snapshot.chatsById);
   for (const cid of chatIds) {
     try {
-      const res = await api.miso.getSessionMemoryExport(cid);
+      const res = await api.unchain.getSessionMemoryExport(cid);
       if (Array.isArray(res?.messages) && res.messages.length > 0) {
         sessionMemories[cid] = res.messages;
       }
@@ -160,7 +160,7 @@ export const validateImportData = (data) => {
 const restoreSessionMemory = async (sessionId, messages) => {
   if (!sessionId || !Array.isArray(messages) || messages.length === 0) return;
   try {
-    await api.miso.replaceSessionMemory({
+    await api.unchain.replaceSessionMemory({
       sessionId,
       messages,
       options: {},

@@ -66,7 +66,7 @@ def _character_api():
 def _ensure_data_dir() -> str:
     data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
     if not data_dir:
-        raise RuntimeError("MISO_DATA_DIR not configured")
+        raise RuntimeError("UNCHAIN_DATA_DIR not configured")
     return data_dir
 
 

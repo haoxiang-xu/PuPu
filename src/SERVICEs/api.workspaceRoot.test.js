@@ -4,12 +4,12 @@ const writeSettings = (settings) => {
   window.localStorage.setItem("settings", JSON.stringify(settings || {}));
 };
 
-describe("api.miso.startStream workspace root injection", () => {
-  const originalMisoApi = window.misoAPI;
+describe("api.unchain.startStream workspace root injection", () => {
+  const originalMisoApi = window.unchainAPI;
 
   beforeEach(() => {
     window.localStorage.clear();
-    window.misoAPI = {
+    window.unchainAPI = {
       startStream: jest.fn(() => ({ cancel: jest.fn() })),
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
     };
@@ -21,17 +21,17 @@ describe("api.miso.startStream workspace root injection", () => {
   });
 
   afterAll(() => {
-    window.misoAPI = originalMisoApi;
+    window.unchainAPI = originalMisoApi;
   });
 
   test("does not inject workspace root when runtime setting is missing", () => {
-    api.miso.startStream({
+    api.unchain.startStream({
       message: "hello",
       options: { modelId: "openai:gpt-5" },
     });
 
-    expect(window.misoAPI.startStream).toHaveBeenCalledTimes(1);
-    const [payload] = window.misoAPI.startStream.mock.calls[0];
+    expect(window.unchainAPI.startStream).toHaveBeenCalledTimes(1);
+    const [payload] = window.unchainAPI.startStream.mock.calls[0];
     expect(payload.options.workspaceRoot).toBeUndefined();
     expect(payload.options.workspace_root).toBeUndefined();
   });
@@ -43,12 +43,12 @@ describe("api.miso.startStream workspace root injection", () => {
       },
     });
 
-    api.miso.startStream({
+    api.unchain.startStream({
       message: "hello",
       options: { modelId: "openai:gpt-5" },
     });
 
-    const [payload] = window.misoAPI.startStream.mock.calls[0];
+    const [payload] = window.unchainAPI.startStream.mock.calls[0];
     expect(payload.options.workspaceRoot).toBe("/tmp/demo-workspace");
     expect(payload.options.workspace_root).toBe("/tmp/demo-workspace");
   });
@@ -60,7 +60,7 @@ describe("api.miso.startStream workspace root injection", () => {
       },
     });
 
-    api.miso.startStream({
+    api.unchain.startStream({
       message: "hello",
       options: {
         modelId: "openai:gpt-5",
@@ -68,7 +68,7 @@ describe("api.miso.startStream workspace root injection", () => {
       },
     });
 
-    const [payload] = window.misoAPI.startStream.mock.calls[0];
+    const [payload] = window.unchainAPI.startStream.mock.calls[0];
     expect(payload.options.workspaceRoot).toBe("/tmp/request-root");
     expect(payload.options.workspace_root).toBeUndefined();
   });
@@ -80,12 +80,12 @@ describe("api.miso.startStream workspace root injection", () => {
       },
     });
 
-    api.miso.startStream({
+    api.unchain.startStream({
       message: "hello",
       options: { modelId: "openai:gpt-5" },
     });
 
-    const [payload] = window.misoAPI.startStream.mock.calls[0];
+    const [payload] = window.unchainAPI.startStream.mock.calls[0];
     expect(payload.options.workspaceRoot).toBeUndefined();
     expect(payload.options.workspace_root).toBeUndefined();
   });
@@ -97,7 +97,7 @@ describe("api.miso.startStream workspace root injection", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: {
         modelId: "openai:gpt-5",
@@ -106,7 +106,7 @@ describe("api.miso.startStream workspace root injection", () => {
       },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.disable_workspace_root).toBe(true);
     expect(payload.options.workspaceRoot).toBeUndefined();
     expect(payload.options.workspace_root).toBeUndefined();

@@ -95,7 +95,7 @@ const resolveSourceModelIdFromStore = () => {
 
   const modelId =
     typeof activeChat.model?.id === "string" ? activeChat.model.id.trim() : "";
-  return modelId && modelId !== "miso-unset" ? modelId : "";
+  return modelId && modelId !== "unchain-unset" ? modelId : "";
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -1220,7 +1220,7 @@ const FindCharactersPanel = ({ isDark, addedIds, onAdd }) => {
       setErrorMessage("");
 
       try {
-        const response = await api.miso.listSeedCharacters();
+        const response = await api.unchain.listSeedCharacters();
         if (cancelled) return;
         const nextCharacters = Array.isArray(response?.characters)
           ? response.characters
@@ -1505,7 +1505,7 @@ const CharactersPage = ({ isDark, onOpenChat }) => {
   const [removingId, setRemovingId] = useState("");
 
   const fetchCharacters = useCallback(async () => {
-    const response = await api.miso.listCharacters();
+    const response = await api.unchain.listCharacters();
     return Array.isArray(response?.characters) ? response.characters : [];
   }, []);
 
@@ -1555,7 +1555,7 @@ const CharactersPage = ({ isDark, onOpenChat }) => {
       setAddingId(id);
       try {
         /* Save character via API so it appears in "Added" */
-        await api.miso.saveCharacter(character);
+        await api.unchain.saveCharacter(character);
         await refreshCharacters();
       } catch {
         /* silently fail — card stays un-added */
@@ -1573,7 +1573,7 @@ const CharactersPage = ({ isDark, onOpenChat }) => {
       if (!id) return;
       setRemovingId(id);
       try {
-        await api.miso.deleteCharacter(id);
+        await api.unchain.deleteCharacter(id);
         await refreshCharacters();
       } catch {
         /* silently fail */

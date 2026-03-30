@@ -23,7 +23,7 @@ class MisoEngine:
             f"Context turns: {prior_turn_count}\n"
             f"temperature={temperature}, max_tokens={max_tokens}\n\n"
             "This is a local development implementation of Miso streaming output. "
-            "Replace miso_runtime/miso/engine.py with your real Miso integration."
+            "Replace unchain_runtime/miso/engine.py with your real Miso integration."
         )
 
     def stream_reply(

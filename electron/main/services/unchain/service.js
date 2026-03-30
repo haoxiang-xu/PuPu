@@ -1,31 +1,31 @@
 const { CHANNELS } = require("../../../shared/channels");
 const { createPortFinder } = require("../../../shared/port_utils");
 
-const MISO_HOST = "127.0.0.1";
-const MISO_PORT_RANGE_START = 5879;
-const MISO_PORT_RANGE_END = 5895;
-const MISO_BOOT_TIMEOUT_MS = 60000;
-const MISO_HEALTH_RETRY_MS = 250;
-const MISO_RESTART_DELAY_MS = 1500;
-const MISO_STREAM_ENDPOINT = "/chat/stream";
-const MISO_STREAM_V2_ENDPOINT = "/chat/stream/v2";
-const MISO_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
-const MISO_HEALTH_ENDPOINT = "/health";
-const MISO_MODELS_CATALOG_ENDPOINT = "/models/catalog";
-const MISO_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
-const MISO_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
-const MISO_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
-const MISO_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
-const MISO_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
+const UNCHAIN_HOST = "127.0.0.1";
+const UNCHAIN_PORT_RANGE_START = 5879;
+const UNCHAIN_PORT_RANGE_END = 5895;
+const UNCHAIN_BOOT_TIMEOUT_MS = 60000;
+const UNCHAIN_HEALTH_RETRY_MS = 250;
+const UNCHAIN_RESTART_DELAY_MS = 1500;
+const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
+const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
+const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
+const UNCHAIN_HEALTH_ENDPOINT = "/health";
+const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
+const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
+const UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
+const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
+const UNCHAIN_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
+const UNCHAIN_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
-const MISO_REPLACE_SESSION_MEMORY_ENDPOINT = "/memory/session/replace";
-const MISO_SESSION_MEMORY_EXPORT_ENDPOINT = "/memory/session/export";
-const MISO_CHARACTERS_ENDPOINT = "/characters";
-const MISO_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
-const MISO_CHARACTER_BUILD_ENDPOINT = "/characters/build";
-const MISO_CHARACTER_IMPORT_ENDPOINT = "/characters/import";
+const UNCHAIN_REPLACE_SESSION_MEMORY_ENDPOINT = "/memory/session/replace";
+const UNCHAIN_SESSION_MEMORY_EXPORT_ENDPOINT = "/memory/session/export";
+const UNCHAIN_CHARACTERS_ENDPOINT = "/characters";
+const UNCHAIN_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
+const UNCHAIN_CHARACTER_BUILD_ENDPOINT = "/characters/build";
+const UNCHAIN_CHARACTER_IMPORT_ENDPOINT = "/characters/import";
 
-const createMisoService = ({
+const createUnchainService = ({
   app,
   fs,
   path,
@@ -37,16 +37,16 @@ const createMisoService = ({
   runtimeService,
   getAppIsQuitting,
 }) => {
-  let misoProcess = null;
-  let misoPort = null;
-  let misoStatus = "stopped";
-  let misoStatusReason = "";
-  let misoAuthToken = "";
-  let misoRestartTimer = null;
-  let misoIsStopping = false;
-  let misoStartPromise = null;
+  let unchainProcess = null;
+  let unchainPort = null;
+  let unchainStatus = "stopped";
+  let unchainStatusReason = "";
+  let unchainAuthToken = "";
+  let unchainRestartTimer = null;
+  let unchainIsStopping = false;
+  let unchainStartPromise = null;
 
-  const misoActiveStreams = new Map();
+  const unchainActiveStreams = new Map();
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const { findAvailablePort } = createPortFinder(net);
@@ -96,7 +96,7 @@ const createMisoService = ({
         continue;
       }
 
-      // Only reap orphaned miso server scripts from previous crashed sessions.
+      // Only reap orphaned unchain server scripts from previous crashed sessions.
       if (parsed.ppid !== 1) {
         continue;
       }
@@ -123,36 +123,36 @@ const createMisoService = ({
     }
   };
 
-  const looksLikeMisoSource = (sourcePath) =>
-    fs.existsSync(path.join(sourcePath, "miso", "broth.py")) &&
-    fs.existsSync(path.join(sourcePath, "miso", "__init__.py"));
+  const looksLikeUnchainSource = (sourcePath) =>
+    fs.existsSync(path.join(sourcePath, "unchain", "__init__.py")) &&
+    fs.existsSync(path.join(sourcePath, "unchain", "__init__.py"));
 
-  const resolveDevMisoSourcePath = () => {
-    const configuredSource = process.env.MISO_SOURCE_PATH;
-    if (configuredSource && looksLikeMisoSource(configuredSource)) {
+  const resolveDevUnchainSourcePath = () => {
+    const configuredSource = process.env.UNCHAIN_SOURCE_PATH;
+    if (configuredSource && looksLikeUnchainSource(configuredSource)) {
       return configuredSource;
     }
 
-    const siblingSource = path.resolve(app.getAppPath(), "..", "miso");
-    if (looksLikeMisoSource(siblingSource)) {
+    const siblingSource = path.resolve(app.getAppPath(), "..", "unchain");
+    if (looksLikeUnchainSource(siblingSource)) {
       return siblingSource;
     }
 
     return null;
   };
 
-  const MISO_REQUIRED_PYTHON_MODULES = [
+  const UNCHAIN_REQUIRED_PYTHON_MODULES = [
     "flask",
     "qdrant_client",
     "openai",
     "anthropic",
   ];
-  const MISO_REQUIRED_PYTHON_VERSION = "3.12.x";
+  const UNCHAIN_REQUIRED_PYTHON_VERSION = "3.12.x";
 
   const inspectPythonCommand = (
     pythonCommand,
     label,
-    moduleNames = MISO_REQUIRED_PYTHON_MODULES,
+    moduleNames = UNCHAIN_REQUIRED_PYTHON_MODULES,
   ) => {
     if (!pythonCommand) {
       return {
@@ -212,14 +212,14 @@ const createMisoService = ({
     if (parsed.major !== 3 || parsed.minor !== 12) {
       return {
         ok: false,
-        reason: `${label} must use Python ${MISO_REQUIRED_PYTHON_VERSION}. Found ${parsed.version} at ${pythonCommand}.`,
+        reason: `${label} must use Python ${UNCHAIN_REQUIRED_PYTHON_VERSION}. Found ${parsed.version} at ${pythonCommand}.`,
       };
     }
 
     if (parsed.missing.length > 0) {
       return {
         ok: false,
-        reason: `${label} is missing required modules (${parsed.missing.join(", ")}). Recreate that .venv with Python ${MISO_REQUIRED_PYTHON_VERSION}.`,
+        reason: `${label} is missing required modules (${parsed.missing.join(", ")}). Recreate that .venv with Python ${UNCHAIN_REQUIRED_PYTHON_VERSION}.`,
       };
     }
 
@@ -239,15 +239,15 @@ const createMisoService = ({
   };
 
   const resolveMisoVenvPythonPath = () => {
-    const misoSourcePath = resolveDevMisoSourcePath();
-    if (!misoSourcePath) {
+    const unchainSourcePath = resolveDevUnchainSourcePath();
+    if (!unchainSourcePath) {
       return null;
     }
 
     if (process.platform === "win32") {
-      return path.join(misoSourcePath, ".venv", "Scripts", "python.exe");
+      return path.join(unchainSourcePath, ".venv", "Scripts", "python.exe");
     }
-    return path.join(misoSourcePath, ".venv", "bin", "python");
+    return path.join(unchainSourcePath, ".venv", "bin", "python");
   };
 
   const pickBestPythonCommand = () => {
@@ -287,7 +287,7 @@ const createMisoService = ({
 
     throw new Error(
       [
-        `PuPu requires a Python ${MISO_REQUIRED_PYTHON_VERSION} runtime in .venv.`,
+        `PuPu requires a Python ${UNCHAIN_REQUIRED_PYTHON_VERSION} runtime in .venv.`,
         "Initialize ./scripts/init_python312_venv.sh in PuPu and ../miso/scripts/init_python312_venv.sh in miso.",
         ...failures,
       ].join(" "),
@@ -295,15 +295,15 @@ const createMisoService = ({
   };
 
   const getMisoPythonCommand = () => {
-    if (process.env.MISO_PYTHON_BIN) {
+    if (process.env.UNCHAIN_PYTHON_BIN) {
       const inspection = inspectPythonCommand(
-        process.env.MISO_PYTHON_BIN,
-        "MISO_PYTHON_BIN",
+        process.env.UNCHAIN_PYTHON_BIN,
+        "UNCHAIN_PYTHON_BIN",
       );
       if (!inspection.ok) {
         throw new Error(inspection.reason);
       }
-      return process.env.MISO_PYTHON_BIN;
+      return process.env.UNCHAIN_PYTHON_BIN;
     }
     return pickBestPythonCommand();
   };
@@ -312,27 +312,27 @@ const createMisoService = ({
     if (process.platform === "darwin") {
       return path.join(
         process.resourcesPath,
-        "miso_runtime",
+        "unchain_runtime",
         "dist",
         "macos",
-        "miso-server",
+        "unchain-server",
       );
     }
     if (process.platform === "win32") {
       return path.join(
         process.resourcesPath,
-        "miso_runtime",
+        "unchain_runtime",
         "dist",
         "windows",
-        "miso-server.exe",
+        "unchain-server.exe",
       );
     }
     return path.join(
       process.resourcesPath,
-      "miso_runtime",
+      "unchain_runtime",
       "dist",
       "linux",
-      "miso-server",
+      "unchain-server",
     );
   };
 
@@ -349,7 +349,7 @@ const createMisoService = ({
 
       const packagedScript = path.join(
         process.resourcesPath,
-        "miso_runtime",
+        "unchain_runtime",
         "server",
         "main.py",
       );
@@ -365,7 +365,7 @@ const createMisoService = ({
 
     const devScript = path.join(
       app.getAppPath(),
-      "miso_runtime",
+      "unchain_runtime",
       "server",
       "main.py",
     );
@@ -381,24 +381,24 @@ const createMisoService = ({
 
   const findAvailableMisoPort = async () => {
     return findAvailablePort({
-      host: MISO_HOST,
-      startPort: MISO_PORT_RANGE_START,
-      endPort: MISO_PORT_RANGE_END,
+      host: UNCHAIN_HOST,
+      startPort: UNCHAIN_PORT_RANGE_START,
+      endPort: UNCHAIN_PORT_RANGE_END,
       fallbackToEphemeral: true,
     });
   };
 
   const pingMiso = async () => {
-    if (!misoPort) {
+    if (!unchainPort) {
       return false;
     }
 
     try {
       const response = await fetch(
-        `http://${MISO_HOST}:${misoPort}${MISO_HEALTH_ENDPOINT}`,
+        `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_HEALTH_ENDPOINT}`,
         {
           method: "GET",
-          headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+          headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
         },
       );
       return response.ok;
@@ -410,8 +410,8 @@ const createMisoService = ({
   const waitForMisoReady = async () => {
     const startedAt = Date.now();
 
-    while (Date.now() - startedAt < MISO_BOOT_TIMEOUT_MS) {
-      if (!misoProcess || misoProcess.killed) {
+    while (Date.now() - startedAt < UNCHAIN_BOOT_TIMEOUT_MS) {
+      if (!unchainProcess || unchainProcess.killed) {
         return false;
       }
 
@@ -421,44 +421,44 @@ const createMisoService = ({
       }
 
       // eslint-disable-next-line no-await-in-loop
-      await sleep(MISO_HEALTH_RETRY_MS);
+      await sleep(UNCHAIN_HEALTH_RETRY_MS);
     }
 
     return false;
   };
 
   const getMisoStatusPayload = () => ({
-    status: misoStatus,
-    reason: misoStatusReason || "",
-    ready: misoStatus === "ready",
-    pid: misoProcess?.pid || null,
-    port: misoPort,
-    url: misoPort ? `http://${MISO_HOST}:${misoPort}` : null,
+    status: unchainStatus,
+    reason: unchainStatusReason || "",
+    ready: unchainStatus === "ready",
+    pid: unchainProcess?.pid || null,
+    port: unchainPort,
+    url: unchainPort ? `http://${UNCHAIN_HOST}:${unchainPort}` : null,
   });
 
   const ensureMisoReady = () => {
-    if (misoStatus !== "ready" || !misoPort) {
+    if (unchainStatus !== "ready" || !unchainPort) {
       const reasonSuffix =
-        typeof misoStatusReason === "string" && misoStatusReason.trim()
-          ? `, reason=${misoStatusReason.trim()}`
+        typeof unchainStatusReason === "string" && unchainStatusReason.trim()
+          ? `, reason=${unchainStatusReason.trim()}`
           : "";
       throw new Error(
-        `Miso service is not ready (status=${misoStatus}${reasonSuffix})`,
+        `Miso service is not ready (status=${unchainStatus}${reasonSuffix})`,
       );
     }
   };
 
   const buildMisoUrl = (endpoint) => {
     ensureMisoReady();
-    return `http://${MISO_HOST}:${misoPort}${endpoint}`;
+    return `http://${UNCHAIN_HOST}:${unchainPort}${endpoint}`;
   };
 
   const buildMisoAssetUrl = (endpoint) => {
     const baseUrl = buildMisoUrl(endpoint);
-    if (!misoAuthToken) {
+    if (!unchainAuthToken) {
       return baseUrl;
     }
-    return `${baseUrl}?miso_auth=${encodeURIComponent(misoAuthToken)}`;
+    return `${baseUrl}?miso_auth=${encodeURIComponent(unchainAuthToken)}`;
   };
 
   const decorateCharacterAvatar = (character, { seed = false } = {}) => {
@@ -493,8 +493,8 @@ const createMisoService = ({
     const avatar = avatarMeta ? { ...avatarMeta } : {};
     avatar.url = buildMisoAssetUrl(
       seed
-        ? `${MISO_CHARACTERS_ENDPOINT}/seeds/${encodeURIComponent(characterId)}/avatar`
-        : `${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(characterId)}/avatar`,
+        ? `${UNCHAIN_CHARACTERS_ENDPOINT}/seeds/${encodeURIComponent(characterId)}/avatar`
+        : `${UNCHAIN_CHARACTERS_ENDPOINT}/${encodeURIComponent(characterId)}/avatar`,
     );
 
     return {
@@ -546,10 +546,10 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_MODELS_CATALOG_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_MODELS_CATALOG_ENDPOINT}`,
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -565,10 +565,10 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_TOOLKIT_CATALOG_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_TOOLKIT_CATALOG_ENDPOINT}`,
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -584,10 +584,10 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_TOOL_MODAL_CATALOG_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT}`,
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -603,14 +603,14 @@ const createMisoService = ({
     ensureMisoReady();
 
     const safeToolkitId = encodeURIComponent(String(toolkitId || ""));
-    let url = `http://${MISO_HOST}:${misoPort}${MISO_TOOLKIT_DETAIL_ENDPOINT}/${safeToolkitId}/metadata`;
+    let url = `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_TOOLKIT_DETAIL_ENDPOINT}/${safeToolkitId}/metadata`;
     if (typeof toolName === "string" && toolName.trim()) {
       url += `?tool_name=${encodeURIComponent(toolName.trim())}`;
     }
 
     const response = await fetch(url, {
       method: "GET",
-      headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+      headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
     });
 
     return readJsonResponse(
@@ -630,10 +630,10 @@ const createMisoService = ({
     }
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_MEMORY_PROJECTION_ENDPOINT}?session_id=${encodeURIComponent(cleanId)}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_MEMORY_PROJECTION_ENDPOINT}?session_id=${encodeURIComponent(cleanId)}`,
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -649,10 +649,10 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_LONG_TERM_MEMORY_PROJECTION_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_LONG_TERM_MEMORY_PROJECTION_ENDPOINT}`,
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -681,12 +681,12 @@ const createMisoService = ({
         : {};
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_REPLACE_SESSION_MEMORY_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_REPLACE_SESSION_MEMORY_ENDPOINT}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
         },
         body: JSON.stringify({
           session_id: sessionId,
@@ -713,10 +713,10 @@ const createMisoService = ({
     }
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_SESSION_MEMORY_EXPORT_ENDPOINT}?session_id=${encodeURIComponent(cleanId)}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_SESSION_MEMORY_EXPORT_ENDPOINT}?session_id=${encodeURIComponent(cleanId)}`,
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -732,10 +732,10 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      buildMisoUrl(`${MISO_CHARACTERS_ENDPOINT}/seeds`),
+      buildMisoUrl(`${UNCHAIN_CHARACTERS_ENDPOINT}/seeds`),
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -760,10 +760,10 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      buildMisoUrl(MISO_CHARACTERS_ENDPOINT),
+      buildMisoUrl(UNCHAIN_CHARACTERS_ENDPOINT),
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -792,11 +792,11 @@ const createMisoService = ({
 
     const response = await fetch(
       buildMisoUrl(
-        `${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+        `${UNCHAIN_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
       ),
       {
         method: "GET",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -814,12 +814,12 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHARACTERS_ENDPOINT}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
         },
         body: JSON.stringify(
           payload && typeof payload === "object" ? payload : {},
@@ -844,10 +844,10 @@ const createMisoService = ({
     }
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
       {
         method: "DELETE",
-        headers: misoAuthToken ? { "x-miso-auth": misoAuthToken } : {},
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
       },
     );
 
@@ -863,12 +863,12 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTER_PREVIEW_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHARACTER_PREVIEW_ENDPOINT}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
         },
         body: JSON.stringify(
           payload && typeof payload === "object" ? payload : {},
@@ -888,12 +888,12 @@ const createMisoService = ({
     ensureMisoReady();
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTER_BUILD_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHARACTER_BUILD_ENDPOINT}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
         },
         body: JSON.stringify(
           payload && typeof payload === "object" ? payload : {},
@@ -922,12 +922,12 @@ const createMisoService = ({
     }
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}/export`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHARACTERS_ENDPOINT}/${encodeURIComponent(cleanId)}/export`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
         },
         body: JSON.stringify({ file_path: cleanPath }),
       },
@@ -950,12 +950,12 @@ const createMisoService = ({
     }
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_CHARACTER_IMPORT_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHARACTER_IMPORT_ENDPOINT}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
         },
         body: JSON.stringify({ file_path: cleanPath }),
       },
@@ -999,12 +999,12 @@ const createMisoService = ({
     }
 
     const response = await fetch(
-      `http://${MISO_HOST}:${misoPort}${MISO_TOOL_CONFIRMATION_ENDPOINT}`,
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_TOOL_CONFIRMATION_ENDPOINT}`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(misoAuthToken ? { "x-miso-auth": misoAuthToken } : {}),
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
         },
         body: JSON.stringify(requestBody),
       },
@@ -1064,7 +1064,7 @@ const createMisoService = ({
     }
   };
 
-  const createMisoRuntimeLogLineEmitter = (level) => {
+  const createUnchainRuntimeLogLineEmitter = (level) => {
     let bufferedText = "";
 
     const emitLine = (line) => {
@@ -1104,28 +1104,28 @@ const createMisoService = ({
   };
 
   const terminateAllMisoStreams = (event, data) => {
-    for (const [requestId, streamState] of misoActiveStreams.entries()) {
+    for (const [requestId, streamState] of unchainActiveStreams.entries()) {
       streamState.controller.abort();
       emitMisoStreamEvent(streamState.webContentsId, requestId, event, data);
     }
-    misoActiveStreams.clear();
+    unchainActiveStreams.clear();
   };
 
   const scheduleMisoRestart = () => {
-    if (getAppIsQuitting() || misoRestartTimer) {
+    if (getAppIsQuitting() || unchainRestartTimer) {
       return;
     }
 
-    misoRestartTimer = setTimeout(() => {
-      misoRestartTimer = null;
+    unchainRestartTimer = setTimeout(() => {
+      unchainRestartTimer = null;
       startMiso();
-    }, MISO_RESTART_DELAY_MS);
+    }, UNCHAIN_RESTART_DELAY_MS);
   };
 
   const stopMiso = () => {
-    if (misoRestartTimer) {
-      clearTimeout(misoRestartTimer);
-      misoRestartTimer = null;
+    if (unchainRestartTimer) {
+      clearTimeout(unchainRestartTimer);
+      unchainRestartTimer = null;
     }
 
     terminateAllMisoStreams("done", {
@@ -1133,107 +1133,107 @@ const createMisoService = ({
       reason: "service_stopping",
     });
 
-    if (misoProcess && !misoProcess.killed) {
-      misoIsStopping = true;
-      misoProcess.kill("SIGTERM");
+    if (unchainProcess && !unchainProcess.killed) {
+      unchainIsStopping = true;
+      unchainProcess.kill("SIGTERM");
       setTimeout(() => {
-        if (misoProcess && !misoProcess.killed) {
-          misoProcess.kill("SIGKILL");
+        if (unchainProcess && !unchainProcess.killed) {
+          unchainProcess.kill("SIGKILL");
         }
       }, 1200);
     } else {
-      misoStatus = "stopped";
+      unchainStatus = "stopped";
       if (getAppIsQuitting()) {
-        misoStatusReason = "";
+        unchainStatusReason = "";
       }
     }
   };
 
   const startMiso = async () => {
-    if (misoProcess || misoStatus === "starting") {
+    if (unchainProcess || unchainStatus === "starting") {
       return;
     }
-    if (misoStartPromise) {
-      return misoStartPromise;
+    if (unchainStartPromise) {
+      return unchainStartPromise;
     }
 
-    misoStatus = "starting";
-    misoStatusReason = "";
+    unchainStatus = "starting";
+    unchainStatusReason = "";
 
-    misoStartPromise = (async () => {
+    unchainStartPromise = (async () => {
       let entrypoint;
       try {
         entrypoint = resolveMisoEntrypoint();
       } catch (error) {
-        misoStatus = "not_found";
-        misoStatusReason =
+        unchainStatus = "not_found";
+        unchainStatusReason =
           error?.message || "Python 3.12 runtime for Miso was not found";
         return;
       }
       if (!entrypoint) {
-        misoStatus = "not_found";
-        misoStatusReason = "Miso server entrypoint was not found";
+        unchainStatus = "not_found";
+        unchainStatusReason = "Miso server entrypoint was not found";
         return;
       }
 
       terminateStaleMisoProcesses(entrypoint);
 
-      misoPort = await findAvailableMisoPort();
-      if (!misoPort) {
-        misoStatus = "error";
-        misoStatusReason = "Unable to find an open port for the Miso service";
+      unchainPort = await findAvailableMisoPort();
+      if (!unchainPort) {
+        unchainStatus = "error";
+        unchainStatusReason = "Unable to find an open port for the Miso service";
         return;
       }
-      misoAuthToken = crypto.randomBytes(24).toString("hex");
+      unchainAuthToken = crypto.randomBytes(24).toString("hex");
 
-      const devMisoSourcePath = app.isPackaged
+      const devUnchainSourcePath = app.isPackaged
         ? null
-        : resolveDevMisoSourcePath();
-      misoProcess = spawn(entrypoint.command, entrypoint.args, {
+        : resolveDevUnchainSourcePath();
+      unchainProcess = spawn(entrypoint.command, entrypoint.args, {
         detached: false,
         cwd: entrypoint.cwd,
         windowsHide: true,
         env: {
           ...process.env,
-          MISO_HOST,
-          MISO_PORT: String(misoPort),
-          MISO_AUTH_TOKEN: misoAuthToken,
-          MISO_VERSION: app.getVersion(),
-          MISO_PROVIDER: process.env.MISO_PROVIDER || "ollama",
-          MISO_MODEL: process.env.MISO_MODEL || "deepseek-r1:14b",
-          MISO_DATA_DIR: app.getPath("userData"),
-          MISO_PARENT_PID: String(process.pid),
+          UNCHAIN_HOST,
+          UNCHAIN_PORT: String(unchainPort),
+          UNCHAIN_AUTH_TOKEN: unchainAuthToken,
+          UNCHAIN_VERSION: app.getVersion(),
+          UNCHAIN_PROVIDER: process.env.UNCHAIN_PROVIDER || "ollama",
+          UNCHAIN_MODEL: process.env.UNCHAIN_MODEL || "deepseek-r1:14b",
+          UNCHAIN_DATA_DIR: app.getPath("userData"),
+          UNCHAIN_PARENT_PID: String(process.pid),
           PYTHONIOENCODING: process.env.PYTHONIOENCODING || "utf-8",
           PYTHONUTF8: process.env.PYTHONUTF8 || "1",
-          ...(devMisoSourcePath ? { MISO_SOURCE_PATH: devMisoSourcePath } : {}),
+          ...(devUnchainSourcePath ? { UNCHAIN_SOURCE_PATH: devUnchainSourcePath } : {}),
         },
         stdio: ["ignore", "pipe", "pipe"],
       });
 
-      const stdoutLineEmitter = createMisoRuntimeLogLineEmitter("stdout");
-      const stderrLineEmitter = createMisoRuntimeLogLineEmitter("stderr");
-      const flushMisoRuntimeLogs = () => {
+      const stdoutLineEmitter = createUnchainRuntimeLogLineEmitter("stdout");
+      const stderrLineEmitter = createUnchainRuntimeLogLineEmitter("stderr");
+      const flushUnchainRuntimeLogs = () => {
         stdoutLineEmitter.flush();
         stderrLineEmitter.flush();
       };
 
-      misoProcess.stdout?.on("data", (chunk) => {
+      unchainProcess.stdout?.on("data", (chunk) => {
         stdoutLineEmitter.push(chunk);
       });
 
-      misoProcess.stderr?.on("data", (chunk) => {
+      unchainProcess.stderr?.on("data", (chunk) => {
         stderrLineEmitter.push(chunk);
         const text = String(chunk).trim();
         if (/ModuleNotFoundError|No module named/i.test(text)) {
-          misoStatusReason = text;
+          unchainStatusReason = text;
         }
       });
 
-      misoProcess.on("error", (error) => {
-        flushMisoRuntimeLogs();
-        misoStatus = error.code === "ENOENT" ? "not_found" : "error";
-        misoStatusReason = error.message || "Failed to start Miso process";
-        misoProcess = null;
+      unchainProcess.on("error", (error) => {
+        flushUnchainRuntimeLogs();
+        unchainStatus = error.code === "ENOENT" ? "not_found" : "error";
+        unchainStatusReason = error.message || "Failed to start Miso process";
+        unchainProcess = null;
 
         terminateAllMisoStreams("error", {
           code: "miso_process_error",
@@ -1245,21 +1245,21 @@ const createMisoService = ({
         }
       });
 
-      misoProcess.on("exit", (code, signal) => {
-        flushMisoRuntimeLogs();
-        const stoppedIntentionally = misoIsStopping || getAppIsQuitting();
-        misoProcess = null;
+      unchainProcess.on("exit", (code, signal) => {
+        flushUnchainRuntimeLogs();
+        const stoppedIntentionally = unchainIsStopping || getAppIsQuitting();
+        unchainProcess = null;
 
         if (stoppedIntentionally) {
-          misoIsStopping = false;
+          unchainIsStopping = false;
           if (!getAppIsQuitting()) {
-            misoStatus = "stopped";
+            unchainStatus = "stopped";
           }
           return;
         }
 
-        misoStatus = "error";
-        misoStatusReason = `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`;
+        unchainStatus = "error";
+        unchainStatusReason = `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`;
         terminateAllMisoStreams("error", {
           code: "miso_process_exit",
           message: `Miso process exited (code=${code ?? "null"}, signal=${signal ?? "null"})`,
@@ -1269,31 +1269,31 @@ const createMisoService = ({
 
       const ready = await waitForMisoReady();
       if (!ready) {
-        const missingRuntime = misoStatus === "not_found";
+        const missingRuntime = unchainStatus === "not_found";
         if (!missingRuntime) {
-          misoStatus = "error";
-          misoStatusReason =
-            misoStatusReason ||
-            `Health check timed out after ${MISO_BOOT_TIMEOUT_MS}ms`;
+          unchainStatus = "error";
+          unchainStatusReason =
+            unchainStatusReason ||
+            `Health check timed out after ${UNCHAIN_BOOT_TIMEOUT_MS}ms`;
         }
         stopMiso();
         if (missingRuntime) {
-          misoStatus = "not_found";
-          misoStatusReason = misoStatusReason || "Miso runtime not found";
+          unchainStatus = "not_found";
+          unchainStatusReason = unchainStatusReason || "Miso runtime not found";
           return;
         }
         scheduleMisoRestart();
         return;
       }
 
-      misoStatus = "ready";
-      misoStatusReason = "";
+      unchainStatus = "ready";
+      unchainStatusReason = "";
     })();
 
     try {
-      await misoStartPromise;
+      await unchainStartPromise;
     } finally {
-      misoStartPromise = null;
+      unchainStartPromise = null;
     }
   };
 
@@ -1443,20 +1443,20 @@ const createMisoService = ({
     requestId,
     payload,
     sender,
-    endpoint = MISO_STREAM_ENDPOINT,
+    endpoint = UNCHAIN_STREAM_ENDPOINT,
   }) => {
     if (typeof requestId !== "string" || !requestId.trim()) {
       return;
     }
 
-    if (misoStatus !== "ready" || !misoPort) {
+    if (unchainStatus !== "ready" || !unchainPort) {
       const reasonSuffix =
-        typeof misoStatusReason === "string" && misoStatusReason.trim()
-          ? `: ${misoStatusReason.trim()}`
+        typeof unchainStatusReason === "string" && unchainStatusReason.trim()
+          ? `: ${unchainStatusReason.trim()}`
           : "";
       emitMisoStreamEvent(sender.id, requestId, "error", {
         code: "miso_not_ready",
-        message: `Miso service is not ready (${misoStatus})${reasonSuffix}`,
+        message: `Miso service is not ready (${unchainStatus})${reasonSuffix}`,
       });
       return;
     }
@@ -1497,7 +1497,7 @@ const createMisoService = ({
       requestPayload.options = requestOptions;
     }
 
-    if (misoActiveStreams.has(requestId)) {
+    if (unchainActiveStreams.has(requestId)) {
       emitMisoStreamEvent(sender.id, requestId, "error", {
         code: "duplicate_request",
         message: "Request is already active",
@@ -1506,19 +1506,19 @@ const createMisoService = ({
     }
 
     const controller = new AbortController();
-    misoActiveStreams.set(requestId, {
+    unchainActiveStreams.set(requestId, {
       controller,
       webContentsId: sender.id,
     });
 
     try {
       const response = await fetch(
-        `http://${MISO_HOST}:${misoPort}${endpoint}`,
+        `http://${UNCHAIN_HOST}:${unchainPort}${endpoint}`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-miso-auth": misoAuthToken,
+            "x-unchain-auth": unchainAuthToken,
           },
           body: JSON.stringify(requestPayload),
           signal: controller.signal,
@@ -1566,15 +1566,15 @@ const createMisoService = ({
         message: streamError?.message || "Failed to bridge SSE stream",
       });
     } finally {
-      misoActiveStreams.delete(requestId);
+      unchainActiveStreams.delete(requestId);
     }
   };
 
   const startMisoStreamV2 = (args) =>
-    startMisoStream({ ...args, endpoint: MISO_STREAM_V2_ENDPOINT });
+    startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V2_ENDPOINT });
 
   const cancelMisoStream = (requestId) => {
-    const streamState = misoActiveStreams.get(requestId);
+    const streamState = unchainActiveStreams.get(requestId);
     if (!streamState) {
       return false;
     }
@@ -1638,5 +1638,5 @@ const createMisoService = ({
 };
 
 module.exports = {
-  createMisoService,
+  createUnchainService,
 };

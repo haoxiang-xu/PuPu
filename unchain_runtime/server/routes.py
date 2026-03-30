@@ -10,7 +10,7 @@ from flask import Blueprint, Response, current_app, jsonify, request, send_file,
 
 import character_defaults
 import character_store
-from miso_adapter import (
+from unchain_adapter import (
     cancel_tool_confirmations,
     get_capability_catalog,
     get_embedding_provider_catalog,
@@ -26,7 +26,7 @@ from miso_adapter import (
     stream_chat_events,
 )
 
-api_blueprint = Blueprint("miso_api", __name__)
+api_blueprint = Blueprint("unchain_api", __name__)
 _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
@@ -150,13 +150,13 @@ def _build_trace_frame(
 
 
 def _is_authorized() -> bool:
-    expected_token = current_app.config.get("MISO_AUTH_TOKEN", "")
+    expected_token = current_app.config.get("UNCHAIN_AUTH_TOKEN", "")
     if not expected_token:
         return True
 
-    provided_token = request.headers.get("x-miso-auth", "")
+    provided_token = request.headers.get("x-unchain-auth", "")
     if not isinstance(provided_token, str) or not provided_token.strip():
-        provided_token = request.args.get("miso_auth", "")
+        provided_token = request.args.get("unchain_auth", "")
     if not isinstance(provided_token, str):
         return False
 
@@ -636,7 +636,7 @@ def health() -> Response:
     return jsonify(
         {
             "status": "ok",
-            "version": current_app.config.get("MISO_VERSION", "0.1.0-dev"),
+            "version": current_app.config.get("UNCHAIN_VERSION", "0.1.0-dev"),
             "model": get_model_name(),
             "threaded": True,
         }
@@ -913,7 +913,7 @@ def memory_projection() -> Response:
 
         data_dir = _normalize_data_dir(_data_dir())
         if not data_dir:
-            return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
+            return jsonify({"error": "UNCHAIN_DATA_DIR not configured"}), 503
 
         # Resolve the actual Qdrant collection name.
         #
@@ -1057,7 +1057,7 @@ def long_term_memory_projection() -> Response:
 
         data_dir = _normalize_data_dir(_data_dir())
         if not data_dir:
-            return jsonify({"error": "MISO_DATA_DIR not configured"}), 503
+            return jsonify({"error": "UNCHAIN_DATA_DIR not configured"}), 503
 
         client = _get_or_create_qdrant_client(data_dir)
         profile_payload = _load_long_term_profiles_payload(data_dir)

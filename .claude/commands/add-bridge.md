@@ -9,7 +9,7 @@ Create a new IPC bridge between the React renderer and Electron main process.
 
 1. Read `.github/skills/electron-ipc-runtime-boundary.md` for the IPC pattern
 2. Read existing bridges for reference:
-   - `electron/preload/bridges/miso_bridge.js` (complex, with streaming)
+   - `electron/preload/bridges/unchain_bridge.js` (complex, with streaming)
    - `electron/preload/bridges/app_info_bridge.js` (simple)
 3. Read `electron/shared/channels.js` for the channel naming pattern
 

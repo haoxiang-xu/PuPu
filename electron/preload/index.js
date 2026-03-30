@@ -1,13 +1,13 @@
 const { contextBridge, ipcRenderer } = require("electron");
 const { CHANNELS } = require("../shared/channels");
-const { createMisoStreamClient } = require("./stream/miso_stream_client");
+const { createMisoStreamClient } = require("./stream/unchain_stream_client");
 const { createAppInfoBridge } = require("./bridges/app_info_bridge");
 const { createAppUpdateBridge } = require("./bridges/app_update_bridge");
 const { createOllamaBridge } = require("./bridges/ollama_bridge");
 const {
   createOllamaLibraryBridge,
 } = require("./bridges/ollama_library_bridge");
-const { createMisoBridge } = require("./bridges/miso_bridge");
+const { createMisoBridge } = require("./bridges/unchain_bridge");
 const { createThemeBridge } = require("./bridges/theme_bridge");
 const { createWindowStateBridge } = require("./bridges/window_state_bridge");
 
@@ -17,11 +17,11 @@ const runtimeInfo = {
 };
 
 const streamClient = createMisoStreamClient(ipcRenderer);
-const MISO_HTTP_ACCESS_LOG_PATTERN =
+const UNCHAIN_HTTP_ACCESS_LOG_PATTERN =
   /^\S+ - - \[[^\]]+\] "[A-Z]+ .* HTTP\/\d\.\d" \d{3} -$/;
 
 const isMisoHttpAccessLog = (text) =>
-  typeof text === "string" && MISO_HTTP_ACCESS_LOG_PATTERN.test(text.trim());
+  typeof text === "string" && UNCHAIN_HTTP_ACCESS_LOG_PATTERN.test(text.trim());
 
 ipcRenderer.on(CHANNELS.MISO.RUNTIME_LOG, (_event, payload = {}) => {
   const level = payload?.level === "stderr" ? "stderr" : "stdout";
@@ -31,7 +31,7 @@ ipcRenderer.on(CHANNELS.MISO.RUNTIME_LOG, (_event, payload = {}) => {
   }
 
   if (level === "stderr") {
-    console.error(`[miso:error] ${text}`);
+    console.error(`["unchain:error] ${text}`);
     return;
   }
 
@@ -50,7 +50,7 @@ contextBridge.exposeInMainWorld(
   createOllamaLibraryBridge(ipcRenderer),
 );
 contextBridge.exposeInMainWorld(
-  "misoAPI",
+  "unchainAPI",
   createMisoBridge(ipcRenderer, streamClient),
 );
 contextBridge.exposeInMainWorld("themeAPI", createThemeBridge(ipcRenderer));

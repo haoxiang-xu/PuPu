@@ -66,7 +66,7 @@ describe("ChatInterface stop flow", () => {
     cancelSpy = jest.fn();
     streamHandlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-    window.misoAPI = {
+    window.unchainAPI = {
       getStatus: jest.fn(async () => ({
         status: "ready",
         ready: true,
@@ -100,7 +100,7 @@ describe("ChatInterface stop flow", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
-    delete window.misoAPI;
+    delete window.unchainAPI;
   });
 
   const renderChat = () =>
@@ -118,7 +118,7 @@ describe("ChatInterface stop flow", () => {
 
   const waitForReady = async () => {
     await waitFor(() => {
-      expect(window.misoAPI.getStatus).toHaveBeenCalled();
+      expect(window.unchainAPI.getStatus).toHaveBeenCalled();
     });
   };
 
@@ -145,14 +145,14 @@ describe("ChatInterface stop flow", () => {
   };
 
   const sendTurn = async (userContent, assistantContent) => {
-    const nextCallCount = window.misoAPI.startStreamV2.mock.calls.length + 1;
+    const nextCallCount = window.unchainAPI.startStreamV2.mock.calls.length + 1;
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: userContent },
     });
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(nextCallCount);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(nextCallCount);
       expect(streamHandlers).toBeTruthy();
     });
 
@@ -227,15 +227,15 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.buildCharacterAgentConfig).toHaveBeenCalledWith({
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledWith({
         characterId: "nico",
         threadId: "main",
         humanId: "local_user",
       });
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.threadId).toBe("character_nico__dm__main");
     expect(payload.options.modelId).toBe("openai:gpt-4.1");
     expect(payload.options.memory_enabled).toBe(true);
@@ -261,7 +261,7 @@ describe("ChatInterface stop flow", () => {
       },
       { source: "test" },
     );
-    window.misoAPI.buildCharacterAgentConfig.mockResolvedValueOnce({
+    window.unchainAPI.buildCharacterAgentConfig.mockResolvedValueOnce({
       session_id: "character_nico__dm__main",
       run_memory_namespace: "character_nico__rel__local_user",
       instructions: "You are Nico.",
@@ -280,7 +280,7 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
       expect(lastChatMessagesProps?.messages).toEqual(
           expect.arrayContaining([
             expect.objectContaining({ role: "user", content: "Ping" }),
@@ -331,7 +331,7 @@ describe("ChatInterface stop flow", () => {
       approved: true,
     });
 
-    expect(window.misoAPI.respondToolConfirmation).toHaveBeenCalledWith({
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
       confirmation_id: "confirm-1",
       approved: true,
       reason: "",
@@ -415,7 +415,7 @@ describe("ChatInterface stop flow", () => {
       },
     });
 
-    expect(window.misoAPI.respondToolConfirmation).toHaveBeenCalledWith({
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
       confirmation_id: "confirm-1",
       approved: true,
       reason: "",
@@ -470,10 +470,10 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
     });
 
-    const [firstPayload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [firstPayload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(firstPayload.history).toEqual([]);
 
     streamHandlers.onError({
@@ -482,10 +482,10 @@ describe("ChatInterface stop flow", () => {
     });
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(2);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
     });
 
-    const [secondPayload] = window.misoAPI.startStreamV2.mock.calls[1];
+    const [secondPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
     expect(secondPayload.threadId).toEqual(firstPayload.threadId);
     expect(secondPayload.options.memory_enabled).toBe(false);
     expect(secondPayload.history).toEqual(
@@ -692,16 +692,16 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onResendMessage(secondUserMessage);
     });
 
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.session_id).toBe(lastChatMessagesProps.chatId);
     expect(replacePayload.messages).toEqual([
       { role: "user", content: "First turn" },
       { role: "assistant", content: "A1" },
     ]);
     expect(
-      window.misoAPI.replaceSessionMemory.mock.invocationCallOrder[0],
-    ).toBeLessThan(window.misoAPI.startStreamV2.mock.invocationCallOrder[2]);
+      window.unchainAPI.replaceSessionMemory.mock.invocationCallOrder[0],
+    ).toBeLessThan(window.unchainAPI.startStreamV2.mock.invocationCallOrder[2]);
   });
 
   test("edit replaces short-term memory before starting a new stream", async () => {
@@ -726,13 +726,13 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onEditMessage(secondUserMessage, "Edited turn");
     });
 
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.messages).toEqual([
       { role: "user", content: "First turn" },
       { role: "assistant", content: "A1" },
     ]);
-    const [streamPayload] = window.misoAPI.startStreamV2.mock.calls[2];
+    const [streamPayload] = window.unchainAPI.startStreamV2.mock.calls[2];
     expect(streamPayload.message).toBe("Edited turn");
   });
 
@@ -758,8 +758,8 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onDeleteMessage(firstAssistantMessage);
     });
 
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.messages).toEqual([
       { role: "user", content: "Second turn" },
       { role: "assistant", content: "A2" },
@@ -786,7 +786,7 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
       expect(streamHandlers).toBeTruthy();
     });
 
@@ -799,11 +799,11 @@ describe("ChatInterface stop flow", () => {
     });
 
     expect(cancelSpy).toHaveBeenCalledTimes(1);
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    expect(window.misoAPI.replaceSessionMemory.mock.invocationCallOrder[0]).toBeGreaterThan(
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.replaceSessionMemory.mock.invocationCallOrder[0]).toBeGreaterThan(
       cancelSpy.mock.invocationCallOrder[0],
     );
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.messages).toEqual([]);
     await waitFor(() => {
       const store = getChatsStore();
@@ -833,7 +833,7 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onResendMessage(firstUserMessage);
     });
 
-    expect(window.misoAPI.replaceSessionMemory).not.toHaveBeenCalled();
-    expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
   });
 });

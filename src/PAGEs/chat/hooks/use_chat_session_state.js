@@ -31,7 +31,7 @@ export const useChatSessionState = ({
   const [selectedModelId, setSelectedModelId] = useState(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
-      : "miso-unset",
+      : "unchain-unset",
   );
   const [selectedToolkits, setSelectedToolkits] = useState(
     () => initialChat.selectedToolkits || [],
@@ -66,7 +66,7 @@ export const useChatSessionState = ({
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
-      : "miso-unset",
+      : "unchain-unset",
   );
   const systemPromptOverridesRef = useRef(
     initialChat.systemPromptOverrides || {},
@@ -168,7 +168,7 @@ export const useChatSessionState = ({
         typeof nextActiveChat.model?.id === "string" &&
         nextActiveChat.model.id.trim()
           ? nextActiveChat.model.id
-          : "miso-unset";
+          : "unchain-unset";
       setSelectedModelId(modelIdRef.current);
     });
 

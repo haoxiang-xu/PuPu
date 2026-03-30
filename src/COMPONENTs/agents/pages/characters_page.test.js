@@ -5,7 +5,7 @@ import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage
 
 jest.mock("../../../SERVICEs/api", () => ({
   api: {
-    miso: {
+    "unchain: {
       listSeedCharacters: jest.fn(),
       listCharacters: jest.fn(),
       saveCharacter: jest.fn(),
@@ -53,7 +53,7 @@ describe("CharactersPage", () => {
   });
 
   test("loads and renders the Nico row and auto-selects detail", async () => {
-    api.miso.listCharacters.mockResolvedValue({
+    api.unchain.listCharacters.mockResolvedValue({
       characters: [
         {
           id: "nico",
@@ -79,7 +79,7 @@ describe("CharactersPage", () => {
       await screen.findByTestId("character-detail-nico"),
     ).toBeInTheDocument();
 
-    expect(api.miso.listCharacters).toHaveBeenCalledTimes(1);
+    expect(api.unchain.listCharacters).toHaveBeenCalledTimes(1);
     /* Name appears in both contact row and detail panel */
     expect(screen.getAllByText("Nico")).toHaveLength(2);
     /* Subtitle now appears only in the detail panel */
@@ -104,7 +104,7 @@ describe("CharactersPage", () => {
   });
 
   test("open chat uses the character chat store entrypoint and closes on success", async () => {
-    api.miso.listCharacters.mockResolvedValue({
+    api.unchain.listCharacters.mockResolvedValue({
       characters: [
         {
           id: "nico",
@@ -157,7 +157,7 @@ describe("CharactersPage", () => {
   });
 
   test("open chat shows store errors inline", async () => {
-    api.miso.listCharacters.mockResolvedValue({
+    api.unchain.listCharacters.mockResolvedValue({
       characters: [
         {
           id: "nico",
@@ -189,7 +189,7 @@ describe("CharactersPage", () => {
   });
 
   test("renders an empty state when no characters exist", async () => {
-    api.miso.listCharacters.mockResolvedValue({
+    api.unchain.listCharacters.mockResolvedValue({
       characters: [],
       count: 0,
     });
@@ -205,7 +205,7 @@ describe("CharactersPage", () => {
   });
 
   test("renders an error state when loading fails", async () => {
-    api.miso.listCharacters.mockRejectedValue(new Error("runtime unavailable"));
+    api.unchain.listCharacters.mockRejectedValue(new Error("runtime unavailable"));
 
     render(<CharactersPage isDark={false} />);
 
@@ -215,7 +215,7 @@ describe("CharactersPage", () => {
   });
 
   test("renders avatar images when the API provides avatar urls", async () => {
-    api.miso.listCharacters.mockResolvedValue({
+    api.unchain.listCharacters.mockResolvedValue({
       characters: [
         {
           id: "nico",
@@ -247,7 +247,7 @@ describe("CharactersPage", () => {
   });
 
   test("discover swipe removes the followed card without remounting the stack", async () => {
-    api.miso.listCharacters
+    api.unchain.listCharacters
       .mockResolvedValueOnce({
         characters: [],
         count: 0,
@@ -263,7 +263,7 @@ describe("CharactersPage", () => {
         ],
         count: 1,
       });
-    api.miso.listSeedCharacters.mockResolvedValue({
+    api.unchain.listSeedCharacters.mockResolvedValue({
       characters: [
         {
           id: "nico",
@@ -280,7 +280,7 @@ describe("CharactersPage", () => {
       ],
       count: 2,
     });
-    api.miso.saveCharacter.mockResolvedValue({ ok: true, id: "nico" });
+    api.unchain.saveCharacter.mockResolvedValue({ ok: true, id: "nico" });
 
     render(<CharactersPage isDark={false} />);
 
@@ -295,10 +295,10 @@ describe("CharactersPage", () => {
     fireEvent.click(screen.getByTestId("icon-heart_outline").closest("button"));
 
     expect(screen.getByTestId("swipe-card-nico")).toBeInTheDocument();
-    expect(api.miso.saveCharacter).not.toHaveBeenCalled();
+    expect(api.unchain.saveCharacter).not.toHaveBeenCalled();
 
     await waitFor(() =>
-      expect(api.miso.saveCharacter).toHaveBeenCalledWith(
+      expect(api.unchain.saveCharacter).toHaveBeenCalledWith(
         expect.objectContaining({ id: "nico" }),
       ),
     );
@@ -307,15 +307,15 @@ describe("CharactersPage", () => {
       expect(screen.queryByTestId("swipe-card-nico")).not.toBeInTheDocument(),
     );
     expect(screen.getByTestId("swipe-card-mia")).toHaveStyle("pointer-events: auto");
-    expect(api.miso.listSeedCharacters).toHaveBeenCalledTimes(1);
+    expect(api.unchain.listSeedCharacters).toHaveBeenCalledTimes(1);
   });
 
   test("discover skip keeps the outgoing card for the exit animation, then removes it", async () => {
-    api.miso.listCharacters.mockResolvedValue({
+    api.unchain.listCharacters.mockResolvedValue({
       characters: [],
       count: 0,
     });
-    api.miso.listSeedCharacters.mockResolvedValue({
+    api.unchain.listSeedCharacters.mockResolvedValue({
       characters: [
         {
           id: "nico",
@@ -350,6 +350,6 @@ describe("CharactersPage", () => {
       expect(screen.queryByTestId("swipe-card-nico")).not.toBeInTheDocument(),
     );
     expect(screen.getByTestId("swipe-card-mia")).toHaveStyle("pointer-events: auto");
-    expect(api.miso.saveCharacter).not.toHaveBeenCalled();
+    expect(api.unchain.saveCharacter).not.toHaveBeenCalled();
   });
 });

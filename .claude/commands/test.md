@@ -3,7 +3,7 @@
 Run the PuPu test suite with optional filtering.
 
 ## Arguments
-- $ARGUMENTS: Optional scope or filter (e.g. "api.miso", "chat_storage", "electron", "miso_runtime")
+- $ARGUMENTS: Optional scope or filter (e.g. "api.unchain", "chat_storage", "electron", "unchain_runtime")
 
 ## Steps
 
@@ -15,8 +15,8 @@ Run the PuPu test suite with optional filtering.
    | Frontend (filter) | `npm test -- --watchAll=false --testPathPattern="$ARGUMENTS"` |
    | Electron main | `node --experimental-vm-modules node_modules/.bin/jest electron/tests/main/ --config=electron/tests/jest.config.cjs` |
    | Electron preload | `node --experimental-vm-modules node_modules/.bin/jest electron/tests/preload/ --config=electron/tests/jest.config.cjs` |
-   | Python backend | `cd miso_runtime/server && python -m pytest tests/ -q --tb=short` |
-   | Python (filter) | `cd miso_runtime/server && python -m pytest tests/ -q --tb=short -k "$ARGUMENTS"` |
+   | Python backend | `cd unchain_runtime/server && python -m pytest tests/ -q --tb=short` |
+   | Python (filter) | `cd unchain_runtime/server && python -m pytest tests/ -q --tb=short -k "$ARGUMENTS"` |
 
 2. If no arguments, run frontend tests:
    ```bash

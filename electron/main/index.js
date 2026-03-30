@@ -18,7 +18,7 @@ const net = require("net");
 const { createMainWindowService } = require("./window/main_window");
 const { createRuntimeService } = require("./services/runtime/service");
 const { createOllamaService } = require("./services/ollama/service");
-const { createMisoService } = require("./services/miso/service");
+const { createUnchainService } = require("./services/unchain/service");
 const { createUpdateService } = require("./services/update/service");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 
@@ -69,7 +69,7 @@ if (!gotSingleInstanceLock) {
     net,
   });
 
-  const misoService = createMisoService({
+  const unchainService = createUnchainService({
     app,
     fs,
     path,
@@ -95,7 +95,7 @@ if (!gotSingleInstanceLock) {
       windowService,
       updateService,
       ollamaService,
-      misoService,
+      unchainService,
       runtimeService,
     },
   });
@@ -103,7 +103,7 @@ if (!gotSingleInstanceLock) {
   const stopBackgroundServices = () => {
     appIsQuitting = true;
     ollamaService.stopOllama();
-    misoService.stopMiso();
+    unchainService.stopMiso();
   };
 
   app.on("before-quit", stopBackgroundServices);
@@ -122,7 +122,7 @@ if (!gotSingleInstanceLock) {
     updateService.applyUnsupportedRuntimeMessage();
 
     ollamaService.startOllama();
-    misoService.startMiso();
+    unchainService.startMiso();
 
     if (process.platform === "darwin" && app.dock) {
       const dockIconPath = windowService.getPublicAssetPath("logo512.png");

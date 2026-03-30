@@ -7,19 +7,19 @@ Usage:
   build_miso_server.sh [macos|linux|windows] [x86_64|arm64|universal2]
 
 Environment variables:
-  MISO_SOURCE_PATH      Path to miso source repo (default: ../miso)
-  MISO_PYTHON_BIN       Python 3.12 executable to create build venv
+  UNCHAIN_SOURCE_PATH      Path to miso source repo (default: ../miso)
+  UNCHAIN_PYTHON_BIN       Python 3.12 executable to create build venv
                         (default resolution: python3.12 -> python3 -> python)
-  MISO_BUILD_VENV       Build venv path (default: ./.venv-miso-build)
-  MISO_TARGET_ARCH      macOS target arch for PyInstaller
-  MISO_BUILD_SKIP_INSTALL
+  UNCHAIN_BUILD_VENV       Build venv path (default: ./.venv-miso-build)
+  UNCHAIN_TARGET_ARCH      macOS target arch for PyInstaller
+  UNCHAIN_BUILD_SKIP_INSTALL
                         Set to 1 to skip pip install step
 EOF
 }
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TARGET_OS="${1:-}"
-TARGET_ARCH="${2:-${MISO_TARGET_ARCH:-}}"
+TARGET_ARCH="${2:-${UNCHAIN_TARGET_ARCH:-}}"
 MIN_PYTHON_MAJOR=3
 MIN_PYTHON_MINOR=12
 
@@ -34,12 +34,12 @@ PY
 resolve_python312() {
   local candidate
 
-  if [[ -n "${MISO_PYTHON_BIN:-}" ]]; then
-    if is_python312 "${MISO_PYTHON_BIN}"; then
-      printf '%s\n' "${MISO_PYTHON_BIN}"
+  if [[ -n "${UNCHAIN_PYTHON_BIN:-}" ]]; then
+    if is_python312 "${UNCHAIN_PYTHON_BIN}"; then
+      printf '%s\n' "${UNCHAIN_PYTHON_BIN}"
       return 0
     fi
-    echo "MISO_PYTHON_BIN must point to Python 3.12.x: ${MISO_PYTHON_BIN}" >&2
+    echo "UNCHAIN_PYTHON_BIN must point to Python 3.12.x: ${UNCHAIN_PYTHON_BIN}" >&2
     return 1
   fi
 
@@ -50,7 +50,7 @@ resolve_python312() {
     fi
   done
 
-  echo "Python 3.12.x is required to build miso-server." >&2
+  echo "Python 3.12.x is required to build unchain-server." >&2
   return 1
 }
 
@@ -86,17 +86,17 @@ if [[ -n "$TARGET_ARCH" ]]; then
   fi
 fi
 
-MISO_SOURCE_PATH="${MISO_SOURCE_PATH:-"$ROOT_DIR/../miso"}"
-if [[ ! -f "$MISO_SOURCE_PATH/src/miso/__init__.py" || ! -f "$MISO_SOURCE_PATH/src/miso/runtime/engine.py" ]]; then
-  echo "Invalid MISO source path: $MISO_SOURCE_PATH"
-  echo "Expected files: src/miso/__init__.py and src/miso/runtime/engine.py"
+UNCHAIN_SOURCE_PATH="${UNCHAIN_SOURCE_PATH:-"$ROOT_DIR/../miso"}"
+if [[ ! -f "$UNCHAIN_SOURCE_PATH/src/unchain/__init__.py" || ! -f "$UNCHAIN_SOURCE_PATH/src/miso/runtime/engine.py" ]]; then
+  echo "Invalid MISO source path: $UNCHAIN_SOURCE_PATH"
+  echo "Expected files: src/unchain/__init__.py and src/miso/runtime/engine.py"
   exit 1
 fi
 
-CAPABILITY_JSON="$MISO_SOURCE_PATH/src/miso/runtime/resources/model_capabilities.json"
-DEFAULT_PAYLOADS_JSON="$MISO_SOURCE_PATH/src/miso/runtime/resources/model_default_payloads.json"
+CAPABILITY_JSON="$UNCHAIN_SOURCE_PATH/src/miso/runtime/resources/model_capabilities.json"
+DEFAULT_PAYLOADS_JSON="$UNCHAIN_SOURCE_PATH/src/miso/runtime/resources/model_default_payloads.json"
 if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
-  echo "Missing required MISO model metadata files in source path: $MISO_SOURCE_PATH"
+  echo "Missing required MISO model metadata files in source path: $UNCHAIN_SOURCE_PATH"
   echo "Expected files:"
   echo "  $CAPABILITY_JSON"
   echo "  $DEFAULT_PAYLOADS_JSON"
@@ -104,7 +104,7 @@ if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
 fi
 
 PYTHON_BIN="$(resolve_python312)"
-VENV_DIR="${MISO_BUILD_VENV:-"$ROOT_DIR/.venv-miso-build"}"
+VENV_DIR="${UNCHAIN_BUILD_VENV:-"$ROOT_DIR/.venv-miso-build"}"
 if [[ -x "$VENV_DIR/bin/python" ]]; then
   VENV_PY="$VENV_DIR/bin/python"
   VENV_PIP="$VENV_DIR/bin/pip"
@@ -138,10 +138,10 @@ if [[ -z "$VENV_PY" ]]; then
   fi
 fi
 
-if [[ "${MISO_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
+if [[ "${UNCHAIN_BUILD_SKIP_INSTALL:-0}" != "1" ]]; then
   "$VENV_PIP" install \
-    -r "$ROOT_DIR/miso_runtime/server/requirements.txt" \
-    -e "$MISO_SOURCE_PATH" \
+    -r "$ROOT_DIR/unchain_runtime/server/requirements.txt" \
+    -e "$UNCHAIN_SOURCE_PATH" \
     pyinstaller
 fi
 
@@ -171,23 +171,23 @@ PY
 then
   echo ""
   echo "Dependency check failed."
-  if [[ "${MISO_BUILD_SKIP_INSTALL:-0}" == "1" ]]; then
-    echo "MISO_BUILD_SKIP_INSTALL=1 is set, but required modules are missing."
-    echo "Either unset MISO_BUILD_SKIP_INSTALL or install dependencies into: $VENV_DIR"
+  if [[ "${UNCHAIN_BUILD_SKIP_INSTALL:-0}" == "1" ]]; then
+    echo "UNCHAIN_BUILD_SKIP_INSTALL=1 is set, but required modules are missing."
+    echo "Either unset UNCHAIN_BUILD_SKIP_INSTALL or install dependencies into: $VENV_DIR"
   else
     echo "Please ensure pip install completed successfully in: $VENV_DIR"
   fi
   exit 1
 fi
 
-DIST_DIR="$ROOT_DIR/miso_runtime/dist/$TARGET_OS"
-BUILD_DIR="$ROOT_DIR/miso_runtime/build/pyinstaller-$TARGET_OS"
-SPEC_DIR="$ROOT_DIR/miso_runtime/build/spec-$TARGET_OS"
+DIST_DIR="$ROOT_DIR/unchain_runtime/dist/$TARGET_OS"
+BUILD_DIR="$ROOT_DIR/unchain_runtime/build/pyinstaller-$TARGET_OS"
+SPEC_DIR="$ROOT_DIR/unchain_runtime/build/spec-$TARGET_OS"
 
 mkdir -p "$DIST_DIR" "$BUILD_DIR" "$SPEC_DIR"
-rm -f "$DIST_DIR/miso-server" "$DIST_DIR/miso-server.exe"
+rm -f "$DIST_DIR/unchain-server" "$DIST_DIR/unchain-server.exe"
 
-ENTRYPOINT="$ROOT_DIR/miso_runtime/server/main.py"
+ENTRYPOINT="$ROOT_DIR/unchain_runtime/server/main.py"
 
 if [[ "$TARGET_OS" == "windows" ]]; then
   PYTHONPATH_SEP=";"
@@ -197,14 +197,14 @@ else
   PYI_DATA_SEP=":"
 fi
 
-export MISO_SOURCE_PATH
-export PYTHONPATH="$MISO_SOURCE_PATH/src${PYTHONPATH:+$PYTHONPATH_SEP$PYTHONPATH}"
+export UNCHAIN_SOURCE_PATH
+export PYTHONPATH="$UNCHAIN_SOURCE_PATH/src${PYTHONPATH:+$PYTHONPATH_SEP$PYTHONPATH}"
 
 PYINSTALLER_ARGS=(
   --clean
   --noconfirm
   --onefile
-  --name miso-server
+  --name unchain-server
   --distpath "$DIST_DIR"
   --workpath "$BUILD_DIR"
   --specpath "$SPEC_DIR"
@@ -215,10 +215,10 @@ PYINSTALLER_ARGS=(
   --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}miso/runtime/resources"
   --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}miso/runtime/resources"
   --hidden-import miso
-  --hidden-import miso.runtime
-  --hidden-import miso.runtime.engine
-  --hidden-import miso.runtime.files
-  --hidden-import miso.runtime.providers
+  --hidden-import unchain.runtime
+  --hidden-import unchain.runtime.engine
+  --hidden-import unchain.runtime.files
+  --hidden-import unchain.runtime.providers
   --hidden-import miso.tools
   --hidden-import miso.tools.tool
   --hidden-import miso.tools.toolkit
@@ -248,13 +248,13 @@ fi
 
 "$VENV_PY" -m PyInstaller "${PYINSTALLER_ARGS[@]}" "$ENTRYPOINT"
 
-if [[ "$TARGET_OS" != "windows" && -f "$DIST_DIR/miso-server" ]]; then
-  chmod +x "$DIST_DIR/miso-server"
+if [[ "$TARGET_OS" != "windows" && -f "$DIST_DIR/unchain-server" ]]; then
+  chmod +x "$DIST_DIR/unchain-server"
 fi
 
 echo "Built Miso server:"
 if [[ "$TARGET_OS" == "windows" ]]; then
-  echo "  $DIST_DIR/miso-server.exe"
+  echo "  $DIST_DIR/unchain-server.exe"
 else
-  echo "  $DIST_DIR/miso-server"
+  echo "  $DIST_DIR/unchain-server"
 fi

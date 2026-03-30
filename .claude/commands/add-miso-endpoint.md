@@ -1,6 +1,6 @@
 # Add a New Miso Server Endpoint
 
-Add a new Flask API endpoint to the miso_runtime backend.
+Add a new Flask API endpoint to the unchain_runtime backend.
 
 ## Arguments
 - $ARGUMENTS: Endpoint path and description (e.g. "/chat/export Export chat history as JSON/Markdown")
@@ -9,9 +9,9 @@ Add a new Flask API endpoint to the miso_runtime backend.
 
 1. Read `.github/skills/miso-server-endpoints.md` for endpoint patterns
 2. Read `.github/skills/backend-api-facade.md` for the full request flow
-3. Read `miso_runtime/server/routes.py` for existing endpoint patterns
+3. Read `unchain_runtime/server/routes.py` for existing endpoint patterns
 
-4. **Step 1: Add Flask route** in `miso_runtime/server/routes.py`:
+4. **Step 1: Add Flask route** in `unchain_runtime/server/routes.py`:
    ```python
    @api_blueprint.post("/my/endpoint")
    def my_endpoint() -> Response:
@@ -33,7 +33,7 @@ Add a new Flask API endpoint to the miso_runtime backend.
 
 6. **Step 3: Add IPC handler** in `electron/main/ipc/register_handlers.js`:
    - Add to `IPC_HANDLE_CHANNELS` array
-   - Register handler calling `misoService.myEndpoint(payload)`
+   - Register handler calling `unchainService.myEndpoint(payload)`
 
 7. **Step 4: Add to miso service** in `electron/main/services/miso/service.js`:
    ```js
@@ -47,14 +47,14 @@ Add a new Flask API endpoint to the miso_runtime backend.
    };
    ```
 
-8. **Step 5: Add preload bridge method** in `electron/preload/bridges/miso_bridge.js`
+8. **Step 5: Add preload bridge method** in `electron/preload/bridges/unchain_bridge.js`
 
-9. **Step 6: Add frontend API method** in `src/SERVICEs/api.miso.js`:
+9. **Step 6: Add frontend API method** in `src/SERVICEs/api.unchain.js`:
    ```js
    myEndpoint: async (payload) => {
-     const method = assertBridgeMethod("misoAPI", "myEndpoint");
+     const method = assertBridgeMethod("unchainAPI", "myEndpoint");
      return withTimeout(() => method(payload), 10000, "my_endpoint_timeout", "...");
    },
    ```
 
-10. Write a test in `miso_runtime/server/tests/`
+10. Write a test in `unchain_runtime/server/tests/`

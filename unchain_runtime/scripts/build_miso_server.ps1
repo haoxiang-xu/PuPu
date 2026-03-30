@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Build the miso-server binary for Windows using PyInstaller.
+  Build the unchain-server binary for Windows using PyInstaller.
 
 .DESCRIPTION
   PowerShell equivalent of build_miso_server.sh for Windows.
@@ -9,8 +9,8 @@
   Target OS (default: windows). Only "windows" is supported on this script.
 
 .EXAMPLE
-  .\miso_runtime\scripts\build_miso_server.ps1
-  .\miso_runtime\scripts\build_miso_server.ps1 windows
+  .\unchain_runtime\scripts\build_miso_server.ps1
+  .\unchain_runtime\scripts\build_miso_server.ps1 windows
 #>
 
 param(
@@ -42,15 +42,15 @@ function Test-Python312Command {
 }
 
 function Resolve-Python312Command {
-  if ($env:MISO_PYTHON_BIN) {
-    if (Test-Python312Command -Command $env:MISO_PYTHON_BIN) {
+  if ($env:UNCHAIN_PYTHON_BIN) {
+    if (Test-Python312Command -Command $env:UNCHAIN_PYTHON_BIN) {
       return @{
-        Command = $env:MISO_PYTHON_BIN
+        Command = $env:UNCHAIN_PYTHON_BIN
         Arguments = @()
       }
     }
 
-    throw "MISO_PYTHON_BIN must point to Python 3.12.x: $($env:MISO_PYTHON_BIN)"
+    throw "UNCHAIN_PYTHON_BIN must point to Python 3.12.x: $($env:UNCHAIN_PYTHON_BIN)"
   }
 
   if (Get-Command py -ErrorAction SilentlyContinue) {
@@ -73,33 +73,33 @@ function Resolve-Python312Command {
     }
   }
 
-  throw "Python 3.12.x is required to build miso-server."
+  throw "Python 3.12.x is required to build unchain-server."
 }
 
 # Resolve root directory (two levels up from this script)
 $ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
 # Miso source path
-$MISO_SOURCE_PATH = if ($env:MISO_SOURCE_PATH) { $env:MISO_SOURCE_PATH } else { Join-Path $ROOT_DIR "..\miso" }
-$MISO_SOURCE_PATH = [System.IO.Path]::GetFullPath($MISO_SOURCE_PATH)
+$UNCHAIN_SOURCE_PATH = if ($env:UNCHAIN_SOURCE_PATH) { $env:UNCHAIN_SOURCE_PATH } else { Join-Path $ROOT_DIR "..\miso" }
+$UNCHAIN_SOURCE_PATH = [System.IO.Path]::GetFullPath($UNCHAIN_SOURCE_PATH)
 
-if (-not (Test-Path (Join-Path $MISO_SOURCE_PATH "src\miso\__init__.py")) -or
-    -not (Test-Path (Join-Path $MISO_SOURCE_PATH "src\miso\runtime\engine.py"))) {
-  Write-Error "Invalid MISO source path: $MISO_SOURCE_PATH`nExpected files: src\miso\__init__.py and src\miso\runtime\engine.py"
+if (-not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\miso\__init__.py")) -or
+    -not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\miso\runtime\engine.py"))) {
+  Write-Error "Invalid MISO source path: $UNCHAIN_SOURCE_PATH`nExpected files: src\miso\__init__.py and src\miso\runtime\engine.py"
   exit 1
 }
 
-$CAPABILITY_JSON = Join-Path $MISO_SOURCE_PATH "src\miso\runtime\resources\model_capabilities.json"
-$DEFAULT_PAYLOADS_JSON = Join-Path $MISO_SOURCE_PATH "src\miso\runtime\resources\model_default_payloads.json"
+$CAPABILITY_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\miso\runtime\resources\model_capabilities.json"
+$DEFAULT_PAYLOADS_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\miso\runtime\resources\model_default_payloads.json"
 
 if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON)) {
-  Write-Error "Missing required MISO model metadata files in source path: $MISO_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON"
+  Write-Error "Missing required MISO model metadata files in source path: $UNCHAIN_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON"
   exit 1
 }
 
 # Python / venv setup
 $resolvedPython = Resolve-Python312Command
-$VENV_DIR = if ($env:MISO_BUILD_VENV) { $env:MISO_BUILD_VENV } else { Join-Path $ROOT_DIR ".venv-miso-build" }
+$VENV_DIR = if ($env:UNCHAIN_BUILD_VENV) { $env:UNCHAIN_BUILD_VENV } else { Join-Path $ROOT_DIR ".venv-miso-build" }
 
 $VENV_PY = Join-Path $VENV_DIR "Scripts\python.exe"
 $VENV_PIP = Join-Path $VENV_DIR "Scripts\pip.exe"
@@ -121,11 +121,11 @@ if (-not (Test-Path $VENV_PY)) {
 }
 
 # Install dependencies
-if ($env:MISO_BUILD_SKIP_INSTALL -ne "1") {
+if ($env:UNCHAIN_BUILD_SKIP_INSTALL -ne "1") {
   Write-Host "Installing dependencies into build venv ..."
   & $VENV_PIP install `
-    -r (Join-Path $ROOT_DIR "miso_runtime\server\requirements.txt") `
-    -e $MISO_SOURCE_PATH `
+    -r (Join-Path $ROOT_DIR "unchain_runtime\server\requirements.txt") `
+    -e $UNCHAIN_SOURCE_PATH `
     pyinstaller
   if ($LASTEXITCODE -ne 0) { Write-Error "pip install failed"; exit 1 }
 }
@@ -155,9 +155,9 @@ $depCheck | & $VENV_PY -
 if ($LASTEXITCODE -ne 0) {
   Write-Host ""
   Write-Host "Dependency check failed."
-  if ($env:MISO_BUILD_SKIP_INSTALL -eq "1") {
-    Write-Host "MISO_BUILD_SKIP_INSTALL=1 is set, but required modules are missing."
-    Write-Host "Either unset MISO_BUILD_SKIP_INSTALL or install dependencies into: $VENV_DIR"
+  if ($env:UNCHAIN_BUILD_SKIP_INSTALL -eq "1") {
+    Write-Host "UNCHAIN_BUILD_SKIP_INSTALL=1 is set, but required modules are missing."
+    Write-Host "Either unset UNCHAIN_BUILD_SKIP_INSTALL or install dependencies into: $VENV_DIR"
   } else {
     Write-Host "Please ensure pip install completed successfully in: $VENV_DIR"
   }
@@ -165,26 +165,26 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # Prepare output directories
-$DIST_DIR = Join-Path $ROOT_DIR "miso_runtime\dist\windows"
-$BUILD_DIR = Join-Path $ROOT_DIR "miso_runtime\build\pyinstaller-windows"
-$SPEC_DIR = Join-Path $ROOT_DIR "miso_runtime\build\spec-windows"
+$DIST_DIR = Join-Path $ROOT_DIR "unchain_runtime\dist\windows"
+$BUILD_DIR = Join-Path $ROOT_DIR "unchain_runtime\build\pyinstaller-windows"
+$SPEC_DIR = Join-Path $ROOT_DIR "unchain_runtime\build\spec-windows"
 
 New-Item -ItemType Directory -Force -Path $DIST_DIR | Out-Null
 New-Item -ItemType Directory -Force -Path $BUILD_DIR | Out-Null
 New-Item -ItemType Directory -Force -Path $SPEC_DIR | Out-Null
 
-$exePath = Join-Path $DIST_DIR "miso-server.exe"
+$exePath = Join-Path $DIST_DIR "unchain-server.exe"
 if (Test-Path $exePath) { Remove-Item $exePath -Force }
 
-$ENTRYPOINT = Join-Path $ROOT_DIR "miso_runtime\server\main.py"
+$ENTRYPOINT = Join-Path $ROOT_DIR "unchain_runtime\server\main.py"
 
 # Set environment for PyInstaller
-$env:MISO_SOURCE_PATH = $MISO_SOURCE_PATH
+$env:UNCHAIN_SOURCE_PATH = $UNCHAIN_SOURCE_PATH
 $existingPythonPath = $env:PYTHONPATH
 if ($existingPythonPath) {
-  $env:PYTHONPATH = "$MISO_SOURCE_PATH\src;$existingPythonPath"
+  $env:PYTHONPATH = "$UNCHAIN_SOURCE_PATH\src;$existingPythonPath"
 } else {
-  $env:PYTHONPATH = "$MISO_SOURCE_PATH\src"
+  $env:PYTHONPATH = "$UNCHAIN_SOURCE_PATH\src"
 }
 
 # Build with PyInstaller
@@ -193,7 +193,7 @@ $pyinstallerArgs = @(
   "--clean",
   "--noconfirm",
   "--onefile",
-  "--name", "miso-server",
+  "--name", "unchain-server",
   "--distpath", $DIST_DIR,
   "--workpath", $BUILD_DIR,
   "--specpath", $SPEC_DIR,
@@ -204,10 +204,10 @@ $pyinstallerArgs = @(
   "--add-data", "${CAPABILITY_JSON};miso/runtime/resources",
   "--add-data", "${DEFAULT_PAYLOADS_JSON};miso/runtime/resources",
   "--hidden-import", "miso",
-  "--hidden-import", "miso.runtime",
-  "--hidden-import", "miso.runtime.engine",
-  "--hidden-import", "miso.runtime.files",
-  "--hidden-import", "miso.runtime.providers",
+  "--hidden-import", "unchain.runtime",
+  "--hidden-import", "unchain.runtime.engine",
+  "--hidden-import", "unchain.runtime.files",
+  "--hidden-import", "unchain.runtime.providers",
   "--hidden-import", "miso.tools",
   "--hidden-import", "miso.tools.tool",
   "--hidden-import", "miso.tools.toolkit",
@@ -237,4 +237,4 @@ Write-Host "Running PyInstaller ..."
 if ($LASTEXITCODE -ne 0) { Write-Error "PyInstaller failed"; exit 1 }
 
 Write-Host "Built Miso server:"
-Write-Host "  $DIST_DIR\miso-server.exe"
+Write-Host "  $DIST_DIR\unchain-server.exe"

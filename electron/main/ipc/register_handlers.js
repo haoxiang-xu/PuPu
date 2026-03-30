@@ -69,7 +69,7 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     windowService,
     updateService,
     ollamaService,
-    misoService,
+    unchainService,
     runtimeService,
   } = services;
 
@@ -111,21 +111,21 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
 
   ipcMain.handle(CHANNELS.MISO.GET_STATUS, () =>
-    misoService.getMisoStatusPayload(),
+    unchainService.getMisoStatusPayload(),
   );
   ipcMain.handle(CHANNELS.MISO.GET_MODEL_CATALOG, async () =>
-    misoService.getMisoModelCatalogPayload(),
+    unchainService.getMisoModelCatalogPayload(),
   );
   ipcMain.handle(CHANNELS.MISO.GET_TOOLKIT_CATALOG, async () =>
-    misoService.getMisoToolkitCatalogPayload(),
+    unchainService.getMisoToolkitCatalogPayload(),
   );
   ipcMain.handle(CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG, async () =>
-    misoService.getMisoToolModalCatalogPayload(),
+    unchainService.getMisoToolModalCatalogPayload(),
   );
   ipcMain.handle(
     CHANNELS.MISO.GET_TOOLKIT_DETAIL,
     async (_event, payload = {}) =>
-      misoService.getMisoToolkitDetailPayload(
+      unchainService.getMisoToolkitDetailPayload(
         payload.toolkitId,
         payload.toolName,
       ),
@@ -133,7 +133,7 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(
     CHANNELS.MISO.TOOL_CONFIRMATION,
     async (_event, payload = {}) =>
-      misoService.submitMisoToolConfirmation(payload),
+      unchainService.submitMisoToolConfirmation(payload),
   );
   ipcMain.handle(
     CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
@@ -201,59 +201,59 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   ipcMain.handle(
     CHANNELS.MISO.GET_MEMORY_PROJECTION,
     async (_event, payload = {}) =>
-      misoService.getMisoMemoryProjection(payload.sessionId),
+      unchainService.getMisoMemoryProjection(payload.sessionId),
   );
 
   ipcMain.handle(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION, async () =>
-    misoService.getMisoLongTermMemoryProjection(),
+    unchainService.getMisoLongTermMemoryProjection(),
   );
   ipcMain.handle(
     CHANNELS.MISO.REPLACE_SESSION_MEMORY,
     async (_event, payload = {}) =>
-      misoService.replaceMisoSessionMemory(payload),
+      unchainService.replaceMisoSessionMemory(payload),
   );
 
   ipcMain.handle(
     CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
     async (_event, payload = {}) =>
-      misoService.getMisoSessionMemoryExport(payload.sessionId),
+      unchainService.getMisoSessionMemoryExport(payload.sessionId),
   );
   ipcMain.handle(CHANNELS.MISO.LIST_SEED_CHARACTERS, async () =>
-    misoService.listMisoSeedCharacters(),
+    unchainService.listMisoSeedCharacters(),
   );
   ipcMain.handle(CHANNELS.MISO.LIST_CHARACTERS, async () =>
-    misoService.listMisoCharacters(),
+    unchainService.listMisoCharacters(),
   );
   ipcMain.handle(CHANNELS.MISO.GET_CHARACTER, async (_event, payload = {}) =>
-    misoService.getMisoCharacter(payload.characterId),
+    unchainService.getMisoCharacter(payload.characterId),
   );
   ipcMain.handle(CHANNELS.MISO.SAVE_CHARACTER, async (_event, payload = {}) =>
-    misoService.saveMisoCharacter(payload),
+    unchainService.saveMisoCharacter(payload),
   );
   ipcMain.handle(
     CHANNELS.MISO.DELETE_CHARACTER,
     async (_event, payload = {}) =>
-      misoService.deleteMisoCharacter(payload.characterId),
+      unchainService.deleteMisoCharacter(payload.characterId),
   );
   ipcMain.handle(
     CHANNELS.MISO.PREVIEW_CHARACTER_DECISION,
     async (_event, payload = {}) =>
-      misoService.previewMisoCharacterDecision(payload),
+      unchainService.previewMisoCharacterDecision(payload),
   );
   ipcMain.handle(
     CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
     async (_event, payload = {}) =>
-      misoService.buildMisoCharacterAgentConfig(payload),
+      unchainService.buildMisoCharacterAgentConfig(payload),
   );
   ipcMain.handle(
     CHANNELS.MISO.EXPORT_CHARACTER,
     async (_event, payload = {}) =>
-      misoService.exportMisoCharacter(payload.characterId, payload.filePath),
+      unchainService.exportMisoCharacter(payload.characterId, payload.filePath),
   );
   ipcMain.handle(
     CHANNELS.MISO.IMPORT_CHARACTER,
     async (_event, payload = {}) =>
-      misoService.importMisoCharacter(payload.filePath),
+      unchainService.importMisoCharacter(payload.filePath),
   );
   ipcMain.handle(CHANNELS.MISO.SHOW_SAVE_DIALOG, async (_event, payload = {}) =>
     runtimeService.showSaveDialog(payload),
@@ -269,15 +269,15 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
 
   ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {
-    misoService.handleStreamStart(event, payload);
+    unchainService.handleStreamStart(event, payload);
   });
 
   ipcMain.on(CHANNELS.MISO.STREAM_START_V2, (event, payload) => {
-    misoService.handleStreamStartV2(event, payload);
+    unchainService.handleStreamStartV2(event, payload);
   });
 
   ipcMain.on(CHANNELS.MISO.STREAM_CANCEL, (event, payload) => {
-    misoService.handleStreamCancel(event, payload);
+    unchainService.handleStreamCancel(event, payload);
   });
 };
 

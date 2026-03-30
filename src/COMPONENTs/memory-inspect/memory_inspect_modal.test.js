@@ -1,10 +1,10 @@
 import { render, screen, waitFor } from "@testing-library/react";
 
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import { __mockApi as mockApi } from "../../SERVICEs/api.miso";
+import { __mockApi as mockApi } from "../../SERVICEs/api.unchain";
 import { MemoryInspectModal } from "./memory_inspect_modal";
 
-jest.mock("../../SERVICEs/api.miso", () => {
+jest.mock("../../SERVICEs/api.unchain", () => {
   const api = {
     getLongTermMemoryProjection: jest.fn(),
     getMemoryProjection: jest.fn(),

@@ -12,7 +12,7 @@ SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
-import miso_adapter  # noqa: E402
+import unchain_adapter  # noqa: E402
 
 
 class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
@@ -34,15 +34,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.addCleanup(temp_dir.cleanup)
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_capability_file_candidates",
             return_value=[capability_file],
         ), mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_fetch_ollama_models",
             return_value=[],
         ):
-            providers = miso_adapter.get_capability_catalog()
+            providers = unchain_adapter.get_capability_catalog()
 
         self.assertEqual(providers["openai"], ["gpt-5"])
         self.assertEqual(providers["anthropic"], ["claude-opus-4-6"])
@@ -82,15 +82,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         fake_httpx = SimpleNamespace(get=mock.Mock(return_value=_FakeResponse()))
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_capability_file_candidates",
             return_value=[capability_file],
         ), mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_httpx",
             fake_httpx,
         ):
-            providers = miso_adapter.get_capability_catalog()
+            providers = unchain_adapter.get_capability_catalog()
 
         self.assertEqual(providers["ollama"], ["deepseek-r1:14b", "llama3"])
 
@@ -106,11 +106,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.addCleanup(temp_dir.cleanup)
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_capability_file_candidates",
             return_value=[capability_file],
         ):
-            providers = miso_adapter.get_embedding_provider_catalog()
+            providers = unchain_adapter.get_embedding_provider_catalog()
 
         self.assertEqual(
             providers,
@@ -155,11 +155,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.addCleanup(temp_dir.cleanup)
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_capability_file_candidates",
             return_value=[capability_file],
         ):
-            model_capabilities = miso_adapter.get_model_capability_catalog()
+            model_capabilities = unchain_adapter.get_model_capability_catalog()
 
         self.assertEqual(
             model_capabilities["openai:gpt-5"],
@@ -189,7 +189,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
     def test_get_default_model_capabilities_is_text_only(self) -> None:
         self.assertEqual(
-            miso_adapter.get_default_model_capabilities(),
+            unchain_adapter.get_default_model_capabilities(),
             {
                 "input_modalities": ["text"],
                 "input_source_types": {},
@@ -226,7 +226,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             }
         ]
 
-        messages = miso_adapter._normalize_messages(history, "", attachments)
+        messages = unchain_adapter._normalize_messages(history, "", attachments)
 
         self.assertEqual(messages[0]["role"], "user")
         self.assertIsInstance(messages[0]["content"], list)
@@ -250,7 +250,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
 
     def test_build_system_prompt_v2_text_from_options_normalizes_alias_and_merge(self) -> None:
-        prompt_text = miso_adapter._build_system_prompt_v2_text_from_options(
+        prompt_text = unchain_adapter._build_system_prompt_v2_text_from_options(
             {
                 "system_prompt_v2": {
                     "enabled": True,
@@ -270,7 +270,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         expected_rules = "\n".join(
             [
-                *miso_adapter._SYSTEM_PROMPT_V2_BUILTIN_RULES,
+                *unchain_adapter._SYSTEM_PROMPT_V2_BUILTIN_RULES,
                 "Always ask clarifying questions when blocked.",
             ]
         )
@@ -285,7 +285,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
 
     def test_build_system_prompt_v2_text_from_options_skips_when_disabled(self) -> None:
-        prompt_text = miso_adapter._build_system_prompt_v2_text_from_options(
+        prompt_text = unchain_adapter._build_system_prompt_v2_text_from_options(
             {
                 "system_prompt_v2": {
                     "enabled": False,
@@ -299,7 +299,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(prompt_text, "")
 
     def test_build_effective_system_prompt_text_appends_agent_instructions(self) -> None:
-        prompt_text = miso_adapter._build_effective_system_prompt_text(
+        prompt_text = unchain_adapter._build_effective_system_prompt_text(
             {
                 "system_prompt_v2": {
                     "enabled": True,
@@ -325,18 +325,18 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             pass
 
         def import_module_side_effect(module_name: str):
-            if module_name == "miso.tools":
+            if module_name == "unchain.tools":
                 return SimpleNamespace(Toolkit=FakeToolkitBase)
-            if module_name == "miso.toolkits":
+            if module_name == "unchain.toolkits":
                 return SimpleNamespace(WorkspaceToolkit=FakePythonWorkspaceToolkit)
             raise ImportError(module_name)
 
         with mock.patch.object(
-            miso_adapter.importlib,
+            unchain_adapter.importlib,
             "import_module",
             side_effect=import_module_side_effect,
         ):
-            catalog = miso_adapter.get_toolkit_catalog()
+            catalog = unchain_adapter.get_toolkit_catalog()
 
         names = [entry["name"] for entry in catalog["toolkits"]]
         self.assertEqual(
@@ -348,47 +348,47 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(catalog["count"], 1)
 
     def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
-        with mock.patch.object(miso_adapter, "_resolve_toolkit_base", return_value=None):
-            catalog = miso_adapter.get_toolkit_catalog()
+        with mock.patch.object(unchain_adapter, "_resolve_toolkit_base", return_value=None):
+            catalog = unchain_adapter.get_toolkit_catalog()
 
         self.assertEqual(catalog["toolkits"], [])
         self.assertEqual(catalog["count"], 0)
 
     def test_extract_workspace_root_from_options(self) -> None:
         self.assertEqual(
-            miso_adapter._extract_workspace_root_from_options(
+            unchain_adapter._extract_workspace_root_from_options(
                 {"workspaceRoot": "  /tmp/a  "}
             ),
             "/tmp/a",
         )
         self.assertEqual(
-            miso_adapter._extract_workspace_root_from_options(
+            unchain_adapter._extract_workspace_root_from_options(
                 {"workspace_root": "  /tmp/b  "}
             ),
             "/tmp/b",
         )
         self.assertEqual(
-            miso_adapter._extract_workspace_root_from_options({}),
+            unchain_adapter._extract_workspace_root_from_options({}),
             "",
         )
 
     def test_extract_max_iterations_from_options(self) -> None:
         self.assertEqual(
-            miso_adapter._extract_max_iterations_from_options({"maxIterations": " 4 "}),
+            unchain_adapter._extract_max_iterations_from_options({"maxIterations": " 4 "}),
             4,
         )
         self.assertEqual(
-            miso_adapter._extract_max_iterations_from_options({"max_iterations": 0}),
+            unchain_adapter._extract_max_iterations_from_options({"max_iterations": 0}),
             1,
         )
         self.assertIsNone(
-            miso_adapter._extract_max_iterations_from_options({"maxIterations": "abc"})
+            unchain_adapter._extract_max_iterations_from_options({"maxIterations": "abc"})
         )
-        self.assertIsNone(miso_adapter._extract_max_iterations_from_options({}))
+        self.assertIsNone(unchain_adapter._extract_max_iterations_from_options({}))
 
     def test_make_tool_confirm_callback_round_trip_with_submit(self) -> None:
         emitted_events = []
-        confirm_cb = miso_adapter._make_tool_confirm_callback(
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
             emitted_events.append,
         )
         response_holder: dict[str, object] = {}
@@ -417,7 +417,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertIsInstance(confirmation_id, str)
         self.assertEqual(request_event.get("requires_confirmation"), True)
 
-        submitted = miso_adapter.submit_tool_confirmation(
+        submitted = unchain_adapter.submit_tool_confirmation(
             confirmation_id=confirmation_id,
             approved=True,
             reason="approved",
@@ -435,7 +435,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
     def test_make_tool_confirm_callback_returns_denied_when_cancelled(self) -> None:
         cancel_event = threading.Event()
         emitted_events = []
-        confirm_cb = miso_adapter._make_tool_confirm_callback(
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
             emitted_events.append,
             cancel_event=cancel_event,
         )
@@ -463,12 +463,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertIsInstance(confirmation_id, str)
 
         cancel_event.set()
-        miso_adapter.cancel_tool_confirmations(cancel_event)
+        unchain_adapter.cancel_tool_confirmations(cancel_event)
         worker.join(timeout=2)
         self.assertFalse(worker.is_alive())
 
         result = response_holder.get("value")
-        submitted = miso_adapter.submit_tool_confirmation(
+        submitted = unchain_adapter.submit_tool_confirmation(
             confirmation_id=confirmation_id,
             approved=True,
         )
@@ -482,7 +482,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertFalse(submitted)
 
     def test_submit_tool_confirmation_returns_false_for_unknown_id(self) -> None:
-        submitted = miso_adapter.submit_tool_confirmation(
+        submitted = unchain_adapter.submit_tool_confirmation(
             confirmation_id="unknown-confirmation-id",
             approved=True,
         )
@@ -528,7 +528,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.execute_toolkits.append(toolkits)
                 return {"name": name, "arguments": arguments}
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
 
         agent = FakeBroth()
         tool_calls = [
@@ -637,7 +637,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.executed_arguments.append((name, arguments))
                 return {"ok": True, "arguments": arguments}
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
 
         agent = FakeBroth()
         denied_messages, _ = agent._execute_tool_calls(
@@ -741,7 +741,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
                 self.events.append((event_type, iteration, extra))
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
         agent = FakeBroth()
         tool_calls = [
             SimpleNamespace(
@@ -848,7 +848,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
                 self.events.append((event_type, iteration, extra))
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
         agent = FakeBroth()
         confirmation_requests = []
 
@@ -949,7 +949,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _emit(self, _callback, _event_type, _run_id, *, iteration, **extra):
                 del iteration, extra
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
         agent = FakeBroth()
 
         result_messages, should_observe = agent._execute_tool_calls(
@@ -1029,7 +1029,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
                 self.events.append((event_type, iteration, extra))
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
         agent = FakeBroth()
         confirmation_requests = []
 
@@ -1130,7 +1130,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 tool = SimpleNamespace(observe=False, requires_confirmation=False)
                 setattr(
                     tool,
-                    miso_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
+                    unchain_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
                     "read_file",
                 )
                 return tool
@@ -1141,7 +1141,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _inject_observation(self, _tool_message, _observation):
                 return None
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
         agent = FakeBroth()
         captured_events = []
 
@@ -1186,7 +1186,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def _is_previous_response_not_found_error(self, exc):
                 return "previous response" in str(exc).lower()
 
-        miso_adapter._apply_broth_runtime_patches(FakeBroth)
+        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
         agent = FakeBroth()
 
         class FakeError(Exception):
@@ -1229,10 +1229,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        with mock.patch.object(miso_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            miso_adapter, "_IMPORT_ERROR", None
-        ), mock.patch.object(miso_adapter.importlib, "import_module") as import_module_mock:
-            agent = miso_adapter._create_agent({})
+        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
+            unchain_adapter, "_IMPORT_ERROR", None
+        ), mock.patch.object(unchain_adapter.importlib, "import_module") as import_module_mock:
+            agent = unchain_adapter._create_agent({})
 
         self.assertEqual(agent.toolkits, [])
         import_module_mock.assert_not_called()
@@ -1258,21 +1258,21 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_BROTH_CLASS",
                 FakeAgent,
             ), mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_IMPORT_ERROR",
                 None,
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
+                agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
         self.assertEqual(len(agent.toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
@@ -1298,21 +1298,21 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_BROTH_CLASS",
                 FakeAgent,
             ), mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_IMPORT_ERROR",
                 None,
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent(
+                agent = unchain_adapter._create_agent(
                     {
                         "workspace_root": tmp,
                         "toolkits": ["workspace_toolkit"],
@@ -1343,21 +1343,21 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_BROTH_CLASS",
                 FakeAgent,
             ), mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_IMPORT_ERROR",
                 None,
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent(
+                agent = unchain_adapter._create_agent(
                     {
                         "workspace_root": tmp,
                         "toolkits": ["access_workspace_toolkit"],
@@ -1388,21 +1388,21 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp_a, tempfile.TemporaryDirectory() as tmp_b:
             with mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_BROTH_CLASS",
                 FakeAgent,
             ), mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_IMPORT_ERROR",
                 None,
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent(
+                agent = unchain_adapter._create_agent(
                     {
                         "workspace_roots": [tmp_a, tmp_b],
                         "toolkits": ["workspace_toolkit"],
@@ -1523,15 +1523,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             Path(tmp_a).mkdir()
             Path(tmp_b).mkdir()
             with mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_BROTH_CLASS",
                 FakeAgent,
             ), mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_IMPORT_ERROR",
                 None,
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit,
@@ -1539,7 +1539,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     Tool=FakeTool,
                 ),
             ):
-                agent = miso_adapter._create_agent(
+                agent = unchain_adapter._create_agent(
                     {
                         "workspace_roots": [tmp_a, tmp_b],
                         "toolkits": ["workspace_toolkit"],
@@ -1559,7 +1559,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(
             getattr(
                 merged_toolkit.tools["workspace_2_extra_root_read_file"],
-                miso_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
+                unchain_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
                 "",
             ),
             "read_file",
@@ -1592,17 +1592,17 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                miso_adapter, "_BROTH_CLASS", FakeAgent
+                unchain_adapter, "_BROTH_CLASS", FakeAgent
             ), mock.patch.object(
-                miso_adapter, "_IMPORT_ERROR", None
+                unchain_adapter, "_IMPORT_ERROR", None
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
-                agent = miso_adapter._create_agent({"workspace_root": tmp})
+                agent = unchain_adapter._create_agent({"workspace_root": tmp})
 
         self.assertEqual(len(agent.toolkits), 0)
 
@@ -1636,17 +1636,17 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                miso_adapter, "_BROTH_CLASS", FakeAgent
+                unchain_adapter, "_BROTH_CLASS", FakeAgent
             ), mock.patch.object(
-                miso_adapter, "_IMPORT_ERROR", None
+                unchain_adapter, "_IMPORT_ERROR", None
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit
                 ),
             ):
-                _agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
+                _agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
         self.assertTrue(toolkit_instance.tools["write_file"].requires_confirmation)
         self.assertTrue(toolkit_instance.tools["delete_file"].requires_confirmation)
@@ -1670,17 +1670,17 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 "workspace_root": workspace_root,
             }
 
-        with mock.patch.object(miso_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            miso_adapter, "_IMPORT_ERROR", None
+        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
+            unchain_adapter, "_IMPORT_ERROR", None
         ), mock.patch.object(
-            miso_adapter.importlib,
+            unchain_adapter.importlib,
             "import_module",
             return_value=SimpleNamespace(WorkspaceToolkit=fake_workspace_toolkit),
         ):
             with tempfile.TemporaryDirectory() as tmp:
                 missing = str(Path(tmp) / "missing")
                 with self.assertRaisesRegex(RuntimeError, "workspace_root does not exist"):
-                    miso_adapter._create_agent({"workspaceRoot": missing, "toolkits": ["workspace_toolkit"]})
+                    unchain_adapter._create_agent({"workspaceRoot": missing, "toolkits": ["workspace_toolkit"]})
 
     def test_create_agent_uses_min_two_iterations_when_workspace_root_is_set(self) -> None:
         class FakeAgent:
@@ -1700,17 +1700,17 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                miso_adapter, "_BROTH_CLASS", FakeAgent
+                unchain_adapter, "_BROTH_CLASS", FakeAgent
             ), mock.patch.object(
-                miso_adapter, "_IMPORT_ERROR", None
+                unchain_adapter, "_IMPORT_ERROR", None
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
                     WorkspaceToolkit=fake_workspace_toolkit
                 ),
-            ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
-                agent = miso_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
+            ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": "1"}, clear=False):
+                agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
         self.assertEqual(agent.max_iterations, 2)
 
@@ -1725,12 +1725,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        with mock.patch.object(miso_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            miso_adapter, "_IMPORT_ERROR", None
-        ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": ""}, clear=False):
-            agent = miso_adapter._create_agent({})
+        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
+            unchain_adapter, "_IMPORT_ERROR", None
+        ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": ""}, clear=False):
+            agent = unchain_adapter._create_agent({})
 
-        self.assertEqual(agent.max_iterations, miso_adapter._DEFAULT_MAX_ITERATIONS)
+        self.assertEqual(agent.max_iterations, unchain_adapter._DEFAULT_MAX_ITERATIONS)
 
     def test_create_agent_prefers_options_max_iterations_over_env(self) -> None:
         class FakeAgent:
@@ -1743,10 +1743,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        with mock.patch.object(miso_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            miso_adapter, "_IMPORT_ERROR", None
-        ), mock.patch.dict(miso_adapter.os.environ, {"MISO_MAX_ITERATIONS": "1"}, clear=False):
-            agent = miso_adapter._create_agent({"maxIterations": 5})
+        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
+            unchain_adapter, "_IMPORT_ERROR", None
+        ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": "1"}, clear=False):
+            agent = unchain_adapter._create_agent({"maxIterations": 5})
 
         self.assertEqual(agent.max_iterations, 5)
 
@@ -1756,19 +1756,19 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             target = workspace_root / "notes.txt"
             target.write_text("hello\n", encoding="utf-8")
 
-            agent = miso_adapter._create_agent(
+            agent = unchain_adapter._create_agent(
                 {
                     "workspace_root": tmp,
                     "toolkits": ["workspace_toolkit"],
                 }
             )
 
-            self.assertIsNotNone(miso_adapter._PUPU_AGENT_CLASS)
-            self.assertIsInstance(agent, miso_adapter._PUPU_AGENT_CLASS)
+            self.assertIsNotNone(unchain_adapter._PUPU_AGENT_CLASS)
+            self.assertIsInstance(agent, unchain_adapter._PUPU_AGENT_CLASS)
             self.assertEqual(len(agent.toolkits), 1)
 
             engine = agent._build_engine()
-            self.assertIs(type(engine), miso_adapter._BROTH_CLASS)
+            self.assertIs(type(engine), unchain_adapter._BROTH_CLASS)
             self.assertTrue(
                 getattr(type(engine), "_pupu_tool_confirmation_contract_patch_v6", False)
             )
@@ -1792,7 +1792,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "memory_factory.create_memory_manager_with_diagnostics",
             return_value=(manager, ""),
         ):
-            agent = miso_adapter._create_agent(
+            agent = unchain_adapter._create_agent(
                 {
                     "provider": "ollama",
                     "model": "deepseek-r1:14b",
@@ -1814,11 +1814,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "memory_factory.create_memory_manager_with_diagnostics",
             return_value=(manager, ""),
         ), mock.patch.object(
-            miso_adapter._PUPU_AGENT_CLASS,
+            unchain_adapter._PUPU_AGENT_CLASS,
             "_supports_tool_calling",
             return_value=False,
         ):
-            agent = miso_adapter._create_agent(
+            agent = unchain_adapter._create_agent(
                 {
                     "provider": "ollama",
                     "model": "plain-model",
@@ -1874,12 +1874,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         fake_agent = FakeAgent()
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_create_agent",
             return_value=fake_agent,
         ):
             events = list(
-                miso_adapter.stream_chat_events(
+                unchain_adapter.stream_chat_events(
                     message="hello",
                     history=[],
                     attachments=[],
@@ -1945,9 +1945,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         fake_agent = FakeAgent()
 
-        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
             events = list(
-                miso_adapter.stream_chat_events(
+                unchain_adapter.stream_chat_events(
                     message="hello",
                     history=[],
                     attachments=[],
@@ -1999,9 +1999,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         fake_agent = FakeAgent()
 
-        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
             events = list(
-                miso_adapter.stream_chat_events(
+                unchain_adapter.stream_chat_events(
                     message="hello",
                     history=[{"role": "user", "content": "previous"}],
                     attachments=[],
@@ -2058,9 +2058,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         fake_agent = FakeAgent()
 
-        with mock.patch.object(miso_adapter, "_create_agent", return_value=fake_agent):
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
             events = list(
-                miso_adapter.stream_chat_events(
+                unchain_adapter.stream_chat_events(
                     message="hello",
                     history=[],
                     attachments=[],
@@ -2092,7 +2092,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             },
         ]
         self.assertEqual(
-            miso_adapter._extract_last_assistant_text(messages),
+            unchain_adapter._extract_last_assistant_text(messages),
             "Final answer text",
         )
 
@@ -2100,9 +2100,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         class FakeBroth:
             pass
 
-        original_broth = miso_adapter._BROTH_CLASS
-        original_import_error = miso_adapter._IMPORT_ERROR
-        original_source = miso_adapter._RESOLVED_MISO_SOURCE
+        original_broth = unchain_adapter._BROTH_CLASS
+        original_import_error = unchain_adapter._IMPORT_ERROR
+        original_source = unchain_adapter._RESOLVED_UNCHAIN_SOURCE
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 source_root = Path(temp_dir)
@@ -2116,61 +2116,61 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 )
 
                 with mock.patch.object(
-                    miso_adapter,
+                    unchain_adapter,
                     "_candidate_miso_sources",
                     return_value=[Path("/tmp/invalid-miso-source")],
                 ), mock.patch.object(
-                    miso_adapter,
+                    unchain_adapter,
                     "_is_valid_miso_source",
                     return_value=False,
                 ), mock.patch.object(
-                    miso_adapter.importlib,
+                    unchain_adapter.importlib,
                     "import_module",
                     return_value=fake_module,
                 ):
-                    miso_adapter._load_broth_class()
+                    unchain_adapter._load_broth_class()
 
-                self.assertIs(miso_adapter._BROTH_CLASS, FakeBroth)
-                self.assertIsNone(miso_adapter._IMPORT_ERROR)
+                self.assertIs(unchain_adapter._BROTH_CLASS, FakeBroth)
+                self.assertIsNone(unchain_adapter._IMPORT_ERROR)
                 self.assertEqual(
-                    miso_adapter._RESOLVED_MISO_SOURCE,
+                    unchain_adapter._RESOLVED_UNCHAIN_SOURCE,
                     str(source_root.resolve()),
                 )
         finally:
-            miso_adapter._BROTH_CLASS = original_broth
-            miso_adapter._IMPORT_ERROR = original_import_error
-            miso_adapter._RESOLVED_MISO_SOURCE = original_source
+            unchain_adapter._BROTH_CLASS = original_broth
+            unchain_adapter._IMPORT_ERROR = original_import_error
+            unchain_adapter._RESOLVED_UNCHAIN_SOURCE = original_source
 
     def test_load_broth_class_reports_runtime_import_failure(self) -> None:
-        original_broth = miso_adapter._BROTH_CLASS
-        original_import_error = miso_adapter._IMPORT_ERROR
-        original_source = miso_adapter._RESOLVED_MISO_SOURCE
+        original_broth = unchain_adapter._BROTH_CLASS
+        original_import_error = unchain_adapter._IMPORT_ERROR
+        original_source = unchain_adapter._RESOLVED_UNCHAIN_SOURCE
         try:
             with mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_candidate_miso_sources",
                 return_value=[Path("/tmp/invalid-miso-source")],
             ), mock.patch.object(
-                miso_adapter,
+                unchain_adapter,
                 "_is_valid_miso_source",
                 return_value=False,
             ), mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 side_effect=ImportError("runtime missing"),
             ):
-                miso_adapter._load_broth_class()
+                unchain_adapter._load_broth_class()
 
-            self.assertIsNone(miso_adapter._BROTH_CLASS)
-            self.assertIsNone(miso_adapter._RESOLVED_MISO_SOURCE)
-            self.assertIsNotNone(miso_adapter._IMPORT_ERROR)
-            error_text = str(miso_adapter._IMPORT_ERROR)
+            self.assertIsNone(unchain_adapter._BROTH_CLASS)
+            self.assertIsNone(unchain_adapter._RESOLVED_UNCHAIN_SOURCE)
+            self.assertIsNotNone(unchain_adapter._IMPORT_ERROR)
+            error_text = str(unchain_adapter._IMPORT_ERROR)
             self.assertIn("invalid source: /tmp/invalid-miso-source", error_text)
             self.assertIn("runtime import failed: runtime missing", error_text)
         finally:
-            miso_adapter._BROTH_CLASS = original_broth
-            miso_adapter._IMPORT_ERROR = original_import_error
-            miso_adapter._RESOLVED_MISO_SOURCE = original_source
+            unchain_adapter._BROTH_CLASS = original_broth
+            unchain_adapter._IMPORT_ERROR = original_import_error
+            unchain_adapter._RESOLVED_UNCHAIN_SOURCE = original_source
 
     def test_capability_file_candidates_include_packaged_module_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2184,11 +2184,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
             fake_module = SimpleNamespace(__file__=str(module_file))
             with mock.patch.object(
-                miso_adapter.importlib,
+                unchain_adapter.importlib,
                 "import_module",
                 return_value=fake_module,
             ):
-                candidates = miso_adapter._capability_file_candidates()
+                candidates = unchain_adapter._capability_file_candidates()
 
             self.assertIn(capability_file.resolve(), candidates)
 
@@ -2254,7 +2254,7 @@ requires_confirmation = false
         )
 
         toolkit_base = type("FakeToolkitBase", (), {})
-        module_name = "miso.toolkits.builtin.demo_toolkit"
+        module_name = "unchain.toolkits.builtin.demo_toolkit"
         toolkit_module = ModuleType(module_name)
         toolkit_module.__file__ = str(package_dir / "runtime.py")
         toolkit_class = type(
@@ -2275,15 +2275,15 @@ requires_confirmation = false
         module_name: str,
         toolkit_module: ModuleType,
     ):
-        builtin_pkg = ModuleType("miso.toolkits.builtin")
+        builtin_pkg = ModuleType("unchain.toolkits.builtin")
         builtin_pkg.__path__ = [str(Path(toolkit_module.__file__).parent.parent)]
         miso_module = ModuleType("miso")
 
         def _fake_import_module(name: str, package=None):
             del package
-            if name == "miso.toolkits":
+            if name == "unchain.toolkits":
                 return miso_module
-            if name == "miso.toolkits.builtin":
+            if name == "unchain.toolkits.builtin":
                 return builtin_pkg
             if name == module_name:
                 return toolkit_module
@@ -2299,22 +2299,22 @@ requires_confirmation = false
         )
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_resolve_toolkit_base",
             return_value=toolkit_base,
         ), mock.patch.object(
-            miso_adapter.importlib,
+            unchain_adapter.importlib,
             "import_module",
             side_effect=self._build_import_side_effect(
                 module_name=module_name,
                 toolkit_module=toolkit_module,
             ),
         ), mock.patch.object(
-            miso_adapter.pkgutil,
+            unchain_adapter.pkgutil,
             "iter_modules",
             return_value=[(None, "demo_toolkit", True)],
         ):
-            payload = miso_adapter.get_toolkit_catalog_v2()
+            payload = unchain_adapter.get_toolkit_catalog_v2()
 
         self.assertEqual(payload["count"], 1)
         entry = payload["toolkits"][0]
@@ -2336,22 +2336,22 @@ requires_confirmation = false
         )
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_resolve_toolkit_base",
             return_value=toolkit_base,
         ), mock.patch.object(
-            miso_adapter.importlib,
+            unchain_adapter.importlib,
             "import_module",
             side_effect=self._build_import_side_effect(
                 module_name=module_name,
                 toolkit_module=toolkit_module,
             ),
         ), mock.patch.object(
-            miso_adapter.pkgutil,
+            unchain_adapter.pkgutil,
             "iter_modules",
             return_value=[(None, "demo_toolkit", True)],
         ):
-            payload = miso_adapter.get_toolkit_metadata("DemoToolkit")
+            payload = unchain_adapter.get_toolkit_metadata("DemoToolkit")
 
         self.assertEqual(payload["toolkitIcon"]["type"], "file")
         self.assertEqual(payload["toolkitIcon"]["mimeType"], "image/svg+xml")
@@ -2363,23 +2363,23 @@ requires_confirmation = false
         )
 
         with mock.patch.object(
-            miso_adapter,
+            unchain_adapter,
             "_resolve_toolkit_base",
             return_value=toolkit_base,
         ), mock.patch.object(
-            miso_adapter.importlib,
+            unchain_adapter.importlib,
             "import_module",
             side_effect=self._build_import_side_effect(
                 module_name=module_name,
                 toolkit_module=toolkit_module,
             ),
         ), mock.patch.object(
-            miso_adapter.pkgutil,
+            unchain_adapter.pkgutil,
             "iter_modules",
             return_value=[(None, "demo_toolkit", True)],
         ):
-            catalog_payload = miso_adapter.get_toolkit_catalog_v2()
-            metadata_payload = miso_adapter.get_toolkit_metadata("DemoToolkit")
+            catalog_payload = unchain_adapter.get_toolkit_catalog_v2()
+            metadata_payload = unchain_adapter.get_toolkit_metadata("DemoToolkit")
 
         self.assertEqual(catalog_payload["toolkits"][0]["toolkitIcon"], {})
         self.assertEqual(metadata_payload["toolkitIcon"], {})

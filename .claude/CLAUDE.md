@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-PuPu is a cross-platform desktop AI client built with **React 19 + Electron 40** (frontend) and a **Python Flask sidecar** (miso_runtime) for chat memory, workspace context, and character management.
+PuPu is a cross-platform desktop AI client built with **React 19 + Electron 40** (frontend) and a **Python Flask sidecar** (unchain_runtime) for chat memory, workspace context, and character management.
 
 - **JavaScript only** — no TypeScript, no PropTypes
 - **Inline styles** — no CSS modules, no styled-components
@@ -22,19 +22,19 @@ electron/
   main/               — Main process: services (runtime, miso, ollama, update), IPC handlers
   preload/            — Bridge factories (contextBridge.exposeInMainWorld), stream client
   shared/             — IPC channel constants
-miso_runtime/
-  server/             — Flask backend: routes.py, miso_adapter.py, memory_factory.py, character_store.py
+unchain_runtime/
+  server/             — Flask backend: routes.py, unchain_adapter.py, memory_factory.py, character_store.py
 ```
 
 ### Request Flow (Chat Streaming)
 
 ```
 ChatInterface (use_chat_stream.js)
-  → api.miso.startStreamV2(payload, handlers)
-    → Electron IPC (miso_bridge.js → register_handlers.js)
-      → misoService.handleStreamStartV2 (HTTP POST to Flask)
+  → api.unchain.startStreamV2(payload, handlers)
+    → Electron IPC (unchain_bridge.js → register_handlers.js)
+      → unchainService.handleStreamStartV2 (HTTP POST to Flask)
         → routes.py: chat_stream_v2() → SSE stream
-          → miso_adapter.py: stream_chat_events()
+          → unchain_adapter.py: stream_chat_events()
             → unchain Agent.run() in worker thread
               → Provider SDK (OpenAI/Anthropic/Gemini/Ollama)
 ```
@@ -44,7 +44,7 @@ SSE frames flow back through the same path: Flask → Electron main → IPC → 
 ### IPC Boundary
 
 React code **never** touches `ipcRenderer` directly. All system access goes through:
-- `window.misoAPI` — chat streaming, tool confirmation, model/toolkit catalogs
+- `window.unchainAPI` — chat streaming, tool confirmation, model/toolkit catalogs
 - `window.ollamaAPI` — Ollama status, model install
 - `window.themeAPI` — system theme detection
 - `window.windowStateAPI` — minimize, maximize, close
@@ -56,7 +56,7 @@ React code **never** touches `ipcRenderer` directly. All system access goes thro
 | Entity | Convention | Examples |
 |--------|-----------|----------|
 | Directories | kebab-case | `chat-bubble/`, `side-menu/` |
-| Files | snake_case.js | `chat_storage.js`, `miso_bridge.js` |
+| Files | snake_case.js | `chat_storage.js`, `unchain_bridge.js` |
 | Tests | `*.test.js` co-located | `api.ollama.test.js` |
 | Components | PascalCase | `ChatBubble`, `ToolkitModal` |
 | Hooks | `useXxx` | `useChatStream`, `useEditableMessage` |
@@ -79,7 +79,7 @@ No central theme file — palettes defined per component.
 |------|---------|
 | `src/PAGEs/chat/chat.js` | Main chat page |
 | `src/PAGEs/chat/hooks/use_chat_stream.js` | Core streaming hook (~1900 lines) |
-| `src/SERVICEs/api.miso.js` | Miso API facade (payload injection, streaming) |
+| `src/SERVICEs/api.unchain.js` | Miso API facade (payload injection, streaming) |
 | `src/SERVICEs/chat_storage.js` | Chat persistence to localStorage |
 | `src/COMPONENTs/settings/` | Settings UI (model providers, memory, workspace) |
 | `src/COMPONENTs/toolkit/` | Toolkit selection and management UI |
@@ -87,10 +87,10 @@ No central theme file — palettes defined per component.
 | `src/COMPONENTs/side-menu/` | Conversation tree sidebar |
 | `src/BUILTIN_COMPONENTs/mini_react/` | Custom router, storage, hooks |
 | `electron/main/services/miso/service.js` | Miso server lifecycle + SSE relay |
-| `electron/preload/stream/miso_stream_client.js` | IPC stream listener |
-| `miso_runtime/server/routes.py` | Flask API endpoints (55KB) |
-| `miso_runtime/server/miso_adapter.py` | Agent creation + chat orchestration (99KB) |
-| `miso_runtime/server/memory_factory.py` | Memory manager creation + Qdrant setup |
+| `electron/preload/stream/unchain_stream_client.js` | IPC stream listener |
+| `unchain_runtime/server/routes.py` | Flask API endpoints (55KB) |
+| `unchain_runtime/server/unchain_adapter.py` | Agent creation + chat orchestration (99KB) |
+| `unchain_runtime/server/memory_factory.py` | Memory manager creation + Qdrant setup |
 
 ## Dev Commands
 
@@ -103,7 +103,7 @@ No central theme file — palettes defined per component.
 
 Python backend standalone:
 ```bash
-cd miso_runtime/server && python main.py
+cd unchain_runtime/server && python main.py
 ```
 
 ## Existing Documentation

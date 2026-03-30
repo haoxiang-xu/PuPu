@@ -26,7 +26,7 @@ class ThreadedFlaskServer:
         self._server = make_server(self._host, self._port, self._app, threaded=True)
         self._thread = threading.Thread(
             target=self._run_server,
-            name="miso-flask-thread",
+            name="unchain-flask-thread",
             daemon=True,
         )
         self._thread.start()

@@ -288,7 +288,7 @@ const ToolkitDetailPanel = ({
     setLoading(true);
     setError(null);
 
-    api.miso
+    api.unchain
       .getToolkitDetail(toolkitId, toolName)
       .then((payload) => {
         if (cancelled) return;
