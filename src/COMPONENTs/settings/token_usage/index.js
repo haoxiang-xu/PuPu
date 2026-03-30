@@ -42,6 +42,7 @@ const DD_STYLE = { padding: 4 };
 const BREAKDOWN_CHART_HEIGHT = 220;
 const BREAKDOWN_Y_GRID_LINES = 4;
 const BREAKDOWN_BAR_RADIUS = 3;
+const CHART_UNIT_HEADROOM = 18;
 const BREAKDOWN_SERIES = [
   {
     key: "input",
@@ -483,8 +484,11 @@ const TokenBreakdownChart = ({
                     style={{
                       position: "absolute",
                       bottom: `calc(${(Math.max(entry.input, entry.output) / niceMax) * 100}% + 10px)`,
-                      left: "50%",
-                      transform: "translateX(-50%)",
+                      ...(index >= data.length - 2 && data.length > 3
+                        ? { right: 0 }
+                        : index <= 1 && data.length > 3
+                          ? { left: 0 }
+                          : { left: "50%", transform: "translateX(-50%)" }),
                       backgroundColor: isDark ? "#2a2a2a" : "#fff",
                       border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
                       borderRadius: 6,
@@ -870,6 +874,7 @@ export const TokenUsageSettings = () => {
             width: "100%",
             maxWidth: "100%",
             minWidth: 0,
+            overflow: "visible",
           }}
         >
           <ChartTitle
@@ -878,11 +883,13 @@ export const TokenUsageSettings = () => {
             isDark={isDark}
             fontFamily={fontFamily}
           />
-          <BarChart
-            data={chartData}
-            height={220}
-            emptyMessage="No token usage data yet"
-          />
+          <div style={{ marginTop: CHART_UNIT_HEADROOM }}>
+            <BarChart
+              data={chartData}
+              height={220}
+              emptyMessage="No token usage data yet"
+            />
+          </div>
         </div>
         <div
           style={{
@@ -890,6 +897,7 @@ export const TokenUsageSettings = () => {
             width: "100%",
             maxWidth: "100%",
             minWidth: 0,
+            overflow: "visible",
           }}
         >
           <ChartTitle
@@ -899,11 +907,13 @@ export const TokenUsageSettings = () => {
             fontFamily={fontFamily}
           />
           <BreakdownLegend isDark={isDark} fontFamily={fontFamily} />
-          <TokenBreakdownChart
-            data={breakdownChartData}
-            isDark={isDark}
-            fontFamily={fontFamily}
-          />
+          <div style={{ marginTop: CHART_UNIT_HEADROOM }}>
+            <TokenBreakdownChart
+              data={breakdownChartData}
+              isDark={isDark}
+              fontFamily={fontFamily}
+            />
+          </div>
         </div>
       </SettingsSection>
 

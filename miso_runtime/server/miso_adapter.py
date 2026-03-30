@@ -3800,6 +3800,128 @@ def _memory_runtime_from_agent(agent: Any) -> Dict[str, Any]:
     }
 
 
+# ---------------------------------------------------------------------------
+# unchain adapter helpers
+# ---------------------------------------------------------------------------
+
+def _build_unchain_agent(pupu_agent):
+    """Convert a legacy PuPuAgent (with attached toolkits/memory) into an unchain Agent."""
+    from unchain.agent import Agent as UnchainAgent
+    from unchain.agent.modules import ToolsModule, MemoryModule, PoliciesModule
+
+    modules: list = []
+
+    all_tools: list = list(getattr(pupu_agent, "toolkits", []))
+    all_tools.extend(list(getattr(pupu_agent, "tools", [])))
+    if all_tools:
+        modules.append(ToolsModule(tools=tuple(all_tools)))
+
+    mm = getattr(pupu_agent, "memory_manager", None)
+    if mm is not None:
+        modules.append(MemoryModule(memory=mm))
+
+    max_iter = getattr(pupu_agent, "max_iterations", 32)
+    modules.append(PoliciesModule(max_iterations=int(max_iter)))
+
+    return UnchainAgent(
+        name="pupu",
+        instructions=getattr(pupu_agent, "instructions", "") or "",
+        provider=pupu_agent.provider,
+        model=pupu_agent.model,
+        api_key=pupu_agent.api_key,
+        modules=tuple(modules),
+    )
+
+
+def _build_bundle_from_result(result, agent) -> Dict[str, Any]:
+    """Build a PuPu-compatible bundle dict from a KernelRunResult."""
+    return {
+        "model": getattr(agent, "model", ""),
+        "consumed_tokens": int(getattr(result, "consumed_tokens", 0) or 0),
+        "input_tokens": int(getattr(result, "input_tokens", 0) or 0),
+        "output_tokens": int(getattr(result, "output_tokens", 0) or 0),
+        "status": getattr(result, "status", "completed"),
+        "iteration": int(getattr(result, "iteration", 0) or 0),
+        "previous_response_id": getattr(result, "previous_response_id", None),
+    }
+
+
+def _make_human_input_callback(emit_event, cancel_event=None):
+    """Create an on_human_input blocking callback for unchain ask_user_question.
+
+    Follows the same threading.Event blocking pattern as _make_tool_confirm_callback.
+    Emits PuPu-format tool_call events so the frontend can render the selector UI.
+    """
+    normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
+
+    def on_human_input(request):
+        confirmation_id = str(_uuid.uuid4())
+        interact_config = request.to_dict()
+
+        emit_payload = {
+            "type": "tool_call",
+            "tool_name": "ask_user_question",
+            "tool_display_name": "Ask User",
+            "call_id": request.request_id,
+            "arguments": interact_config,
+            "description": getattr(request, "question", ""),
+            "confirmation_id": confirmation_id,
+            "requires_confirmation": True,
+            "interact_type": "single" if getattr(request, "selection_mode", "") == "single" else "multi",
+            "interact_config": interact_config,
+        }
+
+        waiter: Dict[str, Any] = {
+            "event": threading.Event(),
+            "response": None,
+            "cancel_event": normalized_cancel_event,
+        }
+        with _pending_confirmations_lock:
+            _pending_confirmations[confirmation_id] = waiter
+
+        try:
+            if callable(emit_event):
+                emit_event(emit_payload)
+
+            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+                cancel_tool_confirmations(normalized_cancel_event)
+
+            event = waiter.get("event")
+            if isinstance(event, threading.Event):
+                event.wait()
+        finally:
+            with _pending_confirmations_lock:
+                _pending_confirmations.pop(confirmation_id, None)
+
+        response = waiter.get("response")
+
+        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
+            raise RuntimeError("stream cancelled during human input")
+
+        if not isinstance(response, dict) or not response.get("approved"):
+            raise RuntimeError("human input denied or cancelled")
+
+        user_response = (response.get("modified_arguments") or {}).get("user_response", {})
+        if not isinstance(user_response, dict):
+            user_response = {}
+
+        selected_values = (
+            user_response.get("selected_values")
+            or user_response.get("values")
+            or ([user_response["value"]] if "value" in user_response else [])
+        )
+        if isinstance(selected_values, str):
+            selected_values = [selected_values]
+
+        return {
+            "request_id": request.request_id,
+            "selected_values": list(selected_values),
+            "other_text": user_response.get("other_text"),
+        }
+
+    return on_human_input
+
+
 def stream_chat(
     *,
     message: str,
@@ -3844,16 +3966,18 @@ def stream_chat(
             if isinstance(final_text, str):
                 output_holder["final_text"] = final_text
 
+    unchain_agent = _build_unchain_agent(agent)
+
     def run_agent() -> None:
         try:
-            messages_out, _bundle = agent.run(
+            result = unchain_agent.run(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
                 max_iterations=agent.max_iterations,
                 **({"session_id": session_id} if session_id else {}),
             )
-            output_holder["messages"] = messages_out
+            output_holder["messages"] = result.messages
         except Exception as run_error:  # pragma: no cover
             output_holder["error"] = run_error
         finally:
@@ -3931,10 +4055,71 @@ def stream_chat_events(
         "bundle": None,
     }
 
+    unchain_agent = _build_unchain_agent(agent)
+
+    # Build workspace tool display name map for multi-workspace proxy tools
+    _ws_display_names: Dict[str, str] = {}
+    for _tk in getattr(agent, "toolkits", []):
+        for _tn, _to in getattr(_tk, "tools", {}).items():
+            _orig = getattr(_to, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
+            if isinstance(_orig, str) and _orig.strip() and _orig != _tn:
+                # Extract workspace label from prefix: workspace_{N}_{slug}_{tool}
+                _prefix = _tn[: -len(_orig) - 1] if _tn.endswith("_" + _orig) else ""
+                _ws_label = _prefix.split("_", 2)[2] if _prefix.count("_") >= 2 else _prefix
+                _ws_display_names[_tn] = f"{_orig} @{_ws_label}" if _ws_label else _orig
+
+    # Patch QdrantClient to survive deepcopy by returning self
+    _mm = getattr(agent, "memory_manager", None)
+    if _mm is not None:
+        _va = getattr(getattr(_mm, "config", None), "vector_adapter", None)
+        _client = getattr(_va, "_client", None) if _va is not None else None
+        if _client is not None and not hasattr(_client, "__deepcopy__"):
+            _client.__deepcopy__ = lambda memo: _client
+            _client.__copy__ = lambda: _client
+        _strategy = getattr(_mm, "strategy", None)
+        _sva = getattr(_strategy, "vector_adapter", None) if _strategy is not None else None
+        _sclient = getattr(_sva, "_client", None) if _sva is not None else None
+        if _sclient is not None and not hasattr(_sclient, "__deepcopy__"):
+            _sclient.__deepcopy__ = lambda memo: _sclient
+            _sclient.__copy__ = lambda: _sclient
+        # Also patch the adapter itself
+        if _va is not None and not hasattr(_va, "__deepcopy__"):
+            _va.__deepcopy__ = lambda memo: _va
+        if _sva is not None and _sva is not _va and not hasattr(_sva, "__deepcopy__"):
+            _sva.__deepcopy__ = lambda memo: _sva
+        # Patch long_term adapter if present
+        _lt = getattr(getattr(_mm, "config", None), "long_term", None)
+        _ltva = getattr(_lt, "vector_adapter", None) if _lt is not None else None
+        _ltclient = getattr(_ltva, "_client", None) if _ltva is not None else None
+        if _ltclient is not None and not hasattr(_ltclient, "__deepcopy__"):
+            _ltclient.__deepcopy__ = lambda memo: _ltclient
+            _ltclient.__copy__ = lambda: _ltclient
+        if _ltva is not None and not hasattr(_ltva, "__deepcopy__"):
+            _ltva.__deepcopy__ = lambda memo: _ltva
+
     def on_event(event: Dict[str, Any]) -> None:
         if not isinstance(event, dict):
             return
-        if event.get("type") == "final_message":
+        event_type = event.get("type")
+        # Suppress unchain-native events that are replaced by our callbacks
+        if event_type == "human_input_requested":
+            return
+        if event_type == "run_max_iterations":
+            return
+        # Suppress the bare tool_call for ask_user_question — our on_human_input
+        # callback emits the proper PuPu-format tool_call with interact_config
+        if event_type == "tool_call" and event.get("tool_name") == "ask_user_question":
+            return
+        # Enrich tool_call events with workspace display names
+        if event_type == "tool_call" and _ws_display_names:
+            tn = event.get("tool_name", "")
+            if tn in _ws_display_names:
+                event["tool_display_name"] = _ws_display_names[tn]
+        if event_type == "tool_result" and _ws_display_names:
+            tn = event.get("tool_name", "")
+            if tn in _ws_display_names:
+                event["tool_display_name"] = _ws_display_names[tn]
+        if event_type == "final_message":
             output_holder["seen_final_message"] = True
         run_id = event.get("run_id")
         if isinstance(run_id, str):
@@ -3948,7 +4133,11 @@ def stream_chat_events(
         lambda event: event_queue.put(event),
         cancel_event=cancel_event,
     )
-    continuation_cb = _make_continuation_callback(
+    human_input_cb = _make_human_input_callback(
+        lambda event: event_queue.put(event),
+        cancel_event=cancel_event,
+    )
+    max_iterations_cb = _make_continuation_callback(
         lambda event: event_queue.put(event),
         cancel_event=cancel_event,
     )
@@ -3966,35 +4155,25 @@ def stream_chat_events(
 
     def run_agent() -> None:
         try:
-            run_kwargs: Dict[str, Any] = {
-                "messages": messages,
-                "payload": payload,
-                "callback": on_event,
-                "max_iterations": agent.max_iterations,
-            }
-
-            try:
-                run_params = inspect.signature(agent.run).parameters
-            except Exception:
-                run_params = {}
-
-            if session_id:
-                run_kwargs["session_id"] = session_id
             memory_namespace = str(options.get("memory_namespace") or "").strip()
-            if memory_namespace and "memory_namespace" in run_params:
-                run_kwargs["memory_namespace"] = memory_namespace
-
-            if "on_tool_confirm" in run_params:
-                run_kwargs["on_tool_confirm"] = confirm_cb
-
-            if "on_continuation_request" in run_params:
-                run_kwargs["on_continuation_request"] = continuation_cb
-
-            messages_out, bundle = agent.run(**run_kwargs)
-            output_holder["messages"] = messages_out
-            if isinstance(bundle, dict) and bundle:
+            result = unchain_agent.run(
+                messages=messages,
+                payload=payload,
+                callback=on_event,
+                max_iterations=agent.max_iterations,
+                on_tool_confirm=confirm_cb,
+                on_human_input=human_input_cb,
+                on_max_iterations=max_iterations_cb,
+                **({"session_id": session_id} if session_id else {}),
+                **({"memory_namespace": memory_namespace} if memory_namespace else {}),
+            )
+            output_holder["messages"] = result.messages
+            bundle = _build_bundle_from_result(result, agent)
+            if bundle:
                 output_holder["bundle"] = bundle
-        except Exception as run_error:  # pragma: no cover
+        except Exception as run_error:
+            import traceback as _tb
+            output_holder["error_traceback"] = _tb.format_exc()
             output_holder["error"] = run_error
         finally:
             event_queue.put(done_marker)
@@ -4011,6 +4190,10 @@ def stream_chat_events(
 
     error = output_holder.get("error")
     if error is not None:
+        tb = output_holder.get("error_traceback", "")
+        if tb:
+            import sys as _sys
+            print(f"[unchain run_agent error]\n{tb}", file=_sys.stderr, flush=True)
         raise RuntimeError(str(error))
 
     if not output_holder.get("seen_final_message"):
