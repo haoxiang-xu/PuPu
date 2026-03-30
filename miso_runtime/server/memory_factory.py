@@ -99,7 +99,7 @@ def _qdrant_meta_path(data_dir: str) -> str:
 
 
 def _session_store_path(data_dir: str, session_id: str) -> str:
-    from miso.memory.qdrant import JsonFileSessionStore
+    from unchain.memory.qdrant import JsonFileSessionStore
 
     store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
     path_getter = getattr(store, "_path", None)
@@ -109,7 +109,7 @@ def _session_store_path(data_dir: str, session_id: str) -> str:
 
 
 def _long_term_profile_path(data_dir: str, namespace: str) -> str:
-    from miso.memory.manager import JsonFileLongTermProfileStore
+    from unchain.memory.manager import JsonFileLongTermProfileStore
 
     store = JsonFileLongTermProfileStore(base_dir=_long_term_profiles_dir(data_dir))
     path_getter = getattr(store, "_path", None)
@@ -119,7 +119,7 @@ def _long_term_profile_path(data_dir: str, namespace: str) -> str:
 
 
 def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
-    from miso.memory.qdrant import JsonFileSessionStore
+    from unchain.memory.qdrant import JsonFileSessionStore
 
     store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
     try:
@@ -130,7 +130,7 @@ def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
 
 
 def _load_long_term_profile(data_dir: str, namespace: str) -> dict[str, Any]:
-    from miso.memory.manager import JsonFileLongTermProfileStore
+    from unchain.memory.manager import JsonFileLongTermProfileStore
 
     store = JsonFileLongTermProfileStore(base_dir=_long_term_profiles_dir(data_dir))
     try:
@@ -497,7 +497,7 @@ def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], 
     provider = config["provider"]
 
     if provider == "openai":
-        from miso.memory.qdrant import build_openai_embed_fn
+        from unchain.memory.qdrant import build_openai_embed_fn
 
         broth_instance = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
         return build_openai_embed_fn(
@@ -1236,8 +1236,8 @@ def create_memory_manager_with_diagnostics(
         return None, "embedding_provider_unavailable"
 
     try:
-        from miso.memory import LongTermMemoryConfig, MemoryConfig, MemoryManager
-        from miso.memory.qdrant import (
+        from unchain.memory import LongTermMemoryConfig, MemoryConfig, MemoryManager
+        from unchain.memory.qdrant import (
             JsonFileSessionStore,
             QdrantLongTermVectorAdapter,
             QdrantVectorAdapter,
@@ -1367,8 +1367,8 @@ def replace_short_term_session_memory(
     if not data_dir:
         raise RuntimeError("MISO_DATA_DIR not configured")
 
-    from miso.memory.manager import _collect_complete_turns_for_vector_index
-    from miso.memory.qdrant import JsonFileSessionStore, QdrantVectorAdapter
+    from unchain.memory.manager import _collect_complete_turns_for_vector_index
+    from unchain.memory.qdrant import JsonFileSessionStore, QdrantVectorAdapter
 
     store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
     raw_options = options if isinstance(options, dict) else {}

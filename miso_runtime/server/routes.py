@@ -54,6 +54,15 @@ _TRACE_STAGE_BY_EVENT_TYPE = {
     "tool_result": "tool",
     "error": "stream",
     "done": "stream",
+    # subagent lifecycle events
+    "subagent_spawned": "agent",
+    "subagent_started": "agent",
+    "subagent_completed": "agent",
+    "subagent_failed": "agent",
+    "subagent_handoff": "agent",
+    "subagent_clarification_requested": "agent",
+    "subagent_batch_started": "agent",
+    "subagent_batch_joined": "agent",
 }
 
 

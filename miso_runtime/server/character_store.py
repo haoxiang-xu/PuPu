@@ -258,7 +258,7 @@ def _seed_long_term_profile_if_missing(
     if os.path.exists(profile_path):
         return
 
-    from miso.memory.manager import JsonFileLongTermProfileStore
+    from unchain.memory.manager import JsonFileLongTermProfileStore
 
     store = JsonFileLongTermProfileStore(
         base_dir=memory_factory._long_term_profiles_dir(data_dir),
@@ -896,7 +896,7 @@ def import_character(payload: dict[str, Any] | None = None) -> dict[str, Any]:
             self_profile = json.loads(zf.read("self_profile.json"))
             if isinstance(self_profile, dict) and self_profile:
                 self_namespace = api["make_character_self_namespace"](resolved_id)
-                from miso.memory.manager import JsonFileLongTermProfileStore
+                from unchain.memory.manager import JsonFileLongTermProfileStore
                 store = JsonFileLongTermProfileStore(
                     base_dir=memory_factory._long_term_profiles_dir(data_dir),
                 )

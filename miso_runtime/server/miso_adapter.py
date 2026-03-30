@@ -39,18 +39,23 @@ def _ensure_miso_on_path() -> None:
 
 _ensure_miso_on_path()
 
-# Import miso first to resolve circular deps, then import unchain agent
+# Import unchain agent modules
 try:
-    import miso as _miso  # noqa: F401 — bootstraps unchain import chain
     from unchain.agent import Agent as _UnchainAgent
     from unchain.agent.modules import ToolsModule as _ToolsModule
     from unchain.agent.modules import MemoryModule as _MemoryModule
     from unchain.agent.modules import PoliciesModule as _PoliciesModule
+    from unchain.agent.modules import SubagentModule as _SubagentModule
+    from unchain.subagents import SubagentTemplate as _SubagentTemplate
+    from unchain.subagents import SubagentPolicy as _SubagentPolicy
 except ImportError:
     _UnchainAgent = None  # type: ignore
     _ToolsModule = None  # type: ignore
     _MemoryModule = None  # type: ignore
     _PoliciesModule = None  # type: ignore
+    _SubagentModule = None  # type: ignore
+    _SubagentTemplate = None  # type: ignore
+    _SubagentPolicy = None  # type: ignore
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -560,9 +565,9 @@ def _default_model_capabilities() -> Dict[str, object]:
 def _capability_file_candidates() -> List[Path]:
     candidates: List[Path] = []
 
-    # Try to find model_capabilities.json via miso package
+    # Try to find model_capabilities.json via unchain package
     try:
-        import miso.runtime.resources as _res_pkg
+        import unchain.runtime.resources as _res_pkg
         _res_dir = Path(_res_pkg.__file__).parent if hasattr(_res_pkg, "__file__") else None
         if _res_dir is not None:
             candidates.append(_res_dir / "model_capabilities.json")
@@ -828,7 +833,7 @@ def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
 
 def _resolve_toolkit_base():
     try:
-        tool_module = importlib.import_module("miso.tools")
+        tool_module = importlib.import_module("unchain.tools")
     except Exception:
         return None
 
@@ -998,7 +1003,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
     # Also pick up exported toolkit classes from miso.toolkits.
     # that weren't already found via submodule walk
     try:
-        miso_module = importlib.import_module("miso.toolkits")
+        miso_module = importlib.import_module("unchain.toolkits")
     except Exception:
         miso_module = None
 
@@ -1433,7 +1438,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
     # Exported toolkit classes
     try:
-        miso_module = importlib.import_module("miso.toolkits")
+        miso_module = importlib.import_module("unchain.toolkits")
     except Exception:
         miso_module = None
 
@@ -1530,7 +1535,7 @@ def get_toolkit_metadata(
     # Also check top-level miso exports
     if found_class is None:
         try:
-            miso_module = importlib.import_module("miso.toolkits")
+            miso_module = importlib.import_module("unchain.toolkits")
             for export_name in _KNOWN_TOOLKIT_EXPORTS:
                 candidate = getattr(miso_module, export_name, None)
                 if (
@@ -2094,10 +2099,10 @@ def _build_multi_workspace_proxy_toolkit(
     workspace_roots: list[str],
 ) -> Any:
     try:
-        tools_module = importlib.import_module("miso.tools")
+        tools_module = importlib.import_module("unchain.tools")
     except Exception as import_error:
         raise RuntimeError(
-            f"Failed to import miso.tools for multi-workspace fallback: {import_error}"
+            f"Failed to import unchain.tools for multi-workspace fallback: {import_error}"
         ) from import_error
 
     toolkit_cls = getattr(tools_module, "Toolkit", None)
@@ -2215,10 +2220,10 @@ def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
         return []
 
     try:
-        miso_module = importlib.import_module("miso.toolkits")
+        miso_module = importlib.import_module("unchain.toolkits")
     except Exception as import_error:
         raise RuntimeError(
-            f"Failed to import miso.toolkits for workspace toolkit: {import_error}"
+            f"Failed to import unchain.toolkits for workspace toolkit: {import_error}"
         ) from import_error
 
     toolkit_factory = _resolve_workspace_toolkit_factory(miso_module)
@@ -2267,10 +2272,10 @@ def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
         return []
 
     try:
-        miso_module = importlib.import_module("miso.toolkits")
+        miso_module = importlib.import_module("unchain.toolkits")
     except Exception as import_error:
         raise RuntimeError(
-            f"Failed to import miso.toolkits for toolkit attachment: {import_error}"
+            f"Failed to import unchain.toolkits for toolkit attachment: {import_error}"
         ) from import_error
 
     resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
@@ -2412,6 +2417,61 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
     if memory_manager is not None:
         modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
+
+    # Subagent module — gives the agent delegate / spawn_worker_batch tools
+    SubagentModule = _SubagentModule
+    SubagentTemplate = _SubagentTemplate
+    SubagentPolicy = _SubagentPolicy
+    _subagents_enabled = (
+        SubagentModule is not None
+        and SubagentTemplate is not None
+        and SubagentPolicy is not None
+        and toolkits  # subagents only useful when tools are available
+        and _should_enable_tools(options)
+    )
+    if _subagents_enabled:
+        worker_agent = UnchainAgent(
+            name="pupu_worker",
+            instructions=(
+                "You are a focused worker agent. "
+                "Complete the delegated task precisely and concisely. "
+                "Return only the result — do not explain your process."
+            ),
+            provider=config["provider"],
+            model=config["model"],
+            api_key=api_key or None,
+            modules=(ToolsModule(tools=tuple(toolkits)),),
+        )
+        subagent_templates = (
+            SubagentTemplate(
+                name="worker",
+                description=(
+                    "A general-purpose worker that can handle delegated "
+                    "subtasks using all available tools. Use this to "
+                    "parallelize independent tasks or delegate focused "
+                    "subtasks that don't need the full conversation context."
+                ),
+                agent=worker_agent,
+                allowed_modes=("delegate", "worker"),
+                output_mode="summary",
+                memory_policy="ephemeral",
+                parallel_safe=True,
+            ),
+        )
+        modules.append(
+            SubagentModule(
+                templates=subagent_templates,
+                policy=SubagentPolicy(
+                    max_depth=3,
+                    max_children_per_parent=6,
+                    max_total_subagents=20,
+                    max_parallel_workers=3,
+                    worker_timeout_seconds=60.0,
+                    allow_dynamic_workers=False,
+                    allow_dynamic_delegate=False,
+                ),
+            )
+        )
 
     agent = UnchainAgent(
         name="pupu",
