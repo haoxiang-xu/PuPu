@@ -4,6 +4,7 @@ import { Input } from "../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import ConfirmDeleteApiKeyModal from "./confirm_delete_api_key_modal";
 import { readModelProviders, writeModelProviders } from "../storage";
+import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const { onThemeMode } = useContext(ConfigContext);
@@ -24,6 +25,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const handleSave = useCallback(() => {
     const trimmed = value.trim();
     writeModelProviders({ [storage_key]: trimmed });
+    emitModelCatalogRefresh();
     setValue(trimmed);
     setSaved(!!trimmed);
     setJustSaved(true);
@@ -36,6 +38,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
 
   const handleClear = useCallback(() => {
     writeModelProviders({ [storage_key]: "" });
+    emitModelCatalogRefresh();
     setValue("");
     setSaved(false);
   }, [storage_key]);

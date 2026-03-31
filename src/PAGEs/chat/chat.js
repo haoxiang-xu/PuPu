@@ -18,6 +18,7 @@ import {
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
+import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
@@ -62,6 +63,10 @@ const ChatInterface = () => {
     reason: "",
   });
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
+  const [configuredProviders, setConfiguredProviders] = useState(() => {
+    const stored = readModelProviders();
+    return { hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key };
+  });
 
   const activeStreamMessagesRef = useRef(null);
   const messagePersistTimerRef = useRef(null);
@@ -291,6 +296,8 @@ const ChatInterface = () => {
     refreshModelCatalog();
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
+      const stored = readModelProviders();
+      setConfiguredProviders({ hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key });
     });
 
     return () => {
@@ -554,12 +561,12 @@ const ChatInterface = () => {
                   label: model,
                   provider: "ollama",
                 })),
-                ...(providers.openai || []).map((model) => ({
+                ...(configuredProviders.hasOpenAI ? providers.openai || [] : []).map((model) => ({
                   id: `openai:${model}`,
                   label: model,
                   provider: "openai",
                 })),
-                ...(providers.anthropic || []).map((model) => ({
+                ...(configuredProviders.hasAnthropic ? providers.anthropic || [] : []).map((model) => ({
                   id: `anthropic:${model}`,
                   label: model,
                   provider: "anthropic",
