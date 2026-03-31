@@ -7,6 +7,10 @@ import {
 } from "react";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
+const TRACK_PADDING = 3;
+const BUTTON_HEIGHT = 28;
+const CONTROL_HEIGHT = BUTTON_HEIGHT + TRACK_PADDING * 2;
+
 const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
@@ -97,7 +101,9 @@ const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
         display: "inline-flex",
         alignItems: "center",
         gap: 2,
-        padding: 3,
+        height: CONTROL_HEIGHT,
+        boxSizing: "border-box",
+        padding: TRACK_PADDING,
         borderRadius: 10,
         background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
       }}
@@ -106,10 +112,10 @@ const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
         aria-hidden="true"
         style={{
           position: "absolute",
-          top: 3,
+          top: TRACK_PADDING,
           left: indicator.left,
           width: indicator.width,
-          height: "calc(100% - 6px)",
+          height: BUTTON_HEIGHT,
           borderRadius: 7,
           background: isDark ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.92)",
           boxShadow: isDark
@@ -136,14 +142,18 @@ const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
               zIndex: 1,
               display: "flex",
               alignItems: "center",
+              justifyContent: "center",
               gap: 6,
-              padding: "5px 13px",
+              height: BUTTON_HEIGHT,
+              boxSizing: "border-box",
+              padding: "0 13px",
               borderRadius: 7,
               border: "none",
               cursor: "pointer",
               fontFamily: "Jost, sans-serif",
               fontSize: 13,
               fontWeight: 600,
+              lineHeight: 1,
               letterSpacing: "0.1px",
               color: isActive
                 ? isDark

@@ -11,53 +11,54 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.OLLAMA.INSTALL,
   CHANNELS.OLLAMA.RESTART,
   CHANNELS.OLLAMA.LIBRARY_SEARCH,
-  CHANNELS.MISO.GET_STATUS,
-  CHANNELS.MISO.GET_MODEL_CATALOG,
-  CHANNELS.MISO.GET_TOOLKIT_CATALOG,
-  CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG,
-  CHANNELS.MISO.GET_TOOLKIT_DETAIL,
-  CHANNELS.MISO.TOOL_CONFIRMATION,
-  CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
-  CHANNELS.MISO.PICK_WORKSPACE_ROOT,
-  CHANNELS.MISO.VALIDATE_WORKSPACE_ROOT,
-  CHANNELS.MISO.OPEN_RUNTIME_FOLDER,
-  CHANNELS.MISO.GET_RUNTIME_DIR_SIZE,
-  CHANNELS.MISO.DELETE_RUNTIME_ENTRY,
-  CHANNELS.MISO.CLEAR_RUNTIME_DIR,
-  CHANNELS.MISO.GET_MEMORY_SIZE,
-  CHANNELS.MISO.GET_CHARACTER_STORAGE_SIZE,
-  CHANNELS.MISO.DELETE_CHARACTER_STORAGE_ENTRY,
-  CHANNELS.MISO.GET_MEMORY_PROJECTION,
-  CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION,
-  CHANNELS.MISO.REPLACE_SESSION_MEMORY,
-  CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
-  CHANNELS.MISO.LIST_SEED_CHARACTERS,
-  CHANNELS.MISO.LIST_CHARACTERS,
-  CHANNELS.MISO.GET_CHARACTER,
-  CHANNELS.MISO.SAVE_CHARACTER,
-  CHANNELS.MISO.DELETE_CHARACTER,
-  CHANNELS.MISO.PREVIEW_CHARACTER_DECISION,
-  CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
-  CHANNELS.MISO.EXPORT_CHARACTER,
-  CHANNELS.MISO.IMPORT_CHARACTER,
-  CHANNELS.MISO.SHOW_SAVE_DIALOG,
-  CHANNELS.MISO.SHOW_OPEN_DIALOG,
-  CHANNELS.MISO.WRITE_FILE,
-  CHANNELS.MISO.READ_FILE,
+  CHANNELS.UNCHAIN.GET_STATUS,
+  CHANNELS.UNCHAIN.GET_MODEL_CATALOG,
+  CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
+  CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG,
+  CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
+  CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
+  CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
+  CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
+  CHANNELS.UNCHAIN.PICK_WORKSPACE_ROOT,
+  CHANNELS.UNCHAIN.VALIDATE_WORKSPACE_ROOT,
+  CHANNELS.UNCHAIN.OPEN_RUNTIME_FOLDER,
+  CHANNELS.UNCHAIN.GET_RUNTIME_DIR_SIZE,
+  CHANNELS.UNCHAIN.DELETE_RUNTIME_ENTRY,
+  CHANNELS.UNCHAIN.CLEAR_RUNTIME_DIR,
+  CHANNELS.UNCHAIN.GET_MEMORY_SIZE,
+  CHANNELS.UNCHAIN.GET_CHARACTER_STORAGE_SIZE,
+  CHANNELS.UNCHAIN.DELETE_CHARACTER_STORAGE_ENTRY,
+  CHANNELS.UNCHAIN.GET_MEMORY_PROJECTION,
+  CHANNELS.UNCHAIN.GET_LONG_TERM_MEMORY_PROJECTION,
+  CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
+  CHANNELS.UNCHAIN.GET_SESSION_MEMORY_EXPORT,
+  CHANNELS.UNCHAIN.LIST_SEED_CHARACTERS,
+  CHANNELS.UNCHAIN.LIST_CHARACTERS,
+  CHANNELS.UNCHAIN.GET_CHARACTER,
+  CHANNELS.UNCHAIN.SAVE_CHARACTER,
+  CHANNELS.UNCHAIN.DELETE_CHARACTER,
+  CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,
+  CHANNELS.UNCHAIN.BUILD_CHARACTER_AGENT_CONFIG,
+  CHANNELS.UNCHAIN.EXPORT_CHARACTER,
+  CHANNELS.UNCHAIN.IMPORT_CHARACTER,
+  CHANNELS.UNCHAIN.SHOW_SAVE_DIALOG,
+  CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG,
+  CHANNELS.UNCHAIN.WRITE_FILE,
+  CHANNELS.UNCHAIN.READ_FILE,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.THEME.SET_BACKGROUND_COLOR,
   CHANNELS.THEME.SET_MODE,
   CHANNELS.WINDOW_STATE.HANDLE_ACTION,
-  CHANNELS.MISO.STREAM_START,
-  CHANNELS.MISO.STREAM_START_V2,
-  CHANNELS.MISO.STREAM_CANCEL,
+  CHANNELS.UNCHAIN.STREAM_START,
+  CHANNELS.UNCHAIN.STREAM_START_V2,
+  CHANNELS.UNCHAIN.STREAM_CANCEL,
 ]);
 
 const MAIN_EVENT_CHANNELS = Object.freeze([
-  CHANNELS.MISO.STREAM_EVENT,
-  CHANNELS.MISO.RUNTIME_LOG,
+  CHANNELS.UNCHAIN.STREAM_EVENT,
+  CHANNELS.UNCHAIN.RUNTIME_LOG,
   CHANNELS.OLLAMA.INSTALL_PROGRESS,
   CHANNELS.UPDATE.STATE_CHANGED,
   CHANNELS.WINDOW_STATE.LISTENER_EVENT,
@@ -68,7 +69,7 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     windowService,
     updateService,
     ollamaService,
-    misoService,
+    unchainService,
     runtimeService,
   } = services;
 
@@ -109,57 +110,62 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     ollamaService.searchLibrary(payload),
   );
 
-  ipcMain.handle(CHANNELS.MISO.GET_STATUS, () =>
-    misoService.getMisoStatusPayload(),
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_STATUS, () =>
+    unchainService.getMisoStatusPayload(),
   );
-  ipcMain.handle(CHANNELS.MISO.GET_MODEL_CATALOG, async () =>
-    misoService.getMisoModelCatalogPayload(),
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_MODEL_CATALOG, async () =>
+    unchainService.getMisoModelCatalogPayload(),
   );
-  ipcMain.handle(CHANNELS.MISO.GET_TOOLKIT_CATALOG, async () =>
-    misoService.getMisoToolkitCatalogPayload(),
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG, async () =>
+    unchainService.getMisoToolkitCatalogPayload(),
   );
-  ipcMain.handle(CHANNELS.MISO.LIST_TOOL_MODAL_CATALOG, async () =>
-    misoService.getMisoToolModalCatalogPayload(),
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG, async () =>
+    unchainService.getMisoToolModalCatalogPayload(),
   );
   ipcMain.handle(
-    CHANNELS.MISO.GET_TOOLKIT_DETAIL,
+    CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
     async (_event, payload = {}) =>
-      misoService.getMisoToolkitDetailPayload(
+      unchainService.getMisoToolkitDetailPayload(
         payload.toolkitId,
         payload.toolName,
       ),
   );
   ipcMain.handle(
-    CHANNELS.MISO.TOOL_CONFIRMATION,
+    CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
     async (_event, payload = {}) =>
-      misoService.submitMisoToolConfirmation(payload),
+      unchainService.submitMisoToolConfirmation(payload),
   );
   ipcMain.handle(
-    CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
+    CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
     (_event, payload = {}) => runtimeService.setChromeTerminalOpen(payload),
   );
   ipcMain.handle(
-    CHANNELS.MISO.PICK_WORKSPACE_ROOT,
+    CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
+    (_event, payload = {}) =>
+      runtimeService.syncBuildFeatureFlagsSnapshot(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.PICK_WORKSPACE_ROOT,
     async (_event, payload = {}) => runtimeService.pickWorkspaceRoot(payload),
   );
   ipcMain.handle(
-    CHANNELS.MISO.VALIDATE_WORKSPACE_ROOT,
+    CHANNELS.UNCHAIN.VALIDATE_WORKSPACE_ROOT,
     (_event, payload = {}) => runtimeService.validateWorkspaceRoot(payload),
   );
   ipcMain.handle(
-    CHANNELS.MISO.OPEN_RUNTIME_FOLDER,
+    CHANNELS.UNCHAIN.OPEN_RUNTIME_FOLDER,
     async (_event, payload = {}) => runtimeService.openRuntimeFolder(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.GET_RUNTIME_DIR_SIZE, (_event, payload = {}) =>
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_RUNTIME_DIR_SIZE, (_event, payload = {}) =>
     runtimeService.getRuntimeDirSize(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.DELETE_RUNTIME_ENTRY, (_event, payload = {}) =>
+  ipcMain.handle(CHANNELS.UNCHAIN.DELETE_RUNTIME_ENTRY, (_event, payload = {}) =>
     runtimeService.deleteRuntimeEntry(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.CLEAR_RUNTIME_DIR, (_event, payload = {}) =>
+  ipcMain.handle(CHANNELS.UNCHAIN.CLEAR_RUNTIME_DIR, (_event, payload = {}) =>
     runtimeService.clearRuntimeDir(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.GET_MEMORY_SIZE, () => {
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_MEMORY_SIZE, () => {
     const baseMemoryDir = path.join(app.getPath("userData"), "memory");
     const vectorDir = path.join(baseMemoryDir, "qdrant");
     const profileDir = path.join(baseMemoryDir, "long_term_profiles");
@@ -183,95 +189,95 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
       error,
     };
   });
-  ipcMain.handle(CHANNELS.MISO.GET_CHARACTER_STORAGE_SIZE, () =>
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_CHARACTER_STORAGE_SIZE, () =>
     runtimeService.getCharacterStorageSize(),
   );
   ipcMain.handle(
-    CHANNELS.MISO.DELETE_CHARACTER_STORAGE_ENTRY,
+    CHANNELS.UNCHAIN.DELETE_CHARACTER_STORAGE_ENTRY,
     (_event, payload = {}) =>
       runtimeService.deleteCharacterStorageEntry(payload),
   );
 
   ipcMain.handle(
-    CHANNELS.MISO.GET_MEMORY_PROJECTION,
+    CHANNELS.UNCHAIN.GET_MEMORY_PROJECTION,
     async (_event, payload = {}) =>
-      misoService.getMisoMemoryProjection(payload.sessionId),
+      unchainService.getMisoMemoryProjection(payload.sessionId),
   );
 
-  ipcMain.handle(CHANNELS.MISO.GET_LONG_TERM_MEMORY_PROJECTION, async () =>
-    misoService.getMisoLongTermMemoryProjection(),
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_LONG_TERM_MEMORY_PROJECTION, async () =>
+    unchainService.getMisoLongTermMemoryProjection(),
   );
   ipcMain.handle(
-    CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+    CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
     async (_event, payload = {}) =>
-      misoService.replaceMisoSessionMemory(payload),
+      unchainService.replaceMisoSessionMemory(payload),
   );
 
   ipcMain.handle(
-    CHANNELS.MISO.GET_SESSION_MEMORY_EXPORT,
+    CHANNELS.UNCHAIN.GET_SESSION_MEMORY_EXPORT,
     async (_event, payload = {}) =>
-      misoService.getMisoSessionMemoryExport(payload.sessionId),
+      unchainService.getMisoSessionMemoryExport(payload.sessionId),
   );
-  ipcMain.handle(CHANNELS.MISO.LIST_SEED_CHARACTERS, async () =>
-    misoService.listMisoSeedCharacters(),
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_SEED_CHARACTERS, async () =>
+    unchainService.listMisoSeedCharacters(),
   );
-  ipcMain.handle(CHANNELS.MISO.LIST_CHARACTERS, async () =>
-    misoService.listMisoCharacters(),
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_CHARACTERS, async () =>
+    unchainService.listMisoCharacters(),
   );
-  ipcMain.handle(CHANNELS.MISO.GET_CHARACTER, async (_event, payload = {}) =>
-    misoService.getMisoCharacter(payload.characterId),
+  ipcMain.handle(CHANNELS.UNCHAIN.GET_CHARACTER, async (_event, payload = {}) =>
+    unchainService.getMisoCharacter(payload.characterId),
   );
-  ipcMain.handle(CHANNELS.MISO.SAVE_CHARACTER, async (_event, payload = {}) =>
-    misoService.saveMisoCharacter(payload),
+  ipcMain.handle(CHANNELS.UNCHAIN.SAVE_CHARACTER, async (_event, payload = {}) =>
+    unchainService.saveMisoCharacter(payload),
   );
   ipcMain.handle(
-    CHANNELS.MISO.DELETE_CHARACTER,
+    CHANNELS.UNCHAIN.DELETE_CHARACTER,
     async (_event, payload = {}) =>
-      misoService.deleteMisoCharacter(payload.characterId),
+      unchainService.deleteMisoCharacter(payload.characterId),
   );
   ipcMain.handle(
-    CHANNELS.MISO.PREVIEW_CHARACTER_DECISION,
+    CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,
     async (_event, payload = {}) =>
-      misoService.previewMisoCharacterDecision(payload),
+      unchainService.previewMisoCharacterDecision(payload),
   );
   ipcMain.handle(
-    CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
+    CHANNELS.UNCHAIN.BUILD_CHARACTER_AGENT_CONFIG,
     async (_event, payload = {}) =>
-      misoService.buildMisoCharacterAgentConfig(payload),
+      unchainService.buildMisoCharacterAgentConfig(payload),
   );
   ipcMain.handle(
-    CHANNELS.MISO.EXPORT_CHARACTER,
+    CHANNELS.UNCHAIN.EXPORT_CHARACTER,
     async (_event, payload = {}) =>
-      misoService.exportMisoCharacter(payload.characterId, payload.filePath),
+      unchainService.exportMisoCharacter(payload.characterId, payload.filePath),
   );
   ipcMain.handle(
-    CHANNELS.MISO.IMPORT_CHARACTER,
+    CHANNELS.UNCHAIN.IMPORT_CHARACTER,
     async (_event, payload = {}) =>
-      misoService.importMisoCharacter(payload.filePath),
+      unchainService.importMisoCharacter(payload.filePath),
   );
-  ipcMain.handle(CHANNELS.MISO.SHOW_SAVE_DIALOG, async (_event, payload = {}) =>
+  ipcMain.handle(CHANNELS.UNCHAIN.SHOW_SAVE_DIALOG, async (_event, payload = {}) =>
     runtimeService.showSaveDialog(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.SHOW_OPEN_DIALOG, async (_event, payload = {}) =>
+  ipcMain.handle(CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG, async (_event, payload = {}) =>
     runtimeService.showOpenDialog(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.WRITE_FILE, (_event, payload = {}) =>
+  ipcMain.handle(CHANNELS.UNCHAIN.WRITE_FILE, (_event, payload = {}) =>
     runtimeService.writeFile(payload),
   );
-  ipcMain.handle(CHANNELS.MISO.READ_FILE, (_event, payload = {}) =>
+  ipcMain.handle(CHANNELS.UNCHAIN.READ_FILE, (_event, payload = {}) =>
     runtimeService.readFile(payload),
   );
 
-  ipcMain.on(CHANNELS.MISO.STREAM_START, (event, payload) => {
-    misoService.handleStreamStart(event, payload);
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_START, (event, payload) => {
+    unchainService.handleStreamStart(event, payload);
   });
 
-  ipcMain.on(CHANNELS.MISO.STREAM_START_V2, (event, payload) => {
-    misoService.handleStreamStartV2(event, payload);
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V2, (event, payload) => {
+    unchainService.handleStreamStartV2(event, payload);
   });
 
-  ipcMain.on(CHANNELS.MISO.STREAM_CANCEL, (event, payload) => {
-    misoService.handleStreamCancel(event, payload);
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_CANCEL, (event, payload) => {
+    unchainService.handleStreamCancel(event, payload);
   });
 };
 

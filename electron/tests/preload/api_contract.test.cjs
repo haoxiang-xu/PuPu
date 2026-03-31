@@ -33,7 +33,7 @@ describe("preload API contract", () => {
       [
         "appInfoAPI",
         "appUpdateAPI",
-        "misoAPI",
+        "unchainAPI",
         "ollamaAPI",
         "ollamaLibraryAPI",
         "osInfo",
@@ -52,8 +52,8 @@ describe("preload API contract", () => {
     });
   });
 
-  test("miso API keeps required method surface", () => {
-    const miso = exposed.misoAPI;
+  test("unchain API keeps required method surface", () => {
+    const unchain = exposed.unchainAPI;
 
     [
       "getStatus",
@@ -61,6 +61,7 @@ describe("preload API contract", () => {
       "getToolkitCatalog",
       "respondToolConfirmation",
       "setChromeTerminalOpen",
+      "syncBuildFeatureFlagsSnapshot",
       "pickWorkspaceRoot",
       "validateWorkspaceRoot",
       "openRuntimeFolder",
@@ -79,7 +80,7 @@ describe("preload API contract", () => {
       "startStreamV2",
       "cancelStream",
     ].forEach((method) => {
-      expect(typeof miso[method]).toBe("function");
+      expect(typeof unchain[method]).toBe("function");
     });
   });
 
@@ -104,26 +105,38 @@ describe("preload API contract", () => {
       category: "c",
     });
 
-    exposed.misoAPI.setChromeTerminalOpen(true);
+    exposed.unchainAPI.setChromeTerminalOpen(true);
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.SET_CHROME_TERMINAL_OPEN,
+      CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
       { open: true },
     );
 
-    exposed.misoAPI.replaceSessionMemory({ sessionId: "chat-1", messages: [] });
+    exposed.unchainAPI.syncBuildFeatureFlagsSnapshot({
+      enable_user_access_to_agent_modal: true,
+    });
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.REPLACE_SESSION_MEMORY,
+      CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
+      {
+        featureFlags: {
+          enable_user_access_to_agent_modal: true,
+        },
+      },
+    );
+
+    exposed.unchainAPI.replaceSessionMemory({ sessionId: "chat-1", messages: [] });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
       { sessionId: "chat-1", messages: [] },
     );
 
-    exposed.misoAPI.listCharacters();
+    exposed.unchainAPI.listCharacters();
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.LIST_CHARACTERS,
+      CHANNELS.UNCHAIN.LIST_CHARACTERS,
     );
 
-    exposed.misoAPI.buildCharacterAgentConfig({ characterId: "mina" });
+    exposed.unchainAPI.buildCharacterAgentConfig({ characterId: "mina" });
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
-      CHANNELS.MISO.BUILD_CHARACTER_AGENT_CONFIG,
+      CHANNELS.UNCHAIN.BUILD_CHARACTER_AGENT_CONFIG,
       { characterId: "mina" },
     );
 
@@ -140,9 +153,9 @@ describe("preload API contract", () => {
     );
   });
 
-  test("forwards miso runtime logs to chrome console", () => {
+  test("forwards unchain runtime logs to chrome console", () => {
     const runtimeLogCall = ipcRenderer.on.mock.calls.find(
-      (call) => call[0] === CHANNELS.MISO.RUNTIME_LOG,
+      (call) => call[0] === CHANNELS.UNCHAIN.RUNTIME_LOG,
     );
 
     expect(runtimeLogCall).toBeDefined();
@@ -152,8 +165,8 @@ describe("preload API contract", () => {
     const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
 
     try {
-      runtimeLogListener({}, { level: "stdout", text: "hello from miso" });
-      runtimeLogListener({}, { level: "stderr", text: "oops from miso" });
+      runtimeLogListener({}, { level: "stdout", text: "hello from unchain" });
+      runtimeLogListener({}, { level: "stderr", text: "oops from unchain" });
       runtimeLogListener(
         {},
         {
@@ -163,8 +176,8 @@ describe("preload API contract", () => {
       );
       runtimeLogListener({}, { level: "stdout", text: "   " });
 
-      expect(logSpy).toHaveBeenCalledWith("[miso] hello from miso");
-      expect(errorSpy).toHaveBeenCalledWith("[miso:error] oops from miso");
+      expect(logSpy).toHaveBeenCalledWith("[unchain] hello from unchain");
+      expect(errorSpy).toHaveBeenCalledWith("["unchain:error] oops from unchain");
       expect(logSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy).toHaveBeenCalledTimes(1);
     } finally {

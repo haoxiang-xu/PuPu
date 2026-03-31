@@ -3,6 +3,7 @@ import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
   setChatMessages,
+  setChatAgentOrchestration,
   setChatModel,
   setChatSelectedToolkits,
   setChatSelectedWorkspaceIds,
@@ -31,7 +32,10 @@ export const useChatSessionState = ({
   const [selectedModelId, setSelectedModelId] = useState(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
-      : "miso-unset",
+      : "unchain-unset",
+  );
+  const [agentOrchestration, setAgentOrchestration] = useState(
+    () => initialChat.agentOrchestration || { mode: "default" },
   );
   const [selectedToolkits, setSelectedToolkits] = useState(
     () => initialChat.selectedToolkits || [],
@@ -66,7 +70,7 @@ export const useChatSessionState = ({
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
-      : "miso-unset",
+      : "unchain-unset",
   );
   const systemPromptOverridesRef = useRef(
     initialChat.systemPromptOverrides || {},
@@ -93,6 +97,21 @@ export const useChatSessionState = ({
       }
 
       if (nextActiveId === currentActiveId) {
+        setActiveChatKind(
+          nextActiveChat.kind === "character" ? "character" : "default",
+        );
+        setActiveCharacterId(
+          typeof nextActiveChat.characterId === "string"
+            ? nextActiveChat.characterId
+            : "",
+        );
+        setActiveCharacterName(
+          typeof nextActiveChat.characterName === "string"
+            ? nextActiveChat.characterName
+            : "",
+        );
+        setActiveCharacterAvatar(nextActiveChat.characterAvatar || null);
+
         if (event.type === "chat_update_messages") {
           setMessages(nextActiveChat.messages || []);
           return;
@@ -124,7 +143,10 @@ export const useChatSessionState = ({
       setStreamError("");
       setMessages(nextActiveChat.messages || []);
       setInputValue(nextActiveChat.draft?.text || "");
-      setDraftAttachments(nextActiveChat.draft?.attachments || []);
+        setDraftAttachments(nextActiveChat.draft?.attachments || []);
+      setAgentOrchestration(
+        nextActiveChat.agentOrchestration || { mode: "default" },
+      );
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
       setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
       setActiveChatKind(
@@ -153,7 +175,7 @@ export const useChatSessionState = ({
         typeof nextActiveChat.model?.id === "string" &&
         nextActiveChat.model.id.trim()
           ? nextActiveChat.model.id
-          : "miso-unset";
+          : "unchain-unset";
       setSelectedModelId(modelIdRef.current);
     });
 
@@ -239,6 +261,20 @@ export const useChatSessionState = ({
       return;
     }
 
+    setChatAgentOrchestration(currentChatId, agentOrchestration, {
+      source: "chat-page",
+    });
+  }, [activeChatKind, agentOrchestration]);
+
+  useEffect(() => {
+    const currentChatId = activeChatIdRef.current;
+    if (!currentChatId) {
+      return;
+    }
+    if (activeChatKind === "character") {
+      return;
+    }
+
     setChatSelectedWorkspaceIds(currentChatId, selectedWorkspaceIds, {
       source: "chat-page",
     });
@@ -278,6 +314,8 @@ export const useChatSessionState = ({
     modelIdRef,
     selectedModelId,
     setSelectedModelId,
+    agentOrchestration,
+    setAgentOrchestration,
     selectedToolkits,
     setSelectedToolkits,
     selectedWorkspaceIds,

@@ -19,6 +19,7 @@ import {
   isObject,
   isCharacterChatSession,
   sanitizeAttachment,
+  sanitizeAgentOrchestration,
   sanitizeChatSession,
   sanitizeCharacterAvatar,
   sanitizeCharacterId,
@@ -101,7 +102,7 @@ const resolveCharacterPreferredModelId = (character = {}) => {
       continue;
     }
     const normalized = candidate.trim();
-    if (normalized && normalized !== "miso-unset") {
+    if (normalized && normalized !== "unchain-unset") {
       return normalized;
     }
   }
@@ -117,7 +118,7 @@ const resolveCharacterSourceModelId = (store, explicitModelId, character = {}) =
 
   if (typeof explicitModelId === "string" && explicitModelId.trim()) {
     const normalized = explicitModelId.trim();
-    return normalized && normalized !== "miso-unset" ? normalized : "";
+    return normalized && normalized !== "unchain-unset" ? normalized : "";
   }
 
   const activeChat =
@@ -130,7 +131,7 @@ const resolveCharacterSourceModelId = (store, explicitModelId, character = {}) =
 
   const modelId =
     typeof activeChat.model?.id === "string" ? activeChat.model.id.trim() : "";
-  return modelId && modelId !== "miso-unset" ? modelId : "";
+  return modelId && modelId !== "unchain-unset" ? modelId : "";
 };
 
 const touchLru = (store, chatId) => {
@@ -807,6 +808,7 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
               ...copiedChat,
               title: copiedTitle,
               threadId: null,
+              agentOrchestration: { mode: "default" },
               selectedToolkits: sanitizeSelectedToolkits(
                 sourceChat.selectedToolkits,
               ),
@@ -1212,6 +1214,24 @@ export const setChatModel = (chatId, model, options = {}) => {
   );
 };
 
+export const setChatAgentOrchestration = (
+  chatId,
+  agentOrchestration,
+  options = {},
+) => {
+  return updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      agentOrchestration: isLockedCharacterChat(chat)
+        ? { mode: "default" }
+        : sanitizeAgentOrchestration(agentOrchestration),
+      updatedAt: now(),
+    }),
+    { ...options, type: "chat_update_agent_orchestration" },
+  );
+};
+
 export const setChatSelectedToolkits = (
   chatId,
   selectedToolkits,
@@ -1285,6 +1305,85 @@ export const setChatTitle = (chatId, title, options = {}) => {
     }),
     { ...options, type: "chat_rename" },
   );
+};
+
+export const refreshCharacterChatMetadata = (characters, options = {}) => {
+  if (!Array.isArray(characters) || characters.length === 0) {
+    return clone(getChatsStore()) || getChatsStore();
+  }
+
+  const byCharacterId = new Map();
+  for (const character of characters) {
+    const characterId = sanitizeCharacterId(character?.id);
+    if (!characterId) {
+      continue;
+    }
+    byCharacterId.set(characterId, character);
+  }
+
+  if (byCharacterId.size === 0) {
+    return clone(getChatsStore()) || getChatsStore();
+  }
+
+  const next = withStore(
+    (store) => {
+      for (const [chatId, chat] of Object.entries(store.chatsById || {})) {
+        if (chat?.kind !== CHARACTER_CHAT_KIND) {
+          continue;
+        }
+
+        const characterId = sanitizeCharacterId(chat?.characterId);
+        const latestCharacter = byCharacterId.get(characterId);
+        if (!latestCharacter) {
+          continue;
+        }
+
+        const nextCharacterName =
+          sanitizeCharacterName(
+            latestCharacter?.name || chat?.characterName || chat?.title,
+          ) ||
+          chat?.characterName ||
+          chat?.title ||
+          DEFAULT_CHAT_TITLE;
+        const nextCharacterAvatar =
+          sanitizeCharacterAvatar(latestCharacter?.avatar) ||
+          chat?.characterAvatar ||
+          null;
+
+        const currentName =
+          typeof chat?.characterName === "string" ? chat.characterName : "";
+        const currentAvatar = JSON.stringify(chat?.characterAvatar || null);
+        const incomingAvatar = JSON.stringify(nextCharacterAvatar || null);
+
+        if (
+          nextCharacterName === currentName &&
+          incomingAvatar === currentAvatar
+        ) {
+          continue;
+        }
+
+        const cleaned = sanitizeChatSession(
+          {
+            ...chat,
+            title: nextCharacterName,
+            characterName: nextCharacterName,
+            characterAvatar: nextCharacterAvatar,
+          },
+          chatId,
+        );
+        store.chatsById[chatId] = cleaned;
+        updateCharacterNodeMetadata(store, chatId, cleaned);
+      }
+
+      return store;
+    },
+    {
+      ...options,
+      type: options.type || "chat_refresh_character_metadata",
+    },
+  );
+
+  return clone(next) || next;
 };
 
 export const cleanupTransientNewChatOnPageLeave = (options = {}) => {

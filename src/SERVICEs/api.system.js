@@ -5,7 +5,7 @@ import {
   toFrontendApiError,
   withTimeout,
 } from "./api.shared";
-import { runtimeBridge } from "./bridges/miso_bridge";
+import { runtimeBridge } from "./bridges/unchain_bridge";
 import { themeBridge } from "./bridges/theme_bridge";
 import { windowStateBridge } from "./bridges/window_state_bridge";
 

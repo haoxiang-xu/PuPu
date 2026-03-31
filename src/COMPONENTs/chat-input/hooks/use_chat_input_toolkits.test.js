@@ -6,7 +6,7 @@ import useChatInputToolkits from "./use_chat_input_toolkits";
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
-    miso: {
+    "unchain: {
       listToolModalCatalog: jest.fn(),
     },
   },
@@ -86,25 +86,25 @@ const readOptions = () =>
 
 describe("use_chat_input_toolkits", () => {
   beforeEach(() => {
-    api.miso.listToolModalCatalog.mockReset();
+    api.unchain.listToolModalCatalog.mockReset();
   });
 
   test("does not request toolkits on initial render", () => {
     render(<HookHarness />);
 
-    expect(api.miso.listToolModalCatalog).not.toHaveBeenCalled();
+    expect(api.unchain.listToolModalCatalog).not.toHaveBeenCalled();
     expect(readOptions()).toEqual([]);
     expect(screen.getByTestId("loading")).toHaveTextContent("false");
   });
 
   test("shows a loading placeholder until the first request resolves", async () => {
     const deferred = createDeferred();
-    api.miso.listToolModalCatalog.mockReturnValueOnce(deferred.promise);
+    api.unchain.listToolModalCatalog.mockReturnValueOnce(deferred.promise);
 
     render(<HookHarness />);
     fireEvent.click(screen.getByText("refresh"));
 
-    expect(api.miso.listToolModalCatalog).toHaveBeenCalledTimes(1);
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
     expect(readOptions()).toEqual([
       {
@@ -133,7 +133,7 @@ describe("use_chat_input_toolkits", () => {
   });
 
   test("shows a failure placeholder after an initial request error and retries on demand", async () => {
-    api.miso.listToolModalCatalog
+    api.unchain.listToolModalCatalog
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce(TOOLKIT_PAYLOAD);
 
@@ -154,7 +154,7 @@ describe("use_chat_input_toolkits", () => {
 
     fireEvent.click(screen.getByText("refresh"));
 
-    expect(api.miso.listToolModalCatalog).toHaveBeenCalledTimes(2);
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(2);
     expect(readOptions()).toEqual([
       {
         value: "__toolkits_loading__",
@@ -179,7 +179,7 @@ describe("use_chat_input_toolkits", () => {
   });
 
   test("keeps the previous successful toolkit options when a refresh fails", async () => {
-    api.miso.listToolModalCatalog
+    api.unchain.listToolModalCatalog
       .mockResolvedValueOnce(TOOLKIT_PAYLOAD)
       .mockRejectedValueOnce(new Error("timeout"));
 
@@ -201,7 +201,7 @@ describe("use_chat_input_toolkits", () => {
 
     fireEvent.click(screen.getByText("refresh"));
 
-    expect(api.miso.listToolModalCatalog).toHaveBeenCalledTimes(2);
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
     expect(readOptions()).toEqual([
       {

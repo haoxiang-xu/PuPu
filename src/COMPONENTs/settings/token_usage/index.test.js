@@ -77,16 +77,51 @@ const setTokenUsageRecords = (records) => {
 };
 
 const expectStatCardValue = (label, value) => {
-  const labelNode = screen.getByText(label);
-  const card = labelNode.parentElement;
-  expect(card).not.toBeNull();
-  expect(within(card).getByText(String(value))).toBeInTheDocument();
+  const testId = `token-usage-stat-${label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "")}`;
+  expect(
+    within(screen.getByTestId(testId)).getByText(String(value)),
+  ).toBeInTheDocument();
 };
 
 describe("TokenUsageSettings", () => {
   beforeEach(() => {
     window.localStorage.clear();
     lastBarChartProps = null;
+  });
+
+  test("keeps the page responsive without horizontal overflow", () => {
+    setTokenUsageRecords([
+      {
+        timestamp: Date.now(),
+        provider: "openai",
+        model: "gpt-5-thinking",
+        model_id:
+          "openai:gpt-5-thinking-preview-2026-03-very-long-model-identifier",
+        consumed_tokens: 1280,
+        input_tokens: 640,
+        output_tokens: 640,
+      },
+    ]);
+
+    renderTokenUsageSettings();
+
+    expect(screen.getByTestId("token-usage-page")).toHaveStyle(
+      "overflow-x: hidden",
+    );
+    expect(screen.getByTestId("token-usage-overview-grid")).toHaveStyle(
+      "grid-template-columns: repeat(2, minmax(0, 1fr))",
+    );
+    expect(screen.getByTestId("token-usage-filters")).toHaveStyle(
+      "flex-wrap: wrap",
+    );
+    expect(
+      within(screen.getByTestId("token-usage-stat-top-model")).getByText(
+        "openai:gpt-5-thinking-preview-2026-03-very-long-model-identifier",
+      ),
+    ).toBeInTheDocument();
   });
 
   test("renders consumed, input, and output summaries for mixed legacy and new records", () => {

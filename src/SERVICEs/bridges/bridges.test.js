@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 
 import { FrontendApiError } from "../api.shared";
-import { runtimeBridge } from "./miso_bridge";
+import { runtimeBridge } from "./unchain_bridge";
 import { ollamaBridge } from "./ollama_bridge";
 import { themeBridge } from "./theme_bridge";
 import { windowStateBridge } from "./window_state_bridge";
@@ -28,13 +28,13 @@ const collectJsFiles = (dirPath) => {
 };
 
 describe("bridge wrappers", () => {
-  const originalMisoAPI = window.misoAPI;
+  const originalMisoAPI = window.unchainAPI;
   const originalOllamaAPI = window.ollamaAPI;
   const originalThemeAPI = window.themeAPI;
   const originalWindowStateAPI = window.windowStateAPI;
 
   afterEach(() => {
-    window.misoAPI = originalMisoAPI;
+    window.unchainAPI = originalMisoAPI;
     window.ollamaAPI = originalOllamaAPI;
     window.themeAPI = originalThemeAPI;
     window.windowStateAPI = originalWindowStateAPI;
@@ -42,7 +42,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.validateWorkspaceRoot returns normalized payload", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       validateWorkspaceRoot: jest.fn(async () => ({
         valid: true,
         resolvedPath: "  /tmp/demo ",
@@ -60,7 +60,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge throws bridge_unavailable when method is missing", async () => {
-    window.misoAPI = {};
+    window.unchainAPI = {};
 
     await expect(runtimeBridge.validateWorkspaceRoot("/tmp/demo")).rejects.toMatchObject(
       {
@@ -70,7 +70,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.getRuntimeDirSize normalizes invalid response", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       getRuntimeDirSize: jest.fn(async () => ({ entries: null, total: "x" })),
     };
 
@@ -82,7 +82,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.getMemorySize normalizes vector and profile totals", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       getMemorySize: jest.fn(async () => ({
         total: "42",
         vectorTotal: "24",
@@ -99,7 +99,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.getCharacterStorageSize normalizes totals", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       getCharacterStorageSize: jest.fn(async () => ({
         total: "42",
         registryTotal: "10",
@@ -123,7 +123,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.deleteCharacterStorageEntry forwards entry name", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       getCharacterStorageSize: jest.fn(),
       deleteCharacterStorageEntry: jest.fn(async () => ({ ok: true })),
     };
@@ -131,13 +131,13 @@ describe("bridge wrappers", () => {
     await expect(
       runtimeBridge.deleteCharacterStorageEntry("avatars"),
     ).resolves.toEqual({ ok: true });
-    expect(window.misoAPI.deleteCharacterStorageEntry).toHaveBeenCalledWith(
+    expect(window.unchainAPI.deleteCharacterStorageEntry).toHaveBeenCalledWith(
       "avatars",
     );
   });
 
   test("runtimeBridge.listCharacters normalizes response", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       listCharacters: jest.fn(async () => ({
         characters: [{ id: "mina" }],
         count: "1",
@@ -154,7 +154,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.previewCharacterDecision throws when method is missing", async () => {
-    window.misoAPI = {};
+    window.unchainAPI = {};
 
     await expect(
       runtimeBridge.previewCharacterDecision({ characterId: "mina" }),
@@ -164,7 +164,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.setChromeTerminalOpen forwards open flag and normalizes payload", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       setChromeTerminalOpen: jest.fn(async (open) => ({
         ok: true,
         open,
@@ -176,14 +176,38 @@ describe("bridge wrappers", () => {
       open: true,
       error: "",
     });
-    expect(window.misoAPI.setChromeTerminalOpen).toHaveBeenCalledWith(true);
+    expect(window.unchainAPI.setChromeTerminalOpen).toHaveBeenCalledWith(true);
   });
 
   test("runtimeBridge.setChromeTerminalOpen throws when bridge method is missing", async () => {
-    window.misoAPI = {};
+    window.unchainAPI = {};
 
     await expect(runtimeBridge.setChromeTerminalOpen(true)).rejects.toMatchObject({
       code: "bridge_unavailable",
+    });
+  });
+
+  test("runtimeBridge.syncBuildFeatureFlagsSnapshot forwards flags and normalizes payload", async () => {
+    window.unchainAPI = {
+      syncBuildFeatureFlagsSnapshot: jest.fn(async (featureFlags) => ({
+        ok: true,
+        path: " /tmp/app/.local/build_feature_flags.snapshot.json ",
+        error: "",
+        featureFlags,
+      })),
+    };
+
+    await expect(
+      runtimeBridge.syncBuildFeatureFlagsSnapshot({
+        enable_user_access_to_agent_modal: true,
+      }),
+    ).resolves.toEqual({
+      ok: true,
+      path: "/tmp/app/.local/build_feature_flags.snapshot.json",
+      error: "",
+    });
+    expect(window.unchainAPI.syncBuildFeatureFlagsSnapshot).toHaveBeenCalledWith({
+      enable_user_access_to_agent_modal: true,
     });
   });
 
@@ -235,7 +259,7 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge methods throw FrontendApiError on failure", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       getRuntimeDirSize: jest.fn(async () => {
         throw new Error("failed");
       }),
@@ -247,21 +271,21 @@ describe("bridge wrappers", () => {
   });
 
   test("runtimeBridge.setChromeTerminalOpen wraps failures in FrontendApiError", async () => {
-    window.misoAPI = {
+    window.unchainAPI = {
       setChromeTerminalOpen: jest.fn(async () => {
         throw new Error("failed");
       }),
     };
 
     await expect(runtimeBridge.setChromeTerminalOpen(true)).rejects.toMatchObject({
-      code: "miso_chrome_terminal_failed",
+      code: "unchain_chrome_terminal_failed",
     });
   });
 });
 
 describe("window API boundary guard", () => {
   test("direct window API usage is restricted to SERVICEs/bridges and tests", () => {
-    const disallowedPattern = /window\.(misoAPI|ollamaAPI|themeAPI|windowStateAPI)/;
+    const disallowedPattern = /window\.(unchainAPI|ollamaAPI|themeAPI|windowStateAPI)/;
 
     const offenders = collectJsFiles(SRC_ROOT)
       .filter((filePath) => !filePath.includes(`${path.sep}SERVICEs${path.sep}bridges${path.sep}`))

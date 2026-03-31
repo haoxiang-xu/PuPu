@@ -6,6 +6,14 @@ const createRuntimeService = ({
   path,
   getMainWindow,
 }) => {
+  const appPath =
+    typeof app.getAppPath === "function" ? app.getAppPath() : process.cwd();
+  const BUILD_FEATURE_FLAGS_SNAPSHOT_PATH = path.join(
+    appPath,
+    ".local",
+    "build_feature_flags.snapshot.json",
+  );
+
   const expandWorkspacePath = (candidatePath) => {
     if (typeof candidatePath !== "string") {
       return "";
@@ -165,6 +173,48 @@ const createRuntimeService = ({
           typeof error?.message === "string" && error.message
             ? error.message
             : "failed_to_toggle_chrome_terminal",
+      };
+    }
+  };
+
+  const syncBuildFeatureFlagsSnapshot = ({ featureFlags = {} } = {}) => {
+    if (app.isPackaged) {
+      return {
+        ok: false,
+        path: BUILD_FEATURE_FLAGS_SNAPSHOT_PATH,
+        error: "dev_only",
+      };
+    }
+
+    const normalized =
+      featureFlags && typeof featureFlags === "object" && !Array.isArray(featureFlags)
+        ? Object.fromEntries(
+            Object.entries(featureFlags).map(([key, value]) => [key, value === true]),
+          )
+        : {};
+
+    try {
+      fs.mkdirSync(path.dirname(BUILD_FEATURE_FLAGS_SNAPSHOT_PATH), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        BUILD_FEATURE_FLAGS_SNAPSHOT_PATH,
+        `${JSON.stringify(normalized, null, 2)}\n`,
+        "utf-8",
+      );
+      return {
+        ok: true,
+        path: BUILD_FEATURE_FLAGS_SNAPSHOT_PATH,
+        error: "",
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        path: BUILD_FEATURE_FLAGS_SNAPSHOT_PATH,
+        error:
+          typeof error?.message === "string" && error.message
+            ? error.message
+            : "failed_to_sync_build_feature_flags_snapshot",
       };
     }
   };
@@ -502,6 +552,7 @@ const createRuntimeService = ({
     validateWorkspaceRoot,
     openRuntimeFolder,
     setChromeTerminalOpen,
+    syncBuildFeatureFlagsSnapshot,
     getRuntimeDirSize,
     getCharacterStorageSize,
     deleteCharacterStorageEntry,

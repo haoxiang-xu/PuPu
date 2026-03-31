@@ -19,7 +19,9 @@
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
+    "@use-gesture/react": "^10.3.1",
     "cross-env": "^7.0.3",
+    "electron-updater": "^6.6.2",
     "highlight.js": "^11.9.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
@@ -29,8 +31,7 @@
     "react-spring": "^10.0.3",
     "three": "^0.183.0",
     "vanilla-tilt": "^1.8.1",
-    "web-vitals": "^2.1.4",
-    "electron-updater": "^6.6.2"
+    "web-vitals": "^2.1.4"
   },
   "scripts": {
     "start": "npm run start:electron",
@@ -41,20 +42,23 @@
     "electron-start": "npm run start:electron",
     "version:prepare-build": "node ./scripts/prepare-build-version.cjs",
     "build": "npm run version:prepare-build && cross-env PUPU_VERSION_PREPARED=1 npm run build:web",
-    "build:web": "npm run version:prepare-build && react-scripts build",
-    "build:miso": "npm run version:prepare-build && bash ./miso_runtime/scripts/build_miso_server.sh",
-    "build:miso:mac": "npm run version:prepare-build && bash ./miso_runtime/scripts/build_miso_server.sh macos",
-    "build:miso:mac:intel": "npm run version:prepare-build && MISO_TARGET_ARCH=x86_64 bash ./miso_runtime/scripts/build_miso_server.sh macos",
-    "build:miso:linux": "npm run version:prepare-build && bash ./miso_runtime/scripts/build_miso_server.sh linux",
-    "build:miso:win": "npm run version:prepare-build && powershell -ExecutionPolicy Bypass -File ./miso_runtime/scripts/build_miso_server.ps1 windows",
-    "build:electron": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:miso && npm run build:web && electron-builder\"",
-    "build:electron:mac": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:miso:mac && npm run build:web && electron-builder --mac --arm64\"",
-    "build:electron:mac:intel": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:miso:mac:intel && npm run build:web && electron-builder --mac --x64\"",
-    "build:electron:win": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:miso:win && npm run build:web && electron-builder --win\"",
-    "build:electron:win:unsigned": "npm run version:prepare-build && cross-env-shell WIN_CSC_LINK= CSC_LINK= WIN_CSC_KEY_PASSWORD= CSC_KEY_PASSWORD= CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:miso:win && npm run build:web && electron-builder --win --config.win.verifyUpdateCodeSignature=false\"",
-    "build:electron:linux": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:miso:linux && npm run build:web && electron-builder --linux\"",
+    "build:web": "npm run version:prepare-build && node ./scripts/build-web.cjs",
+    "build:unchain": "npm run version:prepare-build && bash ./unchain_runtime/scripts/build_unchain_server.sh",
+    "build:unchain:mac": "npm run version:prepare-build && bash ./unchain_runtime/scripts/build_unchain_server.sh macos",
+    "build:unchain:mac:intel": "npm run version:prepare-build && MISO_TARGET_ARCH=x86_64 bash ./unchain_runtime/scripts/build_unchain_server.sh macos",
+    "build:unchain:linux": "npm run version:prepare-build && bash ./unchain_runtime/scripts/build_unchain_server.sh linux",
+    "build:unchain:win": "npm run version:prepare-build && powershell -ExecutionPolicy Bypass -File ./unchain_runtime/scripts/build_unchain_server.ps1 windows",
+    "build:electron": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain && npm run build:web && electron-builder\"",
+    "build:electron:mac": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && electron-builder --mac --arm64\"",
+    "build:electron:mac:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && electron-builder --mac --arm64 --config.mac.identity=null --config.mac.forceCodeSigning=false\"",
+    "build:electron:mac:intel": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && electron-builder --mac --x64\"",
+    "build:electron:mac:intel:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && electron-builder --mac --x64 --config.mac.identity=null --config.mac.forceCodeSigning=false\"",
+    "build:electron:win": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:win && npm run build:web && electron-builder --win\"",
+    "build:electron:win:unsigned": "npm run version:prepare-build && cross-env-shell WIN_CSC_LINK= CSC_LINK= WIN_CSC_KEY_PASSWORD= CSC_KEY_PASSWORD= CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:win && npm run build:web && electron-builder --win --config.win.verifyUpdateCodeSignature=false\"",
+    "build:electron:linux": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:linux && npm run build:web && electron-builder --linux\"",
     "pack": "npm run build:electron",
     "pack:mac": "npm run build:electron:mac",
+    "pack:mac:unsigned": "npm run build:electron:mac:unsigned",
     "pack:win": "npm run build:electron:win",
     "pack:win:unsigned": "npm run build:electron:win:unsigned",
     "pack:linux": "npm run build:electron:linux",
@@ -106,8 +110,8 @@
     ],
     "extraResources": [
       {
-        "from": "miso_runtime",
-        "to": "miso_runtime",
+        "from": "unchain_runtime",
+        "to": "unchain_runtime",
         "filter": [
           "**/*"
         ]
@@ -118,6 +122,7 @@
         "dmg",
         "zip"
       ],
+      "forceCodeSigning": true,
       "icon": "public/icon.icns"
     },
     "win": {

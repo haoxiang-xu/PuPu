@@ -30,6 +30,27 @@ describe("SideMenu", () => {
     window.localStorage.clear();
   });
 
+  test("hides the Agents entry when the agent modal feature flag is disabled", () => {
+    renderSideMenu();
+
+    expect(screen.queryByText("Agents")).not.toBeInTheDocument();
+  });
+
+  test("shows the Agents entry when the agent modal feature flag is enabled", () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_user_access_to_agent_modal: true,
+        },
+      }),
+    );
+
+    renderSideMenu();
+
+    expect(screen.getByText("Agents")).toBeInTheDocument();
+  });
+
   test("right-clicking the chats title opens the root context menu", () => {
     renderSideMenu();
 

@@ -268,6 +268,175 @@ const ToolTag = ({ name, isDark }) => (
   </span>
 );
 
+/* count badge shown next to ToolTag when consecutive calls are grouped */
+const CountBadge = ({ count, isDark }) => (
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0 5px",
+      minWidth: 16,
+      height: 16,
+      borderRadius: 8,
+      background: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.055)",
+      fontFamily: "Menlo, Monaco, Consolas, monospace",
+      fontSize: "0.72em",
+      color: isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+    }}
+  >
+    ×{count}
+  </span>
+);
+
+/* ─── Subagent helpers ──────────────────────────────────────────────────── */
+
+const SUBAGENT_TOOLS = new Set([
+  "delegate_to_subagent",
+  "handoff_to_subagent",
+  "spawn_worker_batch",
+]);
+
+/* tag pill for subagent — purple-tinted to distinguish from regular tools */
+const SubagentTag = ({ name, isDark }) => (
+  <span
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      padding: "1px 7px",
+      borderRadius: 5,
+      background: isDark ? "rgba(168,130,255,0.10)" : "rgba(124,58,237,0.07)",
+      fontFamily: "Menlo, Monaco, Consolas, monospace",
+      fontSize: "0.82em",
+      letterSpacing: 0.1,
+      color: isDark ? "rgba(196,170,255,0.85)" : "rgba(109,40,217,0.8)",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+    }}
+  >
+    {name}
+  </span>
+);
+
+/* double-circle point marker for subagent nodes */
+const SubagentPoint = ({ isDark }) => (
+  <div
+    style={{
+      width: 10,
+      height: 10,
+      borderRadius: "50%",
+      background: "transparent",
+      border: `1.5px solid ${isDark ? "rgba(168,130,255,0.4)" : "rgba(124,58,237,0.35)"}`,
+      boxShadow: `0 0 0 2.5px ${isDark ? "rgba(168,130,255,0.12)" : "rgba(124,58,237,0.08)"}`,
+      flexShrink: 0,
+      boxSizing: "border-box",
+    }}
+  />
+);
+
+/* render a list of worker results as compact rows */
+const WorkerResultList = ({ results, isDark, color }) => {
+  if (!Array.isArray(results) || results.length === 0) return null;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {results.map((r, i) => {
+        const status = r?.status || "unknown";
+        const output = r?.output || r?.summary || "";
+        const failed = status === "failed" || status === "timeout";
+        const error = r?.error || "";
+        const templateName = r?.template_name || "";
+        const statusSymbol = failed ? "\u2717" : status === "completed" ? "\u2713" : "\u2022";
+        return (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 2,
+              padding: "4px 0",
+              borderBottom:
+                i < results.length - 1
+                  ? `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"}`
+                  : "none",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+              }}
+            >
+              <span
+                style={{
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  fontSize: 10,
+                  color,
+                  opacity: 0.3,
+                  flexShrink: 0,
+                  userSelect: "none",
+                }}
+              >
+                #{i + 1}
+              </span>
+              {templateName && (
+                <span
+                  style={{
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    fontSize: 10,
+                    color,
+                    opacity: 0.45,
+                    flexShrink: 0,
+                    userSelect: "none",
+                  }}
+                >
+                  {templateName}:
+                </span>
+              )}
+              <span
+                style={{
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  fontSize: 10,
+                  color: failed
+                    ? isDark
+                      ? "rgba(252,165,165,0.9)"
+                      : "rgba(220,38,38,0.85)"
+                    : isDark
+                      ? "rgba(110,231,183,0.85)"
+                      : "rgba(5,150,105,0.85)",
+                  flexShrink: 0,
+                  userSelect: "none",
+                }}
+              >
+                {statusSymbol}
+              </span>
+            </div>
+            {(output || error) && (
+              <span
+                style={{
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  fontSize: 10.5,
+                  color,
+                  opacity: failed ? 0.5 : 0.6,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                  lineHeight: 1.5,
+                  maxHeight: 60,
+                  overflow: "hidden",
+                }}
+              >
+                {failed && error ? error : output}
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 /* hollow circle point marker for tool_call */
 const HammerPoint = ({ isDark }) => (
   <div
@@ -309,6 +478,27 @@ const ErrorPoint = () => (
   </div>
 );
 
+/* ─── TokenSummary ───────────────────────────────────────────────────────── */
+
+const TokenSummary = ({ input, output, total, isDark }) => {
+  const fmt = (n) =>
+    typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "\u2013";
+  const color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)";
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontFamily: "Menlo, Monaco, Consolas, monospace",
+        color,
+        userSelect: "none",
+        letterSpacing: "0.01em",
+      }}
+    >
+      {fmt(input)} in &middot; {fmt(output)} out &middot; {fmt(total)} total
+    </span>
+  );
+};
+
 /* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
 const TraceChain = ({
@@ -319,6 +509,7 @@ const TraceChain = ({
   toolConfirmationUiStateById = {},
   pendingContinuationRequest,
   onContinuationDecision,
+  bundle,
 }) => {
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
@@ -470,14 +661,19 @@ const TraceChain = ({
   const interactTypeByCallId = useMemo(() => {
     const map = new Map();
     for (const frame of frames) {
-      if (
-        frame?.type !== "tool_call" ||
-        !frame?.payload?.call_id ||
-        typeof frame?.payload?.interact_type !== "string"
-      ) {
+      if (frame?.type !== "tool_call" || !frame?.payload?.call_id) {
         continue;
       }
-      map.set(frame.payload.call_id, frame.payload.interact_type);
+      const rc = frame.payload?.render_component;
+      const itype =
+        typeof rc?.type === "string" && rc.type
+          ? rc.type
+          : typeof frame.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : "";
+      if (itype) {
+        map.set(frame.payload.call_id, itype);
+      }
     }
     return map;
   }, [frames]);
@@ -489,14 +685,17 @@ const TraceChain = ({
         continue;
       }
 
+      const rcType = frame?.payload?.render_component?.type;
       const interactType =
-        typeof frame?.payload?.interact_type === "string"
-          ? frame.payload.interact_type
-          : interactTypeByCallId.get(frame.payload.call_id) ||
-            (typeof frame?.payload?.tool_name === "string" &&
-            frame.payload.tool_name === "ask_user_question"
-              ? "single"
-              : "");
+        typeof rcType === "string" && rcType
+          ? rcType
+          : typeof frame?.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : interactTypeByCallId.get(frame.payload.call_id) ||
+              (typeof frame?.payload?.tool_name === "string" &&
+              frame.payload.tool_name === "ask_user_question"
+                ? "single"
+                : "");
       const normalized = normalizePersistedInteractionResponse(
         interactType,
         frame.payload?.result,
@@ -561,15 +760,122 @@ const TraceChain = ({
         const requiresConfirmation =
           frame.payload?.requires_confirmation === true ||
           Boolean(confirmationId);
+        const rc = frame.payload?.render_component;
         const interactType =
-          typeof frame.payload?.interact_type === "string"
-            ? frame.payload.interact_type
-            : "confirmation";
-        const interactConfig = frame.payload?.interact_config || {};
+          typeof rc?.type === "string" && rc.type
+            ? rc.type
+            : typeof frame.payload?.interact_type === "string"
+              ? frame.payload.interact_type
+              : "confirmation";
+        const interactConfig =
+          rc?.config && typeof rc.config === "object"
+            ? rc.config
+            : frame.payload?.interact_config || {};
         const resultFrame = callId ? toolResultByCallId.get(callId) : null;
         const result = resultFrame?.payload?.result;
         const internalDelta =
           resultFrame?.ts && frame.ts ? resultFrame.ts - frame.ts : null;
+
+        /* ── subagent tool calls get special rendering ── */
+        if (SUBAGENT_TOOLS.has(frame.payload?.tool_name)) {
+          const isDelegate = frame.payload.tool_name === "delegate_to_subagent";
+          const isBatch = frame.payload.tool_name === "spawn_worker_batch";
+          const target = args?.target || "worker";
+          const task = args?.task || args?.reason || "";
+          const batchTasks = isBatch && Array.isArray(args?.tasks) ? args.tasks : [];
+          const batchCount = isBatch ? batchTasks.length : 0;
+          const resultStatus = result?.status || (resultFrame ? "done" : "");
+          const resultOutput = result?.output || result?.summary || "";
+          const batchResults = isBatch ? result?.results : null;
+          const failed =
+            resultStatus === "failed" ||
+            resultStatus === "timeout" ||
+            resultStatus === "partial_failure";
+
+          const detailSections = [];
+          if (internalDelta != null)
+            detailSections.push({
+              pairs: [{ key: "took", value: formatDelta(internalDelta) }],
+            });
+          if (task)
+            detailSections.push({
+              heading: isDelegate ? "task" : "reason",
+              pairs: [{ key: "text", value: task }],
+            });
+          if (resultOutput && !isBatch)
+            detailSections.push({
+              heading: "output",
+              pairs: [{ key: "text", value: resultOutput }],
+            });
+          if (result?.error)
+            detailSections.push({
+              heading: "error",
+              pairs: [{ key: "message", value: result.error }],
+            });
+
+          const hasDetails =
+            detailSections.length > 0 || (Array.isArray(batchResults) && batchResults.length > 0);
+
+          /* ── inline result preview for delegates (truncated to ~120 chars) ── */
+          const inlinePreview =
+            isDelegate && resultOutput && resultFrame
+              ? resultOutput.length > 120
+                ? resultOutput.slice(0, 120).trimEnd() + "…"
+                : resultOutput
+              : "";
+
+          items.push({
+            key: `${frame.seq}-subagent`,
+            title: (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <SubagentTag name={target} isDark={isDark} />
+                {batchCount > 1 && (
+                  <CountBadge count={batchCount} isDark={isDark} />
+                )}
+                {resultStatus && (
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontFamily: "Menlo, Monaco, Consolas, monospace",
+                      color: failed
+                        ? isDark
+                          ? "rgba(252,165,165,0.9)"
+                          : "rgba(220,38,38,0.85)"
+                        : isDark
+                          ? "rgba(110,231,183,0.8)"
+                          : "rgba(5,150,105,0.8)",
+                      userSelect: "none",
+                    }}
+                  >
+                    {resultStatus}
+                  </span>
+                )}
+              </span>
+            ),
+            span: spanText,
+            status: resultFrame ? "done" : "active",
+            point: resultFrame ? (
+              <SubagentPoint isDark={isDark} />
+            ) : (
+              "loading"
+            ),
+            body: isBatch && batchTasks.length > 0 && !resultFrame
+              ? batchTasks.map((t, i) => `${i + 1}. ${t?.task || "..."}`).join("\n")
+              : inlinePreview || undefined,
+            details: hasDetails ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {detailSections.length > 0 && (
+                  <KVPanel sections={detailSections} isDark={isDark} color={color} />
+                )}
+                {Array.isArray(batchResults) && batchResults.length > 0 && (
+                  <WorkerResultList results={batchResults} isDark={isDark} color={color} />
+                )}
+              </div>
+            ) : undefined,
+          });
+          continue;
+        }
+
         const confirmationResult = callId
           ? confirmationStatusByCallId.get(callId)
           : "";
@@ -767,6 +1073,8 @@ const TraceChain = ({
             sections.length > 0 ? (
               <KVPanel sections={sections} isDark={isDark} color={color} />
             ) : undefined,
+          _toolName: toolName,
+          _sections: sections,
         });
       } else if (frame.type === "error") {
         const msg = frame.payload?.message || "Unknown error";
@@ -936,7 +1244,73 @@ const TraceChain = ({
       });
     }
 
-    return items;
+    /* ── group consecutive identical tool calls ── */
+    const grouped = [];
+    let i = 0;
+    while (i < items.length) {
+      const item = items[i];
+      if (!item._toolName) {
+        grouped.push(item);
+        i++;
+        continue;
+      }
+      /* collect consecutive run of the same tool name */
+      const run = [item];
+      while (
+        i + run.length < items.length &&
+        items[i + run.length]._toolName === item._toolName
+      ) {
+        run.push(items[i + run.length]);
+      }
+      i += run.length;
+      if (run.length === 1) {
+        grouped.push(item);
+        continue;
+      }
+      /* merge run into a single batched item */
+      const allSections = run.flatMap((r) => r._sections || []);
+      grouped.push({
+        key: run.map((r) => r.key).join("+"),
+        title: (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <ToolTag name={item._toolName} isDark={isDark} />
+            <CountBadge count={run.length} isDark={isDark} />
+          </span>
+        ),
+        span: run[run.length - 1].span,
+        status: "done",
+        point: <HammerPoint isDark={isDark} />,
+        details:
+          allSections.length > 0 ? (
+            <KVPanel sections={allSections} isDark={isDark} color={color} />
+          ) : undefined,
+      });
+    }
+
+    /* ── token summary at the end of the timeline ── */
+    if (
+      status === "done" &&
+      bundle &&
+      typeof bundle === "object" &&
+      typeof bundle.consumed_tokens === "number" &&
+      bundle.consumed_tokens > 0
+    ) {
+      grouped.push({
+        key: "__token_summary__",
+        title: (
+          <TokenSummary
+            input={bundle.input_tokens}
+            output={bundle.output_tokens}
+            total={bundle.consumed_tokens}
+            isDark={isDark}
+          />
+        ),
+        status: "done",
+        point: "end",
+      });
+    }
+
+    return grouped;
   }, [
     displayFrames,
     isStreaming,
@@ -953,6 +1327,8 @@ const TraceChain = ({
     onContinuationDecision,
     isDark,
     color,
+    status,
+    bundle,
   ]);
 
   if (timelineItems.length === 0) return null;

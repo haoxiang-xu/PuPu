@@ -12,7 +12,8 @@ import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 
 const STREAM_TRACE_LEVEL = "minimal";
-const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
+const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
+const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
   request_messages: "request_messages",
@@ -21,6 +22,19 @@ const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   done: "end",
 });
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
+
+const normalizeAgentOrchestration = (value) => {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof value.mode === "string" &&
+    ["default", "developer_waiting_approval"].includes(value.mode.trim())
+  ) {
+    return { mode: value.mode.trim() };
+  }
+  return { ...DEFAULT_AGENT_ORCHESTRATION };
+};
 
 const getTraceFrameIteration = (frame) => {
   const frameIteration = Number(frame?.iteration);
@@ -32,7 +46,7 @@ const getTraceFrameIteration = (frame) => {
   return Number.isFinite(payloadIteration) ? payloadIteration : 0;
 };
 
-const misoLogger = createLogger(
+const unchainLogger = createLogger(
   "MISO",
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
@@ -51,6 +65,7 @@ export const useChatStream = ({
   draftAttachments,
   setDraftAttachments,
   selectedModelId,
+  agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
   chatKind = "default",
@@ -67,6 +82,7 @@ export const useChatStream = ({
   messagesRef,
   modelIdRef,
   setSelectedModelId,
+  setAgentOrchestration,
   activeStreamMessagesRef,
 }) => {
   const {
@@ -114,7 +130,7 @@ export const useChatStream = ({
         ? threadIdRef.current.trim()
         : "main";
 
-    const config = await api.miso.buildCharacterAgentConfig({
+    const config = await api.unchain.buildCharacterAgentConfig({
       characterId,
       threadId: resolvedThreadId,
       humanId: "local_user",
@@ -510,7 +526,7 @@ export const useChatStream = ({
           : {};
 
       if (toolName === HUMAN_INPUT_TOOL_NAME) {
-        misoLogger.log("ask_user_question_submit", {
+        unchainLogger.log("ask_user_question_submit", {
           confirmationId: normalizedConfirmationId,
           callId,
           approved: Boolean(approved),
@@ -564,7 +580,7 @@ export const useChatStream = ({
         if (userResponse !== undefined && userResponse !== null) {
           payload.modified_arguments = { user_response: userResponse };
         }
-        await api.miso.respondToolConfirmation(payload);
+        await api.unchain.respondToolConfirmation(payload);
         if (
           confirmationFollowupSignalByIdRef.current.get(
             normalizedConfirmationId,
@@ -634,7 +650,7 @@ export const useChatStream = ({
       );
 
       try {
-        await api.miso.respondToolConfirmation({
+        await api.unchain.respondToolConfirmation({
           confirmation_id: normalizedId,
           approved: Boolean(approved),
           reason: "",
@@ -669,7 +685,7 @@ export const useChatStream = ({
       }
 
       try {
-        const response = await api.miso.replaceSessionMemory({
+        const response = await api.unchain.replaceSessionMemory({
           sessionId: targetSessionId,
           messages: buildHistoryForModel(nextMessages, chatId),
           options: {
@@ -825,6 +841,9 @@ export const useChatStream = ({
       let effectiveMemoryNamespace = "";
       let effectiveToolkits = selectedToolkits;
       let effectiveWorkspaceIds = selectedWorkspaceIds;
+      let effectiveAgentOrchestration = normalizeAgentOrchestration(
+        agentOrchestration,
+      );
       let forceMemoryEnabled = false;
 
       let resolvedCharacterConfig = characterAgentConfig;
@@ -858,6 +877,7 @@ export const useChatStream = ({
         }
         effectiveToolkits = [];
         effectiveWorkspaceIds = [];
+        effectiveAgentOrchestration = { ...DEFAULT_AGENT_ORCHESTRATION };
         forceMemoryEnabled = true;
 
         const characterDecision =
@@ -1137,7 +1157,7 @@ export const useChatStream = ({
             ? systemPromptOverrides
             : {};
 
-        streamHandle = api.miso.startStreamV2(
+        streamHandle = api.unchain.startStreamV2(
           {
             threadId: effectiveThreadId,
             message: promptText,
@@ -1158,6 +1178,9 @@ export const useChatStream = ({
               }),
               ...(effectiveWorkspaceIds.length > 0 && {
                 selectedWorkspaceIds: effectiveWorkspaceIds,
+              }),
+              ...(!isCharacterChat && {
+                agent_orchestration: effectiveAgentOrchestration,
               }),
               ...(isCharacterChat
                 ? {
@@ -1221,7 +1244,7 @@ export const useChatStream = ({
                   typeof frame.payload?.previous_response_id === "string"
                     ? frame.payload.previous_response_id.trim()
                     : "";
-                misoLogger.log("request_messages", {
+                unchainLogger.log("request_messages", {
                   messages: requestMessagesForLog,
                   toolNames: requestToolNamesForLog,
                   ...(providerForLog ? { provider: providerForLog } : {}),
@@ -1247,7 +1270,7 @@ export const useChatStream = ({
               }
 
               if (frame.type === "error") {
-                misoLogger.error(
+                unchainLogger.error(
                   `error (iteration=${getTraceFrameIteration(frame)})`,
                   frame.payload,
                 );
@@ -1259,7 +1282,7 @@ export const useChatStream = ({
                     ? { ...frame.payload }
                     : {};
                 delete endPayload.bundle;
-                misoLogger.log("end", endPayload);
+                unchainLogger.log("end", endPayload);
               }
 
               if (
@@ -1270,8 +1293,23 @@ export const useChatStream = ({
                 const label =
                   frame.type === "run_max_iterations"
                     ? "run_max_iterations"
-                    : (MISO_TRACE_LABEL_BY_TYPE[frame.type] ?? frame.type);
-                misoLogger.log(label, frame.payload);
+                    : (UNCHAIN_TRACE_LABEL_BY_TYPE[frame.type] ?? frame.type);
+                unchainLogger.log(label, frame.payload);
+              }
+
+              /* ── subagent lifecycle events: log only, do not append to traceFrames ── */
+              if (
+                frame.type === "subagent_spawned" ||
+                frame.type === "subagent_started" ||
+                frame.type === "subagent_completed" ||
+                frame.type === "subagent_failed" ||
+                frame.type === "subagent_handoff" ||
+                frame.type === "subagent_clarification_requested" ||
+                frame.type === "subagent_batch_started" ||
+                frame.type === "subagent_batch_joined"
+              ) {
+                unchainLogger.log(frame.type, frame.payload);
+                return;
               }
 
               if (frame.type === "memory_prepare") {
@@ -1279,7 +1317,7 @@ export const useChatStream = ({
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                misoLogger.log("memory_prepare", {
+                unchainLogger.log("memory_prepare", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   before_estimated_tokens: payload.before_estimated_tokens,
@@ -1302,7 +1340,7 @@ export const useChatStream = ({
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                misoLogger.log("memory_commit", {
+                unchainLogger.log("memory_commit", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   stored_message_count: payload.stored_message_count,
@@ -1365,7 +1403,7 @@ export const useChatStream = ({
                     typeof frame.payload.arguments === "object"
                       ? frame.payload.arguments
                       : {};
-                  misoLogger.log("ask_user_question_prompt", {
+                  unchainLogger.log("ask_user_question_prompt", {
                     callId,
                     confirmationId,
                     interactRequestId:
@@ -1433,17 +1471,22 @@ export const useChatStream = ({
                         },
                   );
 
-                  /* ── Auto-approve: if this tool is auto-approved, respond immediately ── */
-                  if (
+                  /* ── Auto-approve: only for "confirmation" type, never for user-input types ── */
+                  const rcType =
+                    typeof frame.payload?.render_component?.type === "string"
+                      ? frame.payload.render_component.type
+                      : "";
+                  const isAutoApprovable =
                     toolName !== HUMAN_INPUT_TOOL_NAME &&
-                    isToolAutoApproved(toolName)
-                  ) {
+                    (!rcType || rcType === "confirmation") &&
+                    isToolAutoApproved(toolName);
+                  if (isAutoApprovable) {
                     const autoPayload = {
                       confirmation_id: confirmationId,
                       approved: true,
                       reason: "",
                     };
-                    api.miso
+                    api.unchain
                       .respondToolConfirmation(autoPayload)
                       .then(() => {
                         if (
@@ -1498,7 +1541,7 @@ export const useChatStream = ({
                       ? frame.payload.result.tool
                       : "";
                 if (toolName === HUMAN_INPUT_TOOL_NAME) {
-                  misoLogger.log("ask_user_question_result", {
+                  unchainLogger.log("ask_user_question_result", {
                     callId,
                     result: frame.payload?.result,
                   });
@@ -1643,6 +1686,10 @@ export const useChatStream = ({
                 done?.bundle && typeof done.bundle === "object"
                   ? { ...done.bundle }
                   : undefined;
+              const nextAgentOrchestration =
+                bundle && bundle.agent_orchestration
+                  ? normalizeAgentOrchestration(bundle.agent_orchestration)
+                  : null;
 
               const nextStreamMessages = streamMessages.map((message) => {
                 if (message.id !== assistantMessageId) return message;
@@ -1664,8 +1711,25 @@ export const useChatStream = ({
               });
               syncStreamMessages(nextStreamMessages);
 
+              if (!isCharacterChat && nextAgentOrchestration) {
+                storageApi.setChatAgentOrchestration(
+                  targetChatId,
+                  nextAgentOrchestration,
+                  { source: "chat-page" },
+                );
+                if (
+                  typeof setAgentOrchestration === "function" &&
+                  activeChatIdRef.current === targetChatId
+                ) {
+                  setAgentOrchestration(nextAgentOrchestration);
+                }
+              }
+
               if (bundle && typeof bundle.consumed_tokens === "number") {
-                const modelId = modelIdRef.current || "";
+                const modelId =
+                  typeof bundle.model === "string" && bundle.model.trim()
+                    ? bundle.model.trim()
+                    : modelIdRef.current || "";
                 const colonIndex = modelId.indexOf(":");
                 const provider =
                   colonIndex > 0 ? modelId.slice(0, colonIndex) : "unknown";
@@ -1863,6 +1927,7 @@ export const useChatStream = ({
       clearConfirmationResolutionTimer,
       clearResolvedToolConfirmationByCallId,
       hydrateAttachmentPayloads,
+      agentOrchestration,
       isCharacterChat,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
@@ -1874,6 +1939,7 @@ export const useChatStream = ({
       setDraftAttachments,
       setInputValue,
       setMessages,
+      setAgentOrchestration,
       setSelectedModelId,
       setStreamError,
       storageApi,
@@ -1900,7 +1966,7 @@ export const useChatStream = ({
       return;
     }
 
-    if (!api.miso.isBridgeAvailable()) {
+    if (!api.unchain.isBridgeAvailable()) {
       setStreamError("Miso bridge is unavailable in this runtime.");
       return;
     }
@@ -1965,7 +2031,7 @@ export const useChatStream = ({
         return;
       }
 
-      if (!api.miso.isBridgeAvailable()) {
+      if (!api.unchain.isBridgeAvailable()) {
         setStreamError("Miso bridge is unavailable in this runtime.");
         return;
       }
@@ -2059,7 +2125,7 @@ export const useChatStream = ({
         return;
       }
 
-      if (!api.miso.isBridgeAvailable()) {
+      if (!api.unchain.isBridgeAvailable()) {
         setStreamError("Miso bridge is unavailable in this runtime.");
         return;
       }

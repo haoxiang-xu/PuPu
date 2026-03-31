@@ -1,8 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+
+import { TextField } from "../../../BUILTIN_COMPONENTs/input/textfield";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 /**
- * TextInputInteract – renders a mini-UI text field with line numbers and a
- * submit button.
+ * TextInputInteract – renders a text field with an optional submit button.
  *
  * config shape:
  *   placeholder – string (default "")
@@ -13,21 +15,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 
 const FONT = "Menlo, Monaco, Consolas, monospace";
-const FONT_SIZE = 11.5;
-const LINE_HEIGHT = 1.5;
-const LINE_HEIGHT_PX = Math.round(FONT_SIZE * LINE_HEIGHT);
-const PAD_Y = 6;
-const PAD_X = 8;
-
-const SUBMIT_BASE = {
-  border: "none",
-  borderRadius: 6,
-  padding: "4px 12px",
-  cursor: "pointer",
-  fontSize: 11.5,
-  lineHeight: 1.4,
-  fontFamily: FONT,
-};
 
 const TextInputInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
   const placeholder =
@@ -41,7 +28,6 @@ const TextInputInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
   const [text, setText] = useState(() =>
     typeof submittedResponse?.text === "string" ? submittedResponse.text : "",
   );
-  const taRef = useRef(null);
   const [lineCount, setLineCount] = useState(1);
 
   useEffect(() => {
@@ -71,16 +57,13 @@ const TextInputInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
     }
   };
 
-  const borderColor = isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)";
-  const bgColor = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)";
-  const gutterBg = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.025)";
-  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
-  const lineNumColor = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)";
-  const gutterWidth = 28;
-
   const isEmpty = !text.trim();
-  const visibleRows = multiline ? Math.max(3, Math.min(lineCount, 10)) : 1;
-  const fieldHeight = visibleRows * LINE_HEIGHT_PX + PAD_Y * 2;
+
+  const infoText = multiline
+    ? `${lineCount} line${lineCount !== 1 ? "s" : ""}${maxLength ? ` · ${text.length}/${maxLength}` : ""}`
+    : maxLength
+      ? `${text.length}/${maxLength}`
+      : "";
 
   return (
     <div
@@ -91,158 +74,53 @@ const TextInputInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
         maxWidth: 400,
       }}
     >
-      {/* ── mini textfield with gutter ── */}
-      <div
+      <TextField
+        value={text}
+        set_value={(v) => setText(maxLength ? v.slice(0, maxLength) : v)}
+        min_rows={multiline ? 3 : 1}
+        max_display_rows={multiline ? 10 : 1}
+        placeholder={placeholder}
+        disabled={disabled}
+        on_key_down={handleKeyDown}
         style={{
-          position: "relative",
-          display: "flex",
-          border: `1px solid ${borderColor}`,
+          fontSize: 11.5,
+          fontFamily: FONT,
+          lineHeight: 1.5,
           borderRadius: 6,
-          overflow: "hidden",
-          background: bgColor,
-          opacity: disabled ? 0.5 : 1,
+          padding: 6,
+          width: "100%",
         }}
-      >
-        {/* line-number gutter */}
-        {multiline && (
-          <div
-            style={{
-              width: gutterWidth,
-              flexShrink: 0,
-              background: gutterBg,
-              paddingTop: PAD_Y,
-              paddingBottom: PAD_Y,
-              borderRight: `1px solid ${borderColor}`,
-              userSelect: "none",
-              WebkitUserSelect: "none",
-              overflow: "hidden",
-            }}
-          >
-            {Array.from({ length: lineCount }, (_, i) => (
-              <div
-                key={i}
-                style={{
-                  height: LINE_HEIGHT_PX,
-                  lineHeight: `${LINE_HEIGHT_PX}px`,
-                  fontSize: 10,
-                  fontFamily: FONT,
-                  color: lineNumColor,
-                  textAlign: "right",
-                  paddingRight: 6,
-                }}
-              >
-                {i + 1}
-              </div>
-            ))}
-          </div>
-        )}
+        functional_section={
+          !disabled && !isEmpty ? (
+            <Button
+              label="Submit"
+              postfix_icon="arrow_right"
+              onClick={handleSubmit}
+              style={{
+                fontSize: 11.5,
+                fontFamily: FONT,
+                borderRadius: 6,
+                paddingVertical: 3,
+                paddingHorizontal: 10,
+              }}
+            />
+          ) : null
+        }
+      />
 
-        {/* textarea / input */}
-        {multiline ? (
-          <textarea
-            ref={taRef}
-            value={text}
-            onChange={(e) => {
-              const val = e.target.value;
-              setText(maxLength ? val.slice(0, maxLength) : val);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            rows={visibleRows}
-            style={{
-              flex: 1,
-              border: "none",
-              outline: "none",
-              resize: "none",
-              background: "transparent",
-              color: textColor,
-              fontFamily: FONT,
-              fontSize: FONT_SIZE,
-              lineHeight: LINE_HEIGHT,
-              padding: `${PAD_Y}px ${PAD_X}px`,
-              boxSizing: "border-box",
-              height: fieldHeight,
-              overflow: "auto",
-            }}
-          />
-        ) : (
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => {
-              const val = e.target.value;
-              setText(maxLength ? val.slice(0, maxLength) : val);
-            }}
-            onKeyDown={handleKeyDown}
-            placeholder={placeholder}
-            disabled={disabled}
-            style={{
-              flex: 1,
-              border: "none",
-              outline: "none",
-              background: "transparent",
-              color: textColor,
-              fontFamily: FONT,
-              fontSize: FONT_SIZE,
-              lineHeight: LINE_HEIGHT,
-              padding: `${PAD_Y}px ${PAD_X}px`,
-              boxSizing: "border-box",
-            }}
-          />
-        )}
-      </div>
-
-      {/* ── footer row: char count (left) + submit (right) ── */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
+      {infoText && (
         <span
           style={{
             fontSize: 9.5,
             fontFamily: FONT,
-            color: lineNumColor,
+            opacity: 0.3,
             userSelect: "none",
+            paddingLeft: 2,
           }}
         >
-          {multiline
-            ? `${lineCount} line${lineCount !== 1 ? "s" : ""}${maxLength ? ` · ${text.length}/${maxLength}` : ""}`
-            : maxLength
-              ? `${text.length}/${maxLength}`
-              : ""}
+          {infoText}
         </span>
-
-        {!disabled && (
-          <button
-            onClick={handleSubmit}
-            disabled={isEmpty}
-            style={{
-              ...SUBMIT_BASE,
-              color: isEmpty
-                ? isDark
-                  ? "rgba(255,255,255,0.3)"
-                  : "rgba(0,0,0,0.3)"
-                : isDark
-                  ? "rgba(209,250,229,0.95)"
-                  : "#065f46",
-              backgroundColor: isEmpty
-                ? isDark
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.04)"
-                : isDark
-                  ? "rgba(16,185,129,0.22)"
-                  : "rgba(16,185,129,0.16)",
-              cursor: isEmpty ? "default" : "pointer",
-            }}
-          >
-            Submit
-          </button>
-        )}
-      </div>
+      )}
     </div>
   );
 };

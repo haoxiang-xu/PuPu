@@ -3,6 +3,7 @@ import {
   chatsStorageConstants,
   getChatsStore,
   openCharacterChat,
+  refreshCharacterChatMetadata,
   setChatModel,
   setChatSelectedToolkits,
   setChatSelectedWorkspaceIds,
@@ -269,6 +270,42 @@ describe("chat_storage character chat behavior", () => {
 
     expect(getChatsStore().chatsById[created.chatId].characterAvatar).toEqual({
       url: "http://127.0.0.1:5879/characters/nico/avatar",
+    });
+  });
+
+  test("refreshCharacterChatMetadata replaces stale persisted avatar urls", () => {
+    const initialStore = getChatsStore();
+    setChatModel(initialStore.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+
+    const created = openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+          avatar: {
+            url: "http://127.0.0.1:5879/characters/nico/avatar?unchain_auth=stale-token",
+          },
+          metadata: { default_model: "openai:gpt-4.1" },
+        },
+      },
+      { source: "test" },
+    );
+
+    refreshCharacterChatMetadata(
+      [
+        {
+          id: "nico",
+          name: "Nico",
+          avatar: {
+            url: "http://127.0.0.1:5879/characters/nico/avatar?unchain_auth=fresh-token",
+          },
+        },
+      ],
+      { source: "test" },
+    );
+
+    expect(getChatsStore().chatsById[created.chatId].characterAvatar).toEqual({
+      url: "http://127.0.0.1:5879/characters/nico/avatar?unchain_auth=fresh-token",
     });
   });
 });

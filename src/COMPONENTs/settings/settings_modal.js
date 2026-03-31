@@ -32,7 +32,7 @@ const BASE_SETTINGS_PAGES = [
   {
     key: "runtime",
     icon: "folder_2",
-    label: "Workspace",
+    label: "Workspaces",
     component: RuntimeSettings,
   },
   {

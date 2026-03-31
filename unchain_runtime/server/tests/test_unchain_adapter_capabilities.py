@@ -1,0 +1,1751 @@
+import json
+import sys
+import tempfile
+import threading
+import time
+import unittest
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+from unittest import mock
+
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+if str(SERVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVER_ROOT))
+
+import unchain_adapter  # noqa: E402
+
+
+class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
+    def _write_capability_file(self, payload: dict) -> tuple[tempfile.TemporaryDirectory, Path]:
+        temp_dir = tempfile.TemporaryDirectory()
+        capability_file = Path(temp_dir.name) / "model_capabilities.json"
+        capability_file.write_text(json.dumps(payload), encoding="utf-8")
+        return temp_dir, capability_file
+
+    def test_get_capability_catalog_keeps_provider_model_lists(self) -> None:
+        payload = {
+            "gpt-5": {"provider": "openai"},
+            "text-embedding-3-small": {"provider": "openai", "model_type": "embedding"},
+            "claude-opus-4.6": {"provider": "anthropic"},
+            "deepseek-r1:14b": {"provider": "ollama"},
+            "ignored-model": {"provider": "unknown"},
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ), mock.patch.object(
+            unchain_adapter,
+            "_fetch_ollama_models",
+            return_value=[],
+        ):
+            providers = unchain_adapter.get_capability_catalog()
+
+        self.assertEqual(providers["openai"], ["gpt-5"])
+        self.assertEqual(providers["anthropic"], ["claude-opus-4-6"])
+        self.assertEqual(providers["ollama"], ["deepseek-r1:14b"])
+        self.assertNotIn("text-embedding-3-small", providers["openai"])
+
+    def test_get_capability_catalog_filters_dynamic_ollama_embedding_models(self) -> None:
+        payload = {
+            "deepseek-r1:14b": {"provider": "ollama"},
+            "nomic-embed-text": {"provider": "ollama", "model_type": "embedding"},
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        class _FakeResponse:
+            def raise_for_status(self) -> None:
+                return None
+
+            def json(self) -> dict:
+                return {
+                    "models": [
+                        {
+                            "name": "llama3",
+                            "details": {"families": ["llama"]},
+                        },
+                        {
+                            "name": "nomic-embed-text",
+                            "details": {"families": ["nomic-bert"]},
+                        },
+                        {
+                            "name": "bge-m3",
+                            "details": {"families": ["bge-m3"]},
+                        },
+                    ]
+                }
+
+        fake_httpx = SimpleNamespace(get=mock.Mock(return_value=_FakeResponse()))
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ), mock.patch.object(
+            unchain_adapter,
+            "_httpx",
+            fake_httpx,
+        ):
+            providers = unchain_adapter.get_capability_catalog()
+
+        self.assertEqual(providers["ollama"], ["deepseek-r1:14b", "llama3"])
+
+    def test_get_embedding_provider_catalog_only_keeps_openai_embedding_models(self) -> None:
+        payload = {
+            "gpt-5": {"provider": "openai"},
+            "text-embedding-3-small": {"provider": "openai", "model_type": "embedding"},
+            "text-embedding-3-large": {"provider": "openai", "model_type": "embedding"},
+            "nomic-embed-text": {"provider": "ollama", "model_type": "embedding"},
+            "ignored-model": {"provider": "unknown", "model_type": "embedding"},
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            providers = unchain_adapter.get_embedding_provider_catalog()
+
+        self.assertEqual(
+            providers,
+            {
+                "openai": [
+                    "text-embedding-3-large",
+                    "text-embedding-3-small",
+                ]
+            },
+        )
+
+    def test_get_model_capability_catalog_normalizes_modalities_and_sources(self) -> None:
+        payload = {
+            "gpt-5": {
+                "provider": "openai",
+                "input_modalities": ["pdf", "FILE", "IMAGE", "video", "text", ""],
+                "input_source_types": {
+                    "image": ["URL", "base64", "ftp", "url"],
+                    "file": ["url", "base64"],
+                    "pdf": ["base64", 123, "url"],
+                    "text": ["url"],
+                    "video": ["url"],
+                },
+            },
+            "text-embedding-3-small": {
+                "provider": "openai",
+                "model_type": "embedding",
+                "input_modalities": ["text"],
+            },
+            "deepseek-r1:14b": {
+                "provider": "ollama",
+                "input_modalities": "text",
+                "input_source_types": {"image": ["url"]},
+            },
+            "claude-opus-4.6": {
+                "provider": "anthropic",
+                "input_modalities": ["image", "text"],
+                "input_source_types": {"image": ["base64"]},
+            },
+        }
+        temp_dir, capability_file = self._write_capability_file(payload)
+        self.addCleanup(temp_dir.cleanup)
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_capability_file_candidates",
+            return_value=[capability_file],
+        ):
+            model_capabilities = unchain_adapter.get_model_capability_catalog()
+
+        self.assertEqual(
+            model_capabilities["openai:gpt-5"],
+            {
+                "input_modalities": ["text", "image", "pdf"],
+                "input_source_types": {
+                    "image": ["url", "base64"],
+                    "pdf": ["url", "base64"],
+                },
+            },
+        )
+        self.assertEqual(
+            model_capabilities["ollama:deepseek-r1:14b"],
+            {
+                "input_modalities": ["text"],
+                "input_source_types": {},
+            },
+        )
+        self.assertEqual(
+            model_capabilities["anthropic:claude-opus-4-6"],
+            {
+                "input_modalities": ["text", "image"],
+                "input_source_types": {"image": ["base64"]},
+            },
+        )
+        self.assertNotIn("openai:text-embedding-3-small", model_capabilities)
+
+    def test_get_default_model_capabilities_is_text_only(self) -> None:
+        self.assertEqual(
+            unchain_adapter.get_default_model_capabilities(),
+            {
+                "input_modalities": ["text"],
+                "input_source_types": {},
+            },
+        )
+
+    def test_normalize_messages_supports_block_history_and_attachments(self) -> None:
+        history = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Describe this image"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": "abc",
+                        },
+                    },
+                ],
+            },
+            {"role": "assistant", "content": "Looks good."},
+        ]
+        attachments = [
+            {
+                "type": "pdf",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": "pdf-data",
+                    "filename": "demo.pdf",
+                },
+            }
+        ]
+
+        messages = unchain_adapter._normalize_messages(history, "", attachments)
+
+        self.assertEqual(messages[0]["role"], "user")
+        self.assertIsInstance(messages[0]["content"], list)
+        self.assertEqual(messages[1], {"role": "assistant", "content": "Looks good."})
+        self.assertEqual(
+            messages[2],
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "pdf",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": "pdf-data",
+                            "filename": "demo.pdf",
+                        },
+                    }
+                ],
+            },
+        )
+
+    def test_build_system_prompt_v2_text_from_options_normalizes_alias_and_merge(self) -> None:
+        prompt_text = unchain_adapter._build_system_prompt_v2_text_from_options(
+            {
+                "system_prompt_v2": {
+                    "enabled": True,
+                    "defaults": {
+                        "personally": " Helpful and concise. ",
+                        "rules": "Never fabricate facts.",
+                        "context": "Project: PuPu",
+                    },
+                    "overrides": {
+                        "rules": "Always ask clarifying questions when blocked.",
+                        "personality": "",
+                        "context": None,
+                    },
+                }
+            }
+        )
+
+        expected_rules = "\n".join(
+            [
+                *unchain_adapter._SYSTEM_PROMPT_V2_BUILTIN_RULES,
+                "Always ask clarifying questions when blocked.",
+            ]
+        )
+        self.assertEqual(
+            prompt_text,
+            "\n\n".join(
+                [
+                    "[Personality]\nHelpful and concise.",
+                    f"[Rules]\n{expected_rules}",
+                ]
+            ),
+        )
+
+    def test_build_system_prompt_v2_text_from_options_skips_when_disabled(self) -> None:
+        prompt_text = unchain_adapter._build_system_prompt_v2_text_from_options(
+            {
+                "system_prompt_v2": {
+                    "enabled": False,
+                    "defaults": {
+                        "personality": "Should not appear.",
+                    },
+                }
+            }
+        )
+
+        self.assertEqual(prompt_text, "")
+
+    def test_build_effective_system_prompt_text_appends_agent_instructions(self) -> None:
+        prompt_text = unchain_adapter._build_effective_system_prompt_text(
+            {
+                "system_prompt_v2": {
+                    "enabled": True,
+                    "defaults": {
+                        "rules": "Keep answers concise.",
+                    },
+                },
+                "agent_instructions": "You are Nico. Reply as the character.",
+            }
+        )
+
+        self.assertIn("[Rules]", prompt_text)
+        self.assertIn("Keep answers concise.", prompt_text)
+        self.assertTrue(
+            prompt_text.endswith("You are Nico. Reply as the character."),
+        )
+
+    def test_get_toolkit_catalog_lists_known_toolkit_exports(self) -> None:
+        class FakeToolkitBase:
+            pass
+
+        class FakePythonWorkspaceToolkit(FakeToolkitBase):
+            pass
+
+        def import_module_side_effect(module_name: str):
+            if module_name == "unchain.tools":
+                return SimpleNamespace(Toolkit=FakeToolkitBase)
+            if module_name == "unchain.toolkits":
+                return SimpleNamespace(WorkspaceToolkit=FakePythonWorkspaceToolkit)
+            raise ImportError(module_name)
+
+        with mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=import_module_side_effect,
+        ):
+            catalog = unchain_adapter.get_toolkit_catalog()
+
+        names = [entry["name"] for entry in catalog["toolkits"]]
+        self.assertEqual(
+            names,
+            [
+                "workspace_toolkit",
+            ],
+        )
+        self.assertEqual(catalog["count"], 1)
+
+    def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
+        with mock.patch.object(unchain_adapter, "_resolve_toolkit_base", return_value=None):
+            catalog = unchain_adapter.get_toolkit_catalog()
+
+        self.assertEqual(catalog["toolkits"], [])
+        self.assertEqual(catalog["count"], 0)
+
+    def test_extract_workspace_root_from_options(self) -> None:
+        self.assertEqual(
+            unchain_adapter._extract_workspace_root_from_options(
+                {"workspaceRoot": "  /tmp/a  "}
+            ),
+            "/tmp/a",
+        )
+        self.assertEqual(
+            unchain_adapter._extract_workspace_root_from_options(
+                {"workspace_root": "  /tmp/b  "}
+            ),
+            "/tmp/b",
+        )
+        self.assertEqual(
+            unchain_adapter._extract_workspace_root_from_options({}),
+            "",
+        )
+
+    def test_extract_max_iterations_from_options(self) -> None:
+        self.assertEqual(
+            unchain_adapter._extract_max_iterations_from_options({"maxIterations": " 4 "}),
+            4,
+        )
+        self.assertEqual(
+            unchain_adapter._extract_max_iterations_from_options({"max_iterations": 0}),
+            1,
+        )
+        self.assertIsNone(
+            unchain_adapter._extract_max_iterations_from_options({"maxIterations": "abc"})
+        )
+        self.assertIsNone(unchain_adapter._extract_max_iterations_from_options({}))
+
+    def test_make_tool_confirm_callback_round_trip_with_submit(self) -> None:
+        emitted_events = []
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+        )
+        response_holder: dict[str, object] = {}
+
+        def invoke_callback() -> None:
+            response_holder["value"] = confirm_cb(
+                SimpleNamespace(
+                    tool_name="delete_file",
+                    call_id="call-1",
+                    arguments={"path": "tmp.txt"},
+                    description="Delete a file",
+                )
+            )
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertTrue(emitted_events)
+        request_event = emitted_events[0]
+        self.assertEqual(request_event.get("type"), "tool_call")
+        confirmation_id = request_event.get("confirmation_id")
+        self.assertIsInstance(confirmation_id, str)
+        self.assertEqual(request_event.get("requires_confirmation"), True)
+
+        submitted = unchain_adapter.submit_tool_confirmation(
+            confirmation_id=confirmation_id,
+            approved=True,
+            reason="approved",
+        )
+        self.assertTrue(submitted)
+
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+
+        result = response_holder.get("value")
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result["approved"], True)
+        self.assertEqual(result["reason"], "approved")
+
+    def test_make_tool_confirm_callback_returns_denied_when_cancelled(self) -> None:
+        cancel_event = threading.Event()
+        emitted_events = []
+        confirm_cb = unchain_adapter._make_tool_confirm_callback(
+            emitted_events.append,
+            cancel_event=cancel_event,
+        )
+        response_holder: dict[str, object] = {}
+
+        def invoke_callback() -> None:
+            response_holder["value"] = confirm_cb(
+                {
+                    "tool_name": "delete_file",
+                    "call_id": "call-cancelled",
+                    "arguments": {"path": "tmp.txt"},
+                    "description": "Delete a file",
+                }
+            )
+
+        worker = threading.Thread(target=invoke_callback, daemon=True)
+        worker.start()
+
+        deadline = time.time() + 2
+        while not emitted_events and time.time() < deadline:
+            time.sleep(0.01)
+
+        self.assertTrue(emitted_events)
+        confirmation_id = emitted_events[0].get("confirmation_id")
+        self.assertIsInstance(confirmation_id, str)
+
+        cancel_event.set()
+        unchain_adapter.cancel_tool_confirmations(cancel_event)
+        worker.join(timeout=2)
+        self.assertFalse(worker.is_alive())
+
+        result = response_holder.get("value")
+        submitted = unchain_adapter.submit_tool_confirmation(
+            confirmation_id=confirmation_id,
+            approved=True,
+        )
+
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result.get("approved"), False)
+        self.assertEqual(
+            result.get("reason"),
+            "confirmation_cancelled_stream_terminated",
+        )
+        self.assertFalse(submitted)
+
+    def test_submit_tool_confirmation_returns_false_for_unknown_id(self) -> None:
+        submitted = unchain_adapter.submit_tool_confirmation(
+            confirmation_id="unknown-confirmation-id",
+            approved=True,
+        )
+        self.assertFalse(submitted)
+
+    def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
+        ), mock.patch.object(unchain_adapter.importlib, "import_module") as import_module_mock:
+            agent = unchain_adapter._create_agent({})
+
+        self.assertEqual(agent._toolkits, [])
+        import_module_mock.assert_not_called()
+
+    def test_create_agent_attaches_workspace_toolkit_when_workspace_root_is_valid(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            captured["workspace_root"] = workspace_root
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                unchain_adapter,
+                "_UnchainAgent",
+                FakeAgent,
+            ), mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
+
+        self.assertEqual(len(agent._toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+
+    def test_create_agent_attaches_workspace_toolkit_with_current_export_name(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            captured["workspace_root"] = workspace_root
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                unchain_adapter,
+                "_UnchainAgent",
+                FakeAgent,
+            ), mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = unchain_adapter._create_agent(
+                    {
+                        "workspace_root": tmp,
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent._toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+
+    def test_create_agent_accepts_legacy_access_workspace_toolkit_alias(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            captured["workspace_root"] = workspace_root
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                unchain_adapter,
+                "_UnchainAgent",
+                FakeAgent,
+            ), mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = unchain_adapter._create_agent(
+                    {
+                        "workspace_root": tmp,
+                        "toolkits": ["access_workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent._toolkits), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
+
+    def test_create_agent_attaches_workspace_toolkit_with_workspace_roots_fallback(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        def fake_workspace_toolkit(*, workspace_roots=None):
+            captured["workspace_roots"] = workspace_roots
+            return {
+                "workspace_roots": workspace_roots,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp_a, tempfile.TemporaryDirectory() as tmp_b:
+            with mock.patch.object(
+                unchain_adapter,
+                "_UnchainAgent",
+                FakeAgent,
+            ), mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ):
+                agent = unchain_adapter._create_agent(
+                    {
+                        "workspace_roots": [tmp_a, tmp_b],
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent._toolkits), 1)
+        self.assertEqual(
+            captured["workspace_roots"],
+            [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
+        )
+
+    def test_create_agent_builds_multi_workspace_proxy_toolkit_when_workspace_roots_are_unsupported(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        captured = {}
+
+        class FakeTool:
+            def __init__(
+                self,
+                *,
+                name="",
+                description="",
+                func=None,
+                parameters=None,
+                observe=False,
+                requires_confirmation=False,
+            ):
+                self.name = name
+                self.description = description
+                self.func = func
+                self.parameters = list(parameters or [])
+                self.observe = observe
+                self.requires_confirmation = requires_confirmation
+
+            def execute(self, arguments):
+                payload = arguments or {}
+                return self.func(**payload)
+
+        class FakeToolkit:
+            def __init__(self):
+                self.tools = {}
+
+            def register(self, tool_obj):
+                self.tools[tool_obj.name] = tool_obj
+                return tool_obj
+
+            def get(self, function_name):
+                return self.tools.get(function_name)
+
+            def execute(self, function_name, arguments):
+                tool_obj = self.get(function_name)
+                if tool_obj is None:
+                    return {"error": f"tool not found: {function_name}"}
+                return tool_obj.execute(arguments)
+
+        def fake_workspace_toolkit(*, workspace_roots=None, workspace_root=None):
+            if workspace_roots is not None:
+                raise TypeError("workspace_roots unsupported")
+            captured.setdefault("workspace_roots", []).append(workspace_root)
+            tk = FakeToolkit()
+            tk.register(
+                FakeTool(
+                    name="read_file",
+                    description="Read a file",
+                    parameters=[
+                        {
+                            "name": "path",
+                            "description": "Relative path",
+                            "type_": "string",
+                            "required": True,
+                        }
+                    ],
+                    func=lambda path, _root=workspace_root: {
+                        "workspace_root": _root,
+                        "path": path,
+                    },
+                )
+            )
+            tk.register(
+                FakeTool(
+                    name="write_file",
+                    description="Write a file",
+                    parameters=[
+                        {
+                            "name": "path",
+                            "description": "Relative path",
+                            "type_": "string",
+                            "required": True,
+                        },
+                        {
+                            "name": "content",
+                            "description": "Content",
+                            "type_": "string",
+                            "required": True,
+                        },
+                    ],
+                    func=lambda path, content, _root=workspace_root: {
+                        "workspace_root": _root,
+                        "path": path,
+                        "content": content,
+                    },
+                )
+            )
+            return tk
+
+        with tempfile.TemporaryDirectory() as parent:
+            tmp_a = str(Path(parent) / "default-root")
+            tmp_b = str(Path(parent) / "extra-root")
+            Path(tmp_a).mkdir()
+            Path(tmp_b).mkdir()
+            with mock.patch.object(
+                unchain_adapter,
+                "_UnchainAgent",
+                FakeAgent,
+            ), mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit,
+                    Toolkit=FakeToolkit,
+                    Tool=FakeTool,
+                ),
+            ):
+                agent = unchain_adapter._create_agent(
+                    {
+                        "workspace_roots": [tmp_a, tmp_b],
+                        "toolkits": ["workspace_toolkit"],
+                    }
+                )
+
+        self.assertEqual(len(agent._toolkits), 1)
+        self.assertEqual(
+            captured["workspace_roots"],
+            [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
+        )
+        merged_toolkit = agent._toolkits[0]
+        self.assertIn("read_file", merged_toolkit.tools)
+        self.assertIn("write_file", merged_toolkit.tools)
+        self.assertIn("workspace_2_extra_root_read_file", merged_toolkit.tools)
+        self.assertIn("workspace_2_extra_root_write_file", merged_toolkit.tools)
+        self.assertEqual(
+            getattr(
+                merged_toolkit.tools["workspace_2_extra_root_read_file"],
+                unchain_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
+                "",
+            ),
+            "read_file",
+        )
+        self.assertIn("list_available_workspaces", merged_toolkit.tools)
+
+        second_workspace_read = merged_toolkit.execute(
+            "workspace_2_extra_root_read_file",
+            {"path": "hello.txt"},
+        )
+        self.assertEqual(second_workspace_read["workspace_root"], str(Path(tmp_b).resolve()))
+        self.assertEqual(second_workspace_read["path"], "hello.txt")
+        self.assertTrue(merged_toolkit.tools["workspace_2_extra_root_write_file"].requires_confirmation)
+
+    def test_create_agent_attaches_workspace_tools_to_developer_when_toolkits_option_absent(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            agent = unchain_adapter._create_agent(
+                {
+                    "modelId": "openai:gpt-5",
+                    "openai_api_key": "test-key",
+                    "workspace_root": tmp,
+                }
+            )
+
+        self.assertEqual(agent.name, "pupu_developer")
+
+        tools_module = next(
+            module for module in agent.spec.modules if type(module).__name__ == "ToolsModule"
+        )
+
+        self.assertEqual(len(tools_module.tools), 1)
+        workspace_toolkit = tools_module.tools[0]
+        self.assertIn("read_files", workspace_toolkit.tools)
+        self.assertIn("write_file", workspace_toolkit.tools)
+
+    def test_create_agent_marks_selected_workspace_tools_requires_confirmation(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        class FakeTool:
+            def __init__(self):
+                self.requires_confirmation = False
+
+        toolkit_instance = SimpleNamespace(
+            tools={
+                "write_file": FakeTool(),
+                "delete_file": FakeTool(),
+                "move_file": FakeTool(),
+                "terminal_exec": FakeTool(),
+                "read_file": FakeTool(),
+            }
+        )
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            return toolkit_instance
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                unchain_adapter, "_UnchainAgent", FakeAgent
+            ), mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ):
+                _agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
+
+        self.assertTrue(toolkit_instance.tools["write_file"].requires_confirmation)
+        self.assertTrue(toolkit_instance.tools["delete_file"].requires_confirmation)
+        self.assertTrue(toolkit_instance.tools["move_file"].requires_confirmation)
+        self.assertTrue(toolkit_instance.tools["terminal_exec"].requires_confirmation)
+        self.assertFalse(toolkit_instance.tools["read_file"].requires_confirmation)
+
+    def test_create_agent_rejects_invalid_workspace_root(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            return_value=SimpleNamespace(WorkspaceToolkit=fake_workspace_toolkit),
+        ):
+            with tempfile.TemporaryDirectory() as tmp:
+                missing = str(Path(tmp) / "missing")
+                with self.assertRaisesRegex(RuntimeError, "workspace_root does not exist"):
+                    unchain_adapter._create_agent({"workspaceRoot": missing, "toolkits": ["workspace_toolkit"]})
+
+    def test_create_agent_uses_min_two_iterations_when_workspace_root_is_set(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        def fake_workspace_toolkit(*, workspace_root=None):
+            return {
+                "workspace_root": workspace_root,
+            }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                unchain_adapter, "_UnchainAgent", FakeAgent
+            ), mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(
+                    WorkspaceToolkit=fake_workspace_toolkit
+                ),
+            ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": "1"}, clear=False):
+                agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
+
+        self.assertEqual(agent._max_iterations, 2)
+
+    def test_create_agent_uses_default_max_iterations_when_env_missing(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
+        ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": ""}, clear=False):
+            agent = unchain_adapter._create_agent({})
+
+        self.assertEqual(agent._max_iterations, unchain_adapter._DEFAULT_MAX_ITERATIONS)
+
+    def test_create_agent_builds_developer_directly_with_selected_model(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "modelId": "openai:gpt-5",
+                "openai_api_key": "test-key",
+                "toolkits": ["ask-user-toolkit"],
+            }
+        )
+
+        self.assertEqual(agent.name, "pupu_developer")
+        self.assertEqual(agent.model, "gpt-5")
+        self.assertEqual(agent._display_model, "openai:gpt-5")
+        self.assertEqual(agent._orchestration_role, "developer")
+        self.assertEqual(agent._developer_model_id, "openai:gpt-5")
+        self.assertEqual(agent._general_model_id, "openai:gpt-5")
+
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertIn("SubagentModule", module_names)
+
+    def test_create_agent_routes_waiting_approval_mode_directly_to_developer(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "modelId": "openai:gpt-5",
+                "openai_api_key": "test-key",
+                "toolkits": ["ask-user-toolkit"],
+                "agent_orchestration": {"mode": "developer_waiting_approval"},
+            }
+        )
+
+        self.assertEqual(agent.name, "pupu_developer")
+        self.assertEqual(agent.model, "gpt-5")
+        self.assertEqual(agent._orchestration_role, "developer")
+        self.assertEqual(agent._orchestration_next_mode, "default")
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertIn("ToolsModule", module_names)
+        self.assertIn("SubagentModule", module_names)
+
+    def test_create_agent_always_uses_selected_model_directly(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "modelId": "openai:gpt-5",
+                "openai_api_key": "test-key",
+            }
+        )
+
+        self.assertEqual(agent.name, "pupu_developer")
+        self.assertEqual(agent.model, "gpt-5")
+        self.assertEqual(agent._display_model, "openai:gpt-5")
+        self.assertEqual(agent._general_model_id, "openai:gpt-5")
+        self.assertEqual(agent._developer_model_id, "openai:gpt-5")
+
+    def test_resolve_general_runtime_config_downgrades_anthropic_and_keeps_ollama_selected_model(self) -> None:
+        with mock.patch.object(
+            unchain_adapter,
+            "get_capability_catalog",
+            return_value={
+                "openai": ["gpt-4.1", "gpt-5"],
+                "anthropic": ["claude-sonnet-4", "claude-sonnet-4-6"],
+                "ollama": ["llama3.2"],
+            },
+        ):
+            anthropic_config = unchain_adapter._resolve_general_runtime_config(
+                {"modelId": "anthropic:claude-sonnet-4-6"}
+            )
+            ollama_config = unchain_adapter._resolve_general_runtime_config(
+                {"modelId": "ollama:llama3.2"}
+            )
+
+        self.assertEqual(anthropic_config["provider"], "anthropic")
+        self.assertEqual(anthropic_config["model"], "claude-sonnet-4")
+        self.assertEqual(ollama_config["provider"], "ollama")
+        self.assertEqual(ollama_config["model"], "llama3.2")
+
+    def test_create_agent_prefers_options_max_iterations_over_env(self) -> None:
+        class FakeAgent:
+            def __init__(self, **kwargs):
+                self.toolkits = []
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
+                self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
+
+            def add_toolkit(self, toolkit):
+                self.toolkits.append(toolkit)
+
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
+        ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": "1"}, clear=False):
+            agent = unchain_adapter._create_agent({"maxIterations": 5})
+
+        self.assertEqual(agent._max_iterations, 5)
+
+    def test_create_agent_preserves_workspace_pin_execution_context(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace_root = Path(tmp)
+            target = workspace_root / "notes.txt"
+            target.write_text("hello\n", encoding="utf-8")
+
+            agent = unchain_adapter._create_agent(
+                {
+                    "workspace_root": tmp,
+                    "toolkits": ["workspace_toolkit"],
+                }
+            )
+
+            self.assertIsNotNone(unchain_adapter._UnchainAgent)
+            self.assertIsInstance(agent, unchain_adapter._UnchainAgent)
+            self.assertEqual(len(agent._toolkits), 1)
+
+            workspace_toolkit = agent._toolkits[0]
+            self.assertIn("pin_file_context", workspace_toolkit.tools)
+
+    def test_create_agent_mounts_memory_module_when_memory_is_available(self) -> None:
+        from unchain.memory import MemoryManager
+
+        manager = MemoryManager()
+
+        with mock.patch(
+            "memory_factory.create_memory_manager_with_diagnostics",
+            return_value=(manager, ""),
+        ):
+            agent = unchain_adapter._create_agent(
+                {
+                    "provider": "ollama",
+                    "model": "deepseek-r1:14b",
+                    "memory_enabled": True,
+                },
+                session_id="chat-1",
+            )
+
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertIn("MemoryModule", module_names)
+
+    def test_create_agent_skips_memory_module_when_memory_is_not_enabled(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "provider": "ollama",
+                "model": "deepseek-r1:14b",
+            },
+        )
+
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertNotIn("MemoryModule", module_names)
+
+    def test_stream_chat_events_passes_on_tool_confirm_to_agent_run(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.received_on_tool_confirm = False
+                self.last_messages = []
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-5"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                **_kwargs,
+            ):
+                self.received_on_tool_confirm = callable(on_tool_confirm)
+                self.last_messages = list(messages or [])
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=21,
+                    input_tokens=13,
+                    output_tokens=8,
+                    status="completed",
+                    iteration=1,
+                    previous_response_id=None,
+                )
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=fake_agent,
+        ):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "systemPromptV2": {
+                            "enabled": True,
+                            "defaults": {
+                                "personally": "You are pragmatic.",
+                                "rules": "Be concise.",
+                            },
+                        }
+                    },
+                )
+            )
+
+        self.assertTrue(fake_agent.received_on_tool_confirm)
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+        self.assertTrue(any(event.get("type") == "stream_summary" for event in events))
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("consumed_tokens"),
+            21,
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("input_tokens"),
+            13,
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("output_tokens"),
+            8,
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("model"),
+            "openai:gpt-5",
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("display_model"),
+            "openai:gpt-5",
+        )
+        self.assertEqual(
+            next(
+                event.get("bundle", {})
+                for event in events
+                if event.get("type") == "stream_summary"
+            ).get("agent_orchestration", {}).get("mode"),
+            "default",
+        )
+        self.assertGreaterEqual(len(fake_agent.last_messages), 1)
+        self.assertEqual(fake_agent.last_messages[-1].get("role"), "user")
+        self.assertEqual(fake_agent.last_messages[-1].get("content"), "hello")
+
+    def test_stream_chat_events_emits_memory_unavailable_and_stops_when_history_empty(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_called = False
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": False,
+                    "reason": "embedding_provider_unavailable",
+                }
+
+            def run(self, *args, **kwargs):
+                self.run_called = True
+                return [], {}
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertFalse(fake_agent.run_called)
+        self.assertEqual(events[0]["type"], "memory_prepare")
+        self.assertFalse(events[0]["applied"])
+        self.assertEqual(events[0]["fallback_reason"], "embedding_provider_unavailable")
+        self.assertEqual(events[1]["type"], "error")
+        self.assertEqual(events[1]["code"], "memory_unavailable")
+
+    def test_stream_chat_events_always_reports_developer_active_agent_in_bundle(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-5"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
+
+            def run(self, messages, payload=None, callback=None, max_iterations=None, **_kwargs):
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 1,
+                            "timestamp": time.time(),
+                            "content": "plan ready",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "plan ready"}],
+                    consumed_tokens=34,
+                    input_tokens=20,
+                    output_tokens=14,
+                    status="completed",
+                    iteration=1,
+                    previous_response_id=None,
+                )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_create_agent",
+            return_value=FakeAgent(),
+        ):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="implement this",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                )
+            )
+
+        bundle = next(
+            event.get("bundle", {})
+            for event in events
+            if event.get("type") == "stream_summary"
+        )
+        self.assertEqual(bundle.get("model"), "openai:gpt-5")
+        self.assertEqual(bundle.get("active_agent"), "developer")
+        self.assertEqual(
+            bundle.get("agent_orchestration", {}).get("mode"),
+            "default",
+        )
+
+    def test_stream_chat_events_emits_memory_prepare_failure_but_runs_with_history(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_called = False
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": False,
+                    "reason": "embedding_provider_unavailable",
+                }
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                session_id=None,
+                **_kwargs,
+            ):
+                self.run_called = True
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[{"role": "user", "content": "previous"}],
+                    attachments=[],
+                    options={"memory_enabled": True},
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertTrue(fake_agent.run_called)
+        self.assertEqual(events[0]["type"], "memory_prepare")
+        self.assertFalse(events[0]["applied"])
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
+    def test_stream_chat_events_passes_memory_namespace_to_agent_run(self) -> None:
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self.run_kwargs = None
+                self._memory_runtime = {
+                    "requested": True,
+                    "available": True,
+                    "reason": "",
+                }
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                session_id=None,
+                memory_namespace=None,
+                **_kwargs,
+            ):
+                self.run_kwargs = {
+                    "messages": messages,
+                    "payload": payload,
+                    "max_iterations": max_iterations,
+                    "session_id": session_id,
+                    "memory_namespace": memory_namespace,
+                }
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        fake_agent = FakeAgent()
+
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=fake_agent):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "memory_enabled": True,
+                        "memory_namespace": "pupu:default",
+                    },
+                    session_id="chat-1",
+                )
+            )
+
+        self.assertEqual(fake_agent.run_kwargs["session_id"], "chat-1")
+        self.assertEqual(fake_agent.run_kwargs["memory_namespace"], "pupu:default")
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
+    def test_extract_last_assistant_text_handles_structured_content(self) -> None:
+        messages = [
+            {
+                "type": "message",
+                "content": [
+                    {"type": "output_text", "text": "Tool call completed."},
+                ],
+            },
+            {
+                "role": "assistant",
+                "content": [
+                    {"type": "text", "text": "Final answer text"},
+                ],
+            },
+        ]
+        self.assertEqual(
+            unchain_adapter._extract_last_assistant_text(messages),
+            "Final answer text",
+        )
+
+    def test_capability_file_candidates_include_packaged_module_path(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            resources_dir = Path(temp_dir) / "unchain" / "runtime" / "resources"
+            resources_dir.mkdir(parents=True, exist_ok=True)
+            init_file = resources_dir / "__init__.py"
+            init_file.write_text("", encoding="utf-8")
+            capability_file = resources_dir / "model_capabilities.json"
+            capability_file.write_text("{}", encoding="utf-8")
+
+            fake_res_module = SimpleNamespace(__file__=str(init_file))
+            fake_runtime_module = SimpleNamespace(resources=fake_res_module)
+            with mock.patch.dict(
+                sys.modules,
+                {
+                    "unchain.runtime": fake_runtime_module,
+                    "unchain.runtime.resources": fake_res_module,
+                },
+            ):
+                candidates = unchain_adapter._capability_file_candidates()
+
+            self.assertIn(capability_file.resolve(), candidates)
+
+
+class MisoAdapterToolkitIconTests(unittest.TestCase):
+    def _build_toolkit_fixture(
+        self,
+        *,
+        icon_value: str,
+        color: str | None = None,
+        backgroundcolor: str | None = None,
+        include_icon_file: bool = False,
+    ) -> tuple[type, str, ModuleType]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        package_dir = Path(temp_dir.name) / "demo_toolkit"
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "runtime.py").write_text("", encoding="utf-8")
+        (package_dir / "README.md").write_text("# Demo Toolkit\n", encoding="utf-8")
+        if include_icon_file:
+            (package_dir / "icon.svg").write_text(
+                '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 8 8"><rect width="8" height="8" rx="2" fill="#111827"/></svg>\n',
+                encoding="utf-8",
+            )
+
+        color_line = f'color = "{color}"\n' if color is not None else ""
+        background_line = (
+            f'backgroundcolor = "{backgroundcolor}"\n'
+            if backgroundcolor is not None
+            else ""
+        )
+        (package_dir / "toolkit.toml").write_text(
+            f"""
+[toolkit]
+id = "demo"
+name = "Demo Toolkit"
+description = "Toolkit for icon tests."
+factory = "demo_toolkit:DemoToolkit"
+version = "1.0.0"
+readme = "README.md"
+icon = "{icon_value}"
+{color_line}{background_line}tags = ["local", "test"]
+
+[display]
+category = "builtin"
+order = 1
+hidden = false
+
+[compat]
+python = ">=3.9"
+miso = ">=0"
+
+[[tools]]
+name = "echo"
+title = "Echo"
+description = "Echo text back."
+observe = false
+requires_confirmation = false
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+        toolkit_base = type("FakeToolkitBase", (), {})
+        module_name = "unchain.toolkits.builtin.demo_toolkit"
+        toolkit_module = ModuleType(module_name)
+        toolkit_module.__file__ = str(package_dir / "runtime.py")
+        toolkit_class = type(
+            "DemoToolkit",
+            (toolkit_base,),
+            {
+                "__module__": module_name,
+                "__doc__": "Toolkit for icon tests.",
+                "echo": lambda self: None,
+            },
+        )
+        setattr(toolkit_module, "DemoToolkit", toolkit_class)
+        return toolkit_base, module_name, toolkit_module
+
+    def _build_import_side_effect(
+        self,
+        *,
+        module_name: str,
+        toolkit_module: ModuleType,
+    ):
+        builtin_pkg = ModuleType("unchain.toolkits.builtin")
+        builtin_pkg.__path__ = [str(Path(toolkit_module.__file__).parent.parent)]
+        miso_module = ModuleType("miso")
+
+        def _fake_import_module(name: str, package=None):
+            del package
+            if name == "unchain.toolkits":
+                return miso_module
+            if name == "unchain.toolkits.builtin":
+                return builtin_pkg
+            if name == module_name:
+                return toolkit_module
+            raise ImportError(name)
+
+        return _fake_import_module
+
+    def test_get_toolkit_catalog_v2_returns_builtin_icon_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+            color="#0f172a",
+            backgroundcolor="#bae6fd",
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = unchain_adapter.get_toolkit_catalog_v2()
+
+        self.assertEqual(payload["count"], 1)
+        entry = payload["toolkits"][0]
+        self.assertEqual(
+            entry["toolkitIcon"],
+            {
+                "type": "builtin",
+                "name": "terminal",
+                "color": "#0f172a",
+                "backgroundColor": "#bae6fd",
+            },
+        )
+        self.assertEqual(entry["tools"][0]["icon"], entry["toolkitIcon"])
+
+    def test_get_toolkit_metadata_returns_file_icon_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="icon.svg",
+            include_icon_file=True,
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = unchain_adapter.get_toolkit_metadata("DemoToolkit")
+
+        self.assertEqual(payload["toolkitIcon"]["type"], "file")
+        self.assertEqual(payload["toolkitIcon"]["mimeType"], "image/svg+xml")
+        self.assertIn("<svg", payload["toolkitIcon"]["content"])
+
+    def test_invalid_builtin_toolkit_icon_returns_empty_payload(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            catalog_payload = unchain_adapter.get_toolkit_catalog_v2()
+            metadata_payload = unchain_adapter.get_toolkit_metadata("DemoToolkit")
+
+        self.assertEqual(catalog_payload["toolkits"][0]["toolkitIcon"], {})
+        self.assertEqual(metadata_payload["toolkitIcon"], {})
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -4,12 +4,12 @@ const writeSettings = (settings) => {
   window.localStorage.setItem("settings", JSON.stringify(settings || {}));
 };
 
-describe("api.miso.startStreamV2 memory/provider options", () => {
-  const originalMisoApi = window.misoAPI;
+describe("api.unchain.startStreamV2 memory/provider options", () => {
+  const originalMisoApi = window.unchainAPI;
 
   beforeEach(() => {
     window.localStorage.clear();
-    window.misoAPI = {
+    window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
@@ -21,7 +21,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
   });
 
   afterAll(() => {
-    window.misoAPI = originalMisoApi;
+    window.unchainAPI = originalMisoApi;
   });
 
   test("injects anthropic provider key without generic apiKey fields", () => {
@@ -31,14 +31,14 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: {
         modelId: "anthropic:claude-sonnet-4-6",
       },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.anthropicApiKey).toBe("anthropic-key-123");
     expect(payload.options.anthropic_api_key).toBe("anthropic-key-123");
     expect(payload.options.apiKey).toBeUndefined();
@@ -64,7 +64,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: {
         modelId: "openai:gpt-5",
@@ -72,7 +72,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.memory_enabled).toBe(false);
     expect(payload.options.memory_embedding_provider).toBeUndefined();
     expect(payload.options.memory_embedding_model).toBeUndefined();
@@ -98,14 +98,14 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: {
         modelId: "anthropic:claude-sonnet-4-6",
       },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_namespace).toBe("pupu:default");
     expect(payload.options.memory_long_term_enabled).toBe(true);
@@ -146,14 +146,14 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: {
         modelId: "anthropic:claude-sonnet-4-6",
       },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.memory_namespace).toBe("pupu:default");
     expect(payload.options.memory_long_term_enabled).toBe(true);
     expect(payload.options.memory_long_term_extract_every_n_turns).toBe(9);
@@ -182,7 +182,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: {
         modelId: "openai:gpt-5",
@@ -190,7 +190,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_namespace).toBe("pupu:default");
     expect(payload.options.memory_long_term_enabled).toBe(true);
@@ -226,7 +226,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    await api.miso.replaceSessionMemory({
+    await api.unchain.replaceSessionMemory({
       sessionId: "chat-1",
       messages: [{ role: "user", content: "hello" }],
       options: {
@@ -234,7 +234,7 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
       },
     });
 
-    const [payload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    const [payload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(payload.session_id).toBe("chat-1");
     expect(payload.options.memory_enabled).toBe(true);
     expect(payload.options.memory_embedding_provider).toBe("auto");
@@ -245,5 +245,22 @@ describe("api.miso.startStreamV2 memory/provider options", () => {
     expect(payload.options.openai_api_key).toBe("openai-key-123");
     expect(payload.options.anthropicApiKey).toBe("anthropic-key-456");
     expect(payload.options.anthropic_api_key).toBe("anthropic-key-456");
+  });
+
+  test("preserves agent_orchestration when normalizing startStreamV2 payload", () => {
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: {
+        modelId: "openai:gpt-5",
+        agent_orchestration: {
+          mode: "developer_waiting_approval",
+        },
+      },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.agent_orchestration).toEqual({
+      mode: "developer_waiting_approval",
+    });
   });
 });

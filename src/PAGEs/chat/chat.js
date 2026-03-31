@@ -11,6 +11,8 @@ import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import {
   bootstrapChatsStore,
+  refreshCharacterChatMetadata,
+  setChatAgentOrchestration,
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
@@ -56,7 +58,7 @@ const ChatInterface = () => {
     () => initialChat.draft?.attachments || [],
   );
   const [streamError, setStreamError] = useState("");
-  const [misoStatus, setMisoStatus] = useState({
+  const [unchainStatus, setUnchainStatus] = useState({
     status: "starting",
     ready: false,
     url: null,
@@ -73,6 +75,7 @@ const ChatInterface = () => {
 
   const storageApi = useMemo(
     () => ({
+      setChatAgentOrchestration,
       setChatGeneratedUnread,
       setChatMessages,
       setChatModel,
@@ -159,6 +162,7 @@ const ChatInterface = () => {
     draftAttachments,
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
+    agentOrchestration: session.agentOrchestration,
     selectedToolkits: session.selectedToolkits,
     selectedWorkspaceIds: session.selectedWorkspaceIds,
     chatKind: session.activeChatKind,
@@ -175,6 +179,7 @@ const ChatInterface = () => {
     messagesRef: session.messagesRef,
     modelIdRef: session.modelIdRef,
     setSelectedModelId: session.setSelectedModelId,
+    setAgentOrchestration: session.setAgentOrchestration,
     activeStreamMessagesRef,
   });
 
@@ -207,8 +212,8 @@ const ChatInterface = () => {
 
   const refreshMisoStatus = useCallback(async () => {
     try {
-      const status = await api.miso.getStatus();
-      setMisoStatus({
+      const status = await api.unchain.getStatus();
+      setUnchainStatus({
         status: status?.status || "unknown",
         ready: Boolean(status?.ready),
         url: status?.url || null,
@@ -224,9 +229,9 @@ const ChatInterface = () => {
           typeof navigator.userAgent === "string" &&
           navigator.userAgent.includes("Electron");
         const runtimeHint = hasElectronUserAgent
-          ? "Electron detected, but preload failed to expose misoAPI. Check Electron main/preload console logs."
+          ? "Electron detected, but preload failed to expose unchainAPI. Check Electron main/preload console logs."
           : "Web mode detected. Run the app with Electron (`npm start` or `npm run start:electron`).";
-        setMisoStatus({
+        setUnchainStatus({
           status: "unavailable",
           ready: false,
           url: null,
@@ -235,7 +240,7 @@ const ChatInterface = () => {
         return;
       }
 
-      setMisoStatus({
+      setUnchainStatus({
         status: "error",
         ready: false,
         url: null,
@@ -246,12 +251,12 @@ const ChatInterface = () => {
 
   const refreshModelCatalog = useCallback(async () => {
     try {
-      const normalized = await api.miso.getModelCatalog();
+      const normalized = await api.unchain.getModelCatalog();
       setModelCatalog(normalized);
 
       if (
         !session.isCharacterChat &&
-        (modelIdRef.current === "miso-unset" || !modelIdRef.current) &&
+        (modelIdRef.current === "unchain-unset" || !modelIdRef.current) &&
         normalized.activeModel
       ) {
         const currentChatId = activeChatIdRef.current;
@@ -289,11 +294,27 @@ const ChatInterface = () => {
   }, [refreshMisoStatus]);
 
   useEffect(() => {
-    if (!misoStatus.ready) {
+    if (!unchainStatus.ready) {
       return undefined;
     }
 
     refreshModelCatalog();
+    let cancelled = false;
+    const refreshPersistedCharacterAvatars = async () => {
+      try {
+        const response = await api.unchain.listCharacters();
+        if (cancelled) {
+          return;
+        }
+        refreshCharacterChatMetadata(response?.characters || [], {
+          source: "character-avatar-refresh",
+        });
+      } catch (_error) {
+        // ignore transient character catalog failures
+      }
+    };
+
+    refreshPersistedCharacterAvatars();
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
       const stored = readModelProviders();
@@ -301,9 +322,10 @@ const ChatInterface = () => {
     });
 
     return () => {
+      cancelled = true;
       unsubscribeModelCatalogRefresh();
     };
-  }, [misoStatus.ready, refreshModelCatalog]);
+  }, [unchainStatus.ready, refreshModelCatalog]);
 
   const onSelectModel = useCallback(
     (modelId) => {
@@ -322,10 +344,10 @@ const ChatInterface = () => {
     if (stream.isStreaming) {
       return "Miso is streaming a response...";
     }
-    if (!misoStatus.ready) {
-      return misoStatus.reason
-        ? `Miso ${misoStatus.status}: ${misoStatus.reason}`
-        : `Connecting to Miso (${misoStatus.status})...`;
+    if (!unchainStatus.ready) {
+      return unchainStatus.reason
+        ? `Unchain ${unchainStatus.status}: ${unchainStatus.reason}`
+        : `Connecting to Unchain (${unchainStatus.status})...`;
     }
     if (attachmentsDisabledReason) {
       return attachmentsDisabledReason;
@@ -333,19 +355,19 @@ const ChatInterface = () => {
     return DEFAULT_DISCLAIMER;
   }, [
     attachmentsDisabledReason,
-    misoStatus,
+    unchainStatus,
     stream.hasBackgroundStream,
     stream.isStreaming,
     stream.streamError,
   ]);
 
   const isSendDisabled =
-    (!misoStatus.ready && !stream.isStreaming) || stream.hasBackgroundStream;
+    (!unchainStatus.ready && !stream.isStreaming) || stream.hasBackgroundStream;
 
   const [characterAvailability, setCharacterAvailability] = useState("");
 
   useEffect(() => {
-    if (!session.isCharacterChat || !session.activeCharacterId || !misoStatus.ready) {
+    if (!session.isCharacterChat || !session.activeCharacterId || !unchainStatus.ready) {
       setCharacterAvailability("");
       return;
     }
@@ -353,7 +375,7 @@ const ChatInterface = () => {
     let cancelled = false;
     const fetchAvailability = async () => {
       try {
-        const result = await api.miso.previewCharacterDecision({
+        const result = await api.unchain.previewCharacterDecision({
           characterId: session.activeCharacterId,
         });
         if (!cancelled) {
@@ -374,7 +396,7 @@ const ChatInterface = () => {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [session.isCharacterChat, session.activeCharacterId, misoStatus.ready]);
+  }, [session.isCharacterChat, session.activeCharacterId, unchainStatus.ready]);
 
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
@@ -440,9 +462,9 @@ const ChatInterface = () => {
     onStop: stream.stopStream,
     isStreaming: stream.isStreaming,
     sendDisabled: isSendDisabled,
-    placeholder: misoStatus.ready
+    placeholder: unchainStatus.ready
       ? "Message PuPu Chat..."
-      : `Miso unavailable (${misoStatus.status})${misoStatus.reason ? `: ${misoStatus.reason}` : ""}`,
+      : `Miso unavailable (${unchainStatus.status})${unchainStatus.reason ? `: ${unchainStatus.reason}` : ""}`,
     disclaimer: effectiveDisclaimer,
     showAttachments: true,
     onAttachFile: attachments.handleAttachFile,

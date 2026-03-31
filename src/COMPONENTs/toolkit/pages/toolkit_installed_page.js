@@ -34,7 +34,7 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
     setError(null);
 
     try {
-      const payload = await api.miso.listToolModalCatalog();
+      const payload = await api.unchain.listToolModalCatalog();
       const list = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
 
       const visible = list.filter(
