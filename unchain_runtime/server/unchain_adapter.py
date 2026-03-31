@@ -129,31 +129,130 @@ _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR = "_pupu_original_tool_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
 _HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
-_SYSTEM_PROMPT_V2_SECTION_ORDER = (
+
+# ── Unified Prompt Module System ─────────────────────────────────────────────
+#
+# Every agent prompt is built from Prompt Modules: ordered, typed sections that
+# merge content from 3 sources (builtin → user → agent) into a single string.
+#
+# To define a new agent, create a dict of agent_modules and call
+# _build_modular_prompt(). See _DEVELOPER_PROMPT_SECTIONS for the reference.
+# ─────────────────────────────────────────────────────────────────────────────
+
+_PROMPT_MODULE_ORDER = (
+    "identity",
     "personality",
+    "capability",
     "rules",
+    "workflow",
+    "delegation",
     "style",
     "output_format",
     "context",
     "constraints",
+    "fallback",
 )
-_SYSTEM_PROMPT_V2_SECTION_TITLES = {
+
+_PROMPT_MODULE_HEADERS = {
+    "identity": None,            # no header — first line IS the identity
     "personality": "Personality",
+    "capability": "Capabilities",
     "rules": "Rules",
+    "workflow": "Workflow",
+    "delegation": "Delegation",
     "style": "Style",
     "output_format": "Output Format",
     "context": "Context",
     "constraints": "Constraints",
+    "fallback": "Fallback",
 }
+
+_PROMPT_MODULE_MERGE: Dict[str, str] = {
+    "identity": "replace",
+    "personality": "replace",
+    "capability": "replace",
+    "rules": "prepend",          # builtin first, then user, then agent
+    "workflow": "replace",
+    "delegation": "replace",
+    "style": "replace",
+    "output_format": "replace",
+    "context": "replace",
+    "constraints": "append",     # agent + user concatenated
+    "fallback": "replace",
+}
+
+# Backward-compat: V2 section keys map 1:1 to module keys
+_V2_TO_MODULE_KEY = {
+    "personality": "personality",
+    "rules": "rules",
+    "style": "style",
+    "output_format": "output_format",
+    "context": "context",
+    "constraints": "constraints",
+}
+
+# Legacy aliases kept for backward compat with V2 frontend
+_SYSTEM_PROMPT_V2_SECTION_ORDER = tuple(_V2_TO_MODULE_KEY.keys())
+_SYSTEM_PROMPT_V2_SECTION_TITLES = {k: _PROMPT_MODULE_HEADERS[v] for k, v in _V2_TO_MODULE_KEY.items()}
 _SYSTEM_PROMPT_V2_SECTION_ALIASES = {
     "personally": "personality",
 }
+
+# Builtin rules — always prepended to the "rules" module
 _SYSTEM_PROMPT_V2_BUILTIN_RULES = [
     "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
     "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
     "If important information is missing, the requirements are ambiguous, or there are multiple materially different approaches, you may use one or more ask-user tool calls before the final answer to resolve the uncertainty. Prefer asking over guessing when the choice would meaningfully affect the outcome. Before responding, gather enough information to make the final answer as complete and actionable as possible.",
     "In the final response, aim to deliver a full result whenever feasible: a concrete plan, a direct answer, a finished artifact, or the best available outcome for the task, rather than a partial handoff."
 ]
+
+_BUILTIN_MODULES: Dict[str, str] = {
+    "rules": "\n".join(_SYSTEM_PROMPT_V2_BUILTIN_RULES),
+}
+
+
+def _build_modular_prompt(
+    *,
+    builtin_modules: Dict[str, str] | None = None,
+    agent_modules: Dict[str, str] | None = None,
+    user_modules: Dict[str, str] | None = None,
+) -> str:
+    """Build a final prompt string from builtin, agent, and user modules.
+
+    Modules are merged per-key according to _PROMPT_MODULE_MERGE strategy,
+    then emitted in _PROMPT_MODULE_ORDER with [Header] blocks.
+    """
+    b = builtin_modules or {}
+    a = agent_modules or {}
+    u = user_modules or {}
+    sections: Dict[str, str] = {}
+
+    for key in _PROMPT_MODULE_ORDER:
+        strategy = _PROMPT_MODULE_MERGE.get(key, "replace")
+        bv = (b.get(key) or "").strip()
+        av = (a.get(key) or "").strip()
+        uv = (u.get(key) or "").strip()
+
+        if strategy == "prepend":
+            parts = [p for p in (bv, uv, av) if p]
+            sections[key] = "\n".join(parts)
+        elif strategy == "append":
+            parts = [p for p in (av, uv, bv) if p]
+            sections[key] = "\n".join(parts)
+        else:
+            sections[key] = uv or av or bv
+
+    blocks: list[str] = []
+    for key in _PROMPT_MODULE_ORDER:
+        text = (sections.get(key) or "").strip()
+        if not text:
+            continue
+        header = _PROMPT_MODULE_HEADERS.get(key)
+        if header:
+            blocks.append(f"[{header}]\n{text}")
+        else:
+            blocks.append(text)
+    return "\n\n".join(blocks)
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
@@ -183,65 +282,12 @@ finish the turn.
 _DEVELOPER_AGENT_PLAN_PROMPT = ""
 _DEVELOPER_AGENT_APPROVAL_PROMPT = ""
 
-# ── Agent Prompt Template System ──────────────────────────────────────────────
-#
-# Every agent prompt is composed from ordered sections. Each section has a
-# fixed semantic role. This structure is the canonical pattern for all future
-# agent development in PuPu.
-#
-# Section order (mandatory sequence):
-#   1. identity     — Who the agent is. One sentence. Sets the persona.
-#   2. capability   — What tools/resources the agent has access to. Factual list.
-#   3. workflow     — How the agent should approach tasks. Step-by-step rules.
-#   4. delegation   — When and how to use subagents. Trade-off rules + catalog.
-#   5. constraints  — Hard rules the agent must never violate.
-#   6. fallback     — What to do for out-of-scope requests.
-#
-# Not every agent needs all sections. Subagents (analyzer, executor) only need
-# identity + capability + constraints. The delegation section is only for agents
-# that have SubagentModule attached.
-#
-# To create a new agent prompt, fill in the sections that apply and join with
-# _compose_agent_prompt(). Empty sections are automatically skipped.
-# ──────────────────────────────────────────────────────────────────────────────
-
-_AGENT_PROMPT_SECTION_ORDER = (
-    "identity",
-    "capability",
-    "workflow",
-    "delegation",
-    "constraints",
-    "fallback",
-)
-
-_AGENT_PROMPT_SECTION_HEADERS = {
-    "identity": None,           # no header — first line IS the identity
-    "capability": "Capabilities",
-    "workflow": "Workflow",
-    "delegation": "Delegation",
-    "constraints": "Constraints",
-    "fallback": "Fallback",
-}
-
-
 def _compose_agent_prompt(sections: dict[str, str]) -> str:
-    """Assemble an agent prompt from named sections.
+    """Convenience: build an agent-only prompt (no user/builtin modules).
 
-    Sections are emitted in _AGENT_PROMPT_SECTION_ORDER. Empty or missing
-    sections are silently skipped. The identity section has no header; all
-    others are wrapped in [Header] blocks.
+    Use _build_modular_prompt() for full 3-source merging.
     """
-    blocks: list[str] = []
-    for key in _AGENT_PROMPT_SECTION_ORDER:
-        text = (sections.get(key) or "").strip()
-        if not text:
-            continue
-        header = _AGENT_PROMPT_SECTION_HEADERS.get(key)
-        if header:
-            blocks.append(f"[{header}]\n{text}")
-        else:
-            blocks.append(text)
-    return "\n\n".join(blocks)
+    return _build_modular_prompt(agent_modules=sections)
 
 
 # ── Developer Agent Prompt (sectioned) ────────────────────────────────────────
@@ -2019,7 +2065,31 @@ def _extract_agent_instructions(options: Dict[str, object] | None) -> str:
     return raw_value.strip()
 
 
+def _extract_user_prompt_modules(options: Dict[str, object] | None) -> Dict[str, str]:
+    """Extract V2 sections from options as a user_modules dict for _build_modular_prompt."""
+    normalized = _extract_system_prompt_v2_options(options)
+    if not normalized or normalized.get("enabled") is not True:
+        return {}
+    defaults = normalized.get("defaults")
+    overrides = normalized.get("overrides")
+    merged_v2 = _merge_system_prompt_v2_sections(
+        defaults if isinstance(defaults, dict) else {},
+        overrides if isinstance(overrides, dict) else {},
+    )
+    # Do NOT inject builtin rules here — they come from _BUILTIN_MODULES
+    user_modules: Dict[str, str] = {}
+    for v2_key, module_key in _V2_TO_MODULE_KEY.items():
+        value = merged_v2.get(v2_key, "")
+        if isinstance(value, str) and value.strip():
+            user_modules[module_key] = value.strip()
+    return user_modules
+
+
 def _build_effective_system_prompt_text(options: Dict[str, object] | None) -> str:
+    """Legacy: compile the full system prompt as a single string.
+
+    Prefer _extract_user_prompt_modules() + _build_modular_prompt() for new code.
+    """
     system_prompt_text = _build_system_prompt_v2_text_from_options(options)
     agent_instructions = _extract_agent_instructions(options)
     if system_prompt_text and agent_instructions:
@@ -2813,7 +2883,8 @@ def _build_developer_agent(
     provider: str,
     model: str,
     api_key: str,
-    system_prompt: str,
+    user_modules: Dict[str, str] | None = None,
+    system_prompt: str = "",
     max_iterations: int,
     toolkits: list,
     memory_manager: Any,
@@ -2946,12 +3017,14 @@ def _build_developer_agent(
             )
         )
 
+    instructions = _build_modular_prompt(
+        builtin_modules=_BUILTIN_MODULES,
+        agent_modules=_DEVELOPER_PROMPT_SECTIONS,
+        user_modules=user_modules or {},
+    )
     return UnchainAgent(
         name=_DEVELOPER_AGENT_NAME,
-        instructions=_compose_runtime_instructions(
-            system_prompt,
-            _DEVELOPER_AGENT_UNIFIED_PROMPT,
-        ),
+        instructions=instructions,
         provider=provider,
         model=model,
         api_key=api_key or None,
@@ -3038,7 +3111,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
     api_key = _resolve_agent_api_key(options, selected_config["provider"])
     memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
     toolkits = _build_requested_toolkits(options)
-    system_prompt = _build_effective_system_prompt_text(options)
+    user_modules = _extract_user_prompt_modules(options)
 
     # Developer agent is the sole agent with optional delegate/worker subagents.
     agent = _build_developer_agent(
@@ -3052,7 +3125,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         provider=selected_config["provider"],
         model=selected_config["model"],
         api_key=api_key,
-        system_prompt=system_prompt,
+        user_modules=user_modules,
         max_iterations=max_iterations,
         toolkits=toolkits,
         memory_manager=memory_manager,
