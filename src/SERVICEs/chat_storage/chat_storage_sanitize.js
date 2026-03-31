@@ -362,6 +362,116 @@ export const isCharacterChatSession = (chat) =>
   sanitizeChatKind(chat?.kind) === CHARACTER_CHAT_KIND &&
   Boolean(sanitizeCharacterId(chat?.characterId));
 
+const sanitizeTraceFrame = (frame) => {
+  if (!isObject(frame)) return null;
+  const cleanedFrame = {
+    seq: Number.isFinite(Number(frame.seq)) ? Number(frame.seq) : 0,
+    ts: Number.isFinite(Number(frame.ts)) ? Number(frame.ts) : 0,
+    type: trimText(String(frame.type || ""), 64),
+    stage: trimText(String(frame.stage || ""), 64),
+  };
+  if (Number.isFinite(Number(frame.iteration))) {
+    cleanedFrame.iteration = Number(frame.iteration);
+  }
+  if (isObject(frame.payload)) {
+    const payload = clone(frame.payload);
+    if (payload) {
+      if (typeof payload.content === "string") {
+        payload.content = trimText(payload.content, 8000);
+      }
+      if (typeof payload.text === "string") {
+        payload.text = trimText(payload.text, 8000);
+      }
+      if (typeof payload.message === "string") {
+        payload.message = trimText(payload.message, 2000);
+      }
+      if (typeof payload.reasoning === "string") {
+        payload.reasoning = trimText(payload.reasoning, 8000);
+      }
+      if (typeof payload.observation === "string") {
+        payload.observation = trimText(payload.observation, 8000);
+      }
+      if (typeof payload.result === "string") {
+        payload.result = trimText(payload.result, 8000);
+      }
+      if (typeof payload.delta === "string") {
+        payload.delta = trimText(payload.delta, 2000);
+      }
+      cleanedFrame.payload = payload;
+    }
+  }
+  return cleanedFrame;
+};
+
+const sanitizeTraceFrames = (frames) => {
+  if (!Array.isArray(frames) || frames.length === 0) {
+    return [];
+  }
+  return frames.map((frame) => sanitizeTraceFrame(frame)).filter(Boolean);
+};
+
+const sanitizeSubagentMeta = (meta) => {
+  if (!isObject(meta)) {
+    return null;
+  }
+  const cleanedMeta = {
+    subagentId:
+      typeof meta.subagentId === "string" ? trimText(meta.subagentId, 300) : "",
+    mode: typeof meta.mode === "string" ? trimText(meta.mode, 50) : "",
+    template: typeof meta.template === "string" ? trimText(meta.template, 200) : "",
+    batchId: typeof meta.batchId === "string" ? trimText(meta.batchId, 200) : "",
+    parentId: typeof meta.parentId === "string" ? trimText(meta.parentId, 300) : "",
+    lineage: Array.isArray(meta.lineage)
+      ? meta.lineage
+          .filter((item) => typeof item === "string" && item.trim())
+          .map((item) => trimText(item, 300))
+      : [],
+    status: typeof meta.status === "string" ? trimText(meta.status, 100) : "",
+  };
+  return cleanedMeta;
+};
+
+const sanitizeSubagentFramesByRunId = (value) => {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  const cleanedEntries = Object.entries(value)
+    .map(([runId, frames]) => {
+      const cleanedRunId =
+        typeof runId === "string" ? trimText(runId, 300).trim() : "";
+      if (!cleanedRunId || !Array.isArray(frames)) {
+        return null;
+      }
+      return [cleanedRunId, sanitizeTraceFrames(frames)];
+    })
+    .filter(Boolean);
+  if (cleanedEntries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(cleanedEntries);
+};
+
+const sanitizeSubagentMetaByRunId = (value) => {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  const cleanedEntries = Object.entries(value)
+    .map(([runId, meta]) => {
+      const cleanedRunId =
+        typeof runId === "string" ? trimText(runId, 300).trim() : "";
+      const cleanedMeta = sanitizeSubagentMeta(meta);
+      if (!cleanedRunId || !cleanedMeta) {
+        return null;
+      }
+      return [cleanedRunId, cleanedMeta];
+    })
+    .filter(Boolean);
+  if (cleanedEntries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(cleanedEntries);
+};
+
 export const sanitizeMessage = (message) => {
   if (!isObject(message)) {
     return null;
@@ -397,45 +507,23 @@ export const sanitizeMessage = (message) => {
       ? message.status
       : "done";
 
-    if (Array.isArray(message.traceFrames) && message.traceFrames.length > 0) {
-      cleaned.traceFrames = message.traceFrames
-        .map((frame) => {
-          if (!isObject(frame)) return null;
-          const f = {
-            seq: Number.isFinite(Number(frame.seq)) ? Number(frame.seq) : 0,
-            ts: Number.isFinite(Number(frame.ts)) ? Number(frame.ts) : 0,
-            type: trimText(String(frame.type || ""), 64),
-            stage: trimText(String(frame.stage || ""), 64),
-          };
-          if (Number.isFinite(Number(frame.iteration))) {
-            f.iteration = Number(frame.iteration);
-          }
-          if (isObject(frame.payload)) {
-            const p = clone(frame.payload);
-            if (p) {
-              if (typeof p.content === "string")
-                p.content = trimText(p.content, 8000);
-              if (typeof p.text === "string") p.text = trimText(p.text, 8000);
-              if (typeof p.message === "string")
-                p.message = trimText(p.message, 2000);
-              if (typeof p.reasoning === "string")
-                p.reasoning = trimText(p.reasoning, 8000);
-              if (typeof p.observation === "string")
-                p.observation = trimText(p.observation, 8000);
-              if (typeof p.result === "string")
-                p.result = trimText(p.result, 8000);
-              if (typeof p.delta === "string")
-                p.delta = trimText(p.delta, 2000);
-              f.payload = p;
-            }
-          }
-          return f;
-        })
-        .filter(Boolean);
+    const cleanedTraceFrames = sanitizeTraceFrames(message.traceFrames);
+    if (cleanedTraceFrames.length > 0) {
+      cleaned.traceFrames = cleanedTraceFrames;
+    }
 
-      if (cleaned.traceFrames.length === 0) {
-        delete cleaned.traceFrames;
-      }
+    const cleanedSubagentFrames = sanitizeSubagentFramesByRunId(
+      message.subagentFrames,
+    );
+    if (cleanedSubagentFrames) {
+      cleaned.subagentFrames = cleanedSubagentFrames;
+    }
+
+    const cleanedSubagentMeta = sanitizeSubagentMetaByRunId(
+      message.subagentMetaByRunId,
+    );
+    if (cleanedSubagentMeta) {
+      cleaned.subagentMetaByRunId = cleanedSubagentMeta;
     }
   }
 
