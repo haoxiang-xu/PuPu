@@ -11,6 +11,8 @@ const renderTraceChain = ({
   streamingContent = "",
   onToolConfirmationDecision = null,
   toolConfirmationUiStateById = {},
+  subagentFrames = undefined,
+  subagentMetaByRunId = undefined,
 }) =>
   render(
     <ConfigContext.Provider
@@ -25,6 +27,8 @@ const renderTraceChain = ({
         streamingContent={streamingContent}
         onToolConfirmationDecision={onToolConfirmationDecision}
         toolConfirmationUiStateById={toolConfirmationUiStateById}
+        subagentFrames={subagentFrames}
+        subagentMetaByRunId={subagentMetaByRunId}
       />
     </ConfigContext.Provider>,
   );
@@ -626,5 +630,254 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByText("Web")).toBeInTheDocument();
     expect(screen.getByText("Desktop")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+  });
+
+  test("renders delegate child output in a separate collapsed timeline using exact subagent mapping", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          arguments: {
+            target: "analyzer",
+            task: "Inspect the kernel package",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          result: {
+            agent_name: "developer.analyzer.1",
+            template_name: "analyzer",
+            status: "completed",
+            output: "Kernel package summary from the child agent.",
+          },
+        },
+      }),
+      frame({ seq: 4, type: "done", payload: {} }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: {
+        "child-run-alpha": [
+          frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+          frame({
+            seq: 2,
+            type: "final_message",
+            payload: { content: "Child delegate final output" },
+            ts: 20,
+          }),
+          frame({ seq: 3, type: "done", payload: {}, ts: 30 }),
+        ],
+      },
+      subagentMetaByRunId: {
+        "child-run-alpha": {
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          batchId: "",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.1"],
+          status: "completed",
+        },
+      },
+    });
+
+    expect(
+      screen.queryByText("Kernel package summary from the child agent."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "detail" }));
+
+    const toggle = screen.getByRole("button", {
+      name: "Toggle subagent timeline",
+    });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText("Child delegate final output")).toBeInTheDocument();
+  });
+
+  test("renders worker batch children as separate collapsed timelines in batch order", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "spawn_worker_batch",
+          arguments: {
+            target: "analyzer",
+            reason: "Parallelize the review",
+            tasks: [{ task: "Inspect kernel" }, { task: "Inspect tools" }],
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "spawn_worker_batch",
+          result: {
+            status: "completed",
+            results: [
+              {
+                agent_name: "developer.analyzer.kernel",
+                template_name: "analyzer",
+                status: "completed",
+                output: "Kernel worker summary",
+              },
+              {
+                agent_name: "developer.analyzer.tools",
+                template_name: "analyzer",
+                status: "completed",
+                output: "Tools worker summary",
+              },
+            ],
+          },
+        },
+      }),
+      frame({ seq: 4, type: "done", payload: {} }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: {
+        "child-run-kernel": [
+          frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+          frame({
+            seq: 2,
+            type: "final_message",
+            payload: { content: "Kernel child timeline output" },
+            ts: 20,
+          }),
+        ],
+        "child-run-tools": [
+          frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+          frame({
+            seq: 2,
+            type: "final_message",
+            payload: { content: "Tools child timeline output" },
+            ts: 20,
+          }),
+        ],
+      },
+      subagentMetaByRunId: {
+        "child-run-kernel": {
+          subagentId: "developer.analyzer.kernel",
+          mode: "worker",
+          template: "analyzer",
+          batchId: "batch-1",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.kernel"],
+          status: "completed",
+        },
+        "child-run-tools": {
+          subagentId: "developer.analyzer.tools",
+          mode: "worker",
+          template: "analyzer",
+          batchId: "batch-1",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.tools"],
+          status: "completed",
+        },
+      },
+    });
+
+    expect(screen.queryByText("Kernel worker summary")).not.toBeInTheDocument();
+    expect(screen.queryByText("Tools worker summary")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "detail" }));
+
+    const toggles = screen.getAllByRole("button", {
+      name: "Toggle subagent timeline",
+    });
+    expect(toggles).toHaveLength(2);
+    expect(toggles[0]).toHaveAttribute("aria-expanded", "false");
+    expect(toggles[1]).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(toggles[0]);
+
+    expect(toggles[0]).toHaveAttribute("aria-expanded", "true");
+    expect(toggles[1]).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByText("Kernel child timeline output")).toBeInTheDocument();
+  });
+
+  test("keeps handoff results on the main timeline without a child disclosure", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "handoff_to_subagent",
+          arguments: {
+            target: "developer",
+            reason: "Switch to the developer agent",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "handoff_to_subagent",
+          result: {
+            agent_name: "developer",
+            status: "completed",
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: {
+        "handoff-child-run": [
+          frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+          frame({
+            seq: 2,
+            type: "final_message",
+            payload: { content: "This should stay on the main output path." },
+            ts: 20,
+          }),
+        ],
+      },
+      subagentMetaByRunId: {
+        "handoff-child-run": {
+          subagentId: "developer",
+          mode: "handoff",
+          template: "developer",
+          batchId: "",
+          parentId: "assistant",
+          lineage: ["assistant", "developer"],
+          status: "completed",
+        },
+      },
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Toggle subagent timeline" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("This should stay on the main output path."),
+    ).not.toBeInTheDocument();
   });
 });

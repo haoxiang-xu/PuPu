@@ -119,6 +119,10 @@ export const useChatStream = ({
   const confirmationFollowupSignalByIdRef = useRef(new Map());
   const confirmationResolveTimerByIdRef = useRef(new Map());
   const activeTokenFlushControllerRef = useRef(null);
+  const parentRunIdRef = useRef("");
+  const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
+  const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
+  const suppressNextTokenRef = useRef(false);
 
   const buildCharacterRunConfig = useCallback(async () => {
     if (!isCharacterChat) {
@@ -763,6 +767,10 @@ export const useChatStream = ({
       setToolConfirmationUiStateById({});
       pendingContinuationRequestRef.current = null;
       setPendingContinuationRequest(null);
+      parentRunIdRef.current = "";
+      subagentMetaByRunIdRef.current.clear();
+      subagentFramesByRunIdRef.current.clear();
+      suppressNextTokenRef.current = false;
 
       const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
@@ -943,6 +951,8 @@ export const useChatStream = ({
         updatedAt: timestamp,
         status: "streaming",
         traceFrames: [],
+        subagentFrames: {},
+        subagentMetaByRunId: {},
         meta: {
           model: effectiveModelId,
         },
@@ -994,6 +1004,121 @@ export const useChatStream = ({
         storageApi.setChatMessages(targetChatId, nextStreamMessages, {
           source: "chat-page",
         });
+      };
+
+      const serializeSubagentFramesByRunId = () =>
+        Object.fromEntries(
+          Array.from(subagentFramesByRunIdRef.current.entries()).map(
+            ([runId, frames]) => [runId, Array.isArray(frames) ? [...frames] : []],
+          ),
+        );
+
+      const serializeSubagentMetaByRunId = () =>
+        Object.fromEntries(
+          Array.from(subagentMetaByRunIdRef.current.entries()).map(
+            ([runId, meta]) => [
+              runId,
+              {
+                subagentId:
+                  typeof meta?.subagentId === "string" ? meta.subagentId : "",
+                mode: typeof meta?.mode === "string" ? meta.mode : "",
+                template: typeof meta?.template === "string" ? meta.template : "",
+                batchId: typeof meta?.batchId === "string" ? meta.batchId : "",
+                parentId:
+                  typeof meta?.parentId === "string" ? meta.parentId : "",
+                lineage: Array.isArray(meta?.lineage)
+                  ? meta.lineage.filter(
+                      (item) => typeof item === "string" && item.trim(),
+                    )
+                  : [],
+                status: typeof meta?.status === "string" ? meta.status : "",
+              },
+            ],
+          ),
+        );
+
+      const isKnownSubagentRunId = (runId) =>
+        typeof runId === "string" &&
+        runId.length > 0 &&
+        parentRunIdRef.current &&
+        runId !== parentRunIdRef.current &&
+        (subagentMetaByRunIdRef.current.has(runId) ||
+          subagentFramesByRunIdRef.current.has(runId));
+
+      const upsertSubagentMeta = (childRunId, updates) => {
+        if (typeof childRunId !== "string" || !childRunId.trim()) {
+          return null;
+        }
+
+        const previousMeta =
+          subagentMetaByRunIdRef.current.get(childRunId) || {};
+        const nextMeta = {
+          subagentId:
+            typeof updates?.subagentId === "string"
+              ? updates.subagentId
+              : typeof previousMeta?.subagentId === "string"
+                ? previousMeta.subagentId
+                : "",
+          mode:
+            typeof updates?.mode === "string"
+              ? updates.mode
+              : typeof previousMeta?.mode === "string"
+                ? previousMeta.mode
+                : "",
+          template:
+            typeof updates?.template === "string"
+              ? updates.template
+              : typeof previousMeta?.template === "string"
+                ? previousMeta.template
+                : "",
+          batchId:
+            typeof updates?.batchId === "string"
+              ? updates.batchId
+              : typeof previousMeta?.batchId === "string"
+                ? previousMeta.batchId
+                : "",
+          parentId:
+            typeof updates?.parentId === "string"
+              ? updates.parentId
+              : typeof previousMeta?.parentId === "string"
+                ? previousMeta.parentId
+                : "",
+          lineage: Array.isArray(updates?.lineage)
+            ? updates.lineage.filter(
+                (item) => typeof item === "string" && item.trim(),
+              )
+            : Array.isArray(previousMeta?.lineage)
+              ? previousMeta.lineage
+              : [],
+          status:
+            typeof updates?.status === "string"
+              ? updates.status
+              : typeof previousMeta?.status === "string"
+                ? previousMeta.status
+                : "",
+        };
+
+        subagentMetaByRunIdRef.current.set(childRunId, nextMeta);
+        if (!subagentFramesByRunIdRef.current.has(childRunId)) {
+          subagentFramesByRunIdRef.current.set(childRunId, []);
+        }
+        return nextMeta;
+      };
+
+      const syncAssistantSubagentState = (patchTime) => {
+        const serializedFrames = serializeSubagentFramesByRunId();
+        const serializedMeta = serializeSubagentMetaByRunId();
+        const nextStreamMessages = streamMessages.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                updatedAt: patchTime,
+                subagentFrames: serializedFrames,
+                subagentMetaByRunId: serializedMeta,
+              }
+            : message,
+        );
+        syncStreamMessages(nextStreamMessages);
       };
 
       let bufferedTokenDelta = "";
@@ -1201,16 +1326,14 @@ export const useChatStream = ({
           },
           {
             onFrame: (frame) => {
-              if (!frame || frame.type === "token_delta") return;
-              if (
-                frame.type === "final_message" ||
-                frame.type === "tool_call" ||
-                frame.type === "error" ||
-                frame.type === "done"
-              ) {
-                flushBufferedTokenDelta();
+              if (!frame) return;
+              if (frame.type === "token_delta") {
+                const frameRunId = frame.run_id || frame.payload?.run_id || "";
+                if (isKnownSubagentRunId(frameRunId)) {
+                  suppressNextTokenRef.current = true;
+                }
+                return;
               }
-              const patchTime = Date.now();
 
               if (frame.type === "request_messages") {
                 const rawMessages = Array.isArray(frame.payload?.messages)
@@ -1269,6 +1392,8 @@ export const useChatStream = ({
                 return;
               }
 
+              const patchTime = Date.now();
+
               if (frame.type === "error") {
                 unchainLogger.error(
                   `error (iteration=${getTraceFrameIteration(frame)})`,
@@ -1290,6 +1415,9 @@ export const useChatStream = ({
                 frame.type === "response_received" ||
                 frame.type === "run_max_iterations"
               ) {
+                if (frame.type === "run_started" && !parentRunIdRef.current) {
+                  parentRunIdRef.current = frame.run_id || frame.payload?.run_id || "";
+                }
                 const label =
                   frame.type === "run_max_iterations"
                     ? "run_max_iterations"
@@ -1297,7 +1425,7 @@ export const useChatStream = ({
                 unchainLogger.log(label, frame.payload);
               }
 
-              /* ── subagent lifecycle events: log only, do not append to traceFrames ── */
+              /* ── subagent lifecycle events: register mapping + log ── */
               if (
                 frame.type === "subagent_spawned" ||
                 frame.type === "subagent_started" ||
@@ -1308,8 +1436,98 @@ export const useChatStream = ({
                 frame.type === "subagent_batch_started" ||
                 frame.type === "subagent_batch_joined"
               ) {
+                const childRunId =
+                  typeof frame.payload?.child_run_id === "string"
+                    ? frame.payload.child_run_id
+                    : "";
+                if (childRunId) {
+                  const lifecycleStatus =
+                    frame.type === "subagent_spawned"
+                      ? "spawned"
+                      : frame.type === "subagent_started" ||
+                          frame.type === "subagent_handoff"
+                        ? "running"
+                        : frame.type === "subagent_completed"
+                          ? typeof frame.payload?.status === "string" &&
+                              frame.payload.status.trim()
+                            ? frame.payload.status.trim()
+                            : "completed"
+                          : frame.type === "subagent_failed"
+                            ? typeof frame.payload?.status === "string" &&
+                                frame.payload.status.trim()
+                              ? frame.payload.status.trim()
+                              : "failed"
+                          : frame.type ===
+                                "subagent_clarification_requested"
+                              ? "needs_clarification"
+                              : typeof subagentMetaByRunIdRef.current.get(
+                                    childRunId,
+                                  )?.status === "string"
+                                ? subagentMetaByRunIdRef.current.get(
+                                    childRunId,
+                                  ).status
+                                : "";
+                  upsertSubagentMeta(childRunId, {
+                    subagentId:
+                      typeof frame.payload?.subagent_id === "string"
+                        ? frame.payload.subagent_id
+                        : "",
+                    mode:
+                      typeof frame.payload?.mode === "string"
+                        ? frame.payload.mode
+                        : "",
+                    template:
+                      typeof frame.payload?.template === "string"
+                        ? frame.payload.template
+                        : "",
+                    batchId:
+                      typeof frame.payload?.batch_id === "string"
+                        ? frame.payload.batch_id
+                        : "",
+                    parentId:
+                      typeof frame.payload?.parent_id === "string"
+                        ? frame.payload.parent_id
+                        : "",
+                    lineage: Array.isArray(frame.payload?.lineage)
+                      ? frame.payload.lineage
+                      : undefined,
+                    status: lifecycleStatus,
+                  });
+                  syncAssistantSubagentState(patchTime);
+                }
                 unchainLogger.log(frame.type, frame.payload);
                 return;
+              }
+
+              const frameRunId = frame.run_id || frame.payload?.run_id || "";
+              if (isKnownSubagentRunId(frameRunId)) {
+                if (!subagentFramesByRunIdRef.current.has(frameRunId)) {
+                  subagentFramesByRunIdRef.current.set(frameRunId, []);
+                }
+                subagentFramesByRunIdRef.current.get(frameRunId).push(frame);
+
+                if (
+                  frame.type === "error" &&
+                  typeof subagentMetaByRunIdRef.current.get(frameRunId) ===
+                    "object" &&
+                  subagentMetaByRunIdRef.current.get(frameRunId) !== null
+                ) {
+                  upsertSubagentMeta(frameRunId, {
+                    status: "failed",
+                  });
+                }
+
+                syncAssistantSubagentState(patchTime);
+                return;
+              }
+
+              if (
+                frame.type === "final_message" ||
+                frame.type === "tool_call" ||
+                frame.type === "error" ||
+                frame.type === "done"
+              ) {
+                flushBufferedTokenDelta();
               }
 
               if (frame.type === "memory_prepare") {
@@ -1672,6 +1890,10 @@ export const useChatStream = ({
               }
             },
             onToken: (delta) => {
+              if (suppressNextTokenRef.current) {
+                suppressNextTokenRef.current = false;
+                return;
+              }
               if (typeof delta !== "string" || !delta) {
                 return;
               }

@@ -106,8 +106,17 @@ const TimelineNode = ({
   prevStatus, // null for first item; used to color the top line segment
   tl,
   isPassThrough, // true for collapsed intermediate nodes
+  compact = false,
 }) => {
-  const { title, span, details, body, point, status = "pending" } = item;
+  const {
+    title,
+    span,
+    details,
+    detailsBare = false,
+    body,
+    point,
+    status = "pending",
+  } = item;
 
   /* ── resolve point element (must be before any early return) ── */
   const pointEl = useMemo(() => {
@@ -211,8 +220,8 @@ const TimelineNode = ({
         style={{
           flex: 1,
           minWidth: 0,
-          paddingLeft: 14,
-          paddingBottom: index === total - 1 ? 2 : 14,
+          paddingLeft: compact ? 10 : 14,
+          paddingBottom: index === total - 1 ? 2 : compact ? 10 : 14,
         }}
       >
         {/* title + detail + spacer + span row */}
@@ -221,14 +230,14 @@ const TimelineNode = ({
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 6,
+              gap: compact ? 4 : 6,
               lineHeight: `${TITLE_LINE_H}px`,
             }}
           >
             {title != null && (
               <span
                 style={{
-                  fontSize: tl.titleFontSize ?? "14px",
+                  fontSize: tl.titleFontSize ?? (compact ? "13px" : "14px"),
                   fontWeight: 500,
                   color: tl.titleColor ?? "#222222",
                   letterSpacing: "0.01em",
@@ -251,7 +260,7 @@ const TimelineNode = ({
                   background: "transparent",
                   border: "none",
                   cursor: "pointer",
-                  fontSize: tl.spanFontSize ?? "11px",
+                  fontSize: tl.spanFontSize ?? (compact ? "10px" : "11px"),
                   color: tl.seeDetailsColor ?? "rgba(0,0,0,0.35)",
                   fontFamily: "Menlo, Monaco, Consolas, monospace",
                   outline: "none",
@@ -285,7 +294,7 @@ const TimelineNode = ({
             {span != null && (
               <span
                 style={{
-                  fontSize: tl.spanFontSize ?? "11px",
+                  fontSize: tl.spanFontSize ?? (compact ? "10px" : "11px"),
                   color: tl.spanColor ?? "rgba(0,0,0,0.45)",
                   userSelect: "none",
                   WebkitUserSelect: "none",
@@ -305,15 +314,15 @@ const TimelineNode = ({
             style={
               typeof body === "string"
                 ? {
-                    marginTop: 3,
-                    fontSize: tl.fontSize ?? "12px",
+                    marginTop: compact ? 2 : 3,
+                    fontSize: tl.fontSize ?? (compact ? "11px" : "12px"),
                     color: tl.spanColor ?? "rgba(0,0,0,0.45)",
-                    lineHeight: 1.6,
+                    lineHeight: compact ? 1.5 : 1.6,
                     whiteSpace: "pre-wrap",
                     wordBreak: "break-word",
                     fontFamily: "Menlo, Monaco, Consolas, monospace",
                   }
-                : { marginTop: 3 }
+                : { marginTop: compact ? 2 : 3 }
             }
           >
             {body}
@@ -323,18 +332,22 @@ const TimelineNode = ({
         {/* animated details content */}
         {hasDetails && (
           <AnimatedChildren open={isExpanded}>
-            <div
-              style={{
-                marginTop: 5,
-                padding: "8px 10px",
-                borderRadius: 8,
-                background: tl.detailsBackground ?? "rgba(0,0,0,0.025)",
-                fontSize: tl.fontSize ?? "13px",
-                color: tl.spanColor ?? "rgba(0,0,0,0.45)",
-              }}
-            >
-              {details}
-            </div>
+            {detailsBare ? (
+              <div style={{ marginTop: compact ? 4 : 5 }}>{details}</div>
+            ) : (
+              <div
+                style={{
+                  marginTop: compact ? 4 : 5,
+                  padding: compact ? "6px 8px" : "8px 10px",
+                  borderRadius: compact ? 6 : 8,
+                  background: tl.detailsBackground ?? "rgba(0,0,0,0.025)",
+                  fontSize: tl.fontSize ?? (compact ? "12px" : "13px"),
+                  color: tl.spanColor ?? "rgba(0,0,0,0.45)",
+                }}
+              >
+                {details}
+              </div>
+            )}
           </AnimatedChildren>
         )}
       </div>
@@ -370,6 +383,7 @@ const Timeline = ({
   default_expanded_indices = [],
   on_expand_change = () => {},
   style,
+  compact = false,
 }) => {
   const { theme } = useContext(ConfigContext);
   const tl = useMemo(() => theme?.timeline ?? {}, [theme]);
@@ -422,6 +436,7 @@ const Timeline = ({
             prevStatus={i > 0 ? (items[i - 1].status ?? "pending") : null}
             tl={tl}
             isPassThrough={isPassThrough}
+            compact={compact}
           />
         );
       })}

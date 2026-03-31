@@ -132,6 +132,52 @@ const normalizePersistedInteractionResponse = (interactType, payload = {}) => {
   return undefined;
 };
 
+const normalizeSubagentMode = (mode) => {
+  const normalized =
+    typeof mode === "string" ? mode.trim().toLowerCase() : "";
+  return normalized === "delegate" ||
+    normalized === "worker" ||
+    normalized === "handoff"
+    ? normalized
+    : "";
+};
+
+const truncateInlineText = (value, max = 120) => {
+  const text = typeof value === "string" ? value.trim() : "";
+  if (!text) return "";
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+};
+
+const getSubagentShortLabel = ({
+  meta,
+  fallbackAgentName = "",
+  fallbackTemplate = "",
+}) => {
+  const subagentId =
+    typeof meta?.subagentId === "string" ? meta.subagentId.trim() : "";
+  if (subagentId) {
+    const parts = subagentId.split(".").filter(Boolean);
+    if (parts.length >= 2) {
+      return parts.slice(-2).join(".");
+    }
+    return subagentId;
+  }
+
+  const agentName =
+    typeof fallbackAgentName === "string" ? fallbackAgentName.trim() : "";
+  if (agentName) {
+    const parts = agentName.split(".").filter(Boolean);
+    if (parts.length >= 2) {
+      return parts.slice(-2).join(".");
+    }
+    return agentName;
+  }
+
+  const template =
+    typeof fallbackTemplate === "string" ? fallbackTemplate.trim() : "";
+  return template || "subagent";
+};
+
 /* ─── KVPanel ────────────────────────────────────────────────────────────── */
 
 const MAX_PREVIEW = 300;
@@ -146,6 +192,23 @@ const TRACE_DETAIL_MARKDOWN_STYLE = Object.freeze({
   blockquote: {
     margin: "0",
     paddingLeft: 10,
+  },
+  table: {
+    margin: "0",
+  },
+});
+
+const COMPACT_RESPONSE_MARKDOWN_STYLE = Object.freeze({
+  blockGap: 4,
+  paragraphMargin: "0",
+  list: {
+    paddingLeft: 16,
+    margin: "0",
+    itemMargin: "0.05em 0",
+  },
+  blockquote: {
+    margin: "0",
+    paddingLeft: 8,
   },
   table: {
     margin: "0",
@@ -248,16 +311,16 @@ const KVPanel = ({ sections, isDark, color }) => {
 /* ─── ToolTitle ─────────────────────────────────────────────────────────── */
 
 /* tag pill shown as the timeline title for tool_call */
-const ToolTag = ({ name, isDark }) => (
+const ToolTag = ({ name, isDark, compact = false }) => (
   <span
     style={{
       display: "inline-flex",
       alignItems: "center",
-      padding: "1px 7px",
-      borderRadius: 5,
+      padding: compact ? "1px 6px" : "1px 7px",
+      borderRadius: compact ? 4 : 5,
       background: isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)",
       fontFamily: "Menlo, Monaco, Consolas, monospace",
-      fontSize: "0.82em",
+      fontSize: compact ? "0.74em" : "0.82em",
       letterSpacing: 0.1,
       color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.65)",
       userSelect: "none",
@@ -336,103 +399,262 @@ const SubagentPoint = ({ isDark }) => (
   />
 );
 
-/* render a list of worker results as compact rows */
-const WorkerResultList = ({ results, isDark, color }) => {
-  if (!Array.isArray(results) || results.length === 0) return null;
+const getSubagentStatusColor = (status, isDark) => {
+  const normalized =
+    typeof status === "string" ? status.trim().toLowerCase() : "";
+  if (
+    normalized === "failed" ||
+    normalized === "timeout" ||
+    normalized === "partial_failure"
+  ) {
+    return isDark ? "rgba(252,165,165,0.9)" : "rgba(220,38,38,0.85)";
+  }
+  if (
+    normalized === "completed" ||
+    normalized === "done" ||
+    normalized === "running" ||
+    normalized === "spawned"
+  ) {
+    return isDark ? "rgba(110,231,183,0.88)" : "rgba(5,150,105,0.85)";
+  }
+  return isDark ? "rgba(255,255,255,0.56)" : "rgba(0,0,0,0.46)";
+};
+
+const getSubagentTraceStatus = (status) => {
+  const normalized =
+    typeof status === "string" ? status.trim().toLowerCase() : "";
+  if (normalized === "failed" || normalized === "timeout") {
+    return "error";
+  }
+  if (
+    normalized === "running" ||
+    normalized === "spawned" ||
+    normalized === "needs_clarification"
+  ) {
+    return "streaming";
+  }
+  return "done";
+};
+
+const getTimelineLineColor = (status, timelineTheme, isDark) => {
+  if (status === "done") {
+    return timelineTheme?.lineDoneColor ??
+      (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.18)");
+  }
+  if (status === "active") {
+    return "rgba(10,186,181,0.38)";
+  }
+  return timelineTheme?.lineColor ??
+    (isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)");
+};
+
+const SubagentTimelineDisclosure = ({
+  child,
+  isDark,
+  color,
+  subagentFrames,
+  subagentMetaByRunId,
+}) => {
+  const { theme } = useContext(ConfigContext);
+  const [open, setOpen] = useState(false);
+  const childFrames = Array.isArray(child?.frames) ? child.frames : [];
+  const hasFrames = childFrames.length > 0;
+  const taskText =
+    typeof child?.task === "string" ? child.task.trim() : "";
+  const previewText =
+    typeof child?.preview === "string" ? child.preview.trim() : "";
+  const template =
+    typeof child?.template === "string" ? child.template.trim() : "";
+  const label = getSubagentShortLabel({
+    meta: child?.meta,
+    fallbackAgentName: child?.agentName,
+    fallbackTemplate: template,
+  });
+  const status =
+    typeof child?.status === "string" && child.status.trim()
+      ? child.status.trim()
+      : "pending";
+  const statusColor = getSubagentStatusColor(status, isDark);
+  const traceStatus = getSubagentTraceStatus(status);
+  const lineColor = getTimelineLineColor(
+    traceStatus === "streaming"
+      ? "active"
+      : traceStatus === "done"
+        ? "done"
+        : "pending",
+    theme?.timeline,
+    isDark,
+  );
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {results.map((r, i) => {
-        const status = r?.status || "unknown";
-        const output = r?.output || r?.summary || "";
-        const failed = status === "failed" || status === "timeout";
-        const error = r?.error || "";
-        const templateName = r?.template_name || "";
-        const statusSymbol = failed ? "\u2717" : status === "completed" ? "\u2713" : "\u2022";
-        return (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 2,
-              padding: "4px 0",
-              borderBottom:
-                i < results.length - 1
-                  ? `1px solid ${isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)"}`
-                  : "none",
-            }}
-          >
-            <div
+    <div
+      style={{
+        borderRadius: 8,
+        padding: "8px 10px",
+        background: "transparent",
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexWrap: "wrap",
+          }}
+        >
+          {hasFrames ? (
+            <button
+              type="button"
+              onClick={() => setOpen((value) => !value)}
+              aria-label="Toggle subagent timeline"
+              aria-expanded={open}
               style={{
-                display: "flex",
+                border: `1px solid ${lineColor}`,
+                borderRadius: 7,
+                width: 20,
+                height: 20,
+                padding: 0,
+                background: "transparent",
+                color,
+                opacity: 0.78,
+                cursor: "pointer",
+                display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
+                justifyContent: "center",
               }}
             >
-              <span
+              <Icon
+                src="arrow_right"
+                color={color}
                 style={{
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
-                  fontSize: 10,
-                  color,
-                  opacity: 0.3,
-                  flexShrink: 0,
-                  userSelect: "none",
+                  width: 12,
+                  height: 12,
+                  opacity: 0.62,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  transition: "transform 0.2s ease",
+                  transform: open ? "rotate(90deg)" : "rotate(0deg)",
                 }}
-              >
-                #{i + 1}
-              </span>
-              {templateName && (
-                <span
-                  style={{
-                    fontFamily: "Menlo, Monaco, Consolas, monospace",
-                    fontSize: 10,
-                    color,
-                    opacity: 0.45,
-                    flexShrink: 0,
-                    userSelect: "none",
-                  }}
-                >
-                  {templateName}:
-                </span>
-              )}
-              <span
-                style={{
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
-                  fontSize: 10,
-                  color: failed
-                    ? isDark
-                      ? "rgba(252,165,165,0.9)"
-                      : "rgba(220,38,38,0.85)"
-                    : isDark
-                      ? "rgba(110,231,183,0.85)"
-                      : "rgba(5,150,105,0.85)",
-                  flexShrink: 0,
-                  userSelect: "none",
-                }}
-              >
-                {statusSymbol}
-              </span>
-            </div>
-            {(output || error) && (
-              <span
-                style={{
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
-                  fontSize: 10.5,
-                  color,
-                  opacity: failed ? 0.5 : 0.6,
-                  whiteSpace: "pre-wrap",
-                  wordBreak: "break-word",
-                  lineHeight: 1.5,
-                  maxHeight: 60,
-                  overflow: "hidden",
-                }}
-              >
-                {failed && error ? error : output}
-              </span>
-            )}
+              />
+            </button>
+          ) : null}
+          <span
+            style={{
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              fontSize: 10,
+              color: isDark
+                ? "rgba(196,170,255,0.82)"
+                : "rgba(109,40,217,0.76)",
+              userSelect: "none",
+            }}
+          >
+            {label}
+          </span>
+          {template && template !== label ? (
+            <span
+              style={{
+                fontFamily: "Menlo, Monaco, Consolas, monospace",
+                fontSize: 9.5,
+                color,
+                opacity: 0.34,
+                userSelect: "none",
+              }}
+            >
+              {template}
+            </span>
+          ) : null}
+          <span
+            style={{
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              fontSize: 9.5,
+              color: statusColor,
+              userSelect: "none",
+            }}
+          >
+            {status}
+          </span>
+        </div>
+        {taskText ? (
+          <div
+            style={{
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              fontSize: 10,
+              color,
+              opacity: 0.48,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              lineHeight: 1.4,
+            }}
+          >
+            {truncateInlineText(taskText, 180)}
           </div>
-        );
-      })}
+        ) : null}
+        {!hasFrames ? (
+          <div
+            style={{
+              fontFamily: "Menlo, Monaco, Consolas, monospace",
+              fontSize: 10,
+              color,
+              opacity: 0.52,
+              lineHeight: 1.4,
+            }}
+          >
+            {child?.orphaned
+              ? "Detailed child timeline unavailable."
+              : previewText || "Waiting for child timeline…"}
+          </div>
+        ) : null}
+      </div>
+      {hasFrames ? (
+        <AnimatedChildren open={open}>
+          <div
+            style={{
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: `1px solid ${lineColor}`,
+            }}
+          >
+            <TraceChain
+              frames={childFrames}
+              status={getSubagentTraceStatus(status)}
+              showContainerHeader={false}
+              bubbleOwnsFinalMessage={false}
+              compact
+              subagentFrames={subagentFrames}
+              subagentMetaByRunId={subagentMetaByRunId}
+            />
+          </div>
+        </AnimatedChildren>
+      ) : null}
+    </div>
+  );
+};
+
+const SubagentTimelineList = ({
+  children = [],
+  isDark,
+  color,
+  subagentFrames,
+  subagentMetaByRunId,
+}) => {
+  if (!Array.isArray(children) || children.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+      {children.map((child) => (
+        <SubagentTimelineDisclosure
+          key={child.key}
+          child={child}
+          isDark={isDark}
+          color={color}
+          subagentFrames={subagentFrames}
+          subagentMetaByRunId={subagentMetaByRunId}
+        />
+      ))}
     </div>
   );
 };
@@ -510,6 +732,11 @@ const TraceChain = ({
   pendingContinuationRequest,
   onContinuationDecision,
   bundle,
+  subagentFrames,
+  subagentMetaByRunId,
+  showContainerHeader = true,
+  bubbleOwnsFinalMessage = true,
+  compact = false,
 }) => {
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
@@ -535,6 +762,12 @@ const TraceChain = ({
   const [bodyOpen, setBodyOpen] = useState(true);
 
   const isStreaming = status === "streaming";
+  const effectiveSubagentFrames =
+    subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {};
+  const effectiveSubagentMetaByRunId =
+    subagentMetaByRunId && typeof subagentMetaByRunId === "object"
+      ? subagentMetaByRunId
+      : {};
 
   // Identify which final_message frames are "intermediate" (not the very last
   // one when the stream is finished). During streaming every final_message is
@@ -542,11 +775,6 @@ const TraceChain = ({
   // but the last final_message are intermediate — the last one is rendered by
   // the normal AssistantMessageBody bubble instead.
   const intermediateFinalMessageSeqs = useMemo(() => {
-    const hasToolCall = frames.some((frame) => frame?.type === "tool_call");
-    if (!hasToolCall) {
-      return new Set();
-    }
-
     const finalMessageFrames = frames
       .filter(
         (frame) =>
@@ -578,6 +806,19 @@ const TraceChain = ({
       return new Set();
     }
 
+    if (!bubbleOwnsFinalMessage) {
+      return new Set(
+        finalMessageFrames
+          .map((frame) => Number(frame.seq))
+          .filter((seq) => Number.isFinite(seq)),
+      );
+    }
+
+    const hasToolCall = frames.some((frame) => frame?.type === "tool_call");
+    if (!hasToolCall) {
+      return new Set();
+    }
+
     // While streaming, show ALL final_messages in the timeline (more may come).
     // Once done, keep all except the very last one (which lives in the bubble).
     const included = isStreaming
@@ -589,7 +830,7 @@ const TraceChain = ({
         .map((frame) => Number(frame.seq))
         .filter((seq) => Number.isFinite(seq)),
     );
-  }, [frames, isStreaming]);
+  }, [bubbleOwnsFinalMessage, frames, isStreaming]);
 
   const displayFrames = useMemo(
     () =>
@@ -641,6 +882,19 @@ const TraceChain = ({
     }
     return map;
   }, [frames]);
+
+  const childRunIdBySubagentId = useMemo(() => {
+    const map = new Map();
+    Object.entries(effectiveSubagentMetaByRunId).forEach(([runId, meta]) => {
+      const subagentId =
+        typeof meta?.subagentId === "string" ? meta.subagentId.trim() : "";
+      if (!subagentId) {
+        return;
+      }
+      map.set(subagentId, runId);
+    });
+    return map;
+  }, [effectiveSubagentMetaByRunId]);
 
   const confirmationUserResponseByCallId = useMemo(() => {
     const map = new Map();
@@ -780,13 +1034,21 @@ const TraceChain = ({
         if (SUBAGENT_TOOLS.has(frame.payload?.tool_name)) {
           const isDelegate = frame.payload.tool_name === "delegate_to_subagent";
           const isBatch = frame.payload.tool_name === "spawn_worker_batch";
+          const isHandoff = frame.payload.tool_name === "handoff_to_subagent";
           const target = args?.target || "worker";
           const task = args?.task || args?.reason || "";
-          const batchTasks = isBatch && Array.isArray(args?.tasks) ? args.tasks : [];
+          const batchTasks =
+            isBatch && Array.isArray(args?.tasks) ? args.tasks : [];
           const batchCount = isBatch ? batchTasks.length : 0;
           const resultStatus = result?.status || (resultFrame ? "done" : "");
-          const resultOutput = result?.output || result?.summary || "";
-          const batchResults = isBatch ? result?.results : null;
+          const resultOutput =
+            typeof result?.output === "string"
+              ? result.output
+              : typeof result?.summary === "string"
+                ? result.summary
+                : "";
+          const batchResults =
+            isBatch && Array.isArray(result?.results) ? result.results : [];
           const failed =
             resultStatus === "failed" ||
             resultStatus === "timeout" ||
@@ -802,34 +1064,156 @@ const TraceChain = ({
               heading: isDelegate ? "task" : "reason",
               pairs: [{ key: "text", value: task }],
             });
-          if (resultOutput && !isBatch)
-            detailSections.push({
-              heading: "output",
-              pairs: [{ key: "text", value: resultOutput }],
-            });
           if (result?.error)
             detailSections.push({
               heading: "error",
               pairs: [{ key: "message", value: result.error }],
             });
 
-          const hasDetails =
-            detailSections.length > 0 || (Array.isArray(batchResults) && batchResults.length > 0);
+          const childTimelineItems =
+            !isHandoff && isDelegate
+              ? (() => {
+                  const agentName =
+                    typeof result?.agent_name === "string"
+                      ? result.agent_name
+                      : "";
+                  const childRunId = agentName
+                    ? childRunIdBySubagentId.get(agentName) || ""
+                    : "";
+                  const childMeta = childRunId
+                    ? effectiveSubagentMetaByRunId[childRunId]
+                    : null;
+                  const childFrames = childRunId
+                    ? effectiveSubagentFrames[childRunId]
+                    : [];
+                  if (!agentName && !resultFrame) {
+                    return [];
+                  }
+                  return [
+                    {
+                      key: `${frame.seq}-${childRunId || agentName || "delegate"}`,
+                      meta: childMeta,
+                      frames: Array.isArray(childFrames) ? childFrames : [],
+                      status:
+                        typeof result?.status === "string" && result.status.trim()
+                          ? result.status
+                          : childMeta?.status || "",
+                      task,
+                      preview: resultOutput || result?.error || "",
+                      agentName,
+                      template:
+                        typeof result?.template_name === "string"
+                          ? result.template_name
+                          : childMeta?.template || target,
+                      orphaned: !childRunId,
+                    },
+                  ];
+                })()
+              : !isHandoff && isBatch
+                ? batchResults.map((childResult, index) => {
+                    const agentName =
+                      typeof childResult?.agent_name === "string"
+                        ? childResult.agent_name
+                        : "";
+                    const childRunId = agentName
+                      ? childRunIdBySubagentId.get(agentName) || ""
+                      : "";
+                    const childMeta = childRunId
+                      ? effectiveSubagentMetaByRunId[childRunId]
+                      : null;
+                    const childFrames = childRunId
+                      ? effectiveSubagentFrames[childRunId]
+                      : [];
+                    const childTask =
+                      typeof batchTasks[index]?.task === "string"
+                        ? batchTasks[index].task
+                        : "";
+                    const childPreview =
+                      typeof childResult?.summary === "string" &&
+                      childResult.summary.trim()
+                        ? childResult.summary
+                        : typeof childResult?.output === "string" &&
+                            childResult.output.trim()
+                          ? childResult.output
+                          : typeof childResult?.error === "string"
+                            ? childResult.error
+                            : "";
+                    return {
+                      key: `${frame.seq}-${childRunId || agentName || index}`,
+                      meta: childMeta,
+                      frames: Array.isArray(childFrames) ? childFrames : [],
+                      status:
+                        typeof childResult?.status === "string" &&
+                        childResult.status.trim()
+                          ? childResult.status
+                          : childMeta?.status || "",
+                      task: childTask,
+                      preview: childPreview,
+                      agentName,
+                      template:
+                        typeof childResult?.template_name === "string"
+                          ? childResult.template_name
+                          : childMeta?.template || target,
+                      orphaned: !childRunId,
+                    };
+                  })
+                : [];
 
-          /* ── inline result preview for delegates (truncated to ~120 chars) ── */
-          const inlinePreview =
-            isDelegate && resultOutput && resultFrame
-              ? resultOutput.length > 120
-                ? resultOutput.slice(0, 120).trimEnd() + "…"
-                : resultOutput
-              : "";
+          const childTimelineList =
+            childTimelineItems.length > 0 ? (
+              <SubagentTimelineList
+                children={childTimelineItems}
+                isDark={isDark}
+                color={color}
+                subagentFrames={effectiveSubagentFrames}
+                subagentMetaByRunId={effectiveSubagentMetaByRunId}
+              />
+            ) : undefined;
+          const detailCard =
+            detailSections.length > 0 ? (
+              <div
+                style={{
+                  padding: compact ? "6px 8px" : "8px 10px",
+                  borderRadius: compact ? 6 : 8,
+                  background:
+                    theme?.timeline?.detailsBackground ?? "rgba(0,0,0,0.025)",
+                  fontSize: theme?.timeline?.fontSize ?? (compact ? "12px" : "13px"),
+                  color: theme?.timeline?.spanColor ?? "rgba(0,0,0,0.45)",
+                }}
+              >
+                <KVPanel sections={detailSections} isDark={isDark} color={color} />
+              </div>
+            ) : undefined;
+          const expandedDetails =
+            detailCard || childTimelineList ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {childTimelineList}
+                {detailCard}
+              </div>
+            ) : undefined;
+
+          const modeLabel = isBatch
+            ? "workers"
+            : isDelegate
+              ? "delegate"
+              : "handoff";
 
           items.push({
             key: `${frame.seq}-subagent`,
             title: (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
+                    userSelect: "none",
+                  }}
+                >
+                  {modeLabel}
+                </span>
                 <SubagentTag name={target} isDark={isDark} />
-                {batchCount > 1 && (
+                {batchCount > 0 && (
                   <CountBadge count={batchCount} isDark={isDark} />
                 )}
                 {resultStatus && (
@@ -859,19 +1243,8 @@ const TraceChain = ({
             ) : (
               "loading"
             ),
-            body: isBatch && batchTasks.length > 0 && !resultFrame
-              ? batchTasks.map((t, i) => `${i + 1}. ${t?.task || "..."}`).join("\n")
-              : inlinePreview || undefined,
-            details: hasDetails ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {detailSections.length > 0 && (
-                  <KVPanel sections={detailSections} isDark={isDark} color={color} />
-                )}
-                {Array.isArray(batchResults) && batchResults.length > 0 && (
-                  <WorkerResultList results={batchResults} isDark={isDark} color={color} />
-                )}
-              </div>
-            ) : undefined,
+            detailsBare: Boolean(expandedDetails),
+            details: expandedDetails,
           });
           continue;
         }
@@ -1019,7 +1392,7 @@ const TraceChain = ({
                     flexWrap: "wrap",
                   }}
                 >
-                  <ToolTag name={toolName} isDark={isDark} />
+                  <ToolTag name={toolName} isDark={isDark} compact={compact} />
                   <span
                     style={{
                       fontSize: 11.5,
@@ -1065,7 +1438,7 @@ const TraceChain = ({
 
         items.push({
           key: `${frame.seq}-tool`,
-          title: <ToolTag name={toolName} isDark={isDark} />,
+          title: <ToolTag name={toolName} isDark={isDark} compact={compact} />,
           span: spanText,
           status: "done",
           point: <HammerPoint isDark={isDark} />,
@@ -1113,8 +1486,9 @@ const TraceChain = ({
               <SeamlessMarkdown
                 content={content}
                 status={isStreaming ? "streaming" : "done"}
-                fontSize={ASSISTANT_MARKDOWN_FONT_SIZE}
-                lineHeight={ASSISTANT_MARKDOWN_LINE_HEIGHT}
+                fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
+                lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
+                style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
               />
             </div>
           ),
@@ -1137,8 +1511,9 @@ const TraceChain = ({
               <SeamlessMarkdown
                 content={liveContent}
                 status="streaming"
-                fontSize={ASSISTANT_MARKDOWN_FONT_SIZE}
-                lineHeight={ASSISTANT_MARKDOWN_LINE_HEIGHT}
+                fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
+                lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
+                style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
                 priority="high"
               />
             </div>
@@ -1273,7 +1648,7 @@ const TraceChain = ({
         key: run.map((r) => r.key).join("+"),
         title: (
           <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-            <ToolTag name={item._toolName} isDark={isDark} />
+            <ToolTag name={item._toolName} isDark={isDark} compact={compact} />
             <CountBadge count={run.length} isDark={isDark} />
           </span>
         ),
@@ -1329,66 +1704,77 @@ const TraceChain = ({
     color,
     status,
     bundle,
+    childRunIdBySubagentId,
+    effectiveSubagentFrames,
+    effectiveSubagentMetaByRunId,
   ]);
 
   if (timelineItems.length === 0) return null;
 
+  const isBodyVisible = showContainerHeader ? bodyOpen : true;
+  const timelineBody = (
+    <AnimatedChildren open={isBodyVisible}>
+      <div style={{ paddingLeft: 2, paddingBottom: 2 }}>
+        <Timeline
+          items={timelineItems}
+          compact={compact}
+          style={{ fontSize: compact ? 12 : 13 }}
+        />
+      </div>
+    </AnimatedChildren>
+  );
+
   return (
-    <div style={{ marginBottom: 10 }}>
-      {/* collapsible header */}
-      <div
-        onClick={() => setBodyOpen((o) => !o)}
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 5,
-          cursor: "pointer",
-          userSelect: "none",
-          marginBottom: bodyOpen ? 6 : 0,
-        }}
-      >
-        <Icon
-          src="arrow_right"
-          color={color}
+    <div style={{ marginBottom: showContainerHeader ? 10 : 0 }}>
+      {showContainerHeader ? (
+        <div
+          onClick={() => setBodyOpen((o) => !o)}
           style={{
-            width: 16,
-            height: 16,
-            opacity: 0.25,
             display: "inline-flex",
             alignItems: "center",
-            justifyContent: "center",
-            transition: "transform 0.2s ease",
-            transform: bodyOpen ? "rotate(90deg)" : "rotate(0deg)",
-          }}
-        />
-        <span
-          style={{
-            fontSize: 11.5,
-            color,
-            opacity: 0.38,
-            fontFamily: theme?.font?.fontFamily || "inherit",
-            letterSpacing: 0.1,
+            gap: 5,
+            cursor: "pointer",
+            userSelect: "none",
+            marginBottom: bodyOpen ? 6 : 0,
           }}
         >
-          {isStreaming && !doneFrame
-            ? "Thinking…"
-            : hasError
-              ? (stepCount > 0
-                  ? `Failed after ${stepCount} step${stepCount !== 1 ? "s" : ""}`
-                  : "Failed") + (duration ? ` · ${formatDelta(duration)}` : "")
-              : (stepCount > 0
-                  ? `Used ${stepCount} step${stepCount !== 1 ? "s" : ""}`
-                  : "Processing") +
-                (duration ? ` · ${formatDelta(duration)}` : "")}
-        </span>
-      </div>
-
-      {/* Timeline */}
-      <AnimatedChildren open={bodyOpen}>
-        <div style={{ paddingLeft: 2, paddingBottom: 2 }}>
-          <Timeline items={timelineItems} style={{ fontSize: 13 }} />
+          <Icon
+            src="arrow_right"
+            color={color}
+            style={{
+              width: 16,
+              height: 16,
+              opacity: 0.25,
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              transition: "transform 0.2s ease",
+              transform: bodyOpen ? "rotate(90deg)" : "rotate(0deg)",
+            }}
+          />
+          <span
+            style={{
+              fontSize: 11.5,
+              color,
+              opacity: 0.38,
+              fontFamily: theme?.font?.fontFamily || "inherit",
+              letterSpacing: 0.1,
+            }}
+          >
+            {isStreaming && !doneFrame
+              ? "Thinking…"
+              : hasError
+                ? (stepCount > 0
+                    ? `Failed after ${stepCount} step${stepCount !== 1 ? "s" : ""}`
+                    : "Failed") + (duration ? ` · ${formatDelta(duration)}` : "")
+                : (stepCount > 0
+                    ? `Used ${stepCount} step${stepCount !== 1 ? "s" : ""}`
+                    : "Processing") +
+                  (duration ? ` · ${formatDelta(duration)}` : "")}
+          </span>
         </div>
-      </AnimatedChildren>
+      ) : null}
+      {timelineBody}
     </div>
   );
 };

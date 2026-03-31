@@ -109,6 +109,8 @@ const ChatBubble = ({
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
           bundle={message.meta?.bundle}
+          subagentFrames={message.subagentFrames}
+          subagentMetaByRunId={message.subagentMetaByRunId}
         />
       )}
       {isAssistant && !hasToolActivity && message.status === "streaming" && (

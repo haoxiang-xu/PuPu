@@ -582,6 +582,87 @@ describe("ChatInterface stop flow", () => {
     );
   });
 
+  test("stores child lifecycle metadata and child trace frames separately from the main trace", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Delegate the analysis" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "run_started",
+        run_id: "parent-run",
+        payload: {
+          run_id: "parent-run",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "subagent_started",
+        payload: {
+          child_run_id: "child-run-1",
+          subagent_id: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          parent_id: "developer",
+          lineage: ["developer", "developer.analyzer.1"],
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 120,
+        type: "tool_call",
+        run_id: "child-run-1",
+        payload: {
+          call_id: "child-call-1",
+          tool_name: "read_file",
+          arguments: {
+            path: "src/unchain/kernel/__init__.py",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.subagentMetaByRunId?.["child-run-1"]).toEqual(
+        expect.objectContaining({
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.1"],
+          status: "running",
+        }),
+      );
+      expect(assistantMessage?.subagentFrames?.["child-run-1"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool_call",
+            run_id: "child-run-1",
+          }),
+        ]),
+      );
+      expect(
+        assistantMessage?.traceFrames?.find(
+          (frame) => frame?.payload?.call_id === "child-call-1",
+        ),
+      ).toBeUndefined();
+    });
+  });
+
   test("batches token updates per animation frame and flushes pending tokens on done", async () => {
     const originalRaf = window.requestAnimationFrame;
     const originalCancelRaf = window.cancelAnimationFrame;
@@ -641,6 +722,105 @@ describe("ChatInterface stop flow", () => {
       await waitFor(() => {
         expect(getAssistantMessage()?.content).toBe("Hello world");
         expect(getAssistantMessage()?.status).toBe("done");
+      });
+    } finally {
+      window.requestAnimationFrame = originalRaf;
+      window.cancelAnimationFrame = originalCancelRaf;
+    }
+  });
+
+  test("suppresses child token deltas while keeping parent token streaming intact", async () => {
+    const originalRaf = window.requestAnimationFrame;
+    const originalCancelRaf = window.cancelAnimationFrame;
+    const rafCallbacks = new Map();
+    let rafIdSeed = 0;
+    window.requestAnimationFrame = jest.fn((callback) => {
+      rafIdSeed += 1;
+      rafCallbacks.set(rafIdSeed, callback);
+      return rafIdSeed;
+    });
+    window.cancelAnimationFrame = jest.fn((id) => {
+      rafCallbacks.delete(id);
+    });
+
+    try {
+      renderChat();
+      await waitForReady();
+
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Token routing test" },
+      });
+      fireEvent.click(screen.getByTestId("send-button"));
+
+      await waitFor(() => {
+        expect(streamHandlers).toBeTruthy();
+      });
+
+      const getAssistantMessage = () =>
+        lastChatMessagesProps?.messages?.find(
+          (message) => message.role === "assistant",
+        );
+
+      act(() => {
+        streamHandlers.onFrame({
+          seq: 1,
+          ts: 100,
+          type: "run_started",
+          run_id: "parent-run",
+          payload: {
+            run_id: "parent-run",
+          },
+        });
+        streamHandlers.onFrame({
+          seq: 2,
+          ts: 110,
+          type: "subagent_started",
+          payload: {
+            child_run_id: "child-run-1",
+            subagent_id: "developer.analyzer.1",
+            mode: "delegate",
+            template: "analyzer",
+            parent_id: "developer",
+            lineage: ["developer", "developer.analyzer.1"],
+          },
+        });
+        streamHandlers.onFrame({
+          seq: 3,
+          ts: 120,
+          type: "token_delta",
+          run_id: "child-run-1",
+          payload: {
+            delta: "child output",
+          },
+        });
+        streamHandlers.onToken("child output");
+      });
+
+      await waitFor(() => {
+        expect(getAssistantMessage()?.content || "").toBe("");
+      });
+
+      act(() => {
+        streamHandlers.onFrame({
+          seq: 4,
+          ts: 130,
+          type: "token_delta",
+          run_id: "parent-run",
+          payload: {
+            delta: "parent output",
+          },
+        });
+        streamHandlers.onToken("parent output");
+      });
+
+      act(() => {
+        const callbacks = Array.from(rafCallbacks.values());
+        rafCallbacks.clear();
+        callbacks.forEach((callback) => callback(16));
+      });
+
+      await waitFor(() => {
+        expect(getAssistantMessage()?.content).toBe("parent output");
       });
     } finally {
       window.requestAnimationFrame = originalRaf;

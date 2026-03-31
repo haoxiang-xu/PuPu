@@ -55,6 +55,7 @@ try:
         LlmSummaryOptimizer as _LlmSummaryOptimizer,
         LlmSummaryOptimizerConfig as _LlmSummaryOptimizerConfig,
         ToolHistoryCompactionOptimizer as _ToolHistoryCompactionOptimizer,
+        ToolPairSafetyOptimizer as _ToolPairSafetyOptimizer,
     )
 except ImportError:
     _UnchainAgent = None  # type: ignore
@@ -71,6 +72,7 @@ except ImportError:
     _LlmSummaryOptimizerConfig = None  # type: ignore
     _ContextUsageOptimizer = None  # type: ignore
     _ToolHistoryCompactionOptimizer = None  # type: ignore
+    _ToolPairSafetyOptimizer = None  # type: ignore
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -2949,7 +2951,9 @@ def _build_developer_agent(
             LastNOptimizer(LastNOptimizerConfig(last_n_turns=10))
         )
         if _ContextUsageOptimizer is not None:
-            optimizer_harnesses.append(_ContextUsageOptimizer())  # order 55, after all optimizers
+            optimizer_harnesses.append(_ContextUsageOptimizer())  # order 55
+        if _ToolPairSafetyOptimizer is not None:
+            optimizer_harnesses.append(_ToolPairSafetyOptimizer())  # order 60, safety net
         modules.append(OptimizersModule(harnesses=tuple(optimizer_harnesses)))
 
     if (
