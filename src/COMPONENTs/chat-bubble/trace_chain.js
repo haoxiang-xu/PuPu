@@ -132,16 +132,6 @@ const normalizePersistedInteractionResponse = (interactType, payload = {}) => {
   return undefined;
 };
 
-const normalizeSubagentMode = (mode) => {
-  const normalized =
-    typeof mode === "string" ? mode.trim().toLowerCase() : "";
-  return normalized === "delegate" ||
-    normalized === "worker" ||
-    normalized === "handoff"
-    ? normalized
-    : "";
-};
-
 const truncateInlineText = (value, max = 120) => {
   const text = typeof value === "string" ? value.trim() : "";
   if (!text) return "";
@@ -762,12 +752,21 @@ const TraceChain = ({
   const [bodyOpen, setBodyOpen] = useState(true);
 
   const isStreaming = status === "streaming";
-  const effectiveSubagentFrames =
-    subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {};
-  const effectiveSubagentMetaByRunId =
-    subagentMetaByRunId && typeof subagentMetaByRunId === "object"
-      ? subagentMetaByRunId
-      : {};
+  const timelineDetailsBackground = theme?.timeline?.detailsBackground;
+  const timelineFontSize = theme?.timeline?.fontSize;
+  const timelineSpanColor = theme?.timeline?.spanColor;
+  const effectiveSubagentFrames = useMemo(
+    () =>
+      subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
+    [subagentFrames],
+  );
+  const effectiveSubagentMetaByRunId = useMemo(
+    () =>
+      subagentMetaByRunId && typeof subagentMetaByRunId === "object"
+        ? subagentMetaByRunId
+        : {},
+    [subagentMetaByRunId],
+  );
 
   // Identify which final_message frames are "intermediate" (not the very last
   // one when the stream is finished). During streaming every final_message is
@@ -1175,10 +1174,9 @@ const TraceChain = ({
                 style={{
                   padding: compact ? "6px 8px" : "8px 10px",
                   borderRadius: compact ? 6 : 8,
-                  background:
-                    theme?.timeline?.detailsBackground ?? "rgba(0,0,0,0.025)",
-                  fontSize: theme?.timeline?.fontSize ?? (compact ? "12px" : "13px"),
-                  color: theme?.timeline?.spanColor ?? "rgba(0,0,0,0.45)",
+                  background: timelineDetailsBackground ?? "rgba(0,0,0,0.025)",
+                  fontSize: timelineFontSize ?? (compact ? "12px" : "13px"),
+                  color: timelineSpanColor ?? "rgba(0,0,0,0.45)",
                 }}
               >
                 <KVPanel sections={detailSections} isDark={isDark} color={color} />
@@ -1704,9 +1702,13 @@ const TraceChain = ({
     color,
     status,
     bundle,
+    compact,
     childRunIdBySubagentId,
     effectiveSubagentFrames,
     effectiveSubagentMetaByRunId,
+    timelineDetailsBackground,
+    timelineFontSize,
+    timelineSpanColor,
   ]);
 
   if (timelineItems.length === 0) return null;
