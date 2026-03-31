@@ -302,15 +302,19 @@ const TimelineNode = ({
         {/* always-visible body text */}
         {body != null && (
           <div
-            style={{
-              marginTop: 3,
-              fontSize: tl.fontSize ?? "12px",
-              color: tl.spanColor ?? "rgba(0,0,0,0.45)",
-              lineHeight: 1.6,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-            }}
+            style={
+              typeof body === "string"
+                ? {
+                    marginTop: 3,
+                    fontSize: tl.fontSize ?? "12px",
+                    color: tl.spanColor ?? "rgba(0,0,0,0.45)",
+                    lineHeight: 1.6,
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                  }
+                : { marginTop: 3 }
+            }
           >
             {body}
           </div>
