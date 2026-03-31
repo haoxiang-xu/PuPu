@@ -164,37 +164,140 @@ handoff_to_subagent(target="developer") immediately and let the specialist
 finish the turn.
 """.strip()
 
-_DEVELOPER_AGENT_PLAN_PROMPT = """
-You are the dedicated developer specialist for PuPu.
+# Deprecated: plan/approval split prompts are no longer used.
+# Kept for reference during migration.
+_DEVELOPER_AGENT_PLAN_PROMPT = ""
+_DEVELOPER_AGENT_APPROVAL_PROMPT = ""
 
-You have the user's exact selected model, workspace access, and selected
-toolkits. You must not create subagents in this version.
+# ── Agent Prompt Template System ──────────────────────────────────────────────
+#
+# Every agent prompt is composed from ordered sections. Each section has a
+# fixed semantic role. This structure is the canonical pattern for all future
+# agent development in PuPu.
+#
+# Section order (mandatory sequence):
+#   1. identity     — Who the agent is. One sentence. Sets the persona.
+#   2. capability   — What tools/resources the agent has access to. Factual list.
+#   3. workflow     — How the agent should approach tasks. Step-by-step rules.
+#   4. delegation   — When and how to use subagents. Trade-off rules + catalog.
+#   5. constraints  — Hard rules the agent must never violate.
+#   6. fallback     — What to do for out-of-scope requests.
+#
+# Not every agent needs all sections. Subagents (analyzer, executor) only need
+# identity + capability + constraints. The delegation section is only for agents
+# that have SubagentModule attached.
+#
+# To create a new agent prompt, fill in the sections that apply and join with
+# _compose_agent_prompt(). Empty sections are automatically skipped.
+# ──────────────────────────────────────────────────────────────────────────────
 
-This is the planning turn. Produce a complete implementation plan and stop.
-Do not execute code changes yet.
+_AGENT_PROMPT_SECTION_ORDER = (
+    "identity",
+    "capability",
+    "workflow",
+    "delegation",
+    "constraints",
+    "fallback",
+)
 
-The plan must:
-- be decision-complete for implementation
-- separate parallelizable work from sequential work when possible
-- call out assumptions, risks, and validation steps
-- end by clearly waiting for user approval before execution
-""".strip()
+_AGENT_PROMPT_SECTION_HEADERS = {
+    "identity": None,           # no header — first line IS the identity
+    "capability": "Capabilities",
+    "workflow": "Workflow",
+    "delegation": "Delegation",
+    "constraints": "Constraints",
+    "fallback": "Fallback",
+}
 
-_DEVELOPER_AGENT_APPROVAL_PROMPT = """
-You are the dedicated developer specialist for PuPu.
 
-You have the user's exact selected model, workspace access, and selected
-toolkits. You must not create subagents in this version.
+def _compose_agent_prompt(sections: dict[str, str]) -> str:
+    """Assemble an agent prompt from named sections.
 
-The previous turn should already have produced a plan. Interpret the user's
-latest message against that plan:
-- if the user is approving or asking you to proceed, execute the approved plan
-- if the user is revising scope or asking plan questions, answer with an
-  updated complete plan and stop again without executing
+    Sections are emitted in _AGENT_PROMPT_SECTION_ORDER. Empty or missing
+    sections are silently skipped. The identity section has no header; all
+    others are wrapped in [Header] blocks.
+    """
+    blocks: list[str] = []
+    for key in _AGENT_PROMPT_SECTION_ORDER:
+        text = (sections.get(key) or "").strip()
+        if not text:
+            continue
+        header = _AGENT_PROMPT_SECTION_HEADERS.get(key)
+        if header:
+            blocks.append(f"[{header}]\n{text}")
+        else:
+            blocks.append(text)
+    return "\n\n".join(blocks)
 
-Be conservative with tool use and iteration count. Prefer the cheapest path
-that still produces a correct result.
-""".strip()
+
+# ── Developer Agent Prompt (sectioned) ────────────────────────────────────────
+
+_DEVELOPER_PROMPT_SECTIONS = {
+    "identity": (
+        "You are PuPu's developer agent."
+    ),
+
+    "capability": (
+        "You have the user's selected model, workspace access, and selected "
+        "toolkits. You can read and write files, search code, run terminal "
+        "commands, and interact with the user via structured questions."
+    ),
+
+    "workflow": (
+        "- If the task depends on the current codebase, use tools to inspect "
+        "code before planning. Ground your work in facts.\n"
+        "- For non-trivial changes, produce a complete implementation plan "
+        "first and wait for user approval before executing.\n"
+        "- When the user approves, execute the plan. If they revise scope, "
+        "update the plan and wait again.\n"
+        "- When executing, use tools rather than speculating. Read the code, "
+        "make changes, and run validation when possible.\n"
+        "- Be conservative with tool use and iteration count. Prefer the "
+        "cheapest path that still produces a correct result."
+    ),
+
+    "delegation": (
+        "You have subagent capabilities for context isolation and parallelism.\n"
+        "\n"
+        "CRITICAL: When you delegate a task, TRUST the subagent's output. "
+        "Do NOT re-read the same files or re-run the same commands yourself "
+        "afterward. If the output is insufficient, delegate again with a more "
+        "specific task — never fall back to doing it yourself.\n"
+        "\n"
+        "Decision rule:\n"
+        "- 1 small file or 1 command → do it directly.\n"
+        "- Multiple files, cross-directory search, or several commands → "
+        "delegate to subagent.\n"
+        "- 2+ independent tasks of that kind → spawn_worker_batch.\n"
+        "\n"
+        "Each subagent costs ~1000 tokens of fixed overhead but discards all "
+        "intermediate tool output — only its summary enters your context.\n"
+        "\n"
+        "Available subagents:\n"
+        "- delegate_to_subagent(target=\"analyzer\", task=\"...\"): Read-only "
+        "code analysis.\n"
+        "- delegate_to_subagent(target=\"executor\", task=\"...\"): Terminal "
+        "commands.\n"
+        "- spawn_worker_batch(tasks=[...]): Run analyzer/executor in parallel.\n"
+        "\n"
+        "Task descriptions must be self-contained — the subagent has zero "
+        "access to your conversation history."
+    ),
+
+    "constraints": (
+        "- Never fabricate file contents or command outputs. If you don't know, "
+        "use a tool to find out.\n"
+        "- Never modify files outside the user's selected workspace roots.\n"
+        "- Do not use subagents for tasks you can accomplish with a single "
+        "direct tool call."
+    ),
+
+    "fallback": (
+        "For non-development conversations, answer directly without tools."
+    ),
+}
+
+_DEVELOPER_AGENT_UNIFIED_PROMPT = _compose_agent_prompt(_DEVELOPER_PROMPT_SECTIONS)
 
 
 def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
@@ -2105,15 +2208,21 @@ def _should_enable_tools(options: Dict[str, object] | None) -> bool:
 
     The frontend sends ``options.toolkits`` (a non-empty list) when the user
     selects toolkits in the tool picker.  When the list is absent or empty we
-    should *not* attach any toolkits to the agent so that providers which do
-    not support tool calling (e.g. some Ollama models) never receive a
-    ``tools`` parameter.
+    should *not* attach optional toolkits by default.
+
+    Workspace selection is different: when workspace roots are present, the
+    developer agent should still receive workspace tools even if the user did
+    not explicitly add a toolkit chip, otherwise the specialist cannot inspect
+    the selected repo at all.
     """
     if not isinstance(options, dict):
         return False
 
     toolkits = options.get("toolkits")
     if isinstance(toolkits, list) and len(toolkits) > 0:
+        return True
+
+    if _extract_workspace_roots_from_options(options):
         return True
 
     # Also honour an explicit boolean flag if provided.
@@ -2559,12 +2668,24 @@ def _build_requested_toolkits(options: Dict[str, object] | None = None) -> list:
     return toolkits
 
 
+_ANALYZER_READ_ONLY_TOOLS = (
+    "read_files", "read_lines", "search_text", "list_directories",
+    "file_exists", "pin_file_context", "unpin_file_context",
+)
+
+_SUBAGENT_ANALYZER_TEMPLATE_NAME = "analyzer"
+_SUBAGENT_EXECUTOR_TEMPLATE_NAME = "executor"
+
+
 def _build_developer_agent(
     *,
     UnchainAgent,
     ToolsModule,
     MemoryModule,
     PoliciesModule,
+    SubagentModule=None,
+    SubagentTemplate=None,
+    SubagentPolicy=None,
     provider: str,
     model: str,
     api_key: str,
@@ -2572,7 +2693,8 @@ def _build_developer_agent(
     max_iterations: int,
     toolkits: list,
     memory_manager: Any,
-    planning_turn: bool,
+    planning_turn: bool = False,
+    enable_subagents: bool = True,
 ):
     modules: list = []
     if toolkits:
@@ -2580,11 +2702,58 @@ def _build_developer_agent(
     if memory_manager is not None:
         modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
+
+    if (
+        enable_subagents
+        and SubagentModule is not None
+        and SubagentTemplate is not None
+        and SubagentPolicy is not None
+    ):
+        modules.append(
+            SubagentModule(
+                templates=(
+                    SubagentTemplate(
+                        name=_SUBAGENT_ANALYZER_TEMPLATE_NAME,
+                        description=(
+                            "Read-only code analysis specialist. Use for inspecting files, "
+                            "searching code, and understanding architecture without making changes."
+                        ),
+                        allowed_modes=("delegate", "worker"),
+                        output_mode="last_message",
+                        memory_policy="ephemeral",
+                        parallel_safe=True,
+                        allowed_tools=_ANALYZER_READ_ONLY_TOOLS,
+                    ),
+                    SubagentTemplate(
+                        name=_SUBAGENT_EXECUTOR_TEMPLATE_NAME,
+                        description=(
+                            "Terminal command executor. Use for running tests, builds, "
+                            "linters, or other shell commands in parallel."
+                        ),
+                        allowed_modes=("delegate", "worker"),
+                        output_mode="last_message",
+                        memory_policy="ephemeral",
+                        parallel_safe=True,
+                        allowed_tools=("terminal_exec",),
+                    ),
+                ),
+                policy=SubagentPolicy(
+                    max_depth=2,
+                    max_children_per_parent=10,
+                    max_total_subagents=50,
+                    max_parallel_workers=4,
+                    worker_timeout_seconds=60.0,
+                    allow_dynamic_workers=False,
+                    allow_dynamic_delegate=False,
+                ),
+            )
+        )
+
     return UnchainAgent(
         name=_DEVELOPER_AGENT_NAME,
         instructions=_compose_runtime_instructions(
             system_prompt,
-            _DEVELOPER_AGENT_PLAN_PROMPT if planning_turn else _DEVELOPER_AGENT_APPROVAL_PROMPT,
+            _DEVELOPER_AGENT_UNIFIED_PROMPT,
         ),
         provider=provider,
         model=model,
@@ -2632,10 +2801,10 @@ def _build_general_agent(
             ),
             policy=SubagentPolicy(
                 max_depth=1,
-                max_children_per_parent=1,
-                max_total_subagents=1,
+                max_children_per_parent=100,
+                max_total_subagents=100,
                 max_parallel_workers=1,
-                worker_timeout_seconds=60.0,
+                worker_timeout_seconds=120.0,
                 allow_dynamic_workers=False,
                 allow_dynamic_delegate=False,
             ),
@@ -2667,68 +2836,33 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
 
     selected_config = get_runtime_config(options)
-    general_config = _resolve_general_runtime_config(options)
     display_model = _format_model_id(selected_config["provider"], selected_config["model"])
     max_iterations = _resolve_agent_max_iterations(options)
     api_key = _resolve_agent_api_key(options, selected_config["provider"])
     memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
     toolkits = _build_requested_toolkits(options)
     system_prompt = _build_effective_system_prompt_text(options)
-    orchestration_mode = _extract_agent_orchestration_mode(options)
 
-    if orchestration_mode == _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL:
-        agent = _build_developer_agent(
-            UnchainAgent=UnchainAgent,
-            ToolsModule=ToolsModule,
-            MemoryModule=MemoryModule,
-            PoliciesModule=PoliciesModule,
-            provider=selected_config["provider"],
-            model=selected_config["model"],
-            api_key=api_key,
-            system_prompt=system_prompt,
-            max_iterations=max_iterations,
-            toolkits=toolkits,
-            memory_manager=memory_manager,
-            planning_turn=False,
-        )
-        agent._orchestration_role = "developer"
-        agent._orchestration_mode = orchestration_mode
-        agent._orchestration_next_mode = _AGENT_ORCHESTRATION_DEFAULT
-    else:
-        if SubagentModule is None or SubagentTemplate is None or SubagentPolicy is None:
-            raise RuntimeError("unchain subagent module is unavailable — check unchain installation")
-        developer_agent = _build_developer_agent(
-            UnchainAgent=UnchainAgent,
-            ToolsModule=ToolsModule,
-            MemoryModule=MemoryModule,
-            PoliciesModule=PoliciesModule,
-            provider=selected_config["provider"],
-            model=selected_config["model"],
-            api_key=api_key,
-            system_prompt=system_prompt,
-            max_iterations=max_iterations,
-            toolkits=toolkits,
-            memory_manager=memory_manager,
-            planning_turn=True,
-        )
-        agent = _build_general_agent(
-            UnchainAgent=UnchainAgent,
-            MemoryModule=MemoryModule,
-            PoliciesModule=PoliciesModule,
-            SubagentModule=SubagentModule,
-            SubagentTemplate=SubagentTemplate,
-            SubagentPolicy=SubagentPolicy,
-            provider=general_config["provider"],
-            model=general_config["model"],
-            api_key=api_key,
-            system_prompt=system_prompt,
-            max_iterations=max_iterations,
-            memory_manager=memory_manager,
-            developer_agent=developer_agent,
-        )
-        agent._orchestration_role = "general"
-        agent._orchestration_mode = orchestration_mode
-        agent._orchestration_next_mode = _AGENT_ORCHESTRATION_DEFAULT
+    # Developer agent is the sole agent with optional delegate/worker subagents.
+    agent = _build_developer_agent(
+        UnchainAgent=UnchainAgent,
+        ToolsModule=ToolsModule,
+        MemoryModule=MemoryModule,
+        PoliciesModule=PoliciesModule,
+        SubagentModule=SubagentModule,
+        SubagentTemplate=SubagentTemplate,
+        SubagentPolicy=SubagentPolicy,
+        provider=selected_config["provider"],
+        model=selected_config["model"],
+        api_key=api_key,
+        system_prompt=system_prompt,
+        max_iterations=max_iterations,
+        toolkits=toolkits,
+        memory_manager=memory_manager,
+    )
+    agent._orchestration_role = "developer"
+    agent._orchestration_mode = _AGENT_ORCHESTRATION_DEFAULT
+    agent._orchestration_next_mode = _AGENT_ORCHESTRATION_DEFAULT
 
     agent._memory_runtime = memory_runtime
     agent._max_iterations = max_iterations
@@ -2736,7 +2870,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
     agent._display_model = display_model
     agent._selected_model = display_model
     agent._developer_model_id = display_model
-    agent._general_model_id = _format_model_id(general_config["provider"], general_config["model"])
+    agent._general_model_id = display_model
     return agent
 
 
@@ -3007,7 +3141,7 @@ def stream_chat_events(
         "last_run_id": "",
         "last_iteration": 0,
         "bundle": None,
-        "developer_handoff": False,
+        "developer_handoff": False,  # deprecated: kept for compat, always False in v1
     }
 
     # Build workspace tool display name map for multi-workspace proxy tools
@@ -3044,11 +3178,6 @@ def stream_chat_events(
                 event["tool_display_name"] = _ws_display_names[tn]
         if event_type == "final_message":
             output_holder["seen_final_message"] = True
-        if (
-            event_type == "subagent_handoff"
-            and str(event.get("template") or "").strip() == _DEVELOPER_SUBAGENT_TEMPLATE
-        ):
-            output_holder["developer_handoff"] = True
         run_id = event.get("run_id")
         if isinstance(run_id, str):
             output_holder["last_run_id"] = run_id
@@ -3100,30 +3229,16 @@ def stream_chat_events(
                 **({"memory_namespace": memory_namespace} if memory_namespace else {}),
             )
             output_holder["messages"] = result.messages
-            developer_handoff = bool(output_holder.get("developer_handoff"))
-            active_agent = "developer" if developer_handoff else str(
-                getattr(agent, "_orchestration_role", "general") or "general"
-            )
             bundle_model = str(
-                (
-                    getattr(agent, "_developer_model_id", "")
-                    if active_agent == "developer"
-                    else getattr(agent, "_general_model_id", "")
-                )
-                or getattr(agent, "_display_model", "")
+                getattr(agent, "_display_model", "")
                 or _format_model_id(getattr(agent, "provider", ""), getattr(agent, "model", ""))
-            )
-            next_mode = (
-                _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL
-                if developer_handoff
-                else _AGENT_ORCHESTRATION_DEFAULT
             )
             bundle = _build_bundle_from_result(
                 result,
                 agent,
                 model=bundle_model,
-                active_agent=active_agent,
-                orchestration_mode=next_mode,
+                active_agent="developer",
+                orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
             )
             if bundle:
                 output_holder["bundle"] = bundle

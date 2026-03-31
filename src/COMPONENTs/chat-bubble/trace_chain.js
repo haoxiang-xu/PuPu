@@ -346,6 +346,8 @@ const WorkerResultList = ({ results, isDark, color }) => {
         const output = r?.output || r?.summary || "";
         const failed = status === "failed" || status === "timeout";
         const error = r?.error || "";
+        const templateName = r?.template_name || "";
+        const statusSymbol = failed ? "\u2717" : status === "completed" ? "\u2713" : "\u2022";
         return (
           <div
             key={i}
@@ -379,6 +381,20 @@ const WorkerResultList = ({ results, isDark, color }) => {
               >
                 #{i + 1}
               </span>
+              {templateName && (
+                <span
+                  style={{
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    fontSize: 10,
+                    color,
+                    opacity: 0.45,
+                    flexShrink: 0,
+                    userSelect: "none",
+                  }}
+                >
+                  {templateName}:
+                </span>
+              )}
               <span
                 style={{
                   fontFamily: "Menlo, Monaco, Consolas, monospace",
@@ -394,7 +410,7 @@ const WorkerResultList = ({ results, isDark, color }) => {
                   userSelect: "none",
                 }}
               >
-                {status}
+                {statusSymbol}
               </span>
             </div>
             {(output || error) && (
@@ -407,6 +423,8 @@ const WorkerResultList = ({ results, isDark, color }) => {
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
                   lineHeight: 1.5,
+                  maxHeight: 60,
+                  overflow: "hidden",
                 }}
               >
                 {failed && error ? error : output}
@@ -776,6 +794,14 @@ const TraceChain = ({
           const hasDetails =
             detailSections.length > 0 || (Array.isArray(batchResults) && batchResults.length > 0);
 
+          /* ── inline result preview for delegates (truncated to ~120 chars) ── */
+          const inlinePreview =
+            isDelegate && resultOutput && resultFrame
+              ? resultOutput.length > 120
+                ? resultOutput.slice(0, 120).trimEnd() + "…"
+                : resultOutput
+              : "";
+
           items.push({
             key: `${frame.seq}-subagent`,
             title: (
@@ -813,7 +839,7 @@ const TraceChain = ({
             ),
             body: isBatch && batchTasks.length > 0 && !resultFrame
               ? batchTasks.map((t, i) => `${i + 1}. ${t?.task || "..."}`).join("\n")
-              : undefined,
+              : inlinePreview || undefined,
             details: hasDetails ? (
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {detailSections.length > 0 && (

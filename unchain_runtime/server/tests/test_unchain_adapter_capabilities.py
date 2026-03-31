@@ -488,762 +488,40 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         )
         self.assertFalse(submitted)
 
-    def test_apply_broth_runtime_patches_batches_anthropic_tool_results(self) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "anthropic"
-                self.used_original_execute = False
-                self.used_original_inject = False
-                self.events = []
-                self.executed_session_ids = []
-                self.find_tool_toolkits = []
-                self.execute_toolkits = []
-
-            def _execute_tool_calls(self, **_kwargs):
-                self.used_original_execute = True
-                return [{"role": "tool", "content": "original"}], False
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [
-                    {"role": "system", "content": "sys"},
-                    *full_messages,
-                    *tool_messages,
-                    {"role": "user", "content": "Review the LAST tool result above and provide one brief actionable observation."},
-                ]
-
-            def _inject_observation(self, _tool_message, _observation):
-                self.used_original_inject = True
-
-            def _emit(self, _callback, event_type, _run_id, *, iteration, **_extra):
-                self.events.append((event_type, iteration))
-
-            def _find_tool(self, name, *, toolkits=None):
-                self.find_tool_toolkits.append(toolkits)
-                if name == "observe_tool":
-                    return SimpleNamespace(observe=True)
-                return SimpleNamespace(observe=False)
-
-            def _execute_from_toolkits(self, name, arguments, session_id=None, toolkits=None):
-                self.executed_session_ids.append(session_id)
-                self.execute_toolkits.append(toolkits)
-                return {"name": name, "arguments": arguments}
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-
-        agent = FakeBroth()
-        tool_calls = [
-            SimpleNamespace(call_id="toolu_1", name="observe_tool", arguments={"a": 1}),
-            SimpleNamespace(call_id="toolu_2", name="plain_tool", arguments={"b": 2}),
-        ]
-        result_messages, should_observe = agent._execute_tool_calls(
-            tool_calls=tool_calls,
-            run_id="run-1",
-            iteration=0,
-            callback=None,
-            session_id="thread-anthropic-1",
-            toolkits=["ask-user-toolkit"],
-        )
-
-        self.assertEqual(len(result_messages), 1)
-        self.assertEqual(result_messages[0]["role"], "user")
-        self.assertIsInstance(result_messages[0]["content"], list)
-        self.assertEqual(
-            [block["tool_use_id"] for block in result_messages[0]["content"]],
-            ["toolu_1", "toolu_2"],
-        )
-        self.assertFalse(should_observe)
-        self.assertFalse(agent.used_original_execute)
-        self.assertEqual(agent.executed_session_ids, ["thread-anthropic-1", "thread-anthropic-1"])
-        self.assertEqual(
-            agent.find_tool_toolkits,
-            [["ask-user-toolkit"], ["ask-user-toolkit"]],
-        )
-        self.assertEqual(
-            agent.execute_toolkits,
-            [["ask-user-toolkit"], ["ask-user-toolkit"]],
-        )
-
-        merged_observation_messages = agent._build_observation_messages(
-            full_messages=[
-                {
-                    "role": "assistant",
-                    "content": [
-                        {"type": "tool_use", "id": "toolu_1", "name": "observe_tool", "input": {}},
-                    ],
-                }
-            ],
-            tool_messages=result_messages,
-        )
-        last_message = merged_observation_messages[-1]
-        self.assertEqual(last_message.get("role"), "user")
-        self.assertIsInstance(last_message.get("content"), list)
-        self.assertEqual(last_message["content"][-1]["type"], "text")
-
-        tool_result_message = {
-            "role": "user",
-            "content": [
-                {
-                    "type": "tool_result",
-                    "tool_use_id": "toolu_1",
-                    "content": '{"ok": true}',
-                }
-            ],
-        }
-        agent._inject_observation(tool_result_message, "looks good")
-        parsed = json.loads(tool_result_message["content"][0]["content"])
-        self.assertEqual(parsed["observation"], "looks good")
-        self.assertFalse(agent.used_original_inject)
-
-        # Non-anthropic providers keep upstream behavior.
-        agent.provider = "ollama"
-        _result_messages, _observe = agent._execute_tool_calls(
-            tool_calls=tool_calls,
-            run_id="run-2",
-            iteration=1,
-            callback=None,
-        )
-        self.assertTrue(agent.used_original_execute)
-
-    def test_apply_broth_runtime_patches_anthropic_confirmation_gate(self) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "anthropic"
-                self.executed_arguments = []
-                self.events = []
-
-            def _execute_tool_calls(self, **_kwargs):
-                return [{"role": "tool", "content": "original"}], False
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [*full_messages, *tool_messages]
-
-            def _inject_observation(self, _tool_message, _observation):
-                return None
-
-            def _find_tool(self, _name):
-                return SimpleNamespace(requires_confirmation=True)
-
-            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
-                self.events.append((event_type, iteration, extra))
-
-            def _find_tool(self, _name):
-                return SimpleNamespace(
-                    observe=False,
-                    requires_confirmation=True,
-                    description="dangerous",
-                )
-
-            def _execute_from_toolkits(self, name, arguments, **_kwargs):
-                self.executed_arguments.append((name, arguments))
-                return {"ok": True, "arguments": arguments}
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-
-        agent = FakeBroth()
-        denied_messages, _ = agent._execute_tool_calls(
-            tool_calls=[
-                SimpleNamespace(
-                    call_id="call-deny",
-                    name="delete_file",
-                    arguments={"path": "a.txt"},
-                )
-            ],
-            run_id="run-1",
-            iteration=0,
-            callback=None,
-            on_tool_confirm=lambda _req: {"approved": False, "reason": "no"},
-        )
-
-        self.assertEqual(agent.executed_arguments, [])
-        denied_events = [event for event in agent.events if event[0] == "tool_denied"]
-        self.assertEqual(len(denied_events), 1)
-        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
-        self.assertEqual(len(tool_call_events), 1)
-        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
-        self.assertEqual(tool_call_events[0][2].get("requires_confirmation"), True)
-        denied_content = denied_messages[0]["content"][0]["content"]
-        denied_result = json.loads(denied_content)
-        self.assertEqual(denied_result["denied"], True)
-
-        approved_messages, _ = agent._execute_tool_calls(
-            tool_calls=[
-                SimpleNamespace(
-                    call_id="call-approve",
-                    name="move_file",
-                    arguments={"source": "a.txt", "destination": "b.txt"},
-                )
-            ],
-            run_id="run-2",
-            iteration=1,
-            callback=None,
-            on_tool_confirm=lambda _req: {
-                "approved": True,
-                "modified_arguments": {"source": "x.txt", "destination": "y.txt"},
-            },
-        )
-
-        self.assertEqual(
-            agent.executed_arguments[-1],
-            ("move_file", {"source": "x.txt", "destination": "y.txt"}),
-        )
-        confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
-        self.assertEqual(len(confirmed_events), 1)
-        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
-        self.assertEqual(len(tool_call_events), 2)
-        self.assertIsInstance(tool_call_events[-1][2].get("confirmation_id"), str)
-        approved_content = approved_messages[0]["content"][0]["content"]
-        approved_result = json.loads(approved_content)
-        self.assertEqual(approved_result["ok"], True)
-
-    def test_apply_broth_runtime_patches_non_anthropic_confirmation_events(self) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "openai"
-                self.used_original_execute = False
-                self.events = []
-                self.session_ids = []
-                self.toolkits_seen = []
-
-            def _execute_tool_calls(
-                self,
-                *,
-                tool_calls,
-                run_id,
-                iteration,
-                callback,
-                on_tool_confirm=None,
-                session_id=None,
-                toolkits=None,
-            ):
-                self.used_original_execute = True
-                self.session_ids.append(session_id)
-                self.toolkits_seen.append(toolkits)
-                if on_tool_confirm is not None and tool_calls:
-                    request = {
-                        "tool_name": tool_calls[0].name,
-                        "call_id": tool_calls[0].call_id,
-                        "arguments": tool_calls[0].arguments,
-                        "description": "dangerous",
-                    }
-                    on_tool_confirm(request)
-                    on_tool_confirm(request)
-                return [{"role": "tool", "content": "original"}], False
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [*full_messages, *tool_messages]
-
-            def _inject_observation(self, _tool_message, _observation):
-                return None
-
-            def _find_tool(self, _name):
-                return SimpleNamespace(requires_confirmation=True)
-
-            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
-                self.events.append((event_type, iteration, extra))
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-        agent = FakeBroth()
-        tool_calls = [
-            SimpleNamespace(
-                call_id="call-openai-1",
-                name="terminal_exec",
-                arguments={"cmd": "pwd"},
-            )
-        ]
-
-        _messages, _observe = agent._execute_tool_calls(
-            tool_calls=tool_calls,
-            run_id="run-openai-1",
-            iteration=0,
-            callback=None,
-            on_tool_confirm=lambda _req: {"approved": True},
-            session_id="thread-openai-1",
-            toolkits=["ask-user-toolkit"],
-        )
-        confirmed_events = [event for event in agent.events if event[0] == "tool_confirmed"]
-        self.assertEqual(len(confirmed_events), 1)
-        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
-        self.assertEqual(len(tool_call_events), 1)
-        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
-        self.assertEqual(confirmed_events[0][2].get("call_id"), "call-openai-1")
-        self.assertTrue(agent.used_original_execute)
-        self.assertEqual(agent.session_ids, ["thread-openai-1"])
-        self.assertEqual(agent.toolkits_seen, [["ask-user-toolkit"]])
-
-        agent.events = []
-        _messages, _observe = agent._execute_tool_calls(
-            tool_calls=tool_calls,
-            run_id="run-openai-2",
-            iteration=1,
-            callback=None,
-            on_tool_confirm=lambda _req: {"approved": False, "reason": "denied"},
-            session_id="thread-openai-2",
-            toolkits=["ask-user-toolkit-2"],
-        )
-        denied_events = [event for event in agent.events if event[0] == "tool_denied"]
-        self.assertEqual(len(denied_events), 1)
-        tool_call_events = [event for event in agent.events if event[0] == "tool_call"]
-        self.assertEqual(len(tool_call_events), 1)
-        self.assertIsInstance(tool_call_events[0][2].get("confirmation_id"), str)
-        self.assertEqual(denied_events[0][2].get("call_id"), "call-openai-1")
-        self.assertEqual(denied_events[0][2].get("reason"), "denied")
-        self.assertEqual(agent.session_ids, ["thread-openai-1", "thread-openai-2"])
-        self.assertEqual(
-            agent.toolkits_seen,
-            [["ask-user-toolkit"], ["ask-user-toolkit-2"]],
-        )
-
-    def test_apply_broth_runtime_patches_bridges_human_input_into_tool_confirmation(self) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "anthropic"
-                self.forwarded_toolkits = []
-                self.events = []
-
-            def _execute_tool_calls(
-                self,
-                *,
-                tool_calls,
-                run_id,
-                iteration,
-                callback,
-                on_tool_confirm=None,
-                session_id=None,
-                toolkits=None,
-            ):
-                self.forwarded_toolkits.append(toolkits)
-                return [{"role": "tool", "content": "original"}], False, True, {
-                    "request_id": "req-1",
-                    "kind": "select",
-                    "title": "Need input",
-                    "question": "Choose one",
-                    "selection_mode": "single",
-                    "options": [
-                        {
-                            "id": "opt-1",
-                            "label": "Option 1",
-                        }
-                    ],
-                    "allow_other": False,
-                }
-
-            def _build_tool_message(self, *, tool_call, tool_result):
-                return {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": tool_call.call_id,
-                            "content": json.dumps(tool_result),
-                        }
-                    ],
-                }
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [*full_messages, *tool_messages]
-
-            def _inject_observation(self, _tool_message, _observation):
-                return None
-
-            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
-                self.events.append((event_type, iteration, extra))
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-        agent = FakeBroth()
-        confirmation_requests = []
-
-        result_messages, should_observe = agent._execute_tool_calls(
-            tool_calls=[
-                SimpleNamespace(
-                    call_id="call-human-1",
-                    name="ask_user_question",
-                    arguments={
-                        "title": "Need input",
-                        "question": "Choose one",
-                        "selection_mode": "single",
-                        "options": [
-                            {
-                                "label": "Option 1",
-                                "value": "opt-1",
-                            }
-                        ],
-                        "allow_other": True,
-                        "other_label": "Other option",
-                        "other_placeholder": "Describe it",
-                    },
-                )
-            ],
-            run_id="run-human-1",
-            iteration=0,
-            callback=None,
-            on_tool_confirm=lambda request: (
-                confirmation_requests.append(request)
-                or {
-                    "approved": True,
-                    "modified_arguments": {
-                        "user_response": {
-                            "value": "opt-1",
-                        }
-                    },
-                }
-            ),
-            toolkits=["ask-user-toolkit"],
-        )
-
-        self.assertEqual(agent.forwarded_toolkits, [])
-        self.assertFalse(should_observe)
-        self.assertEqual(len(confirmation_requests), 1)
-        self.assertEqual(confirmation_requests[0]["tool_name"], "ask_user_question")
-        self.assertEqual(confirmation_requests[0]["interact_type"], "single")
-        self.assertEqual(
-            confirmation_requests[0]["interact_config"]["other_label"],
-            "Other option",
-        )
-        self.assertEqual(
-            confirmation_requests[0]["interact_config"]["other_placeholder"],
-            "Describe it",
-        )
-        self.assertIsInstance(confirmation_requests[0]["confirmation_id"], str)
-        self.assertEqual(confirmation_requests[0]["requires_confirmation"], True)
-
-        tool_result_payload = json.loads(result_messages[0]["content"][0]["content"])
-        self.assertEqual(
-            tool_result_payload,
-            {
-                "submitted": True,
-                "selected_values": ["opt-1"],
-                "other_text": None,
-            },
-        )
-        self.assertEqual(agent.events[0][0], "tool_call")
-        self.assertEqual(agent.events[0][2].get("interact_type"), "single")
-        self.assertIsInstance(agent.events[0][2].get("confirmation_id"), str)
-        self.assertEqual(agent.events[-1][0], "tool_result")
-
-    def test_apply_broth_runtime_patches_ignores_user_supplied_request_id_for_human_input(
-        self,
-    ) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "openai"
-
-            def _execute_tool_calls(self, **_kwargs):
-                return [], False
-
-            def _find_tool(self, _name, **_kwargs):
-                return None
-
-            def _build_tool_message(self, *, tool_call, tool_result):
-                return {
-                    "type": "function_call_output",
-                    "call_id": tool_call.call_id,
-                    "output": json.dumps(tool_result),
-                }
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [*full_messages, *tool_messages]
-
-            def _inject_observation(self, _tool_message, _observation):
-                return None
-
-            def _emit(self, _callback, _event_type, _run_id, *, iteration, **extra):
-                del iteration, extra
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-        agent = FakeBroth()
-
-        result_messages, should_observe = agent._execute_tool_calls(
-            tool_calls=[
-                SimpleNamespace(
-                    call_id="call-human-2",
-                    name="ask_user_question",
-                    arguments={
-                        "title": "Need input",
-                        "question": "Choose one",
-                        "selection_mode": "single",
-                        "options": [
-                            {
-                                "label": "Option 1",
-                                "value": "opt-1",
-                            }
-                        ],
-                        "allow_other": False,
-                    },
-                )
-            ],
-            run_id="run-human-2",
-            iteration=0,
-            callback=None,
-            on_tool_confirm=lambda _request: {
-                "approved": True,
-                "modified_arguments": {
-                    "user_response": {
-                        "request_id": "stale-request-id",
-                        "value": "opt-1",
-                    }
-                },
-            },
-            toolkits=["ask-user-toolkit"],
-        )
-
-        self.assertFalse(should_observe)
-        payload = json.loads(result_messages[0]["output"])
-        self.assertEqual(
-            payload,
-            {
-                "submitted": True,
-                "selected_values": ["opt-1"],
-                "other_text": None,
-            },
-        )
-
-    def test_apply_broth_runtime_patches_parses_openai_string_arguments_for_human_input(
-        self,
-    ) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "openai"
-                self.forwarded_toolkits = None
-                self.events = []
-
-            def _execute_tool_calls(self, **_kwargs):
-                return [], False
-
-            def _find_tool(self, _name, **kwargs):
-                self.forwarded_toolkits = kwargs.get("toolkits")
-                return None
-
-            def _build_tool_message(self, *, tool_call, tool_result):
-                return {
-                    "type": "function_call_output",
-                    "call_id": tool_call.call_id,
-                    "output": json.dumps(tool_result),
-                }
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [*full_messages, *tool_messages]
-
-            def _inject_observation(self, _tool_message, _observation):
-                return None
-
-            def _emit(self, _callback, event_type, _run_id, *, iteration, **extra):
-                self.events.append((event_type, iteration, extra))
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-        agent = FakeBroth()
-        confirmation_requests = []
-
-        result_messages, should_observe = agent._execute_tool_calls(
-            tool_calls=[
-                SimpleNamespace(
-                    call_id="call-human-openai-1",
-                    name="ask_user_question",
-                    arguments=json.dumps(
-                        {
-                            "title": "Need input",
-                            "question": "Choose one",
-                            "selection_mode": "single",
-                            "options": [
-                                {
-                                    "label": "Option 1",
-                                    "value": "opt-1",
-                                }
-                            ],
-                            "allow_other": False,
-                        }
-                    ),
-                )
-            ],
-            run_id="run-human-openai-1",
-            iteration=0,
-            callback=None,
-            on_tool_confirm=lambda request: (
-                confirmation_requests.append(request)
-                or {
-                    "approved": True,
-                    "modified_arguments": {
-                        "user_response": {
-                            "value": "opt-1",
-                        }
-                    },
-                }
-            ),
-            toolkits=["ask-user-toolkit"],
-        )
-
-        self.assertFalse(should_observe)
-        self.assertEqual(len(confirmation_requests), 1)
-        self.assertEqual(
-            confirmation_requests[0]["interact_config"]["request_id"],
-            "call-human-openai-1",
-        )
-        payload = json.loads(result_messages[0]["output"])
-        self.assertEqual(
-            payload,
-            {
-                "submitted": True,
-                "selected_values": ["opt-1"],
-                "other_text": None,
-            },
-        )
-
-    def test_apply_broth_runtime_patches_exposes_workspace_proxy_display_name_to_callback(
-        self,
-    ) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "openai"
-
-            def _execute_tool_calls(
-                self,
-                *,
-                tool_calls,
-                run_id,
-                iteration,
-                callback,
-                **_kwargs,
-            ):
-                del run_id, iteration
-                callback(
-                    {
-                        "type": "tool_call",
-                        "payload": {
-                            "tool_name": tool_calls[0].name,
-                            "call_id": tool_calls[0].call_id,
-                            "arguments": tool_calls[0].arguments,
-                        },
-                    }
-                )
-                callback(
-                    {
-                        "type": "tool_result",
-                        "payload": {
-                            "tool_name": tool_calls[0].name,
-                            "call_id": tool_calls[0].call_id,
-                            "result": {"ok": True},
-                        },
-                    }
-                )
-                return [], False
-
-            def _find_tool(self, _name, **_kwargs):
-                tool = SimpleNamespace(observe=False, requires_confirmation=False)
-                setattr(
-                    tool,
-                    unchain_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
-                    "read_file",
-                )
-                return tool
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [*full_messages, *tool_messages]
-
-            def _inject_observation(self, _tool_message, _observation):
-                return None
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-        agent = FakeBroth()
-        captured_events = []
-
-        _messages, should_observe = agent._execute_tool_calls(
-            tool_calls=[
-                SimpleNamespace(
-                    call_id="call-workspace-1",
-                    name="workspace_2_extra_root_read_file",
-                    arguments={"path": "hello.txt"},
-                )
-            ],
-            run_id="run-workspace-1",
-            iteration=0,
-            callback=captured_events.append,
-        )
-
-        self.assertFalse(should_observe)
-        self.assertEqual(len(captured_events), 2)
-        self.assertEqual(
-            captured_events[0]["payload"]["tool_name"],
-            "workspace_2_extra_root_read_file",
-        )
-        self.assertEqual(captured_events[0]["payload"]["tool_display_name"], "read_file")
-        self.assertEqual(captured_events[1]["payload"]["tool_display_name"], "read_file")
-
-    def test_apply_broth_runtime_patches_extends_previous_response_fallback_error_detection(
-        self,
-    ) -> None:
-        class FakeBroth:
-            def __init__(self):
-                self.provider = "openai"
-
-            def _execute_tool_calls(self, **_kwargs):
-                return [], False
-
-            def _build_observation_messages(self, full_messages, tool_messages):
-                return [*full_messages, *tool_messages]
-
-            def _inject_observation(self, _tool_message, _observation):
-                return None
-
-            def _is_previous_response_not_found_error(self, exc):
-                return "previous response" in str(exc).lower()
-
-        unchain_adapter._apply_broth_runtime_patches(FakeBroth)
-        agent = FakeBroth()
-
-        class FakeError(Exception):
-            def __init__(self, message: str, body: dict | None = None):
-                super().__init__(message)
-                self.body = body
-
-        no_tool_call_error = FakeError(
-            (
-                "Error code: 400 - {'error': {'message': "
-                "'No tool call found for function call output with call_id call_123.', "
-                "'type': 'invalid_request_error', 'param': 'input', 'code': None}}"
-            ),
-            body={
-                "error": {
-                    "message": (
-                        "No tool call found for function call output with call_id call_123."
-                    ),
-                    "type": "invalid_request_error",
-                    "param": "input",
-                    "code": None,
-                }
-            },
-        )
-        previous_response_error = FakeError(
-            "Previous response with id 'resp_1' not found.",
-        )
-
-        self.assertTrue(agent._is_previous_response_not_found_error(no_tool_call_error))
-        self.assertTrue(agent._is_previous_response_not_found_error(previous_response_error))
-
     def test_create_agent_skips_workspace_toolkit_when_workspace_root_missing(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            unchain_adapter, "_IMPORT_ERROR", None
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
         ), mock.patch.object(unchain_adapter.importlib, "import_module") as import_module_mock:
             agent = unchain_adapter._create_agent({})
 
-        self.assertEqual(agent.toolkits, [])
+        self.assertEqual(agent._toolkits, [])
         import_module_mock.assert_not_called()
 
     def test_create_agent_attaches_workspace_toolkit_when_workspace_root_is_valid(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1259,12 +537,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
                 unchain_adapter,
-                "_BROTH_CLASS",
+                "_UnchainAgent",
                 FakeAgent,
-            ), mock.patch.object(
-                unchain_adapter,
-                "_IMPORT_ERROR",
-                None,
             ), mock.patch.object(
                 unchain_adapter.importlib,
                 "import_module",
@@ -1274,16 +548,20 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             ):
                 agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
-        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(len(agent._toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
 
     def test_create_agent_attaches_workspace_toolkit_with_current_export_name(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1299,12 +577,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
                 unchain_adapter,
-                "_BROTH_CLASS",
+                "_UnchainAgent",
                 FakeAgent,
-            ), mock.patch.object(
-                unchain_adapter,
-                "_IMPORT_ERROR",
-                None,
             ), mock.patch.object(
                 unchain_adapter.importlib,
                 "import_module",
@@ -1319,16 +593,20 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     }
                 )
 
-        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(len(agent._toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
 
     def test_create_agent_accepts_legacy_access_workspace_toolkit_alias(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1344,12 +622,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
                 unchain_adapter,
-                "_BROTH_CLASS",
+                "_UnchainAgent",
                 FakeAgent,
-            ), mock.patch.object(
-                unchain_adapter,
-                "_IMPORT_ERROR",
-                None,
             ), mock.patch.object(
                 unchain_adapter.importlib,
                 "import_module",
@@ -1364,16 +638,20 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     }
                 )
 
-        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(len(agent._toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
 
     def test_create_agent_attaches_workspace_toolkit_with_workspace_roots_fallback(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1389,12 +667,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp_a, tempfile.TemporaryDirectory() as tmp_b:
             with mock.patch.object(
                 unchain_adapter,
-                "_BROTH_CLASS",
+                "_UnchainAgent",
                 FakeAgent,
-            ), mock.patch.object(
-                unchain_adapter,
-                "_IMPORT_ERROR",
-                None,
             ), mock.patch.object(
                 unchain_adapter.importlib,
                 "import_module",
@@ -1409,7 +683,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     }
                 )
 
-        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(len(agent._toolkits), 1)
         self.assertEqual(
             captured["workspace_roots"],
             [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
@@ -1417,11 +691,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
     def test_create_agent_builds_multi_workspace_proxy_toolkit_when_workspace_roots_are_unsupported(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1524,12 +802,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             Path(tmp_b).mkdir()
             with mock.patch.object(
                 unchain_adapter,
-                "_BROTH_CLASS",
+                "_UnchainAgent",
                 FakeAgent,
-            ), mock.patch.object(
-                unchain_adapter,
-                "_IMPORT_ERROR",
-                None,
             ), mock.patch.object(
                 unchain_adapter.importlib,
                 "import_module",
@@ -1546,12 +820,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     }
                 )
 
-        self.assertEqual(len(agent.toolkits), 1)
+        self.assertEqual(len(agent._toolkits), 1)
         self.assertEqual(
             captured["workspace_roots"],
             [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
         )
-        merged_toolkit = agent.toolkits[0]
+        merged_toolkit = agent._toolkits[0]
         self.assertIn("read_file", merged_toolkit.tools)
         self.assertIn("write_file", merged_toolkit.tools)
         self.assertIn("workspace_2_extra_root_read_file", merged_toolkit.tools)
@@ -1574,45 +848,38 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(second_workspace_read["path"], "hello.txt")
         self.assertTrue(merged_toolkit.tools["workspace_2_extra_root_write_file"].requires_confirmation)
 
-    def test_create_agent_skips_toolkit_when_toolkits_option_absent(self) -> None:
-        """When options has workspace_root but no toolkits key, toolkit should NOT be attached."""
-
-        class FakeAgent:
-            def __init__(self):
-                self.toolkits = []
-                self.provider = ""
-                self.model = ""
-                self.max_iterations = 0
-
-            def add_toolkit(self, toolkit):
-                self.toolkits.append(toolkit)
-
-        def fake_workspace_toolkit(*, workspace_root=None):
-            return {"workspace_root": workspace_root}
-
+    def test_create_agent_attaches_workspace_tools_to_developer_when_toolkits_option_absent(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.object(
-                unchain_adapter, "_BROTH_CLASS", FakeAgent
-            ), mock.patch.object(
-                unchain_adapter, "_IMPORT_ERROR", None
-            ), mock.patch.object(
-                unchain_adapter.importlib,
-                "import_module",
-                return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit
-                ),
-            ):
-                agent = unchain_adapter._create_agent({"workspace_root": tmp})
+            agent = unchain_adapter._create_agent(
+                {
+                    "modelId": "openai:gpt-5",
+                    "openai_api_key": "test-key",
+                    "workspace_root": tmp,
+                }
+            )
 
-        self.assertEqual(len(agent.toolkits), 0)
+        self.assertEqual(agent.name, "pupu_developer")
+
+        tools_module = next(
+            module for module in agent.spec.modules if type(module).__name__ == "ToolsModule"
+        )
+
+        self.assertEqual(len(tools_module.tools), 1)
+        workspace_toolkit = tools_module.tools[0]
+        self.assertIn("read_files", workspace_toolkit.tools)
+        self.assertIn("write_file", workspace_toolkit.tools)
 
     def test_create_agent_marks_selected_workspace_tools_requires_confirmation(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1636,9 +903,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                unchain_adapter, "_BROTH_CLASS", FakeAgent
-            ), mock.patch.object(
-                unchain_adapter, "_IMPORT_ERROR", None
+                unchain_adapter, "_UnchainAgent", FakeAgent
             ), mock.patch.object(
                 unchain_adapter.importlib,
                 "import_module",
@@ -1656,11 +921,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
     def test_create_agent_rejects_invalid_workspace_root(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1670,8 +939,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 "workspace_root": workspace_root,
             }
 
-        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            unchain_adapter, "_IMPORT_ERROR", None
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
         ), mock.patch.object(
             unchain_adapter.importlib,
             "import_module",
@@ -1684,11 +953,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
     def test_create_agent_uses_min_two_iterations_when_workspace_root_is_set(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
@@ -1700,9 +973,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with mock.patch.object(
-                unchain_adapter, "_BROTH_CLASS", FakeAgent
-            ), mock.patch.object(
-                unchain_adapter, "_IMPORT_ERROR", None
+                unchain_adapter, "_UnchainAgent", FakeAgent
             ), mock.patch.object(
                 unchain_adapter.importlib,
                 "import_module",
@@ -1712,27 +983,31 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": "1"}, clear=False):
                 agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
-        self.assertEqual(agent.max_iterations, 2)
+        self.assertEqual(agent._max_iterations, 2)
 
     def test_create_agent_uses_default_max_iterations_when_env_missing(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            unchain_adapter, "_IMPORT_ERROR", None
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
         ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": ""}, clear=False):
             agent = unchain_adapter._create_agent({})
 
-        self.assertEqual(agent.max_iterations, unchain_adapter._DEFAULT_MAX_ITERATIONS)
+        self.assertEqual(agent._max_iterations, unchain_adapter._DEFAULT_MAX_ITERATIONS)
 
-    def test_create_agent_builds_general_router_with_downgraded_model_and_developer_template(self) -> None:
+    def test_create_agent_builds_developer_directly_with_selected_model(self) -> None:
         agent = unchain_adapter._create_agent(
             {
                 "modelId": "openai:gpt-5",
@@ -1741,31 +1016,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual(agent.name, "pupu_general")
-        self.assertEqual(agent.model, "gpt-4.1")
-        self.assertEqual(agent.allowed_tools, ("handoff_to_subagent",))
+        self.assertEqual(agent.name, "pupu_developer")
+        self.assertEqual(agent.model, "gpt-5")
         self.assertEqual(agent._display_model, "openai:gpt-5")
-        self.assertEqual(agent._general_model_id, "openai:gpt-4.1")
+        self.assertEqual(agent._orchestration_role, "developer")
         self.assertEqual(agent._developer_model_id, "openai:gpt-5")
+        self.assertEqual(agent._general_model_id, "openai:gpt-5")
 
         module_names = [type(module).__name__ for module in agent.spec.modules]
         self.assertIn("SubagentModule", module_names)
-        self.assertNotIn("ToolsModule", module_names)
-
-        subagent_module = next(
-            module for module in agent.spec.modules if type(module).__name__ == "SubagentModule"
-        )
-        self.assertEqual([template.name for template in subagent_module.templates], ["developer"])
-        self.assertEqual(subagent_module.templates[0].allowed_modes, ("handoff",))
-        self.assertEqual(subagent_module.templates[0].memory_policy, "scoped_persistent")
-        self.assertEqual(subagent_module.templates[0].agent.name, "pupu_developer")
-        self.assertEqual(subagent_module.templates[0].agent.model, "gpt-5")
-        child_module_names = [
-            type(module).__name__
-            for module in subagent_module.templates[0].agent.spec.modules
-        ]
-        self.assertIn("ToolsModule", child_module_names)
-        self.assertNotIn("SubagentModule", child_module_names)
 
     def test_create_agent_routes_waiting_approval_mode_directly_to_developer(self) -> None:
         agent = unchain_adapter._create_agent(
@@ -1783,28 +1042,21 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(agent._orchestration_next_mode, "default")
         module_names = [type(module).__name__ for module in agent.spec.modules]
         self.assertIn("ToolsModule", module_names)
-        self.assertNotIn("SubagentModule", module_names)
+        self.assertIn("SubagentModule", module_names)
 
-    def test_create_agent_falls_back_to_selected_model_when_general_downgrade_is_unavailable(self) -> None:
-        with mock.patch.object(
-            unchain_adapter,
-            "get_capability_catalog",
-            return_value={
-                "openai": ["gpt-5"],
-                "anthropic": [],
-                "ollama": [],
-            },
-        ):
-            agent = unchain_adapter._create_agent(
-                {
-                    "modelId": "openai:gpt-5",
-                    "openai_api_key": "test-key",
-                }
-            )
+    def test_create_agent_always_uses_selected_model_directly(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "modelId": "openai:gpt-5",
+                "openai_api_key": "test-key",
+            }
+        )
 
-        self.assertEqual(agent.name, "pupu_general")
+        self.assertEqual(agent.name, "pupu_developer")
         self.assertEqual(agent.model, "gpt-5")
+        self.assertEqual(agent._display_model, "openai:gpt-5")
         self.assertEqual(agent._general_model_id, "openai:gpt-5")
+        self.assertEqual(agent._developer_model_id, "openai:gpt-5")
 
     def test_resolve_general_runtime_config_downgrades_anthropic_and_keeps_ollama_selected_model(self) -> None:
         with mock.patch.object(
@@ -1830,21 +1082,25 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
     def test_create_agent_prefers_options_max_iterations_over_env(self) -> None:
         class FakeAgent:
-            def __init__(self):
+            def __init__(self, **kwargs):
                 self.toolkits = []
-                self.provider = ""
-                self.model = ""
+                self.provider = kwargs.get("provider", "")
+                self.model = kwargs.get("model", "")
                 self.max_iterations = 0
+                self.name = kwargs.get("name", "")
+                for key, value in kwargs.items():
+                    if not hasattr(self, key):
+                        setattr(self, key, value)
 
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
-        with mock.patch.object(unchain_adapter, "_BROTH_CLASS", FakeAgent), mock.patch.object(
-            unchain_adapter, "_IMPORT_ERROR", None
+        with mock.patch.object(
+            unchain_adapter, "_UnchainAgent", FakeAgent
         ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": "1"}, clear=False):
             agent = unchain_adapter._create_agent({"maxIterations": 5})
 
-        self.assertEqual(agent.max_iterations, 5)
+        self.assertEqual(agent._max_iterations, 5)
 
     def test_create_agent_preserves_workspace_pin_execution_context(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -1859,28 +1115,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 }
             )
 
-            self.assertIsNotNone(unchain_adapter._PUPU_AGENT_CLASS)
-            self.assertIsInstance(agent, unchain_adapter._PUPU_AGENT_CLASS)
-            self.assertEqual(len(agent.toolkits), 1)
+            self.assertIsNotNone(unchain_adapter._UnchainAgent)
+            self.assertIsInstance(agent, unchain_adapter._UnchainAgent)
+            self.assertEqual(len(agent._toolkits), 1)
 
-            engine = agent._build_engine()
-            self.assertIs(type(engine), unchain_adapter._BROTH_CLASS)
-            self.assertTrue(
-                getattr(type(engine), "_pupu_tool_confirmation_contract_patch_v6", False)
-            )
+            workspace_toolkit = agent._toolkits[0]
+            self.assertIn("pin_file_context", workspace_toolkit.tools)
 
-            result = engine._execute_from_toolkits(
-                "pin_file_context",
-                {"path": "notes.txt"},
-                session_id="thread-1",
-            )
-
-        self.assertEqual(result.get("path"), str(target.resolve()))
-        self.assertTrue(result.get("created"))
-        self.assertFalse(result.get("duplicate", True))
-
-    def test_create_agent_mounts_internal_memory_recall_tools_when_memory_is_available(self) -> None:
-        from miso.memory import MemoryManager
+    def test_create_agent_mounts_memory_module_when_memory_is_available(self) -> None:
+        from unchain.memory import MemoryManager
 
         manager = MemoryManager()
 
@@ -1897,34 +1140,19 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 session_id="chat-1",
             )
 
-        engine = agent._build_engine(session_id="chat-1", memory_namespace="user-1")
-        self.assertIsNotNone(engine._find_tool("recall_profile"))
-        self.assertIsNotNone(engine._find_tool("recall_memory"))
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertIn("MemoryModule", module_names)
 
-    def test_create_agent_skips_internal_memory_recall_tools_when_tool_calling_is_disabled(self) -> None:
-        from miso.memory import MemoryManager
+    def test_create_agent_skips_memory_module_when_memory_is_not_enabled(self) -> None:
+        agent = unchain_adapter._create_agent(
+            {
+                "provider": "ollama",
+                "model": "deepseek-r1:14b",
+            },
+        )
 
-        manager = MemoryManager()
-
-        with mock.patch(
-            "memory_factory.create_memory_manager_with_diagnostics",
-            return_value=(manager, ""),
-        ), mock.patch.object(
-            unchain_adapter._PUPU_AGENT_CLASS,
-            "_supports_tool_calling",
-            return_value=False,
-        ):
-            agent = unchain_adapter._create_agent(
-                {
-                    "provider": "ollama",
-                    "model": "plain-model",
-                    "memory_enabled": True,
-                },
-                session_id="chat-1",
-            )
-            engine = agent._build_engine(session_id="chat-1", memory_namespace="user-1")
-            self.assertIsNone(engine._find_tool("recall_profile"))
-            self.assertIsNone(engine._find_tool("recall_memory"))
+        module_names = [type(module).__name__ for module in agent.spec.modules]
+        self.assertNotIn("MemoryModule", module_names)
 
     def test_stream_chat_events_passes_on_tool_confirm_to_agent_run(self) -> None:
         class FakeAgent:
@@ -1934,9 +1162,10 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 self.received_on_tool_confirm = False
                 self.last_messages = []
                 self._display_model = "openai:gpt-5"
-                self._general_model_id = "openai:gpt-4.1"
+                self._general_model_id = "openai:gpt-5"
                 self._developer_model_id = "openai:gpt-5"
-                self._orchestration_role = "general"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
                 self._memory_runtime = {
                     "requested": False,
                     "available": False,
@@ -2031,7 +1260,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 for event in events
                 if event.get("type") == "stream_summary"
             ).get("model"),
-            "openai:gpt-4.1",
+            "openai:gpt-5",
         )
         self.assertEqual(
             next(
@@ -2089,15 +1318,16 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(events[1]["type"], "error")
         self.assertEqual(events[1]["code"], "memory_unavailable")
 
-    def test_stream_chat_events_marks_developer_handoff_in_stream_summary_bundle(self) -> None:
+    def test_stream_chat_events_always_reports_developer_active_agent_in_bundle(self) -> None:
         class FakeAgent:
             def __init__(self):
                 self.provider = "openai"
                 self.max_iterations = 3
                 self._display_model = "openai:gpt-5"
-                self._general_model_id = "openai:gpt-4.1"
+                self._general_model_id = "openai:gpt-5"
                 self._developer_model_id = "openai:gpt-5"
-                self._orchestration_role = "general"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
                 self._memory_runtime = {
                     "requested": False,
                     "available": False,
@@ -2106,15 +1336,6 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
             def run(self, messages, payload=None, callback=None, max_iterations=None, **_kwargs):
                 if callable(callback):
-                    callback(
-                        {
-                            "type": "subagent_handoff",
-                            "run_id": "run-1",
-                            "iteration": 0,
-                            "timestamp": time.time(),
-                            "template": "developer",
-                        }
-                    )
                     callback(
                         {
                             "type": "final_message",
@@ -2157,7 +1378,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(bundle.get("active_agent"), "developer")
         self.assertEqual(
             bundle.get("agent_orchestration", {}).get("mode"),
-            "developer_waiting_approval",
+            "default",
         )
 
     def test_stream_chat_events_emits_memory_prepare_failure_but_runs_with_history(self) -> None:
@@ -2311,97 +1532,23 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "Final answer text",
         )
 
-    def test_load_broth_class_falls_back_to_runtime_import_when_sources_invalid(self) -> None:
-        class FakeBroth:
-            pass
-
-        original_broth = unchain_adapter._BROTH_CLASS
-        original_import_error = unchain_adapter._IMPORT_ERROR
-        original_source = unchain_adapter._RESOLVED_UNCHAIN_SOURCE
-        try:
-            with tempfile.TemporaryDirectory() as temp_dir:
-                source_root = Path(temp_dir)
-                package_dir = source_root / "src" / "miso" / "runtime"
-                package_dir.mkdir(parents=True, exist_ok=True)
-                (package_dir / "__init__.py").write_text("", encoding="utf-8")
-
-                fake_module = SimpleNamespace(
-                    Broth=FakeBroth,
-                    __file__=str(package_dir / "__init__.py"),
-                )
-
-                with mock.patch.object(
-                    unchain_adapter,
-                    "_candidate_miso_sources",
-                    return_value=[Path("/tmp/invalid-miso-source")],
-                ), mock.patch.object(
-                    unchain_adapter,
-                    "_is_valid_miso_source",
-                    return_value=False,
-                ), mock.patch.object(
-                    unchain_adapter.importlib,
-                    "import_module",
-                    return_value=fake_module,
-                ):
-                    unchain_adapter._load_broth_class()
-
-                self.assertIs(unchain_adapter._BROTH_CLASS, FakeBroth)
-                self.assertIsNone(unchain_adapter._IMPORT_ERROR)
-                self.assertEqual(
-                    unchain_adapter._RESOLVED_UNCHAIN_SOURCE,
-                    str(source_root.resolve()),
-                )
-        finally:
-            unchain_adapter._BROTH_CLASS = original_broth
-            unchain_adapter._IMPORT_ERROR = original_import_error
-            unchain_adapter._RESOLVED_UNCHAIN_SOURCE = original_source
-
-    def test_load_broth_class_reports_runtime_import_failure(self) -> None:
-        original_broth = unchain_adapter._BROTH_CLASS
-        original_import_error = unchain_adapter._IMPORT_ERROR
-        original_source = unchain_adapter._RESOLVED_UNCHAIN_SOURCE
-        try:
-            with mock.patch.object(
-                unchain_adapter,
-                "_candidate_miso_sources",
-                return_value=[Path("/tmp/invalid-miso-source")],
-            ), mock.patch.object(
-                unchain_adapter,
-                "_is_valid_miso_source",
-                return_value=False,
-            ), mock.patch.object(
-                unchain_adapter.importlib,
-                "import_module",
-                side_effect=ImportError("runtime missing"),
-            ):
-                unchain_adapter._load_broth_class()
-
-            self.assertIsNone(unchain_adapter._BROTH_CLASS)
-            self.assertIsNone(unchain_adapter._RESOLVED_UNCHAIN_SOURCE)
-            self.assertIsNotNone(unchain_adapter._IMPORT_ERROR)
-            error_text = str(unchain_adapter._IMPORT_ERROR)
-            self.assertIn("invalid source: /tmp/invalid-miso-source", error_text)
-            self.assertIn("runtime import failed: runtime missing", error_text)
-        finally:
-            unchain_adapter._BROTH_CLASS = original_broth
-            unchain_adapter._IMPORT_ERROR = original_import_error
-            unchain_adapter._RESOLVED_UNCHAIN_SOURCE = original_source
-
     def test_capability_file_candidates_include_packaged_module_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
-            package_dir = Path(temp_dir) / "miso"
-            package_dir.mkdir(parents=True, exist_ok=True)
-            module_file = package_dir / "__init__.pyc"
-            module_file.write_text("", encoding="utf-8")
-            capability_file = package_dir / "runtime" / "resources" / "model_capabilities.json"
-            capability_file.parent.mkdir(parents=True, exist_ok=True)
+            resources_dir = Path(temp_dir) / "unchain" / "runtime" / "resources"
+            resources_dir.mkdir(parents=True, exist_ok=True)
+            init_file = resources_dir / "__init__.py"
+            init_file.write_text("", encoding="utf-8")
+            capability_file = resources_dir / "model_capabilities.json"
             capability_file.write_text("{}", encoding="utf-8")
 
-            fake_module = SimpleNamespace(__file__=str(module_file))
-            with mock.patch.object(
-                unchain_adapter.importlib,
-                "import_module",
-                return_value=fake_module,
+            fake_res_module = SimpleNamespace(__file__=str(init_file))
+            fake_runtime_module = SimpleNamespace(resources=fake_res_module)
+            with mock.patch.dict(
+                sys.modules,
+                {
+                    "unchain.runtime": fake_runtime_module,
+                    "unchain.runtime.resources": fake_res_module,
+                },
             ):
                 candidates = unchain_adapter._capability_file_candidates()
 

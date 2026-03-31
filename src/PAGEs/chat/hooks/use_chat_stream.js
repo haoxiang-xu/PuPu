@@ -1297,6 +1297,21 @@ export const useChatStream = ({
                 unchainLogger.log(label, frame.payload);
               }
 
+              /* ── subagent lifecycle events: log only, do not append to traceFrames ── */
+              if (
+                frame.type === "subagent_spawned" ||
+                frame.type === "subagent_started" ||
+                frame.type === "subagent_completed" ||
+                frame.type === "subagent_failed" ||
+                frame.type === "subagent_handoff" ||
+                frame.type === "subagent_clarification_requested" ||
+                frame.type === "subagent_batch_started" ||
+                frame.type === "subagent_batch_joined"
+              ) {
+                unchainLogger.log(frame.type, frame.payload);
+                return;
+              }
+
               if (frame.type === "memory_prepare") {
                 const payload =
                   frame.payload && typeof frame.payload === "object"
