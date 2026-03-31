@@ -49,6 +49,7 @@ try:
     from unchain.subagents import SubagentTemplate as _SubagentTemplate
     from unchain.subagents import SubagentPolicy as _SubagentPolicy
     from unchain.optimizers import (
+        ContextUsageOptimizer as _ContextUsageOptimizer,
         LastNOptimizer as _LastNOptimizer,
         LastNOptimizerConfig as _LastNOptimizerConfig,
         LlmSummaryOptimizer as _LlmSummaryOptimizer,
@@ -68,6 +69,7 @@ except ImportError:
     _LastNOptimizerConfig = None  # type: ignore
     _LlmSummaryOptimizer = None  # type: ignore
     _LlmSummaryOptimizerConfig = None  # type: ignore
+    _ContextUsageOptimizer = None  # type: ignore
     _ToolHistoryCompactionOptimizer = None  # type: ignore
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
@@ -318,6 +320,9 @@ _DEVELOPER_PROMPT_SECTIONS = {
 
     "delegation": (
         "You have subagent capabilities for context isolation and parallelism.\n"
+        "Check [Context Status] in the system messages to see your current "
+        "context window usage. As usage rises above 50%, prefer delegation "
+        "more aggressively to keep your context lean.\n"
         "\n"
         "CRITICAL: When you delegate a task, TRUST the subagent's output. "
         "Do NOT re-read the same files or re-run the same commands yourself "
@@ -1118,6 +1123,23 @@ def get_embedding_provider_catalog() -> Dict[str, List[str]]:
 
     providers["openai"] = sorted({name for name in providers["openai"] if name})
     return providers
+
+
+def get_max_context_window_tokens(provider: str, model: str) -> int:
+    """Look up max_context_window_tokens for a provider:model pair."""
+    raw_catalog = _load_raw_capability_catalog()
+    normalized_model = _normalize_provider_model_name(
+        str(provider or "").strip().lower(),
+        str(model or "").strip(),
+    )
+    for model_name, caps in raw_catalog.items():
+        cap_provider = str(caps.get("provider", "")).strip().lower()
+        cap_model = _normalize_provider_model_name(cap_provider, model_name)
+        if cap_provider == str(provider or "").strip().lower() and cap_model == normalized_model:
+            val = caps.get("max_context_window_tokens")
+            if isinstance(val, (int, float)) and val > 0:
+                return int(val)
+    return 0
 
 
 def get_model_capability_catalog() -> Dict[str, Dict[str, object]]:
@@ -2926,6 +2948,8 @@ def _build_developer_agent(
         optimizer_harnesses.append(
             LastNOptimizer(LastNOptimizerConfig(last_n_turns=10))
         )
+        if _ContextUsageOptimizer is not None:
+            optimizer_harnesses.append(_ContextUsageOptimizer())  # order 55, after all optimizers
         modules.append(OptimizersModule(harnesses=tuple(optimizer_harnesses)))
 
     if (
@@ -3141,6 +3165,14 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
     agent._selected_model = display_model
     agent._developer_model_id = display_model
     agent._general_model_id = display_model
+    raw_max_ctx = get_max_context_window_tokens(
+        selected_config["provider"], selected_config["model"],
+    )
+    # Use 40% of the real context window as the effective budget.
+    # This keeps the agent well within the quality zone (~60% is where
+    # output quality starts degrading) and leaves headroom for tool
+    # schemas, system prompts, and the current turn's output.
+    agent._max_context_window_tokens = int(raw_max_ctx * 0.40)
     return agent
 
 
@@ -3331,11 +3363,15 @@ def stream_chat(
                 getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
                 or _DEFAULT_MAX_ITERATIONS
             )
+            resolved_max_ctx = int(
+                getattr(agent, "_max_context_window_tokens", 0) or 0
+            )
             result = agent.run(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
                 max_iterations=resolved_max_iterations,
+                max_context_window_tokens=resolved_max_ctx or None,
                 **({"session_id": session_id} if session_id else {}),
             )
             output_holder["messages"] = result.messages
@@ -3487,11 +3523,15 @@ def stream_chat_events(
                 getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
                 or _DEFAULT_MAX_ITERATIONS
             )
+            resolved_max_ctx = int(
+                getattr(agent, "_max_context_window_tokens", 0) or 0
+            )
             result = agent.run(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
                 max_iterations=resolved_max_iterations,
+                max_context_window_tokens=resolved_max_ctx or None,
                 on_tool_confirm=confirm_cb,
                 on_human_input=human_input_cb,
                 on_max_iterations=max_iterations_cb,
