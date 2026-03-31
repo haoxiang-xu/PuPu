@@ -478,6 +478,27 @@ const ErrorPoint = () => (
   </div>
 );
 
+/* ─── TokenSummary ───────────────────────────────────────────────────────── */
+
+const TokenSummary = ({ input, output, total, isDark }) => {
+  const fmt = (n) =>
+    typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "\u2013";
+  const color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)";
+  return (
+    <span
+      style={{
+        fontSize: 10,
+        fontFamily: "Menlo, Monaco, Consolas, monospace",
+        color,
+        userSelect: "none",
+        letterSpacing: "0.01em",
+      }}
+    >
+      {fmt(input)} in &middot; {fmt(output)} out &middot; {fmt(total)} total
+    </span>
+  );
+};
+
 /* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
 const TraceChain = ({
@@ -488,6 +509,7 @@ const TraceChain = ({
   toolConfirmationUiStateById = {},
   pendingContinuationRequest,
   onContinuationDecision,
+  bundle,
 }) => {
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
@@ -1265,6 +1287,29 @@ const TraceChain = ({
       });
     }
 
+    /* ── token summary at the end of the timeline ── */
+    if (
+      status === "done" &&
+      bundle &&
+      typeof bundle === "object" &&
+      typeof bundle.consumed_tokens === "number" &&
+      bundle.consumed_tokens > 0
+    ) {
+      grouped.push({
+        key: "__token_summary__",
+        title: (
+          <TokenSummary
+            input={bundle.input_tokens}
+            output={bundle.output_tokens}
+            total={bundle.consumed_tokens}
+            isDark={isDark}
+          />
+        ),
+        status: "done",
+        point: "end",
+      });
+    }
+
     return grouped;
   }, [
     displayFrames,
@@ -1282,6 +1327,8 @@ const TraceChain = ({
     onContinuationDecision,
     isDark,
     color,
+    status,
+    bundle,
   ]);
 
   if (timelineItems.length === 0) return null;

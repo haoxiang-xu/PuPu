@@ -44,17 +44,31 @@ try:
     from unchain.agent.modules import ToolsModule as _ToolsModule
     from unchain.agent.modules import MemoryModule as _MemoryModule
     from unchain.agent.modules import PoliciesModule as _PoliciesModule
+    from unchain.agent.modules import OptimizersModule as _OptimizersModule
     from unchain.agent.modules import SubagentModule as _SubagentModule
     from unchain.subagents import SubagentTemplate as _SubagentTemplate
     from unchain.subagents import SubagentPolicy as _SubagentPolicy
+    from unchain.optimizers import (
+        LastNOptimizer as _LastNOptimizer,
+        LastNOptimizerConfig as _LastNOptimizerConfig,
+        LlmSummaryOptimizer as _LlmSummaryOptimizer,
+        LlmSummaryOptimizerConfig as _LlmSummaryOptimizerConfig,
+        ToolHistoryCompactionOptimizer as _ToolHistoryCompactionOptimizer,
+    )
 except ImportError:
     _UnchainAgent = None  # type: ignore
     _ToolsModule = None  # type: ignore
     _MemoryModule = None  # type: ignore
     _PoliciesModule = None  # type: ignore
+    _OptimizersModule = None  # type: ignore
     _SubagentModule = None  # type: ignore
     _SubagentTemplate = None  # type: ignore
     _SubagentPolicy = None  # type: ignore
+    _LastNOptimizer = None  # type: ignore
+    _LastNOptimizerConfig = None  # type: ignore
+    _LlmSummaryOptimizer = None  # type: ignore
+    _LlmSummaryOptimizerConfig = None  # type: ignore
+    _ToolHistoryCompactionOptimizer = None  # type: ignore
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -2560,6 +2574,116 @@ def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
     return result
 
 
+# ── Context window optimizer: summary generator ──────────────────────────────
+
+_SUMMARY_SYSTEM_PROMPT = (
+    "Summarize the following conversation concisely. "
+    "Focus on: decisions made, files modified, current task state, "
+    "and any pending action items. "
+    "Do NOT include greetings, filler, or tool call details. "
+    "Output plain text only, no markdown headers."
+)
+
+
+def _format_messages_for_summary(
+    previous_summary: str,
+    old_messages: list,
+    max_input_chars: int = 8000,
+) -> str:
+    """Format old messages + previous summary into a summarization prompt."""
+    parts: list = []
+    if previous_summary.strip():
+        parts.append(f"[Previous summary]\n{previous_summary.strip()}\n")
+    parts.append("[Conversation to summarize]")
+    total_chars = sum(len(p) for p in parts)
+    for msg in old_messages:
+        if not isinstance(msg, dict):
+            continue
+        role = str(msg.get("role") or "").strip()
+        content = msg.get("content", "")
+        if isinstance(content, list):
+            text_parts = []
+            for block in content:
+                if isinstance(block, dict):
+                    t = block.get("text") or block.get("content") or ""
+                    if isinstance(t, str) and t.strip():
+                        text_parts.append(t.strip())
+                elif isinstance(block, str):
+                    text_parts.append(block)
+            content = " ".join(text_parts)
+        if not isinstance(content, str):
+            content = str(content or "")
+        text = content.strip()
+        if not text or not role:
+            continue
+        line = f"{role}: {text}"
+        if total_chars + len(line) > max_input_chars:
+            remaining = max_input_chars - total_chars - 20
+            if remaining > 50:
+                parts.append(line[:remaining] + "…")
+            break
+        parts.append(line)
+        total_chars += len(line) + 1
+    return "\n".join(parts)
+
+
+def _build_summary_generator(provider: str, model: str, api_key: str):
+    """Build a summary_generator callback for LlmSummaryOptimizer.
+
+    Signature: (previous_summary, old_messages, max_chars, model_name) -> str
+    """
+    normalized_provider = str(provider or "").strip().lower()
+
+    def generate_summary(
+        previous_summary: str,
+        old_messages: list,
+        max_chars: int,
+        model_name: str,
+    ) -> str:
+        prompt_text = _format_messages_for_summary(previous_summary, old_messages)
+        if not prompt_text.strip():
+            return previous_summary or ""
+
+        user_msg = f"{prompt_text}\n\nSummarize in under {max_chars} characters."
+
+        if normalized_provider == "anthropic":
+            try:
+                import anthropic
+                client = anthropic.Anthropic(api_key=api_key)
+                response = client.messages.create(
+                    model=model_name or model,
+                    max_tokens=max(256, max_chars // 3),
+                    system=_SUMMARY_SYSTEM_PROMPT,
+                    messages=[{"role": "user", "content": user_msg}],
+                )
+                text = ""
+                for block in response.content:
+                    if hasattr(block, "text"):
+                        text += block.text
+                return text.strip()[:max_chars]
+            except Exception:
+                return previous_summary or ""
+
+        if normalized_provider == "openai":
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=api_key)
+                response = client.responses.create(
+                    model=model_name or model,
+                    instructions=_SUMMARY_SYSTEM_PROMPT,
+                    input=user_msg,
+                    max_output_tokens=max(256, max_chars // 3),
+                )
+                return (response.output_text or "").strip()[:max_chars]
+            except Exception:
+                return previous_summary or ""
+
+        # Unsupported provider — return previous summary as-is
+        return previous_summary or ""
+
+    return generate_summary
+
+
 # Block types whose ``text`` field should be extracted as plain content.
 _TEXT_BLOCK_TYPES = {"text", "output_text", "input_text"}
 # Block types that represent model reasoning / thinking.  We wrap them in
@@ -2703,12 +2827,83 @@ def _build_developer_agent(
         modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
 
+    # ── Context window optimizers ──
+    OptimizersModule = _OptimizersModule
+    LastNOptimizer = _LastNOptimizer
+    LastNOptimizerConfig = _LastNOptimizerConfig
+    LlmSummaryOptimizer = _LlmSummaryOptimizer
+    LlmSummaryOptimizerConfig = _LlmSummaryOptimizerConfig
+    ToolHistoryCompactionOptimizer = _ToolHistoryCompactionOptimizer
+    if (
+        OptimizersModule is not None
+        and LastNOptimizer is not None
+        and LlmSummaryOptimizer is not None
+        and ToolHistoryCompactionOptimizer is not None
+    ):
+        optimizer_harnesses = [ToolHistoryCompactionOptimizer()]
+        summary_gen = _build_summary_generator(provider, model, api_key)
+        optimizer_harnesses.append(
+            LlmSummaryOptimizer(
+                LlmSummaryOptimizerConfig(
+                    summary_trigger_pct=0.60,
+                    summary_target_pct=0.35,
+                    max_summary_chars=2400,
+                    summary_generator=summary_gen,
+                )
+            )
+        )
+        optimizer_harnesses.append(
+            LastNOptimizer(LastNOptimizerConfig(last_n_turns=10))
+        )
+        modules.append(OptimizersModule(harnesses=tuple(optimizer_harnesses)))
+
     if (
         enable_subagents
         and SubagentModule is not None
         and SubagentTemplate is not None
         and SubagentPolicy is not None
     ):
+        # Build lightweight standalone agents for subagent templates.
+        # These do NOT inherit the developer's full system prompt, optimizer
+        # pipeline, or subagent module — keeping their context small and cheap.
+        _subagent_base_modules = []
+        if toolkits:
+            _subagent_base_modules.append(ToolsModule(tools=tuple(toolkits)))
+        _subagent_base_modules.append(PoliciesModule(max_iterations=max(2, max_iterations // 3)))
+
+        analyzer_agent = UnchainAgent(
+            name="analyzer",
+            instructions=_compose_agent_prompt({
+                "identity": "You are a read-only code analysis specialist.",
+                "capability": "You can read files, search code, and list directories. You cannot modify files.",
+                "constraints": (
+                    "- Only use read-only tools.\n"
+                    "- Be concise. Return structured findings, not raw file contents.\n"
+                    "- If a file or directory does not exist, say so immediately and stop."
+                ),
+            }),
+            provider=provider,
+            model=model,
+            api_key=api_key or None,
+            modules=tuple(_subagent_base_modules),
+        )
+        executor_agent = UnchainAgent(
+            name="executor",
+            instructions=_compose_agent_prompt({
+                "identity": "You are a terminal command execution specialist.",
+                "capability": "You can run shell commands via terminal_exec.",
+                "constraints": (
+                    "- Only run the commands specified in your task.\n"
+                    "- Return the command output concisely. Summarize, don't dump raw output.\n"
+                    "- If a command fails, report the error and stop."
+                ),
+            }),
+            provider=provider,
+            model=model,
+            api_key=api_key or None,
+            modules=tuple(_subagent_base_modules),
+        )
+
         modules.append(
             SubagentModule(
                 templates=(
@@ -2718,6 +2913,7 @@ def _build_developer_agent(
                             "Read-only code analysis specialist. Use for inspecting files, "
                             "searching code, and understanding architecture without making changes."
                         ),
+                        agent=analyzer_agent,
                         allowed_modes=("delegate", "worker"),
                         output_mode="last_message",
                         memory_policy="ephemeral",
@@ -2730,6 +2926,7 @@ def _build_developer_agent(
                             "Terminal command executor. Use for running tests, builds, "
                             "linters, or other shell commands in parallel."
                         ),
+                        agent=executor_agent,
                         allowed_modes=("delegate", "worker"),
                         output_mode="last_message",
                         memory_policy="ephemeral",

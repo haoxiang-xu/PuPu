@@ -355,6 +355,9 @@ class MemoryFactoryTests(unittest.TestCase):
         fake_memory_manager_module._collect_complete_turns_for_vector_index = (
             fake_collect_complete_turns_for_vector_index
         )
+        fake_memory_manager_module.JsonFileLongTermProfileStore = type(
+            "JsonFileLongTermProfileStore", (), {"__init__": lambda self, **kw: None}
+        )
 
         fake_memory_qdrant_module = types.ModuleType("miso.memory.qdrant")
         fake_memory_qdrant_module.JsonFileSessionStore = FakeJsonFileSessionStore
@@ -365,6 +368,11 @@ class MemoryFactoryTests(unittest.TestCase):
         fake_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
         fake_memory_module.qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
         fake_pkg.memory_qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
+
+        # unchain.* aliases — memory_factory.py imports from unchain.memory.*
+        fake_unchain_pkg = types.ModuleType("unchain")
+        fake_unchain_pkg.__path__ = []  # type: ignore[attr-defined]
+        fake_unchain_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
 
         fake_client = types.SimpleNamespace(
             delete_collection=lambda **kwargs: delete_calls["collections"].append(
@@ -377,6 +385,10 @@ class MemoryFactoryTests(unittest.TestCase):
             "miso.memory": fake_memory_module,
             "miso.memory.manager": fake_memory_manager_module,
             "miso.memory.qdrant": fake_memory_qdrant_module,
+            "unchain": fake_unchain_pkg,
+            "unchain.memory": fake_memory_module,
+            "unchain.memory.manager": fake_memory_manager_module,
+            "unchain.memory.qdrant": fake_memory_qdrant_module,
         }
 
         return modules, FakeJsonFileSessionStore, fake_client, delete_calls
