@@ -122,7 +122,7 @@ export const useChatStream = ({
   const parentRunIdRef = useRef("");
   const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
   const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
-  const suppressNextTokenRef = useRef(false);
+  const lastTokenRunIdRef = useRef("");
 
   const buildCharacterRunConfig = useCallback(async () => {
     if (!isCharacterChat) {
@@ -770,7 +770,7 @@ export const useChatStream = ({
       parentRunIdRef.current = "";
       subagentMetaByRunIdRef.current.clear();
       subagentFramesByRunIdRef.current.clear();
-      suppressNextTokenRef.current = false;
+      lastTokenRunIdRef.current = "";
 
       const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
@@ -1040,8 +1040,7 @@ export const useChatStream = ({
       const isKnownSubagentRunId = (runId) =>
         typeof runId === "string" &&
         runId.length > 0 &&
-        parentRunIdRef.current &&
-        runId !== parentRunIdRef.current &&
+        (!parentRunIdRef.current || runId !== parentRunIdRef.current) &&
         (subagentMetaByRunIdRef.current.has(runId) ||
           subagentFramesByRunIdRef.current.has(runId));
 
@@ -1328,10 +1327,8 @@ export const useChatStream = ({
             onFrame: (frame) => {
               if (!frame) return;
               if (frame.type === "token_delta") {
-                const frameRunId = frame.run_id || frame.payload?.run_id || "";
-                if (isKnownSubagentRunId(frameRunId)) {
-                  suppressNextTokenRef.current = true;
-                }
+                lastTokenRunIdRef.current =
+                  frame.run_id || frame.payload?.run_id || "";
                 return;
               }
 
@@ -1890,10 +1887,14 @@ export const useChatStream = ({
               }
             },
             onToken: (delta) => {
-              if (suppressNextTokenRef.current) {
-                suppressNextTokenRef.current = false;
+              if (
+                lastTokenRunIdRef.current &&
+                isKnownSubagentRunId(lastTokenRunIdRef.current)
+              ) {
+                lastTokenRunIdRef.current = "";
                 return;
               }
+              lastTokenRunIdRef.current = "";
               if (typeof delta !== "string" || !delta) {
                 return;
               }

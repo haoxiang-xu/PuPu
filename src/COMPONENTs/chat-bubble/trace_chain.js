@@ -732,7 +732,7 @@ const TraceChain = ({
     return map;
   }, [frames]);
 
-  const childRunIdBySubagentId = useMemo(() => {
+  const childRunIdsBySubagentId = useMemo(() => {
     const map = new Map();
     Object.entries(effectiveSubagentMetaByRunId).forEach(([runId, meta]) => {
       const subagentId =
@@ -740,7 +740,10 @@ const TraceChain = ({
       if (!subagentId) {
         return;
       }
-      map.set(subagentId, runId);
+      if (!map.has(subagentId)) {
+        map.set(subagentId, []);
+      }
+      map.get(subagentId).push(runId);
     });
     return map;
   }, [effectiveSubagentMetaByRunId]);
@@ -920,14 +923,14 @@ const TraceChain = ({
             });
 
           const childTimelineItems =
-            !isHandoff && isDelegate
+            isDelegate || isHandoff
               ? (() => {
                   const agentName =
                     typeof result?.agent_name === "string"
                       ? result.agent_name
                       : "";
                   const childRunId = agentName
-                    ? childRunIdBySubagentId.get(agentName) || ""
+                    ? (childRunIdsBySubagentId.get(agentName) || [])[0] || ""
                     : "";
                   const childMeta = childRunId
                     ? effectiveSubagentMetaByRunId[childRunId]
@@ -940,7 +943,7 @@ const TraceChain = ({
                   }
                   return [
                     {
-                      key: `${frame.seq}-${childRunId || agentName || "delegate"}`,
+                      key: `${frame.seq}-${childRunId || agentName || (isHandoff ? "handoff" : "delegate")}`,
                       meta: childMeta,
                       frames: Array.isArray(childFrames) ? childFrames : [],
                       status:
@@ -958,54 +961,60 @@ const TraceChain = ({
                     },
                   ];
                 })()
-              : !isHandoff && isBatch
-                ? batchResults.map((childResult, index) => {
-                    const agentName =
-                      typeof childResult?.agent_name === "string"
-                        ? childResult.agent_name
-                        : "";
-                    const childRunId = agentName
-                      ? childRunIdBySubagentId.get(agentName) || ""
-                      : "";
-                    const childMeta = childRunId
-                      ? effectiveSubagentMetaByRunId[childRunId]
-                      : null;
-                    const childFrames = childRunId
-                      ? effectiveSubagentFrames[childRunId]
-                      : [];
-                    const childTask =
-                      typeof batchTasks[index]?.task === "string"
-                        ? batchTasks[index].task
-                        : "";
-                    const childPreview =
-                      typeof childResult?.summary === "string" &&
-                      childResult.summary.trim()
-                        ? childResult.summary
-                        : typeof childResult?.output === "string" &&
-                            childResult.output.trim()
-                          ? childResult.output
-                          : typeof childResult?.error === "string"
-                            ? childResult.error
-                            : "";
-                    return {
-                      key: `${frame.seq}-${childRunId || agentName || index}`,
-                      meta: childMeta,
-                      frames: Array.isArray(childFrames) ? childFrames : [],
-                      status:
-                        typeof childResult?.status === "string" &&
-                        childResult.status.trim()
-                          ? childResult.status
-                          : childMeta?.status || "",
-                      task: childTask,
-                      preview: childPreview,
-                      agentName,
-                      template:
-                        typeof childResult?.template_name === "string"
-                          ? childResult.template_name
-                          : childMeta?.template || target,
-                      orphaned: !childRunId,
-                    };
-                  })
+              : isBatch
+                ? (() => {
+                    const usedRunIds = new Set();
+                    return batchResults.map((childResult, index) => {
+                      const agentName =
+                        typeof childResult?.agent_name === "string"
+                          ? childResult.agent_name
+                          : "";
+                      const candidates = agentName
+                        ? childRunIdsBySubagentId.get(agentName) || []
+                        : [];
+                      const childRunId =
+                        candidates.find((id) => !usedRunIds.has(id)) || "";
+                      if (childRunId) usedRunIds.add(childRunId);
+                      const childMeta = childRunId
+                        ? effectiveSubagentMetaByRunId[childRunId]
+                        : null;
+                      const childFrames = childRunId
+                        ? effectiveSubagentFrames[childRunId]
+                        : [];
+                      const childTask =
+                        typeof batchTasks[index]?.task === "string"
+                          ? batchTasks[index].task
+                          : "";
+                      const childPreview =
+                        typeof childResult?.summary === "string" &&
+                        childResult.summary.trim()
+                          ? childResult.summary
+                          : typeof childResult?.output === "string" &&
+                              childResult.output.trim()
+                            ? childResult.output
+                            : typeof childResult?.error === "string"
+                              ? childResult.error
+                              : "";
+                      return {
+                        key: `${frame.seq}-${childRunId || agentName || "w"}-${index}`,
+                        meta: childMeta,
+                        frames: Array.isArray(childFrames) ? childFrames : [],
+                        status:
+                          typeof childResult?.status === "string" &&
+                          childResult.status.trim()
+                            ? childResult.status
+                            : childMeta?.status || "",
+                        task: childTask,
+                        preview: childPreview,
+                        agentName,
+                        template:
+                          typeof childResult?.template_name === "string"
+                            ? childResult.template_name
+                            : childMeta?.template || target,
+                        orphaned: !childRunId,
+                      };
+                    });
+                  })()
                 : [];
 
           /* ── build branch children (git-graph fork/merge) ── */
@@ -1653,7 +1662,7 @@ const TraceChain = ({
     status,
     bundle,
     compact,
-    childRunIdBySubagentId,
+    childRunIdsBySubagentId,
     effectiveSubagentFrames,
     effectiveSubagentMetaByRunId,
     branchState,

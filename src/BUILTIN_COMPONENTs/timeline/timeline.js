@@ -579,7 +579,7 @@ const BranchGroup = ({
   const alwaysItems = useAnimation ? items.slice(0, animateFrom) : items;
   const animatedItems = useAnimation ? items.slice(animateFrom) : [];
 
-  const visibleTotal = useAnimation && !open ? alwaysItems.length : items.length;
+  const visibleTotal = items.length;
 
   const renderNode = (child, i) => (
     <BranchNode
