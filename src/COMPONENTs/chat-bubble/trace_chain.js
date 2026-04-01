@@ -1073,9 +1073,7 @@ const TraceChain = ({
             span: !isBranchExpanded ? spanText : undefined,
             status: resultFrame ? "done" : "active",
             point: !isBranchExpanded
-              ? resultFrame
-                ? <SubagentPoint isDark={isDark} />
-                : "loading"
+              ? <SubagentPoint isDark={isDark} />
               : <span style={{ width: 0, height: 0 }} />,
           });
 
@@ -1175,19 +1173,6 @@ const TraceChain = ({
             });
           }
 
-          /* fallback if no children yet */
-          if (branchChildren.length === 1 && !childTimelineItems.length && !resultFrame) {
-            branchChildren.push({
-              key: `${frame.seq}-loading`,
-              title: (
-                <span style={labelStyle}>
-                  {target}…
-                </span>
-              ),
-              status: "active",
-              point: "loading",
-            });
-          }
 
           items.push({
             key: `${frame.seq}-subagent`,
