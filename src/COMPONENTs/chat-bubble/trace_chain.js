@@ -426,18 +426,6 @@ const getSubagentTraceStatus = (status) => {
   return "done";
 };
 
-const getTimelineLineColor = (status, timelineTheme, isDark) => {
-  if (status === "done") {
-    return timelineTheme?.lineDoneColor ??
-      (isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.18)");
-  }
-  if (status === "active") {
-    return "rgba(10,186,181,0.38)";
-  }
-  return timelineTheme?.lineColor ??
-    (isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)");
-};
-
 /* ─── BranchExpandArrow ─────────────────────────────────────────────────────── */
 const BranchExpandArrow = ({ open, onClick, isDark }) => (
   <button
@@ -484,217 +472,6 @@ const BranchExpandArrow = ({ open, onClick, isDark }) => (
     />
   </button>
 );
-
-const SubagentTimelineDisclosure = ({
-  child,
-  isDark,
-  color,
-  subagentFrames,
-  subagentMetaByRunId,
-}) => {
-  const { theme } = useContext(ConfigContext);
-  const [open, setOpen] = useState(false);
-  const childFrames = Array.isArray(child?.frames) ? child.frames : [];
-  const hasFrames = childFrames.length > 0;
-  const taskText =
-    typeof child?.task === "string" ? child.task.trim() : "";
-  const previewText =
-    typeof child?.preview === "string" ? child.preview.trim() : "";
-  const template =
-    typeof child?.template === "string" ? child.template.trim() : "";
-  const label = getSubagentShortLabel({
-    meta: child?.meta,
-    fallbackAgentName: child?.agentName,
-    fallbackTemplate: template,
-  });
-  const status =
-    typeof child?.status === "string" && child.status.trim()
-      ? child.status.trim()
-      : "pending";
-  const statusColor = getSubagentStatusColor(status, isDark);
-  const traceStatus = getSubagentTraceStatus(status);
-  const lineColor = getTimelineLineColor(
-    traceStatus === "streaming"
-      ? "active"
-      : traceStatus === "done"
-        ? "done"
-        : "pending",
-    theme?.timeline,
-    isDark,
-  );
-
-  return (
-    <div
-      style={{
-        borderRadius: 8,
-        padding: "8px 10px",
-        background: "transparent",
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            flexWrap: "wrap",
-          }}
-        >
-          {hasFrames ? (
-            <button
-              type="button"
-              onClick={() => setOpen((value) => !value)}
-              aria-label="Toggle subagent timeline"
-              aria-expanded={open}
-              style={{
-                border: `1px solid ${lineColor}`,
-                borderRadius: 7,
-                width: 20,
-                height: 20,
-                padding: 0,
-                background: "transparent",
-                color,
-                opacity: 0.78,
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Icon
-                src="arrow_right"
-                color={color}
-                style={{
-                  width: 12,
-                  height: 12,
-                  opacity: 0.62,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  transition: "transform 0.2s ease",
-                  transform: open ? "rotate(90deg)" : "rotate(0deg)",
-                }}
-              />
-            </button>
-          ) : null}
-          <span
-            style={{
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-              fontSize: 10,
-              color: isDark
-                ? "rgba(196,170,255,0.82)"
-                : "rgba(109,40,217,0.76)",
-              userSelect: "none",
-            }}
-          >
-            {label}
-          </span>
-          {template && template !== label ? (
-            <span
-              style={{
-                fontFamily: "Menlo, Monaco, Consolas, monospace",
-                fontSize: 9.5,
-                color,
-                opacity: 0.34,
-                userSelect: "none",
-              }}
-            >
-              {template}
-            </span>
-          ) : null}
-          <span
-            style={{
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-              fontSize: 9.5,
-              color: statusColor,
-              userSelect: "none",
-            }}
-          >
-            {status}
-          </span>
-        </div>
-        {taskText ? (
-          <div
-            style={{
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-              fontSize: 10,
-              color,
-              opacity: 0.48,
-              whiteSpace: "pre-wrap",
-              wordBreak: "break-word",
-              lineHeight: 1.4,
-            }}
-          >
-            {truncateInlineText(taskText, 180)}
-          </div>
-        ) : null}
-        {!hasFrames ? (
-          <div
-            style={{
-              fontFamily: "Menlo, Monaco, Consolas, monospace",
-              fontSize: 10,
-              color,
-              opacity: 0.52,
-              lineHeight: 1.4,
-            }}
-          >
-            {child?.orphaned
-              ? "Detailed child timeline unavailable."
-              : previewText || "Waiting for child timeline…"}
-          </div>
-        ) : null}
-      </div>
-      {hasFrames ? (
-        <AnimatedChildren open={open}>
-          <div
-            style={{
-              marginTop: 8,
-              paddingTop: 8,
-              borderTop: `1px solid ${lineColor}`,
-            }}
-          >
-            <TraceChain
-              frames={childFrames}
-              status={getSubagentTraceStatus(status)}
-              showContainerHeader={false}
-              bubbleOwnsFinalMessage={false}
-              compact
-              subagentFrames={subagentFrames}
-              subagentMetaByRunId={subagentMetaByRunId}
-            />
-          </div>
-        </AnimatedChildren>
-      ) : null}
-    </div>
-  );
-};
-
-const SubagentTimelineList = ({
-  children = [],
-  isDark,
-  color,
-  subagentFrames,
-  subagentMetaByRunId,
-}) => {
-  if (!Array.isArray(children) || children.length === 0) {
-    return null;
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {children.map((child) => (
-        <SubagentTimelineDisclosure
-          key={child.key}
-          child={child}
-          isDark={isDark}
-          color={color}
-          subagentFrames={subagentFrames}
-          subagentMetaByRunId={subagentMetaByRunId}
-        />
-      ))}
-    </div>
-  );
-};
 
 /* hollow circle point marker for tool_call */
 const HammerPoint = ({ isDark }) => (
@@ -828,9 +605,6 @@ const TraceChain = ({
   }, []);
 
   const isStreaming = status === "streaming";
-  const timelineDetailsBackground = theme?.timeline?.detailsBackground;
-  const timelineFontSize = theme?.timeline?.fontSize;
-  const timelineSpanColor = theme?.timeline?.spanColor;
   const effectiveSubagentFrames = useMemo(
     () =>
       subagentFrames && typeof subagentFrames === "object" ? subagentFrames : {},
@@ -1897,9 +1671,6 @@ const TraceChain = ({
     childRunIdBySubagentId,
     effectiveSubagentFrames,
     effectiveSubagentMetaByRunId,
-    timelineDetailsBackground,
-    timelineFontSize,
-    timelineSpanColor,
     branchState,
     toggleBranchSummary,
     toggleBranchWorker,
