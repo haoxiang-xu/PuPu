@@ -438,6 +438,53 @@ const getTimelineLineColor = (status, timelineTheme, isDark) => {
     (isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.12)");
 };
 
+/* ─── BranchExpandArrow ─────────────────────────────────────────────────────── */
+const BranchExpandArrow = ({ open, onClick, isDark }) => (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      onClick();
+    }}
+    aria-label={open ? "Collapse" : "Expand"}
+    style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 3,
+      padding: 0,
+      background: "transparent",
+      border: "none",
+      cursor: "pointer",
+      fontSize: "10px",
+      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
+      fontFamily: "Menlo, Monaco, Consolas, monospace",
+      outline: "none",
+      userSelect: "none",
+      WebkitUserSelect: "none",
+      flexShrink: 0,
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.opacity = "0.6";
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.opacity = "1";
+    }}
+  >
+    {open ? "hide" : "detail"}
+    <Icon
+      src="arrow_down"
+      color="currentColor"
+      style={{
+        width: 14,
+        height: 14,
+        transition: "transform 0.22s cubic-bezier(0.32,1,0.32,1)",
+        transform: open ? "rotate(180deg)" : "rotate(0deg)",
+        flexShrink: 0,
+      }}
+    />
+  </button>
+);
+
 const SubagentTimelineDisclosure = ({
   child,
   isDark,
@@ -711,6 +758,7 @@ const TokenSummary = ({ input, output, total, isDark }) => {
   );
 };
 
+
 /* ─── TraceChain ─────────────────────────────────────────────────────────── */
 
 const TraceChain = ({
@@ -727,6 +775,7 @@ const TraceChain = ({
   showContainerHeader = true,
   bubbleOwnsFinalMessage = true,
   compact = false,
+  hideTrack = false,
 }) => {
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
@@ -750,6 +799,33 @@ const TraceChain = ({
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || "#222";
   const [bodyOpen, setBodyOpen] = useState(true);
+
+  /* ── branch expand state for subagent fork/merge ── */
+  const [branchState, setBranchState] = useState(() => new Map());
+  const toggleBranchSummary = useCallback((callId) => {
+    setBranchState((prev) => {
+      const next = new Map(prev);
+      const cur = next.get(callId) || {
+        expanded: false,
+        expandedWorkers: new Set(),
+      };
+      next.set(callId, { ...cur, expanded: !cur.expanded });
+      return next;
+    });
+  }, []);
+  const toggleBranchWorker = useCallback((callId, wi) => {
+    setBranchState((prev) => {
+      const next = new Map(prev);
+      const cur = next.get(callId) || {
+        expanded: true,
+        expandedWorkers: new Set(),
+      };
+      const nw = new Set(cur.expandedWorkers);
+      nw.has(wi) ? nw.delete(wi) : nw.add(wi);
+      next.set(callId, { ...cur, expandedWorkers: nw });
+      return next;
+    });
+  }, []);
 
   const isStreaming = status === "streaming";
   const timelineDetailsBackground = theme?.timeline?.detailsBackground;
@@ -1158,91 +1234,193 @@ const TraceChain = ({
                   })
                 : [];
 
-          const childTimelineList =
-            childTimelineItems.length > 0 ? (
-              <SubagentTimelineList
-                children={childTimelineItems}
-                isDark={isDark}
-                color={color}
-                subagentFrames={effectiveSubagentFrames}
-                subagentMetaByRunId={effectiveSubagentMetaByRunId}
-              />
-            ) : undefined;
-          const detailCard =
-            detailSections.length > 0 ? (
-              <div
-                style={{
-                  padding: compact ? "6px 8px" : "8px 10px",
-                  borderRadius: compact ? 6 : 8,
-                  background: timelineDetailsBackground ?? "rgba(0,0,0,0.025)",
-                  fontSize: timelineFontSize ?? (compact ? "12px" : "13px"),
-                  color: timelineSpanColor ?? "rgba(0,0,0,0.45)",
-                }}
-              >
-                <KVPanel sections={detailSections} isDark={isDark} color={color} />
-              </div>
-            ) : undefined;
-          const expandedDetails =
-            detailCard || childTimelineList ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {childTimelineList}
-                {detailCard}
-              </div>
-            ) : undefined;
-
+          /* ── build branch children (git-graph fork/merge) ── */
           const modeLabel = isBatch
             ? "workers"
             : isDelegate
               ? "delegate"
               : "handoff";
+          const bKey = callId || `seq-${frame.seq}`;
+          const bState = branchState.get(bKey);
+          const isBranchExpanded = bState?.expanded ?? false;
+          const bExpandedWorkers = bState?.expandedWorkers ?? new Set();
 
-          items.push({
-            key: `${frame.seq}-subagent`,
+          const labelStyle = {
+            fontSize: 10,
+            fontFamily: "Menlo, Monaco, Consolas, monospace",
+            color: isDark
+              ? "rgba(255,255,255,0.35)"
+              : "rgba(0,0,0,0.3)",
+            userSelect: "none",
+          };
+          const statusStyle = {
+            fontSize: 10,
+            fontFamily: "Menlo, Monaco, Consolas, monospace",
+            color: failed
+              ? isDark
+                ? "rgba(252,165,165,0.9)"
+                : "rgba(220,38,38,0.85)"
+              : isDark
+                ? "rgba(110,231,183,0.8)"
+                : "rgba(5,150,105,0.8)",
+            userSelect: "none",
+          };
+
+          const branchChildren = [];
+
+          /* header node (always index 0, always visible) */
+          branchChildren.push({
+            key: `${frame.seq}-header`,
             title: (
-              <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontFamily: "Menlo, Monaco, Consolas, monospace",
-                    color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
-                    userSelect: "none",
-                  }}
-                >
-                  {modeLabel}
-                </span>
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <span style={labelStyle}>{modeLabel}</span>
                 <SubagentTag name={target} isDark={isDark} />
                 {batchCount > 0 && (
                   <CountBadge count={batchCount} isDark={isDark} />
                 )}
-                {resultStatus && (
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontFamily: "Menlo, Monaco, Consolas, monospace",
-                      color: failed
-                        ? isDark
-                          ? "rgba(252,165,165,0.9)"
-                          : "rgba(220,38,38,0.85)"
-                        : isDark
-                          ? "rgba(110,231,183,0.8)"
-                          : "rgba(5,150,105,0.8)",
-                      userSelect: "none",
-                    }}
-                  >
-                    {resultStatus}
-                  </span>
+                {resultStatus && failed && (
+                  <span style={statusStyle}>{resultStatus}</span>
+                )}
+                {childTimelineItems.length > 0 && (
+                  <BranchExpandArrow
+                    open={isBranchExpanded}
+                    onClick={() => toggleBranchSummary(bKey)}
+                    isDark={isDark}
+                  />
                 )}
               </span>
             ),
-            span: spanText,
+            span: !isBranchExpanded ? spanText : undefined,
             status: resultFrame ? "done" : "active",
-            point: resultFrame ? (
-              <SubagentPoint isDark={isDark} />
-            ) : (
-              "loading"
-            ),
-            detailsBare: Boolean(expandedDetails),
-            details: expandedDetails,
+            point: !isBranchExpanded
+              ? resultFrame
+                ? <SubagentPoint isDark={isDark} />
+                : "loading"
+              : <span style={{ width: 0, height: 0 }} />,
+          });
+
+          /* worker nodes (animated via branchAnimateFrom=1) */
+          for (let wi = 0; wi < childTimelineItems.length; wi++) {
+            const worker = childTimelineItems[wi];
+            const isWExpanded = bExpandedWorkers.has(wi);
+            const wLabel = getSubagentShortLabel({
+              meta: worker.meta,
+              fallbackAgentName: worker.agentName,
+              fallbackTemplate: worker.template,
+            });
+            const wStatusColor = getSubagentStatusColor(
+              worker.status,
+              isDark,
+            );
+            const hasWFrames =
+              Array.isArray(worker.frames) && worker.frames.length > 0;
+
+            branchChildren.push({
+              key: worker.key,
+              title: (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "Menlo, Monaco, Consolas, monospace",
+                      fontSize: 10,
+                      color: isDark
+                        ? "rgba(196,170,255,0.82)"
+                        : "rgba(109,40,217,0.76)",
+                      userSelect: "none",
+                    }}
+                  >
+                    {wLabel}
+                  </span>
+                  {worker.template && worker.template !== wLabel && (
+                    <span
+                      style={{
+                        fontFamily: "Menlo, Monaco, Consolas, monospace",
+                        fontSize: 9.5,
+                        color,
+                        opacity: 0.34,
+                        userSelect: "none",
+                      }}
+                    >
+                      {worker.template}
+                    </span>
+                  )}
+                  <span
+                    style={{
+                      fontFamily: "Menlo, Monaco, Consolas, monospace",
+                      fontSize: 9.5,
+                      color: wStatusColor,
+                      userSelect: "none",
+                    }}
+                  >
+                    {worker.status || "pending"}
+                  </span>
+                  {hasWFrames && (
+                    <BranchExpandArrow
+                      open={isWExpanded}
+                      onClick={() => toggleBranchWorker(bKey, wi)}
+                      isDark={isDark}
+                    />
+                  )}
+                </span>
+              ),
+              span: worker.task
+                ? truncateInlineText(worker.task, 120)
+                : undefined,
+              status:
+                getSubagentTraceStatus(worker.status) === "done"
+                  ? "done"
+                  : getSubagentTraceStatus(worker.status) === "streaming"
+                    ? "active"
+                    : "pending",
+              point: <SubagentPoint isDark={isDark} />,
+              expandContent: hasWFrames ? (
+                <TraceChain
+                  frames={worker.frames}
+                  status={getSubagentTraceStatus(worker.status)}
+                  showContainerHeader={false}
+                  bubbleOwnsFinalMessage={false}
+                  compact
+                  hideTrack
+                  subagentFrames={effectiveSubagentFrames}
+                  subagentMetaByRunId={effectiveSubagentMetaByRunId}
+                />
+              ) : undefined,
+              isExpanded: isWExpanded,
+            });
+          }
+
+          /* fallback if no children yet */
+          if (branchChildren.length === 1 && !childTimelineItems.length && !resultFrame) {
+            branchChildren.push({
+              key: `${frame.seq}-loading`,
+              title: (
+                <span style={labelStyle}>
+                  {target}…
+                </span>
+              ),
+              status: "active",
+              point: "loading",
+            });
+          }
+
+          items.push({
+            key: `${frame.seq}-subagent`,
+            status: resultFrame ? "done" : "active",
+            children: branchChildren,
+            branchOpen: isBranchExpanded,
+            branchAnimateFrom: childTimelineItems.length > 0 ? 1 : 0,
           });
           continue;
         }
@@ -1709,6 +1887,9 @@ const TraceChain = ({
     timelineDetailsBackground,
     timelineFontSize,
     timelineSpanColor,
+    branchState,
+    toggleBranchSummary,
+    toggleBranchWorker,
   ]);
 
   if (timelineItems.length === 0) return null;
@@ -1720,6 +1901,7 @@ const TraceChain = ({
         <Timeline
           items={timelineItems}
           compact={compact}
+          hideTrack={hideTrack}
           style={{ fontSize: compact ? 12 : 13 }}
         />
       </div>

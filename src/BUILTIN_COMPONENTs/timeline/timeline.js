@@ -20,6 +20,10 @@ const TITLE_CY = TITLE_LINE_H / 2; // 10px — vertical center of first title li
 const DEFAULT_DOT_R = 5; // default 10 × 10 dot
 const PRESET_DOT_R = 6; // start/end   12 × 12 dot
 const LOADING_R = 8; // ArcSpinner  16 × 16
+
+// Branch layout
+const BRANCH_TRACK_W = 20; // px — branch track column width (narrower than main)
+const FORK_CURVE_H = 18; // px — height of fork/merge SVG curves
 /* ── layout constants ─────────────────────────────────────────────────────────────────────────────────────────────────────── */
 
 /* ── helpers ──────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -34,6 +38,11 @@ const resolvePointColor = (status, tl) => {
   if (status === "done")
     return tl.pointDoneColor ?? tl.pointColor ?? "rgba(10,186,181,1)";
   return tl.pointPendingColor ?? "rgba(0,0,0,0.18)";
+};
+
+/* opaque line color for branch elements — avoids darkening at SVG/div overlap joints */
+const resolveBranchLineColor = (_status, _tl, isDark) => {
+  return isDark ? "rgb(55,55,55)" : "rgb(210,210,210)";
 };
 
 const getPointRadius = (point) => {
@@ -107,6 +116,7 @@ const TimelineNode = ({
   tl,
   isPassThrough, // true for collapsed intermediate nodes
   compact = false,
+  hideTrack = false,
 }) => {
   const {
     title,
@@ -158,70 +168,72 @@ const TimelineNode = ({
       }}
     >
       {/* ══ Track column ══════════════════════════════════════════════════════ */}
-      <div
-        style={{
-          width: TRACK_WIDTH,
-          flexShrink: 0,
-          position: "relative",
-        }}
-      >
-        {/* top line segment */}
-        {index !== 0 && (
-          <div
-            style={{
-              position: "absolute",
-              top: 0,
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: LINE_WIDTH,
-              height: isPassThrough ? topLineH : Math.max(0, topLineH - 3),
-              background: topLineColor,
-              transition: "background 0.3s",
-            }}
-          />
-        )}
-        {/* point — hidden for pass-through nodes */}
-        {!isPassThrough && (
-          <div
-            style={{
-              position: "absolute",
-              top: topLineH,
-              left: "50%",
-              transform: "translateX(-50%)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {pointEl}
-          </div>
-        )}
-        {/* bottom line segment */}
-        {index !== total - 1 && (
-          <div
-            style={{
-              position: "absolute",
-              top: isPassThrough
-                ? topLineH
-                : topLineH + getPointRadius(point) * 2 + 3,
-              left: "50%",
-              transform: "translateX(-50%)",
-              bottom: 0,
-              width: LINE_WIDTH,
-              background: bottomLineColor,
-              transition: "background 0.3s",
-            }}
-          />
-        )}
-      </div>
+      {!hideTrack && (
+        <div
+          style={{
+            width: TRACK_WIDTH,
+            flexShrink: 0,
+            position: "relative",
+          }}
+        >
+          {/* top line segment */}
+          {index !== 0 && (
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: LINE_WIDTH,
+                height: isPassThrough ? topLineH : Math.max(0, topLineH - 3),
+                background: topLineColor,
+                transition: "background 0.3s",
+              }}
+            />
+          )}
+          {/* point — hidden for pass-through nodes */}
+          {!isPassThrough && (
+            <div
+              style={{
+                position: "absolute",
+                top: topLineH,
+                left: "50%",
+                transform: "translateX(-50%)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {pointEl}
+            </div>
+          )}
+          {/* bottom line segment */}
+          {index !== total - 1 && (
+            <div
+              style={{
+                position: "absolute",
+                top: isPassThrough
+                  ? topLineH
+                  : topLineH + getPointRadius(point) * 2 + 3,
+                left: "50%",
+                transform: "translateX(-50%)",
+                bottom: 0,
+                width: LINE_WIDTH,
+                background: bottomLineColor,
+                transition: "background 0.3s",
+              }}
+            />
+          )}
+        </div>
+      )}
 
       {/* ══ Content column ════════════════════════════════════════════════════ */}
       <div
         style={{
           flex: 1,
           minWidth: 0,
-          paddingLeft: compact ? 10 : 14,
-          paddingBottom: index === total - 1 ? 2 : compact ? 10 : 14,
+          paddingLeft: hideTrack ? 0 : compact ? 10 : 14,
+          paddingBottom: index === total - 1 ? 0 : compact ? 10 : 14,
         }}
       >
         {/* title + detail + spacer + span row */}
@@ -356,6 +368,322 @@ const TimelineNode = ({
 };
 /* ── TimelineNode (private) ───────────────────────────────────────────────────────────────────────────────────────────────── */
 
+/* ── Branch components (git-graph fork/merge) ────────────────────────────────────────────────────────────────────────────── */
+
+const ForkCurve = ({ width, height, color, strokeWidth }) => (
+  <svg
+    width={width}
+    height={height}
+    style={{ display: "block", overflow: "visible" }}
+  >
+    <path
+      d={`M 0,0 C 0,${height * 0.85} ${width},${height * 0.15} ${width},${height}`}
+      stroke={color}
+      strokeWidth={strokeWidth}
+      fill="none"
+    />
+  </svg>
+);
+
+const MergeCurve = ({ width, height, color, strokeWidth }) => (
+  <svg
+    width={width}
+    height={height}
+    style={{ display: "block", overflow: "visible" }}
+  >
+    <path
+      d={`M ${width},0 C ${width},${height * 0.85} 0,${height * 0.15} 0,${height}`}
+      stroke={color}
+      strokeWidth={strokeWidth}
+      fill="none"
+    />
+  </svg>
+);
+
+const BranchNode = ({
+  item,
+  index,
+  total,
+  prevStatus,
+  branchStatus,
+  tl,
+  compact = false,
+}) => {
+  const {
+    title,
+    span,
+    status = "pending",
+    point,
+    children,
+    expandContent,
+    isExpanded = false,
+  } = item;
+
+  const pointEl = useMemo(() => {
+    if (point === "start") return <DotStart tl={tl} />;
+    if (point === "end") return <DotEnd status={status} tl={tl} />;
+    if (point === "loading")
+      return (
+        <ArcSpinner
+          size={LOADING_R * 2}
+          stroke_width={2}
+          color={tl.pointColor ?? "rgba(10,186,181,1)"}
+        />
+      );
+    if (point != null && typeof point !== "string") return point;
+    return <DotDefault status={status} tl={tl} />;
+  }, [point, status, tl]);
+
+  const { onThemeMode } = useContext(ConfigContext);
+  const isDark = onThemeMode === "dark_mode";
+
+  const topLineH = Math.max(0, TITLE_CY - getPointRadius(point));
+
+  const topLineColor =
+    index === 0
+      ? resolveBranchLineColor(branchStatus, tl, isDark)
+      : resolveBranchLineColor(prevStatus, tl, isDark);
+  const bottomLineColor = resolveBranchLineColor(status, tl, isDark);
+
+  const hasBranch = Array.isArray(children) && children.length > 0;
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+      }}
+    >
+      <div
+        style={{
+          width: BRANCH_TRACK_W,
+          flexShrink: 0,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+        }}
+      >
+        <div
+          style={{
+            width: LINE_WIDTH,
+            height: index === 0 ? topLineH + 2 : topLineH,
+            flexShrink: 0,
+            background: topLineColor,
+            transition: "background 0.3s",
+          }}
+        />
+        <div
+          style={{
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {pointEl}
+        </div>
+        <div
+          style={{
+            flex: "1 1 auto",
+            width: LINE_WIDTH,
+            minHeight: index === total - 1 ? 0 : 12,
+            background: bottomLineColor,
+            transition: "background 0.3s",
+          }}
+        />
+      </div>
+
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          paddingLeft: compact ? 8 : 10,
+          paddingBottom: index === total - 1 ? 0 : compact ? 10 : 14,
+        }}
+      >
+        {title != null && (
+          <div
+            style={{
+              fontSize: tl.titleFontSize ?? (compact ? "13px" : "14px"),
+              fontWeight: 500,
+              color: tl.titleColor ?? "#222222",
+              lineHeight: `${TITLE_LINE_H}px`,
+              letterSpacing: "0.01em",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            {title}
+          </div>
+        )}
+        {span != null && (
+          <div
+            style={{
+              fontSize: tl.fontSize ?? (compact ? "11px" : "13px"),
+              color: tl.spanColor ?? "rgba(0,0,0,0.45)",
+              lineHeight: compact ? "16px" : "18px",
+              marginTop: title != null ? 2 : 0,
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
+            {span}
+          </div>
+        )}
+        {/* animated expandable content (e.g. nested TraceChain) */}
+        {expandContent != null && (
+          <AnimatedChildren open={isExpanded}>
+            <div style={{ marginTop: compact ? 4 : 6 }}>{expandContent}</div>
+          </AnimatedChildren>
+        )}
+        {hasBranch && (
+          <BranchGroup
+            items={children}
+            tl={tl}
+            branchStatus={status}
+            forkOffset={(compact ? 8 : 10) + BRANCH_TRACK_W / 2}
+            compact={compact}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const BranchGroup = ({
+  items,
+  tl,
+  branchStatus,
+  forkOffset,
+  compact = false,
+  open = true,
+  animateFrom = 0,
+}) => {
+  const { onThemeMode } = useContext(ConfigContext);
+  const isDark = onThemeMode === "dark_mode";
+  const forkColor = resolveBranchLineColor(
+    branchStatus === "pending" ? "pending" : "done",
+    tl,
+    isDark,
+  );
+  const lastStatus = items[items.length - 1]?.status ?? "pending";
+  const mergeColor = resolveBranchLineColor(
+    lastStatus === "pending" ? "pending" : "done",
+    tl,
+    isDark,
+  );
+  const curveWidth = forkOffset + BRANCH_TRACK_W / 2;
+
+  const useAnimation = animateFrom > 0 && animateFrom < items.length;
+  const alwaysItems = useAnimation ? items.slice(0, animateFrom) : items;
+  const animatedItems = useAnimation ? items.slice(animateFrom) : [];
+
+  const visibleTotal = useAnimation && !open ? alwaysItems.length : items.length;
+
+  const renderNode = (child, i) => (
+    <BranchNode
+      key={child.key ?? i}
+      item={child}
+      index={i}
+      total={visibleTotal}
+      prevStatus={i > 0 ? (items[i - 1].status ?? "pending") : null}
+      branchStatus={branchStatus}
+      tl={tl}
+      compact={compact}
+    />
+  );
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column" }}>
+      {/* fork curve */}
+      <div style={{ position: "relative", height: FORK_CURVE_H }}>
+        <div style={{ position: "absolute", left: -forkOffset, top: 0 }}>
+          <ForkCurve
+            width={curveWidth}
+            height={FORK_CURVE_H}
+            color={forkColor}
+            strokeWidth={LINE_WIDTH}
+          />
+        </div>
+      </div>
+      {alwaysItems.map((child, i) => renderNode(child, i))}
+
+      {useAnimation && animatedItems.length > 0 && (
+        <AnimatedChildren open={open}>
+          <div>
+            {animatedItems.map((child, i) =>
+              renderNode(child, animateFrom + i),
+            )}
+          </div>
+        </AnimatedChildren>
+      )}
+
+      <div style={{ position: "relative", height: FORK_CURVE_H }}>
+        <div style={{ position: "absolute", left: -forkOffset, top: 0 }}>
+          <MergeCurve
+            width={curveWidth}
+            height={FORK_CURVE_H}
+            color={mergeColor}
+            strokeWidth={LINE_WIDTH}
+          />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const BranchSection = ({ item, index, total, prevStatus, tl, compact = false }) => {
+  const branchStatus = item.status ?? "pending";
+  const isFirst = index === 0;
+  const isLast = index === total - 1;
+
+  return (
+    <div style={{ position: "relative" }}>
+      {!isFirst && (
+        <div
+          style={{
+            position: "absolute",
+            top: 0,
+            height: "50%",
+            left: TRACK_WIDTH / 2,
+            width: LINE_WIDTH,
+            transform: "translateX(-50%)",
+            background: resolveLineColor(prevStatus ?? "pending", tl),
+            transition: "background 0.3s",
+          }}
+        />
+      )}
+      {!isLast && (
+        <div
+          style={{
+            position: "absolute",
+            top: "50%",
+            bottom: 0,
+            left: TRACK_WIDTH / 2,
+            width: LINE_WIDTH,
+            transform: "translateX(-50%)",
+            background: resolveLineColor(branchStatus, tl),
+            transition: "background 0.3s",
+          }}
+        />
+      )}
+      <div style={{ paddingLeft: TRACK_WIDTH }}>
+        <BranchGroup
+          items={item.children}
+          tl={tl}
+          branchStatus={branchStatus}
+          forkOffset={TRACK_WIDTH / 2}
+          compact={compact}
+          open={item.branchOpen ?? true}
+          animateFrom={item.branchAnimateFrom ?? 0}
+        />
+      </div>
+    </div>
+  );
+};
+/* ── Branch components (git-graph fork/merge) ────────────────────────────────────────────────────────────────────────────── */
+
 /* ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
    Timeline
    ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -370,11 +698,12 @@ const TimelineNode = ({
    Item shape
    ──────────
    {
-     title   : string | ReactNode          — main label (aligned with the point)
-     span    : string | ReactNode          — secondary text / timestamp
-     details : ReactNode                   — collapsible content; enables "See details" button
-     point   : "start"|"end"|"loading"|ReactNode  — custom point marker; omit for default dot
-     status  : "done"|"active"|"pending"   — drives line + dot color; defaults to "pending"
+     title    : string | ReactNode          — main label (aligned with the point)
+     span     : string | ReactNode          — secondary text / timestamp
+     details  : ReactNode                   — collapsible content; enables "See details" button
+     point    : "start"|"end"|"loading"|ReactNode  — custom point marker; omit for default dot
+     status   : "done"|"active"|"pending"   — drives line + dot color; defaults to "pending"
+     children : Item[]                      — creates a fork/merge branch (git graph style)
    }
    ════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════════ */
 const Timeline = ({
@@ -384,6 +713,7 @@ const Timeline = ({
   on_expand_change = () => {},
   style,
   compact = false,
+  hideTrack = false,
 }) => {
   const { theme } = useContext(ConfigContext);
   const tl = useMemo(() => theme?.timeline ?? {}, [theme]);
@@ -425,6 +755,23 @@ const Timeline = ({
         const isActive = (item.status ?? "pending") === "active";
         const isPreset = item.point === "start" || item.point === "end";
         const isPassThrough = !isFirst && !isLast && !isActive && !isPreset;
+        const hasBranch =
+          Array.isArray(item.children) && item.children.length > 0;
+
+        if (hasBranch) {
+          return (
+            <BranchSection
+              key={i}
+              item={item}
+              index={i}
+              total={items.length}
+              prevStatus={i > 0 ? (items[i - 1].status ?? "pending") : null}
+              tl={tl}
+              compact={compact}
+            />
+          );
+        }
+
         return (
           <TimelineNode
             key={i}
@@ -437,6 +784,7 @@ const Timeline = ({
             tl={tl}
             isPassThrough={isPassThrough}
             compact={compact}
+            hideTrack={hideTrack}
           />
         );
       })}
