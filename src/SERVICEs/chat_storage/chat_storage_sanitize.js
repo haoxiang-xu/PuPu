@@ -558,6 +558,16 @@ export const sanitizeMessage = (message) => {
       };
     }
 
+    if (isObject(message.meta.bundle)) {
+      const b = message.meta.bundle;
+      const bundle = {};
+      if (typeof b.consumed_tokens === "number") bundle.consumed_tokens = b.consumed_tokens;
+      if (typeof b.input_tokens === "number") bundle.input_tokens = b.input_tokens;
+      if (typeof b.output_tokens === "number") bundle.output_tokens = b.output_tokens;
+      if (typeof b.model === "string" && b.model.trim()) bundle.model = trimText(b.model, 200);
+      if (Object.keys(bundle).length > 0) meta.bundle = bundle;
+    }
+
     if (Object.keys(meta).length > 0) {
       cleaned.meta = meta;
     }

@@ -1246,7 +1246,7 @@ const TraceChain = ({
           const bExpandedWorkers = bState?.expandedWorkers ?? new Set();
 
           const labelStyle = {
-            fontSize: 10,
+            fontSize: "0.82em",
             fontFamily: "Menlo, Monaco, Consolas, monospace",
             color: isDark
               ? "rgba(255,255,255,0.35)"
@@ -1254,7 +1254,7 @@ const TraceChain = ({
             userSelect: "none",
           };
           const statusStyle = {
-            fontSize: 10,
+            fontSize: "0.82em",
             fontFamily: "Menlo, Monaco, Consolas, monospace",
             color: failed
               ? isDark
@@ -1334,7 +1334,7 @@ const TraceChain = ({
                   <span
                     style={{
                       fontFamily: "Menlo, Monaco, Consolas, monospace",
-                      fontSize: 10,
+                      fontSize: "0.82em",
                       color: isDark
                         ? "rgba(196,170,255,0.82)"
                         : "rgba(109,40,217,0.76)",
@@ -1347,7 +1347,7 @@ const TraceChain = ({
                     <span
                       style={{
                         fontFamily: "Menlo, Monaco, Consolas, monospace",
-                        fontSize: 9.5,
+                        fontSize: "0.74em",
                         color,
                         opacity: 0.34,
                         userSelect: "none",
@@ -1359,7 +1359,7 @@ const TraceChain = ({
                   <span
                     style={{
                       fontFamily: "Menlo, Monaco, Consolas, monospace",
-                      fontSize: 9.5,
+                      fontSize: "0.74em",
                       color: wStatusColor,
                       userSelect: "none",
                     }}
@@ -1835,6 +1835,19 @@ const TraceChain = ({
           allSections.length > 0 ? (
             <KVPanel sections={allSections} isDark={isDark} color={color} />
           ) : undefined,
+      });
+    }
+
+    /* ── ensure a start node exists so branches never appear first ── */
+    if (
+      grouped.length > 0 &&
+      Array.isArray(grouped[0].children) &&
+      grouped[0].children.length > 0
+    ) {
+      grouped.unshift({
+        key: "__start__",
+        title: null,
+        status: "done",
       });
     }
 
