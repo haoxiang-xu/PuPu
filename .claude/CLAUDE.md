@@ -106,22 +106,17 @@ Python backend standalone:
 cd unchain_runtime/server && python main.py
 ```
 
-## Existing Documentation
+## Documentation
 
-Detailed skill docs live in `.github/skills/` — 14 markdown files covering:
-- Project conventions and build pipeline
-- Chat runtime, memory, and trace flow
-- System prompt V2 architecture (3-layer override)
-- Character system (personas, schedules, profiles)
-- Toolkit and tool catalog
-- Electron IPC boundary
-- Miso server endpoints
-- Chat storage reference
-- Workspace runtime and selection
-- Model providers and Ollama
-- Side menu / chat tree
-- Modal and settings page patterns
-- Backend API facade
+All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUIDE.md` for the full index.
+
+| Area | Doc |
+|------|-----|
+| Architecture | `docs/architecture/` — request flow, IPC boundary, system prompt, memory, storage |
+| Data Models | `docs/data-models/` — chat session, messages, catalogs, characters, tree |
+| API Reference | `docs/api-reference/` — Flask endpoints, IPC channels, window APIs, facades |
+| Features | `docs/features/` — characters, toolkits, workspaces, agent orchestration |
+| Conventions | `docs/conventions/` — naming, styling, build, testing, pitfalls |
 
 **Read these before making architectural changes.** They are the source of truth for patterns and conventions.
 
