@@ -1588,3 +1588,46 @@ def delete_long_term_memory_namespace(
         "deleted_collections": deleted_collections,
         "warnings": warnings,
     }
+
+
+from memory_paths import (  # noqa: E402
+    _character_avatars_dir,
+    _character_registry_path,
+    _characters_dir,
+    _data_dir,
+    _long_term_profile_path,
+    _long_term_profiles_dir,
+    _normalize_data_dir,
+    _qdrant_meta_path,
+    _qdrant_path,
+    _session_store_path,
+    _sessions_dir,
+)
+from memory_storage import (  # noqa: E402
+    _atomic_write_json,
+    _list_long_term_collection_names_for_namespace,
+    _load_long_term_profile,
+    _load_session_state,
+    _safe_long_term_namespace,
+)
+from memory_qdrant import (  # noqa: E402
+    _delete_collection_best_effort,
+    _delete_collection_best_effort_with_warning,
+    _get_or_create_qdrant_client,
+    _repair_qdrant_local_meta,
+)
+from memory_embeddings import (  # noqa: E402
+    _api_key_from_options,
+    _build_embed_runtime,
+    _fresh_vector_collection_tag,
+    _long_term_collection_prefix,
+    _normalize_embedding_model_name,
+    _ollama_base_url,
+    _ollama_reachable,
+    _prepare_vector_collection_tag,
+    _provider_from_model_id,
+    _session_collection_name,
+    _vector_collection_prefix,
+    _vector_embedding_signature,
+    resolve_embedding_config,
+)

@@ -2386,6 +2386,11 @@ def _resolve_workspace_toolkit_factory(toolkit_module: Any) -> Any:
     workspace_factory = getattr(toolkit_module, "WorkspaceToolkit", None)
     if callable(workspace_factory):
         return workspace_factory
+    from adapter_workspace_tools import build_legacy_workspace_toolkit_factory
+
+    legacy_factory = build_legacy_workspace_toolkit_factory(toolkit_module)
+    if callable(legacy_factory):
+        return legacy_factory
     raise RuntimeError("Miso WorkspaceToolkit is unavailable")
 
 
