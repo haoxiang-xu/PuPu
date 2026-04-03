@@ -848,7 +848,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(second_workspace_read["path"], "hello.txt")
         self.assertTrue(merged_toolkit.tools["workspace_2_extra_root_write_file"].requires_confirmation)
 
-    def test_create_agent_attaches_workspace_tools_to_developer_when_toolkits_option_absent(self) -> None:
+    def test_create_agent_does_not_attach_workspace_tools_when_workspace_toolkit_is_not_selected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             agent = unchain_adapter._create_agent(
                 {
@@ -859,15 +859,37 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             )
 
         self.assertEqual(agent.name, "pupu_developer")
-
-        tools_module = next(
-            module for module in agent.spec.modules if type(module).__name__ == "ToolsModule"
+        self.assertEqual(agent._toolkits, [])
+        self.assertFalse(
+            any(type(module).__name__ == "ToolsModule" for module in agent.spec.modules)
         )
 
-        self.assertEqual(len(tools_module.tools), 1)
-        workspace_toolkit = tools_module.tools[0]
-        self.assertIn("read_files", workspace_toolkit.tools)
-        self.assertIn("write_file", workspace_toolkit.tools)
+    def test_build_workspace_toolkits_requires_explicit_workspace_toolkit_selection(self) -> None:
+        class FakeWorkspaceToolkit:
+            def __init__(self, *, workspace_root=None):
+                self.workspace_root = workspace_root
+                self.tools = {}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch.object(
+                unchain_adapter.importlib,
+                "import_module",
+                return_value=SimpleNamespace(WorkspaceToolkit=FakeWorkspaceToolkit),
+            ):
+                omitted = unchain_adapter._build_workspace_toolkits(
+                    {"workspace_root": tmp}
+                )
+                selected = unchain_adapter._build_workspace_toolkits(
+                    {"workspace_root": tmp, "toolkits": ["workspace_toolkit"]}
+                )
+                other_toolkit = unchain_adapter._build_workspace_toolkits(
+                    {"workspace_root": tmp, "toolkits": ["code_toolkit"]}
+                )
+
+        self.assertEqual(omitted, [])
+        self.assertEqual(other_toolkit, [])
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0].workspace_root, str(Path(tmp).resolve()))
 
     def test_create_agent_marks_selected_workspace_tools_requires_confirmation(self) -> None:
         class FakeAgent:

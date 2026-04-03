@@ -2501,26 +2501,25 @@ def _extract_toolkit_names(options: Dict[str, object] | None) -> list[str]:
     return names
 
 
+def _is_workspace_toolkit_requested(options: Dict[str, object] | None) -> bool:
+    for toolkit_name in _extract_toolkit_names(options):
+        if _TOOLKIT_NAME_ALIASES.get(toolkit_name, toolkit_name) == "WorkspaceToolkit":
+            return True
+    return False
+
+
 def _should_enable_tools(options: Dict[str, object] | None) -> bool:
     """Return True when the caller explicitly requests tool-enabled mode.
 
     The frontend sends ``options.toolkits`` (a non-empty list) when the user
     selects toolkits in the tool picker.  When the list is absent or empty we
     should *not* attach optional toolkits by default.
-
-    Workspace selection is different: when workspace roots are present, the
-    developer agent should still receive workspace tools even if the user did
-    not explicitly add a toolkit chip, otherwise the specialist cannot inspect
-    the selected repo at all.
     """
     if not isinstance(options, dict):
         return False
 
     toolkits = options.get("toolkits")
     if isinstance(toolkits, list) and len(toolkits) > 0:
-        return True
-
-    if _extract_workspace_roots_from_options(options):
         return True
 
     # Also honour an explicit boolean flag if provided.
@@ -2786,6 +2785,9 @@ def _build_multi_workspace_proxy_toolkit(
 def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
     workspace_roots_raw = _extract_workspace_roots_from_options(options)
     if not workspace_roots_raw:
+        return []
+
+    if not _is_workspace_toolkit_requested(options):
         return []
 
     if not _should_enable_tools(options):
