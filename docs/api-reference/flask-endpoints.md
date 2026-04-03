@@ -49,7 +49,7 @@ All endpoints require authorization via `@before_request` middleware except `/he
   "model": "gpt-4.1",
   "provider": "openai",
   "api_key": "...",
-  "selectedToolkits": ["WorkspaceToolkit"],
+  "selectedToolkits": ["workspace_toolkit"],
   "workspace_roots": ["/path/to/workspace"],
   "memory_enabled": true,
   "memory_session_id": "session-123",

@@ -116,7 +116,7 @@ describe("chat_storage character chat behavior", () => {
       { source: "test" },
     );
 
-    setChatSelectedToolkits(created.chatId, ["WorkspaceToolkit"], {
+    setChatSelectedToolkits(created.chatId, ["workspace_toolkit"], {
       source: "test",
     });
     setChatSelectedWorkspaceIds(created.chatId, ["workspace-1"], {

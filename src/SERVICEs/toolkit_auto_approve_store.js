@@ -1,28 +1,116 @@
 const STORAGE_KEY = "toolkit_auto_approve";
 const MAX_IDS = 100;
 const MAX_ID_LENGTH = 200;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
-const readStore = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return { version: SCHEMA_VERSION, toolkits: [], tools: [] };
-  }
-  try {
-    const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
-    if (
-      raw &&
-      typeof raw === "object" &&
-      raw.version === SCHEMA_VERSION &&
-      Array.isArray(raw.toolkits) &&
-      Array.isArray(raw.tools)
-    ) {
-      return raw;
-    }
-  } catch (_) {
-    // corrupted — reset
-  }
-  return { version: SCHEMA_VERSION, toolkits: [], tools: [] };
+const TOOLKIT_ID_ALIASES = Object.freeze({
+  workspace: "workspace_toolkit",
+  workspace_toolkit: "workspace_toolkit",
+  access_workspace_toolkit: "workspace_toolkit",
+  workspacetoolkit: "workspace_toolkit",
+  WorkspaceToolkit: "workspace_toolkit",
+  terminal: "terminal_toolkit",
+  terminal_toolkit: "terminal_toolkit",
+  run_terminal_toolkit: "terminal_toolkit",
+  terminaltoolkit: "terminal_toolkit",
+  TerminalToolkit: "terminal_toolkit",
+  code: "code_toolkit",
+  code_toolkit: "code_toolkit",
+  codetoolkit: "code_toolkit",
+  CodeToolkit: "code_toolkit",
+  external_api: "external_api_toolkit",
+  external_api_toolkit: "external_api_toolkit",
+  externalapitoolkit: "external_api_toolkit",
+  ExternalAPIToolkit: "external_api_toolkit",
+  ask_user: "ask-user-toolkit",
+  ask_user_toolkit: "ask-user-toolkit",
+  "ask-user-toolkit": "ask-user-toolkit",
+  interaction_toolkit: "ask-user-toolkit",
+  "interaction-toolkit": "ask-user-toolkit",
+  askusertoolkit: "ask-user-toolkit",
+  AskUserToolkit: "ask-user-toolkit",
+});
+
+const LEGACY_TOOL_NAME_TO_TOOLKIT_ID = Object.freeze({
+  write_file: "workspace_toolkit",
+  delete_file: "workspace_toolkit",
+  move_file: "workspace_toolkit",
+  terminal_exec: "terminal_toolkit",
+});
+
+const normalizeToolkitId = (value) => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > MAX_ID_LENGTH) return "";
+  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[trimmed.toLowerCase()] || trimmed;
 };
+
+const buildToolKey = (toolkitId, toolName) => {
+  const normalizedToolkitId = normalizeToolkitId(toolkitId);
+  const normalizedToolName =
+    typeof toolName === "string" ? toolName.trim() : "";
+  if (!normalizedToolkitId || !normalizedToolName) {
+    return "";
+  }
+  return `${normalizedToolkitId}:${normalizedToolName}`;
+};
+
+const sanitizeToolkitIds = (ids) => {
+  if (!Array.isArray(ids)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const id of ids) {
+    const normalized = normalizeToolkitId(id);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= MAX_IDS) break;
+  }
+  return result;
+};
+
+const sanitizeToolKeys = (keys) => {
+  if (!Array.isArray(keys)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const key of keys) {
+    if (typeof key !== "string") continue;
+    const trimmed = key.trim();
+    if (!trimmed || trimmed.length > MAX_ID_LENGTH * 2) continue;
+    const separatorIndex = trimmed.indexOf(":");
+    if (separatorIndex <= 0) continue;
+    const normalized = buildToolKey(
+      trimmed.slice(0, separatorIndex),
+      trimmed.slice(separatorIndex + 1),
+    );
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= MAX_IDS) break;
+  }
+  return result;
+};
+
+const migrateLegacyToolKeys = (tools) => {
+  if (!Array.isArray(tools)) return [];
+  const migrated = [];
+  for (const toolName of tools) {
+    if (typeof toolName !== "string") continue;
+    const normalizedToolName = toolName.trim();
+    const toolkitId = LEGACY_TOOL_NAME_TO_TOOLKIT_ID[normalizedToolName];
+    const toolKey = buildToolKey(toolkitId, normalizedToolName);
+    if (toolKey) {
+      migrated.push(toolKey);
+    }
+  }
+  return sanitizeToolKeys(migrated);
+};
+
+const createDefaultStore = () => ({
+  version: SCHEMA_VERSION,
+  toolkits: [],
+  tools: [],
+});
 
 const writeStore = (store) => {
   if (typeof window === "undefined" || !window.localStorage) return;
@@ -33,83 +121,85 @@ const writeStore = (store) => {
   }
 };
 
-const sanitizeIds = (ids) => {
-  if (!Array.isArray(ids)) return [];
-  const seen = new Set();
-  const result = [];
-  for (const id of ids) {
-    if (typeof id !== "string") continue;
-    const trimmed = id.trim();
-    if (!trimmed || trimmed.length > MAX_ID_LENGTH) continue;
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    result.push(trimmed);
-    if (result.length >= MAX_IDS) break;
+const readStore = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return createDefaultStore();
   }
-  return result;
+
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
+    if (raw && typeof raw === "object") {
+      const store = {
+        version: SCHEMA_VERSION,
+        toolkits: sanitizeToolkitIds(raw.toolkits),
+        tools:
+          raw.version === SCHEMA_VERSION
+            ? sanitizeToolKeys(raw.tools)
+            : migrateLegacyToolKeys(raw.tools),
+      };
+      if (raw.version !== SCHEMA_VERSION) {
+        writeStore(store);
+      }
+      return store;
+    }
+  } catch (_) {
+    // corrupted — reset
+  }
+
+  const initialStore = createDefaultStore();
+  writeStore(initialStore);
+  return initialStore;
 };
 
-/**
- * Check if a toolkit has auto-approve enabled.
- */
 export const isToolkitAutoApprove = (toolkitId) => {
-  if (typeof toolkitId !== "string" || !toolkitId.trim()) return false;
+  const normalizedToolkitId = normalizeToolkitId(toolkitId);
+  if (!normalizedToolkitId) return false;
   const store = readStore();
-  return sanitizeIds(store.toolkits).includes(toolkitId.trim());
+  return sanitizeToolkitIds(store.toolkits).includes(normalizedToolkitId);
 };
 
-/**
- * Check if a specific tool name is auto-approved
- * (belongs to an auto-approved toolkit).
- */
-export const isToolAutoApproved = (toolName) => {
-  if (typeof toolName !== "string" || !toolName.trim()) return false;
+export const isToolAutoApproved = (toolkitId, toolName) => {
+  const toolKey = buildToolKey(toolkitId, toolName);
+  if (!toolKey) return false;
   const store = readStore();
-  return sanitizeIds(store.tools).includes(toolName.trim());
+  return sanitizeToolKeys(store.tools).includes(toolKey);
 };
 
-/**
- * Toggle auto-approve for a toolkit.
- * @param {string} toolkitId
- * @param {boolean} enabled
- * @param {string[]} toolNames - names of tools in this toolkit
- * @returns {{ toolkits: string[], tools: string[] }}
- */
 export const setToolkitAutoApprove = (toolkitId, enabled, toolNames = []) => {
-  if (typeof toolkitId !== "string" || !toolkitId.trim()) {
-    const store = readStore();
-    return {
-      toolkits: sanitizeIds(store.toolkits),
-      tools: sanitizeIds(store.tools),
-    };
+  const normalizedToolkitId = normalizeToolkitId(toolkitId);
+  const store = readStore();
+  let currentToolkits = sanitizeToolkitIds(store.toolkits);
+  let currentTools = sanitizeToolKeys(store.tools);
+
+  if (!normalizedToolkitId) {
+    return { toolkits: currentToolkits, tools: currentTools };
   }
 
-  const trimmedId = toolkitId.trim();
-  const store = readStore();
-  let currentToolkits = sanitizeIds(store.toolkits);
-  let currentTools = sanitizeIds(store.tools);
-
-  const safeToolNames = (Array.isArray(toolNames) ? toolNames : [])
-    .map((n) => (typeof n === "string" ? n.trim() : ""))
+  const safeToolKeys = (Array.isArray(toolNames) ? toolNames : [])
+    .map((toolName) => buildToolKey(normalizedToolkitId, toolName))
     .filter(Boolean);
 
   if (enabled) {
-    if (!currentToolkits.includes(trimmedId)) {
-      currentToolkits = [...currentToolkits, trimmedId];
+    if (!currentToolkits.includes(normalizedToolkitId)) {
+      currentToolkits = [...currentToolkits, normalizedToolkitId];
     }
     const toolSet = new Set(currentTools);
-    for (const name of safeToolNames) {
-      toolSet.add(name);
+    for (const toolKey of safeToolKeys) {
+      toolSet.add(toolKey);
     }
     currentTools = [...toolSet];
   } else {
-    currentToolkits = currentToolkits.filter((id) => id !== trimmedId);
-    const removeSet = new Set(safeToolNames);
-    currentTools = currentTools.filter((name) => !removeSet.has(name));
+    currentToolkits = currentToolkits.filter((id) => id !== normalizedToolkitId);
+    const removePrefix = `${normalizedToolkitId}:`;
+    const removeSet = new Set(safeToolKeys);
+    currentTools = currentTools.filter(
+      (toolKey) =>
+        !toolKey.startsWith(removePrefix) && !removeSet.has(toolKey),
+    );
   }
 
-  currentToolkits = sanitizeIds(currentToolkits);
-  currentTools = sanitizeIds(currentTools);
+  currentToolkits = sanitizeToolkitIds(currentToolkits);
+  currentTools = sanitizeToolKeys(currentTools);
   store.toolkits = currentToolkits;
   store.tools = currentTools;
   writeStore(store);
@@ -117,10 +207,7 @@ export const setToolkitAutoApprove = (toolkitId, enabled, toolNames = []) => {
   return { toolkits: currentToolkits, tools: currentTools };
 };
 
-/**
- * Get all auto-approved toolkit IDs.
- */
 export const getAutoApproveToolkits = () => {
   const store = readStore();
-  return sanitizeIds(store.toolkits);
+  return sanitizeToolkitIds(store.toolkits);
 };

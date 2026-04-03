@@ -84,12 +84,14 @@ _INPUT_MODALITY_ALIAS_MAP = {
 _KNOWN_TOOLKIT_EXPORTS = {
     "WorkspaceToolkit": "builtin",
     "TerminalToolkit": "builtin",
+    "CodeToolkit": "builtin",
     "ExternalAPIToolkit": "builtin",
     "AskUserToolkit": "builtin",
 }
 _TOOLKIT_EXPORT_ID_ALIASES = {
     "WorkspaceToolkit": "workspace_toolkit",
     "TerminalToolkit": "terminal_toolkit",
+    "CodeToolkit": "code_toolkit",
     "ExternalAPIToolkit": "external_api_toolkit",
     "AskUserToolkit": "ask-user-toolkit",
 }
@@ -102,6 +104,9 @@ _TOOLKIT_NAME_ALIASES = {
     "run_terminal_toolkit": "TerminalToolkit",
     "terminal_toolkit": "TerminalToolkit",
     "TerminalToolkit": "TerminalToolkit",
+    "code": "CodeToolkit",
+    "code_toolkit": "CodeToolkit",
+    "CodeToolkit": "CodeToolkit",
     "external_api": "ExternalAPIToolkit",
     "external_api_toolkit": "ExternalAPIToolkit",
     "ExternalAPIToolkit": "ExternalAPIToolkit",
@@ -123,13 +128,15 @@ _GENERAL_MODEL_BY_PROVIDER = {
 _GENERAL_AGENT_NAME = "pupu_general"
 _DEVELOPER_AGENT_NAME = "pupu_developer"
 _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
-_CONFIRMATION_REQUIRED_TOOL_NAMES = {
+_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "write_file",
     "delete_file",
     "move_file",
     "terminal_exec",
 }
 _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR = "_pupu_original_tool_name"
+_RUNTIME_TOOLKIT_ID_ATTR = "_pupu_toolkit_id"
+_RUNTIME_TOOLKIT_NAME_ATTR = "_pupu_toolkit_name"
 _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
 _HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
@@ -457,6 +464,18 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     payload["tool_display_name"] = display_name.strip()
     if not isinstance(payload.get("call_id"), str):
         payload["call_id"] = str(payload.get("call_id", "") or "")
+    toolkit_id = payload.get("toolkit_id", "")
+    if toolkit_id is None:
+        toolkit_id = ""
+    if not isinstance(toolkit_id, str):
+        toolkit_id = str(toolkit_id or "")
+    payload["toolkit_id"] = toolkit_id.strip()
+    toolkit_name = payload.get("toolkit_name", "")
+    if toolkit_name is None:
+        toolkit_name = ""
+    if not isinstance(toolkit_name, str):
+        toolkit_name = str(toolkit_name or "")
+    payload["toolkit_name"] = toolkit_name.strip()
 
     raw_arguments = payload.get("arguments")
     arguments = raw_arguments
@@ -588,10 +607,18 @@ def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> in
 def _make_tool_confirm_callback(
     emit_event,
     cancel_event: threading.Event | None = None,
+    toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
 ):
     def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
         normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
         request_payload = _build_tool_confirmation_request_payload(request_obj)
+        tool_name = str(request_payload.get("tool_name", "") or "").strip()
+        if tool_name and toolkit_meta_by_tool_name:
+            toolkit_meta = toolkit_meta_by_tool_name.get(tool_name, {})
+            if not str(request_payload.get("toolkit_id", "") or "").strip():
+                request_payload["toolkit_id"] = toolkit_meta.get("toolkit_id", "")
+            if not str(request_payload.get("toolkit_name", "") or "").strip():
+                request_payload["toolkit_name"] = toolkit_meta.get("toolkit_name", "")
         suppress_event = bool(request_payload.get("_skip_emit_event"))
         confirmation_id = str(request_payload.get("confirmation_id", "") or "").strip()
         if not confirmation_id:
@@ -1452,6 +1479,161 @@ def _read_icon_payload(icon_path: object) -> Dict[str, str]:
     return {}
 
 
+def _canonical_toolkit_id_for_class_name(class_name: object) -> str:
+    if not isinstance(class_name, str):
+        return ""
+    normalized = class_name.strip()
+    if not normalized:
+        return ""
+    return _TOOLKIT_EXPORT_ID_ALIASES.get(normalized, normalized)
+
+
+def _display_toolkit_name_for_class(toolkit_class: type) -> str:
+    toml_data = _read_toolkit_toml(toolkit_class)
+    toolkit_section = toml_data.get("toolkit") or {}
+    if isinstance(toolkit_section, dict):
+        toolkit_name = str(toolkit_section.get("name", "")).strip()
+        if toolkit_name:
+            return toolkit_name
+    return str(getattr(toolkit_class, "__name__", "") or "").strip() or "Toolkit"
+
+
+def _set_runtime_toolkit_metadata(
+    toolkit_obj: Any,
+    *,
+    toolkit_id: str,
+    toolkit_name: str,
+) -> None:
+    if not toolkit_obj:
+        return
+    try:
+        setattr(toolkit_obj, _RUNTIME_TOOLKIT_ID_ATTR, str(toolkit_id or "").strip())
+        setattr(toolkit_obj, _RUNTIME_TOOLKIT_NAME_ATTR, str(toolkit_name or "").strip())
+    except Exception:
+        return
+
+
+def _get_runtime_toolkit_metadata(toolkit_obj: Any) -> Dict[str, str]:
+    toolkit_id = str(getattr(toolkit_obj, _RUNTIME_TOOLKIT_ID_ATTR, "") or "").strip()
+    toolkit_name = str(getattr(toolkit_obj, _RUNTIME_TOOLKIT_NAME_ATTR, "") or "").strip()
+    if toolkit_id:
+        return {
+            "toolkit_id": toolkit_id,
+            "toolkit_name": toolkit_name or toolkit_id,
+        }
+
+    if isinstance(toolkit_obj, type):
+        toolkit_class = toolkit_obj
+    else:
+        toolkit_class = toolkit_obj.__class__ if toolkit_obj is not None else None
+    class_name = str(getattr(toolkit_class, "__name__", "") or "").strip()
+
+    if class_name == "LegacyWorkspaceToolkit":
+        return {
+            "toolkit_id": "workspace_toolkit",
+            "toolkit_name": "Workspace Toolkit",
+        }
+
+    if toolkit_class is None:
+        return {"toolkit_id": "", "toolkit_name": ""}
+
+    return {
+        "toolkit_id": _canonical_toolkit_id_for_class_name(class_name),
+        "toolkit_name": _display_toolkit_name_for_class(toolkit_class),
+    }
+
+
+def _should_force_legacy_confirmation(toolkit_obj: Any, tool_name: str) -> bool:
+    normalized_tool_name = str(tool_name or "").strip()
+    if normalized_tool_name not in _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES:
+        return False
+
+    toolkit_meta = _get_runtime_toolkit_metadata(toolkit_obj)
+    toolkit_id = toolkit_meta.get("toolkit_id", "")
+    return toolkit_id in {"workspace_toolkit", "terminal_toolkit"}
+
+
+def _build_toolkit_tool_index(toolkits: Iterable[Any]) -> Dict[str, Dict[str, str]]:
+    index: Dict[str, Dict[str, str]] = {}
+    for toolkit_obj in toolkits:
+        tools = getattr(toolkit_obj, "tools", None)
+        if not isinstance(tools, dict):
+            continue
+        toolkit_meta = _get_runtime_toolkit_metadata(toolkit_obj)
+        toolkit_id = toolkit_meta.get("toolkit_id", "")
+        toolkit_name = toolkit_meta.get("toolkit_name", "")
+        if not toolkit_id:
+            continue
+        for tool_name in tools:
+            normalized_tool_name = str(tool_name or "").strip()
+            if not normalized_tool_name:
+                continue
+            index[normalized_tool_name] = {
+                "toolkit_id": toolkit_id,
+                "toolkit_name": toolkit_name or toolkit_id,
+            }
+    return index
+
+
+def _validate_unique_tool_names(toolkits: Iterable[Any]) -> None:
+    seen: Dict[str, Dict[str, str]] = {}
+    for toolkit_obj in toolkits:
+        tools = getattr(toolkit_obj, "tools", None)
+        if not isinstance(tools, dict):
+            continue
+        toolkit_meta = _get_runtime_toolkit_metadata(toolkit_obj)
+        toolkit_id = toolkit_meta.get("toolkit_id", "")
+        toolkit_name = toolkit_meta.get("toolkit_name", "") or toolkit_id or "Toolkit"
+        for tool_name in tools:
+            normalized_tool_name = str(tool_name or "").strip()
+            if not normalized_tool_name:
+                continue
+            previous = seen.get(normalized_tool_name)
+            if previous is None:
+                seen[normalized_tool_name] = {
+                    "toolkit_id": toolkit_id,
+                    "toolkit_name": toolkit_name,
+                }
+                continue
+            if previous.get("toolkit_id") == toolkit_id and toolkit_id:
+                continue
+            raise RuntimeError(
+                "Duplicate tool name detected across selected toolkits: "
+                f"'{normalized_tool_name}' is provided by "
+                f"'{previous.get('toolkit_name') or previous.get('toolkit_id') or 'Toolkit'}' "
+                f"and '{toolkit_name}'. Rename one toolkit tool before running."
+            )
+
+
+def _enrich_tool_event_with_toolkit_metadata(
+    event: Dict[str, Any],
+    toolkit_meta_by_tool_name: Dict[str, Dict[str, str]],
+) -> Dict[str, Any]:
+    event_type = str(event.get("type", "") or "").strip()
+    if event_type not in {"tool_call", "tool_result"}:
+        return event
+
+    tool_name = str(event.get("tool_name", "") or "").strip()
+    if not tool_name:
+        result = event.get("result")
+        if isinstance(result, dict):
+            tool_name = str(result.get("tool", "") or "").strip()
+
+    if not tool_name:
+        return event
+
+    toolkit_meta = toolkit_meta_by_tool_name.get(tool_name)
+    if not toolkit_meta:
+        return event
+
+    enriched = dict(event)
+    if not str(enriched.get("toolkit_id", "") or "").strip():
+        enriched["toolkit_id"] = toolkit_meta.get("toolkit_id", "")
+    if not str(enriched.get("toolkit_name", "") or "").strip():
+        enriched["toolkit_name"] = toolkit_meta.get("toolkit_name", "")
+    return enriched
+
+
 def _read_builtin_icon_payload(
     icon_name: object,
     color: object,
@@ -1642,6 +1824,17 @@ def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
             tool.get("description", "")
             or str(toml_entry.get("description", "")).strip()
         )
+        requires_confirmation = tool_meta.get(
+            "requires_confirmation",
+            toml_entry.get("requires_confirmation"),
+        )
+        if isinstance(requires_confirmation, bool):
+            normalized_requires_confirmation = requires_confirmation
+        else:
+            normalized_requires_confirmation = _should_force_legacy_confirmation(
+                cls,
+                tool_name,
+            )
 
         enriched.append({
             "name": tool_name,
@@ -1654,11 +1847,7 @@ def _enumerate_toolkit_tools_v2(cls: type) -> List[Dict[str, object]]:
             "observe": bool(
                 tool_meta.get("observe", toml_entry.get("observe", False))
             ),
-            "requiresConfirmation": tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES
-                or bool(tool_meta.get(
-                    "requires_confirmation",
-                    toml_entry.get("requires_confirmation", False),
-                )),
+            "requiresConfirmation": normalized_requires_confirmation,
         })
 
     return enriched
@@ -1823,12 +2012,14 @@ def get_toolkit_metadata(
         }
 
     toolkit_id = toolkit_id.strip()
+    normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(toolkit_id, toolkit_id)
+    canonical_toolkit_id = _canonical_toolkit_id_for_class_name(normalized_toolkit_id)
 
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
         return {
-            "toolkitId": toolkit_id,
-            "toolkitName": toolkit_id,
+            "toolkitId": canonical_toolkit_id,
+            "toolkitName": canonical_toolkit_id or toolkit_id,
             "toolkitDescription": "",
             "toolkitIcon": {},
             "readmeMarkdown": "",
@@ -1837,7 +2028,6 @@ def get_toolkit_metadata(
 
     # Search for the toolkit class by class_name
     found_class: type | None = None
-    normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(toolkit_id, toolkit_id)
 
     try:
         builtin_pkg = importlib.import_module("unchain.toolkits.builtin")
@@ -1889,8 +2079,8 @@ def get_toolkit_metadata(
 
     if found_class is None:
         return {
-            "toolkitId": toolkit_id,
-            "toolkitName": toolkit_id,
+            "toolkitId": canonical_toolkit_id,
+            "toolkitName": canonical_toolkit_id or toolkit_id,
             "toolkitDescription": "",
             "toolkitIcon": {},
             "readmeMarkdown": "",
@@ -1911,7 +2101,7 @@ def get_toolkit_metadata(
     )
 
     return {
-        "toolkitId": toolkit_id,
+        "toolkitId": canonical_toolkit_id,
         "toolkitName": toolkit_name,
         "toolkitDescription": toolkit_description,
         "toolkitIcon": toolkit_icon,
@@ -2371,7 +2561,9 @@ def _mark_workspace_tools_for_confirmation(workspace_toolkit: Any) -> None:
     if not isinstance(tools, dict):
         return
 
-    for tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES:
+    for tool_name in _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES:
+        if not _should_force_legacy_confirmation(workspace_toolkit, tool_name):
+            continue
         tool_obj = tools.get(tool_name)
         if tool_obj is None:
             continue
@@ -2490,6 +2682,11 @@ def _build_multi_workspace_proxy_toolkit(
             toolkit_factory,
             workspace_root=workspace_root,
         )
+        _set_runtime_toolkit_metadata(
+            source_toolkit,
+            toolkit_id="workspace_toolkit",
+            toolkit_name="Workspace Toolkit",
+        )
         _mark_workspace_tools_for_confirmation(source_toolkit)
         workspace_entries.append(
             {
@@ -2533,7 +2730,7 @@ def _build_multi_workspace_proxy_toolkit(
                 observe=bool(getattr(tool_obj, "observe", False)),
                 requires_confirmation=bool(
                     getattr(tool_obj, "requires_confirmation", False)
-                    or tool_name in _CONFIRMATION_REQUIRED_TOOL_NAMES
+                    or _should_force_legacy_confirmation(source_toolkit, tool_name)
                 ),
             )
             _set_workspace_proxy_tool_metadata(
@@ -2578,6 +2775,11 @@ def _build_multi_workspace_proxy_toolkit(
         )
     )
 
+    _set_runtime_toolkit_metadata(
+        merged_toolkit,
+        toolkit_id="workspace_toolkit",
+        toolkit_name="Workspace Toolkit",
+    )
     return merged_toolkit
 
 
@@ -2607,6 +2809,11 @@ def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
         except TypeError:
             multi_toolkit = None
         else:
+            _set_runtime_toolkit_metadata(
+                multi_toolkit,
+                toolkit_id="workspace_toolkit",
+                toolkit_name="Workspace Toolkit",
+            )
             _mark_workspace_tools_for_confirmation(multi_toolkit)
             return [multi_toolkit]
 
@@ -2614,6 +2821,11 @@ def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
         workspace_toolkit = _build_workspace_toolkit_for_root(
             toolkit_factory,
             workspace_root=resolved_roots[0],
+        )
+        _set_runtime_toolkit_metadata(
+            workspace_toolkit,
+            toolkit_id="workspace_toolkit",
+            toolkit_name="Workspace Toolkit",
         )
         _mark_workspace_tools_for_confirmation(workspace_toolkit)
         return [workspace_toolkit]
@@ -2629,6 +2841,11 @@ def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
             workspace_roots=resolved_roots,
         )
 
+    _set_runtime_toolkit_metadata(
+        workspace_toolkit,
+        toolkit_id="workspace_toolkit",
+        toolkit_name="Workspace Toolkit",
+    )
     _mark_workspace_tools_for_confirmation(workspace_toolkit)
     return [workspace_toolkit]
 
@@ -2666,6 +2883,17 @@ def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
         toolkit_instance = _build_generic_toolkit(
             toolkit_factory,
             workspace_root=workspace_root,
+        )
+        toolkit_class = (
+            toolkit_factory
+            if isinstance(toolkit_factory, type)
+            else toolkit_instance.__class__
+        )
+        class_name = str(getattr(toolkit_class, "__name__", "") or "").strip()
+        _set_runtime_toolkit_metadata(
+            toolkit_instance,
+            toolkit_id=_canonical_toolkit_id_for_class_name(class_name),
+            toolkit_name=_display_toolkit_name_for_class(toolkit_class),
         )
         _mark_workspace_tools_for_confirmation(toolkit_instance)
         result.append(toolkit_instance)
@@ -2888,6 +3116,7 @@ def _resolve_memory_runtime(
 def _build_requested_toolkits(options: Dict[str, object] | None = None) -> list:
     toolkits = _build_workspace_toolkits(options)
     toolkits.extend(_build_selected_toolkits(options))
+    _validate_unique_tool_names(toolkits)
     return toolkits
 
 
@@ -3240,7 +3469,11 @@ def _build_bundle_from_result(
     }
 
 
-def _make_human_input_callback(emit_event, cancel_event=None):
+def _make_human_input_callback(
+    emit_event,
+    cancel_event=None,
+    toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
+):
     """Create an on_human_input blocking callback for unchain ask_user_question.
 
     Follows the same threading.Event blocking pattern as _make_tool_confirm_callback.
@@ -3251,12 +3484,19 @@ def _make_human_input_callback(emit_event, cancel_event=None):
     def on_human_input(request):
         confirmation_id = str(_uuid.uuid4())
         interact_config = request.to_dict()
+        toolkit_meta = (
+            toolkit_meta_by_tool_name.get(_ASK_USER_QUESTION_TOOL_NAME, {})
+            if toolkit_meta_by_tool_name
+            else {}
+        )
 
         hi_interact_type = "single" if getattr(request, "selection_mode", "") == "single" else "multi"
         emit_payload = {
             "type": "tool_call",
             "tool_name": "ask_user_question",
             "tool_display_name": "Ask User",
+            "toolkit_id": toolkit_meta.get("toolkit_id", "ask-user-toolkit"),
+            "toolkit_name": toolkit_meta.get("toolkit_name", "Ask User Toolkit"),
             "call_id": request.request_id,
             "arguments": interact_config,
             "description": getattr(request, "question", ""),
@@ -3468,10 +3708,17 @@ def stream_chat_events(
                 _prefix = _tn[: -len(_orig) - 1] if _tn.endswith("_" + _orig) else ""
                 _ws_label = _prefix.split("_", 2)[2] if _prefix.count("_") >= 2 else _prefix
                 _ws_display_names[_tn] = f"{_orig} @{_ws_label}" if _ws_label else _orig
+    _toolkit_meta_by_tool_name = _build_toolkit_tool_index(
+        getattr(agent, "_toolkits", []),
+    )
 
     def on_event(event: Dict[str, Any]) -> None:
         if not isinstance(event, dict):
             return
+        event = _enrich_tool_event_with_toolkit_metadata(
+            event,
+            _toolkit_meta_by_tool_name,
+        )
         event_type = event.get("type")
         # Suppress unchain-native events that are replaced by our callbacks
         if event_type == "human_input_requested":
@@ -3504,10 +3751,12 @@ def stream_chat_events(
     confirm_cb = _make_tool_confirm_callback(
         lambda event: event_queue.put(event),
         cancel_event=cancel_event,
+        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
     )
     human_input_cb = _make_human_input_callback(
         lambda event: event_queue.put(event),
         cancel_event=cancel_event,
+        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
     )
     max_iterations_cb = _make_continuation_callback(
         lambda event: event_queue.put(event),

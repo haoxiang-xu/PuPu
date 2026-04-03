@@ -1512,6 +1512,124 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(fake_agent.run_kwargs["memory_namespace"], "pupu:default")
         self.assertTrue(any(event.get("type") == "final_message" for event in events))
 
+    def test_stream_chat_events_enriches_tool_events_with_toolkit_metadata(self) -> None:
+        class FakeToolkit:
+            def __init__(self):
+                self.tools = {"read": object()}
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_ID_ATTR, "code_toolkit")
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_NAME_ATTR, "Code Toolkit")
+
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-5"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
+                self._toolkits = [FakeToolkit()]
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                **_kwargs,
+            ):
+                del messages, payload, max_iterations, on_tool_confirm
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "tool_call",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "call_id": "call-1",
+                            "tool_name": "read",
+                            "arguments": {"path": "/tmp/demo.txt"},
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "tool_result",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "call_id": "call-1",
+                            "tool_name": "read",
+                            "result": {"ok": True},
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                )
+            )
+
+        tool_call = next(event for event in events if event.get("type") == "tool_call")
+        tool_result = next(event for event in events if event.get("type") == "tool_result")
+        self.assertEqual(tool_call.get("toolkit_id"), "code_toolkit")
+        self.assertEqual(tool_call.get("toolkit_name"), "Code Toolkit")
+        self.assertEqual(tool_result.get("toolkit_id"), "code_toolkit")
+        self.assertEqual(tool_result.get("toolkit_name"), "Code Toolkit")
+
+    def test_build_requested_toolkits_rejects_duplicate_tool_names(self) -> None:
+        toolkit_a = SimpleNamespace(
+            tools={"read": object()},
+            _pupu_toolkit_id="code_toolkit",
+            _pupu_toolkit_name="Code Toolkit",
+        )
+        toolkit_b = SimpleNamespace(
+            tools={"read": object()},
+            _pupu_toolkit_id="custom_toolkit",
+            _pupu_toolkit_name="Custom Toolkit",
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_build_workspace_toolkits",
+            return_value=[],
+        ), mock.patch.object(
+            unchain_adapter,
+            "_build_selected_toolkits",
+            return_value=[toolkit_a, toolkit_b],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "Duplicate tool name detected"):
+                unchain_adapter._build_requested_toolkits(
+                    {"toolkits": ["code_toolkit", "custom_toolkit"]}
+                )
+
     def test_extract_last_assistant_text_handles_structured_content(self) -> None:
         messages = [
             {
@@ -1653,6 +1771,63 @@ requires_confirmation = false
 
         return _fake_import_module
 
+    def _build_code_toolkit_fixture(self) -> tuple[type, str, ModuleType]:
+        temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+
+        package_dir = Path(temp_dir.name) / "code_toolkit"
+        package_dir.mkdir(parents=True, exist_ok=True)
+        (package_dir / "runtime.py").write_text("", encoding="utf-8")
+        (package_dir / "README.md").write_text("# Code Toolkit\n", encoding="utf-8")
+        (package_dir / "toolkit.toml").write_text(
+            """
+[toolkit]
+id = "code"
+name = "Code Toolkit"
+description = "Claude-style coding tools."
+factory = "code_toolkit:CodeToolkit"
+version = "1.0.0"
+readme = "README.md"
+icon = "terminal"
+
+[display]
+category = "builtin"
+order = 1
+hidden = false
+
+[[tools]]
+name = "read"
+title = "Read"
+description = "Read files."
+requires_confirmation = false
+
+[[tools]]
+name = "write"
+title = "Write"
+description = "Write files."
+requires_confirmation = true
+""".strip()
+            + "\n",
+            encoding="utf-8",
+        )
+
+        toolkit_base = type("FakeToolkitBase", (), {})
+        module_name = "unchain.toolkits.builtin.code_toolkit"
+        toolkit_module = ModuleType(module_name)
+        toolkit_module.__file__ = str(package_dir / "runtime.py")
+        toolkit_class = type(
+            "CodeToolkit",
+            (toolkit_base,),
+            {
+                "__module__": module_name,
+                "__doc__": "Claude-style coding tools.",
+                "read": lambda self: None,
+                "write": lambda self: None,
+            },
+        )
+        setattr(toolkit_module, "CodeToolkit", toolkit_class)
+        return toolkit_base, module_name, toolkit_module
+
     def test_get_toolkit_catalog_v2_returns_builtin_icon_payload(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
             icon_value="terminal",
@@ -1691,6 +1866,35 @@ requires_confirmation = false
         )
         self.assertEqual(entry["tools"][0]["icon"], entry["toolkitIcon"])
 
+    def test_get_toolkit_catalog_v2_exposes_code_toolkit_with_confirmation_metadata(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_code_toolkit_fixture()
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "code_toolkit", True)],
+        ):
+            payload = unchain_adapter.get_toolkit_catalog_v2()
+
+        entry = payload["toolkits"][0]
+        self.assertEqual(entry["toolkitId"], "code_toolkit")
+        self.assertEqual(entry["toolkitName"], "Code Toolkit")
+        self.assertEqual(entry["tools"][0]["name"], "read")
+        self.assertFalse(entry["tools"][0]["requiresConfirmation"])
+        self.assertEqual(entry["tools"][1]["name"], "write")
+        self.assertTrue(entry["tools"][1]["requiresConfirmation"])
+
     def test_get_toolkit_metadata_returns_file_icon_payload(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
             icon_value="icon.svg",
@@ -1718,6 +1922,34 @@ requires_confirmation = false
         self.assertEqual(payload["toolkitIcon"]["type"], "file")
         self.assertEqual(payload["toolkitIcon"]["mimeType"], "image/svg+xml")
         self.assertIn("<svg", payload["toolkitIcon"]["content"])
+
+    def test_get_toolkit_metadata_accepts_code_toolkit_aliases(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_code_toolkit_fixture()
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "code_toolkit", True)],
+        ):
+            payload_from_id = unchain_adapter.get_toolkit_metadata("code_toolkit")
+            payload_from_class = unchain_adapter.get_toolkit_metadata("CodeToolkit")
+            payload_from_alias = unchain_adapter.get_toolkit_metadata("code")
+
+        self.assertEqual(payload_from_id["toolkitId"], "code_toolkit")
+        self.assertEqual(payload_from_class["toolkitId"], "code_toolkit")
+        self.assertEqual(payload_from_alias["toolkitId"], "code_toolkit")
+        self.assertEqual(payload_from_alias["toolkitName"], "Code Toolkit")
 
     def test_invalid_builtin_toolkit_icon_returns_empty_payload(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(

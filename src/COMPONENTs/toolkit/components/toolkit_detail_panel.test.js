@@ -5,7 +5,7 @@ import api from "../../../SERVICEs/api";
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
-    "unchain: {
+    unchain: {
       getToolkitDetail: jest.fn(),
     },
   },

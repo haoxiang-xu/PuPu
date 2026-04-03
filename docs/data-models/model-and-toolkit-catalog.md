@@ -85,11 +85,11 @@ Returned by `api.unchain.getToolkitCatalog()`:
 {
   toolkits: [
     {
-      id: string,             // canonical ID (e.g. "WorkspaceToolkit")
-      name: string,           // display name
-      description: string,
-      icon?: string,          // icon identifier
-      readme?: string,        // markdown content
+      toolkitId: string,       // canonical toolkitId (e.g. "workspace_toolkit")
+      toolkitName: string,     // display name
+      toolkitDescription: string,
+      toolkitIcon?: object,    // icon payload
+      readmeMarkdown?: string, // markdown content
       tools: [
         {
           name: string,       // tool function name
@@ -106,13 +106,20 @@ Returned by `api.unchain.getToolkitCatalog()`:
 ### Confirmation-Required Tools
 
 ```python
-{"write_file", "delete_file", "move_file", "terminal_exec"}
+{
+  "workspace_toolkit:write_file",
+  "workspace_toolkit:delete_file",
+  "workspace_toolkit:move_file",
+  "terminal_toolkit:terminal_exec",
+  "code_toolkit:write",
+  "code_toolkit:edit",
+}
 ```
 
 ### Toolkit Discovery
 
 The backend discovers toolkits via:
-1. Built-in toolkits (workspace, terminal, ask_user, external_api)
+1. Built-in toolkits (`workspace_toolkit`, `terminal_toolkit`, `code_toolkit`, `ask-user-toolkit`, `external_api_toolkit`)
 2. `toolkit.toml` files in workspace directories
 3. MCP-based toolkits (removed)
 
@@ -139,7 +146,7 @@ Persists the user's default toolkit selection. New chats inherit these defaults.
 
 ### Toolkit Auto-Approve Store (`toolkit_auto_approve_store.js`)
 
-Persists per-tool auto-approval preferences so confirmation-required tools can be auto-approved.
+Persists toolkit-level auto-approval plus tool-level keys in `toolkitId:toolName` form so confirmation-required tools can be auto-approved without cross-toolkit collisions.
 
 ---
 

@@ -81,14 +81,15 @@
 
 ### Toolkit ID Aliases
 
-Multiple aliases map to canonical names:
+Multiple aliases map to canonical `toolkitId` values:
 
 | Alias | Canonical |
 |-------|----------|
-| `workspace`, `workspace_toolkit` | `WorkspaceToolkit` |
-| `terminal`, `terminal_toolkit` | `TerminalToolkit` |
-| `external_api`, `external_api_toolkit` | `ExternalAPIToolkit` |
-| `ask_user`, `ask_user_toolkit` | `AskUserToolkit` |
+| `workspace`, `workspace_toolkit`, `WorkspaceToolkit` | `workspace_toolkit` |
+| `terminal`, `terminal_toolkit`, `TerminalToolkit` | `terminal_toolkit` |
+| `code`, `code_toolkit`, `CodeToolkit` | `code_toolkit` |
+| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api_toolkit` |
+| `ask_user`, `ask_user_toolkit`, `AskUserToolkit` | `ask-user-toolkit` |
 
 Removed IDs (silently stripped): `mcp`, `mcptoolkit`.
 
@@ -206,6 +207,8 @@ When `kind === "character"`:
     observation?: string,  // max 8000 chars
     result?: string,       // max 8000 chars
     delta?: string,        // max 2000 chars
+    toolkit_id?: string,   // canonical toolkitId for tool events
+    toolkit_name?: string, // display name for tool events
     // ... additional dynamic fields
   },
 }

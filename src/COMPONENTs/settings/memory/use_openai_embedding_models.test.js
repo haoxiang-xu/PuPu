@@ -6,7 +6,7 @@ import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 
 jest.mock("../../../SERVICEs/api", () => ({
   api: {
-    "unchain: {
+    unchain: {
       getModelCatalog: jest.fn(),
     },
   },

@@ -1607,6 +1607,10 @@ export const useChatStream = ({
                   typeof frame.payload?.tool_name === "string"
                     ? frame.payload.tool_name
                     : "";
+                const toolkitId =
+                  typeof frame.payload?.toolkit_id === "string"
+                    ? frame.payload.toolkit_id
+                    : "";
                 if (toolName === HUMAN_INPUT_TOOL_NAME) {
                   const interactConfig =
                     frame.payload?.interact_config &&
@@ -1694,7 +1698,7 @@ export const useChatStream = ({
                   const isAutoApprovable =
                     toolName !== HUMAN_INPUT_TOOL_NAME &&
                     (!rcType || rcType === "confirmation") &&
-                    isToolAutoApproved(toolName);
+                    isToolAutoApproved(toolkitId, toolName);
                   if (isAutoApprovable) {
                     const autoPayload = {
                       confirmation_id: confirmationId,

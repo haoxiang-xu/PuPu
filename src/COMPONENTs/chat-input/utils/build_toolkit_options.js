@@ -3,13 +3,6 @@ import ToolkitIcon, {
   isFileToolkitIcon,
 } from "../../toolkit/components/toolkit_icon";
 
-const TOOLKIT_SELECTION_ID_ALIASES = Object.freeze({
-  workspace_toolkit: "WorkspaceToolkit",
-  terminal_toolkit: "TerminalToolkit",
-  external_api_toolkit: "ExternalAPIToolkit",
-  "ask-user-toolkit": "AskUserToolkit",
-});
-
 const toDisplayName = (toolkit) => {
   const raw =
     toolkit?.toolkitName ||
@@ -25,16 +18,16 @@ const toDisplayName = (toolkit) => {
 };
 
 const toSelectionValue = (toolkit) => {
+  const toolkitId =
+    typeof toolkit?.toolkitId === "string" ? toolkit.toolkitId.trim() : "";
+  if (toolkitId) {
+    return toolkitId;
+  }
+
   const className =
     typeof toolkit?.class_name === "string" ? toolkit.class_name.trim() : "";
   if (className) {
     return className;
-  }
-
-  const toolkitId =
-    typeof toolkit?.toolkitId === "string" ? toolkit.toolkitId.trim() : "";
-  if (toolkitId) {
-    return TOOLKIT_SELECTION_ID_ALIASES[toolkitId] || toolkitId;
   }
 
   const name = typeof toolkit?.name === "string" ? toolkit.name.trim() : "";
@@ -112,15 +105,16 @@ export const build_toolkit_options = (toolkits) => {
         ? tk.toolkitDescription.trim()
         : "";
     const toolSummary = summarizeTools(tools);
-    const search = [
-      label,
-      tk?.toolkitId,
-      value,
-      toolkitDescription,
-      ...tools.map((tool) => tool?.title || tool?.name || ""),
-    ]
-      .filter(Boolean)
-      .join(" ");
+    const search = [...new Set(
+      [
+        label,
+        tk?.toolkitId,
+        tk?.class_name,
+        value,
+        toolkitDescription,
+        ...tools.map((tool) => tool?.title || tool?.name || ""),
+      ].filter(Boolean),
+    )].join(" ");
 
     return {
       value,

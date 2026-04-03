@@ -5,7 +5,7 @@ import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage
 
 jest.mock("../../../SERVICEs/api", () => ({
   api: {
-    "unchain: {
+    unchain: {
       listSeedCharacters: jest.fn(),
       listCharacters: jest.fn(),
       saveCharacter: jest.fn(),

@@ -453,6 +453,69 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("auto-approves only toolkit-scoped tool matches", async () => {
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["code_toolkit"],
+        tools: ["code_toolkit:write"],
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run the write tool" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    streamHandlers.onFrame({
+      seq: 1,
+      ts: 100,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        confirmation_id: "confirm-1",
+        requires_confirmation: true,
+        toolkit_id: "code_toolkit",
+        tool_name: "write",
+        arguments: { path: "/tmp/demo.txt" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+        confirmation_id: "confirm-1",
+        approved: true,
+        reason: "",
+      });
+    });
+
+    streamHandlers.onFrame({
+      seq: 2,
+      ts: 110,
+      type: "tool_call",
+      payload: {
+        call_id: "call-2",
+        confirmation_id: "confirm-2",
+        requires_confirmation: true,
+        toolkit_id: "workspace_toolkit",
+        tool_name: "write",
+        arguments: { path: "/tmp/demo.txt" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+    });
+  });
+
   test("persists selector responses in synthetic confirmation trace frames", async () => {
     renderChat();
     await waitForReady();

@@ -6,7 +6,7 @@ import useChatInputToolkits from "./use_chat_input_toolkits";
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
-    "unchain: {
+    unchain: {
       listToolModalCatalog: jest.fn(),
     },
   },
@@ -120,11 +120,11 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
-          value: "WorkspaceToolkit",
+          value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
           search:
-            "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+            "Workspace Files workspace_toolkit Read and write project files Read File Write File",
           hasIcon: true,
         },
       ]),
@@ -167,11 +167,11 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
-          value: "WorkspaceToolkit",
+          value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
           search:
-            "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+            "Workspace Files workspace_toolkit Read and write project files Read File Write File",
           hasIcon: true,
         },
       ]),
@@ -189,11 +189,11 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
-          value: "WorkspaceToolkit",
+          value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
           search:
-            "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+            "Workspace Files workspace_toolkit Read and write project files Read File Write File",
           hasIcon: true,
         },
       ]),
@@ -205,11 +205,11 @@ describe("use_chat_input_toolkits", () => {
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
     expect(readOptions()).toEqual([
       {
-        value: "WorkspaceToolkit",
+        value: "workspace_toolkit",
         label: "Workspace Files",
         description: "Read and write project files",
         search:
-          "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+          "Workspace Files workspace_toolkit Read and write project files Read File Write File",
         hasIcon: true,
       },
     ]);
@@ -219,11 +219,11 @@ describe("use_chat_input_toolkits", () => {
     );
     expect(readOptions()).toEqual([
       {
-        value: "WorkspaceToolkit",
+        value: "workspace_toolkit",
         label: "Workspace Files",
         description: "Read and write project files",
         search:
-          "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+          "Workspace Files workspace_toolkit Read and write project files Read File Write File",
         hasIcon: true,
       },
     ]);

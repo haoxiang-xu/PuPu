@@ -200,5 +200,5 @@ npm run build:electron:linux       # Linux
 - **Build order** - run `version:prepare-build` before `react-scripts build`
 - **Test sync** - Electron tests have `.js` and `.cjs` variants; keep them in sync
 - **Storage writes** - always go through SERVICEs helpers, never direct localStorage from components
-- **Toolkit IDs** - use canonical names (e.g. `WorkspaceToolkit`), not aliases
+- **Toolkit IDs** - use canonical `toolkitId` values (e.g. `workspace_toolkit`), not aliases
 - **Workspace paths** - never store raw paths in chat sessions; use IDs resolved at stream time

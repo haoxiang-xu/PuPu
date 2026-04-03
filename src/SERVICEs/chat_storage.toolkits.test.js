@@ -22,6 +22,13 @@ describe("chat_storage selected toolkits persistence", () => {
     expect(hydrated.chatsById[activeChatId].selectedToolkits).toEqual([]);
   });
 
+  test("new chats inherit code_toolkit when no explicit global default exists", () => {
+    const seeded = getChatsStore();
+    expect(seeded.chatsById[seeded.activeChatId].selectedToolkits).toEqual([
+      "code_toolkit",
+    ]);
+  });
+
   test("setChatSelectedToolkits persists normalized toolkit ids", () => {
     const seeded = getChatsStore();
     const activeChatId = seeded.activeChatId;
@@ -46,12 +53,15 @@ describe("chat_storage selected toolkits persistence", () => {
         "run_terminal_toolkit",
         "interaction_toolkit",
         "workspace_toolkit",
+        "CodeToolkit",
+        "code",
         "ask-user-toolkit",
       ]),
     ).toEqual([
-      "WorkspaceToolkit",
-      "TerminalToolkit",
-      "AskUserToolkit",
+      "workspace_toolkit",
+      "terminal_toolkit",
+      "ask-user-toolkit",
+      "code_toolkit",
     ]);
   });
 
@@ -62,7 +72,7 @@ describe("chat_storage selected toolkits persistence", () => {
         "mcp",
         "MCPToolkit",
       ]),
-    ).toEqual(["WorkspaceToolkit"]);
+    ).toEqual(["workspace_toolkit"]);
   });
 
   test("persists selected toolkits per chat", () => {

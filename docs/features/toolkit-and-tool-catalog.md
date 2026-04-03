@@ -30,15 +30,23 @@ Toolkit Discovery (backend)
 
 | ID | Description | Confirmation Required |
 |----|-------------|----------------------|
-| `WorkspaceToolkit` | File read/write in workspace folders | `write_file`, `delete_file`, `move_file` |
-| `TerminalToolkit` | Shell command execution | `terminal_exec` |
-| `ExternalAPIToolkit` | HTTP requests to external APIs | No |
-| `AskUserToolkit` | Ask user for clarification | No |
+| `workspace_toolkit` | File read/write in workspace folders | `write_file`, `delete_file`, `move_file` |
+| `terminal_toolkit` | Shell command execution | `terminal_exec` |
+| `code_toolkit` | Claude-style coding tools | `write`, `edit` |
+| `external_api_toolkit` | HTTP requests to external APIs | No |
+| `ask-user-toolkit` | Ask user for clarification | No |
 
 ### Confirmation-Required Tools
 
 ```python
-{"write_file", "delete_file", "move_file", "terminal_exec"}
+{
+  "workspace_toolkit:write_file",
+  "workspace_toolkit:delete_file",
+  "workspace_toolkit:move_file",
+  "terminal_toolkit:terminal_exec",
+  "code_toolkit:write",
+  "code_toolkit:edit",
+}
 ```
 
 These tools pause the stream and send a `tool_confirmation_request` frame. The stream resumes only after user approval.
@@ -47,14 +55,15 @@ These tools pause the stream and send a `tool_confirmation_request` frame. The s
 
 ## Toolkit ID Normalization
 
-Multiple aliases map to canonical names:
+Multiple aliases map to canonical `toolkitId` values:
 
 | Input | Canonical ID |
 |-------|-------------|
-| `workspace`, `workspace_toolkit` | `WorkspaceToolkit` |
-| `terminal`, `terminal_toolkit` | `TerminalToolkit` |
-| `external_api`, `external_api_toolkit` | `ExternalAPIToolkit` |
-| `ask_user`, `ask_user_toolkit` | `AskUserToolkit` |
+| `workspace`, `workspace_toolkit`, `WorkspaceToolkit` | `workspace_toolkit` |
+| `terminal`, `terminal_toolkit`, `TerminalToolkit` | `terminal_toolkit` |
+| `code`, `code_toolkit`, `CodeToolkit` | `code_toolkit` |
+| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api_toolkit` |
+| `ask_user`, `ask_user_toolkit`, `AskUserToolkit` | `ask-user-toolkit` |
 
 Removed IDs (silently stripped): `mcp`, `mcptoolkit`.
 
@@ -83,7 +92,7 @@ The backend discovers these files during toolkit catalog generation.
 
 ```javascript
 {
-  id: string,               // canonical ID
+  toolkitId: string,        // canonical toolkitId
   name: string,             // display name
   description: string,
   icon?: string,            // icon identifier
@@ -113,13 +122,13 @@ Each chat stores `selectedToolkits: string[]` (max 50 items).
 
 ## Default Toolkit Store
 
-`default_toolkit_store.js` persists the user's default toolkit selection. When a new chat is created, it inherits these defaults.
+`default_toolkit_store.js` persists the user's default toolkit selection as canonical `toolkitId` values. When a new chat is created, it inherits these defaults. If the user has never configured a global default, `code_toolkit` is seeded automatically.
 
 ---
 
 ## Auto-Approval Store
 
-`toolkit_auto_approve_store.js` persists per-tool auto-approval preferences. When a tool normally requires confirmation, the auto-approve store can bypass the confirmation UI.
+`toolkit_auto_approve_store.js` persists toolkit-level and tool-level auto-approval preferences. Tool-level entries are stored as `toolkitId:toolName`, so generic names like `write` are scoped to the owning toolkit.
 
 ---
 

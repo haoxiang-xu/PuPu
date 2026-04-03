@@ -104,9 +104,9 @@ Each SSE line follows `event: <type>\ndata: <json>\n\n`.
 | `token_delta` | stream | Token text fragment; carries `delta` |
 | `model_start` | model | Model inference begins; carries `model` |
 | `model_end` | model | Model inference ends |
-| `tool_call_start` | tool | Tool invocation begins; carries tool name, arguments |
-| `tool_call_end` | tool | Tool invocation ends; carries result |
-| `tool_confirmation_request` | tool | Requires user confirmation; carries `confirmation_id`, tool details |
+| `tool_call_start` | tool | Tool invocation begins; carries `tool_name`, `toolkit_id`, arguments |
+| `tool_call_end` | tool | Tool invocation ends; carries `tool_name`, `toolkit_id`, result |
+| `tool_confirmation_request` | tool | Requires user confirmation; carries `confirmation_id`, `toolkit_id`, tool details |
 | `memory_save` | memory | Memory write event |
 | `memory_recall` | memory | Memory retrieval event |
 | `subagent_spawn` | subagent | Sub-agent created; carries `run_id`, `subagent_id`, `mode`, `template` |
@@ -119,7 +119,7 @@ Each SSE line follows `event: <type>\ndata: <json>\n\n`.
 
 ### Tool Confirmation Flow
 
-When a tool requires confirmation (`write_file`, `delete_file`, `move_file`, `terminal_exec`):
+When a tool requires confirmation (`workspace_toolkit:write_file`, `workspace_toolkit:delete_file`, `workspace_toolkit:move_file`, `terminal_toolkit:terminal_exec`, `code_toolkit:write`, `code_toolkit:edit`):
 
 1. Backend sends `tool_confirmation_request` frame with `confirmation_id`
 2. Backend blocks on `threading.Event.wait()` until confirmation received

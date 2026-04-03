@@ -217,7 +217,7 @@ Custom mini router in `BUILTIN_COMPONENTs/mini_react/mini_router.js`:
 5. **Build order** — run `version:prepare-build` before `react-scripts build`
 6. **Test sync** — Electron tests have `.js` and `.cjs` variants; keep in sync
 7. **Storage writes** — always through SERVICEs helpers
-8. **Toolkit IDs** — use canonical names, not aliases
+8. **Toolkit IDs** — use canonical `toolkitId` values, not aliases
 9. **Workspace paths** — use IDs in sessions, resolve to paths at stream time
 10. **Character chats** — force empty toolkits, workspaces, orchestration, overrides
 
