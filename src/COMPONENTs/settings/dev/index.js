@@ -1,6 +1,7 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 import {
   FEATURE_FLAG_DEFINITIONS,
@@ -10,6 +11,7 @@ import {
 } from "../../../SERVICEs/feature_flags";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { readDevSettings, writeDevSettings } from "./storage";
+import UITestingModal from "../../ui-testing/ui_testing_modal";
 
 export const DevSettings = () => {
   const { onThemeMode } = useContext(ConfigContext);
@@ -23,6 +25,7 @@ export const DevSettings = () => {
   const [info, setInfo] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [featureFlagsSyncError, setFeatureFlagsSyncError] = useState("");
+  const [showUITesting, setShowUITesting] = useState(false);
 
   const errorColor = isDark ? "#ff7f7f" : "#c62828";
   const successColor = isDark ? "#86efac" : "#2e7d32";
@@ -164,7 +167,41 @@ export const DevSettings = () => {
         >
           This setting is available only in Electron development runtime.
         </div>
+
+        <SettingsRow
+          label="UI Testing"
+          description="Open component testing modal with pre-written scenarios."
+        >
+          <Button
+            label="Open"
+            onClick={() => setShowUITesting(true)}
+            style={{
+              fontSize: 12,
+              paddingVertical: 5,
+              paddingHorizontal: 14,
+              borderRadius: 6,
+              hoverBackgroundColor: isDark
+                ? "rgba(255,255,255,0.14)"
+                : "rgba(0,0,0,0.10)",
+              background: {
+                hoverBackgroundColor: isDark
+                  ? "rgba(255,255,255,0.14)"
+                  : "rgba(0,0,0,0.10)",
+              },
+              root: {
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.05)",
+              },
+            }}
+          />
+        </SettingsRow>
       </SettingsSection>
+
+      <UITestingModal
+        open={showUITesting}
+        onClose={() => setShowUITesting(false)}
+      />
 
       <SettingsSection title="Feature Flags" icon="flag">
         {Object.entries(FEATURE_FLAG_DEFINITIONS).map(([flagKey, definition]) => (

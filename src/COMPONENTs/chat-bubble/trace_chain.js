@@ -2,6 +2,7 @@ import { memo, useState, useContext, useMemo, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
+import BranchGraph from "../../BUILTIN_COMPONENTs/branch_graph/branch_graph";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import SeamlessMarkdown from "./components/seamless_markdown";
 import {
@@ -352,6 +353,8 @@ const SUBAGENT_TOOLS = new Set([
   "spawn_worker_batch",
 ]);
 
+const MAX_TRACE_DEPTH = 8;
+
 /* tag pill for subagent — purple-tinted to distinguish from regular tools */
 const SubagentTag = ({ name, isDark }) => (
   <span
@@ -553,6 +556,7 @@ const TraceChain = ({
   bubbleOwnsFinalMessage = true,
   compact = false,
   hideTrack = false,
+  _depth = 0,
 }) => {
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
@@ -816,6 +820,7 @@ const TraceChain = ({
   const timelineItems = useMemo(() => {
     const items = [];
     const renderedCallIds = new Set();
+    const usedRunIds = new Set();
     let prevTs = startFrame?.ts ?? null;
 
     for (const frame of displayFrames) {
@@ -929,9 +934,12 @@ const TraceChain = ({
                     typeof result?.agent_name === "string"
                       ? result.agent_name
                       : "";
-                  const childRunId = agentName
-                    ? (childRunIdsBySubagentId.get(agentName) || [])[0] || ""
-                    : "";
+                  const candidates = agentName
+                    ? childRunIdsBySubagentId.get(agentName) || []
+                    : [];
+                  const childRunId =
+                    candidates.find((id) => !usedRunIds.has(id)) || "";
+                  if (childRunId) usedRunIds.add(childRunId);
                   const childMeta = childRunId
                     ? effectiveSubagentMetaByRunId[childRunId]
                     : null;
@@ -963,7 +971,6 @@ const TraceChain = ({
                 })()
               : isBatch
                 ? (() => {
-                    const usedRunIds = new Set();
                     return batchResults.map((childResult, index) => {
                       const agentName =
                         typeof childResult?.agent_name === "string"
@@ -1017,7 +1024,7 @@ const TraceChain = ({
                   })()
                 : [];
 
-          /* ── build branch children (git-graph fork/merge) ── */
+          /* ── build branches for BranchGraph ── */
           const modeLabel = isBatch
             ? "workers"
             : isDelegate
@@ -1049,46 +1056,7 @@ const TraceChain = ({
             userSelect: "none",
           };
 
-          const branchChildren = [];
-
-          /* header node (always index 0, always visible) */
-          branchChildren.push({
-            key: `${frame.seq}-header`,
-            title: (
-              <span
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 5,
-                }}
-              >
-                <span style={labelStyle}>{modeLabel}</span>
-                <SubagentTag name={target} isDark={isDark} />
-                {batchCount > 0 && (
-                  <CountBadge count={batchCount} isDark={isDark} />
-                )}
-                {resultStatus && failed && (
-                  <span style={statusStyle}>{resultStatus}</span>
-                )}
-                {childTimelineItems.length > 0 && (
-                  <BranchExpandArrow
-                    open={isBranchExpanded}
-                    onClick={() => toggleBranchSummary(bKey)}
-                    isDark={isDark}
-                  />
-                )}
-              </span>
-            ),
-            span: !isBranchExpanded ? spanText : undefined,
-            status: resultFrame ? "done" : "active",
-            point: !isBranchExpanded
-              ? <SubagentPoint isDark={isDark} />
-              : <span style={{ width: 0, height: 0 }} />,
-          });
-
-          /* worker nodes (animated via branchAnimateFrom=1) */
-          for (let wi = 0; wi < childTimelineItems.length; wi++) {
-            const worker = childTimelineItems[wi];
+          const branches = childTimelineItems.map((worker, wi) => {
             const isWExpanded = bExpandedWorkers.has(wi);
             const wLabel = getSubagentShortLabel({
               meta: worker.meta,
@@ -1101,8 +1069,9 @@ const TraceChain = ({
             );
             const hasWFrames =
               Array.isArray(worker.frames) && worker.frames.length > 0;
+            const canExpand = hasWFrames && _depth < MAX_TRACE_DEPTH;
 
-            branchChildren.push({
+            return {
               key: worker.key,
               title: (
                 <span
@@ -1147,7 +1116,7 @@ const TraceChain = ({
                   >
                     {worker.status || "pending"}
                   </span>
-                  {hasWFrames && (
+                  {canExpand && (
                     <BranchExpandArrow
                       open={isWExpanded}
                       onClick={() => toggleBranchWorker(bKey, wi)}
@@ -1166,7 +1135,7 @@ const TraceChain = ({
                     ? "active"
                     : "pending",
               point: <SubagentPoint isDark={isDark} />,
-              expandContent: hasWFrames ? (
+              expandContent: canExpand ? (
                 <TraceChain
                   frames={worker.frames}
                   status={getSubagentTraceStatus(worker.status)}
@@ -1176,19 +1145,74 @@ const TraceChain = ({
                   hideTrack
                   subagentFrames={effectiveSubagentFrames}
                   subagentMetaByRunId={effectiveSubagentMetaByRunId}
+                  _depth={_depth + 1}
                 />
+              ) : hasWFrames ? (
+                <div
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    color: isDark
+                      ? "rgba(255,255,255,0.3)"
+                      : "rgba(0,0,0,0.25)",
+                    padding: "4px 0",
+                    userSelect: "none",
+                  }}
+                >
+                  Trace depth limit reached
+                </div>
               ) : undefined,
-              isExpanded: isWExpanded,
-            });
-          }
+              isExpanded: canExpand ? isWExpanded : hasWFrames,
+            };
+          });
 
+          const overallBranchStatus = resultFrame
+            ? failed
+              ? "error"
+              : "done"
+            : "active";
 
           items.push({
             key: `${frame.seq}-subagent`,
+            title: (
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                }}
+              >
+                <span style={labelStyle}>{modeLabel}</span>
+                <SubagentTag name={target} isDark={isDark} />
+                {batchCount > 0 && (
+                  <CountBadge count={batchCount} isDark={isDark} />
+                )}
+                {resultStatus && failed && (
+                  <span style={statusStyle}>{resultStatus}</span>
+                )}
+                {branches.length > 0 && (
+                  <BranchExpandArrow
+                    open={isBranchExpanded}
+                    onClick={() => toggleBranchSummary(bKey)}
+                    isDark={isDark}
+                  />
+                )}
+              </span>
+            ),
+            span: spanText,
             status: resultFrame ? "done" : "active",
-            children: branchChildren,
-            branchOpen: isBranchExpanded,
-            branchAnimateFrom: childTimelineItems.length > 0 ? 1 : 0,
+            point: <SubagentPoint isDark={isDark} />,
+            body: branches.length > 0 ? (
+              <BranchGraph
+                branches={branches}
+                expanded={isBranchExpanded}
+                status={overallBranchStatus}
+                curveReach={hideTrack ? 0 : compact ? 22 : 26}
+                inset={hideTrack ? 0 : 12}
+                isDark={isDark}
+                compact={compact}
+              />
+            ) : undefined,
           });
           continue;
         }
@@ -1606,19 +1630,6 @@ const TraceChain = ({
       });
     }
 
-    /* ── ensure a start node exists so branches never appear first ── */
-    if (
-      grouped.length > 0 &&
-      Array.isArray(grouped[0].children) &&
-      grouped[0].children.length > 0
-    ) {
-      grouped.unshift({
-        key: "__start__",
-        title: null,
-        status: "done",
-      });
-    }
-
     /* ── token summary at the end of the timeline ── */
     if (
       status === "done" &&
@@ -1662,6 +1673,8 @@ const TraceChain = ({
     status,
     bundle,
     compact,
+    hideTrack,
+    _depth,
     childRunIdsBySubagentId,
     effectiveSubagentFrames,
     effectiveSubagentMetaByRunId,

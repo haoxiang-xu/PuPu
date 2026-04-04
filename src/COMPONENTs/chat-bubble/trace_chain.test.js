@@ -696,16 +696,17 @@ describe("TraceChain final_message draft timeline", () => {
       screen.queryByText("Kernel package summary from the child agent."),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "detail" }));
+    // Delegate label visible
+    expect(screen.getByText("delegate")).toBeInTheDocument();
 
-    const toggle = screen.getByRole("button", {
-      name: "Toggle subagent timeline",
-    });
-    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    // Branch expand arrow + worker expand arrow are in the DOM
+    const expandBtns = screen.getAllByRole("button", { name: "Expand" });
+    expect(expandBtns).toHaveLength(2);
 
-    fireEvent.click(toggle);
+    // Expand branch to reveal worker, then expand worker to reveal trace
+    fireEvent.click(expandBtns[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
 
-    expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Child delegate final output")).toBeInTheDocument();
   });
 
@@ -798,26 +799,26 @@ describe("TraceChain final_message draft timeline", () => {
       },
     });
 
+    // Worker result summaries not rendered directly
     expect(screen.queryByText("Kernel worker summary")).not.toBeInTheDocument();
     expect(screen.queryByText("Tools worker summary")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "detail" }));
+    // Workers label visible
+    expect(screen.getByText("workers")).toBeInTheDocument();
 
-    const toggles = screen.getAllByRole("button", {
-      name: "Toggle subagent timeline",
-    });
-    expect(toggles).toHaveLength(2);
-    expect(toggles[0]).toHaveAttribute("aria-expanded", "false");
-    expect(toggles[1]).toHaveAttribute("aria-expanded", "false");
+    // Branch expand + 2 worker expands in DOM
+    const expandBtns = screen.getAllByRole("button", { name: "Expand" });
+    expect(expandBtns).toHaveLength(3);
 
-    fireEvent.click(toggles[0]);
+    // Expand branch, then expand first worker
+    fireEvent.click(expandBtns[0]);
+    const workerExpands = screen.getAllByRole("button", { name: "Expand" });
+    fireEvent.click(workerExpands[0]);
 
-    expect(toggles[0]).toHaveAttribute("aria-expanded", "true");
-    expect(toggles[1]).toHaveAttribute("aria-expanded", "false");
     expect(screen.getByText("Kernel child timeline output")).toBeInTheDocument();
   });
 
-  test("keeps handoff results on the main timeline without a child disclosure", () => {
+  test("renders handoff child output in a BranchGraph accessible after expanding", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
@@ -873,11 +874,20 @@ describe("TraceChain final_message draft timeline", () => {
       },
     });
 
+    // Handoff label visible
+    expect(screen.getByText("handoff")).toBeInTheDocument();
+
+    // Branch expand + worker expand in DOM
+    const expandBtns = screen.getAllByRole("button", { name: "Expand" });
+    expect(expandBtns).toHaveLength(2);
+
+    // Expand branch, then expand worker
+    fireEvent.click(expandBtns[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+
+    // Child output now accessible
     expect(
-      screen.queryByRole("button", { name: "Toggle subagent timeline" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("This should stay on the main output path."),
-    ).not.toBeInTheDocument();
+      screen.getByText("This should stay on the main output path."),
+    ).toBeInTheDocument();
   });
 });
