@@ -1766,6 +1766,7 @@ requires_confirmation = false
                 "__module__": module_name,
                 "__doc__": "Toolkit for icon tests.",
                 "echo": lambda self: None,
+                "shutdown": lambda self: None,
             },
         )
         setattr(toolkit_module, "DemoToolkit", toolkit_class)
@@ -1845,6 +1846,7 @@ requires_confirmation = true
                 "__doc__": "Claude-style coding tools.",
                 "read": lambda self: None,
                 "write": lambda self: None,
+                "shutdown": lambda self: None,
             },
         )
         setattr(toolkit_module, "CodeToolkit", toolkit_class)
@@ -1912,6 +1914,7 @@ requires_confirmation = true
         entry = payload["toolkits"][0]
         self.assertEqual(entry["toolkitId"], "code_toolkit")
         self.assertEqual(entry["toolkitName"], "Code Toolkit")
+        self.assertEqual([tool["name"] for tool in entry["tools"]], ["read", "write"])
         self.assertEqual(entry["tools"][0]["name"], "read")
         self.assertFalse(entry["tools"][0]["requiresConfirmation"])
         self.assertEqual(entry["tools"][1]["name"], "write")

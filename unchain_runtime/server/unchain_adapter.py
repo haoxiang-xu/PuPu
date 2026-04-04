@@ -1220,10 +1220,44 @@ def _clean_docstring(doc: str) -> str:
     return ""
 
 
+def _tool_names_from_toml(cls: type) -> List[str]:
+    """Return tool names declared in toolkit.toml, preserving manifest order."""
+    toml_data = _read_toolkit_toml(cls)
+    raw_tools = toml_data.get("tools") or []
+    if not isinstance(raw_tools, list):
+        return []
+    names: List[str] = []
+    seen: set[str] = set()
+    for entry in raw_tools:
+        if not isinstance(entry, dict):
+            continue
+        name = str(entry.get("name", "")).strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
+def _filter_tools_to_manifest(
+    tools: List[Dict[str, str]],
+    manifest_tool_names: List[str],
+) -> List[Dict[str, str]]:
+    if not manifest_tool_names:
+        return tools
+    tools_by_name: Dict[str, Dict[str, str]] = {}
+    for tool in tools:
+        name = str(tool.get("name", "")).strip()
+        if name and name not in tools_by_name:
+            tools_by_name[name] = tool
+    return [tools_by_name[name] for name in manifest_tool_names if name in tools_by_name]
+
+
 def _enumerate_toolkit_tools(cls: type) -> List[Dict[str, str]]:
     """Return [{name, description}] for each tool found in a toolkit class."""
     tools: List[Dict[str, str]] = []
     seen_names: set[str] = set()
+    manifest_tool_names = _tool_names_from_toml(cls)
 
     # Strategy 1: explicit .tools list/tuple on the class
     raw_tools = getattr(cls, "tools", None)
@@ -1239,7 +1273,7 @@ def _enumerate_toolkit_tools(cls: type) -> List[Dict[str, str]]:
                 seen_names.add(t)
                 tools.append({"name": t, "description": ""})
         if tools:
-            return tools
+            return _filter_tools_to_manifest(tools, manifest_tool_names)
 
     # Strategy 2: inspect members for known tool-marker attributes
     try:
@@ -1268,11 +1302,13 @@ def _enumerate_toolkit_tools(cls: type) -> List[Dict[str, str]]:
             )
             tools.append({"name": str(name), "description": _clean_docstring(str(desc))})
     if tools:
-        return tools
+        return _filter_tools_to_manifest(tools, manifest_tool_names)
 
     # Strategy 3: fall back to public callables defined in this class's own __dict__
     for attr_name, attr_val in cls.__dict__.items():
         if attr_name.startswith("_"):
+            continue
+        if manifest_tool_names and attr_name not in manifest_tool_names:
             continue
         if isinstance(attr_val, staticmethod):
             fn = attr_val.__func__
@@ -1286,7 +1322,7 @@ def _enumerate_toolkit_tools(cls: type) -> List[Dict[str, str]]:
             seen_names.add(attr_name)
             desc = getattr(fn, "description", None) or getattr(fn, "__doc__", None) or ""
             tools.append({"name": attr_name, "description": _clean_docstring(str(desc))})
-    return tools
+    return _filter_tools_to_manifest(tools, manifest_tool_names)
 
 
 def _enumerate_builtin_submodule_toolkits(
