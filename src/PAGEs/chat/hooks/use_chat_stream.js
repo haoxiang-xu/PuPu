@@ -621,37 +621,14 @@ export const useChatStream = ({
       }));
 
       try {
-        /* Try new-protocol respondInput first. If the bridge method
-           is available and the request_id is valid it will succeed.
-           Fall back to old respondToolConfirmation for legacy streams. */
-        let responded = false;
-        if (typeof api.unchain.respondInput === "function") {
-          try {
-            await api.unchain.respondInput({
-              request_id: normalizedConfirmationId,
-              decision: approved ? "approve" : "deny",
-              response:
-                userResponse !== undefined && userResponse !== null
-                  ? String(userResponse)
-                  : null,
-            });
-            responded = true;
-          } catch (_inputError) {
-            /* respondInput unavailable or failed — fall back below */
-          }
-        }
-
-        if (!responded) {
-          const payload = {
-            confirmation_id: normalizedConfirmationId,
-            approved: Boolean(approved),
-            reason: "",
-          };
-          if (userResponse !== undefined && userResponse !== null) {
-            payload.modified_arguments = { user_response: userResponse };
-          }
-          await api.unchain.respondToolConfirmation(payload);
-        }
+        await api.unchain.respondInput({
+          request_id: normalizedConfirmationId,
+          decision: approved ? "approve" : "deny",
+          response:
+            userResponse !== undefined && userResponse !== null
+              ? String(userResponse)
+              : null,
+        });
 
         if (
           confirmationFollowupSignalByIdRef.current.get(
@@ -722,28 +699,11 @@ export const useChatStream = ({
       );
 
       try {
-        /* Try new-protocol respondInput first, fall back to legacy */
-        let responded = false;
-        if (typeof api.unchain.respondInput === "function") {
-          try {
-            await api.unchain.respondInput({
-              request_id: normalizedId,
-              decision: approved ? "approve" : "deny",
-              response: null,
-            });
-            responded = true;
-          } catch (_inputError) {
-            /* respondInput unavailable — fall back below */
-          }
-        }
-
-        if (!responded) {
-          await api.unchain.respondToolConfirmation({
-            confirmation_id: normalizedId,
-            approved: Boolean(approved),
-            reason: "",
-          });
-        }
+        await api.unchain.respondInput({
+          request_id: normalizedId,
+          decision: approved ? "approve" : "deny",
+          response: null,
+        });
 
         pendingContinuationRequestRef.current = null;
         setPendingContinuationRequest(null);
@@ -2684,13 +2644,12 @@ export const useChatStream = ({
                     (!itype || itype === "confirmation") &&
                     isToolAutoApproved(toolkitId, toolName);
                   if (isAutoApprovable) {
-                    const autoPayload = {
-                      confirmation_id: confirmationId,
-                      approved: true,
-                      reason: "",
-                    };
                     api.unchain
-                      .respondToolConfirmation(autoPayload)
+                      .respondInput({
+                        request_id: confirmationId,
+                        decision: "approve",
+                        response: null,
+                      })
                       .then(() => {
                         if (
                           confirmationFollowupSignalByIdRef.current.get(

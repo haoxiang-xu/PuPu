@@ -636,50 +636,6 @@ export const createUnchainApi = () => {
       }
     },
 
-    respondToolConfirmation: async (payload = {}) => {
-      try {
-        const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");
-        const confirmationIdRaw = payload?.confirmation_id;
-        const confirmationId =
-          typeof confirmationIdRaw === "string" ? confirmationIdRaw.trim() : "";
-        if (!confirmationId) {
-          throw new FrontendApiError(
-            "invalid_confirmation_request",
-            "confirmation_id is required",
-          );
-        }
-
-        const reasonRaw = payload?.reason;
-        const requestPayload = {
-          confirmation_id: confirmationId,
-          approved: Boolean(payload?.approved),
-          reason:
-            typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
-        };
-
-        const modifiedArguments = payload?.modified_arguments;
-        if (modifiedArguments != null) {
-          if (!isObject(modifiedArguments)) {
-            throw new FrontendApiError(
-              "invalid_confirmation_request",
-              "modified_arguments must be an object when provided",
-            );
-          }
-          requestPayload.modified_arguments = modifiedArguments;
-        }
-
-        const response = await method(requestPayload);
-
-        return isObject(response) ? response : { status: "ok" };
-      } catch (error) {
-        throw toFrontendApiError(
-          error,
-          "unchain_tool_confirmation_failed",
-          "Failed to submit tool confirmation",
-        );
-      }
-    },
-
     respondInput: async ({ request_id, decision, response = null } = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "respondInput");

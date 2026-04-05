@@ -123,7 +123,6 @@ _TOOLKIT_NAME_ALIASES = {
     "AskUserToolkit": "CoreToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 32
-_CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
 _AGENT_ORCHESTRATION_DEFAULT = "default"
 _AGENT_ORCHESTRATION_DEVELOPER_WAITING_APPROVAL = "developer_waiting_approval"
 _GENERAL_MODEL_BY_PROVIDER = {
@@ -219,9 +218,6 @@ def _build_modular_prompt(
             blocks.append(text)
     return "\n\n".join(blocks)
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
-_pending_confirmations: Dict[str, Dict[str, Any]] = {}
-_pending_confirmations_lock = threading.Lock()
-
 # ── Unified SSE event mapping ────────────────────────────────────────────────
 _EVENT_MAP = {
     "run_started":    "run.start",
@@ -327,113 +323,6 @@ def _is_openai_previous_response_fallback_error(exc: Exception) -> bool:
         return True
     return False
 
-def _normalize_tool_confirmation_response(raw: object) -> Dict[str, Any]:
-    approved = True
-    reason = ""
-    modified_arguments: Dict[str, Any] | None = None
-
-    if isinstance(raw, bool):
-        approved = raw
-    elif isinstance(raw, dict):
-        approved = bool(raw.get("approved", True))
-        reason_raw = raw.get("reason", "")
-        reason = reason_raw if isinstance(reason_raw, str) else str(reason_raw or "")
-        modified_raw = raw.get("modified_arguments")
-        if isinstance(modified_raw, dict):
-            modified_arguments = modified_raw
-    else:
-        approved_attr = getattr(raw, "approved", raw)
-        approved = bool(approved_attr)
-        reason_attr = getattr(raw, "reason", "")
-        reason = reason_attr if isinstance(reason_attr, str) else str(reason_attr or "")
-        modified_attr = getattr(raw, "modified_arguments", None)
-        if isinstance(modified_attr, dict):
-            modified_arguments = modified_attr
-
-    return {
-        "approved": approved,
-        "reason": reason,
-        "modified_arguments": modified_arguments,
-    }
-
-
-def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, Any]:
-    payload: Dict[str, Any] = {}
-    if isinstance(request_obj, dict):
-        payload = dict(request_obj)
-    else:
-        to_dict = getattr(request_obj, "to_dict", None)
-        if callable(to_dict):
-            try:
-                raw_payload = to_dict()
-                if isinstance(raw_payload, dict):
-                    payload = dict(raw_payload)
-            except Exception:
-                payload = {}
-
-    if not payload:
-        payload = {
-            "tool_name": getattr(request_obj, "tool_name", ""),
-            "tool_display_name": getattr(request_obj, "tool_display_name", ""),
-            "call_id": getattr(request_obj, "call_id", ""),
-            "arguments": getattr(request_obj, "arguments", {}),
-            "description": getattr(request_obj, "description", ""),
-        }
-
-    payload["type"] = "tool_call"
-
-    if not isinstance(payload.get("tool_name"), str):
-        payload["tool_name"] = str(payload.get("tool_name", "") or "")
-    display_name = payload.get("tool_display_name", "")
-    if display_name is None:
-        display_name = ""
-    if not isinstance(display_name, str):
-        display_name = str(display_name or "")
-    payload["tool_display_name"] = display_name.strip()
-    if not isinstance(payload.get("call_id"), str):
-        payload["call_id"] = str(payload.get("call_id", "") or "")
-    toolkit_id = payload.get("toolkit_id", "")
-    if toolkit_id is None:
-        toolkit_id = ""
-    if not isinstance(toolkit_id, str):
-        toolkit_id = str(toolkit_id or "")
-    payload["toolkit_id"] = toolkit_id.strip()
-    toolkit_name = payload.get("toolkit_name", "")
-    if toolkit_name is None:
-        toolkit_name = ""
-    if not isinstance(toolkit_name, str):
-        toolkit_name = str(toolkit_name or "")
-    payload["toolkit_name"] = toolkit_name.strip()
-
-    raw_arguments = payload.get("arguments")
-    arguments = raw_arguments
-    payload["arguments"] = arguments if isinstance(arguments, dict) else {}
-
-    description = payload.get("description", "")
-    payload["description"] = description if isinstance(description, str) else str(description or "")
-
-    confirmation_id = payload.get("confirmation_id", "")
-    if confirmation_id is None:
-        confirmation_id = ""
-    if not isinstance(confirmation_id, str):
-        confirmation_id = str(confirmation_id or "")
-    payload["confirmation_id"] = confirmation_id.strip()
-    payload["requires_confirmation"] = True
-
-    # ── interact extension ──────────────────────────────────────────────
-    # interact_type: "confirmation" | "multi_choice" | "text_input" | "single" | "multi"
-    interact_type = payload.get("interact_type", "confirmation")
-    payload["interact_type"] = interact_type if isinstance(interact_type, str) else "confirmation"
-
-    interact_config = payload.get("interact_config")
-    payload["interact_config"] = interact_config if isinstance(interact_config, (dict, list)) else {}
-
-    # render_component removed — frontend reads interact_type/interact_config directly
-    payload.pop("render_component", None)
-
-    return payload
-
-
 def _set_workspace_proxy_tool_metadata(
     tool_obj: Any,
     *,
@@ -463,63 +352,6 @@ def _resolve_tool_display_name(
     if isinstance(tool_name, str):
         return tool_name
     return str(tool_name or "")
-
-
-def submit_tool_confirmation(
-    confirmation_id: str,
-    approved: bool,
-    reason: str = "",
-    modified_arguments: Dict[str, Any] | None = None,
-) -> bool:
-    normalized_id = confirmation_id.strip() if isinstance(confirmation_id, str) else ""
-    if not normalized_id:
-        return False
-
-    with _pending_confirmations_lock:
-        pending = _pending_confirmations.get(normalized_id)
-        if pending is None:
-            return False
-
-        pending["response"] = {
-            "approved": bool(approved),
-            "reason": reason if isinstance(reason, str) else str(reason or ""),
-            "modified_arguments": modified_arguments if isinstance(modified_arguments, dict) else None,
-        }
-        event = pending.get("event")
-        if isinstance(event, threading.Event):
-            event.set()
-
-    return True
-
-
-def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> int:
-    cancelled = 0
-    with _pending_confirmations_lock:
-        for pending in _pending_confirmations.values():
-            if not isinstance(pending, dict):
-                continue
-
-            waiter_cancel_event = pending.get("cancel_event")
-            if (
-                isinstance(cancel_event, threading.Event)
-                and waiter_cancel_event is not cancel_event
-            ):
-                continue
-
-            if pending.get("response") is not None:
-                continue
-
-            pending["response"] = {
-                "approved": False,
-                "reason": _CONFIRMATION_CANCELLED_REASON,
-                "modified_arguments": None,
-            }
-            cancelled += 1
-            event = pending.get("event")
-            if isinstance(event, threading.Event):
-                event.set()
-
-    return cancelled
 
 
 def _provider_default_model(provider: str) -> str:

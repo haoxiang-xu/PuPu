@@ -12,8 +12,6 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
       toolkitId,
       toolName,
     }),
-  respondToolConfirmation: (payload = {}) =>
-    ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
   respondInput: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.INPUT_RESPOND, payload),
   setChromeTerminalOpen: (open = false) =>

@@ -5,7 +5,6 @@ from route_blueprint import api_blueprint
 from route_projection import _kmeans_2d_numpy
 from unchain_adapter import (
     cancel_all_pending_inputs,
-    cancel_tool_confirmations,
     get_capability_catalog,
     get_default_model_capabilities,
     get_embedding_provider_catalog,
@@ -18,7 +17,6 @@ from unchain_adapter import (
     stream_chat,
     stream_chat_events,
     submit_input,
-    submit_tool_confirmation,
 )
 
 import route_catalog  # noqa: F401
@@ -33,7 +31,6 @@ __all__ = [
     "_json_error",
     "_kmeans_2d_numpy",
     "cancel_all_pending_inputs",
-    "cancel_tool_confirmations",
     "character_defaults",
     "character_store",
     "get_capability_catalog",
@@ -48,5 +45,4 @@ __all__ = [
     "stream_chat",
     "stream_chat_events",
     "submit_input",
-    "submit_tool_confirmation",
 ]

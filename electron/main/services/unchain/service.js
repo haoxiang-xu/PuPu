@@ -9,7 +9,6 @@ const UNCHAIN_HEALTH_RETRY_MS = 250;
 const UNCHAIN_RESTART_DELAY_MS = 1500;
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
-const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_INPUT_RESPOND_ENDPOINT = "/chat/input/respond";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
@@ -970,55 +969,6 @@ const createUnchainService = ({
     );
   };
 
-  const submitMisoToolConfirmation = async (payload = {}) => {
-    ensureMisoReady();
-
-    const confirmationIdRaw = payload?.confirmation_id;
-    const confirmationId =
-      typeof confirmationIdRaw === "string" ? confirmationIdRaw.trim() : "";
-    if (!confirmationId) {
-      throw new Error("confirmation_id is required");
-    }
-
-    const reasonRaw = payload?.reason;
-    const requestBody = {
-      confirmation_id: confirmationId,
-      approved: Boolean(payload?.approved),
-      reason:
-        typeof reasonRaw === "string" ? reasonRaw : String(reasonRaw || ""),
-    };
-
-    const modifiedArguments = payload?.modified_arguments;
-    if (modifiedArguments != null) {
-      const isObject =
-        typeof modifiedArguments === "object" &&
-        !Array.isArray(modifiedArguments);
-      if (!isObject) {
-        throw new Error("modified_arguments must be an object");
-      }
-      requestBody.modified_arguments = modifiedArguments;
-    }
-
-    const response = await fetch(
-      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_TOOL_CONFIRMATION_ENDPOINT}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
-        },
-        body: JSON.stringify(requestBody),
-      },
-    );
-
-    return readJsonResponse(
-      response,
-      "Miso tool confirmation request failed",
-      { status: "ok" },
-      "Invalid Miso tool confirmation response",
-    );
-  };
-
   const submitInputRespond = async (payload = {}) => {
     ensureMisoReady();
 
@@ -1757,7 +1707,6 @@ const createUnchainService = ({
     buildMisoCharacterAgentConfig,
     exportMisoCharacter,
     importMisoCharacter,
-    submitMisoToolConfirmation,
     submitInputRespond,
     handleStreamStart,
     handleStreamStartV2,

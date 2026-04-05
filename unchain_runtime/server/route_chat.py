@@ -174,50 +174,6 @@ def _sanitize_attachments(payload_attachments: object) -> List[Dict[str, object]
     return attachments
 
 
-@api_blueprint.post("/chat/tool/confirmation")
-def chat_tool_confirmation() -> Response:
-    root = _root()
-    if not root._is_authorized():
-        return root._json_error("unauthorized", "Invalid auth token", 401)
-
-    payload = request.get_json(silent=True) or {}
-    confirmation_id_raw = payload.get("confirmation_id")
-    confirmation_id = (
-        confirmation_id_raw.strip()
-        if isinstance(confirmation_id_raw, str)
-        else ""
-    )
-    if not confirmation_id:
-        return root._json_error("invalid_request", "confirmation_id is required", 400)
-
-    approved = bool(payload.get("approved", False))
-    reason_raw = payload.get("reason", "")
-    reason = reason_raw if isinstance(reason_raw, str) else str(reason_raw or "")
-
-    modified_arguments = payload.get("modified_arguments")
-    if modified_arguments is not None and not isinstance(modified_arguments, dict):
-        return root._json_error(
-            "invalid_request",
-            "modified_arguments must be an object when provided",
-            400,
-        )
-
-    found = root.submit_tool_confirmation(
-        confirmation_id=confirmation_id,
-        approved=approved,
-        reason=reason,
-        modified_arguments=modified_arguments,
-    )
-    if not found:
-        return root._json_error(
-            "not_found",
-            "No pending confirmation found for this ID",
-            404,
-        )
-
-    return jsonify({"status": "ok"})
-
-
 @api_blueprint.post("/chat/input/respond")
 def respond_input() -> Response:
     """Unified endpoint for user input responses (approval, question, continue)."""
