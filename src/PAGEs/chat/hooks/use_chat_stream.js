@@ -621,15 +621,38 @@ export const useChatStream = ({
       }));
 
       try {
-        const payload = {
-          confirmation_id: normalizedConfirmationId,
-          approved: Boolean(approved),
-          reason: "",
-        };
-        if (userResponse !== undefined && userResponse !== null) {
-          payload.modified_arguments = { user_response: userResponse };
+        /* Try new-protocol respondInput first. If the bridge method
+           is available and the request_id is valid it will succeed.
+           Fall back to old respondToolConfirmation for legacy streams. */
+        let responded = false;
+        if (typeof api.unchain.respondInput === "function") {
+          try {
+            await api.unchain.respondInput({
+              request_id: normalizedConfirmationId,
+              decision: approved ? "approve" : "deny",
+              response:
+                userResponse !== undefined && userResponse !== null
+                  ? String(userResponse)
+                  : null,
+            });
+            responded = true;
+          } catch (_inputError) {
+            /* respondInput unavailable or failed — fall back below */
+          }
         }
-        await api.unchain.respondToolConfirmation(payload);
+
+        if (!responded) {
+          const payload = {
+            confirmation_id: normalizedConfirmationId,
+            approved: Boolean(approved),
+            reason: "",
+          };
+          if (userResponse !== undefined && userResponse !== null) {
+            payload.modified_arguments = { user_response: userResponse };
+          }
+          await api.unchain.respondToolConfirmation(payload);
+        }
+
         if (
           confirmationFollowupSignalByIdRef.current.get(
             normalizedConfirmationId,
@@ -699,11 +722,29 @@ export const useChatStream = ({
       );
 
       try {
-        await api.unchain.respondToolConfirmation({
-          confirmation_id: normalizedId,
-          approved: Boolean(approved),
-          reason: "",
-        });
+        /* Try new-protocol respondInput first, fall back to legacy */
+        let responded = false;
+        if (typeof api.unchain.respondInput === "function") {
+          try {
+            await api.unchain.respondInput({
+              request_id: normalizedId,
+              decision: approved ? "approve" : "deny",
+              response: null,
+            });
+            responded = true;
+          } catch (_inputError) {
+            /* respondInput unavailable — fall back below */
+          }
+        }
+
+        if (!responded) {
+          await api.unchain.respondToolConfirmation({
+            confirmation_id: normalizedId,
+            approved: Boolean(approved),
+            reason: "",
+          });
+        }
+
         pendingContinuationRequestRef.current = null;
         setPendingContinuationRequest(null);
       } catch (_error) {
@@ -714,6 +755,80 @@ export const useChatStream = ({
       }
     },
     [],
+  );
+
+  /* ── submitInput: new-protocol input response via respondInput API ── */
+  const submitInput = useCallback(
+    async (requestId, decision, response) => {
+      const normalizedRequestId =
+        typeof requestId === "string" ? requestId.trim() : "";
+      if (!normalizedRequestId) return;
+
+      const normalizedDecision =
+        typeof decision === "string" ? decision.trim() : "approve";
+
+      try {
+        await api.unchain.respondInput({
+          request_id: normalizedRequestId,
+          decision: normalizedDecision,
+          response: response != null ? response : null,
+        });
+
+        /* Optimistically update confirmation UI if this was a tool approval */
+        const callId =
+          confirmationCallIdByIdRef.current.get(normalizedRequestId) || "";
+        if (callId) {
+          appendSyntheticToolConfirmationDecision({
+            confirmationId: normalizedRequestId,
+            approved: normalizedDecision === "approve",
+            userResponse: response,
+          });
+          updateToolConfirmationUiState((prev) => ({
+            ...prev,
+            [normalizedRequestId]: {
+              ...(prev[normalizedRequestId] || {}),
+              status: "submitted",
+              error: "",
+              resolved: true,
+              decision:
+                normalizedDecision === "approve" ? "approved" : "denied",
+              userResponse: response ?? null,
+            },
+          }));
+        }
+
+        /* Clear continuation if this was a continue request */
+        const currentContinuation = pendingContinuationRequestRef.current;
+        if (
+          currentContinuation &&
+          currentContinuation.confirmationId === normalizedRequestId
+        ) {
+          pendingContinuationRequestRef.current = null;
+          setPendingContinuationRequest(null);
+        }
+      } catch (error) {
+        const errorMessage =
+          (typeof error?.message === "string" && error.message) ||
+          "Failed to submit input response";
+        /* Update UI state with error */
+        updateToolConfirmationUiState((prev) => {
+          if (!prev[normalizedRequestId]) return prev;
+          return {
+            ...prev,
+            [normalizedRequestId]: {
+              ...(prev[normalizedRequestId] || {}),
+              status: "error",
+              error: errorMessage,
+              resolved: false,
+            },
+          };
+        });
+      }
+    },
+    [
+      appendSyntheticToolConfirmationDecision,
+      updateToolConfirmationUiState,
+    ],
   );
 
   const replaceSessionMemoryForMessages = useCallback(
@@ -1174,6 +1289,7 @@ export const useChatStream = ({
       let accumulatedThinkingText = "";
       let thinkingBlockIndex = 0;
       const THINKING_SEQ_BASE = -9000;
+      let nextSeqCounter = 1;
 
       const flushBufferedThinkingDelta = () => {
         if (!bufferedThinkingDelta) return;
@@ -1231,6 +1347,94 @@ export const useChatStream = ({
           finaliseThinkingBlock();
         },
       });
+
+      /* ── appendTraceFrame: adds a trace frame to the assistant message ── */
+      const appendTraceFrame = (traceFrame) => {
+        const patchTime = Date.now();
+        const nextStreamMessages = streamMessages.map((message) => {
+          if (message.id !== assistantMessageId) return message;
+          return {
+            ...message,
+            updatedAt: patchTime,
+            traceFrames: [...(message.traceFrames || []), traceFrame],
+          };
+        });
+        syncStreamMessages(nextStreamMessages);
+      };
+
+      /* ── appendTraceFrameWithContentCapture: like appendTraceFrame but
+           also captures accumulated content as a synthetic final_message
+           when a tool_call arrives mid-stream (same as old tool_call handler) ── */
+      const appendTraceFrameWithContentCapture = (traceFrame) => {
+        flushBufferedTokenDelta();
+        const patchTime = Date.now();
+        const nextStreamMessages = streamMessages.map((message) => {
+          if (message.id !== assistantMessageId) return message;
+          const currentContent =
+            typeof message.content === "string" ? message.content : "";
+          const currentContentTrimmed = currentContent.trim();
+          const existingFrames = message.traceFrames || [];
+
+          const alreadyCaptured =
+            !currentContentTrimmed ||
+            existingFrames.some(
+              (f) =>
+                f.type === "final_message" &&
+                typeof f.payload?.content === "string" &&
+                f.payload.content.trim() === currentContentTrimmed,
+            );
+
+          const syntheticFrame = alreadyCaptured
+            ? []
+            : [
+                {
+                  seq:
+                    (Number.isFinite(Number(traceFrame.seq))
+                      ? Number(traceFrame.seq)
+                      : 0) - 0.5,
+                  ts: patchTime,
+                  type: "final_message",
+                  stage: "model",
+                  payload: { content: currentContent },
+                },
+              ];
+
+          return {
+            ...message,
+            content: "",
+            updatedAt: patchTime,
+            traceFrames: [...existingFrames, ...syntheticFrame, traceFrame],
+          };
+        });
+        syncStreamMessages(nextStreamMessages);
+      };
+
+      /* ── routeTraceFrame: routes a trace frame to subagent or main timeline ── */
+      const routeTraceFrame = (traceFrame, frameRunId, useContentCapture) => {
+        const normalizedRunId =
+          typeof frameRunId === "string" ? frameRunId : "";
+
+        /* A frame belongs to a subagent when it has a run_id that is
+           known via branch.fork, OR when the run_id differs from the
+           parent (eagerly treat as child, same as old handler logic). */
+        const isSubagent =
+          normalizedRunId.length > 0 &&
+          parentRunIdRef.current &&
+          normalizedRunId !== parentRunIdRef.current;
+
+        if (isSubagent) {
+          if (!subagentFramesByRunIdRef.current.has(normalizedRunId)) {
+            subagentFramesByRunIdRef.current.set(normalizedRunId, []);
+            upsertSubagentMeta(normalizedRunId, { status: "running" });
+          }
+          subagentFramesByRunIdRef.current.get(normalizedRunId).push(traceFrame);
+          syncAssistantSubagentState(Date.now());
+        } else if (useContentCapture) {
+          appendTraceFrameWithContentCapture(traceFrame);
+        } else {
+          appendTraceFrame(traceFrame);
+        }
+      };
 
       const clearScheduledTokenFlush = () => {
         if (pendingTokenFlushHandle == null) {
@@ -1373,6 +1577,681 @@ export const useChatStream = ({
           {
             onFrame: (frame) => {
               if (!frame) return;
+
+              /* ════════════════════════════════════════════════════════
+                 New semantic timeline protocol event handlers.
+                 These fire BEFORE the old handlers below (which remain
+                 as fallback for any legacy-format events).
+                 ════════════════════════════════════════════════════════ */
+
+              if (frame.type === "run.start") {
+                parentRunIdRef.current = frame.run_id || "";
+                unchainLogger.log("run.start", { run_id: frame.run_id });
+                return;
+              }
+
+              if (frame.type === "token") {
+                /* Same as old token_delta + onToken combined, but the
+                   delta lives directly on frame.delta instead of
+                   frame.payload.delta.  Route through thinkTagParser
+                   so <think> blocks are still handled. */
+                const tokenRunId = frame.run_id || "";
+                if (
+                  tokenRunId &&
+                  parentRunIdRef.current &&
+                  tokenRunId !== parentRunIdRef.current &&
+                  isKnownSubagentRunId(tokenRunId)
+                ) {
+                  /* Subagent token — ignore (parent timeline only) */
+                  return;
+                }
+                const delta = typeof frame.delta === "string" ? frame.delta : "";
+                if (delta) {
+                  thinkTagParser.feed(delta);
+                }
+                return;
+              }
+
+              if (frame.type === "step") {
+                /* Map to a tool_call trace frame that trace_chain.js
+                   already knows how to render. */
+                const traceFrame = {
+                  seq: typeof frame.seq === "number" ? frame.seq : nextSeqCounter++,
+                  ts: typeof frame.ts === "number" ? frame.ts : Date.now(),
+                  type: "tool_call",
+                  run_id: frame.run_id || "",
+                  payload: {
+                    call_id:
+                      typeof frame.call_id === "string" ? frame.call_id : "",
+                    tool_name:
+                      typeof frame.tool_name === "string" ? frame.tool_name : "",
+                    tool_display_name:
+                      typeof frame.tool_display_name === "string"
+                        ? frame.tool_display_name
+                        : typeof frame.tool_name === "string"
+                          ? frame.tool_name
+                          : "",
+                    toolkit_id:
+                      typeof frame.toolkit_id === "string"
+                        ? frame.toolkit_id
+                        : "",
+                    arguments:
+                      frame.arguments && typeof frame.arguments === "object"
+                        ? frame.arguments
+                        : {},
+                    requires_confirmation: false,
+                  },
+                };
+                routeTraceFrame(traceFrame, frame.run_id, true);
+                return;
+              }
+
+              if (frame.type === "step.result") {
+                const traceFrame = {
+                  seq: typeof frame.seq === "number" ? frame.seq : nextSeqCounter++,
+                  ts: typeof frame.ts === "number" ? frame.ts : Date.now(),
+                  type: "tool_result",
+                  run_id: frame.run_id || "",
+                  payload: {
+                    call_id:
+                      typeof frame.call_id === "string" ? frame.call_id : "",
+                    tool_name:
+                      typeof frame.tool_name === "string" ? frame.tool_name : "",
+                    result:
+                      frame.result && typeof frame.result === "object"
+                        ? frame.result
+                        : typeof frame.result === "string"
+                          ? { output: frame.result }
+                          : {},
+                  },
+                };
+                /* Close out any pending confirmation for this call_id */
+                const callId =
+                  typeof frame.call_id === "string" ? frame.call_id : "";
+                if (callId) {
+                  markConfirmationFollowupSignalByCallId(callId);
+                }
+                routeTraceFrame(traceFrame, frame.run_id, false);
+                return;
+              }
+
+              if (frame.type === "input.required") {
+                const patchTime = Date.now();
+                const requestId =
+                  typeof frame.request_id === "string"
+                    ? frame.request_id.trim()
+                    : "";
+                const kind =
+                  typeof frame.kind === "string" ? frame.kind : "approval";
+
+                if (kind === "approval") {
+                  /* Tool confirmation: update the matching tool_call frame
+                     to require confirmation, and register the confirmation. */
+                  const callId =
+                    typeof frame.call_id === "string"
+                      ? frame.call_id.trim()
+                      : "";
+                  const toolName =
+                    typeof frame.tool_name === "string" ? frame.tool_name : "";
+                  const toolkitId =
+                    typeof frame.toolkit_id === "string"
+                      ? frame.toolkit_id
+                      : "";
+
+                  /* Patch the existing tool_call trace frame */
+                  if (callId && requestId) {
+                    const nextStreamMessages = streamMessages.map((message) => {
+                      if (message.id !== assistantMessageId) return message;
+                      const existingFrames = message.traceFrames || [];
+                      const nextFrames = existingFrames.map((f) => {
+                        if (
+                          f.type === "tool_call" &&
+                          f.payload?.call_id === callId
+                        ) {
+                          return {
+                            ...f,
+                            payload: {
+                              ...f.payload,
+                              requires_confirmation: true,
+                              confirmation_id: requestId,
+                            },
+                          };
+                        }
+                        return f;
+                      });
+                      return {
+                        ...message,
+                        updatedAt: patchTime,
+                        traceFrames: nextFrames,
+                      };
+                    });
+                    syncStreamMessages(nextStreamMessages);
+
+                    /* Register the confirmation mapping */
+                    confirmationIdByCallIdRef.current.set(callId, requestId);
+                    confirmationCallIdByIdRef.current.set(requestId, callId);
+                    updatePendingToolConfirmationRequests((previous) =>
+                      previous[requestId]
+                        ? previous
+                        : {
+                            ...previous,
+                            [requestId]: {
+                              confirmationId: requestId,
+                              callId,
+                              toolName,
+                              toolDisplayName:
+                                typeof frame.tool_display_name === "string"
+                                  ? frame.tool_display_name
+                                  : "",
+                              arguments:
+                                frame.arguments &&
+                                typeof frame.arguments === "object"
+                                  ? frame.arguments
+                                  : {},
+                              description:
+                                typeof frame.description === "string"
+                                  ? frame.description
+                                  : "",
+                              interactType: "confirmation",
+                              interactConfig: {},
+                              requestedAt: patchTime,
+                            },
+                          },
+                    );
+                    if (
+                      confirmationFollowupSignalByIdRef.current.get(requestId) !==
+                      true
+                    ) {
+                      confirmationFollowupSignalByIdRef.current.set(
+                        requestId,
+                        false,
+                      );
+                    }
+                    updateToolConfirmationUiState((previous) =>
+                      previous[requestId]
+                        ? previous
+                        : {
+                            ...previous,
+                            [requestId]: {
+                              status: "idle",
+                              error: "",
+                              resolved: false,
+                            },
+                          },
+                    );
+
+                    /* Auto-approve check */
+                    const isAutoApprovable =
+                      toolName !== HUMAN_INPUT_TOOL_NAME &&
+                      isToolAutoApproved(toolkitId, toolName);
+                    if (isAutoApprovable) {
+                      api.unchain
+                        .respondInput({
+                          request_id: requestId,
+                          decision: "approve",
+                          response: null,
+                        })
+                        .then(() => {
+                          if (
+                            confirmationFollowupSignalByIdRef.current.get(
+                              requestId,
+                            ) !== true
+                          ) {
+                            confirmationFollowupSignalByIdRef.current.set(
+                              requestId,
+                              false,
+                            );
+                          }
+                          clearConfirmationResolutionTimer(requestId);
+                          appendSyntheticToolConfirmationDecision({
+                            confirmationId: requestId,
+                            approved: true,
+                          });
+                          updateToolConfirmationUiState((prev) => ({
+                            ...prev,
+                            [requestId]: {
+                              ...(prev[requestId] || {}),
+                              status: "submitted",
+                              error: "",
+                              resolved: true,
+                              decision: "approved",
+                            },
+                          }));
+                        })
+                        .catch(() => {
+                          /* silent — user can still manually approve */
+                        });
+                    }
+                  }
+                } else if (kind === "question") {
+                  /* ask_user_question: create a synthetic tool_call frame
+                     with tool_name "ask_user_question" so trace_chain
+                     renders the question UI. */
+                  const callId =
+                    typeof frame.call_id === "string"
+                      ? frame.call_id.trim()
+                      : `ask_${requestId}`;
+                  const interactConfig =
+                    frame.config && typeof frame.config === "object"
+                      ? frame.config
+                      : {};
+
+                  const traceFrame = {
+                    seq: typeof frame.seq === "number" ? frame.seq : nextSeqCounter++,
+                    ts: patchTime,
+                    type: "tool_call",
+                    run_id: frame.run_id || "",
+                    payload: {
+                      call_id: callId,
+                      tool_name: HUMAN_INPUT_TOOL_NAME,
+                      tool_display_name: HUMAN_INPUT_TOOL_NAME,
+                      arguments: {
+                        question:
+                          typeof interactConfig.question === "string"
+                            ? interactConfig.question
+                            : typeof frame.question === "string"
+                              ? frame.question
+                              : "",
+                        selection_mode:
+                          typeof interactConfig.selection_mode === "string"
+                            ? interactConfig.selection_mode
+                            : "",
+                        options: Array.isArray(interactConfig.options)
+                          ? interactConfig.options
+                          : [],
+                        request_id: requestId,
+                      },
+                      requires_confirmation: true,
+                      confirmation_id: requestId,
+                      interact_type: "ask_user",
+                      interact_config: interactConfig,
+                    },
+                  };
+                  appendTraceFrameWithContentCapture(traceFrame);
+
+                  /* Register confirmation mapping */
+                  confirmationIdByCallIdRef.current.set(callId, requestId);
+                  confirmationCallIdByIdRef.current.set(requestId, callId);
+                  updatePendingToolConfirmationRequests((previous) =>
+                    previous[requestId]
+                      ? previous
+                      : {
+                          ...previous,
+                          [requestId]: {
+                            confirmationId: requestId,
+                            callId,
+                            toolName: HUMAN_INPUT_TOOL_NAME,
+                            toolDisplayName: HUMAN_INPUT_TOOL_NAME,
+                            arguments: traceFrame.payload.arguments,
+                            description: "",
+                            interactType: "ask_user",
+                            interactConfig,
+                            requestedAt: patchTime,
+                          },
+                        },
+                  );
+                  if (
+                    confirmationFollowupSignalByIdRef.current.get(requestId) !==
+                    true
+                  ) {
+                    confirmationFollowupSignalByIdRef.current.set(
+                      requestId,
+                      false,
+                    );
+                  }
+                  updateToolConfirmationUiState((previous) =>
+                    previous[requestId]
+                      ? previous
+                      : {
+                          ...previous,
+                          [requestId]: {
+                            status: "idle",
+                            error: "",
+                            resolved: false,
+                          },
+                        },
+                  );
+
+                  unchainLogger.log("ask_user_question_prompt", {
+                    callId,
+                    confirmationId: requestId,
+                    question:
+                      typeof interactConfig.question === "string"
+                        ? interactConfig.question
+                        : "",
+                    selectionMode:
+                      typeof interactConfig.selection_mode === "string"
+                        ? interactConfig.selection_mode
+                        : "",
+                  });
+                } else if (kind === "continue") {
+                  /* Max-iteration continuation request. Set up the
+                     pendingContinuationRequest so the UI shows the
+                     continue/stop banner. */
+                  const continuationData = {
+                    confirmationId: requestId,
+                    iteration:
+                      typeof frame.iteration === "number"
+                        ? frame.iteration
+                        : typeof frame.config?.iteration === "number"
+                          ? frame.config.iteration
+                          : 0,
+                    status: "idle",
+                  };
+                  pendingContinuationRequestRef.current = continuationData;
+                  setPendingContinuationRequest(continuationData);
+                  unchainLogger.log("input.required.continue", {
+                    requestId,
+                    iteration: continuationData.iteration,
+                  });
+                }
+                return;
+              }
+
+              if (frame.type === "input.resolved") {
+                const requestId =
+                  typeof frame.request_id === "string"
+                    ? frame.request_id.trim()
+                    : "";
+                if (!requestId) return;
+
+                /* If this was a continuation, clear it */
+                const currentContinuation =
+                  pendingContinuationRequestRef.current;
+                if (
+                  currentContinuation &&
+                  currentContinuation.confirmationId === requestId
+                ) {
+                  pendingContinuationRequestRef.current = null;
+                  setPendingContinuationRequest(null);
+                }
+
+                /* Resolve any pending tool confirmation UI */
+                const callId =
+                  confirmationCallIdByIdRef.current.get(requestId) || "";
+                if (callId) {
+                  clearResolvedToolConfirmationByCallId(callId);
+                }
+
+                unchainLogger.log("input.resolved", {
+                  requestId,
+                  decision: frame.decision,
+                });
+                return;
+              }
+
+              if (frame.type === "branch.fork") {
+                const childRunId =
+                  typeof frame.child_run_id === "string"
+                    ? frame.child_run_id
+                    : "";
+                if (!childRunId) return;
+
+                upsertSubagentMeta(childRunId, {
+                  subagentId:
+                    typeof frame.label === "string" ? frame.label : "",
+                  mode: typeof frame.mode === "string" ? frame.mode : "",
+                  template:
+                    typeof frame.label === "string" ? frame.label : "",
+                  batchId:
+                    typeof frame.batch_id === "string" ? frame.batch_id : "",
+                  parentId: frame.run_id || parentRunIdRef.current || "",
+                  lineage: [],
+                  status: "running",
+                });
+                if (!subagentFramesByRunIdRef.current.has(childRunId)) {
+                  subagentFramesByRunIdRef.current.set(childRunId, []);
+                }
+                syncAssistantSubagentState(Date.now());
+
+                /* Add a synthetic tool_call on the PARENT timeline so
+                   trace_chain renders the branch point */
+                const modeStr =
+                  typeof frame.mode === "string" ? frame.mode : "";
+                const syntheticToolName =
+                  modeStr === "delegate"
+                    ? "delegate_to_subagent"
+                    : modeStr === "handoff"
+                      ? "handoff_to_subagent"
+                      : "spawn_worker_batch";
+                const branchTraceFrame = {
+                  seq:
+                    typeof frame.seq === "number"
+                      ? frame.seq
+                      : nextSeqCounter++,
+                  ts: typeof frame.ts === "number" ? frame.ts : Date.now(),
+                  type: "tool_call",
+                  run_id: frame.run_id || parentRunIdRef.current || "",
+                  payload: {
+                    call_id:
+                      typeof frame.call_id === "string"
+                        ? frame.call_id
+                        : `branch_${childRunId}`,
+                    tool_name: syntheticToolName,
+                    tool_display_name:
+                      typeof frame.label === "string"
+                        ? frame.label
+                        : syntheticToolName,
+                    arguments: {
+                      task:
+                        typeof frame.task === "string" ? frame.task : "",
+                      child_run_id: childRunId,
+                    },
+                    requires_confirmation: false,
+                  },
+                };
+                appendTraceFrameWithContentCapture(branchTraceFrame);
+
+                unchainLogger.log("branch.fork", {
+                  childRunId,
+                  label: frame.label,
+                  mode: frame.mode,
+                });
+                return;
+              }
+
+              if (frame.type === "branch.merge") {
+                const childRunId =
+                  typeof frame.child_run_id === "string"
+                    ? frame.child_run_id
+                    : "";
+                if (!childRunId) return;
+
+                const mergeStatus =
+                  typeof frame.status === "string" ? frame.status : "";
+                upsertSubagentMeta(childRunId, {
+                  status:
+                    mergeStatus === "completed" ? "completed" : "failed",
+                });
+                syncAssistantSubagentState(Date.now());
+
+                /* Add a synthetic tool_result on the parent timeline
+                   to close the branch tool_call */
+                const mergeTraceFrame = {
+                  seq:
+                    typeof frame.seq === "number"
+                      ? frame.seq
+                      : nextSeqCounter++,
+                  ts: typeof frame.ts === "number" ? frame.ts : Date.now(),
+                  type: "tool_result",
+                  run_id: frame.run_id || parentRunIdRef.current || "",
+                  payload: {
+                    call_id:
+                      typeof frame.call_id === "string"
+                        ? frame.call_id
+                        : `branch_${childRunId}`,
+                    tool_name: "delegate_to_subagent",
+                    result: {
+                      status: mergeStatus || "completed",
+                      child_run_id: childRunId,
+                    },
+                  },
+                };
+                appendTraceFrame(mergeTraceFrame);
+
+                unchainLogger.log("branch.merge", {
+                  childRunId,
+                  status: mergeStatus,
+                });
+                return;
+              }
+
+              if (frame.type === "run.done") {
+                /* Identical to the existing onDone handler logic,
+                   but triggered by a frame instead of the separate
+                   onDone callback. Only handle if this is for
+                   the parent run. */
+                const doneRunId = frame.run_id || "";
+                if (
+                  doneRunId &&
+                  parentRunIdRef.current &&
+                  doneRunId !== parentRunIdRef.current
+                ) {
+                  /* Subagent completion — just mark it */
+                  upsertSubagentMeta(doneRunId, { status: "completed" });
+                  syncAssistantSubagentState(Date.now());
+                  return;
+                }
+
+                thinkTagParser.flush();
+                flushBufferedTokenDelta();
+                const doneTime = Date.now();
+                const bundle =
+                  frame.bundle && typeof frame.bundle === "object"
+                    ? { ...frame.bundle }
+                    : undefined;
+                const nextAgentOrchestration =
+                  bundle && bundle.agent_orchestration
+                    ? normalizeAgentOrchestration(bundle.agent_orchestration)
+                    : null;
+
+                const nextStreamMessages = streamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+                  let cleanContent =
+                    typeof message.content === "string" ? message.content : "";
+                  cleanContent = cleanContent
+                    .replace(/<think>[\s\S]*?<\/think>/g, "")
+                    .replace(/^\s*\n/, "");
+                  return {
+                    ...message,
+                    content: cleanContent,
+                    status: "done",
+                    updatedAt: doneTime,
+                    meta: {
+                      ...(message.meta || {}),
+                      ...(bundle ? { bundle } : {}),
+                    },
+                  };
+                });
+                syncStreamMessages(nextStreamMessages);
+
+                if (!isCharacterChat && nextAgentOrchestration) {
+                  storageApi.setChatAgentOrchestration(
+                    targetChatId,
+                    nextAgentOrchestration,
+                    { source: "chat-page" },
+                  );
+                  if (
+                    typeof setAgentOrchestration === "function" &&
+                    activeChatIdRef.current === targetChatId
+                  ) {
+                    setAgentOrchestration(nextAgentOrchestration);
+                  }
+                }
+
+                if (bundle && typeof bundle.consumed_tokens === "number") {
+                  const bundleModelId =
+                    typeof bundle.model === "string" && bundle.model.trim()
+                      ? bundle.model.trim()
+                      : modelIdRef.current || "";
+                  const colonIndex = bundleModelId.indexOf(":");
+                  const provider =
+                    colonIndex > 0
+                      ? bundleModelId.slice(0, colonIndex)
+                      : "unknown";
+                  const model =
+                    colonIndex > 0
+                      ? bundleModelId.slice(colonIndex + 1)
+                      : bundleModelId || "unknown";
+                  appendTokenUsageRecord({
+                    timestamp: doneTime,
+                    provider,
+                    model,
+                    model_id: bundleModelId || "unknown",
+                    consumed_tokens: bundle.consumed_tokens,
+                    ...(typeof bundle.input_tokens === "number"
+                      ? { input_tokens: bundle.input_tokens }
+                      : {}),
+                    ...(typeof bundle.output_tokens === "number"
+                      ? { output_tokens: bundle.output_tokens }
+                      : {}),
+                    max_context_window_tokens:
+                      bundle.max_context_window_tokens,
+                    chatId: targetChatId,
+                  });
+                }
+
+                streamHandleRef.current = null;
+                streamingChatIdRef.current = null;
+                activeStreamMessagesRef.current = null;
+                setStreamingChatId(null);
+                clearAllPendingToolConfirmations();
+                disposeBufferedTokenFlush();
+                releaseTokenFlushController();
+                if (activeChatIdRef.current !== targetChatId) {
+                  storageApi.setChatGeneratedUnread(targetChatId, true, {
+                    source: "chat-page",
+                  });
+                }
+
+                unchainLogger.log("run.done", {
+                  run_id: doneRunId,
+                  hasBundle: Boolean(bundle),
+                });
+                return;
+              }
+
+              /* ── New protocol: error frames with run_id ── */
+              if (
+                frame.type === "error" &&
+                typeof frame.run_id === "string" &&
+                frame.run_id &&
+                !frame.payload
+              ) {
+                /* New-protocol error frame — fields are directly on frame,
+                   not in frame.payload. Convert to trace frame and fall
+                   through to old error handling. */
+                const errorTraceFrame = {
+                  seq:
+                    typeof frame.seq === "number"
+                      ? frame.seq
+                      : nextSeqCounter++,
+                  ts: typeof frame.ts === "number" ? frame.ts : Date.now(),
+                  type: "error",
+                  run_id: frame.run_id || "",
+                  payload: {
+                    code:
+                      typeof frame.code === "string"
+                        ? frame.code
+                        : "run_error",
+                    message:
+                      typeof frame.message === "string"
+                        ? frame.message
+                        : "Unknown error",
+                  },
+                };
+                appendTraceFrame(errorTraceFrame);
+                markAllPendingConfirmationFollowupSignals();
+                pendingContinuationRequestRef.current = null;
+                setPendingContinuationRequest(null);
+                unchainLogger.error("error (new protocol)", errorTraceFrame.payload);
+                return;
+              }
+
+              /* ════════════════════════════════════════════════════════
+                 Old/legacy event type handlers (fallback).
+                 ════════════════════════════════════════════════════════ */
+
               if (frame.type === "token_delta") {
                 lastTokenRunIdRef.current =
                   frame.run_id || frame.payload?.run_id || "";
@@ -2659,6 +3538,7 @@ export const useChatStream = ({
     setStreamError,
     stopStream,
     streamError,
+    submitInput,
     toolConfirmationUiStateById,
   };
 };
