@@ -5,6 +5,7 @@ import UserMessageBody from "./components/user_message_body";
 import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
+import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
 
 const resolveAvatarSrc = (avatar) => {
   const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
@@ -46,6 +47,7 @@ const CharacterChatBubble = ({
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  pendingToolConfirmationRequests = {},
   disableActionButtons = false,
   traceFrames = [],
   pendingContinuationRequest,
@@ -115,6 +117,14 @@ const CharacterChatBubble = ({
       f.type === "reasoning" ||
       f.type === "observation",
   );
+  const pendingToolConfirmationFrames = hasToolActivity
+    ? []
+    : buildPendingConfirmationTraceFrames(pendingToolConfirmationRequests);
+  const hasVisibleTraceActivity =
+    hasToolActivity || pendingToolConfirmationFrames.length > 0;
+  const traceChainFrames = hasToolActivity
+    ? traceFrames
+    : pendingToolConfirmationFrames;
 
   const avatarSrc = resolveAvatarSrc(characterAvatar);
   const showImage = Boolean(avatarSrc) && !imageBroken;
@@ -133,9 +143,9 @@ const CharacterChatBubble = ({
         position: "relative",
       }}
     >
-      {isAssistant && hasToolActivity && (
+      {isAssistant && hasVisibleTraceActivity && (
         <TraceChain
-          frames={traceFrames}
+          frames={traceChainFrames}
           status={message.status}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
@@ -146,11 +156,20 @@ const CharacterChatBubble = ({
           onContinuationDecision={onContinuationDecision}
         />
       )}
-      {isAssistant && !hasToolActivity && message.status === "streaming" && (
-        <TraceChain frames={[]} status={message.status} />
+      {isAssistant &&
+        !hasVisibleTraceActivity &&
+        message.status === "streaming" && (
+        <TraceChain
+          frames={[]}
+          status={message.status}
+          onToolConfirmationDecision={onToolConfirmationDecision}
+          toolConfirmationUiStateById={toolConfirmationUiStateById}
+          pendingContinuationRequest={pendingContinuationRequest}
+          onContinuationDecision={onContinuationDecision}
+        />
       )}
 
-      {!(isAssistant && hasToolActivity && message.status === "streaming") && (
+      {!(isAssistant && hasVisibleTraceActivity && message.status === "streaming") && (
         <div
           style={{
             display: "flex",
@@ -334,6 +353,8 @@ const areCharacterChatBubblePropsEqual = (previousProps, nextProps) =>
     nextProps.onToolConfirmationDecision &&
   previousProps.toolConfirmationUiStateById ===
     nextProps.toolConfirmationUiStateById &&
+  previousProps.pendingToolConfirmationRequests ===
+    nextProps.pendingToolConfirmationRequests &&
   previousProps.disableActionButtons === nextProps.disableActionButtons &&
   previousProps.traceFrames === nextProps.traceFrames &&
   previousProps.pendingContinuationRequest ===

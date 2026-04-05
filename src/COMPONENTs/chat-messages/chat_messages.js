@@ -18,6 +18,7 @@ const ChatMessages = ({
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
   className = "scrollable",
@@ -112,6 +113,9 @@ const ChatMessages = ({
                     onEditMessage={onEditMessage}
                     onToolConfirmationDecision={onToolConfirmationDecision}
                     toolConfirmationUiStateById={toolConfirmationUiStateById}
+                    pendingToolConfirmationRequests={
+                      pendingToolConfirmationRequests
+                    }
                     disableActionButtons={isStreaming}
                     traceFrames={msg.traceFrames}
                     pendingContinuationRequest={
@@ -133,6 +137,9 @@ const ChatMessages = ({
                     onEditMessage={onEditMessage}
                     onToolConfirmationDecision={onToolConfirmationDecision}
                     toolConfirmationUiStateById={toolConfirmationUiStateById}
+                    pendingToolConfirmationRequests={
+                      pendingToolConfirmationRequests
+                    }
                     disableActionButtons={isStreaming}
                     traceFrames={msg.traceFrames}
                     pendingContinuationRequest={

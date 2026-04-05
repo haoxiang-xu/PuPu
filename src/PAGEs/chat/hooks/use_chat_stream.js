@@ -101,6 +101,9 @@ export const useChatStream = ({
     typeof controlledSetStreamError === "function"
       ? controlledSetStreamError
       : setInternalStreamError;
+  const [pendingToolConfirmationRequests, setPendingToolConfirmationRequests] =
+    useState({});
+  const pendingToolConfirmationRequestsRef = useRef({});
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
   const toolConfirmationUiStateByIdRef = useRef({});
@@ -211,6 +214,17 @@ export const useChatStream = ({
     return next;
   }, []);
 
+  const updatePendingToolConfirmationRequests = useCallback((updater) => {
+    const previous = pendingToolConfirmationRequestsRef.current;
+    const next = typeof updater === "function" ? updater(previous) : updater;
+    if (next === previous) {
+      return previous;
+    }
+    pendingToolConfirmationRequestsRef.current = next;
+    setPendingToolConfirmationRequests(next);
+    return next;
+  }, []);
+
   const clearConfirmationResolutionTimer = useCallback((confirmationId) => {
     const normalizedId =
       typeof confirmationId === "string" ? confirmationId.trim() : "";
@@ -303,6 +317,14 @@ export const useChatStream = ({
       confirmationCallIdByIdRef.current.delete(confirmationId);
       confirmationFollowupSignalByIdRef.current.delete(confirmationId);
       clearConfirmationResolutionTimer(confirmationId);
+      updatePendingToolConfirmationRequests((previous) => {
+        if (!previous || !previous[confirmationId]) {
+          return previous;
+        }
+        const next = { ...previous };
+        delete next[confirmationId];
+        return next;
+      });
       updateToolConfirmationUiState((previous) => {
         if (!previous || !previous[confirmationId]) {
           return previous;
@@ -312,7 +334,11 @@ export const useChatStream = ({
         return next;
       });
     },
-    [clearConfirmationResolutionTimer, updateToolConfirmationUiState],
+    [
+      clearConfirmationResolutionTimer,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
   );
 
   const clearAllPendingToolConfirmations = useCallback(() => {
@@ -320,6 +346,7 @@ export const useChatStream = ({
       ...new Set([
         ...confirmationIdByCallIdRef.current.values(),
         ...confirmationCallIdByIdRef.current.keys(),
+        ...Object.keys(pendingToolConfirmationRequestsRef.current),
       ]),
     ];
     confirmationIdByCallIdRef.current.clear();
@@ -332,6 +359,18 @@ export const useChatStream = ({
       return;
     }
 
+    updatePendingToolConfirmationRequests((previous) => {
+      const next = { ...previous };
+      let changed = false;
+      activeConfirmationIds.forEach((confirmationId) => {
+        if (confirmationId && next[confirmationId]) {
+          delete next[confirmationId];
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+
     updateToolConfirmationUiState((previous) => {
       const next = { ...previous };
       let changed = false;
@@ -343,7 +382,11 @@ export const useChatStream = ({
       });
       return changed ? next : previous;
     });
-  }, [clearConfirmationResolutionTimer, updateToolConfirmationUiState]);
+  }, [
+    clearConfirmationResolutionTimer,
+    updatePendingToolConfirmationRequests,
+    updateToolConfirmationUiState,
+  ]);
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     clearActiveTokenFlushController("dispose");
@@ -365,6 +408,8 @@ export const useChatStream = ({
       clearTimeout(timerId);
     });
     confirmationResolveTimerByIdRef.current.clear();
+    pendingToolConfirmationRequestsRef.current = {};
+    setPendingToolConfirmationRequests({});
     toolConfirmationUiStateByIdRef.current = {};
     setToolConfirmationUiStateById({});
     pendingContinuationRequestRef.current = null;
@@ -763,6 +808,8 @@ export const useChatStream = ({
         clearTimeout(timerId);
       });
       confirmationResolveTimerByIdRef.current.clear();
+      pendingToolConfirmationRequestsRef.current = {};
+      setPendingToolConfirmationRequests({});
       toolConfirmationUiStateByIdRef.current = {};
       setToolConfirmationUiStateById({});
       pendingContinuationRequestRef.current = null;
@@ -1382,7 +1429,37 @@ export const useChatStream = ({
                     : "";
                 const iteration = getTraceFrameIteration(frame);
                 if (confirmationId) {
+                  const latestMessage =
+                    Array.isArray(streamMessages) && streamMessages.length > 0
+                      ? streamMessages[streamMessages.length - 1]
+                      : null;
                   const state = { confirmationId, iteration, status: "idle" };
+                  unchainLogger.log("continuation_request", {
+                    confirmationId,
+                    iteration,
+                    assistantMessageId,
+                    targetChatId,
+                    activeChatId: activeChatIdRef.current,
+                    latestMessageId:
+                      typeof latestMessage?.id === "string"
+                        ? latestMessage.id
+                        : "",
+                    latestMessageRole:
+                      typeof latestMessage?.role === "string"
+                        ? latestMessage.role
+                        : "",
+                    latestMessageStatus:
+                      typeof latestMessage?.status === "string"
+                        ? latestMessage.status
+                        : "",
+                    latestMessageTraceFrameCount: Array.isArray(
+                      latestMessage?.traceFrames,
+                    )
+                      ? latestMessage.traceFrames.length
+                      : 0,
+                    attachedToLatestAssistantBubble:
+                      latestMessage?.id === assistantMessageId,
+                  });
                   pendingContinuationRequestRef.current = state;
                   setPendingContinuationRequest(state);
                 }
@@ -1667,6 +1744,58 @@ export const useChatStream = ({
                 if (callId && confirmationId && requiresConfirmation) {
                   confirmationIdByCallIdRef.current.set(callId, confirmationId);
                   confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                  updatePendingToolConfirmationRequests((previous) =>
+                    previous[confirmationId]
+                      ? previous
+                      : {
+                          ...previous,
+                          [confirmationId]: {
+                            confirmationId,
+                            callId,
+                            toolName,
+                            toolDisplayName:
+                              typeof frame.payload?.tool_display_name ===
+                              "string"
+                                ? frame.payload.tool_display_name
+                                : "",
+                            arguments:
+                              frame.payload?.arguments &&
+                              typeof frame.payload.arguments === "object"
+                                ? frame.payload.arguments
+                                : {},
+                            description:
+                              typeof frame.payload?.description === "string"
+                                ? frame.payload.description
+                                : "",
+                            interactType:
+                              typeof frame.payload?.render_component?.type ===
+                                "string" &&
+                              frame.payload.render_component.type
+                                ? frame.payload.render_component.type
+                                : typeof frame.payload?.interact_type ===
+                                      "string" &&
+                                    frame.payload.interact_type
+                                  ? frame.payload.interact_type
+                                  : "confirmation",
+                            interactConfig:
+                              frame.payload?.render_component?.config &&
+                              typeof frame.payload.render_component.config ===
+                                "object"
+                                ? frame.payload.render_component.config
+                                : frame.payload?.interact_config &&
+                                    typeof frame.payload.interact_config ===
+                                      "object"
+                                  ? frame.payload.interact_config
+                                  : {},
+                            renderComponent:
+                              frame.payload?.render_component &&
+                              typeof frame.payload.render_component === "object"
+                                ? frame.payload.render_component
+                                : null,
+                            requestedAt: patchTime,
+                          },
+                        },
+                  );
                   if (
                     confirmationFollowupSignalByIdRef.current.get(
                       confirmationId,
@@ -2181,6 +2310,12 @@ export const useChatStream = ({
     const hasAttachments = Array.isArray(draftAttachments)
       ? draftAttachments.length > 0
       : false;
+    const normalizedSelectedModelId =
+      typeof selectedModelId === "string" ? selectedModelId.trim() : "";
+    const hasSelectedModel =
+      isCharacterChat ||
+      (normalizedSelectedModelId &&
+        normalizedSelectedModelId !== "unchain-unset");
     const hasActiveStream = Boolean(
       streamingChatIdRef.current && streamHandleRef.current,
     );
@@ -2195,6 +2330,11 @@ export const useChatStream = ({
 
     if (!api.unchain.isBridgeAvailable()) {
       setStreamError("Miso bridge is unavailable in this runtime.");
+      return;
+    }
+
+    if (!hasSelectedModel) {
+      setStreamError("Select a model before sending a message.");
       return;
     }
 
@@ -2221,8 +2361,10 @@ export const useChatStream = ({
     attachmentsEnabled,
     draftAttachments,
     inputValue,
+    isCharacterChat,
     messages,
     runTurnRequest,
+    selectedModelId,
     setStreamError,
   ]);
 
@@ -2518,6 +2660,7 @@ export const useChatStream = ({
         clearTimeout(timerId);
       });
       confirmationResolveTimerById.clear();
+      pendingToolConfirmationRequestsRef.current = {};
       pendingContinuationRequestRef.current = null;
     };
   }, [
@@ -2534,6 +2677,7 @@ export const useChatStream = ({
     hasBackgroundStream,
     isStreaming,
     pendingContinuationRequest,
+    pendingToolConfirmationRequests,
     resendTurn,
     sendNewTurn,
     setStreamError,

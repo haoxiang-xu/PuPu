@@ -94,6 +94,17 @@ const ChatInterface = () => {
   const activeChatIdRef = session.activeChatIdRef;
   const modelIdRef = session.modelIdRef;
   const setSelectedModelId = session.setSelectedModelId;
+  const hasSelectedModel = useMemo(() => {
+    if (session.isCharacterChat) {
+      return true;
+    }
+
+    const selectedModelId =
+      typeof session.selectedModelId === "string"
+        ? session.selectedModelId.trim()
+        : "";
+    return Boolean(selectedModelId && selectedModelId !== "unchain-unset");
+  }, [session.isCharacterChat, session.selectedModelId]);
 
   const activeModelCapabilities = useMemo(() => {
     const fallbackCapabilities =
@@ -134,10 +145,14 @@ const ChatInterface = () => {
 
   const supportsImageAttachments = activeInputModalities.has("image");
   const supportsPdfAttachments = activeInputModalities.has("pdf");
-  const attachmentsEnabled = supportsImageAttachments || supportsPdfAttachments;
-  const attachmentsDisabledReason = attachmentsEnabled
-    ? ""
-    : "Current model does not support image or file inputs.";
+  const modelSupportsAttachments =
+    supportsImageAttachments || supportsPdfAttachments;
+  const attachmentsEnabled = hasSelectedModel && modelSupportsAttachments;
+  const attachmentsDisabledReason = !hasSelectedModel
+    ? "Select a model to enable attachments."
+    : modelSupportsAttachments
+      ? ""
+      : "Current model does not support image or file inputs.";
 
   const attachments = useChatAttachments({
     chatId: session.activeChatId,
@@ -349,11 +364,15 @@ const ChatInterface = () => {
         ? `Unchain ${unchainStatus.status}: ${unchainStatus.reason}`
         : `Connecting to Unchain (${unchainStatus.status})...`;
     }
+    if (!hasSelectedModel) {
+      return "Select a model to send a message.";
+    }
     if (attachmentsDisabledReason) {
       return attachmentsDisabledReason;
     }
     return DEFAULT_DISCLAIMER;
   }, [
+    hasSelectedModel,
     attachmentsDisabledReason,
     unchainStatus,
     stream.hasBackgroundStream,
@@ -362,7 +381,9 @@ const ChatInterface = () => {
   ]);
 
   const isSendDisabled =
-    (!unchainStatus.ready && !stream.isStreaming) || stream.hasBackgroundStream;
+    (!unchainStatus.ready && !stream.isStreaming) ||
+    stream.hasBackgroundStream ||
+    !hasSelectedModel;
 
   const [characterAvailability, setCharacterAvailability] = useState("");
 
@@ -719,6 +740,9 @@ const ChatInterface = () => {
             onEditMessage={stream.editTurn}
             onToolConfirmationDecision={stream.handleToolConfirmationDecision}
             toolConfirmationUiStateById={stream.toolConfirmationUiStateById}
+            pendingToolConfirmationRequests={
+              stream.pendingToolConfirmationRequests
+            }
             pendingContinuationRequest={stream.pendingContinuationRequest}
             onContinuationDecision={stream.handleContinuationDecision}
             initialVisibleCount={12}

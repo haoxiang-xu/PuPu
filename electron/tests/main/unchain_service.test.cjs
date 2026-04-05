@@ -1,5 +1,6 @@
 const path = require("path");
 const { EventEmitter } = require("events");
+const { CHANNELS } = require("../../shared/channels");
 const { createUnchainService } = require("../../main/services/unchain/service");
 
 const createFakeSpawnProcess = () => {
@@ -386,5 +387,128 @@ describe("unchain service session memory replacement", () => {
       ],
       count: 2,
     });
+  });
+
+  test("forwards stream bridge diagnostics to renderer runtime logs before emitting the stream error", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    const bridgeCause = new Error("socket closed");
+    bridgeCause.stack = "CauseStack: socket closed\n  at socket";
+    const bridgeError = new Error("terminated");
+    bridgeError.stack = "BridgeStack: terminated\n  at read";
+    bridgeError.cause = bridgeCause;
+
+    const reader = {
+      read: jest.fn().mockRejectedValue(bridgeError),
+    };
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: true,
+        body: {
+          getReader: () => reader,
+        },
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const target = {
+      send: jest.fn(),
+      isDestroyed: jest.fn(() => false),
+      getType: jest.fn(() => "window"),
+    };
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => target),
+        getAllWebContents: jest.fn(() => [target]),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+
+    service.handleStreamStartV2(
+      { sender: { id: 91 } },
+      {
+        requestId: "req-bridge-1",
+        payload: {
+          message: "hello",
+          options: {},
+        },
+      },
+    );
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    const sendCalls = target.send.mock.calls;
+
+    expect(sendCalls.slice(0, 3)).toEqual([
+      [
+        CHANNELS.UNCHAIN.RUNTIME_LOG,
+        {
+          level: "stderr",
+          text: "stream bridge failed [requestId=req-bridge-1]: terminated",
+        },
+      ],
+      [
+        CHANNELS.UNCHAIN.RUNTIME_LOG,
+        {
+          level: "stderr",
+          text:
+            "stream bridge stack [requestId=req-bridge-1]: BridgeStack: terminated\n  at read",
+        },
+      ],
+      [
+        CHANNELS.UNCHAIN.RUNTIME_LOG,
+        {
+          level: "stderr",
+          text:
+            "stream bridge cause [requestId=req-bridge-1]: CauseStack: socket closed\n  at socket",
+        },
+      ],
+    ]);
+
+    expect(sendCalls[3]).toEqual([
+      CHANNELS.UNCHAIN.STREAM_EVENT,
+      {
+        requestId: "req-bridge-1",
+        event: "error",
+        data: {
+          code: "stream_bridge_failed",
+          message: "terminated",
+        },
+      },
+    ]);
   });
 });

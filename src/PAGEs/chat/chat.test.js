@@ -6,6 +6,21 @@ import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/sto
 
 let lastChatMessagesProps = null;
 let lastChatInputProps = null;
+var mockScopedLogger;
+
+jest.mock("../../SERVICEs/console_logger", () => ({
+  createLogger: () => {
+    if (!mockScopedLogger) {
+      mockScopedLogger = {
+        log: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+      };
+    }
+    return mockScopedLogger;
+  },
+}));
 
 jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
   __esModule: true,
@@ -34,7 +49,7 @@ jest.mock("../../COMPONENTs/chat-input/chat_input", () => ({
   __esModule: true,
   default: (props) => {
     lastChatInputProps = props;
-    const { value, onChange, onSend, onStop, isStreaming } = props;
+    const { value, onChange, onSend, onStop, isStreaming, sendDisabled } = props;
     return (
       <div>
         <input
@@ -42,7 +57,7 @@ jest.mock("../../COMPONENTs/chat-input/chat_input", () => ({
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
-        <button data-testid="send-button" onClick={onSend}>
+        <button data-testid="send-button" onClick={onSend} disabled={sendDisabled}>
           Send
         </button>
         {isStreaming ? (
@@ -67,6 +82,10 @@ describe("ChatInterface stop flow", () => {
     cancelSpy = jest.fn();
     streamHandlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+    mockScopedLogger.log.mockClear();
+    mockScopedLogger.warn.mockClear();
+    mockScopedLogger.error.mockClear();
+    mockScopedLogger.debug.mockClear();
     window.unchainAPI = {
       getStatus: jest.fn(async () => ({
         status: "ready",
@@ -75,8 +94,12 @@ describe("ChatInterface stop flow", () => {
         reason: "",
       })),
       getModelCatalog: jest.fn(async () => ({
-        activeModel: null,
-        providers: {},
+        activeModel: "openai:gpt-5",
+        providers: {
+          openai: ["gpt-5"],
+          ollama: [],
+          anthropic: [],
+        },
         model_capabilities: {},
       })),
       startStream: jest.fn(),
@@ -120,6 +143,8 @@ describe("ChatInterface stop flow", () => {
   const waitForReady = async () => {
     await waitFor(() => {
       expect(window.unchainAPI.getStatus).toHaveBeenCalled();
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
     });
   };
 
@@ -198,6 +223,36 @@ describe("ChatInterface stop flow", () => {
       ),
     );
     expect(hasRenderPhaseWarning).toBe(false);
+  });
+
+  test("disables send when no model is selected", async () => {
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: null,
+      providers: {
+        openai: ["gpt-5"],
+        ollama: [],
+        anthropic: [],
+      },
+      model_capabilities: {},
+    });
+
+    renderChat();
+
+    await waitFor(() => {
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+      expect(lastChatInputProps?.sendDisabled).toBe(true);
+      expect(lastChatInputProps?.disclaimer).toBe(
+        "Select a model to send a message.",
+      );
+      expect(screen.getByTestId("send-button")).toBeDisabled();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello without model" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
   });
 
   test("character chats hide model/tools/workspace selectors and inject character config into stream", async () => {
@@ -995,6 +1050,20 @@ describe("ChatInterface stop flow", () => {
         ),
       ).toBeInTheDocument();
     });
+
+    expect(
+      mockScopedLogger.log.mock.calls.some((call) => {
+        const payload = call[1];
+        return (
+          payload &&
+          typeof payload === "object" &&
+          payload.confirmationId === "continue-1" &&
+          payload.iteration === 4 &&
+          payload.latestMessageRole === "assistant" &&
+          payload.attachedToLatestAssistantBubble === true
+        );
+      }),
+    ).toBe(true);
   });
 
   test("resend replaces short-term memory before starting a new stream", async () => {

@@ -1064,6 +1064,83 @@ const createUnchainService = ({
     }
   };
 
+  const stringifyBridgeErrorValue = (value) => {
+    if (typeof value === "string") {
+      return value.trim();
+    }
+    if (value == null) {
+      return "";
+    }
+
+    try {
+      const json = JSON.stringify(value);
+      if (typeof json === "string" && json.trim()) {
+        return json.trim();
+      }
+    } catch {
+      // Fall through to String(value).
+    }
+
+    try {
+      return String(value).trim();
+    } catch {
+      return "";
+    }
+  };
+
+  const serializeBridgeErrorCause = (cause) => {
+    if (cause instanceof Error) {
+      if (typeof cause.stack === "string" && cause.stack.trim()) {
+        return cause.stack.trim();
+      }
+      if (typeof cause.message === "string" && cause.message.trim()) {
+        return cause.message.trim();
+      }
+    }
+
+    return stringifyBridgeErrorValue(cause);
+  };
+
+  const logMisoStreamBridgeFailure = (requestId, streamError) => {
+    try {
+      const normalizedRequestId =
+        typeof requestId === "string" && requestId.trim()
+          ? requestId.trim()
+          : "unknown";
+      const prefix = `[requestId=${normalizedRequestId}]`;
+      const message =
+        (typeof streamError?.message === "string" && streamError.message.trim()) ||
+        stringifyBridgeErrorValue(streamError) ||
+        "Failed to bridge SSE stream";
+
+      emitMisoRuntimeLog(
+        "stderr",
+        `stream bridge failed ${prefix}: ${message}`,
+      );
+
+      const stack =
+        typeof streamError?.stack === "string" && streamError.stack.trim()
+          ? streamError.stack.trim()
+          : "";
+      if (stack) {
+        emitMisoRuntimeLog(
+          "stderr",
+          `stream bridge stack ${prefix}: ${stack}`,
+        );
+      }
+
+      const cause = serializeBridgeErrorCause(streamError?.cause);
+      if (cause) {
+        emitMisoRuntimeLog(
+          "stderr",
+          `stream bridge cause ${prefix}: ${cause}`,
+        );
+      }
+    } catch {
+      // Diagnostics must never interfere with stream error handling.
+    }
+  };
+
   const createUnchainRuntimeLogLineEmitter = (level) => {
     let bufferedText = "";
 
@@ -1561,6 +1638,7 @@ const createUnchainService = ({
         return;
       }
 
+      logMisoStreamBridgeFailure(requestId, streamError);
       emitMisoStreamEvent(sender.id, requestId, "error", {
         code: "stream_bridge_failed",
         message: streamError?.message || "Failed to bridge SSE stream",

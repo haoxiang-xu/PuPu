@@ -5,6 +5,7 @@ import UserMessageBody from "./components/user_message_body";
 import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
+import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
 
 const ChatBubble = ({
   message,
@@ -13,6 +14,7 @@ const ChatBubble = ({
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  pendingToolConfirmationRequests = {},
   disableActionButtons = false,
   traceFrames = [],
   pendingContinuationRequest,
@@ -84,6 +86,14 @@ const ChatBubble = ({
       f.type === "reasoning" ||
       f.type === "observation",
   );
+  const pendingToolConfirmationFrames = hasToolActivity
+    ? []
+    : buildPendingConfirmationTraceFrames(pendingToolConfirmationRequests);
+  const hasVisibleTraceActivity =
+    hasToolActivity || pendingToolConfirmationFrames.length > 0;
+  const traceChainFrames = hasToolActivity
+    ? traceFrames
+    : pendingToolConfirmationFrames;
 
   return (
     <div
@@ -97,9 +107,9 @@ const ChatBubble = ({
         position: "relative",
       }}
     >
-      {isAssistant && hasToolActivity && (
+      {isAssistant && hasVisibleTraceActivity && (
         <TraceChain
-          frames={traceFrames}
+          frames={traceChainFrames}
           status={message.status}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
@@ -113,14 +123,23 @@ const ChatBubble = ({
           subagentMetaByRunId={message.subagentMetaByRunId}
         />
       )}
-      {isAssistant && !hasToolActivity && message.status === "streaming" && (
-        <TraceChain frames={[]} status={message.status} />
+      {isAssistant &&
+        !hasVisibleTraceActivity &&
+        message.status === "streaming" && (
+        <TraceChain
+          frames={[]}
+          status={message.status}
+          onToolConfirmationDecision={onToolConfirmationDecision}
+          toolConfirmationUiStateById={toolConfirmationUiStateById}
+          pendingContinuationRequest={pendingContinuationRequest}
+          onContinuationDecision={onContinuationDecision}
+        />
       )}
 
       {/* Hide the assistant bubble body entirely when streaming with
           an active trace timeline (intermediate + streaming content shows
           in the timeline; the bubble only shows the final result). */}
-      {!(isAssistant && hasToolActivity && message.status === "streaming") && (
+      {!(isAssistant && hasVisibleTraceActivity && message.status === "streaming") && (
         <div
           style={{
             maxWidth: isUser ? "75%" : "100%",
@@ -198,6 +217,8 @@ const areChatBubblePropsEqual = (previousProps, nextProps) =>
     nextProps.onToolConfirmationDecision &&
   previousProps.toolConfirmationUiStateById ===
     nextProps.toolConfirmationUiStateById &&
+  previousProps.pendingToolConfirmationRequests ===
+    nextProps.pendingToolConfirmationRequests &&
   previousProps.disableActionButtons === nextProps.disableActionButtons &&
   previousProps.traceFrames === nextProps.traceFrames &&
   previousProps.pendingContinuationRequest ===

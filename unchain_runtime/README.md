@@ -116,9 +116,9 @@ flowchart LR
 - `scripts/build_unchain_server.ps1`
   - 用 PyInstaller 打出 `unchain-server` 独立二进制。
 
-- `miso/engine.py`
-  - 旧的 stub/demo 实现。
-  - 从当前启动链路看，它不是现在主运行路径的核心。
+- 仓库内的 `miso/engine.py` 本地 stub 已移除。
+  - 当前 Python 运行入口统一以 `server/main.py` 为主。
+  - 打包脚本里出现的 `miso` 依赖指向外部源码包，不是这个仓库内的本地 stub 目录。
 
 ## 它究竟是什么结构
 
@@ -424,11 +424,11 @@ character 子系统不是 UI 装饰，而是 runtime 的正式能力面。
 - 命名上还没完全迁完
 - 架构上已经是 unchain runtime
 
-### 2. `miso/engine.py` 不是主链路核心
+### 2. 仓库内 `miso` stub 已移除
 
-当前真正启动的是 `server/main.py`，不是 `miso/engine.py`。
+当前真正启动的是 `server/main.py`。
 
-`miso/engine.py` 更像早期本地 stub 或兼容遗留，不代表当前 runtime 的真实执行核心。
+仓库里原先的 `miso/engine.py` 只是早期本地 stub 或兼容遗留，现已删除，不代表当前 runtime 的真实执行核心。
 
 ### 3. 这是“本地服务化”而不是“库内直接调用”
 
