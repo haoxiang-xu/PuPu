@@ -12,14 +12,11 @@ import {
 import { readWorkspaces } from "../COMPONENTs/settings/runtime";
 import { readMemorySettings } from "../COMPONENTs/settings/memory/storage";
 import { sanitizeSystemPromptSections } from "./system_prompt_sections";
+import { DEFAULT_SYSTEM_PROMPT_V2_SECTIONS } from "./prompts/defaults";
 
 const SUPPORTED_REMOTE_PROVIDERS = new Set(["openai", "anthropic"]);
 const MEMORY_EMBEDDING_PROVIDERS = new Set(["auto", "openai", "ollama"]);
 const DEFAULT_LONG_TERM_MEMORY_NAMESPACE = "pupu:default";
-const DEFAULT_SYSTEM_PROMPT_V2_SECTIONS = {
-  rules:
-    "Tool use is optional. Use tools only when they materially improve the answer. Output may be truncated, so keep answers concise and front-load the most important information.",
-};
 
 const sanitizeSystemPromptV2Sections = (
   rawSections,

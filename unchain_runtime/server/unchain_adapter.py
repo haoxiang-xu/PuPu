@@ -150,72 +150,23 @@ _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 # _build_modular_prompt(). See _DEVELOPER_PROMPT_SECTIONS for the reference.
 # ─────────────────────────────────────────────────────────────────────────────
 
-_PROMPT_MODULE_ORDER = (
-    "identity",
-    "personality",
-    "capability",
-    "rules",
-    "workflow",
-    "delegation",
-    "style",
-    "output_format",
-    "context",
-    "constraints",
-    "fallback",
+from prompts import (
+    PROMPT_MODULE_ORDER as _PROMPT_MODULE_ORDER,
+    PROMPT_MODULE_HEADERS as _PROMPT_MODULE_HEADERS,
+    PROMPT_MODULE_MERGE as _PROMPT_MODULE_MERGE,
+    V2_TO_MODULE_KEY as _V2_TO_MODULE_KEY,
+    SECTION_ALIASES as _SYSTEM_PROMPT_V2_SECTION_ALIASES,
+    BUILTIN_RULES as _SYSTEM_PROMPT_V2_BUILTIN_RULES,
+    SUMMARY_SYSTEM_PROMPT as _SUMMARY_SYSTEM_PROMPT,
+    GENERAL_AGENT_PROMPT as _GENERAL_AGENT_RUNTIME_PROMPT,
+    DEVELOPER_PROMPT_SECTIONS as _DEVELOPER_PROMPT_SECTIONS,
+    ANALYZER_PROMPT_SECTIONS as _ANALYZER_PROMPT_SECTIONS,
+    EXECUTOR_PROMPT_SECTIONS as _EXECUTOR_PROMPT_SECTIONS,
 )
 
-_PROMPT_MODULE_HEADERS = {
-    "identity": None,            # no header — first line IS the identity
-    "personality": "Personality",
-    "capability": "Capabilities",
-    "rules": "Rules",
-    "workflow": "Workflow",
-    "delegation": "Delegation",
-    "style": "Style",
-    "output_format": "Output Format",
-    "context": "Context",
-    "constraints": "Constraints",
-    "fallback": "Fallback",
-}
-
-_PROMPT_MODULE_MERGE: Dict[str, str] = {
-    "identity": "replace",
-    "personality": "replace",
-    "capability": "replace",
-    "rules": "prepend",          # builtin first, then user, then agent
-    "workflow": "replace",
-    "delegation": "replace",
-    "style": "replace",
-    "output_format": "replace",
-    "context": "replace",
-    "constraints": "append",     # agent + user concatenated
-    "fallback": "replace",
-}
-
-# Backward-compat: V2 section keys map 1:1 to module keys
-_V2_TO_MODULE_KEY = {
-    "personality": "personality",
-    "rules": "rules",
-    "style": "style",
-    "output_format": "output_format",
-    "context": "context",
-    "constraints": "constraints",
-}
-
-# Legacy aliases kept for backward compat with V2 frontend
+# Legacy aliases kept for backward compat
 _SYSTEM_PROMPT_V2_SECTION_ORDER = tuple(_V2_TO_MODULE_KEY.keys())
 _SYSTEM_PROMPT_V2_SECTION_TITLES = {k: _PROMPT_MODULE_HEADERS[v] for k, v in _V2_TO_MODULE_KEY.items()}
-_SYSTEM_PROMPT_V2_SECTION_ALIASES = {
-    "personally": "personality",
-}
-
-# Builtin rules — always prepended to the "rules" module
-_SYSTEM_PROMPT_V2_BUILTIN_RULES = [
-    "Once you start your final answer, treat that single message as the final deliverable. Output may be truncated, so do not depend on follow-up continuation.",
-    "Tool use is optional. Call tools only when they are genuinely necessary to produce a correct and useful answer.",
-    "If important information is missing, the requirements are ambiguous, or there are multiple materially different approaches, you may use one or more ask-user tool calls before the final answer to resolve the uncertainty. Prefer asking over guessing when the choice would meaningfully affect the outcome. Before responding, gather enough information to make the final answer as complete and actionable as possible.",
-    "In the final response, aim to deliver a full result whenever feasible: a concrete plan, a direct answer, a finished artifact, or the best available outcome for the task, rather than a partial handoff."
-]
 
 _BUILTIN_MODULES: Dict[str, str] = {
     "rules": "\n".join(_SYSTEM_PROMPT_V2_BUILTIN_RULES),
@@ -268,25 +219,7 @@ _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
 
-_GENERAL_AGENT_RUNTIME_PROMPT = """
-You are the default general chat agent for PuPu.
-
-Your job is limited to:
-1. answer ordinary non-development conversation directly, without tools
-2. immediately hand off development work to the developer specialist
-
-Use the developer specialist whenever the request involves code, files, tests,
-debugging, terminal usage, implementation, architecture, repositories,
-workspace context, or selected toolkits.
-
-If the latest assistant message is a development plan awaiting approval and the
-user is replying to that plan, hand off to the developer specialist again.
-
-Do not try to partially implement, inspect code, or reason through a coding
-task yourself. When the task is development-related, call
-handoff_to_subagent(target="developer") immediately and let the specialist
-finish the turn.
-""".strip()
+# _GENERAL_AGENT_RUNTIME_PROMPT imported from prompts.agents.general
 
 # Deprecated: plan/approval split prompts are no longer used.
 # Kept for reference during migration.
@@ -303,73 +236,7 @@ def _compose_agent_prompt(sections: dict[str, str]) -> str:
 
 # ── Developer Agent Prompt (sectioned) ────────────────────────────────────────
 
-_DEVELOPER_PROMPT_SECTIONS = {
-    "identity": (
-        "You are PuPu's developer agent."
-    ),
-
-    "capability": (
-        "You have the user's selected model, workspace access, and selected "
-        "toolkits. You can read and write files, search code, run terminal "
-        "commands, and interact with the user via structured questions."
-    ),
-
-    "workflow": (
-        "- If the task depends on the current codebase, use tools to inspect "
-        "code before planning. Ground your work in facts.\n"
-        "- For non-trivial changes, produce a complete implementation plan "
-        "first and wait for user approval before executing.\n"
-        "- When the user approves, execute the plan. If they revise scope, "
-        "update the plan and wait again.\n"
-        "- When executing, use tools rather than speculating. Read the code, "
-        "make changes, and run validation when possible.\n"
-        "- Be conservative with tool use and iteration count. Prefer the "
-        "cheapest path that still produces a correct result."
-    ),
-
-    "delegation": (
-        "You have subagent capabilities for context isolation and parallelism.\n"
-        "Check [Context Status] in the system messages to see your current "
-        "context window usage. As usage rises above 50%, prefer delegation "
-        "more aggressively to keep your context lean.\n"
-        "\n"
-        "CRITICAL: When you delegate a task, TRUST the subagent's output. "
-        "Do NOT re-read the same files or re-run the same commands yourself "
-        "afterward. If the output is insufficient, delegate again with a more "
-        "specific task — never fall back to doing it yourself.\n"
-        "\n"
-        "Decision rule:\n"
-        "- 1 small file or 1 command → do it directly.\n"
-        "- Multiple files, cross-directory search, or several commands → "
-        "delegate to subagent.\n"
-        "- 2+ independent tasks of that kind → spawn_worker_batch.\n"
-        "\n"
-        "Each subagent costs ~1000 tokens of fixed overhead but discards all "
-        "intermediate tool output — only its summary enters your context.\n"
-        "\n"
-        "Available subagents:\n"
-        "- delegate_to_subagent(target=\"analyzer\", task=\"...\"): Read-only "
-        "code analysis.\n"
-        "- delegate_to_subagent(target=\"executor\", task=\"...\"): Terminal "
-        "commands.\n"
-        "- spawn_worker_batch(tasks=[...]): Run analyzer/executor in parallel.\n"
-        "\n"
-        "Task descriptions must be self-contained — the subagent has zero "
-        "access to your conversation history."
-    ),
-
-    "constraints": (
-        "- Never fabricate file contents or command outputs. If you don't know, "
-        "use a tool to find out.\n"
-        "- Never modify files outside the user's selected workspace roots.\n"
-        "- Do not use subagents for tasks you can accomplish with a single "
-        "direct tool call."
-    ),
-
-    "fallback": (
-        "For non-development conversations, answer directly without tools."
-    ),
-}
+# _DEVELOPER_PROMPT_SECTIONS imported from prompts.agents.developer
 
 _DEVELOPER_AGENT_UNIFIED_PROMPT = _compose_agent_prompt(_DEVELOPER_PROMPT_SECTIONS)
 
@@ -2941,13 +2808,7 @@ def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
 
 # ── Context window optimizer: summary generator ──────────────────────────────
 
-_SUMMARY_SYSTEM_PROMPT = (
-    "Summarize the following conversation concisely. "
-    "Focus on: decisions made, files modified, current task state, "
-    "and any pending action items. "
-    "Do NOT include greetings, filler, or tool call details. "
-    "Output plain text only, no markdown headers."
-)
+# _SUMMARY_SYSTEM_PROMPT imported from prompts.summary
 
 
 def _format_messages_for_summary(
@@ -3244,15 +3105,7 @@ def _build_developer_agent(
 
         analyzer_agent = UnchainAgent(
             name="analyzer",
-            instructions=_compose_agent_prompt({
-                "identity": "You are a read-only code analysis specialist.",
-                "capability": "You can read files, search code, and list directories. You cannot modify files.",
-                "constraints": (
-                    "- Only use read-only tools.\n"
-                    "- Be concise. Return structured findings, not raw file contents.\n"
-                    "- If a file or directory does not exist, say so immediately and stop."
-                ),
-            }),
+            instructions=_compose_agent_prompt(_ANALYZER_PROMPT_SECTIONS),
             provider=provider,
             model=model,
             api_key=api_key or None,
@@ -3260,15 +3113,7 @@ def _build_developer_agent(
         )
         executor_agent = UnchainAgent(
             name="executor",
-            instructions=_compose_agent_prompt({
-                "identity": "You are a terminal command execution specialist.",
-                "capability": "You can run shell commands via terminal_exec.",
-                "constraints": (
-                    "- Only run the commands specified in your task.\n"
-                    "- Return the command output concisely. Summarize, don't dump raw output.\n"
-                    "- If a command fails, report the error and stop."
-                ),
-            }),
+            instructions=_compose_agent_prompt(_EXECUTOR_PROMPT_SECTIONS),
             provider=provider,
             model=model,
             api_key=api_key or None,
