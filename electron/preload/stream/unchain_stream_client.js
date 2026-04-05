@@ -98,8 +98,8 @@ const createMisoStreamClient = (ipcRenderer) => {
             handlers.onMeta({
               thread_id: data.thread_id,
               run_id: data.run_id,
-              model: payload.model,
-              ...payload,
+              model: data.model || payload.model,
+              ...data,
             });
           }
           return;
@@ -107,7 +107,14 @@ const createMisoStreamClient = (ipcRenderer) => {
 
         // --- Old protocol: token_delta / New protocol: token ---
         if (frameType === "token_delta" || frameType === "token") {
-          const delta = typeof payload.delta === "string" ? payload.delta : "";
+          // New protocol: delta is at top level (data.delta)
+          // Old protocol: delta is in payload (payload.delta)
+          const delta =
+            typeof data.delta === "string"
+              ? data.delta
+              : typeof payload.delta === "string"
+                ? payload.delta
+                : "";
           if (typeof handlers.onToken === "function") {
             handlers.onToken(delta);
           }
@@ -117,7 +124,8 @@ const createMisoStreamClient = (ipcRenderer) => {
         // --- Old protocol: done / New protocol: run.done ---
         if (frameType === "done" || frameType === "run.done") {
           if (typeof handlers.onDone === "function") {
-            handlers.onDone(payload);
+            // New protocol: fields at top level; old protocol: in payload
+            handlers.onDone(frameType === "run.done" ? data : payload);
           }
           cleanupMisoStreamListener(requestId);
           return;
@@ -127,8 +135,8 @@ const createMisoStreamClient = (ipcRenderer) => {
         if (frameType === "error") {
           if (typeof handlers.onError === "function") {
             handlers.onError({
-              code: payload.code || "unknown",
-              message: payload.message || "Unknown stream error",
+              code: data.code || payload.code || "unknown",
+              message: data.message || payload.message || "Unknown stream error",
             });
           }
           cleanupMisoStreamListener(requestId);
