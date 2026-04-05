@@ -615,7 +615,113 @@ const WORKER_BATCH = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
-   Scenario 7 — Error
+   Scenario 7 — Content Inline
+   final_message immediately before tool_call → should display inline
+   ═══════════════════════════════════════════════════════════════════════ */
+const CONTENT_INLINE = {
+  name: "Content Inline",
+  description:
+    "LLM text before tool calls should appear inline in the step block",
+  frames: [
+    f({ seq: 1, type: "stream_started" }),
+    f({
+      seq: 2,
+      type: "final_message",
+      payload: {
+        content: "Let me search for that file in the project directory.",
+      },
+    }),
+    f({
+      seq: 3,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        tool_name: "search_files",
+        tool_display_name: "search_files",
+        arguments: { query: "config.json", path: "src/" },
+      },
+    }),
+    f({
+      seq: 4,
+      type: "tool_result",
+      payload: {
+        call_id: "call-1",
+        result: { matches: ["src/config.json", "src/test/config.json"] },
+      },
+    }),
+    f({
+      seq: 5,
+      type: "final_message",
+      payload: {
+        content:
+          "Now I'll read the main config file to check the settings.",
+      },
+    }),
+    f({
+      seq: 6,
+      type: "tool_call",
+      payload: {
+        call_id: "call-2",
+        tool_name: "read_file",
+        tool_display_name: "read_file",
+        arguments: { path: "src/config.json" },
+      },
+    }),
+    f({
+      seq: 7,
+      type: "tool_result",
+      payload: {
+        call_id: "call-2",
+        result: { content: '{"theme":"dark","lang":"en"}' },
+      },
+    }),
+    f({
+      seq: 8,
+      type: "final_message",
+      payload: {
+        content:
+          "Found it! The config uses dark theme with English language.",
+      },
+    }),
+    f({ seq: 9, type: "done" }),
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Scenario 8 — Duplicate Error
+   Same error appearing twice → should be deduplicated
+   ═══════════════════════════════════════════════════════════════════════ */
+const DUPLICATE_ERROR = {
+  name: "Duplicate Error",
+  description: "Same error twice → should appear only once",
+  frames: [
+    f({ seq: 1, type: "stream_started" }),
+    f({
+      seq: 2,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        tool_name: "fetch_api",
+        tool_display_name: "fetch_api",
+        arguments: { url: "https://api.example.com/data" },
+      },
+    }),
+    f({
+      seq: 3,
+      type: "error",
+      payload: { code: "TIMEOUT", message: "Request timed out after 30s" },
+    }),
+    f({
+      seq: 4,
+      type: "error",
+      payload: { code: "TIMEOUT", message: "Request timed out after 30s" },
+    }),
+    f({ seq: 5, type: "done" }),
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   Scenario 9 — Error
    ═══════════════════════════════════════════════════════════════════════ */
 const ERROR_SCENARIO = {
   name: "Error",
@@ -668,6 +774,8 @@ const TRACE_CHAIN_SCENARIOS = [
   SELECTION_MULTI,
   DELEGATE_SUBAGENT,
   WORKER_BATCH,
+  CONTENT_INLINE,
+  DUPLICATE_ERROR,
   ERROR_SCENARIO,
 ];
 
