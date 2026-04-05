@@ -460,7 +460,19 @@ def chat_stream_v2() -> Response:
                     for key, value in raw_event.items()
                     if key not in {"type", "run_id", "iteration", "timestamp"}
                 }
-                if event_type in ("final_message", "token_delta", "request_messages"):
+                # Skip sanitization for frames that carry structured data needed by the UI:
+                # - tool_call: interact_config.options for selections, confirmation metadata
+                # - tool_result: subagent agent_name/status for branch matching
+                # - subagent_*: lifecycle metadata (child_run_id, status, subagent_id)
+                # - continuation_request: confirmation_id for the continue/stop flow
+                _UNSANITIZED_EVENT_TYPES = (
+                    "final_message", "token_delta", "request_messages",
+                    "tool_call", "tool_result", "continuation_request",
+                    "subagent_spawned", "subagent_started", "subagent_completed",
+                    "subagent_failed", "subagent_handoff", "subagent_batch_started",
+                    "subagent_batch_joined", "subagent_clarification_requested",
+                )
+                if event_type in _UNSANITIZED_EVENT_TYPES:
                     sanitized_payload = payload_data
                 else:
                     sanitized_payload = _sanitize_trace_value(payload_data, trace_level)

@@ -54,6 +54,8 @@ try:
         LastNOptimizerConfig as _LastNOptimizerConfig,
         LlmSummaryOptimizer as _LlmSummaryOptimizer,
         LlmSummaryOptimizerConfig as _LlmSummaryOptimizerConfig,
+        SlidingWindowOptimizer as _SlidingWindowOptimizer,
+        SlidingWindowOptimizerConfig as _SlidingWindowOptimizerConfig,
         ToolHistoryCompactionOptimizer as _ToolHistoryCompactionOptimizer,
         ToolPairSafetyOptimizer as _ToolPairSafetyOptimizer,
     )
@@ -3062,13 +3064,20 @@ def _build_developer_agent(
     LlmSummaryOptimizer = _LlmSummaryOptimizer
     LlmSummaryOptimizerConfig = _LlmSummaryOptimizerConfig
     ToolHistoryCompactionOptimizer = _ToolHistoryCompactionOptimizer
+    SlidingWindowOptimizer = _SlidingWindowOptimizer
+    SlidingWindowOptimizerConfig = _SlidingWindowOptimizerConfig
     if (
         OptimizersModule is not None
-        and LastNOptimizer is not None
+        and SlidingWindowOptimizer is not None
         and LlmSummaryOptimizer is not None
         and ToolHistoryCompactionOptimizer is not None
     ):
         optimizer_harnesses = [ToolHistoryCompactionOptimizer()]
+        optimizer_harnesses.append(
+            SlidingWindowOptimizer(
+                SlidingWindowOptimizerConfig(max_window_pct=0.50)
+            )
+        )
         summary_gen = _build_summary_generator(provider, model, api_key)
         optimizer_harnesses.append(
             LlmSummaryOptimizer(
@@ -3080,13 +3089,10 @@ def _build_developer_agent(
                 )
             )
         )
-        optimizer_harnesses.append(
-            LastNOptimizer(LastNOptimizerConfig(last_n_turns=10))
-        )
         if _ContextUsageOptimizer is not None:
-            optimizer_harnesses.append(_ContextUsageOptimizer())  # order 55
+            optimizer_harnesses.append(_ContextUsageOptimizer())
         if _ToolPairSafetyOptimizer is not None:
-            optimizer_harnesses.append(_ToolPairSafetyOptimizer())  # order 60, safety net
+            optimizer_harnesses.append(_ToolPairSafetyOptimizer())
         modules.append(OptimizersModule(harnesses=tuple(optimizer_harnesses)))
 
     if (
