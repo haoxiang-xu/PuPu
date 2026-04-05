@@ -1823,7 +1823,11 @@ export const useChatStream = ({
                       },
                       requires_confirmation: true,
                       confirmation_id: requestId,
-                      interact_type: "ask_user",
+                      interact_type:
+                        typeof interactConfig.selection_mode === "string" &&
+                        interactConfig.selection_mode === "multiple"
+                          ? "multi"
+                          : "single",
                       interact_config: interactConfig,
                     },
                   };
@@ -1844,7 +1848,11 @@ export const useChatStream = ({
                             toolDisplayName: HUMAN_INPUT_TOOL_NAME,
                             arguments: traceFrame.payload.arguments,
                             description: "",
-                            interactType: "ask_user",
+                            interactType:
+                              typeof interactConfig.selection_mode === "string" &&
+                              interactConfig.selection_mode === "multiple"
+                                ? "multi"
+                                : "single",
                             interactConfig,
                             requestedAt: patchTime,
                           },
