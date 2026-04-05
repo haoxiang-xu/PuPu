@@ -1,4 +1,4 @@
-import { memo, useState, useContext, useMemo, useCallback } from "react";
+import { memo, useState, useContext, useMemo, useCallback, useEffect, useRef } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
@@ -581,7 +581,12 @@ const TraceChain = ({
 
   /* ── branch expand state for subagent fork/merge ── */
   const [branchState, setBranchState] = useState(() => new Map());
+  /* Track which branches the user has manually toggled — these override
+     the auto-collapse behaviour so a manual expand/collapse "sticks". */
+  const manualBranchOverrides = useRef(new Set());
+
   const toggleBranchSummary = useCallback((callId) => {
+    manualBranchOverrides.current.add(callId);
     setBranchState((prev) => {
       const next = new Map(prev);
       const cur = next.get(callId) || {
@@ -593,6 +598,7 @@ const TraceChain = ({
     });
   }, []);
   const toggleBranchWorker = useCallback((callId, wi) => {
+    manualBranchOverrides.current.add(`${callId}:w${wi}`);
     setBranchState((prev) => {
       const next = new Map(prev);
       const cur = next.get(callId) || {
@@ -619,6 +625,48 @@ const TraceChain = ({
         : {},
     [subagentMetaByRunId],
   );
+
+  /* ── smart collapse: auto-collapse completed branches when a new one starts ── */
+  /* Rules:
+       1. Running branches → always expanded
+       2. Most recently completed branch → stays expanded (until a new fork)
+       3. When a new branch starts → previously completed branches auto-collapse
+       4. Manual user toggle (manualBranchOverrides) overrides auto behavior */
+  const prevActiveBranchesRef = useRef(new Set());
+  useEffect(() => {
+    const activeBranches = new Set();
+    const completedBranches = [];
+    Object.entries(effectiveSubagentMetaByRunId).forEach(([runId, meta]) => {
+      const st = typeof meta?.status === "string" ? meta.status.toLowerCase() : "";
+      if (st === "running" || st === "spawned") {
+        activeBranches.add(runId);
+      } else if (st === "completed" || st === "done" || st === "failed" || st === "timeout") {
+        completedBranches.push(runId);
+      }
+    });
+
+    const prevActive = prevActiveBranchesRef.current;
+    const hasNewActiveBranch =
+      activeBranches.size > 0 &&
+      [...activeBranches].some((id) => !prevActive.has(id));
+    prevActiveBranchesRef.current = activeBranches;
+
+    if (!hasNewActiveBranch) return;
+
+    /* A new branch just started running — collapse completed branches
+       (unless the user manually toggled them). */
+    setBranchState((prev) => {
+      const next = new Map(prev);
+      for (const [callId, state] of next.entries()) {
+        if (manualBranchOverrides.current.has(callId)) continue;
+        /* Only collapse if the branch is currently expanded and not active */
+        if (state.expanded && !activeBranches.has(callId)) {
+          next.set(callId, { ...state, expanded: false });
+        }
+      }
+      return next;
+    });
+  }, [effectiveSubagentMetaByRunId]);
 
   // Identify which final_message frames are "intermediate" (not the very last
   // one when the stream is finished). During streaming every final_message is
@@ -699,6 +747,29 @@ const TraceChain = ({
       }),
     [frames, intermediateFinalMessageSeqs],
   );
+  /* ── map: tool_call seq → preceding final_message content ── */
+  /* When the LLM emits text before a tool_call, it appears as a final_message
+     frame just before the tool_call in displayFrames.  We capture that content
+     here so it can be rendered inline (low-opacity) inside the tool_call item
+     rather than as a separate "Response" timeline item. */
+  const precedingContentByToolSeq = useMemo(() => {
+    const map = new Map();          // tool_call seq → string
+    const consumedSeqs = new Set();  // final_message seqs that were inlined
+    for (let i = 1; i < displayFrames.length; i++) {
+      if (displayFrames[i].type !== "tool_call") continue;
+      const prev = displayFrames[i - 1];
+      if (prev.type !== "final_message") continue;
+      const text =
+        typeof prev.payload?.content === "string"
+          ? prev.payload.content.trim()
+          : "";
+      if (!text) continue;
+      map.set(displayFrames[i].seq, text);
+      consumedSeqs.add(prev.seq);
+    }
+    return { map, consumedSeqs };
+  }, [displayFrames]);
+
   const startFrame = frames.find((f) => f.type === "stream_started");
   const doneFrame = frames.find((f) => f.type === "done");
   const duration =
@@ -813,6 +884,7 @@ const TraceChain = ({
     const items = [];
     const renderedCallIds = new Set();
     const usedRunIds = new Set();
+    const seenErrors = new Set();
     let prevTs = startFrame?.ts ?? null;
 
     for (const frame of displayFrames) {
@@ -1366,13 +1438,51 @@ const TraceChain = ({
           );
         }
 
+        /* ── preceding final_message content → inline in tool block ── */
+        const precedingContent = precedingContentByToolSeq.map.get(frame.seq) || "";
+
+        const toolBody = interactBody ? (
+          <>
+            {precedingContent ? (
+              <div style={{
+                opacity: 0.45,
+                fontSize: 11,
+                lineHeight: "16px",
+                marginTop: 2,
+                marginBottom: 4,
+                whiteSpace: "pre-wrap",
+                wordBreak: "break-word",
+                maxHeight: 60,
+                overflow: "hidden",
+              }}>
+                {precedingContent}
+              </div>
+            ) : null}
+            {interactBody}
+          </>
+        ) : precedingContent ? (
+          <div style={{
+            opacity: 0.45,
+            fontSize: 11,
+            lineHeight: "16px",
+            marginTop: 2,
+            marginBottom: 4,
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            maxHeight: 60,
+            overflow: "hidden",
+          }}>
+            {precedingContent}
+          </div>
+        ) : undefined;
+
         items.push({
           key: `${frame.seq}-tool`,
           title: <ToolTag name={toolName} isDark={isDark} compact={compact} />,
           span: spanText,
           status: toolStatus,
           point: toolPointEl,
-          body: interactBody,
+          body: toolBody,
           details:
             sections.length > 0 ? (
               <KVPanel sections={sections} isDark={isDark} color={color} />
@@ -1383,6 +1493,11 @@ const TraceChain = ({
       } else if (frame.type === "error") {
         const msg = frame.payload?.message || "Unknown error";
         const code = frame.payload?.code;
+        /* ── deduplicate identical errors ── */
+        const errorKey = `${code || ""}:${msg}`;
+        if (seenErrors.has(errorKey)) continue;
+        seenErrors.add(errorKey);
+
         const pairs = [
           ...(code != null ? [{ key: "code", value: String(code) }] : []),
           { key: "message", value: msg },
@@ -1402,6 +1517,8 @@ const TraceChain = ({
           ),
         });
       } else if (frame.type === "final_message") {
+        /* skip final_messages that were inlined into a tool_call block */
+        if (precedingContentByToolSeq.consumedSeqs.has(frame.seq)) continue;
         const content =
           typeof frame.payload?.content === "string"
             ? frame.payload.content
@@ -1428,36 +1545,46 @@ const TraceChain = ({
     }
 
     if (isStreaming) {
-      const liveContent =
-        typeof streamingContent === "string" ? streamingContent : "";
-      if (liveContent.trim()) {
-        items.push({
-          key: "__streaming_content__",
-          title: "Response",
-          span: null,
-          status: "active",
-          point: "loading",
-          body: (
-            <div style={{ fontFamily: "inherit" }}>
-              <SeamlessMarkdown
-                content={liveContent}
-                status="streaming"
-                fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
-                lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
-                style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
-                priority="high"
-              />
-            </div>
-          ),
-        });
-      } else {
-        items.push({
-          key: "__streaming__",
-          title: "Thinking…",
-          span: null,
-          status: "active",
-          point: "loading",
-        });
+      /* ── freeze main timeline streaming indicator while a subagent is active ── */
+      const hasActiveBranch = Object.values(effectiveSubagentMetaByRunId).some(
+        (meta) => {
+          const st = typeof meta?.status === "string" ? meta.status.toLowerCase() : "";
+          return st === "running" || st === "spawned";
+        },
+      );
+
+      if (!hasActiveBranch) {
+        const liveContent =
+          typeof streamingContent === "string" ? streamingContent : "";
+        if (liveContent.trim()) {
+          items.push({
+            key: "__streaming_content__",
+            title: "Response",
+            span: null,
+            status: "active",
+            point: "loading",
+            body: (
+              <div style={{ fontFamily: "inherit" }}>
+                <SeamlessMarkdown
+                  content={liveContent}
+                  status="streaming"
+                  fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
+                  lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
+                  style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
+                  priority="high"
+                />
+              </div>
+            ),
+          });
+        } else {
+          items.push({
+            key: "__streaming__",
+            title: "Thinking…",
+            span: null,
+            status: "active",
+            point: "loading",
+          });
+        }
       }
     }
 
@@ -1553,6 +1680,7 @@ const TraceChain = ({
     childRunIdsBySubagentId,
     effectiveSubagentFrames,
     effectiveSubagentMetaByRunId,
+    precedingContentByToolSeq,
     branchState,
     toggleBranchSummary,
     toggleBranchWorker,
