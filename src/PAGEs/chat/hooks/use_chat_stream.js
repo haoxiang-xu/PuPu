@@ -2281,7 +2281,7 @@ export const useChatStream = ({
               if (frame.type === "error") {
                 unchainLogger.error(
                   `error (iteration=${getTraceFrameIteration(frame)})`,
-                  frame.payload,
+                  frame.payload || { code: frame.code, message: frame.message },
                 );
               }
 
