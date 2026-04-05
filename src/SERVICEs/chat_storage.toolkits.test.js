@@ -22,10 +22,10 @@ describe("chat_storage selected toolkits persistence", () => {
     expect(hydrated.chatsById[activeChatId].selectedToolkits).toEqual([]);
   });
 
-  test("new chats inherit code_toolkit when no explicit global default exists", () => {
+  test("new chats inherit core when no explicit global default exists", () => {
     const seeded = getChatsStore();
     expect(seeded.chatsById[seeded.activeChatId].selectedToolkits).toEqual([
-      "code_toolkit",
+      "core",
     ]);
   });
 
@@ -60,8 +60,7 @@ describe("chat_storage selected toolkits persistence", () => {
     ).toEqual([
       "workspace_toolkit",
       "terminal_toolkit",
-      "ask-user-toolkit",
-      "code_toolkit",
+      "core",
     ]);
   });
 

@@ -15,6 +15,20 @@ jest.mock("../../../SERVICEs/api", () => ({
 const TOOLKIT_PAYLOAD = {
   toolkits: [
     {
+      toolkitId: "core",
+      toolkitName: "Core",
+      toolkitDescription: "Read, edit, shell, and ask the user questions",
+      source: "core",
+      hidden: false,
+      toolkitIcon: {
+        type: "builtin",
+        name: "tool",
+        color: "#ffffff",
+        backgroundColor: "#111827",
+      },
+      tools: [{ title: "Ask User", name: "ask_user_question" }],
+    },
+    {
       toolkitId: "workspace_toolkit",
       toolkitName: "Workspace Files",
       toolkitDescription: "Read and write project files",
@@ -120,6 +134,14 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
+          value: "core",
+          label: "Core",
+          description: "Read, edit, shell, and ask the user questions",
+          search:
+            "Core core Read, edit, shell, and ask the user questions Ask User",
+          hasIcon: true,
+        },
+        {
           value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
@@ -167,6 +189,14 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
+          value: "core",
+          label: "Core",
+          description: "Read, edit, shell, and ask the user questions",
+          search:
+            "Core core Read, edit, shell, and ask the user questions Ask User",
+          hasIcon: true,
+        },
+        {
           value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
@@ -189,6 +219,14 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
+          value: "core",
+          label: "Core",
+          description: "Read, edit, shell, and ask the user questions",
+          search:
+            "Core core Read, edit, shell, and ask the user questions Ask User",
+          hasIcon: true,
+        },
+        {
           value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
@@ -205,6 +243,14 @@ describe("use_chat_input_toolkits", () => {
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
     expect(readOptions()).toEqual([
       {
+        value: "core",
+        label: "Core",
+        description: "Read, edit, shell, and ask the user questions",
+        search:
+          "Core core Read, edit, shell, and ask the user questions Ask User",
+        hasIcon: true,
+      },
+      {
         value: "workspace_toolkit",
         label: "Workspace Files",
         description: "Read and write project files",
@@ -218,6 +264,14 @@ describe("use_chat_input_toolkits", () => {
       expect(screen.getByTestId("loading")).toHaveTextContent("false"),
     );
     expect(readOptions()).toEqual([
+      {
+        value: "core",
+        label: "Core",
+        description: "Read, edit, shell, and ask the user questions",
+        search:
+          "Core core Read, edit, shell, and ask the user questions Ask User",
+        hasIcon: true,
+      },
       {
         value: "workspace_toolkit",
         label: "Workspace Files",

@@ -27,26 +27,26 @@ describe("toolkit_auto_approve_store", () => {
     expect(isToolkitAutoApprove("WorkspaceToolkit")).toBe(true);
     expect(isToolAutoApproved("workspace_toolkit", "write_file")).toBe(true);
     expect(isToolAutoApproved("terminal_toolkit", "terminal_exec")).toBe(true);
-    expect(isToolAutoApproved("code_toolkit", "write_file")).toBe(false);
+    expect(isToolAutoApproved("core", "write_file")).toBe(false);
   });
 
   test("stores and removes toolkitId:toolName keys", () => {
     expect(
       setToolkitAutoApprove("CodeToolkit", true, ["write", "edit"]),
     ).toEqual({
-      toolkits: ["code_toolkit"],
-      tools: ["code_toolkit:write", "code_toolkit:edit"],
+      toolkits: ["core"],
+      tools: ["core:write", "core:edit"],
     });
 
     expect(isToolkitAutoApprove("code")).toBe(true);
-    expect(isToolAutoApproved("code_toolkit", "write")).toBe(true);
+    expect(isToolAutoApproved("core", "write")).toBe(true);
     expect(isToolAutoApproved("workspace_toolkit", "write")).toBe(false);
 
-    expect(setToolkitAutoApprove("code_toolkit", false)).toEqual({
+    expect(setToolkitAutoApprove("core", false)).toEqual({
       toolkits: [],
       tools: [],
     });
-    expect(isToolkitAutoApprove("code_toolkit")).toBe(false);
-    expect(isToolAutoApproved("code_toolkit", "write")).toBe(false);
+    expect(isToolkitAutoApprove("core")).toBe(false);
+    expect(isToolAutoApproved("core", "write")).toBe(false);
   });
 });

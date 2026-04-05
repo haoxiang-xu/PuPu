@@ -22,8 +22,6 @@ _TRACE_STAGE_BY_EVENT_TYPE = {
     "token_delta": "model",
     "final_message": "model",
     "tool_call": "tool",
-    "tool_confirmed": "tool",
-    "tool_denied": "tool",
     "tool_result": "tool",
     "error": "stream",
     "done": "stream",

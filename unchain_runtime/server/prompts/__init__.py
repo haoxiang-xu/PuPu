@@ -8,7 +8,6 @@ from .module_config import (
 from .builtin_rules import BUILTIN_RULES
 from .summary import SUMMARY_SYSTEM_PROMPT
 from .agents import (
-    GENERAL_AGENT_PROMPT,
     DEVELOPER_PROMPT_SECTIONS,
     ANALYZER_PROMPT_SECTIONS,
     EXECUTOR_PROMPT_SECTIONS,

@@ -50,8 +50,6 @@ try:
     from unchain.subagents import SubagentPolicy as _SubagentPolicy
     from unchain.optimizers import (
         ContextUsageOptimizer as _ContextUsageOptimizer,
-        LastNOptimizer as _LastNOptimizer,
-        LastNOptimizerConfig as _LastNOptimizerConfig,
         LlmSummaryOptimizer as _LlmSummaryOptimizer,
         LlmSummaryOptimizerConfig as _LlmSummaryOptimizerConfig,
         SlidingWindowOptimizer as _SlidingWindowOptimizer,
@@ -68,8 +66,6 @@ except ImportError:
     _SubagentModule = None  # type: ignore
     _SubagentTemplate = None  # type: ignore
     _SubagentPolicy = None  # type: ignore
-    _LastNOptimizer = None  # type: ignore
-    _LastNOptimizerConfig = None  # type: ignore
     _LlmSummaryOptimizer = None  # type: ignore
     _LlmSummaryOptimizerConfig = None  # type: ignore
     _ContextUsageOptimizer = None  # type: ignore
@@ -86,16 +82,16 @@ _INPUT_MODALITY_ALIAS_MAP = {
 _KNOWN_TOOLKIT_EXPORTS = {
     "WorkspaceToolkit": "builtin",
     "TerminalToolkit": "builtin",
-    "CodeToolkit": "builtin",
+    "CoreToolkit": "builtin",
     "ExternalAPIToolkit": "builtin",
-    "AskUserToolkit": "builtin",
 }
 _TOOLKIT_EXPORT_ID_ALIASES = {
     "WorkspaceToolkit": "workspace_toolkit",
     "TerminalToolkit": "terminal_toolkit",
-    "CodeToolkit": "code_toolkit",
-    "ExternalAPIToolkit": "external_api_toolkit",
-    "AskUserToolkit": "ask-user-toolkit",
+    "CoreToolkit": "core",
+    "CodeToolkit": "core",
+    "AskUserToolkit": "core",
+    "ExternalAPIToolkit": "external_api",
 }
 _TOOLKIT_NAME_ALIASES = {
     "workspace": "WorkspaceToolkit",
@@ -106,18 +102,24 @@ _TOOLKIT_NAME_ALIASES = {
     "run_terminal_toolkit": "TerminalToolkit",
     "terminal_toolkit": "TerminalToolkit",
     "TerminalToolkit": "TerminalToolkit",
-    "code": "CodeToolkit",
-    "code_toolkit": "CodeToolkit",
-    "CodeToolkit": "CodeToolkit",
+    "core": "CoreToolkit",
+    "core_toolkit": "CoreToolkit",
+    "coretoolkit": "CoreToolkit",
+    "CoreToolkit": "CoreToolkit",
+    "code": "CoreToolkit",
+    "code_toolkit": "CoreToolkit",
+    "CodeToolkit": "CoreToolkit",
     "external_api": "ExternalAPIToolkit",
     "external_api_toolkit": "ExternalAPIToolkit",
+    "externalapitoolkit": "ExternalAPIToolkit",
     "ExternalAPIToolkit": "ExternalAPIToolkit",
-    "ask_user": "AskUserToolkit",
-    "interaction_toolkit": "AskUserToolkit",
-    "interaction-toolkit": "AskUserToolkit",
-    "ask_user_toolkit": "AskUserToolkit",
-    "ask-user-toolkit": "AskUserToolkit",
-    "AskUserToolkit": "AskUserToolkit",
+    "ask_user": "CoreToolkit",
+    "interaction_toolkit": "CoreToolkit",
+    "interaction-toolkit": "CoreToolkit",
+    "ask_user_toolkit": "CoreToolkit",
+    "ask-user-toolkit": "CoreToolkit",
+    "askusertoolkit": "CoreToolkit",
+    "AskUserToolkit": "CoreToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
@@ -127,7 +129,6 @@ _GENERAL_MODEL_BY_PROVIDER = {
     "openai": "gpt-4.1",
     "anthropic": "claude-sonnet-4",
 }
-_GENERAL_AGENT_NAME = "pupu_general"
 _DEVELOPER_AGENT_NAME = "pupu_developer"
 _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
 _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
@@ -160,7 +161,6 @@ from prompts import (
     SECTION_ALIASES as _SYSTEM_PROMPT_V2_SECTION_ALIASES,
     BUILTIN_RULES as _SYSTEM_PROMPT_V2_BUILTIN_RULES,
     SUMMARY_SYSTEM_PROMPT as _SUMMARY_SYSTEM_PROMPT,
-    GENERAL_AGENT_PROMPT as _GENERAL_AGENT_RUNTIME_PROMPT,
     DEVELOPER_PROMPT_SECTIONS as _DEVELOPER_PROMPT_SECTIONS,
     ANALYZER_PROMPT_SECTIONS as _ANALYZER_PROMPT_SECTIONS,
     EXECUTOR_PROMPT_SECTIONS as _EXECUTOR_PROMPT_SECTIONS,
@@ -220,13 +220,6 @@ def _build_modular_prompt(
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
-
-# _GENERAL_AGENT_RUNTIME_PROMPT imported from prompts.agents.general
-
-# Deprecated: plan/approval split prompts are no longer used.
-# Kept for reference during migration.
-_DEVELOPER_AGENT_PLAN_PROMPT = ""
-_DEVELOPER_AGENT_APPROVAL_PROMPT = ""
 
 def _compose_agent_prompt(sections: dict[str, str]) -> str:
     """Convenience: build an agent-only prompt (no user/builtin modules).
@@ -369,18 +362,8 @@ def _build_tool_confirmation_request_payload(request_obj: object) -> Dict[str, A
     interact_config = payload.get("interact_config")
     payload["interact_config"] = interact_config if isinstance(interact_config, (dict, list)) else {}
 
-    # ── render_component (v1) ──────────────────────────────────────────
-    # Dual-write: emit render_component alongside legacy interact_type/interact_config.
-    # Frontend prefers render_component when present, falls back to legacy fields.
-    raw_rc = payload.get("render_component")
-    if isinstance(raw_rc, dict) and raw_rc:
-        payload["render_component"] = raw_rc
-    else:
-        payload["render_component"] = {
-            "version": 1,
-            "type": payload["interact_type"],
-            "config": payload["interact_config"] if isinstance(payload["interact_config"], dict) else {},
-        }
+    # render_component removed — frontend reads interact_type/interact_config directly
+    payload.pop("render_component", None)
 
     return payload
 
@@ -561,11 +544,19 @@ def _make_continuation_callback(
         with _pending_confirmations_lock:
             _pending_confirmations[confirmation_id] = waiter
 
+        iteration = payload.get("iteration", 0)
         try:
             emit_event({
-                "type": "continuation_request",
+                "type": "tool_call",
+                "tool_name": "__continuation__",
+                "tool_display_name": "Continue?",
+                "call_id": f"continuation-{confirmation_id}",
                 "confirmation_id": confirmation_id,
-                "iteration": payload.get("iteration", 0),
+                "requires_confirmation": True,
+                "interact_type": "confirmation",
+                "interact_config": {},
+                "arguments": {},
+                "description": f"Agent reached {iteration} iterations without a final response.",
             })
             if normalized_cancel_event is not None and normalized_cancel_event.is_set():
                 cancel_tool_confirmations(normalized_cancel_event)
@@ -3059,8 +3050,6 @@ def _build_developer_agent(
 
     # ── Context window optimizers ──
     OptimizersModule = _OptimizersModule
-    LastNOptimizer = _LastNOptimizer
-    LastNOptimizerConfig = _LastNOptimizerConfig
     LlmSummaryOptimizer = _LlmSummaryOptimizer
     LlmSummaryOptimizerConfig = _LlmSummaryOptimizerConfig
     ToolHistoryCompactionOptimizer = _ToolHistoryCompactionOptimizer
@@ -3075,18 +3064,7 @@ def _build_developer_agent(
         optimizer_harnesses = [ToolHistoryCompactionOptimizer()]
         optimizer_harnesses.append(
             SlidingWindowOptimizer(
-                SlidingWindowOptimizerConfig(max_window_pct=0.50)
-            )
-        )
-        summary_gen = _build_summary_generator(provider, model, api_key)
-        optimizer_harnesses.append(
-            LlmSummaryOptimizer(
-                LlmSummaryOptimizerConfig(
-                    summary_trigger_pct=0.60,
-                    summary_target_pct=0.35,
-                    max_summary_chars=2400,
-                    summary_generator=summary_gen,
-                )
+                SlidingWindowOptimizerConfig(max_window_pct=0.50),
             )
         )
         if _ContextUsageOptimizer is not None:
@@ -3180,68 +3158,6 @@ def _build_developer_agent(
         model=model,
         api_key=api_key or None,
         modules=tuple(modules),
-    )
-
-
-def _build_general_agent(
-    *,
-    UnchainAgent,
-    MemoryModule,
-    PoliciesModule,
-    SubagentModule,
-    SubagentTemplate,
-    SubagentPolicy,
-    provider: str,
-    model: str,
-    api_key: str,
-    system_prompt: str,
-    max_iterations: int,
-    memory_manager: Any,
-    developer_agent: Any,
-):
-    modules: list = []
-    if memory_manager is not None:
-        modules.append(MemoryModule(memory=memory_manager))
-    modules.append(PoliciesModule(max_iterations=max_iterations))
-    modules.append(
-        SubagentModule(
-            templates=(
-                SubagentTemplate(
-                    name=_DEVELOPER_SUBAGENT_TEMPLATE,
-                    description=(
-                        "The dedicated software engineering specialist for coding, "
-                        "implementation, debugging, testing, architecture, and "
-                        "workspace or toolkit-driven work."
-                    ),
-                    agent=developer_agent,
-                    allowed_modes=("handoff",),
-                    output_mode="last_message",
-                    memory_policy="scoped_persistent",
-                    parallel_safe=False,
-                ),
-            ),
-            policy=SubagentPolicy(
-                max_depth=1,
-                max_children_per_parent=100,
-                max_total_subagents=100,
-                max_parallel_workers=1,
-                worker_timeout_seconds=120.0,
-                allow_dynamic_workers=False,
-                allow_dynamic_delegate=False,
-            ),
-        )
-    )
-    return UnchainAgent(
-        name=_GENERAL_AGENT_NAME,
-        instructions=_compose_runtime_instructions(
-            system_prompt,
-            _GENERAL_AGENT_RUNTIME_PROMPT,
-        ),
-        provider=provider,
-        model=model,
-        api_key=api_key or None,
-        modules=tuple(modules),
-        allowed_tools=("handoff_to_subagent",),
     )
 
 
@@ -3384,8 +3300,8 @@ def _make_human_input_callback(
             "type": "tool_call",
             "tool_name": "ask_user_question",
             "tool_display_name": "Ask User",
-            "toolkit_id": toolkit_meta.get("toolkit_id", "ask-user-toolkit"),
-            "toolkit_name": toolkit_meta.get("toolkit_name", "Ask User Toolkit"),
+            "toolkit_id": toolkit_meta.get("toolkit_id", "core"),
+            "toolkit_name": toolkit_meta.get("toolkit_name", "Core"),
             "call_id": request.request_id,
             "arguments": interact_config,
             "description": getattr(request, "question", ""),
@@ -3393,11 +3309,6 @@ def _make_human_input_callback(
             "requires_confirmation": True,
             "interact_type": hi_interact_type,
             "interact_config": interact_config,
-            "render_component": {
-                "version": 1,
-                "type": hi_interact_type,
-                "config": interact_config if isinstance(interact_config, dict) else {},
-            },
         }
 
         waiter: Dict[str, Any] = {

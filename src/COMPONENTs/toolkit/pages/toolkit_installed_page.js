@@ -39,7 +39,6 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
 
       const visible = list.filter(
         (tk) =>
-          tk.source !== "core" &&
           tk.source !== "plugin" &&
           !tk.hidden &&
           !isBaseById(tk.toolkitId),

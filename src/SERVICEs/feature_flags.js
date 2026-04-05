@@ -23,6 +23,11 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show the Agents entry in the side menu and allow opening the Agents modal.",
     defaultValue: false,
   },
+  enable_app_update_settings: {
+    description:
+      "Show the Update page in Settings and allow access to in-app update controls.",
+    defaultValue: true,
+  },
 };
 
 const listeners = new Set();

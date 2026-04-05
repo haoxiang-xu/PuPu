@@ -3,7 +3,7 @@ const MAX_IDS = 100;
 const MAX_ID_LENGTH = 200;
 const SCHEMA_VERSION = 2;
 const GLOBAL_SCOPE = "global";
-const DEFAULT_GLOBAL_TOOLKITS = Object.freeze(["code_toolkit"]);
+const DEFAULT_GLOBAL_TOOLKITS = Object.freeze(["core"]);
 
 const TOOLKIT_ID_ALIASES = Object.freeze({
   workspace: "workspace_toolkit",
@@ -16,21 +16,25 @@ const TOOLKIT_ID_ALIASES = Object.freeze({
   run_terminal_toolkit: "terminal_toolkit",
   terminaltoolkit: "terminal_toolkit",
   TerminalToolkit: "terminal_toolkit",
-  code: "code_toolkit",
-  code_toolkit: "code_toolkit",
-  codetoolkit: "code_toolkit",
-  CodeToolkit: "code_toolkit",
-  external_api: "external_api_toolkit",
-  external_api_toolkit: "external_api_toolkit",
-  externalapitoolkit: "external_api_toolkit",
-  ExternalAPIToolkit: "external_api_toolkit",
-  ask_user: "ask-user-toolkit",
-  ask_user_toolkit: "ask-user-toolkit",
-  "ask-user-toolkit": "ask-user-toolkit",
-  interaction_toolkit: "ask-user-toolkit",
-  "interaction-toolkit": "ask-user-toolkit",
-  askusertoolkit: "ask-user-toolkit",
-  AskUserToolkit: "ask-user-toolkit",
+  core: "core",
+  core_toolkit: "core",
+  coretoolkit: "core",
+  CoreToolkit: "core",
+  code: "core",
+  code_toolkit: "core",
+  codetoolkit: "core",
+  CodeToolkit: "core",
+  ask_user: "core",
+  ask_user_toolkit: "core",
+  "ask-user-toolkit": "core",
+  interaction_toolkit: "core",
+  "interaction-toolkit": "core",
+  askusertoolkit: "core",
+  AskUserToolkit: "core",
+  external_api: "external_api",
+  external_api_toolkit: "external_api",
+  externalapitoolkit: "external_api",
+  ExternalAPIToolkit: "external_api",
 });
 
 const normalizeToolkitId = (value) => {

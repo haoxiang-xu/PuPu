@@ -1422,48 +1422,11 @@ export const useChatStream = ({
                 return;
               }
 
+              /* continuation_request is now emitted as a tool_call with
+                 tool_name "__continuation__" — handled by the normal
+                 tool confirmation flow below, no special case needed. */
               if (frame.type === "continuation_request") {
-                const confirmationId =
-                  typeof frame.payload?.confirmation_id === "string"
-                    ? frame.payload.confirmation_id.trim()
-                    : "";
-                const iteration = getTraceFrameIteration(frame);
-                if (confirmationId) {
-                  const latestMessage =
-                    Array.isArray(streamMessages) && streamMessages.length > 0
-                      ? streamMessages[streamMessages.length - 1]
-                      : null;
-                  const state = { confirmationId, iteration, status: "idle" };
-                  unchainLogger.log("continuation_request", {
-                    confirmationId,
-                    iteration,
-                    assistantMessageId,
-                    targetChatId,
-                    activeChatId: activeChatIdRef.current,
-                    latestMessageId:
-                      typeof latestMessage?.id === "string"
-                        ? latestMessage.id
-                        : "",
-                    latestMessageRole:
-                      typeof latestMessage?.role === "string"
-                        ? latestMessage.role
-                        : "",
-                    latestMessageStatus:
-                      typeof latestMessage?.status === "string"
-                        ? latestMessage.status
-                        : "",
-                    latestMessageTraceFrameCount: Array.isArray(
-                      latestMessage?.traceFrames,
-                    )
-                      ? latestMessage.traceFrames.length
-                      : 0,
-                    attachedToLatestAssistantBubble:
-                      latestMessage?.id === assistantMessageId,
-                  });
-                  pendingContinuationRequestRef.current = state;
-                  setPendingContinuationRequest(state);
-                }
-                return;
+                return; /* legacy: ignore if backend ever sends old format */
               }
 
               const patchTime = Date.now();
@@ -1574,7 +1537,35 @@ export const useChatStream = ({
               }
 
               const frameRunId = frame.run_id || frame.payload?.run_id || "";
-              if (isKnownSubagentRunId(frameRunId)) {
+
+              /* ── Route subagent frames to their sub-timeline ── */
+              /* Known subagent: run_id already registered via lifecycle events */
+              const isKnownChild = isKnownSubagentRunId(frameRunId);
+              /* Unknown run_id that differs from parent: likely a subagent whose
+                 lifecycle event hasn't arrived yet (race condition) or whose
+                 run_id format differs. Register it eagerly. */
+              const isUnknownChild =
+                !isKnownChild &&
+                frameRunId.length > 0 &&
+                parentRunIdRef.current &&
+                frameRunId !== parentRunIdRef.current;
+
+              if (frameRunId && frameRunId !== parentRunIdRef.current) {
+                unchainLogger.log("subagent_frame_routing", {
+                  frameType: frame.type,
+                  runId: frameRunId,
+                  parentRunId: parentRunIdRef.current || "",
+                  isKnownSubagentRunId: isKnownChild,
+                  isUnknownSubagentRunId: isUnknownChild,
+                });
+              }
+
+              if (isKnownChild || isUnknownChild) {
+                if (isUnknownChild) {
+                  /* Eagerly register this run_id as a subagent so subsequent
+                     frames are also routed here. */
+                  upsertSubagentMeta(frameRunId, { status: "running" });
+                }
                 if (!subagentFramesByRunIdRef.current.has(frameRunId)) {
                   subagentFramesByRunIdRef.current.set(frameRunId, []);
                 }
@@ -1768,30 +1759,15 @@ export const useChatStream = ({
                                 ? frame.payload.description
                                 : "",
                             interactType:
-                              typeof frame.payload?.render_component?.type ===
-                                "string" &&
-                              frame.payload.render_component.type
-                                ? frame.payload.render_component.type
-                                : typeof frame.payload?.interact_type ===
-                                      "string" &&
-                                    frame.payload.interact_type
-                                  ? frame.payload.interact_type
-                                  : "confirmation",
+                              typeof frame.payload?.interact_type === "string" &&
+                              frame.payload.interact_type
+                                ? frame.payload.interact_type
+                                : "confirmation",
                             interactConfig:
-                              frame.payload?.render_component?.config &&
-                              typeof frame.payload.render_component.config ===
-                                "object"
-                                ? frame.payload.render_component.config
-                                : frame.payload?.interact_config &&
-                                    typeof frame.payload.interact_config ===
-                                      "object"
-                                  ? frame.payload.interact_config
-                                  : {},
-                            renderComponent:
-                              frame.payload?.render_component &&
-                              typeof frame.payload.render_component === "object"
-                                ? frame.payload.render_component
-                                : null,
+                              frame.payload?.interact_config &&
+                              typeof frame.payload.interact_config === "object"
+                                ? frame.payload.interact_config
+                                : {},
                             requestedAt: patchTime,
                           },
                         },
@@ -1820,13 +1796,13 @@ export const useChatStream = ({
                   );
 
                   /* ── Auto-approve: only for "confirmation" type, never for user-input types ── */
-                  const rcType =
-                    typeof frame.payload?.render_component?.type === "string"
-                      ? frame.payload.render_component.type
+                  const itype =
+                    typeof frame.payload?.interact_type === "string"
+                      ? frame.payload.interact_type
                       : "";
                   const isAutoApprovable =
                     toolName !== HUMAN_INPUT_TOOL_NAME &&
-                    (!rcType || rcType === "confirmation") &&
+                    (!itype || itype === "confirmation") &&
                     isToolAutoApproved(toolkitId, toolName);
                   if (isAutoApprovable) {
                     const autoPayload = {

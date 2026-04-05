@@ -1,4 +1,4 @@
-import { useContext, useMemo, useState } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
@@ -11,6 +11,10 @@ import { AppUpdateSettings } from "./app_update";
 import { TokenUsageSettings } from "./token_usage";
 import { DevSettings } from "./dev";
 import { isDevSettingsAvailable } from "./dev/storage";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../SERVICEs/feature_flags";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Settings pages configuration                                                                                               */
@@ -80,18 +84,43 @@ export const SettingsModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedPage, setSelectedPage] = useState("appearance");
+  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
+
+  useEffect(() => {
+    setFeatureFlags(readFeatureFlags());
+    return subscribeFeatureFlags(setFeatureFlags);
+  }, []);
+
   const settingsPages = useMemo(() => {
-    const pages = [...BASE_SETTINGS_PAGES];
+    const pages = BASE_SETTINGS_PAGES.filter((page) => {
+      if (page.key === "app_update") {
+        return featureFlags.enable_app_update_settings === true;
+      }
+
+      return true;
+    });
+
     if (isDevSettingsAvailable()) {
       pages.push(DEV_SETTINGS_PAGE);
     }
     return pages;
-  }, []);
+  }, [featureFlags]);
   const activePage =
     settingsPages.find((p) => p.key === selectedPage) ||
     settingsPages[0] ||
     null;
   const ActivePageComponent = activePage?.component || AppearanceSettings;
+
+  useEffect(() => {
+    if (!activePage && settingsPages[0]) {
+      setSelectedPage(settingsPages[0].key);
+      return;
+    }
+
+    if (activePage && activePage.key !== selectedPage) {
+      setSelectedPage(activePage.key);
+    }
+  }, [activePage, selectedPage, settingsPages]);
 
   return (
     <Modal

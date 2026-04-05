@@ -25,7 +25,7 @@ export const filter_toolkits = (toolkits, base_ids) => {
       typeof tk?.source === "string" ? tk.source.trim().toLowerCase() : "";
 
     if (toolkitId || sourceType) {
-      if (sourceType === "core" || sourceType === "plugin") {
+      if (sourceType === "plugin") {
         return false;
       }
       if (tk?.hidden) {

@@ -781,6 +781,88 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("keeps child final messages out of the main trace when lifecycle metadata arrives later", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Delegate with delayed lifecycle metadata" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "run_started",
+        run_id: "parent-run",
+        payload: {
+          run_id: "parent-run",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "final_message",
+        run_id: "child-run-2",
+        payload: {
+          content: "Child delegate final output",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 120,
+        type: "subagent_completed",
+        payload: {
+          child_run_id: "child-run-2",
+          subagent_id: "developer.analyzer.2",
+          mode: "delegate",
+          template: "analyzer",
+          parent_id: "developer",
+          lineage: ["developer", "developer.analyzer.2"],
+          status: "completed",
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.subagentMetaByRunId?.["child-run-2"]).toEqual(
+        expect.objectContaining({
+          subagentId: "developer.analyzer.2",
+          mode: "delegate",
+          template: "analyzer",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.2"],
+          status: "completed",
+        }),
+      );
+      expect(assistantMessage?.subagentFrames?.["child-run-2"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "final_message",
+            run_id: "child-run-2",
+            payload: expect.objectContaining({
+              content: "Child delegate final output",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        assistantMessage?.traceFrames?.find(
+          (frame) =>
+            frame?.type === "final_message" && frame?.run_id === "child-run-2",
+        ),
+      ).toBeUndefined();
+    });
+  });
+
   test("batches token updates per animation frame and flushes pending tokens on done", async () => {
     const originalRaf = window.requestAnimationFrame;
     const originalCancelRaf = window.cancelAnimationFrame;

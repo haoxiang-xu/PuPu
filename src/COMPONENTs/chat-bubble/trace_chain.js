@@ -547,8 +547,6 @@ const TraceChain = ({
   streamingContent = "",
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
-  pendingContinuationRequest,
-  onContinuationDecision,
   bundle,
   subagentFrames,
   subagentMetaByRunId,
@@ -774,13 +772,10 @@ const TraceChain = ({
       if (frame?.type !== "tool_call" || !frame?.payload?.call_id) {
         continue;
       }
-      const rc = frame.payload?.render_component;
       const itype =
-        typeof rc?.type === "string" && rc.type
-          ? rc.type
-          : typeof frame.payload?.interact_type === "string"
-            ? frame.payload.interact_type
-            : "";
+        typeof frame.payload?.interact_type === "string"
+          ? frame.payload.interact_type
+          : "";
       if (itype) {
         map.set(frame.payload.call_id, itype);
       }
@@ -795,17 +790,14 @@ const TraceChain = ({
         continue;
       }
 
-      const rcType = frame?.payload?.render_component?.type;
       const interactType =
-        typeof rcType === "string" && rcType
-          ? rcType
-          : typeof frame?.payload?.interact_type === "string"
-            ? frame.payload.interact_type
-            : interactTypeByCallId.get(frame.payload.call_id) ||
-              (typeof frame?.payload?.tool_name === "string" &&
-              frame.payload.tool_name === "ask_user_question"
-                ? "single"
-                : "");
+        typeof frame?.payload?.interact_type === "string"
+          ? frame.payload.interact_type
+          : interactTypeByCallId.get(frame.payload.call_id) ||
+            (typeof frame?.payload?.tool_name === "string" &&
+            frame.payload.tool_name === "ask_user_question"
+              ? "single"
+              : "");
       const normalized = normalizePersistedInteractionResponse(
         interactType,
         frame.payload?.result,
@@ -871,17 +863,11 @@ const TraceChain = ({
         const requiresConfirmation =
           frame.payload?.requires_confirmation === true ||
           Boolean(confirmationId);
-        const rc = frame.payload?.render_component;
         const interactType =
-          typeof rc?.type === "string" && rc.type
-            ? rc.type
-            : typeof frame.payload?.interact_type === "string"
-              ? frame.payload.interact_type
-              : "confirmation";
-        const interactConfig =
-          rc?.config && typeof rc.config === "object"
-            ? rc.config
-            : frame.payload?.interact_config || {};
+          typeof frame.payload?.interact_type === "string"
+            ? frame.payload.interact_type
+            : "confirmation";
+        const interactConfig = frame.payload?.interact_config || {};
         const resultFrame = callId ? toolResultByCallId.get(callId) : null;
         const result = resultFrame?.payload?.result;
         const internalDelta =
@@ -1032,7 +1018,7 @@ const TraceChain = ({
               : "handoff";
           const bKey = callId || `seq-${frame.seq}`;
           const bState = branchState.get(bKey);
-          const isBranchExpanded = bState?.expanded ?? false;
+          const isBranchExpanded = bState?.expanded ?? true;
           const bExpandedWorkers = bState?.expandedWorkers ?? new Set();
 
           const labelStyle = {
@@ -1057,7 +1043,7 @@ const TraceChain = ({
           };
 
           const branches = childTimelineItems.map((worker, wi) => {
-            const isWExpanded = bExpandedWorkers.has(wi);
+            const isWExpanded = bState ? bExpandedWorkers.has(wi) : true;
             const wLabel = getSubagentShortLabel({
               meta: worker.meta,
               fallbackAgentName: worker.agentName,
@@ -1464,7 +1450,7 @@ const TraceChain = ({
             </div>
           ),
         });
-      } else if (!pendingContinuationRequest) {
+      } else {
         items.push({
           key: "__streaming__",
           title: "Thinking…",
@@ -1475,94 +1461,8 @@ const TraceChain = ({
       }
     }
 
-    if (pendingContinuationRequest) {
-      const isSubmitting = pendingContinuationRequest.status === "submitting";
-      const canAct =
-        !isSubmitting && typeof onContinuationDecision === "function";
-      items.push({
-        key: "__continuation__",
-        title: "Continue?",
-        span: null,
-        status: "active",
-        point: "loading",
-        body: (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 6,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 12,
-                color: isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.52)",
-                fontFamily: "Menlo, Monaco, Consolas, monospace",
-              }}
-            >
-              Agent reached {pendingContinuationRequest.iteration} iterations
-              without a final response.
-            </span>
-            <div style={{ display: "flex", gap: 8 }}>
-              <button
-                disabled={!canAct}
-                onClick={() =>
-                  onContinuationDecision({
-                    confirmationId: pendingContinuationRequest.confirmationId,
-                    approved: true,
-                  })
-                }
-                style={{
-                  padding: "4px 14px",
-                  borderRadius: 6,
-                  border: "none",
-                  background: isDark
-                    ? "rgba(110,231,183,0.18)"
-                    : "rgba(5,150,105,0.12)",
-                  color: isDark
-                    ? "rgba(110,231,183,0.95)"
-                    : "rgba(5,150,105,0.95)",
-                  cursor: canAct ? "pointer" : "default",
-                  fontWeight: 500,
-                  fontSize: 12,
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
-                  opacity: canAct ? 1 : 0.5,
-                }}
-              >
-                Continue
-              </button>
-              <button
-                disabled={!canAct}
-                onClick={() =>
-                  onContinuationDecision({
-                    confirmationId: pendingContinuationRequest.confirmationId,
-                    approved: false,
-                  })
-                }
-                style={{
-                  padding: "4px 14px",
-                  borderRadius: 6,
-                  border: isDark
-                    ? "1px solid rgba(252,165,165,0.3)"
-                    : "1px solid rgba(220,38,38,0.2)",
-                  background: "transparent",
-                  color: isDark
-                    ? "rgba(252,165,165,0.95)"
-                    : "rgba(220,38,38,0.95)",
-                  cursor: canAct ? "pointer" : "default",
-                  fontWeight: 500,
-                  fontSize: 12,
-                  fontFamily: "Menlo, Monaco, Consolas, monospace",
-                  opacity: canAct ? 1 : 0.5,
-                }}
-              >
-                Stop
-              </button>
-            </div>
-          </div>
-        ),
-      });
-    }
+    /* continuation is now a regular tool_call with tool_name "__continuation__"
+       — rendered by the normal tool confirmation path above, no special block needed */
 
     /* ── group consecutive identical tool calls ── */
     const grouped = [];
@@ -1643,8 +1543,6 @@ const TraceChain = ({
     handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,
-    pendingContinuationRequest,
-    onContinuationDecision,
     isDark,
     color,
     status,

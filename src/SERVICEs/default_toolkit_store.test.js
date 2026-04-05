@@ -9,8 +9,8 @@ describe("default_toolkit_store", () => {
     window.localStorage.clear();
   });
 
-  test("seeds code_toolkit for users without an explicit global selection", () => {
-    expect(getDefaultToolkitSelection("global")).toEqual(["code_toolkit"]);
+  test("seeds core for users without an explicit global selection", () => {
+    expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
 
     const stored = JSON.parse(
       window.localStorage.getItem("default_toolkits") || "null",
@@ -18,7 +18,7 @@ describe("default_toolkit_store", () => {
     expect(stored).toEqual({
       version: 2,
       scopes: {
-        global: ["code_toolkit"],
+        global: ["core"],
       },
     });
   });
@@ -50,8 +50,7 @@ describe("default_toolkit_store", () => {
 
     expect(getDefaultToolkitSelection("global")).toEqual([
       "workspace_toolkit",
-      "code_toolkit",
-      "ask-user-toolkit",
+      "core",
     ]);
   });
 
@@ -60,7 +59,7 @@ describe("default_toolkit_store", () => {
     setDefaultToolkitEnabled("global", "code", true);
 
     expect(getDefaultToolkitSelection("global")).toEqual([
-      "code_toolkit",
+      "core",
       "workspace_toolkit",
     ]);
 

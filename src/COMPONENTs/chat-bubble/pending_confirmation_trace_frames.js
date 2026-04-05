@@ -37,14 +37,6 @@ export const buildPendingConfirmationTraceFrames = (requests) =>
       request.interactConfig && typeof request.interactConfig === "object"
         ? request.interactConfig
         : {};
-    const renderComponent =
-      request.renderComponent && typeof request.renderComponent === "object"
-        ? request.renderComponent
-        : {
-            version: 1,
-            type: interactType,
-            config: interactConfig,
-          };
     const callId =
       typeof request.callId === "string" && request.callId.trim()
         ? request.callId.trim()
@@ -77,7 +69,6 @@ export const buildPendingConfirmationTraceFrames = (requests) =>
             : {},
         interact_type: interactType,
         interact_config: interactConfig,
-        render_component: renderComponent,
       },
     };
   });

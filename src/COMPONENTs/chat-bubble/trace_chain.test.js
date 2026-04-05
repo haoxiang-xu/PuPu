@@ -699,14 +699,7 @@ describe("TraceChain final_message draft timeline", () => {
     // Delegate label visible
     expect(screen.getByText("delegate")).toBeInTheDocument();
 
-    // Branch expand arrow + worker expand arrow are in the DOM
-    const expandBtns = screen.getAllByRole("button", { name: "Expand" });
-    expect(expandBtns).toHaveLength(2);
-
-    // Expand branch to reveal worker, then expand worker to reveal trace
-    fireEvent.click(expandBtns[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
-
+    // Branches auto-expand — child content visible immediately
     expect(screen.getByText("Child delegate final output")).toBeInTheDocument();
   });
 
@@ -806,15 +799,7 @@ describe("TraceChain final_message draft timeline", () => {
     // Workers label visible
     expect(screen.getByText("workers")).toBeInTheDocument();
 
-    // Branch expand + 2 worker expands in DOM
-    const expandBtns = screen.getAllByRole("button", { name: "Expand" });
-    expect(expandBtns).toHaveLength(3);
-
-    // Expand branch, then expand first worker
-    fireEvent.click(expandBtns[0]);
-    const workerExpands = screen.getAllByRole("button", { name: "Expand" });
-    fireEvent.click(workerExpands[0]);
-
+    // Branches auto-expand — child content visible immediately
     expect(screen.getByText("Kernel child timeline output")).toBeInTheDocument();
   });
 
@@ -877,15 +862,7 @@ describe("TraceChain final_message draft timeline", () => {
     // Handoff label visible
     expect(screen.getByText("handoff")).toBeInTheDocument();
 
-    // Branch expand + worker expand in DOM
-    const expandBtns = screen.getAllByRole("button", { name: "Expand" });
-    expect(expandBtns).toHaveLength(2);
-
-    // Expand branch, then expand worker
-    fireEvent.click(expandBtns[0]);
-    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
-
-    // Child output now accessible
+    // Branches auto-expand — child content visible immediately
     expect(
       screen.getByText("This should stay on the main output path."),
     ).toBeInTheDocument();
