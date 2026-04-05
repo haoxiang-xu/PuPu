@@ -78,6 +78,9 @@ const UITestingModal = ({ open, onClose }) => {
 
       {/* ── full-bleed content (TraceChain runner) ── */}
       <div
+        onClick={() => {
+          if (sidebarOpen) setSidebarOpen(false);
+        }}
         style={{
           position: "absolute",
           inset: 0,
@@ -94,7 +97,7 @@ const UITestingModal = ({ open, onClose }) => {
           top: 6,
           left: 6,
           bottom: 6,
-          width: 180,
+          width: 200,
           zIndex: 3,
           borderRadius: 7,
           background: overlay_bg,

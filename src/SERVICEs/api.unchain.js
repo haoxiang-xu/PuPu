@@ -403,10 +403,11 @@ const injectWorkspaceRootIntoPayload = (payload) => {
   // Default workspace root
   const defaultRoot = getStoredWorkspaceRoot();
 
-  // Build the full list: default first, then selected
+  // Build the full list: selected workspaces first, then append the global
+  // default root as a fallback if it is distinct.
   const allRoots = [
-    ...(defaultRoot ? [defaultRoot] : []),
-    ...selectedPaths.filter((p) => p !== defaultRoot),
+    ...selectedPaths,
+    ...(defaultRoot && !selectedPaths.includes(defaultRoot) ? [defaultRoot] : []),
   ];
 
   // Strip internal field from options

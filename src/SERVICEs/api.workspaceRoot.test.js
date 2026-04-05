@@ -112,4 +112,67 @@ describe("api.unchain.startStream workspace root injection", () => {
     expect(payload.options.workspace_root).toBeUndefined();
     expect(payload.options.workspace_roots).toBeUndefined();
   });
+
+  test("prefers selected workspaces before the global default root", () => {
+    writeSettings({
+      runtime: {
+        workspace_root: "/tmp/global-root",
+        workspaces: [
+          {
+            id: "workspace-1",
+            name: "Project A",
+            path: "/tmp/project-a",
+          },
+          {
+            id: "workspace-2",
+            name: "Project B",
+            path: "/tmp/project-b",
+          },
+        ],
+      },
+    });
+
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: {
+        modelId: "openai:gpt-5",
+        selectedWorkspaceIds: ["workspace-2", "workspace-1"],
+      },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.workspaceRoot).toBe("/tmp/project-b");
+    expect(payload.options.workspace_root).toBe("/tmp/project-b");
+    expect(payload.options.workspace_roots).toEqual([
+      "/tmp/project-b",
+      "/tmp/project-a",
+      "/tmp/global-root",
+    ]);
+  });
+
+  test("does not duplicate the global default root when it is selected", () => {
+    writeSettings({
+      runtime: {
+        workspace_root: "/tmp/project-a",
+        workspaces: [
+          {
+            id: "workspace-1",
+            name: "Project A",
+            path: "/tmp/project-a",
+          },
+        ],
+      },
+    });
+
+    api.unchain.startStreamV2({
+      message: "hello",
+      options: {
+        modelId: "openai:gpt-5",
+        selectedWorkspaceIds: ["workspace-1"],
+      },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.workspace_roots).toEqual(["/tmp/project-a"]);
+  });
 });
