@@ -1,4 +1,5 @@
 import inspect
+import itertools
 import json
 import importlib
 import os
@@ -220,6 +221,71 @@ def _build_modular_prompt(
 _MEMORY_UNAVAILABLE_CODE = "memory_unavailable"
 _pending_confirmations: Dict[str, Dict[str, Any]] = {}
 _pending_confirmations_lock = threading.Lock()
+
+# ── Unified SSE event mapping ────────────────────────────────────────────────
+_EVENT_MAP = {
+    "run_started":    "run.start",
+    "run_completed":  "run.done",
+    "token_delta":    "token",
+    "tool_call":      "step",
+    "tool_result":    "step.result",
+    "branch_fork":    "branch.fork",
+    "branch_merge":   "branch.merge",
+    "error":          "error",
+}
+
+_DONE_SENTINEL = object()
+
+
+def _build_sse_frame(seq, event_type, run_id, **fields):
+    """Build an SSE frame dict."""
+    return {
+        "seq": seq,
+        "ts": int(time.time() * 1000),
+        "run_id": run_id,
+        "type": event_type,
+        **fields,
+    }
+
+
+def _extract_sse_fields(event_type, event, toolkit_tool_index=None):
+    """Extract relevant fields from an unchain event for the SSE frame."""
+    fields = {}
+    if event_type == "run_started":
+        fields["model"] = event.get("model", "")
+    elif event_type == "token_delta":
+        fields["delta"] = event.get("delta", "")
+    elif event_type == "tool_call":
+        fields["call_id"] = event.get("call_id", "")
+        fields["tool_name"] = event.get("tool_name", "")
+        fields["arguments"] = event.get("arguments", {})
+        if toolkit_tool_index:
+            info = toolkit_tool_index.get(event.get("tool_name", ""), {})
+            if info:
+                fields["toolkit_id"] = info.get("toolkit_id", "")
+                fields["tool_display_name"] = info.get("display_name", event.get("tool_name", ""))
+    elif event_type == "tool_result":
+        fields["call_id"] = event.get("call_id", "")
+        fields["tool_name"] = event.get("tool_name", "")
+        fields["result"] = event.get("result", {})
+    elif event_type == "branch_fork":
+        fields["child_run_id"] = event.get("child_run_id", "")
+        fields["call_id"] = event.get("call_id", "")
+        fields["mode"] = event.get("mode", "")
+        fields["label"] = event.get("label", "")
+        fields["task"] = event.get("task", "")
+        fields["batch_id"] = event.get("batch_id")
+    elif event_type == "branch_merge":
+        fields["child_run_id"] = event.get("child_run_id", "")
+        fields["status"] = event.get("status", "")
+        fields["bundle"] = event.get("bundle")
+    elif event_type == "run_completed":
+        fields["status"] = event.get("status", "completed")
+        fields["bundle"] = event.get("bundle", {})
+    elif event_type == "error":
+        fields["code"] = event.get("code", "unknown")
+        fields["message"] = event.get("message", str(event))
+    return fields
 
 def _compose_agent_prompt(sections: dict[str, str]) -> str:
     """Convenience: build an agent-only prompt (no user/builtin modules).
@@ -454,131 +520,6 @@ def cancel_tool_confirmations(cancel_event: threading.Event | None = None) -> in
                 event.set()
 
     return cancelled
-
-
-def _make_tool_confirm_callback(
-    emit_event,
-    cancel_event: threading.Event | None = None,
-    toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
-):
-    def on_tool_confirm(request_obj: object) -> Dict[str, Any]:
-        normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
-        request_payload = _build_tool_confirmation_request_payload(request_obj)
-        tool_name = str(request_payload.get("tool_name", "") or "").strip()
-        if tool_name and toolkit_meta_by_tool_name:
-            toolkit_meta = toolkit_meta_by_tool_name.get(tool_name, {})
-            if not str(request_payload.get("toolkit_id", "") or "").strip():
-                request_payload["toolkit_id"] = toolkit_meta.get("toolkit_id", "")
-            if not str(request_payload.get("toolkit_name", "") or "").strip():
-                request_payload["toolkit_name"] = toolkit_meta.get("toolkit_name", "")
-        suppress_event = bool(request_payload.get("_skip_emit_event"))
-        confirmation_id = str(request_payload.get("confirmation_id", "") or "").strip()
-        if not confirmation_id:
-            confirmation_id = str(_uuid.uuid4())
-        request_payload["confirmation_id"] = confirmation_id
-        waiter = {
-            "event": threading.Event(),
-            "response": None,
-            "cancel_event": normalized_cancel_event,
-        }
-
-        with _pending_confirmations_lock:
-            _pending_confirmations[confirmation_id] = waiter
-
-        try:
-            if not suppress_event:
-                emit_payload = {
-                    key: value
-                    for key, value in request_payload.items()
-                    if key != "_skip_emit_event"
-                }
-                emit_event(emit_payload)
-            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-                cancel_tool_confirmations(normalized_cancel_event)
-            event = waiter.get("event")
-            if isinstance(event, threading.Event):
-                event.wait()
-        except Exception as callback_error:
-            return {
-                "approved": False,
-                "reason": f"Failed to request confirmation: {callback_error}",
-                "modified_arguments": None,
-            }
-        finally:
-            with _pending_confirmations_lock:
-                _pending_confirmations.pop(confirmation_id, None)
-
-        response = waiter.get("response")
-        if isinstance(response, dict):
-            return _normalize_tool_confirmation_response(response)
-
-        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-            return {
-                "approved": False,
-                "reason": _CONFIRMATION_CANCELLED_REASON,
-                "modified_arguments": None,
-            }
-
-        return {
-            "approved": False,
-            "reason": "Confirmation ended without a response",
-            "modified_arguments": None,
-        }
-
-    return on_tool_confirm
-
-
-def _make_continuation_callback(
-    emit_event,
-    cancel_event: threading.Event | None = None,
-):
-    def on_continuation_request(payload: Dict[str, Any]) -> Dict[str, Any]:
-        normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
-        confirmation_id = str(_uuid.uuid4())
-        waiter: Dict[str, Any] = {
-            "event": threading.Event(),
-            "response": None,
-            "cancel_event": normalized_cancel_event,
-        }
-
-        with _pending_confirmations_lock:
-            _pending_confirmations[confirmation_id] = waiter
-
-        iteration = payload.get("iteration", 0)
-        try:
-            emit_event({
-                "type": "tool_call",
-                "tool_name": "__continuation__",
-                "tool_display_name": "Continue?",
-                "call_id": f"continuation-{confirmation_id}",
-                "confirmation_id": confirmation_id,
-                "requires_confirmation": True,
-                "interact_type": "confirmation",
-                "interact_config": {},
-                "arguments": {},
-                "description": f"Agent reached {iteration} iterations without a final response.",
-            })
-            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-                cancel_tool_confirmations(normalized_cancel_event)
-            event = waiter.get("event")
-            if isinstance(event, threading.Event):
-                event.wait()
-        except Exception:
-            return {"approved": False}
-        finally:
-            with _pending_confirmations_lock:
-                _pending_confirmations.pop(confirmation_id, None)
-
-        response = waiter.get("response")
-        if isinstance(response, dict):
-            return {"approved": bool(response.get("approved", False))}
-
-        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-            return {"approved": False}
-
-        return {"approved": False}
-
-    return on_continuation_request
 
 
 def _provider_default_model(provider: str) -> str:
@@ -3274,94 +3215,6 @@ def _build_bundle_from_result(
     }
 
 
-def _make_human_input_callback(
-    emit_event,
-    cancel_event=None,
-    toolkit_meta_by_tool_name: Dict[str, Dict[str, str]] | None = None,
-):
-    """Create an on_human_input blocking callback for unchain ask_user_question.
-
-    Follows the same threading.Event blocking pattern as _make_tool_confirm_callback.
-    Emits PuPu-format tool_call events so the frontend can render the selector UI.
-    """
-    normalized_cancel_event = cancel_event if isinstance(cancel_event, threading.Event) else None
-
-    def on_human_input(request):
-        confirmation_id = str(_uuid.uuid4())
-        interact_config = request.to_dict()
-        toolkit_meta = (
-            toolkit_meta_by_tool_name.get(_ASK_USER_QUESTION_TOOL_NAME, {})
-            if toolkit_meta_by_tool_name
-            else {}
-        )
-
-        hi_interact_type = "single" if getattr(request, "selection_mode", "") == "single" else "multi"
-        emit_payload = {
-            "type": "tool_call",
-            "tool_name": "ask_user_question",
-            "tool_display_name": "Ask User",
-            "toolkit_id": toolkit_meta.get("toolkit_id", "core"),
-            "toolkit_name": toolkit_meta.get("toolkit_name", "Core"),
-            "call_id": request.request_id,
-            "arguments": interact_config,
-            "description": getattr(request, "question", ""),
-            "confirmation_id": confirmation_id,
-            "requires_confirmation": True,
-            "interact_type": hi_interact_type,
-            "interact_config": interact_config,
-        }
-
-        waiter: Dict[str, Any] = {
-            "event": threading.Event(),
-            "response": None,
-            "cancel_event": normalized_cancel_event,
-        }
-        with _pending_confirmations_lock:
-            _pending_confirmations[confirmation_id] = waiter
-
-        try:
-            if callable(emit_event):
-                emit_event(emit_payload)
-
-            if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-                cancel_tool_confirmations(normalized_cancel_event)
-
-            event = waiter.get("event")
-            if isinstance(event, threading.Event):
-                event.wait()
-        finally:
-            with _pending_confirmations_lock:
-                _pending_confirmations.pop(confirmation_id, None)
-
-        response = waiter.get("response")
-
-        if normalized_cancel_event is not None and normalized_cancel_event.is_set():
-            raise RuntimeError("stream cancelled during human input")
-
-        if not isinstance(response, dict) or not response.get("approved"):
-            raise RuntimeError("human input denied or cancelled")
-
-        user_response = (response.get("modified_arguments") or {}).get("user_response", {})
-        if not isinstance(user_response, dict):
-            user_response = {}
-
-        selected_values = (
-            user_response.get("selected_values")
-            or user_response.get("values")
-            or ([user_response["value"]] if "value" in user_response else [])
-        )
-        if isinstance(selected_values, str):
-            selected_values = [selected_values]
-
-        return {
-            "request_id": request.request_id,
-            "selected_values": list(selected_values),
-            "other_text": user_response.get("other_text"),
-        }
-
-    return on_human_input
-
-
 def stream_chat(
     *,
     message: str,
@@ -3460,10 +3313,19 @@ def stream_chat_events(
     session_id: str = "",
     cancel_event: threading.Event | None = None,
 ) -> Iterable[Dict[str, Any]]:
+    """Stream chat events as SSE frames.  Yields frame dicts.
+
+    Uses the unified ``on_input`` callback to handle tool confirmations,
+    human-input questions, and max-iteration continuation requests through
+    a single code-path.
+    """
+    from unchain.types.input import InputRequest, InputResponse
+
     agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
     payload = _build_payload(agent.provider, options)
     memory_runtime = _memory_runtime_from_agent(agent)
+
     if memory_runtime["requested"] and not memory_runtime["available"]:
         fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
         yield {
@@ -3488,7 +3350,62 @@ def stream_chat_events(
             return
 
     event_queue: "queue.Queue[object]" = queue.Queue()
-    done_marker = object()
+    seq_counter = itertools.count(1)
+    child_run_ids: set[str] = set()
+    _pending_inputs: Dict[str, Dict[str, Any]] = {}
+
+    toolkit_tool_index = _build_toolkit_tool_index(
+        getattr(agent, "_toolkits", []),
+    )
+
+    def next_seq():
+        return next(seq_counter)
+
+    # ── Unified on_input callback ──────────────────────────────────────
+    def on_input(request: InputRequest) -> InputResponse:
+        request_id = str(_uuid.uuid4())
+        waiter: Dict[str, Any] = {
+            "event": threading.Event(),
+            "response": None,
+            "cancel": threading.Event(),
+        }
+        _pending_inputs[request_id] = waiter
+
+        event_queue.put(_build_sse_frame(
+            next_seq(), "input.required", request.run_id,
+            request_id=request_id,
+            kind=request.kind,
+            call_id=request.call_id,
+            tool_name=request.tool_name,
+            config=request.config,
+        ))
+
+        # Block until frontend responds or cancellation
+        while not waiter["event"].is_set() and not waiter["cancel"].is_set():
+            # Also check the stream-level cancel_event
+            if isinstance(cancel_event, threading.Event) and cancel_event.is_set():
+                waiter["cancel"].set()
+                break
+            waiter["event"].wait(timeout=0.5)
+
+        if waiter["cancel"].is_set():
+            resp = InputResponse(decision="denied", response={"reason": "cancelled"})
+        else:
+            resp = waiter["response"]
+            if resp is None:
+                resp = InputResponse(decision="denied", response={"reason": "no_response"})
+
+        event_queue.put(_build_sse_frame(
+            next_seq(), "input.resolved", request.run_id,
+            request_id=request_id,
+            decision=resp.decision,
+            response=resp.response,
+        ))
+
+        _pending_inputs.pop(request_id, None)
+        return resp
+
+    # ── Event callback ─────────────────────────────────────────────────
     output_holder: Dict[str, object] = {
         "error": None,
         "messages": None,
@@ -3496,84 +3413,47 @@ def stream_chat_events(
         "last_run_id": "",
         "last_iteration": 0,
         "bundle": None,
-        "developer_handoff": False,  # deprecated: kept for compat, always False in v1
     }
-
-    # Build workspace tool display name map for multi-workspace proxy tools
-    _ws_display_names: Dict[str, str] = {}
-    for _tk in getattr(agent, "_toolkits", []):
-        for _tn, _to in getattr(_tk, "tools", {}).items():
-            _orig = getattr(_to, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
-            if isinstance(_orig, str) and _orig.strip() and _orig != _tn:
-                _prefix = _tn[: -len(_orig) - 1] if _tn.endswith("_" + _orig) else ""
-                _ws_label = _prefix.split("_", 2)[2] if _prefix.count("_") >= 2 else _prefix
-                _ws_display_names[_tn] = f"{_orig} @{_ws_label}" if _ws_label else _orig
-    _toolkit_meta_by_tool_name = _build_toolkit_tool_index(
-        getattr(agent, "_toolkits", []),
-    )
 
     def on_event(event: Dict[str, Any]) -> None:
         if not isinstance(event, dict):
             return
-        event = _enrich_tool_event_with_toolkit_metadata(
-            event,
-            _toolkit_meta_by_tool_name,
-        )
-        event_type = event.get("type")
-        # Suppress unchain-native events that are replaced by our callbacks
-        if event_type == "human_input_requested":
+        event_type = event.get("type", "")
+        event_run_id = event.get("run_id", "")
+
+        if event_type == "branch_fork":
+            child_run_ids.add(event.get("child_run_id", ""))
+
+        # Filter child run_started/run_completed (replaced by branch_fork/merge)
+        if event_type in ("run_started", "run_completed") and event_run_id in child_run_ids:
             return
-        if event_type == "run_max_iterations":
+
+        # Skip old subagent events (redundant with branch_fork/merge)
+        if event_type.startswith("subagent_"):
             return
-        # Suppress the bare tool_call for ask_user_question — our on_human_input
-        # callback emits the proper PuPu-format tool_call with interact_config
-        if event_type == "tool_call" and event.get("tool_name") == "ask_user_question":
-            return
-        # Enrich tool_call events with workspace display names
-        if event_type == "tool_call" and _ws_display_names:
-            tn = event.get("tool_name", "")
-            if tn in _ws_display_names:
-                event["tool_display_name"] = _ws_display_names[tn]
-        if event_type == "tool_result" and _ws_display_names:
-            tn = event.get("tool_name", "")
-            if tn in _ws_display_names:
-                event["tool_display_name"] = _ws_display_names[tn]
-        if event_type == "final_message":
-            output_holder["seen_final_message"] = True
+
+        # Track run_id / iteration for post-stream synthetic events
         run_id = event.get("run_id")
         if isinstance(run_id, str):
             output_holder["last_run_id"] = run_id
         iteration = event.get("iteration")
         if isinstance(iteration, int):
             output_holder["last_iteration"] = iteration
-        event_queue.put(event)
 
-    confirm_cb = _make_tool_confirm_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
-    )
-    human_input_cb = _make_human_input_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
-    )
-    max_iterations_cb = _make_continuation_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-    )
-    if isinstance(cancel_event, threading.Event):
-        def watch_stream_cancel() -> None:
-            cancel_event.wait()
-            cancel_tool_confirmations(cancel_event)
+        # final_message is not in EVENT_MAP — pass through and track
+        if event_type == "final_message":
+            output_holder["seen_final_message"] = True
+            event_queue.put(event)
+            return
 
-        cancel_watcher = threading.Thread(
-            target=watch_stream_cancel,
-            name="unchain-stream-confirm-cancel",
-            daemon=True,
-        )
-        cancel_watcher.start()
+        sse_type = _EVENT_MAP.get(event_type)
+        if not sse_type:
+            return
 
+        fields = _extract_sse_fields(event_type, event, toolkit_tool_index)
+        event_queue.put(_build_sse_frame(next_seq(), sse_type, event_run_id, **fields))
+
+    # ── Run agent in background thread ─────────────────────────────────
     def run_agent() -> None:
         try:
             memory_namespace = str(options.get("memory_namespace") or "").strip()
@@ -3588,11 +3468,9 @@ def stream_chat_events(
                 messages=messages,
                 payload=payload,
                 callback=on_event,
+                on_input=on_input,
                 max_iterations=resolved_max_iterations,
                 max_context_window_tokens=resolved_max_ctx or None,
-                on_tool_confirm=confirm_cb,
-                on_human_input=human_input_cb,
-                on_max_iterations=max_iterations_cb,
                 **({"session_id": session_id} if session_id else {}),
                 **({"memory_namespace": memory_namespace} if memory_namespace else {}),
             )
@@ -3615,26 +3493,39 @@ def stream_chat_events(
             output_holder["error_traceback"] = _tb.format_exc()
             output_holder["error"] = run_error
         finally:
-            event_queue.put(done_marker)
+            event_queue.put(_DONE_SENTINEL)
 
     worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
     worker.start()
 
-    while True:
-        item = event_queue.get()
-        if item is done_marker:
-            break
-        if isinstance(item, dict):
-            yield item
+    # Store pending_inputs ref for external access by submit_input
+    stream_chat_events._active_inputs = _pending_inputs
 
+    # ── Drain queue ────────────────────────────────────────────────────
+    try:
+        while True:
+            item = event_queue.get()
+            if item is _DONE_SENTINEL:
+                break
+            if isinstance(item, dict):
+                yield item
+    except GeneratorExit:
+        # Client disconnected — cancel all pending inputs
+        for waiter in _pending_inputs.values():
+            waiter["cancel"].set()
+        raise
+
+    # Error handling
     error = output_holder.get("error")
     if error is not None:
         tb = output_holder.get("error_traceback", "")
         if tb:
             import sys as _sys
             print(f"[unchain run_agent error]\n{tb}", file=_sys.stderr, flush=True)
-        raise RuntimeError(str(error))
+        yield _build_sse_frame(next_seq(), "error", "",
+            code="agent_error", message=str(error))
 
+    # Fallback final_message if agent didn't stream one
     if not output_holder.get("seen_final_message"):
         final_text = _extract_last_assistant_text(output_holder.get("messages") or [])
         if final_text:
@@ -3646,6 +3537,7 @@ def stream_chat_events(
                 "content": final_text,
             }
 
+    # Stream summary with bundle
     bundle = output_holder.get("bundle")
     if isinstance(bundle, dict) and bundle:
         yield {
@@ -3655,3 +3547,27 @@ def stream_chat_events(
             "timestamp": time.time(),
             "bundle": bundle,
         }
+
+
+# ── Input submission helpers ─────────────────────────────────────────────────
+
+def submit_input(request_id, decision, response=None):
+    """Resume a blocked on_input callback.
+
+    Returns True if the pending request was found and resolved.
+    """
+    from unchain.types.input import InputResponse
+    pending = getattr(stream_chat_events, "_active_inputs", {})
+    waiter = pending.get(request_id)
+    if not waiter:
+        return False
+    waiter["response"] = InputResponse(decision=decision, response=response)
+    waiter["event"].set()
+    return True
+
+
+def cancel_all_pending_inputs():
+    """Cancel all pending input requests (e.g., on stream disconnect)."""
+    pending = getattr(stream_chat_events, "_active_inputs", {})
+    for waiter in pending.values():
+        waiter["cancel"].set()
