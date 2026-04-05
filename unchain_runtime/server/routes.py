@@ -4,6 +4,7 @@ from route_auth import _is_authorized, _json_error
 from route_blueprint import api_blueprint
 from route_projection import _kmeans_2d_numpy
 from unchain_adapter import (
+    cancel_all_pending_inputs,
     cancel_tool_confirmations,
     get_capability_catalog,
     get_default_model_capabilities,
@@ -16,6 +17,7 @@ from unchain_adapter import (
     get_toolkit_metadata,
     stream_chat,
     stream_chat_events,
+    submit_input,
     submit_tool_confirmation,
 )
 
@@ -30,6 +32,7 @@ __all__ = [
     "_is_authorized",
     "_json_error",
     "_kmeans_2d_numpy",
+    "cancel_all_pending_inputs",
     "cancel_tool_confirmations",
     "character_defaults",
     "character_store",
@@ -44,5 +47,6 @@ __all__ = [
     "get_toolkit_metadata",
     "stream_chat",
     "stream_chat_events",
+    "submit_input",
     "submit_tool_confirmation",
 ]

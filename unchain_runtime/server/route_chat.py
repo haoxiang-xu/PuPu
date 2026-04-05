@@ -1,38 +1,14 @@
 import json
-import threading
 import time
 from typing import Any, Dict, Iterable, List
 
 from flask import Response, jsonify, request, stream_with_context
 
 from route_blueprint import api_blueprint
+from unchain_adapter import cancel_all_pending_inputs, submit_input
 
 _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
-}
-
-_TRACE_STAGE_BY_EVENT_TYPE = {
-    "run_started": "agent",
-    "iteration_started": "agent",
-    "iteration_completed": "agent",
-    "run_completed": "agent",
-    "run_max_iterations": "agent",
-    "reasoning": "agent",
-    "observation": "agent",
-    "token_delta": "model",
-    "final_message": "model",
-    "tool_call": "tool",
-    "tool_result": "tool",
-    "error": "stream",
-    "done": "stream",
-    "subagent_spawned": "agent",
-    "subagent_started": "agent",
-    "subagent_completed": "agent",
-    "subagent_failed": "agent",
-    "subagent_handoff": "agent",
-    "subagent_clarification_requested": "agent",
-    "subagent_batch_started": "agent",
-    "subagent_batch_joined": "agent",
 }
 
 
@@ -56,45 +32,6 @@ def _sanitize_trace_level(raw_trace_level: object) -> str:
     return "full" if normalized == "full" else "minimal"
 
 
-def _trace_stage(event_type: str) -> str:
-    return _TRACE_STAGE_BY_EVENT_TYPE.get(event_type, "agent")
-
-
-def _sanitize_trace_value(value: object, trace_level: str, depth: int = 0):
-    if trace_level == "full":
-        return value
-
-    if depth >= 5:
-        return "[truncated]"
-
-    if isinstance(value, str):
-        return value if len(value) <= 800 else f"{value[:800]}... [truncated]"
-
-    if isinstance(value, list):
-        sanitized = [
-            _sanitize_trace_value(item, trace_level, depth + 1)
-            for item in value[:20]
-        ]
-        if len(value) > 20:
-            sanitized.append("[truncated]")
-        return sanitized
-
-    if isinstance(value, dict):
-        sanitized: Dict[str, object] = {}
-        for idx, (key, inner_value) in enumerate(value.items()):
-            if idx >= 30:
-                sanitized["__truncated__"] = True
-                break
-            sanitized[str(key)] = _sanitize_trace_value(
-                inner_value,
-                trace_level,
-                depth + 1,
-            )
-        return sanitized
-
-    return value
-
-
 def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
     message = str(stream_error)
     code = "stream_failed"
@@ -107,28 +44,6 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
                 if tail:
                     message = tail
     return code, message
-
-
-def _build_trace_frame(
-    *,
-    seq: int,
-    thread_id: str,
-    event_type: str,
-    payload: Dict[str, object],
-    run_id: str = "",
-    iteration: int = 0,
-    timestamp_ms: int | None = None,
-) -> Dict[str, object]:
-    return {
-        "seq": seq,
-        "ts": timestamp_ms if isinstance(timestamp_ms, int) else int(time.time() * 1000),
-        "thread_id": thread_id,
-        "run_id": run_id,
-        "iteration": iteration,
-        "stage": _trace_stage(event_type),
-        "type": event_type,
-        "payload": payload,
-    }
 
 
 def _normalize_attachment_modality(raw_modality: object) -> str:
@@ -303,6 +218,28 @@ def chat_tool_confirmation() -> Response:
     return jsonify({"status": "ok"})
 
 
+@api_blueprint.post("/chat/input/respond")
+def respond_input() -> Response:
+    """Unified endpoint for user input responses (approval, question, continue)."""
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    data = request.get_json(silent=True) or {}
+    request_id = data.get("request_id")
+    decision = data.get("decision")
+    response_data = data.get("response")
+
+    if not request_id or not decision:
+        return jsonify({"error": "request_id and decision required"}), 400
+
+    success = submit_input(request_id, decision, response_data)
+    if not success:
+        return jsonify({"error": "not_found", "message": f"No pending input for {request_id}"}), 404
+
+    return jsonify({"status": "ok"})
+
+
 @api_blueprint.post("/chat/stream")
 def chat_stream() -> Response:
     root = _root()
@@ -409,139 +346,77 @@ def chat_stream_v2() -> Response:
     )
 
     def stream_events() -> Iterable[str]:
-        seq = 0
         started_at = int(time.time() * 1000)
-        last_iteration = 0
         final_bundle: Dict[str, object] | None = None
-        confirmation_cancel_event = threading.Event()
-
-        def cancel_pending_confirmations() -> None:
-            confirmation_cancel_event.set()
-            root.cancel_tool_confirmations(confirmation_cancel_event)
 
         try:
-            seq += 1
+            # Synthetic stream_started frame (route-level metadata)
             yield _sse_event(
                 "frame",
-                _build_trace_frame(
-                    seq=seq,
-                    thread_id=thread_id,
-                    event_type="stream_started",
-                    payload={
-                        "model": root.get_model_name(options),
-                        "started_at": started_at,
-                        "trace_level": trace_level,
-                    },
-                    iteration=0,
-                    timestamp_ms=started_at,
-                ),
+                {
+                    "seq": 0,
+                    "ts": started_at,
+                    "run_id": "",
+                    "type": "stream_started",
+                    "thread_id": thread_id,
+                    "model": root.get_model_name(options),
+                    "started_at": started_at,
+                    "trace_level": trace_level,
+                },
             )
 
-            for raw_event in root.stream_chat_events(
+            # Frames from the adapter are pre-structured (seq/ts/run_id/type + fields).
+            # Just JSON-encode and yield them as SSE.
+            for frame in root.stream_chat_events(
                 message=message,
                 history=history,
                 attachments=attachments,
                 options=options,
                 session_id=thread_id,
-                cancel_event=confirmation_cancel_event,
             ):
-                event_type = str(raw_event.get("type", "event")).strip() or "event"
+                event_type = frame.get("type", "")
 
                 if event_type == "stream_summary":
-                    bundle = raw_event.get("bundle")
+                    bundle = frame.get("bundle")
                     if isinstance(bundle, dict) and bundle:
                         final_bundle = bundle
                     continue
 
-                payload_data = {
-                    key: value
-                    for key, value in raw_event.items()
-                    if key not in {"type", "run_id", "iteration", "timestamp"}
-                }
-                # Skip sanitization for frames that carry structured data needed by the UI:
-                # - tool_call: interact_config.options for selections, confirmation metadata
-                # - tool_result: subagent agent_name/status for branch matching
-                # - subagent_*: lifecycle metadata (child_run_id, status, subagent_id)
-                # - continuation_request: confirmation_id for the continue/stop flow
-                _UNSANITIZED_EVENT_TYPES = (
-                    "final_message", "token_delta", "request_messages",
-                    "tool_call", "tool_result", "continuation_request",
-                    "subagent_spawned", "subagent_started", "subagent_completed",
-                    "subagent_failed", "subagent_handoff", "subagent_batch_started",
-                    "subagent_batch_joined", "subagent_clarification_requested",
-                )
-                if event_type in _UNSANITIZED_EVENT_TYPES:
-                    sanitized_payload = payload_data
-                else:
-                    sanitized_payload = _sanitize_trace_value(payload_data, trace_level)
+                yield f"event: frame\ndata: {json.dumps(frame, ensure_ascii=False, default=str)}\n\n"
 
-                run_id = raw_event.get("run_id")
-                normalized_run_id = run_id if isinstance(run_id, str) else ""
-                iteration = raw_event.get("iteration")
-                normalized_iteration = (
-                    iteration if isinstance(iteration, int) else last_iteration
-                )
-                last_iteration = normalized_iteration
-                raw_ts = raw_event.get("timestamp")
-                if isinstance(raw_ts, (int, float)):
-                    event_ts_ms = int(float(raw_ts) * 1000)
-                else:
-                    event_ts_ms = int(time.time() * 1000)
-
-                seq += 1
-                yield _sse_event(
-                    "frame",
-                    _build_trace_frame(
-                        seq=seq,
-                        thread_id=thread_id,
-                        event_type=event_type,
-                        payload=sanitized_payload,
-                        run_id=normalized_run_id,
-                        iteration=normalized_iteration,
-                        timestamp_ms=event_ts_ms,
-                    ),
-                )
-
-            seq += 1
+            # Synthetic done frame
             finished_at = int(time.time() * 1000)
-            done_payload: Dict[str, object] = {"finished_at": finished_at}
+            done_frame: Dict[str, object] = {
+                "seq": 0,
+                "ts": finished_at,
+                "run_id": "",
+                "type": "done",
+                "thread_id": thread_id,
+                "finished_at": finished_at,
+            }
             if isinstance(final_bundle, dict) and final_bundle:
-                done_payload["bundle"] = final_bundle
-            yield _sse_event(
-                "frame",
-                _build_trace_frame(
-                    seq=seq,
-                    thread_id=thread_id,
-                    event_type="done",
-                    payload=done_payload,
-                    iteration=last_iteration,
-                    timestamp_ms=finished_at,
-                ),
-            )
+                done_frame["bundle"] = final_bundle
+            yield _sse_event("frame", done_frame)
+
         except GeneratorExit:  # pragma: no cover
-            cancel_pending_confirmations()
+            cancel_all_pending_inputs()
             return
         except Exception as stream_error:
-            cancel_pending_confirmations()
+            cancel_all_pending_inputs()
             code, normalized_message = _normalize_stream_error(stream_error)
-            seq += 1
-            error_ts = int(time.time() * 1000)
             yield _sse_event(
                 "frame",
-                _build_trace_frame(
-                    seq=seq,
-                    thread_id=thread_id,
-                    event_type="error",
-                    payload={
-                        "code": code,
-                        "message": normalized_message,
-                    },
-                    iteration=last_iteration,
-                    timestamp_ms=error_ts,
-                ),
+                {
+                    "seq": 0,
+                    "ts": int(time.time() * 1000),
+                    "run_id": "",
+                    "type": "error",
+                    "code": code,
+                    "message": normalized_message,
+                },
             )
         finally:
-            cancel_pending_confirmations()
+            cancel_all_pending_inputs()
 
     return Response(
         stream_with_context(stream_events()),
