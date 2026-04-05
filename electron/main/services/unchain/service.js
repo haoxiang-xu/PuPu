@@ -10,6 +10,7 @@ const UNCHAIN_RESTART_DELAY_MS = 1500;
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
+const UNCHAIN_INPUT_RESPOND_ENDPOINT = "/chat/input/respond";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
@@ -1018,6 +1019,54 @@ const createUnchainService = ({
     );
   };
 
+  const submitInputRespond = async (payload = {}) => {
+    ensureMisoReady();
+
+    const requestIdRaw = payload?.request_id;
+    const requestId =
+      typeof requestIdRaw === "string" ? requestIdRaw.trim() : "";
+    if (!requestId) {
+      throw new Error("request_id is required");
+    }
+
+    const decisionRaw = payload?.decision;
+    const decision =
+      typeof decisionRaw === "string" ? decisionRaw.trim() : "";
+    if (!decision) {
+      throw new Error("decision is required");
+    }
+
+    const requestBody = {
+      request_id: requestId,
+      decision,
+    };
+
+    const responseRaw = payload?.response;
+    if (responseRaw != null) {
+      requestBody.response =
+        typeof responseRaw === "string" ? responseRaw : String(responseRaw);
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_INPUT_RESPOND_ENDPOINT}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify(requestBody),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso input respond request failed",
+      { status: "ok" },
+      "Invalid Miso input respond response",
+    );
+  };
+
   const emitMisoStreamEvent = (targetWebContentsId, requestId, event, data) => {
     const target = webContents.fromId(targetWebContentsId);
     if (!target || target.isDestroyed()) {
@@ -1709,6 +1758,7 @@ const createUnchainService = ({
     exportMisoCharacter,
     importMisoCharacter,
     submitMisoToolConfirmation,
+    submitInputRespond,
     handleStreamStart,
     handleStreamStartV2,
     handleStreamCancel,

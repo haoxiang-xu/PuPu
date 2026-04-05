@@ -17,6 +17,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
+  CHANNELS.UNCHAIN.INPUT_RESPOND,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
   CHANNELS.UNCHAIN.PICK_WORKSPACE_ROOT,
@@ -134,6 +135,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
     async (_event, payload = {}) =>
       unchainService.submitMisoToolConfirmation(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.INPUT_RESPOND,
+    async (_event, payload = {}) =>
+      unchainService.submitInputRespond(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,

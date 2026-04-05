@@ -23,6 +23,7 @@ const CHANNELS = Object.freeze({
     LIST_TOOL_MODAL_CATALOG: "unchain:list-tool-modal-catalog",
     GET_TOOLKIT_DETAIL: "unchain:get-toolkit-detail",
     TOOL_CONFIRMATION: "unchain:tool-confirmation",
+    INPUT_RESPOND: "unchain:input-respond",
     SET_CHROME_TERMINAL_OPEN: "unchain:set-chrome-terminal-open",
     SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT: "unchain:sync-build-feature-flags-snapshot",
     PICK_WORKSPACE_ROOT: "unchain:pick-workspace-root",

@@ -680,6 +680,46 @@ export const createUnchainApi = () => {
       }
     },
 
+    respondInput: async ({ request_id, decision, response = null } = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "respondInput");
+        const requestId =
+          typeof request_id === "string" ? request_id.trim() : "";
+        if (!requestId) {
+          throw new FrontendApiError(
+            "invalid_input_respond",
+            "request_id is required",
+          );
+        }
+        const decisionNormalized =
+          typeof decision === "string" ? decision.trim() : "";
+        if (!decisionNormalized) {
+          throw new FrontendApiError(
+            "invalid_input_respond",
+            "decision is required",
+          );
+        }
+
+        const requestPayload = {
+          request_id: requestId,
+          decision: decisionNormalized,
+        };
+        if (response != null) {
+          requestPayload.response =
+            typeof response === "string" ? response : String(response);
+        }
+
+        const result = await method(requestPayload);
+        return isObject(result) ? result : { status: "ok" };
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_input_respond_failed",
+          "Failed to submit input response",
+        );
+      }
+    },
+
     startStream: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStream");

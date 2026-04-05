@@ -75,10 +75,12 @@ const createMisoStreamClient = (ipcRenderer) => {
         const frameType = data.type;
         const payload = data.payload || {};
 
+        // Forward every frame to onFrame for trace chain processing
         if (typeof handlers.onFrame === "function") {
           handlers.onFrame(data);
         }
 
+        // --- Old protocol: stream_started (synthetic metadata frame) ---
         if (frameType === "stream_started") {
           if (typeof handlers.onMeta === "function") {
             handlers.onMeta({
@@ -90,7 +92,21 @@ const createMisoStreamClient = (ipcRenderer) => {
           return;
         }
 
-        if (frameType === "token_delta") {
+        // --- New protocol: run.start (metadata frame) ---
+        if (frameType === "run.start") {
+          if (typeof handlers.onMeta === "function") {
+            handlers.onMeta({
+              thread_id: data.thread_id,
+              run_id: data.run_id,
+              model: payload.model,
+              ...payload,
+            });
+          }
+          return;
+        }
+
+        // --- Old protocol: token_delta / New protocol: token ---
+        if (frameType === "token_delta" || frameType === "token") {
           const delta = typeof payload.delta === "string" ? payload.delta : "";
           if (typeof handlers.onToken === "function") {
             handlers.onToken(delta);
@@ -98,7 +114,8 @@ const createMisoStreamClient = (ipcRenderer) => {
           return;
         }
 
-        if (frameType === "done") {
+        // --- Old protocol: done / New protocol: run.done ---
+        if (frameType === "done" || frameType === "run.done") {
           if (typeof handlers.onDone === "function") {
             handlers.onDone(payload);
           }
@@ -106,6 +123,7 @@ const createMisoStreamClient = (ipcRenderer) => {
           return;
         }
 
+        // --- Error (same in both protocols) ---
         if (frameType === "error") {
           if (typeof handlers.onError === "function") {
             handlers.onError({
@@ -117,6 +135,9 @@ const createMisoStreamClient = (ipcRenderer) => {
           return;
         }
 
+        // --- New protocol event types handled via onFrame only ---
+        // step, step.result, input.required, input.resolved,
+        // branch.fork, branch.merge — all forwarded above via onFrame
         return;
       }
 
