@@ -2,6 +2,19 @@ import { useMemo } from "react";
 import AnimatedChildren from "../class/animated_children";
 import ArcSpinner from "../spinner/arc_spinner";
 
+/* ── inject CSS keyframes (once) ─────────────────────────────────────── */
+if (typeof document !== "undefined" && !document.getElementById("branch-graph-kf")) {
+  const s = document.createElement("style");
+  s.id = "branch-graph-kf";
+  s.textContent = [
+    "@keyframes bgForkDraw{from{stroke-dashoffset:50}to{stroke-dashoffset:0}}",
+    "@keyframes bgMergeAppear{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}",
+    "@keyframes bgBranchEnter{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}",
+    "@keyframes bgTrackPulse{0%,100%{opacity:0.55}50%{opacity:1}}",
+  ].join("\n");
+  document.head.appendChild(s);
+}
+
 /* ── layout constants ─────────────────────────────────────────────────── */
 const TRACK_W = 20;
 const LINE_W = 1;
@@ -34,6 +47,11 @@ const ForkCurve = ({ width, height, color, strokeWidth }) => (
       stroke={color}
       strokeWidth={strokeWidth}
       fill="none"
+      style={{
+        strokeDasharray: 50,
+        strokeDashoffset: 0,
+        animation: "bgForkDraw 0.35s cubic-bezier(0.32, 0.72, 0, 1) forwards",
+      }}
     />
   </svg>
 );
@@ -42,7 +60,11 @@ const MergeCurve = ({ width, height, color, strokeWidth }) => (
   <svg
     width={width}
     height={height}
-    style={{ display: "block", overflow: "visible" }}
+    style={{
+      display: "block",
+      overflow: "visible",
+      animation: "bgMergeAppear 0.4s cubic-bezier(0.32, 0.72, 0, 1) forwards",
+    }}
   >
     <path
       d={`M ${width},0 C ${width},${height * 0.85} 0,${height * 0.15} 0,${height}`}
@@ -116,7 +138,13 @@ const BranchNode = ({
 
   return (
     <div
-      style={{ display: "flex", flexDirection: "row", alignItems: "stretch" }}
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+        opacity: 0,
+        animation: `bgBranchEnter 0.3s cubic-bezier(0.32, 0.72, 0, 1) ${index * 0.05}s forwards`,
+      }}
     >
       {/* track column */}
       <div
@@ -154,6 +182,9 @@ const BranchNode = ({
             minHeight: index === total - 1 ? 0 : 12,
             background: bottomColor,
             transition: "background 0.3s",
+            ...(status === "active" || status === "streaming"
+              ? { animation: "bgTrackPulse 2s ease-in-out infinite" }
+              : {}),
           }}
         />
       </div>
@@ -314,8 +345,8 @@ const BranchGraph = ({
         </div>
       </AnimatedChildren>
 
-      {/* merge curve — always visible when connected */}
-      {showCurves && (
+      {/* merge curve — visible when connected and all branches complete */}
+      {showCurves && status === "done" && (
         <div style={{ position: "relative", height: FORK_CURVE_H }}>
           <div
             style={{ position: "absolute", left: -effectiveReach, top: 0 }}
