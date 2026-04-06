@@ -92,15 +92,17 @@ const promptVersion = () =>
   });
 
 const runNpmVersion = (version) => {
-  const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-  const result = spawnSync(
-    npmCommand,
-    ["version", "--no-git-tag-version", version],
-    {
-      stdio: "inherit",
-      cwd: path.resolve(__dirname, ".."),
-    },
-  );
+  const npmCommand = process.platform === "win32"
+    ? process.env.ComSpec || "cmd.exe"
+    : "npm";
+  const npmArgs = process.platform === "win32"
+    ? ["/d", "/s", "/c", "npm", "version", "--no-git-tag-version", version]
+    : ["version", "--no-git-tag-version", version];
+  const result = spawnSync(npmCommand, npmArgs, {
+    // Spawning npm.cmd directly can throw EINVAL on Windows; cmd.exe avoids that.
+    stdio: "inherit",
+    cwd: path.resolve(__dirname, ".."),
+  });
 
   if (result.error) {
     throw new Error(`Failed to execute npm version: ${result.error.message}`);
