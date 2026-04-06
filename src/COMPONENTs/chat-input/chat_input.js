@@ -1,4 +1,4 @@
-import { useContext, useRef, useState, useCallback } from "react";
+import { memo, useContext, useRef, useState, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
@@ -212,4 +212,4 @@ const ChatInput = ({
   );
 };
 
-export default ChatInput;
+export default memo(ChatInput);

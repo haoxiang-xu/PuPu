@@ -453,7 +453,7 @@ const ChatInterface = () => {
     (modelId) => {
       session.handleSelectModel(modelId, stream.isStreaming);
     },
-    [session, stream.isStreaming],
+    [session.handleSelectModel, stream.isStreaming],
   );
 
   const effectiveDisclaimer = useMemo(() => {
@@ -529,36 +529,48 @@ const ChatInterface = () => {
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
 
-  const sharedChatInputProps = {
-    value: session.inputValue,
-    onChange: session.setInputValue,
-    onSend: stream.sendNewTurn,
-    onStop: stream.stopStream,
-    isStreaming: stream.isStreaming,
-    sendDisabled: isSendDisabled,
-    placeholder: unchainStatus.ready
-      ? "Message PuPu Chat..."
-      : `Miso unavailable (${unchainStatus.status})${unchainStatus.reason ? `: ${unchainStatus.reason}` : ""}`,
-    disclaimer: effectiveDisclaimer,
-    showAttachments: true,
-    onAttachFile: attachments.handleAttachFile,
-    onDropFiles: attachments.processFiles,
-    attachments: draftAttachments,
-    onRemoveAttachment: attachments.removeDraftAttachment,
-    attachmentsEnabled,
-    attachmentsDisabledReason,
-    modelCatalog,
-    selectedModelId: session.selectedModelId,
-    onSelectModel,
-    modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
-    showModelSelector: !session.isCharacterChat,
-    showToolSelector: !session.isCharacterChat,
-    showWorkspaceSelector: !session.isCharacterChat,
-    selectedToolkits: session.selectedToolkits,
-    onToolkitsChange: session.setSelectedToolkits,
-    selectedWorkspaceIds: session.selectedWorkspaceIds,
-    onWorkspaceIdsChange: session.setSelectedWorkspaceIds,
-  };
+  const sharedChatInputProps = useMemo(
+    () => ({
+      value: session.inputValue,
+      onChange: session.setInputValue,
+      onSend: stream.sendNewTurn,
+      onStop: stream.stopStream,
+      isStreaming: stream.isStreaming,
+      sendDisabled: isSendDisabled,
+      placeholder: unchainStatus.ready
+        ? "Message PuPu Chat..."
+        : `Miso unavailable (${unchainStatus.status})${unchainStatus.reason ? `: ${unchainStatus.reason}` : ""}`,
+      disclaimer: effectiveDisclaimer,
+      showAttachments: true,
+      onAttachFile: attachments.handleAttachFile,
+      onDropFiles: attachments.processFiles,
+      attachments: draftAttachments,
+      onRemoveAttachment: attachments.removeDraftAttachment,
+      attachmentsEnabled,
+      attachmentsDisabledReason,
+      modelCatalog,
+      selectedModelId: session.selectedModelId,
+      onSelectModel,
+      modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
+      showModelSelector: !session.isCharacterChat,
+      showToolSelector: !session.isCharacterChat,
+      showWorkspaceSelector: !session.isCharacterChat,
+      selectedToolkits: session.selectedToolkits,
+      onToolkitsChange: session.setSelectedToolkits,
+      selectedWorkspaceIds: session.selectedWorkspaceIds,
+      onWorkspaceIdsChange: session.setSelectedWorkspaceIds,
+    }),
+    [
+      session.inputValue, session.setInputValue, session.selectedModelId,
+      session.isCharacterChat, session.selectedToolkits, session.setSelectedToolkits,
+      session.selectedWorkspaceIds, session.setSelectedWorkspaceIds,
+      stream.sendNewTurn, stream.stopStream, stream.isStreaming,
+      isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
+      effectiveDisclaimer, attachments.handleAttachFile, attachments.processFiles,
+      draftAttachments, attachments.removeDraftAttachment,
+      attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+    ],
+  );
 
   return (
     <div

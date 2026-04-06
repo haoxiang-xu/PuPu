@@ -115,6 +115,14 @@ export const useChatStream = ({
     characterId.trim().length > 0;
   const pendingContinuationRequestRef = useRef(null);
 
+  /* Stable refs for high-churn values — keeps sendNewTurn callback stable */
+  const inputValueRef = useRef(inputValue);
+  inputValueRef.current = inputValue;
+  const draftAttachmentsRef = useRef(draftAttachments);
+  draftAttachmentsRef.current = draftAttachments;
+  const selectedModelIdRef = useRef(selectedModelId);
+  selectedModelIdRef.current = selectedModelId;
+
   const streamHandleRef = useRef(null);
   const streamingChatIdRef = useRef(null);
   const confirmationIdByCallIdRef = useRef(new Map());
@@ -2361,12 +2369,13 @@ export const useChatStream = ({
 
   const sendNewTurn = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
-    const text = inputValue.trim();
-    const hasAttachments = Array.isArray(draftAttachments)
-      ? draftAttachments.length > 0
+    const text = inputValueRef.current.trim();
+    const currentDraftAttachments = draftAttachmentsRef.current;
+    const hasAttachments = Array.isArray(currentDraftAttachments)
+      ? currentDraftAttachments.length > 0
       : false;
     const normalizedSelectedModelId =
-      typeof selectedModelId === "string" ? selectedModelId.trim() : "";
+      typeof selectedModelIdRef.current === "string" ? selectedModelIdRef.current.trim() : "";
     const hasSelectedModel =
       isCharacterChat ||
       (normalizedSelectedModelId &&
@@ -2405,8 +2414,8 @@ export const useChatStream = ({
       mode: "send",
       chatId: currentChatId,
       text,
-      attachments: draftAttachments,
-      baseMessages: messages,
+      attachments: currentDraftAttachments,
+      baseMessages: messagesRef.current,
       clearComposer: true,
       missingAttachmentPayloadMode: "block",
     });
@@ -2414,12 +2423,9 @@ export const useChatStream = ({
     activeChatIdRef,
     attachmentsDisabledReason,
     attachmentsEnabled,
-    draftAttachments,
-    inputValue,
     isCharacterChat,
-    messages,
+    messagesRef,
     runTurnRequest,
-    selectedModelId,
     setStreamError,
   ]);
 
