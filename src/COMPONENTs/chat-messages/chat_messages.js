@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { memo, useContext } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -175,4 +175,4 @@ const ChatMessages = ({
   );
 };
 
-export default ChatMessages;
+export default memo(ChatMessages);

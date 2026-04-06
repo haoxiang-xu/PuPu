@@ -30,6 +30,8 @@ const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const UNCHAIN_STATUS_POLL_INTERVAL_STARTING_MS = 1500;
+const UNCHAIN_STATUS_POLL_INTERVAL_READY_MS = 15000;
 
 const _OllamaSVG = LogoSVGs.ollama;
 const _OpenAISVG = LogoSVGs.open_ai;
@@ -48,6 +50,100 @@ const HERO_PHRASES = [
   "What's on your mind?",
   "Ready to dive in?",
 ];
+
+const isSameUnchainStatus = (current, next) =>
+  current?.status === next?.status &&
+  current?.ready === next?.ready &&
+  current?.url === next?.url &&
+  current?.reason === next?.reason;
+
+const HeroHeadline = ({ isDark }) => {
+  const [heroText, setHeroText] = useState(HERO_PHRASES[0]);
+  const [heroCursor, setHeroCursor] = useState(true);
+  const heroPhraseRef = useRef(0);
+  const heroCharRef = useRef(HERO_PHRASES[0].length);
+  const heroDeletingRef = useRef(false);
+
+  useEffect(() => {
+    let timer;
+    const tick = () => {
+      const phrase = HERO_PHRASES[heroPhraseRef.current];
+      if (!heroDeletingRef.current) {
+        if (heroCharRef.current < phrase.length) {
+          heroCharRef.current += 1;
+          setHeroText(phrase.slice(0, heroCharRef.current));
+          timer = setTimeout(tick, 52 + Math.random() * 32);
+        } else {
+          timer = setTimeout(() => {
+            heroDeletingRef.current = true;
+            tick();
+          }, 2000);
+        }
+      } else if (heroCharRef.current > 0) {
+        heroCharRef.current -= 1;
+        setHeroText(phrase.slice(0, heroCharRef.current));
+        timer = setTimeout(tick, 26 + Math.random() * 16);
+      } else {
+        heroDeletingRef.current = false;
+        heroPhraseRef.current =
+          (heroPhraseRef.current + 1) % HERO_PHRASES.length;
+        timer = setTimeout(tick, 380);
+      }
+    };
+
+    timer = setTimeout(tick, 1400);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const id = setInterval(() => setHeroCursor((value) => !value), 530);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const styleId = "pupu-hero-keyframes";
+    if (!document.getElementById(styleId)) {
+      const el = document.createElement("style");
+      el.id = styleId;
+      el.textContent =
+        "@keyframes heroRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}";
+      document.head.appendChild(el);
+    }
+  }, []);
+
+  return (
+    <div
+      style={{
+        animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+        animationDelay: "55ms",
+        fontSize: 22,
+        fontWeight: 600,
+        letterSpacing: "-0.3px",
+        color: isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.78)",
+        marginBottom: 28,
+        textAlign: "center",
+        fontFamily: "HackNerdFont",
+      }}
+    >
+      {heroText}
+      <span
+        style={{
+          display: "inline-block",
+          width: "2px",
+          height: "1em",
+          marginLeft: "3px",
+          verticalAlign: "text-bottom",
+          borderRadius: "1px",
+          backgroundColor: isDark
+            ? "rgba(255,255,255,0.72)"
+            : "rgba(0,0,0,0.62)",
+          opacity: heroCursor ? 1 : 0,
+          transition: "opacity 0.08s",
+        }}
+      />
+    </div>
+  );
+};
 
 const ChatInterface = () => {
   const { theme, onFragment, onThemeMode } = useContext(ConfigContext);
@@ -72,6 +168,13 @@ const ChatInterface = () => {
 
   const activeStreamMessagesRef = useRef(null);
   const messagePersistTimerRef = useRef(null);
+  const commitUnchainStatus = useCallback((nextStatus) => {
+    setUnchainStatus((currentStatus) =>
+      isSameUnchainStatus(currentStatus, nextStatus)
+        ? currentStatus
+        : nextStatus,
+    );
+  }, []);
 
   const storageApi = useMemo(
     () => ({
@@ -228,7 +331,7 @@ const ChatInterface = () => {
   const refreshMisoStatus = useCallback(async () => {
     try {
       const status = await api.unchain.getStatus();
-      setUnchainStatus({
+      commitUnchainStatus({
         status: status?.status || "unknown",
         ready: Boolean(status?.ready),
         url: status?.url || null,
@@ -246,7 +349,7 @@ const ChatInterface = () => {
         const runtimeHint = hasElectronUserAgent
           ? "Electron detected, but preload failed to expose unchainAPI. Check Electron main/preload console logs."
           : "Web mode detected. Run the app with Electron (`npm start` or `npm run start:electron`).";
-        setUnchainStatus({
+        commitUnchainStatus({
           status: "unavailable",
           ready: false,
           url: null,
@@ -255,14 +358,18 @@ const ChatInterface = () => {
         return;
       }
 
-      setUnchainStatus({
+      commitUnchainStatus({
         status: "error",
         ready: false,
         url: null,
         reason: "Failed to query Miso status",
       });
     }
-  }, []);
+  }, [commitUnchainStatus]);
+
+  const unchainStatusPollInterval = unchainStatus.ready
+    ? UNCHAIN_STATUS_POLL_INTERVAL_READY_MS
+    : UNCHAIN_STATUS_POLL_INTERVAL_STARTING_MS;
 
   const refreshModelCatalog = useCallback(async () => {
     try {
@@ -301,12 +408,12 @@ const ChatInterface = () => {
 
     const timer = setInterval(() => {
       refreshMisoStatus();
-    }, 1500);
+    }, unchainStatusPollInterval);
 
     return () => {
       clearInterval(timer);
     };
-  }, [refreshMisoStatus]);
+  }, [refreshMisoStatus, unchainStatusPollInterval]);
 
   useEffect(() => {
     if (!unchainStatus.ready) {
@@ -422,60 +529,6 @@ const ChatInterface = () => {
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
 
-  const [heroText, setHeroText] = useState(HERO_PHRASES[0]);
-  const [heroCursor, setHeroCursor] = useState(true);
-  const heroPhraseRef = useRef(0);
-  const heroCharRef = useRef(HERO_PHRASES[0].length);
-  const heroDeletingRef = useRef(false);
-
-  useEffect(() => {
-    let timer;
-    const tick = () => {
-      const phrase = HERO_PHRASES[heroPhraseRef.current];
-      if (!heroDeletingRef.current) {
-        if (heroCharRef.current < phrase.length) {
-          heroCharRef.current += 1;
-          setHeroText(phrase.slice(0, heroCharRef.current));
-          timer = setTimeout(tick, 52 + Math.random() * 32);
-        } else {
-          timer = setTimeout(() => {
-            heroDeletingRef.current = true;
-            tick();
-          }, 2000);
-        }
-      } else {
-        if (heroCharRef.current > 0) {
-          heroCharRef.current -= 1;
-          setHeroText(phrase.slice(0, heroCharRef.current));
-          timer = setTimeout(tick, 26 + Math.random() * 16);
-        } else {
-          heroDeletingRef.current = false;
-          heroPhraseRef.current =
-            (heroPhraseRef.current + 1) % HERO_PHRASES.length;
-          timer = setTimeout(tick, 380);
-        }
-      }
-    };
-    timer = setTimeout(tick, 1400);
-    return () => clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    const id = setInterval(() => setHeroCursor((value) => !value), 530);
-    return () => clearInterval(id);
-  }, []);
-
-  useEffect(() => {
-    const styleId = "pupu-hero-keyframes";
-    if (!document.getElementById(styleId)) {
-      const el = document.createElement("style");
-      el.id = styleId;
-      el.textContent =
-        "@keyframes heroRise{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}";
-      document.head.appendChild(el);
-    }
-  }, []);
-
   const sharedChatInputProps = {
     value: session.inputValue,
     onChange: session.setInputValue,
@@ -542,48 +595,19 @@ const ChatInterface = () => {
             padding: "0 0 80px",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
               alignItems: "center",
               width: "100%",
               maxWidth: 780,
               padding: "0 24px",
               boxSizing: "border-box",
-              gap: 0,
-            }}
-          >
-            <div
-              style={{
-                animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-                animationDelay: "55ms",
-                fontSize: 22,
-                fontWeight: 600,
-                letterSpacing: "-0.3px",
-                color: isDark ? "rgba(255,255,255,0.82)" : "rgba(0,0,0,0.78)",
-                marginBottom: 28,
-                textAlign: "center",
-                fontFamily: "HackNerdFont",
+                gap: 0,
               }}
             >
-              {heroText}
-              <span
-                style={{
-                  display: "inline-block",
-                  width: "2px",
-                  height: "1em",
-                  marginLeft: "3px",
-                  verticalAlign: "text-bottom",
-                  borderRadius: "1px",
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.72)"
-                    : "rgba(0,0,0,0.62)",
-                  opacity: heroCursor ? 1 : 0,
-                  transition: "opacity 0.08s",
-                }}
-              />
-            </div>
+            <HeroHeadline isDark={isDark} />
 
             <div
               style={{

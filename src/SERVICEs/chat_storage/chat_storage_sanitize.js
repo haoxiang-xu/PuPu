@@ -379,8 +379,8 @@ const sanitizeTraceFrame = (frame) => {
   const cleanedFrame = {
     seq: Number.isFinite(Number(frame.seq)) ? Number(frame.seq) : 0,
     ts: Number.isFinite(Number(frame.ts)) ? Number(frame.ts) : 0,
+    run_id: typeof frame.run_id === "string" ? frame.run_id : "",
     type: trimText(String(frame.type || ""), 64),
-    stage: trimText(String(frame.stage || ""), 64),
   };
   if (Number.isFinite(Number(frame.iteration))) {
     cleanedFrame.iteration = Number(frame.iteration);

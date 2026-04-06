@@ -2,6 +2,20 @@ import { useMemo } from "react";
 import AnimatedChildren from "../class/animated_children";
 import ArcSpinner from "../spinner/arc_spinner";
 
+/* ── inject animation keyframes once ─────────────────────────────────── */
+const KEYFRAME_ID = "__branch_graph_keyframes__";
+if (typeof document !== "undefined" && !document.getElementById(KEYFRAME_ID)) {
+  const style = document.createElement("style");
+  style.id = KEYFRAME_ID;
+  style.textContent = `
+    @keyframes bgFadeIn {
+      from { opacity: 0; transform: translateY(-3px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 /* ── layout constants ─────────────────────────────────────────────────── */
 const TRACK_W = 20;
 const LINE_W = 1;
@@ -134,7 +148,7 @@ const BranchNode = ({
             height: index === 0 ? topLineH + 2 : topLineH,
             flexShrink: 0,
             background: topColor,
-            transition: "background 0.3s",
+            transition: "background 0.3s cubic-bezier(0.32,1,0.32,1)",
           }}
         />
         <div
@@ -153,7 +167,7 @@ const BranchNode = ({
             width: LINE_W,
             minHeight: index === total - 1 ? 0 : 12,
             background: bottomColor,
-            transition: "background 0.3s",
+            transition: "background 0.3s cubic-bezier(0.32,1,0.32,1)",
           }}
         />
       </div>
@@ -257,6 +271,7 @@ const BranchGraph = ({
   branches = [],
   expanded = false,
   status = "pending",
+  showMerge = true,
   curveReach = 0,
   inset = 0,
   isDark = false,
@@ -280,7 +295,10 @@ const BranchGraph = ({
     >
       {/* fork curve — always visible when connected */}
       {showCurves && (
-        <div style={{ position: "relative", height: FORK_CURVE_H }}>
+        <div style={{
+          position: "relative", height: FORK_CURVE_H,
+          animation: "bgFadeIn 0.25s cubic-bezier(0.32,1,0.32,1)",
+        }}>
           <div
             style={{ position: "absolute", left: -effectiveReach, top: 0 }}
           >
@@ -314,9 +332,12 @@ const BranchGraph = ({
         </div>
       </AnimatedChildren>
 
-      {/* merge curve — always visible when connected */}
-      {showCurves && (
-        <div style={{ position: "relative", height: FORK_CURVE_H }}>
+      {/* merge curve — only visible when showMerge is true (subagent done) */}
+      {showCurves && showMerge && (
+        <div style={{
+          position: "relative", height: FORK_CURVE_H,
+          animation: "bgFadeIn 0.3s cubic-bezier(0.32,1,0.32,1)",
+        }}>
           <div
             style={{ position: "absolute", left: -effectiveReach, top: 0 }}
           >

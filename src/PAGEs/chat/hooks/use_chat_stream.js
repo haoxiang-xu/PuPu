@@ -1422,14 +1422,50 @@ export const useChatStream = ({
                 return;
               }
 
-              /* continuation_request is now emitted as a tool_call with
-                 tool_name "__continuation__" — handled by the normal
-                 tool confirmation flow below, no special case needed. */
-              if (frame.type === "continuation_request") {
-                return; /* legacy: ignore if backend ever sends old format */
-              }
-
               const patchTime = Date.now();
+
+              /* continuation_request is now emitted as a tool_call with
+                 tool_name "__continuation__". Keep a legacy fallback so
+                 older runtimes still surface the continue UI. */
+              if (frame.type === "continuation_request") {
+                const confirmationId =
+                  typeof frame.payload?.confirmation_id === "string"
+                    ? frame.payload.confirmation_id.trim()
+                    : "";
+                const iteration = getTraceFrameIteration(frame);
+                if (!confirmationId || !Number.isFinite(iteration)) {
+                  return;
+                }
+
+                const nextRequest = {
+                  confirmationId,
+                  iteration,
+                  status: "idle",
+                };
+                pendingContinuationRequestRef.current = nextRequest;
+                setPendingContinuationRequest(nextRequest);
+                unchainLogger.log("continuation_request", {
+                  confirmationId,
+                  iteration,
+                  latestMessageRole:
+                    streamMessages[streamMessages.length - 1]?.role || "",
+                  attachedToLatestAssistantBubble:
+                    streamMessages[streamMessages.length - 1]?.id ===
+                    assistantMessageId,
+                });
+
+                const nextStreamMessages = streamMessages.map((message) =>
+                  message.id === assistantMessageId
+                    ? {
+                        ...message,
+                        updatedAt: patchTime,
+                        traceFrames: [...(message.traceFrames || []), frame],
+                      }
+                    : message,
+                );
+                syncStreamMessages(nextStreamMessages);
+                return;
+              }
 
               if (frame.type === "error") {
                 unchainLogger.error(
@@ -2152,7 +2188,16 @@ export const useChatStream = ({
                 return;
               }
 
-              if (activeChatIdRef.current === targetChatId) {
+              /* T5: only show error banner if trace chain doesn't already
+                 have frames — when trace is visible, the ErrorNode in the
+                 timeline handles display so we avoid duplicating the message. */
+              const currentAssistantMsg = streamMessages.find(
+                (m) => m.id === assistantMessageId,
+              );
+              const traceHasContent =
+                Array.isArray(currentAssistantMsg?.traceFrames) &&
+                currentAssistantMsg.traceFrames.length > 0;
+              if (activeChatIdRef.current === targetChatId && !traceHasContent) {
                 setStreamError(errorMessage);
               }
               streamHandleRef.current = null;
@@ -2174,8 +2219,8 @@ export const useChatStream = ({
                 const errorFrame = {
                   seq: (message.traceFrames?.length || 0) + 1,
                   ts: errorTime,
+                  run_id: "",
                   type: "error",
-                  stage: "stream",
                   payload: { code: errorCode, message: errorMessage },
                 };
 

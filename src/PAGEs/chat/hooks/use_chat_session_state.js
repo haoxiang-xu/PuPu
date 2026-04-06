@@ -13,6 +13,8 @@ import {
 } from "../../../SERVICEs/chat_storage";
 import { settleStreamingAssistantMessages } from "../utils/chat_turn_utils";
 
+const DRAFT_PERSIST_DELAY_MS = 250;
+
 export const useChatSessionState = ({
   bootstrapped: bootstrappedProp,
   draftAttachments,
@@ -67,6 +69,11 @@ export const useChatSessionState = ({
       ? initialChat.threadId
       : initialChat.id || `chat-${Date.now()}`,
   );
+  const draftPersistTimerRef = useRef(null);
+  const latestDraftRef = useRef({
+    text: initialChat.draft?.text || "",
+    attachments: draftAttachments,
+  });
   const modelIdRef = useRef(
     typeof initialChat.model?.id === "string" && initialChat.model.id.trim()
       ? initialChat.model.id
@@ -76,9 +83,35 @@ export const useChatSessionState = ({
     initialChat.systemPromptOverrides || {},
   );
 
+  latestDraftRef.current = {
+    text: inputValue,
+    attachments: draftAttachments,
+  };
+
   useEffect(() => {
     messagesRef.current = messages;
   }, [messages]);
+
+  const flushDraftToStore = useCallback((chatId = activeChatIdRef.current) => {
+    if (draftPersistTimerRef.current) {
+      clearTimeout(draftPersistTimerRef.current);
+      draftPersistTimerRef.current = null;
+    }
+
+    if (!chatId) {
+      return;
+    }
+
+    const nextDraft = latestDraftRef.current;
+    updateChatDraft(
+      chatId,
+      {
+        text: nextDraft.text,
+        attachments: nextDraft.attachments,
+      },
+      { source: "chat-page" },
+    );
+  }, []);
 
   useEffect(() => {
     const unsubscribe = subscribeChatsStore((nextStore, event = {}) => {
@@ -124,6 +157,7 @@ export const useChatSessionState = ({
         return;
       }
 
+      flushDraftToStore(currentActiveId);
       activeChatIdRef.current = nextActiveId;
 
       if (
@@ -143,7 +177,7 @@ export const useChatSessionState = ({
       setStreamError("");
       setMessages(nextActiveChat.messages || []);
       setInputValue(nextActiveChat.draft?.text || "");
-        setDraftAttachments(nextActiveChat.draft?.attachments || []);
+      setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setAgentOrchestration(
         nextActiveChat.agentOrchestration || { mode: "default" },
       );
@@ -182,7 +216,12 @@ export const useChatSessionState = ({
     return () => {
       unsubscribe();
     };
-  }, [activeStreamMessagesRef, setDraftAttachments, setStreamError]);
+  }, [
+    activeStreamMessagesRef,
+    flushDraftToStore,
+    setDraftAttachments,
+    setStreamError,
+  ]);
 
   useEffect(() => {
     const chatsById = bootstrapped?.store?.chatsById || {};
@@ -204,17 +243,31 @@ export const useChatSessionState = ({
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;
     if (!currentChatId) {
-      return;
+      return undefined;
     }
 
-    updateChatDraft(
-      currentChatId,
-      {
-        text: inputValue,
-        attachments: draftAttachments,
-      },
-      { source: "chat-page" },
-    );
+    if (draftPersistTimerRef.current) {
+      clearTimeout(draftPersistTimerRef.current);
+    }
+
+    draftPersistTimerRef.current = setTimeout(() => {
+      draftPersistTimerRef.current = null;
+      updateChatDraft(
+        currentChatId,
+        {
+          text: inputValue,
+          attachments: draftAttachments,
+        },
+        { source: "chat-page" },
+      );
+    }, DRAFT_PERSIST_DELAY_MS);
+
+    return () => {
+      if (draftPersistTimerRef.current) {
+        clearTimeout(draftPersistTimerRef.current);
+        draftPersistTimerRef.current = null;
+      }
+    };
   }, [draftAttachments, inputValue]);
 
   useEffect(() => {
@@ -282,9 +335,10 @@ export const useChatSessionState = ({
 
   useEffect(() => {
     return () => {
+      flushDraftToStore();
       cleanupTransientNewChatOnPageLeave({ source: "chat-page" });
     };
-  }, []);
+  }, [flushDraftToStore]);
 
   const handleSelectModel = useCallback(
     (modelId, disabled = false) => {

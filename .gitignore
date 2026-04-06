@@ -69,3 +69,4 @@ dmypy.json
 
 # pyinstaller / frozen builds
 *.spec
+.gitnexus

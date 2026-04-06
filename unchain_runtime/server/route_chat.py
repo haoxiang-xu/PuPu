@@ -11,30 +11,6 @@ _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
 
-_TRACE_STAGE_BY_EVENT_TYPE = {
-    "run_started": "agent",
-    "iteration_started": "agent",
-    "iteration_completed": "agent",
-    "run_completed": "agent",
-    "run_max_iterations": "agent",
-    "reasoning": "agent",
-    "observation": "agent",
-    "token_delta": "model",
-    "final_message": "model",
-    "tool_call": "tool",
-    "tool_result": "tool",
-    "error": "stream",
-    "done": "stream",
-    "subagent_spawned": "agent",
-    "subagent_started": "agent",
-    "subagent_completed": "agent",
-    "subagent_failed": "agent",
-    "subagent_handoff": "agent",
-    "subagent_clarification_requested": "agent",
-    "subagent_batch_started": "agent",
-    "subagent_batch_joined": "agent",
-}
-
 
 def _root():
     import routes as routes_module
@@ -55,9 +31,6 @@ def _sanitize_trace_level(raw_trace_level: object) -> str:
     normalized = raw_trace_level.strip().lower()
     return "full" if normalized == "full" else "minimal"
 
-
-def _trace_stage(event_type: str) -> str:
-    return _TRACE_STAGE_BY_EVENT_TYPE.get(event_type, "agent")
 
 
 def _sanitize_trace_value(value: object, trace_level: str, depth: int = 0):
@@ -112,7 +85,6 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
 def _build_trace_frame(
     *,
     seq: int,
-    thread_id: str,
     event_type: str,
     payload: Dict[str, object],
     run_id: str = "",
@@ -122,10 +94,8 @@ def _build_trace_frame(
     return {
         "seq": seq,
         "ts": timestamp_ms if isinstance(timestamp_ms, int) else int(time.time() * 1000),
-        "thread_id": thread_id,
         "run_id": run_id,
         "iteration": iteration,
-        "stage": _trace_stage(event_type),
         "type": event_type,
         "payload": payload,
     }
@@ -425,17 +395,21 @@ def chat_stream_v2() -> Response:
                 "frame",
                 _build_trace_frame(
                     seq=seq,
-                    thread_id=thread_id,
                     event_type="stream_started",
                     payload={
                         "model": root.get_model_name(options),
                         "started_at": started_at,
                         "trace_level": trace_level,
+                        "thread_id": thread_id,
                     },
                     iteration=0,
                     timestamp_ms=started_at,
                 ),
             )
+
+            # ── tool timeout tracking (diagnostic) ──
+            _TOOL_TIMEOUT_S = 60
+            _pending_tools: Dict[str, tuple] = {}  # call_id → (start_time, tool_name)
 
             for raw_event in root.stream_chat_events(
                 message=message,
@@ -446,6 +420,33 @@ def chat_stream_v2() -> Response:
                 cancel_event=confirmation_cancel_event,
             ):
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
+
+                # track tool execution time
+                if event_type == "tool_call":
+                    _cid = raw_event.get("call_id", "")
+                    _tname = raw_event.get("tool_name", "")
+                    if _cid:
+                        _pending_tools[_cid] = (time.time(), _tname)
+                elif event_type == "tool_result":
+                    _cid = raw_event.get("call_id", "")
+                    if _cid and _cid in _pending_tools:
+                        _start, _tname = _pending_tools.pop(_cid)
+                        _elapsed = time.time() - _start
+                        if _elapsed > _TOOL_TIMEOUT_S:
+                            import sys
+                            print(
+                                f"[TOOL TIMEOUT] {_tname} (call_id={_cid}) "
+                                f"took {_elapsed:.1f}s (threshold={_TOOL_TIMEOUT_S}s)",
+                                file=sys.stderr,
+                                flush=True,
+                            )
+                        elif _elapsed > 10:
+                            import sys
+                            print(
+                                f"[SLOW TOOL] {_tname} (call_id={_cid}) took {_elapsed:.1f}s",
+                                file=sys.stderr,
+                                flush=True,
+                            )
 
                 if event_type == "stream_summary":
                     bundle = raw_event.get("bundle")
@@ -493,7 +494,6 @@ def chat_stream_v2() -> Response:
                     "frame",
                     _build_trace_frame(
                         seq=seq,
-                        thread_id=thread_id,
                         event_type=event_type,
                         payload=sanitized_payload,
                         run_id=normalized_run_id,
@@ -501,6 +501,18 @@ def chat_stream_v2() -> Response:
                         timestamp_ms=event_ts_ms,
                     ),
                 )
+
+            # log any tools that never returned a result
+            if _pending_tools:
+                import sys
+                for _cid, (_start, _tname) in _pending_tools.items():
+                    _elapsed = time.time() - _start
+                    print(
+                        f"[TOOL NEVER RESOLVED] {_tname} (call_id={_cid}) "
+                        f"pending for {_elapsed:.1f}s when stream ended",
+                        file=sys.stderr,
+                        flush=True,
+                    )
 
             seq += 1
             finished_at = int(time.time() * 1000)
@@ -511,7 +523,6 @@ def chat_stream_v2() -> Response:
                 "frame",
                 _build_trace_frame(
                     seq=seq,
-                    thread_id=thread_id,
                     event_type="done",
                     payload=done_payload,
                     iteration=last_iteration,
@@ -530,7 +541,6 @@ def chat_stream_v2() -> Response:
                 "frame",
                 _build_trace_frame(
                     seq=seq,
-                    thread_id=thread_id,
                     event_type="error",
                     payload={
                         "code": code,

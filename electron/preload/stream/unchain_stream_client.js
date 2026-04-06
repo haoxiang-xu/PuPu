@@ -82,7 +82,7 @@ const createMisoStreamClient = (ipcRenderer) => {
         if (frameType === "stream_started") {
           if (typeof handlers.onMeta === "function") {
             handlers.onMeta({
-              thread_id: data.thread_id,
+              thread_id: payload.thread_id,
               model: payload.model,
               ...payload,
             });
