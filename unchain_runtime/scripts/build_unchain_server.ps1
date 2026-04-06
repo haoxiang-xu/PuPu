@@ -79,13 +79,12 @@ function Resolve-Python312Command {
 # Resolve root directory (two levels up from this script)
 $ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
-# Miso source path
-$UNCHAIN_SOURCE_PATH = if ($env:UNCHAIN_SOURCE_PATH) { $env:UNCHAIN_SOURCE_PATH } else { Join-Path $ROOT_DIR "..\miso" }
+# Unchain source path
+$UNCHAIN_SOURCE_PATH = if ($env:UNCHAIN_SOURCE_PATH) { $env:UNCHAIN_SOURCE_PATH } else { Join-Path $ROOT_DIR "..\unchain" }
 $UNCHAIN_SOURCE_PATH = [System.IO.Path]::GetFullPath($UNCHAIN_SOURCE_PATH)
 
-if (-not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\miso\__init__.py")) -or
-    -not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\__init__.py"))) {
-  Write-Error "Invalid MISO source path: $UNCHAIN_SOURCE_PATH`nExpected files: src\miso\__init__.py and src\unchain\__init__.py"
+if (-not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\__init__.py"))) {
+  Write-Error "Invalid unchain source path: $UNCHAIN_SOURCE_PATH`nExpected file: src\unchain\__init__.py"
   exit 1
 }
 
@@ -93,7 +92,7 @@ $CAPABILITY_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources
 $DEFAULT_PAYLOADS_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources\model_default_payloads.json"
 
 if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON)) {
-  Write-Error "Missing required MISO model metadata files in source path: $UNCHAIN_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON"
+  Write-Error "Missing required unchain model metadata files in source path: $UNCHAIN_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON"
   exit 1
 }
 
@@ -197,30 +196,27 @@ $pyinstallerArgs = @(
   "--distpath", $DIST_DIR,
   "--workpath", $BUILD_DIR,
   "--specpath", $SPEC_DIR,
-  "--collect-submodules", "miso",
+  "--collect-submodules", "unchain",
   "--collect-submodules", "openai",
   "--collect-submodules", "anthropic",
-  "--collect-data", "miso",
-  "--add-data", "${CAPABILITY_JSON};miso/runtime/resources",
-  "--add-data", "${DEFAULT_PAYLOADS_JSON};miso/runtime/resources",
-  "--hidden-import", "miso",
+  "--collect-data", "unchain",
+  "--add-data", "${CAPABILITY_JSON};unchain/runtime/resources",
+  "--add-data", "${DEFAULT_PAYLOADS_JSON};unchain/runtime/resources",
+  "--hidden-import", "unchain",
   "--hidden-import", "unchain.runtime",
-  "--hidden-import", "unchain.runtime.engine",
-  "--hidden-import", "unchain.runtime.files",
-  "--hidden-import", "unchain.runtime.providers",
-  "--hidden-import", "miso.tools",
-  "--hidden-import", "miso.tools.tool",
-  "--hidden-import", "miso.tools.toolkit",
-  "--hidden-import", "miso.tools.registry",
-  "--hidden-import", "miso.tools.catalog",
-  "--hidden-import", "miso.schemas",
-  "--hidden-import", "miso.schemas.response",
-  "--hidden-import", "miso.input",
-  "--hidden-import", "miso.input.media",
-  "--hidden-import", "miso.toolkits",
-  "--hidden-import", "miso.memory",
-  "--hidden-import", "miso.memory.manager",
-  "--hidden-import", "miso.memory.qdrant",
+  "--hidden-import", "unchain.tools",
+  "--hidden-import", "unchain.tools.tool",
+  "--hidden-import", "unchain.tools.toolkit",
+  "--hidden-import", "unchain.tools.registry",
+  "--hidden-import", "unchain.tools.catalog",
+  "--hidden-import", "unchain.schemas",
+  "--hidden-import", "unchain.schemas.response",
+  "--hidden-import", "unchain.input",
+  "--hidden-import", "unchain.input.media",
+  "--hidden-import", "unchain.toolkits",
+  "--hidden-import", "unchain.memory",
+  "--hidden-import", "unchain.memory.manager",
+  "--hidden-import", "unchain.memory.qdrant",
   "--hidden-import", "openai",
   "--hidden-import", "anthropic",
   "--collect-submodules", "qdrant_client",
@@ -236,5 +232,5 @@ Write-Host "Running PyInstaller ..."
 & $VENV_PY @pyinstallerArgs
 if ($LASTEXITCODE -ne 0) { Write-Error "PyInstaller failed"; exit 1 }
 
-Write-Host "Built Miso server:"
+Write-Host "Built unchain server:"
 Write-Host "  $DIST_DIR\unchain-server.exe"

@@ -122,7 +122,14 @@ const main = async () => {
       ...process.env,
       ELECTRON_START_URL: devServerUrl,
     },
-    stdio: "inherit",
+    stdio: ["inherit", "inherit", "pipe"],
+  });
+
+  electronProcess.stderr.on("data", (chunk) => {
+    const line = chunk.toString();
+    if (!line.includes("representedObject is not a WeakPtrToElectronMenuModelAsNSObject")) {
+      process.stderr.write(chunk);
+    }
   });
 
   let shutdownStarted = false;
