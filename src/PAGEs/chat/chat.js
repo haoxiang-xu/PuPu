@@ -453,6 +453,7 @@ const ChatInterface = () => {
     (modelId) => {
       session.handleSelectModel(modelId, stream.isStreaming);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [session.handleSelectModel, stream.isStreaming],
   );
 
