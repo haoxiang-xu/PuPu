@@ -206,7 +206,10 @@ const emitStoreChange = (store, event = {}) => {
     return;
   }
 
-  const snapshot = clone(store);
+  const snapshot =
+    typeof structuredClone === "function"
+      ? structuredClone(store)
+      : clone(store);
   if (!snapshot) {
     return;
   }
@@ -411,14 +414,26 @@ export const getChatsStore = () => {
   return clone(synced) || createEmptyStoreV2();
 };
 
-export const subscribeChatsStore = (listener) => {
+export const subscribeChatsStore = (listener, options = {}) => {
   if (typeof listener !== "function") {
     return () => {};
   }
 
-  storeSubscribers.add(listener);
+  const excludeEventTypes = Array.isArray(options.excludeEventTypes)
+    ? options.excludeEventTypes
+    : null;
+
+  const wrappedListener = excludeEventTypes
+    ? (snapshot, event) => {
+        if (!excludeEventTypes.includes(event.type)) {
+          listener(snapshot, event);
+        }
+      }
+    : listener;
+
+  storeSubscribers.add(wrappedListener);
   return () => {
-    storeSubscribers.delete(listener);
+    storeSubscribers.delete(wrappedListener);
   };
 };
 

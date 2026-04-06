@@ -1,14 +1,19 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
-import { SettingsModal } from "../settings/settings_modal";
-import { ToolkitModal } from "../toolkit/toolkit_modal";
-import { AgentsModal } from "../agents/agents_modal";
-import { WorkspaceModal } from "../workspace/workspace_modal";
 import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
   ConfirmDeleteModal,
@@ -18,7 +23,25 @@ import {
 import { sideMenuChatTreeAPI } from "./side_menu_api";
 import { getRuntimePlatform } from "./side_menu_utils";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
-import { MemoryInspectModal } from "../memory-inspect/memory_inspect_modal";
+
+/* Lazy-loaded modals — only fetched when first opened */
+const SettingsModal = lazy(() =>
+  import("../settings/settings_modal").then((m) => ({ default: m.SettingsModal })),
+);
+const ToolkitModal = lazy(() =>
+  import("../toolkit/toolkit_modal").then((m) => ({ default: m.ToolkitModal })),
+);
+const AgentsModal = lazy(() =>
+  import("../agents/agents_modal").then((m) => ({ default: m.AgentsModal })),
+);
+const WorkspaceModal = lazy(() =>
+  import("../workspace/workspace_modal").then((m) => ({ default: m.WorkspaceModal })),
+);
+const MemoryInspectModal = lazy(() =>
+  import("../memory-inspect/memory_inspect_modal").then((m) => ({
+    default: m.MemoryInspectModal,
+  })),
+);
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
 import { useCharacterAvailability } from "./hooks/use_character_availability";
@@ -193,6 +216,14 @@ const SideMenu = () => {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+
+  /* Track which lazy modals have been opened at least once.
+     Once mounted, they stay in the tree so Modal's exit animation can play. */
+  const lazyMountedRef = useRef({});
+  if (settingsOpen) lazyMountedRef.current.settings = true;
+  if (toolkitOpen) lazyMountedRef.current.toolkit = true;
+  if (agentsOpen) lazyMountedRef.current.agents = true;
+  if (workspaceModalOpen) lazyMountedRef.current.workspace = true;
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -212,6 +243,7 @@ const SideMenu = () => {
     sessionId: null,
     chatTitle: "",
   });
+  if (memoryInspect.open) lazyMountedRef.current.memory = true;
 
   const { chatStore, setChatStore, selectedNodeId } = useChatTreeStore();
   const characterAvailabilityMap = useCharacterAvailability(
@@ -679,22 +711,44 @@ const SideMenu = () => {
         onClick={() => setSettingsOpen(true)}
       />
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      {/* Lazy modals: loaded on first open, kept mounted for exit animation */}
+      <Suspense fallback={null}>
+        {lazyMountedRef.current.settings && (
+          <SettingsModal
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
 
-      <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+        {lazyMountedRef.current.toolkit && (
+          <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+        )}
 
-      <AgentsModal
-        open={isAgentModalEnabled && agentsOpen}
-        onClose={() => setAgentsOpen(false)}
-      />
+        {lazyMountedRef.current.agents && (
+          <AgentsModal
+            open={isAgentModalEnabled && agentsOpen}
+            onClose={() => setAgentsOpen(false)}
+          />
+        )}
 
-      <WorkspaceModal
-        open={workspaceModalOpen}
-        onClose={() => setWorkspaceModalOpen(false)}
-      />
+        {lazyMountedRef.current.workspace && (
+          <WorkspaceModal
+            open={workspaceModalOpen}
+            onClose={() => setWorkspaceModalOpen(false)}
+          />
+        )}
+
+        {lazyMountedRef.current.memory && (
+          <MemoryInspectModal
+            open={memoryInspect.open}
+            sessionId={memoryInspect.sessionId}
+            chatTitle={memoryInspect.chatTitle}
+            onClose={() =>
+              setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })
+            }
+          />
+        )}
+      </Suspense>
 
       <ContextMenu
         visible={contextMenu.visible}
@@ -711,15 +765,6 @@ const SideMenu = () => {
         onConfirm={() => handleDelete(confirmDelete.node)}
         label={confirmDelete.node?.label || ""}
         isDark={isDark}
-      />
-
-      <MemoryInspectModal
-        open={memoryInspect.open}
-        sessionId={memoryInspect.sessionId}
-        chatTitle={memoryInspect.chatTitle}
-        onClose={() =>
-          setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })
-        }
       />
     </div>
   );
