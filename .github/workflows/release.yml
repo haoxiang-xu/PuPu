@@ -56,7 +56,7 @@ jobs:
 
       - name: Install Node dependencies
         working-directory: PuPu
-        run: npm ci
+        run: npm install
 
       - name: Prepare build version
         working-directory: PuPu
