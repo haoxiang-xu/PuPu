@@ -38,7 +38,7 @@ import {
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
 
-/* Lazy-loaded modals — only fetched when first opened */
+/* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const SettingsModal = lazy(() =>
   import("../settings/settings_modal").then((m) => ({ default: m.SettingsModal })),
 );
@@ -56,6 +56,7 @@ const MemoryInspectModal = lazy(() =>
     default: m.MemoryInspectModal,
   })),
 );
+/* eslint-enable import/first */
 
 export { sideMenuChatTreeAPI };
 
