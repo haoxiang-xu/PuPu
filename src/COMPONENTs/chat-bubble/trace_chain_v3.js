@@ -311,12 +311,26 @@ const BranchExpandArrow = ({ open, onClick, isDark }) => (
   </button>
 );
 
-const TokenSummary = ({ input, output, total, isDark }) => {
+const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }) => {
   const fmt = (n) => typeof n === "number" && Number.isFinite(n) ? n.toLocaleString() : "\u2013";
   const color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)";
+  const cacheColor = isDark ? "rgba(255,255,255,0.22)" : "rgba(0,0,0,0.2)";
+  const hasCacheRead = typeof cacheRead === "number" && cacheRead > 0;
+  const hasCacheCreation = typeof cacheCreation === "number" && cacheCreation > 0;
+  const hasCache = hasCacheRead || hasCacheCreation;
   return (
     <span style={{ fontSize: 10, fontFamily: "Menlo, Monaco, Consolas, monospace", color, userSelect: "none", letterSpacing: "0.01em" }}>
-      {fmt(input)} in &middot; {fmt(output)} out &middot; {fmt(total)} total
+      {fmt(input)} in
+      {hasCache && (
+        <span style={{ color: cacheColor }}>
+          {" ("}
+          {hasCacheRead && <>{fmt(cacheRead)} cached</>}
+          {hasCacheRead && hasCacheCreation && " + "}
+          {hasCacheCreation && <>{fmt(cacheCreation)} new</>}
+          {")"}
+        </span>
+      )}
+      {" "}&middot; {fmt(output)} out &middot; {fmt(total)} total
     </span>
   );
 };
@@ -957,7 +971,7 @@ const TraceChainV3 = ({
     if (status === "done" && bundle && typeof bundle === "object" && typeof bundle.consumed_tokens === "number" && bundle.consumed_tokens > 0) {
       grouped.push({
         key: "__token_summary__",
-        title: <TokenSummary input={bundle.input_tokens} output={bundle.output_tokens} total={bundle.consumed_tokens} isDark={isDark} />,
+        title: <TokenSummary input={bundle.input_tokens} output={bundle.output_tokens} total={bundle.consumed_tokens} cacheRead={bundle.cache_read_input_tokens} cacheCreation={bundle.cache_creation_input_tokens} isDark={isDark} />,
         status: "done",
         point: "end",
       });
@@ -1021,7 +1035,7 @@ const TraceChainV3 = ({
           </span>
           {!bodyOpen && status === "done" && bundle?.consumed_tokens > 0 && (
             <span style={{ marginLeft: 4 }}>
-              <TokenSummary input={bundle.input_tokens} output={bundle.output_tokens} total={bundle.consumed_tokens} isDark={isDark} />
+              <TokenSummary input={bundle.input_tokens} output={bundle.output_tokens} total={bundle.consumed_tokens} cacheRead={bundle.cache_read_input_tokens} cacheCreation={bundle.cache_creation_input_tokens} isDark={isDark} />
             </span>
           )}
         </div>

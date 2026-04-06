@@ -3268,6 +3268,8 @@ def _build_bundle_from_result(
         "consumed_tokens": int(getattr(result, "consumed_tokens", 0) or 0),
         "input_tokens": int(getattr(result, "input_tokens", 0) or 0),
         "output_tokens": int(getattr(result, "output_tokens", 0) or 0),
+        "cache_read_input_tokens": int(getattr(result, "cache_read_input_tokens", 0) or 0),
+        "cache_creation_input_tokens": int(getattr(result, "cache_creation_input_tokens", 0) or 0),
         "status": getattr(result, "status", "completed"),
         "iteration": int(getattr(result, "iteration", 0) or 0),
         "previous_response_id": getattr(result, "previous_response_id", None),

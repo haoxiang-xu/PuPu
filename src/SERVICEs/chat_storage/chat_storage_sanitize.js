@@ -576,6 +576,8 @@ export const sanitizeMessage = (message) => {
       if (typeof b.consumed_tokens === "number") bundle.consumed_tokens = b.consumed_tokens;
       if (typeof b.input_tokens === "number") bundle.input_tokens = b.input_tokens;
       if (typeof b.output_tokens === "number") bundle.output_tokens = b.output_tokens;
+      if (typeof b.cache_read_input_tokens === "number") bundle.cache_read_input_tokens = b.cache_read_input_tokens;
+      if (typeof b.cache_creation_input_tokens === "number") bundle.cache_creation_input_tokens = b.cache_creation_input_tokens;
       if (typeof b.model === "string" && b.model.trim()) bundle.model = trimText(b.model, 200);
       if (Object.keys(bundle).length > 0) meta.bundle = bundle;
     }

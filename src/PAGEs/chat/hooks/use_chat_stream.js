@@ -2145,6 +2145,12 @@ export const useChatStream = ({
                   ...(typeof bundle.output_tokens === "number"
                     ? { output_tokens: bundle.output_tokens }
                     : {}),
+                  ...(typeof bundle.cache_read_input_tokens === "number"
+                    ? { cache_read_input_tokens: bundle.cache_read_input_tokens }
+                    : {}),
+                  ...(typeof bundle.cache_creation_input_tokens === "number"
+                    ? { cache_creation_input_tokens: bundle.cache_creation_input_tokens }
+                    : {}),
                   max_context_window_tokens: bundle.max_context_window_tokens,
                   chatId: targetChatId,
                 });
