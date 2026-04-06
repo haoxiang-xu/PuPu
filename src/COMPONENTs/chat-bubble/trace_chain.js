@@ -527,6 +527,10 @@ const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }
   const hasCacheRead = typeof cacheRead === "number" && cacheRead > 0;
   const hasCacheCreation = typeof cacheCreation === "number" && cacheCreation > 0;
   const hasCache = hasCacheRead || hasCacheCreation;
+  const totalInput = (typeof input === "number" ? input : 0)
+    + (hasCacheRead ? cacheRead : 0)
+    + (hasCacheCreation ? cacheCreation : 0);
+  const displayInput = hasCache ? totalInput : input;
   return (
     <span
       style={{
@@ -537,7 +541,7 @@ const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }
         letterSpacing: "0.01em",
       }}
     >
-      {fmt(input)} in
+      {fmt(displayInput)} in
       {hasCache && (
         <span style={{ color: cacheColor }}>
           {" ("}
@@ -1332,8 +1336,8 @@ const TraceChain = ({
               ? "rgba(255,255,255,0.6)"
               : "rgba(0,0,0,0.52)";
 
-          toolPointEl = isResolved ? <HammerPoint isDark={isDark} /> : "loading";
-          toolStatus = isResolved ? "done" : "active";
+          toolPointEl = <HammerPoint isDark={isDark} />;
+          toolStatus = "done";
 
           interactBody = (
             <div

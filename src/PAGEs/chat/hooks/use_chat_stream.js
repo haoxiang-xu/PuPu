@@ -1373,6 +1373,13 @@ export const useChatStream = ({
           },
           {
             onFrame: (frame) => {
+              /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
+                 writes to activeStreamMessagesRef but cannot update the closure variable). */
+              const _refMsgs = activeStreamMessagesRef.current?.messages;
+              if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
+                streamMessages = _refMsgs;
+              }
+
               if (!frame) return;
               if (frame.type === "token_delta") {
                 lastTokenRunIdRef.current =
@@ -2075,6 +2082,12 @@ export const useChatStream = ({
               thinkTagParser.feed(delta);
             },
             onDone: (done) => {
+              /* Sync closure with external updates before building final messages. */
+              const _refMsgs = activeStreamMessagesRef.current?.messages;
+              if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
+                streamMessages = _refMsgs;
+              }
+
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               const doneTime = Date.now();
