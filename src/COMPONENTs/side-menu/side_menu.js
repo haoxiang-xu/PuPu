@@ -23,8 +23,22 @@ import {
 import { sideMenuChatTreeAPI } from "./side_menu_api";
 import { getRuntimePlatform } from "./side_menu_utils";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
+import { useChatTreeStore } from "./hooks/use_chat_tree_store";
+import { useSideMenuActions } from "./hooks/use_side_menu_actions";
+import { useCharacterAvailability } from "./hooks/use_character_availability";
+import { filter_explorer_data } from "./utils/filter_explorer_data";
+import {
+  exportChat,
+  exportFolder,
+  importFromFile,
+  importFromDroppedFile,
+} from "../../SERVICEs/chat_export";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../SERVICEs/feature_flags";
 
-/* Lazy-loaded modals — only fetched when first opened */
+/* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const SettingsModal = lazy(() =>
   import("../settings/settings_modal").then((m) => ({ default: m.SettingsModal })),
 );
@@ -42,20 +56,7 @@ const MemoryInspectModal = lazy(() =>
     default: m.MemoryInspectModal,
   })),
 );
-import { useChatTreeStore } from "./hooks/use_chat_tree_store";
-import { useSideMenuActions } from "./hooks/use_side_menu_actions";
-import { useCharacterAvailability } from "./hooks/use_character_availability";
-import { filter_explorer_data } from "./utils/filter_explorer_data";
-import {
-  exportChat,
-  exportFolder,
-  importFromFile,
-  importFromDroppedFile,
-} from "../../SERVICEs/chat_export";
-import {
-  readFeatureFlags,
-  subscribeFeatureFlags,
-} from "../../SERVICEs/feature_flags";
+/* eslint-enable import/first */
 
 export { sideMenuChatTreeAPI };
 
