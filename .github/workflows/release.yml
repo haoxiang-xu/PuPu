@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "SemVer without v prefix (e.g. 1.2.3)"
+        required: true
+
+env:
+  PUPU_BUILD_VERSION: ${{ github.event.inputs.version || github.ref_name }}
+
+jobs:
+
+  # ── Phase 1: Linux x86_64 (Docker container) ───────────────
+  build-linux-x64:
+    name: Build Linux x86_64
+    runs-on: ubuntu-latest
+    # Runs inside an Ubuntu 24.04 container for reproducibility.
+    # To use a pre-built GHCR image instead, replace with:
+    #   image: ghcr.io/${{ github.repository_owner }}/pupu-build-linux:latest
+    container:
+      image: ubuntu:24.04
+    steps:
+      - name: Install build tools
+        run: |
+          apt-get update && apt-get install -y --no-install-recommends \
+            python3.12 python3.12-venv python3.12-dev python3-pip \
+            curl ca-certificates git \
+            libgtk-3-0t64 libnotify4 libnss3 libxss1 libxtst6 xauth xvfb \
+            fakeroot dpkg binutils
+          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+          apt-get install -y --no-install-recommends nodejs
+          node --version && python3.12 --version
+
+      - name: Checkout unchain
+        uses: actions/checkout@v4
+        with:
+          repository: haoxiang-xu/unchain
+          ref: dev
+          path: unchain
+
+      - name: Checkout PuPu
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: PuPu
+
+      - name: Resolve version
+        run: |
+          RAW="${PUPU_BUILD_VERSION}"
+          VERSION="${RAW#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Building version: $VERSION"
+
+      - name: Install Node dependencies
+        working-directory: PuPu
+        run: npm ci
+
+      - name: Prepare build version
+        working-directory: PuPu
+        env:
+          PUPU_BUILD_VERSION: ${{ env.VERSION }}
+        run: node scripts/prepare-build-version.cjs
+
+      - name: Build unchain-server (PyInstaller)
+        working-directory: PuPu
+        run: bash unchain_runtime/scripts/build_unchain_server.sh linux
+
+      - name: Build React frontend
+        working-directory: PuPu
+        env:
+          PUPU_VERSION_PREPARED: "1"
+        run: node scripts/build-web.cjs
+
+      - name: Package with electron-builder (Linux x64)
+        working-directory: PuPu
+        env:
+          PUPU_VERSION_PREPARED: "1"
+        run: npx electron-builder --linux --x64
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64
+          path: |
+            PuPu/dist/*.AppImage
+            PuPu/dist/*.deb
+
+  # ── Publish GitHub Release ──────────────────────────────────
+  release:
+    name: Publish GitHub Release
+    needs:
+      - build-linux-x64
+      # Future phases: add build-linux-arm64, build-windows-x64, build-windows-arm64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Resolve version
+        run: |
+          RAW="${PUPU_BUILD_VERSION}"
+          VERSION="${RAW#v}"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release (draft)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.VERSION }}
+          name: PuPu v${{ env.VERSION }}
+          draft: true
+          generate_release_notes: true
+          files: release-artifacts/**/*
