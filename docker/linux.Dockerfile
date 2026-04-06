@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl ca-certificates git \
     # electron-builder: AppImage + deb packaging
     libgtk-3-0t64 libnotify4 libnss3 libxss1 libxtst6 xauth xvfb \
-    fakeroot dpkg binutils \
+    fakeroot dpkg binutils xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Node.js 20 LTS via NodeSource

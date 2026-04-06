@@ -31,7 +31,7 @@ jobs:
             python3.12 python3.12-venv python3.12-dev python3-pip \
             curl ca-certificates git \
             libgtk-3-0t64 libnotify4 libnss3 libxss1 libxtst6 xauth xvfb \
-            fakeroot dpkg binutils
+            fakeroot dpkg binutils xz-utils
           curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
           apt-get install -y --no-install-recommends nodejs
           node --version && python3.12 --version
