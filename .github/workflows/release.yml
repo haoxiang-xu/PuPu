@@ -1,7 +1,9 @@
 name: Release
 
 on:
-  push:              # TODO: remove after pipeline is tested
+  push:
+    tags:
+      - "v*.*.*"
   workflow_dispatch:
     inputs:
       version:
