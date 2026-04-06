@@ -18,6 +18,13 @@ import {
 } from "./chat_storage_constants";
 import { sanitizeSystemPromptSections } from "../system_prompt_sections";
 
+export const DEFAULT_CHAT_KIND = "default";
+export const CHARACTER_CHAT_KIND = "character";
+export const DEFAULT_CHARACTER_THREAD_ID = "main";
+export const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({
+  mode: "default",
+});
+
 export const isValidTimestamp = (value) =>
   Number.isFinite(Number(value)) && Number(value) > 0;
 
@@ -213,24 +220,52 @@ export const sanitizeModel = (model) => {
   return cleaned;
 };
 
+export const sanitizeAgentOrchestration = (agentOrchestration) => {
+  if (!isObject(agentOrchestration)) {
+    return { ...DEFAULT_AGENT_ORCHESTRATION };
+  }
+
+  const mode =
+    typeof agentOrchestration.mode === "string" &&
+    ["default", "developer_waiting_approval"].includes(
+      agentOrchestration.mode.trim(),
+    )
+      ? agentOrchestration.mode.trim()
+      : DEFAULT_AGENT_ORCHESTRATION.mode;
+
+  return { mode };
+};
+
 const TOOLKIT_ID_ALIASES = Object.freeze({
-  workspace: "WorkspaceToolkit",
-  workspace_toolkit: "WorkspaceToolkit",
-  access_workspace_toolkit: "WorkspaceToolkit",
-  workspacetoolkit: "WorkspaceToolkit",
-  terminal: "TerminalToolkit",
-  terminal_toolkit: "TerminalToolkit",
-  run_terminal_toolkit: "TerminalToolkit",
-  terminaltoolkit: "TerminalToolkit",
-  external_api: "ExternalAPIToolkit",
-  external_api_toolkit: "ExternalAPIToolkit",
-  externalapitoolkit: "ExternalAPIToolkit",
-  ask_user: "AskUserToolkit",
-  ask_user_toolkit: "AskUserToolkit",
-  "ask-user-toolkit": "AskUserToolkit",
-  interaction_toolkit: "AskUserToolkit",
-  "interaction-toolkit": "AskUserToolkit",
-  askusertoolkit: "AskUserToolkit",
+  workspace: "workspace_toolkit",
+  workspace_toolkit: "workspace_toolkit",
+  access_workspace_toolkit: "workspace_toolkit",
+  workspacetoolkit: "workspace_toolkit",
+  WorkspaceToolkit: "workspace_toolkit",
+  terminal: "terminal_toolkit",
+  terminal_toolkit: "terminal_toolkit",
+  run_terminal_toolkit: "terminal_toolkit",
+  terminaltoolkit: "terminal_toolkit",
+  TerminalToolkit: "terminal_toolkit",
+  core: "core",
+  core_toolkit: "core",
+  coretoolkit: "core",
+  CoreToolkit: "core",
+  code: "core",
+  code_toolkit: "core",
+  codetoolkit: "core",
+  CodeToolkit: "core",
+  ask_user: "core",
+  ask_user_toolkit: "core",
+  "ask-user-toolkit": "core",
+  interaction_toolkit: "core",
+  "interaction-toolkit": "core",
+  askusertoolkit: "core",
+  AskUserToolkit: "core",
+  external_api: "external_api",
+  external_api_toolkit: "external_api",
+  externalapitoolkit: "external_api",
+  ExternalAPIToolkit: "external_api",
 });
 
 const REMOVED_TOOLKIT_IDS = new Set(["mcp", "mcptoolkit"]);
@@ -285,6 +320,170 @@ export const sanitizeSystemPromptOverrides = (value) =>
     keepEmptyStrings: false,
   });
 
+export const sanitizeChatKind = (value) =>
+  value === CHARACTER_CHAT_KIND ? CHARACTER_CHAT_KIND : DEFAULT_CHAT_KIND;
+
+export const sanitizeCharacterId = (value) =>
+  typeof value === "string" && value.trim()
+    ? trimText(value.trim(), 200)
+    : "";
+
+export const sanitizeCharacterSessionKeyComponent = (
+  value,
+  fallback = "default",
+) => {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return normalized || fallback;
+};
+
+export const buildCharacterMemorySessionId = (characterId, threadId = "main") =>
+  `character_${sanitizeCharacterSessionKeyComponent(characterId, "character")}__dm__${sanitizeCharacterSessionKeyComponent(threadId, "main")}`;
+
+export const sanitizeCharacterName = (value) =>
+  sanitizeLabel(value, "").slice(0, MAX_TITLE_CHARS);
+
+export const sanitizeCharacterAvatar = (value) => {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const cleaned = {};
+  const stringFields = [
+    "url",
+    "absolute_path",
+    "relative_path",
+    "data_url",
+    "mime_type",
+    "sha256",
+  ];
+  for (const field of stringFields) {
+    if (typeof value[field] !== "string" || !value[field].trim()) {
+      continue;
+    }
+    cleaned[field] = trimText(value[field].trim(), 4000);
+  }
+
+  return Object.keys(cleaned).length > 0 ? cleaned : null;
+};
+
+export const isCharacterChatSession = (chat) =>
+  sanitizeChatKind(chat?.kind) === CHARACTER_CHAT_KIND &&
+  Boolean(sanitizeCharacterId(chat?.characterId));
+
+const sanitizeTraceFrame = (frame) => {
+  if (!isObject(frame)) return null;
+  const cleanedFrame = {
+    seq: Number.isFinite(Number(frame.seq)) ? Number(frame.seq) : 0,
+    ts: Number.isFinite(Number(frame.ts)) ? Number(frame.ts) : 0,
+    run_id: typeof frame.run_id === "string" ? frame.run_id : "",
+    type: trimText(String(frame.type || ""), 64),
+  };
+  if (Number.isFinite(Number(frame.iteration))) {
+    cleanedFrame.iteration = Number(frame.iteration);
+  }
+  if (isObject(frame.payload)) {
+    const payload = clone(frame.payload);
+    if (payload) {
+      if (typeof payload.content === "string") {
+        payload.content = trimText(payload.content, 8000);
+      }
+      if (typeof payload.text === "string") {
+        payload.text = trimText(payload.text, 8000);
+      }
+      if (typeof payload.message === "string") {
+        payload.message = trimText(payload.message, 2000);
+      }
+      if (typeof payload.reasoning === "string") {
+        payload.reasoning = trimText(payload.reasoning, 8000);
+      }
+      if (typeof payload.observation === "string") {
+        payload.observation = trimText(payload.observation, 8000);
+      }
+      if (typeof payload.result === "string") {
+        payload.result = trimText(payload.result, 8000);
+      }
+      if (typeof payload.delta === "string") {
+        payload.delta = trimText(payload.delta, 2000);
+      }
+      cleanedFrame.payload = payload;
+    }
+  }
+  return cleanedFrame;
+};
+
+const sanitizeTraceFrames = (frames) => {
+  if (!Array.isArray(frames) || frames.length === 0) {
+    return [];
+  }
+  return frames.map((frame) => sanitizeTraceFrame(frame)).filter(Boolean);
+};
+
+const sanitizeSubagentMeta = (meta) => {
+  if (!isObject(meta)) {
+    return null;
+  }
+  const cleanedMeta = {
+    subagentId:
+      typeof meta.subagentId === "string" ? trimText(meta.subagentId, 300) : "",
+    mode: typeof meta.mode === "string" ? trimText(meta.mode, 50) : "",
+    template: typeof meta.template === "string" ? trimText(meta.template, 200) : "",
+    batchId: typeof meta.batchId === "string" ? trimText(meta.batchId, 200) : "",
+    parentId: typeof meta.parentId === "string" ? trimText(meta.parentId, 300) : "",
+    lineage: Array.isArray(meta.lineage)
+      ? meta.lineage
+          .filter((item) => typeof item === "string" && item.trim())
+          .map((item) => trimText(item, 300))
+      : [],
+    status: typeof meta.status === "string" ? trimText(meta.status, 100) : "",
+  };
+  return cleanedMeta;
+};
+
+const sanitizeSubagentFramesByRunId = (value) => {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  const cleanedEntries = Object.entries(value)
+    .map(([runId, frames]) => {
+      const cleanedRunId =
+        typeof runId === "string" ? trimText(runId, 300).trim() : "";
+      if (!cleanedRunId || !Array.isArray(frames)) {
+        return null;
+      }
+      return [cleanedRunId, sanitizeTraceFrames(frames)];
+    })
+    .filter(Boolean);
+  if (cleanedEntries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(cleanedEntries);
+};
+
+const sanitizeSubagentMetaByRunId = (value) => {
+  if (!isObject(value)) {
+    return undefined;
+  }
+  const cleanedEntries = Object.entries(value)
+    .map(([runId, meta]) => {
+      const cleanedRunId =
+        typeof runId === "string" ? trimText(runId, 300).trim() : "";
+      const cleanedMeta = sanitizeSubagentMeta(meta);
+      if (!cleanedRunId || !cleanedMeta) {
+        return null;
+      }
+      return [cleanedRunId, cleanedMeta];
+    })
+    .filter(Boolean);
+  if (cleanedEntries.length === 0) {
+    return undefined;
+  }
+  return Object.fromEntries(cleanedEntries);
+};
+
 export const sanitizeMessage = (message) => {
   if (!isObject(message)) {
     return null;
@@ -320,45 +519,23 @@ export const sanitizeMessage = (message) => {
       ? message.status
       : "done";
 
-    if (Array.isArray(message.traceFrames) && message.traceFrames.length > 0) {
-      cleaned.traceFrames = message.traceFrames
-        .map((frame) => {
-          if (!isObject(frame)) return null;
-          const f = {
-            seq: Number.isFinite(Number(frame.seq)) ? Number(frame.seq) : 0,
-            ts: Number.isFinite(Number(frame.ts)) ? Number(frame.ts) : 0,
-            type: trimText(String(frame.type || ""), 64),
-            stage: trimText(String(frame.stage || ""), 64),
-          };
-          if (Number.isFinite(Number(frame.iteration))) {
-            f.iteration = Number(frame.iteration);
-          }
-          if (isObject(frame.payload)) {
-            const p = clone(frame.payload);
-            if (p) {
-              if (typeof p.content === "string")
-                p.content = trimText(p.content, 8000);
-              if (typeof p.text === "string") p.text = trimText(p.text, 8000);
-              if (typeof p.message === "string")
-                p.message = trimText(p.message, 2000);
-              if (typeof p.reasoning === "string")
-                p.reasoning = trimText(p.reasoning, 8000);
-              if (typeof p.observation === "string")
-                p.observation = trimText(p.observation, 8000);
-              if (typeof p.result === "string")
-                p.result = trimText(p.result, 8000);
-              if (typeof p.delta === "string")
-                p.delta = trimText(p.delta, 2000);
-              f.payload = p;
-            }
-          }
-          return f;
-        })
-        .filter(Boolean);
+    const cleanedTraceFrames = sanitizeTraceFrames(message.traceFrames);
+    if (cleanedTraceFrames.length > 0) {
+      cleaned.traceFrames = cleanedTraceFrames;
+    }
 
-      if (cleaned.traceFrames.length === 0) {
-        delete cleaned.traceFrames;
-      }
+    const cleanedSubagentFrames = sanitizeSubagentFramesByRunId(
+      message.subagentFrames,
+    );
+    if (cleanedSubagentFrames) {
+      cleaned.subagentFrames = cleanedSubagentFrames;
+    }
+
+    const cleanedSubagentMeta = sanitizeSubagentMetaByRunId(
+      message.subagentMetaByRunId,
+    );
+    if (cleanedSubagentMeta) {
+      cleaned.subagentMetaByRunId = cleanedSubagentMeta;
     }
   }
 
@@ -391,6 +568,18 @@ export const sanitizeMessage = (message) => {
           2000,
         ),
       };
+    }
+
+    if (isObject(message.meta.bundle)) {
+      const b = message.meta.bundle;
+      const bundle = {};
+      if (typeof b.consumed_tokens === "number") bundle.consumed_tokens = b.consumed_tokens;
+      if (typeof b.input_tokens === "number") bundle.input_tokens = b.input_tokens;
+      if (typeof b.output_tokens === "number") bundle.output_tokens = b.output_tokens;
+      if (typeof b.cache_read_input_tokens === "number") bundle.cache_read_input_tokens = b.cache_read_input_tokens;
+      if (typeof b.cache_creation_input_tokens === "number") bundle.cache_creation_input_tokens = b.cache_creation_input_tokens;
+      if (typeof b.model === "string" && b.model.trim()) bundle.model = trimText(b.model, 200);
+      if (Object.keys(bundle).length > 0) meta.bundle = bundle;
     }
 
     if (Object.keys(meta).length > 0) {
@@ -437,6 +626,7 @@ export const computeChatStats = (chat) => ({
   approxBytes: estimateBytes({
     threadId: chat.threadId,
     model: chat.model,
+    agentOrchestration: chat.agentOrchestration,
     selectedToolkits: chat.selectedToolkits,
     systemPromptOverrides: chat.systemPromptOverrides,
     draft: chat.draft,
@@ -465,6 +655,19 @@ export const sanitizeChatSession = (chat, fallbackId) => {
   const title =
     sanitizeLabel(chat?.title, "") ||
     deriveChatTitle(messages, DEFAULT_CHAT_TITLE);
+  const kind = sanitizeChatKind(chat?.kind);
+  const characterId =
+    kind === CHARACTER_CHAT_KIND ? sanitizeCharacterId(chat?.characterId) : "";
+  const characterName =
+    kind === CHARACTER_CHAT_KIND
+      ? sanitizeCharacterName(chat?.characterName || title)
+      : "";
+  const characterAvatar =
+    kind === CHARACTER_CHAT_KIND
+      ? sanitizeCharacterAvatar(chat?.characterAvatar)
+      : null;
+  const resolvedTitle =
+    kind === CHARACTER_CHAT_KIND && characterName ? characterName : title;
 
   const cleaned = {
     id:
@@ -473,7 +676,8 @@ export const sanitizeChatSession = (chat, fallbackId) => {
         : typeof fallbackId === "string" && fallbackId.trim()
           ? fallbackId
           : generateChatId(),
-    title,
+    kind,
+    title: resolvedTitle,
     createdAt,
     updatedAt,
     lastMessageAt: computeLastMessageAt(messages, chat?.lastMessageAt),
@@ -482,6 +686,7 @@ export const sanitizeChatSession = (chat, fallbackId) => {
         ? trimText(chat.threadId, 200)
         : null,
     model: sanitizeModel(chat?.model),
+    agentOrchestration: sanitizeAgentOrchestration(chat?.agentOrchestration),
     selectedToolkits: sanitizeSelectedToolkits(chat?.selectedToolkits),
     selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
       chat?.selectedWorkspaceIds,
@@ -499,27 +704,48 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     },
   };
 
+  if (kind === CHARACTER_CHAT_KIND) {
+    cleaned.characterId = characterId;
+    cleaned.characterName = characterName || resolvedTitle;
+    cleaned.characterAvatar = characterAvatar;
+    cleaned.agentOrchestration = { ...DEFAULT_AGENT_ORCHESTRATION };
+    cleaned.selectedToolkits = [];
+    cleaned.selectedWorkspaceIds = [];
+    cleaned.systemPromptOverrides = {};
+    cleaned.isTransientNewChat = false;
+    cleaned.threadId =
+      typeof chat?.threadId === "string" && chat.threadId.trim()
+        ? trimText(chat.threadId, 200)
+        : DEFAULT_CHARACTER_THREAD_ID;
+  }
+
   cleaned.stats = computeChatStats(cleaned);
   return cleaned;
 };
 
 export const createChatSession = (overrides = {}) => {
   const seed = now();
-  const toolkits =
-    Array.isArray(overrides.selectedToolkits) &&
-    overrides.selectedToolkits.length > 0
-      ? overrides.selectedToolkits
-      : getDefaultToolkitSelection("global");
+  const hasExplicitToolkits = Array.isArray(overrides.selectedToolkits);
+  const toolkits = hasExplicitToolkits
+    ? overrides.selectedToolkits
+    : getDefaultToolkitSelection("global");
 
   return sanitizeChatSession(
     {
       id: overrides.id || generateChatId(),
       title: overrides.title || DEFAULT_CHAT_TITLE,
+      kind: overrides.kind,
+      characterId: overrides.characterId,
+      characterName: overrides.characterName,
+      characterAvatar: overrides.characterAvatar,
       createdAt: seed,
       updatedAt: seed,
       lastMessageAt: null,
       threadId: overrides.threadId || null,
       model: overrides.model || { id: DEFAULT_MODEL_ID },
+      agentOrchestration: sanitizeAgentOrchestration(
+        overrides.agentOrchestration,
+      ),
       selectedToolkits: sanitizeSelectedToolkits(toolkits),
       selectedWorkspaceIds: sanitizeSelectedWorkspaceIds(
         overrides.selectedWorkspaceIds,

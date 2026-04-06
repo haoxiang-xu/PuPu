@@ -29,7 +29,7 @@ const useOpenAIEmbeddingModels = () => {
     setError(null);
 
     try {
-      const catalog = await api.miso.getModelCatalog();
+      const catalog = await api.unchain.getModelCatalog();
       const list = Array.isArray(catalog?.embeddingProviders?.openai)
         ? catalog.embeddingProviders.openai
         : [];

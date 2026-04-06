@@ -124,6 +124,8 @@ const FloatingTextField = ({
   /* Use a hidden measurement div to get the actual content height */
   const measureRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(minH);
+  const currentValueRef = useRef(currentValue);
+  currentValueRef.current = currentValue;
 
   const measure = useCallback(() => {
     if (!measureRef.current) return;
@@ -132,7 +134,7 @@ const FloatingTextField = ({
       ? taRef.current.clientWidth + "px"
       : "100%";
     measureRef.current.textContent =
-      currentValue + "\n"; /* trailing newline to account for last empty line */
+      currentValueRef.current + "\n"; /* trailing newline to account for last empty line */
     const raw = measureRef.current.scrollHeight;
     const clamped = Math.max(
       minH,
@@ -140,20 +142,24 @@ const FloatingTextField = ({
     );
     setContentHeight(clamped);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentValue, minH, maxH]);
+  }, [minH, maxH]);
 
+  const measureFnRef = useRef(measure);
+  measureFnRef.current = measure;
+
+  /* Re-measure when value or dimension constraints change */
   useEffect(() => {
     measure();
-  }, [measure]);
+  }, [currentValue, measure]);
 
-  /* Also re-measure on resize */
+  /* Re-measure on resize — observer created once, reads latest measure via ref */
   useEffect(() => {
     if (!taRef.current) return;
-    const ro = new ResizeObserver(() => measure());
+    const ro = new ResizeObserver(() => measureFnRef.current());
     ro.observe(taRef.current);
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [measure]);
+  }, []);
 
   const shouldScroll = maxH !== Infinity && contentHeight >= maxH;
 
@@ -432,13 +438,15 @@ const TextField = ({
 
   const measureRef = useRef(null);
   const [contentHeight, setContentHeight] = useState(minH);
+  const currentValueRef = useRef(currentValue);
+  currentValueRef.current = currentValue;
 
   const measure = useCallback(() => {
     if (!measureRef.current) return;
     measureRef.current.style.width = taRef.current?.clientWidth
       ? taRef.current.clientWidth + "px"
       : "100%";
-    measureRef.current.textContent = currentValue + "\n";
+    measureRef.current.textContent = currentValueRef.current + "\n";
     const raw = measureRef.current.scrollHeight;
     const clamped = Math.max(
       minH,
@@ -446,19 +454,24 @@ const TextField = ({
     );
     setContentHeight(clamped);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentValue, minH, maxH]);
+  }, [minH, maxH]);
 
+  const measureFnRef = useRef(measure);
+  measureFnRef.current = measure;
+
+  /* Re-measure when value or dimension constraints change */
   useEffect(() => {
     measure();
-  }, [measure]);
+  }, [currentValue, measure]);
 
+  /* Re-measure on resize — observer created once, reads latest measure via ref */
   useEffect(() => {
     if (!taRef.current) return;
-    const ro = new ResizeObserver(() => measure());
+    const ro = new ResizeObserver(() => measureFnRef.current());
     ro.observe(taRef.current);
     return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [measure]);
+  }, []);
 
   const shouldScroll = maxH !== Infinity && contentHeight >= maxH;
 

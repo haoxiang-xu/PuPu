@@ -1,4 +1,4 @@
-import { useContext, useRef, useState, useCallback } from "react";
+import { memo, useContext, useRef, useState, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
@@ -22,13 +22,16 @@ const ChatInput = ({
   selectedModelId,
   onSelectModel,
   modelSelectDisabled = false,
+  showModelSelector = true,
   attachments = [],
   onRemoveAttachment,
   attachmentsEnabled = true,
   attachmentsDisabledReason = "",
   onDropFiles = null,
+  showToolSelector = true,
   selectedToolkits = [],
   onToolkitsChange,
+  showWorkspaceSelector = true,
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
 }) => {
@@ -151,6 +154,7 @@ const ChatInput = ({
                   onAttachFile={onAttachFile}
                   onAttachLink={onAttachLink}
                   modelOptions={modelOptions}
+                  showModelSelector={showModelSelector}
                   selectedModelId={selectedModelId}
                   onSelectModel={onSelectModel}
                   onGroupToggle={handleGroupToggle}
@@ -161,8 +165,10 @@ const ChatInput = ({
                   attachments={attachments}
                   onRemoveAttachment={onRemoveAttachment}
                   isStreaming={isStreaming}
+                  showToolSelector={showToolSelector}
                   selectedToolkits={selectedToolkits}
                   onToolkitsChange={onToolkitsChange}
+                  showWorkspaceSelector={showWorkspaceSelector}
                   selectedWorkspaceIds={selectedWorkspaceIds}
                   onWorkspaceIdsChange={onWorkspaceIdsChange}
                 />
@@ -206,4 +212,4 @@ const ChatInput = ({
   );
 };
 
-export default ChatInput;
+export default memo(ChatInput);

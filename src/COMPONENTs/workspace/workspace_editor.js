@@ -9,7 +9,7 @@ import {
   makeWorkspaceId,
   validateWorkspaceRoot,
 } from "../settings/runtime";
-import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 
 /* ── Theme colours ───────────────────────────────────────────────────────── */
 
@@ -456,59 +456,35 @@ const WorkspacesSection = ({ isDark }) => {
                 borderBottom: `1px solid ${c.border}`,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontFamily: "Jost, sans-serif",
-                    color: c.muted,
-                    flexShrink: 0,
-                    minWidth: 36,
-                  }}
-                >
-                  Name
-                </span>
-                <Input
-                  value={editDraft.name}
-                  placeholder={"This is optional, for your reference only."}
-                  set_value={(v) => setEditDraft((d) => ({ ...d, name: v }))}
-                  style={{ flex: 1, fontSize: 13, height: 34 }}
-                />
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span
-                  style={{
-                    fontSize: 13,
-                    fontFamily: "Jost, sans-serif",
-                    color: c.muted,
-                    flexShrink: 0,
-                    minWidth: 36,
-                  }}
-                >
-                  Path to workspace
-                </span>
-                <Input
-                  value={editDraft.path}
-                  set_value={(v) => setEditDraft((d) => ({ ...d, path: v }))}
-                  postfix_component={
-                    browseSupported ? (
-                      <Button
-                        label="Browse"
-                        onClick={handleBrowse}
-                        disabled={isSaving}
-                        style={{
-                          paddingVertical: 2,
-                          paddingHorizontal: 8,
-                          borderRadius: 4,
-                          fontSize: 13,
-                          hoverBackgroundColor: c.hoverBg,
-                        }}
-                      />
-                    ) : null
-                  }
-                  style={{ flex: 1, fontSize: 13, height: 34 }}
-                />
-              </div>
+              <Input
+                value={editDraft.name}
+                placeholder="Name (optional)"
+                set_value={(v) => setEditDraft((d) => ({ ...d, name: v }))}
+                style={{ flex: 1, fontSize: 13, height: 34 }}
+              />
+              <Input
+                value={editDraft.path}
+                placeholder="/path/to/workspace"
+                set_value={(v) => setEditDraft((d) => ({ ...d, path: v }))}
+                postfix_component={
+                  browseSupported ? (
+                    <Button
+                      label="Browse"
+                      onClick={handleBrowse}
+                      disabled={isSaving}
+                      style={{
+                        paddingVertical: 2,
+                        paddingHorizontal: 8,
+                        borderRadius: 4,
+                        fontSize: 12,
+                        opacity: 0.5,
+                        hoverBackgroundColor: c.hoverBg,
+                      }}
+                    />
+                  ) : null
+                }
+                style={{ flex: 1, fontSize: 13, height: 34 }}
+              />
               {editError && (
                 <div
                   style={{
@@ -537,7 +513,7 @@ const WorkspacesSection = ({ isDark }) => {
                     paddingHorizontal: 12,
                     borderRadius: 6,
                     opacity: 0.5,
-                    fontSize: 13,
+                    fontSize: 12,
                     hoverBackgroundColor: c.hoverBg,
                   }}
                 />
@@ -549,7 +525,7 @@ const WorkspacesSection = ({ isDark }) => {
                     paddingVertical: 4,
                     paddingHorizontal: 12,
                     borderRadius: 6,
-                    fontSize: 13,
+                    fontSize: 12,
                     hoverBackgroundColor: c.hoverBg,
                   }}
                 />

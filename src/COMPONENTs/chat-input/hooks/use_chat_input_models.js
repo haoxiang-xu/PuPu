@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../../SERVICEs/api";
 import { build_model_options } from "../utils/build_model_options";
 import { MODEL_GROUPS, MODEL_PROVIDER_PREFIXES } from "../constants";
+import { readModelProviders } from "../../settings/model_providers/storage";
+import { subscribeModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
 
 const get_group_of_model = (modelId) => {
   if (!modelId) return null;
@@ -19,10 +21,21 @@ const make_initial_collapsed = (selectedModelId) => {
   );
 };
 
+const read_configured_providers = () => {
+  const stored = readModelProviders() || {};
+  return {
+    hasOpenAI: !!stored.openai_api_key,
+    hasAnthropic: !!stored.anthropic_api_key,
+  };
+};
+
 export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
   const [liveOllamaModels, setLiveOllamaModels] = useState([]);
   const [collapsedGroups, setCollapsedGroups] = useState(
     () => make_initial_collapsed(selected_model_id),
+  );
+  const [configuredProviders, setConfiguredProviders] = useState(
+    read_configured_providers,
   );
 
   const ollamaProviderModels = model_catalog?.providers?.ollama;
@@ -45,6 +58,12 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
     };
   }, []);
 
+  useEffect(() => {
+    return subscribeModelCatalogRefresh(() => {
+      setConfiguredProviders(read_configured_providers());
+    });
+  }, []);
+
   const handleGroupToggle = useCallback((groupName) => {
     setCollapsedGroups((previous) => ({
       ...previous,
@@ -58,8 +77,10 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
         live_ollama_models: liveOllamaModels,
         providers: {
           ollama: ollamaProviderModels,
-          openai: openaiProviderModels,
-          anthropic: anthropicProviderModels,
+          openai: configuredProviders.hasOpenAI ? openaiProviderModels : [],
+          anthropic: configuredProviders.hasAnthropic
+            ? anthropicProviderModels
+            : [],
         },
         collapsed_groups: collapsedGroups,
       }),
@@ -69,6 +90,7 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
       openaiProviderModels,
       anthropicProviderModels,
       collapsedGroups,
+      configuredProviders,
     ],
   );
 

@@ -78,6 +78,18 @@ const ts = () => {
   ].join(":");
 };
 
+/* ── Module-specific palettes ─────────────────────────────────────────────── */
+/*  Optional overrides so certain modules get a distinct colour family.
+ *  Structure mirrors LEVEL_PALETTE: { log: [...], warn: [...], ... }         */
+const MODULE_PALETTE = Object.freeze({
+  CHARACTER: Object.freeze({
+    log: [SOL.base02, SOL.magenta, SOL.violet, SOL.base01],
+    warn: [SOL.base02, SOL.yellow, SOL.orange, SOL.base01],
+    error: [SOL.base02, SOL.red, SOL.magenta, SOL.base01],
+    debug: [SOL.base02, SOL.violet, SOL.magenta, SOL.base01],
+  }),
+});
+
 /* ── Core builder ──────────────────────────────────────────────────────────── */
 /**
  * Build the `%c`-interpolated format string + css arguments for one log line.
@@ -86,10 +98,11 @@ const ts = () => {
  * @param {string}  moduleName   e.g. "MISO"
  * @param {string}  action       e.g. "stream"
  * @param {string}  filePath     e.g. "src/PAGEs/chat/chat.js"
+ * @param {object}  [palette]    Optional per-module LEVEL_PALETTE override
  * @returns {string[]}  [formatString, ...cssArgs]
  */
-const buildBadge = (level, moduleName, action, filePath) => {
-  const bgs = LEVEL_PALETTE[level] ?? LEVEL_PALETTE.log;
+const buildBadge = (level, moduleName, action, filePath, palette) => {
+  const bgs = (palette ?? LEVEL_PALETTE)[level] ?? LEVEL_PALETTE.log;
   const labels = [ts(), moduleName.toUpperCase(), action, filePath];
 
   let fmt = "";
@@ -116,13 +129,14 @@ const buildBadge = (level, moduleName, action, filePath) => {
  * @returns {{ log, warn, error, debug }}
  */
 export const createLogger = (moduleName, filePath = "") => {
+  const palette = MODULE_PALETTE[moduleName.toUpperCase()] || null;
   const make = (level) => {
     const nativeMethod = console[level] ?? console.log;
 
     return (action, ...rest) => {
       if (!_enabled) return;
 
-      const [fmt, ...cssArgs] = buildBadge(level, moduleName, action, filePath);
+      const [fmt, ...cssArgs] = buildBadge(level, moduleName, action, filePath, palette);
 
       if (rest.length === 0) {
         nativeMethod(fmt, ...cssArgs);

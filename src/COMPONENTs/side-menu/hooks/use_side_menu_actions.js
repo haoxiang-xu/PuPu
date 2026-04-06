@@ -40,6 +40,14 @@ export const useSideMenuActions = ({
 
   const handleStartRename = useCallback(
     (storeNode) => {
+      const targetChat =
+        storeNode?.chatId && chatStore?.chatsById?.[storeNode.chatId]
+          ? chatStore.chatsById[storeNode.chatId]
+          : null;
+      if (targetChat?.kind === "character") {
+        closeContextMenu();
+        return;
+      }
       const label =
         chatStore?.chatsById?.[storeNode.chatId]?.title ||
         storeNode.label ||

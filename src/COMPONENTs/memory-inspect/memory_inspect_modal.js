@@ -11,7 +11,7 @@ import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
-import { createMisoApi } from "../../SERVICEs/api.miso";
+import { createUnchainApi } from "../../SERVICEs/api.unchain";
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
 
 /* { Input components } ------------------------------------------------------------------------------------------------------- */
@@ -20,7 +20,7 @@ import { Slider } from "../../BUILTIN_COMPONENTs/input/slider";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 /* { Input components } ------------------------------------------------------------------------------------------------------- */
 
-const misoApi = createMisoApi();
+const unchainApi = createUnchainApi();
 
 const renderConversationText = (value, depth = 0) => {
   if (depth >= 8 || value == null) {
@@ -365,8 +365,8 @@ const MemoryInspectModal = ({
 
       const fetchPromise =
         mode === "long_term"
-          ? misoApi.getLongTermMemoryProjection()
-          : misoApi.getMemoryProjection(sessionId);
+          ? unchainApi.getLongTermMemoryProjection()
+          : unchainApi.getMemoryProjection(sessionId);
       fetchPromise
         .then((data) => {
           if (cancelled) return;

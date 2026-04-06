@@ -5,6 +5,7 @@ describe("filter_toolkits", () => {
     const result = filter_toolkits(
       [
         { toolkitId: "builtin_toolkit", source: "builtin", hidden: false },
+        { toolkitId: "core", source: "core", hidden: false },
         { toolkitId: "workspace_toolkit", source: "builtin", hidden: false },
         { toolkitId: "custom_toolkit", source: "local", hidden: false },
         { toolkitId: "plugin_toolkit", source: "plugin", hidden: false },
@@ -14,6 +15,7 @@ describe("filter_toolkits", () => {
     );
 
     expect(result).toEqual([
+      { toolkitId: "core", source: "core", hidden: false },
       { toolkitId: "workspace_toolkit", source: "builtin", hidden: false },
       { toolkitId: "custom_toolkit", source: "local", hidden: false },
     ]);

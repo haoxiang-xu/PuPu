@@ -9,7 +9,7 @@ export const MAX_TITLE_CHARS = 120;
 export const MAX_TOOLKIT_ID_CHARS = 200;
 export const MAX_SELECTED_TOOLKITS = 50;
 
-export const DEFAULT_MODEL_ID = "miso-unset";
+export const DEFAULT_MODEL_ID = "unchain-unset";
 export const DEFAULT_CHAT_TITLE = "New Chat";
 export const DEFAULT_FOLDER_LABEL = "New Folder";
 

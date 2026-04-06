@@ -6,7 +6,7 @@ import useChatInputToolkits from "./use_chat_input_toolkits";
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
-    miso: {
+    unchain: {
       listToolModalCatalog: jest.fn(),
     },
   },
@@ -14,6 +14,20 @@ jest.mock("../../../SERVICEs/api", () => ({
 
 const TOOLKIT_PAYLOAD = {
   toolkits: [
+    {
+      toolkitId: "core",
+      toolkitName: "Core",
+      toolkitDescription: "Read, edit, shell, and ask the user questions",
+      source: "core",
+      hidden: false,
+      toolkitIcon: {
+        type: "builtin",
+        name: "tool",
+        color: "#ffffff",
+        backgroundColor: "#111827",
+      },
+      tools: [{ title: "Ask User", name: "ask_user_question" }],
+    },
     {
       toolkitId: "workspace_toolkit",
       toolkitName: "Workspace Files",
@@ -86,25 +100,25 @@ const readOptions = () =>
 
 describe("use_chat_input_toolkits", () => {
   beforeEach(() => {
-    api.miso.listToolModalCatalog.mockReset();
+    api.unchain.listToolModalCatalog.mockReset();
   });
 
   test("does not request toolkits on initial render", () => {
     render(<HookHarness />);
 
-    expect(api.miso.listToolModalCatalog).not.toHaveBeenCalled();
+    expect(api.unchain.listToolModalCatalog).not.toHaveBeenCalled();
     expect(readOptions()).toEqual([]);
     expect(screen.getByTestId("loading")).toHaveTextContent("false");
   });
 
   test("shows a loading placeholder until the first request resolves", async () => {
     const deferred = createDeferred();
-    api.miso.listToolModalCatalog.mockReturnValueOnce(deferred.promise);
+    api.unchain.listToolModalCatalog.mockReturnValueOnce(deferred.promise);
 
     render(<HookHarness />);
     fireEvent.click(screen.getByText("refresh"));
 
-    expect(api.miso.listToolModalCatalog).toHaveBeenCalledTimes(1);
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
     expect(readOptions()).toEqual([
       {
@@ -120,11 +134,19 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
-          value: "WorkspaceToolkit",
+          value: "core",
+          label: "Core",
+          description: "Read, edit, shell, and ask the user questions",
+          search:
+            "Core core Read, edit, shell, and ask the user questions Ask User",
+          hasIcon: true,
+        },
+        {
+          value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
           search:
-            "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+            "Workspace Files workspace_toolkit Read and write project files Read File Write File",
           hasIcon: true,
         },
       ]),
@@ -133,7 +155,7 @@ describe("use_chat_input_toolkits", () => {
   });
 
   test("shows a failure placeholder after an initial request error and retries on demand", async () => {
-    api.miso.listToolModalCatalog
+    api.unchain.listToolModalCatalog
       .mockRejectedValueOnce(new Error("offline"))
       .mockResolvedValueOnce(TOOLKIT_PAYLOAD);
 
@@ -154,7 +176,7 @@ describe("use_chat_input_toolkits", () => {
 
     fireEvent.click(screen.getByText("refresh"));
 
-    expect(api.miso.listToolModalCatalog).toHaveBeenCalledTimes(2);
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(2);
     expect(readOptions()).toEqual([
       {
         value: "__toolkits_loading__",
@@ -167,11 +189,19 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
-          value: "WorkspaceToolkit",
+          value: "core",
+          label: "Core",
+          description: "Read, edit, shell, and ask the user questions",
+          search:
+            "Core core Read, edit, shell, and ask the user questions Ask User",
+          hasIcon: true,
+        },
+        {
+          value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
           search:
-            "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+            "Workspace Files workspace_toolkit Read and write project files Read File Write File",
           hasIcon: true,
         },
       ]),
@@ -179,7 +209,7 @@ describe("use_chat_input_toolkits", () => {
   });
 
   test("keeps the previous successful toolkit options when a refresh fails", async () => {
-    api.miso.listToolModalCatalog
+    api.unchain.listToolModalCatalog
       .mockResolvedValueOnce(TOOLKIT_PAYLOAD)
       .mockRejectedValueOnce(new Error("timeout"));
 
@@ -189,11 +219,19 @@ describe("use_chat_input_toolkits", () => {
     await waitFor(() =>
       expect(readOptions()).toEqual([
         {
-          value: "WorkspaceToolkit",
+          value: "core",
+          label: "Core",
+          description: "Read, edit, shell, and ask the user questions",
+          search:
+            "Core core Read, edit, shell, and ask the user questions Ask User",
+          hasIcon: true,
+        },
+        {
+          value: "workspace_toolkit",
           label: "Workspace Files",
           description: "Read and write project files",
           search:
-            "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+            "Workspace Files workspace_toolkit Read and write project files Read File Write File",
           hasIcon: true,
         },
       ]),
@@ -201,15 +239,23 @@ describe("use_chat_input_toolkits", () => {
 
     fireEvent.click(screen.getByText("refresh"));
 
-    expect(api.miso.listToolModalCatalog).toHaveBeenCalledTimes(2);
+    expect(api.unchain.listToolModalCatalog).toHaveBeenCalledTimes(2);
     expect(screen.getByTestId("loading")).toHaveTextContent("true");
     expect(readOptions()).toEqual([
       {
-        value: "WorkspaceToolkit",
+        value: "core",
+        label: "Core",
+        description: "Read, edit, shell, and ask the user questions",
+        search:
+          "Core core Read, edit, shell, and ask the user questions Ask User",
+        hasIcon: true,
+      },
+      {
+        value: "workspace_toolkit",
         label: "Workspace Files",
         description: "Read and write project files",
         search:
-          "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+          "Workspace Files workspace_toolkit Read and write project files Read File Write File",
         hasIcon: true,
       },
     ]);
@@ -219,11 +265,19 @@ describe("use_chat_input_toolkits", () => {
     );
     expect(readOptions()).toEqual([
       {
-        value: "WorkspaceToolkit",
+        value: "core",
+        label: "Core",
+        description: "Read, edit, shell, and ask the user questions",
+        search:
+          "Core core Read, edit, shell, and ask the user questions Ask User",
+        hasIcon: true,
+      },
+      {
+        value: "workspace_toolkit",
         label: "Workspace Files",
         description: "Read and write project files",
         search:
-          "Workspace Files workspace_toolkit WorkspaceToolkit Read and write project files Read File Write File",
+          "Workspace Files workspace_toolkit Read and write project files Read File Write File",
         hasIcon: true,
       },
     ]);

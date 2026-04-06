@@ -1,18 +1,28 @@
-import { useCallback, useContext, useEffect, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { SettingsSection } from "../appearance";
 import { listAttachmentEntries } from "../../../SERVICEs/attachment_storage";
 import { fetchOllamaModels } from "./utils/ollama_models";
-import { formatBytes, readLocalStorageEntries } from "./utils/storage_metrics";
+import {
+  formatBytes,
+  readLocalStorageEntriesAsync,
+} from "./utils/storage_metrics";
 import StorageKeyRow from "./components/storage_key_row";
 import StorageBar from "./components/storage_bar";
 import OllamaModelRow from "./components/ollama_model_row";
 import ConfirmClearAll from "./components/confirm_clear_all";
 import ConfirmDeleteModal from "./components/confirm_delete_modal";
 import { api } from "../../../SERVICEs/api";
-import { runtimeBridge } from "../../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 
 const OllamaSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
@@ -337,7 +347,13 @@ const _getFileIconSrc = (name, isDir) => {
   return _FILE_TYPE_ICON_KEYS.has(ext) ? ext : null;
 };
 
-const RuntimeFileRow = ({ entry, maxSize, isDark, onDelete }) => {
+const RuntimeFileRow = ({
+  entry,
+  maxSize,
+  isDark,
+  onDelete,
+  allowDelete = true,
+}) => {
   const [hovered, setHovered] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const ratio = maxSize > 0 ? entry.size / maxSize : 0;
@@ -345,16 +361,18 @@ const RuntimeFileRow = ({ entry, maxSize, isDark, onDelete }) => {
 
   return (
     <>
-      <ConfirmDeleteModal
-        open={confirmOpen}
-        onClose={() => setConfirmOpen(false)}
-        onConfirm={() => {
-          setConfirmOpen(false);
-          onDelete(entry.name);
-        }}
-        target={entry.name}
-        isDark={isDark}
-      />
+      {allowDelete && (
+        <ConfirmDeleteModal
+          open={confirmOpen}
+          onClose={() => setConfirmOpen(false)}
+          onConfirm={() => {
+            setConfirmOpen(false);
+            onDelete(entry.name);
+          }}
+          target={entry.name}
+          isDark={isDark}
+        />
+      )}
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -419,22 +437,26 @@ const RuntimeFileRow = ({ entry, maxSize, isDark, onDelete }) => {
         </div>
 
         {/* delete button */}
-        <div style={{ opacity: hovered ? 1 : 0, transition: "opacity 0.15s" }}>
-          <Button
-            prefix_icon="delete"
-            onClick={() => setConfirmOpen(true)}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 4,
-              borderRadius: 5,
-              opacity: 0.55,
-              hoverBackgroundColor: isDark
-                ? "rgba(255,80,80,0.15)"
-                : "rgba(220,50,50,0.10)",
-              content: { icon: { width: 14, height: 14 } },
-            }}
-          />
-        </div>
+        {allowDelete && (
+          <div
+            style={{ opacity: hovered ? 1 : 0, transition: "opacity 0.15s" }}
+          >
+            <Button
+              prefix_icon="delete"
+              onClick={() => setConfirmOpen(true)}
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 4,
+                borderRadius: 5,
+                opacity: 0.55,
+                hoverBackgroundColor: isDark
+                  ? "rgba(255,80,80,0.15)"
+                  : "rgba(220,50,50,0.10)",
+                content: { icon: { width: 14, height: 14 } },
+              }}
+            />
+          </div>
+        )}
       </div>
     </>
   );
@@ -697,56 +719,398 @@ const RuntimeSection = ({ isDark }) => {
   );
 };
 
+const CharactersSection = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
+  const hasApi =
+    runtimeBridge.isCharacterStorageAvailable() &&
+    runtimeBridge.isCharacterApiAvailable();
+
+  const [status, setStatus] = useState("loading");
+  const [entries, setEntries] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [characterCount, setCharacterCount] = useState(0);
+  const [confirmClearAll, setConfirmClearAll] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [isClearing, setIsClearing] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!hasApi) {
+      setStatus("unavailable");
+      return;
+    }
+
+    setStatus("loading");
+    setErrorMessage("");
+
+    try {
+      const [storageResult, listResult] = await Promise.all([
+        runtimeBridge.getCharacterStorageSize(),
+        api.unchain.listCharacters(),
+      ]);
+
+      setEntries(
+        Array.isArray(storageResult?.entries) ? storageResult.entries : [],
+      );
+      setTotal(
+        Number.isFinite(Number(storageResult?.total))
+          ? Number(storageResult.total)
+          : 0,
+      );
+      setCharacterCount(
+        Number.isFinite(Number(listResult?.count)) ? Number(listResult.count) : 0,
+      );
+      setStatus("ready");
+    } catch (error) {
+      setEntries([]);
+      setTotal(0);
+      setCharacterCount(0);
+      setStatus("error");
+      setErrorMessage(
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message.trim()
+          : "Could not load character storage right now.",
+      );
+    }
+  }, [hasApi]);
+
+  const handleClearAll = useCallback(async () => {
+    if (!hasApi) {
+      return;
+    }
+
+    setConfirmClearAll(false);
+    setIsClearing(true);
+    setErrorMessage("");
+
+    try {
+      const listResult = await api.unchain.listCharacters();
+      const characters = Array.isArray(listResult?.characters)
+        ? listResult.characters
+        : [];
+
+      for (const character of characters) {
+        const characterId =
+          typeof character?.id === "string" ? character.id.trim() : "";
+        if (!characterId) {
+          continue;
+        }
+        await api.unchain.deleteCharacter(characterId);
+      }
+
+      await load();
+    } catch (error) {
+      setStatus("error");
+      setErrorMessage(
+        typeof error?.message === "string" && error.message.trim()
+          ? error.message.trim()
+          : "Could not clear character storage right now.",
+      );
+    } finally {
+      setIsClearing(false);
+    }
+  }, [hasApi, load]);
+
+  const handleDeleteEntry = useCallback(
+    async (entryName) => {
+      if (!hasApi || !entryName || isClearing) {
+        return;
+      }
+
+      setErrorMessage("");
+
+      try {
+        await runtimeBridge.deleteCharacterStorageEntry(entryName);
+        await load();
+      } catch (error) {
+        setStatus("error");
+        setErrorMessage(
+          typeof error?.message === "string" && error.message.trim()
+            ? error.message.trim()
+            : "Could not delete this character storage entry.",
+        );
+      }
+    },
+    [hasApi, isClearing, load],
+  );
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const maxSize = entries.length > 0 ? entries[0].size : 1;
+
+  const statusPill = (label, amber = false) => (
+    <span
+      style={{
+        fontSize: 11,
+        fontFamily: "Jost",
+        fontWeight: 500,
+        padding: "2px 8px",
+        borderRadius: 999,
+        border: `1px solid ${
+          amber
+            ? isDark
+              ? "rgba(255,160,0,0.25)"
+              : "rgba(200,120,0,0.18)"
+            : isDark
+              ? "rgba(255,255,255,0.07)"
+              : "rgba(0,0,0,0.07)"
+        }`,
+        backgroundColor: amber
+          ? isDark
+            ? "rgba(255,160,0,0.12)"
+            : "rgba(200,120,0,0.08)"
+          : isDark
+            ? "rgba(255,255,255,0.07)"
+            : "rgba(0,0,0,0.05)",
+        color: amber
+          ? isDark
+            ? "rgba(255,180,60,0.85)"
+            : "rgba(160,90,0,0.85)"
+          : isDark
+            ? "rgba(255,255,255,0.35)"
+            : "rgba(0,0,0,0.38)",
+        lineHeight: 1.8,
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {label}
+    </span>
+  );
+
+  return (
+    <SettingsSection title="Characters">
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "12px 0 6px",
+          gap: 12,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {status === "ready" && (
+            <>
+              {statusPill(
+                `${characterCount} ${
+                  characterCount === 1 ? "character" : "characters"
+                }`,
+              )}
+              {statusPill(`${formatBytes(total)} total`)}
+            </>
+          )}
+          {(status === "loading" || isClearing) &&
+            statusPill(isClearing ? "clearing..." : "loading...")}
+          {status === "unavailable" && statusPill("unavailable", true)}
+          {status === "error" && statusPill("error", true)}
+        </div>
+
+        {hasApi && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Button
+              label="Reload"
+              onClick={load}
+              style={{
+                fontSize: 12,
+                paddingVertical: 5,
+                paddingHorizontal: 10,
+                borderRadius: 6,
+                opacity: isClearing ? 0.25 : 0.45,
+              }}
+            />
+            {status === "ready" &&
+              characterCount > 0 &&
+              !confirmClearAll &&
+              !isClearing && (
+                <Button
+                  prefix_icon="delete"
+                  label="Clear all"
+                  onClick={() => setConfirmClearAll(true)}
+                  style={{
+                    fontSize: 12,
+                    paddingVertical: 5,
+                    paddingHorizontal: 10,
+                    borderRadius: 6,
+                    opacity: 0.55,
+                    hoverBackgroundColor: isDark
+                      ? "rgba(220,50,50,0.15)"
+                      : "rgba(220,50,50,0.09)",
+                  }}
+                />
+              )}
+          </div>
+        )}
+      </div>
+
+      <div
+        style={{
+          paddingBottom: 10,
+          fontSize: 12,
+          color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.42)",
+          fontFamily: theme?.font?.fontFamily || "inherit",
+        }}
+      >
+        Reads runtime storage behind Agents > Characters, not browser
+        localStorage.
+      </div>
+
+      {confirmClearAll && (
+        <div style={{ paddingBottom: 8 }}>
+          <ConfirmClearAll
+            isDark={isDark}
+            label="Delete all saved characters and their runtime memory?"
+            onConfirm={handleClearAll}
+            onCancel={() => setConfirmClearAll(false)}
+          />
+        </div>
+      )}
+
+      {(status === "unavailable" || status === "error") && (
+        <div
+          style={{
+            margin: "4px 0 12px",
+            padding: "12px 14px",
+            borderRadius: 8,
+            backgroundColor: isDark
+              ? "rgba(255,160,0,0.08)"
+              : "rgba(200,120,0,0.06)",
+            border: `1px solid ${isDark ? "rgba(255,160,0,0.18)" : "rgba(200,120,0,0.15)"}`,
+            fontSize: 12,
+            color: isDark ? "rgba(255,180,60,0.85)" : "rgba(140,80,0,0.9)",
+            fontFamily: theme?.font?.fontFamily || "inherit",
+          }}
+        >
+          {status === "unavailable" &&
+            "Character storage is only available in the desktop app."}
+          {status === "error" &&
+            (errorMessage || "Could not load character storage right now.")}
+        </div>
+      )}
+
+      {status === "ready" && entries.length === 0 && (
+        <div
+          style={{
+            textAlign: "center",
+            padding: "32px 0",
+            fontSize: 13,
+            color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+            fontFamily: theme?.font?.fontFamily || "inherit",
+          }}
+        >
+          No character storage yet
+        </div>
+      )}
+
+      {status === "ready" && entries.length > 0 && (
+        <div>
+          {entries.map((entry) => (
+            <RuntimeFileRow
+              key={entry.name}
+              entry={entry}
+              maxSize={maxSize}
+              isDark={isDark}
+              onDelete={handleDeleteEntry}
+            />
+          ))}
+        </div>
+      )}
+    </SettingsSection>
+  );
+};
+
+let _cachedLocalStorageEntries = null;
+let _cachedAttachmentCount = null;
+let _cachedMemoryStats = null;
+
+const normalizeMemoryStats = (result) => {
+  if (!result || typeof result !== "object") {
+    return null;
+  }
+  return {
+    total:
+      typeof result.total === "number" && result.total > 0 ? result.total : 0,
+    vectorTotal:
+      typeof result.vectorTotal === "number" && result.vectorTotal > 0
+        ? result.vectorTotal
+        : 0,
+    profileTotal:
+      typeof result.profileTotal === "number" && result.profileTotal > 0
+        ? result.profileTotal
+        : 0,
+  };
+};
+
 export const LocalStorageSettings = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
-  const [entries, setEntries] = useState([]);
-  const [attachmentCount, setAttachmentCount] = useState(null);
-  const [memoryStats, setMemoryStats] = useState(null);
+  const [entries, setEntries] = useState(() => _cachedLocalStorageEntries ?? []);
+  const [attachmentCount, setAttachmentCount] = useState(
+    () => _cachedAttachmentCount,
+  );
+  const [memoryStats, setMemoryStats] = useState(() => _cachedMemoryStats);
+  const [isLoading, setIsLoading] = useState(
+    () => _cachedLocalStorageEntries === null,
+  );
   const [confirmClear, setConfirmClear] = useState(false);
+  const mountedRef = useRef(true);
+  const refreshIdRef = useRef(0);
+  const refreshAbortRef = useRef(null);
 
-  const refresh = useCallback(() => {
-    setEntries(readLocalStorageEntries());
-    listAttachmentEntries()
-      .then((all) => {
-        setAttachmentCount(all.length);
-      })
-      .catch(() => {});
-    if (!runtimeBridge.isMemorySizeAvailable()) {
-      setMemoryStats(null);
+  const refresh = useCallback(async () => {
+    const refreshId = refreshIdRef.current + 1;
+    refreshIdRef.current = refreshId;
+    refreshAbortRef.current?.abort();
+    const controller =
+      typeof AbortController === "function" ? new AbortController() : null;
+    refreshAbortRef.current = controller;
+    setIsLoading(true);
+
+    const entriesPromise = readLocalStorageEntriesAsync({
+      signal: controller?.signal,
+    });
+    const attachmentPromise = listAttachmentEntries()
+      .then((all) => (Array.isArray(all) ? all.length : null))
+      .catch(() => null);
+    const memoryPromise = runtimeBridge.isMemorySizeAvailable()
+      ? runtimeBridge
+          .getMemorySize()
+          .then((result) => normalizeMemoryStats(result))
+          .catch(() => null)
+      : Promise.resolve(null);
+
+    const [nextEntries, nextAttachmentCount, nextMemoryStats] =
+      await Promise.all([entriesPromise, attachmentPromise, memoryPromise]);
+
+    if (
+      !mountedRef.current ||
+      refreshIdRef.current !== refreshId ||
+      controller?.signal.aborted
+    ) {
       return;
     }
 
-    runtimeBridge
-      .getMemorySize()
-      .then((result) => {
-        if (!result || typeof result !== "object") {
-          setMemoryStats(null);
-          return;
-        }
-        setMemoryStats({
-          total:
-            typeof result.total === "number" && result.total > 0
-              ? result.total
-              : 0,
-          vectorTotal:
-            typeof result.vectorTotal === "number" && result.vectorTotal > 0
-              ? result.vectorTotal
-              : 0,
-          profileTotal:
-            typeof result.profileTotal === "number" && result.profileTotal > 0
-              ? result.profileTotal
-              : 0,
-        });
-      })
-      .catch(() => {
-        setMemoryStats(null);
-      });
+    _cachedLocalStorageEntries = nextEntries;
+    _cachedAttachmentCount = nextAttachmentCount;
+    _cachedMemoryStats = nextMemoryStats;
+
+    startTransition(() => {
+      setEntries(nextEntries);
+      setAttachmentCount(nextAttachmentCount);
+      setMemoryStats(nextMemoryStats);
+      setIsLoading(false);
+    });
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     refresh();
+    return () => {
+      mountedRef.current = false;
+      refreshIdRef.current += 1;
+      refreshAbortRef.current?.abort();
+    };
   }, [refresh]);
 
   const handleDelete = useCallback(
@@ -783,42 +1147,72 @@ export const LocalStorageSettings = () => {
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span
-              style={{
-                fontSize: 11,
-                fontFamily: "Jost",
-                fontWeight: 500,
-                padding: "2px 8px",
-                borderRadius: 999,
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.05)",
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
-                lineHeight: 1.8,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {entries.length} {entries.length === 1 ? "key" : "keys"}
-            </span>
-            <span
-              style={{
-                fontSize: 11,
-                fontFamily: "Jost",
-                fontWeight: 500,
-                padding: "2px 8px",
-                borderRadius: 999,
-                border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.07)"
-                  : "rgba(0,0,0,0.05)",
-                color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)",
-                lineHeight: 1.8,
-                fontVariantNumeric: "tabular-nums",
-              }}
-            >
-              {formatBytes(totalSize)} total
-            </span>
+            {(!isLoading || entries.length > 0) && (
+              <>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "Jost",
+                    fontWeight: 500,
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.07)"
+                      : "rgba(0,0,0,0.05)",
+                    color: isDark
+                      ? "rgba(255,255,255,0.35)"
+                      : "rgba(0,0,0,0.38)",
+                    lineHeight: 1.8,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {entries.length} {entries.length === 1 ? "key" : "keys"}
+                </span>
+                <span
+                  style={{
+                    fontSize: 11,
+                    fontFamily: "Jost",
+                    fontWeight: 500,
+                    padding: "2px 8px",
+                    borderRadius: 999,
+                    border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+                    backgroundColor: isDark
+                      ? "rgba(255,255,255,0.07)"
+                      : "rgba(0,0,0,0.05)",
+                    color: isDark
+                      ? "rgba(255,255,255,0.35)"
+                      : "rgba(0,0,0,0.38)",
+                    lineHeight: 1.8,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatBytes(totalSize)} total
+                </span>
+              </>
+            )}
+            {isLoading && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: "Jost",
+                  fontWeight: 500,
+                  padding: "2px 8px",
+                  borderRadius: 999,
+                  border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.07)"
+                    : "rgba(0,0,0,0.05)",
+                  color: isDark
+                    ? "rgba(255,255,255,0.35)"
+                    : "rgba(0,0,0,0.38)",
+                  lineHeight: 1.8,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                loading…
+              </span>
+            )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -863,7 +1257,19 @@ export const LocalStorageSettings = () => {
           </div>
         )}
 
-        {entries.length === 0 ? (
+        {isLoading && entries.length === 0 ? (
+          <div
+            style={{
+              textAlign: "center",
+              padding: "32px 0",
+              fontSize: 13,
+              color: isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.2)",
+              fontFamily: theme?.font?.fontFamily || "inherit",
+            }}
+          >
+            Reading local storage…
+          </div>
+        ) : entries.length === 0 ? (
           <div
             style={{
               textAlign: "center",
@@ -901,6 +1307,7 @@ export const LocalStorageSettings = () => {
         )}
       </SettingsSection>
 
+      <CharactersSection isDark={isDark} />
       <OllamaSection isDark={isDark} />
       <RuntimeSection isDark={isDark} />
     </div>

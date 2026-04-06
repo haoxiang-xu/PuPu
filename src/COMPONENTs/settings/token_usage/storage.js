@@ -27,6 +27,12 @@ const normalizeTokenUsageRecord = (record) => {
     consumed_tokens,
     input_tokens,
     output_tokens,
+    ...(toFinitePositiveNumber(record.cache_read_input_tokens) > 0
+      ? { cache_read_input_tokens: toFinitePositiveNumber(record.cache_read_input_tokens) }
+      : {}),
+    ...(toFinitePositiveNumber(record.cache_creation_input_tokens) > 0
+      ? { cache_creation_input_tokens: toFinitePositiveNumber(record.cache_creation_input_tokens) }
+      : {}),
     ...(typeof record.max_context_window_tokens === "number" &&
     Number.isFinite(record.max_context_window_tokens)
       ? { max_context_window_tokens: record.max_context_window_tokens }

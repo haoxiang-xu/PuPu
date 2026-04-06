@@ -1,7 +1,7 @@
 import { useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import WorkspaceEditor from "../workspace/workspace_editor";
-import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 
 const SETTINGS_STORAGE_KEY = "settings";
 

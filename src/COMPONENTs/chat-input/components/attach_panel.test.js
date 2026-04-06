@@ -104,4 +104,34 @@ describe("AttachPanel toolkit selector refresh", () => {
       "true",
     );
   });
+
+  test("can hide model, tool, and workspace selectors for character chats", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        showModelSelector={false}
+        showToolSelector={false}
+        showWorkspaceSelector={false}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.queryByTestId("select-Select model...")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("select-Search toolkits...")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("select-Search workspaces...")).not.toBeInTheDocument();
+  });
 });

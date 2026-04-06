@@ -61,7 +61,8 @@ const InteractWrapper = ({
     : type;
   const resolvedConfig = isMulti ? questions[safeIdx] : config || {};
 
-  const Component = interactRegistry[resolvedType];
+  const Component =
+    interactRegistry[resolvedType] || interactRegistry["confirmation"];
   if (!Component) return null;
 
   const navBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";

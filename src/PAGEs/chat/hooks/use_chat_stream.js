@@ -12,7 +12,8 @@ import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 
 const STREAM_TRACE_LEVEL = "minimal";
-const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
+const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
+const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
   request_messages: "request_messages",
@@ -21,6 +22,19 @@ const MISO_TRACE_LABEL_BY_TYPE = Object.freeze({
   done: "end",
 });
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
+
+const normalizeAgentOrchestration = (value) => {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    typeof value.mode === "string" &&
+    ["default", "developer_waiting_approval"].includes(value.mode.trim())
+  ) {
+    return { mode: value.mode.trim() };
+  }
+  return { ...DEFAULT_AGENT_ORCHESTRATION };
+};
 
 const getTraceFrameIteration = (frame) => {
   const frameIteration = Number(frame?.iteration);
@@ -32,8 +46,13 @@ const getTraceFrameIteration = (frame) => {
   return Number.isFinite(payloadIteration) ? payloadIteration : 0;
 };
 
-const misoLogger = createLogger(
+const unchainLogger = createLogger(
   "MISO",
+  "src/PAGEs/chat/hooks/use_chat_stream.js",
+);
+
+const characterLogger = createLogger(
+  "CHARACTER",
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
 
@@ -46,8 +65,12 @@ export const useChatStream = ({
   draftAttachments,
   setDraftAttachments,
   selectedModelId,
+  agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
+  chatKind = "default",
+  characterId = "",
+  threadIdRef,
   systemPromptOverrides,
   attachmentApi,
   storageApi,
@@ -59,6 +82,7 @@ export const useChatStream = ({
   messagesRef,
   modelIdRef,
   setSelectedModelId,
+  setAgentOrchestration,
   activeStreamMessagesRef,
 }) => {
   const {
@@ -77,12 +101,27 @@ export const useChatStream = ({
     typeof controlledSetStreamError === "function"
       ? controlledSetStreamError
       : setInternalStreamError;
+  const [pendingToolConfirmationRequests, setPendingToolConfirmationRequests] =
+    useState({});
+  const pendingToolConfirmationRequestsRef = useRef({});
   const [toolConfirmationUiStateById, setToolConfirmationUiStateById] =
     useState({});
   const toolConfirmationUiStateByIdRef = useRef({});
   const [pendingContinuationRequest, setPendingContinuationRequest] =
     useState(null);
+  const isCharacterChat =
+    chatKind === "character" &&
+    typeof characterId === "string" &&
+    characterId.trim().length > 0;
   const pendingContinuationRequestRef = useRef(null);
+
+  /* Stable refs for high-churn values — keeps sendNewTurn callback stable */
+  const inputValueRef = useRef(inputValue);
+  inputValueRef.current = inputValue;
+  const draftAttachmentsRef = useRef(draftAttachments);
+  draftAttachmentsRef.current = draftAttachments;
+  const selectedModelIdRef = useRef(selectedModelId);
+  selectedModelIdRef.current = selectedModelId;
 
   const streamHandleRef = useRef(null);
   const streamingChatIdRef = useRef(null);
@@ -91,6 +130,28 @@ export const useChatStream = ({
   const confirmationFollowupSignalByIdRef = useRef(new Map());
   const confirmationResolveTimerByIdRef = useRef(new Map());
   const activeTokenFlushControllerRef = useRef(null);
+  const parentRunIdRef = useRef("");
+  const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
+  const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
+  const lastTokenRunIdRef = useRef("");
+
+  const buildCharacterRunConfig = useCallback(async () => {
+    if (!isCharacterChat) {
+      return null;
+    }
+
+    const resolvedThreadId =
+      typeof threadIdRef?.current === "string" && threadIdRef.current.trim()
+        ? threadIdRef.current.trim()
+        : "main";
+
+    const config = await api.unchain.buildCharacterAgentConfig({
+      characterId,
+      threadId: resolvedThreadId,
+      humanId: "local_user",
+    });
+    return config && typeof config === "object" ? config : null;
+  }, [characterId, isCharacterChat, threadIdRef]);
 
   const findToolCallFrameByCallId = useCallback(
     (callId) => {
@@ -158,6 +219,17 @@ export const useChatStream = ({
     }
     toolConfirmationUiStateByIdRef.current = next;
     setToolConfirmationUiStateById(next);
+    return next;
+  }, []);
+
+  const updatePendingToolConfirmationRequests = useCallback((updater) => {
+    const previous = pendingToolConfirmationRequestsRef.current;
+    const next = typeof updater === "function" ? updater(previous) : updater;
+    if (next === previous) {
+      return previous;
+    }
+    pendingToolConfirmationRequestsRef.current = next;
+    setPendingToolConfirmationRequests(next);
     return next;
   }, []);
 
@@ -253,6 +325,14 @@ export const useChatStream = ({
       confirmationCallIdByIdRef.current.delete(confirmationId);
       confirmationFollowupSignalByIdRef.current.delete(confirmationId);
       clearConfirmationResolutionTimer(confirmationId);
+      updatePendingToolConfirmationRequests((previous) => {
+        if (!previous || !previous[confirmationId]) {
+          return previous;
+        }
+        const next = { ...previous };
+        delete next[confirmationId];
+        return next;
+      });
       updateToolConfirmationUiState((previous) => {
         if (!previous || !previous[confirmationId]) {
           return previous;
@@ -262,7 +342,11 @@ export const useChatStream = ({
         return next;
       });
     },
-    [clearConfirmationResolutionTimer, updateToolConfirmationUiState],
+    [
+      clearConfirmationResolutionTimer,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
   );
 
   const clearAllPendingToolConfirmations = useCallback(() => {
@@ -270,6 +354,7 @@ export const useChatStream = ({
       ...new Set([
         ...confirmationIdByCallIdRef.current.values(),
         ...confirmationCallIdByIdRef.current.keys(),
+        ...Object.keys(pendingToolConfirmationRequestsRef.current),
       ]),
     ];
     confirmationIdByCallIdRef.current.clear();
@@ -282,6 +367,18 @@ export const useChatStream = ({
       return;
     }
 
+    updatePendingToolConfirmationRequests((previous) => {
+      const next = { ...previous };
+      let changed = false;
+      activeConfirmationIds.forEach((confirmationId) => {
+        if (confirmationId && next[confirmationId]) {
+          delete next[confirmationId];
+          changed = true;
+        }
+      });
+      return changed ? next : previous;
+    });
+
     updateToolConfirmationUiState((previous) => {
       const next = { ...previous };
       let changed = false;
@@ -293,7 +390,11 @@ export const useChatStream = ({
       });
       return changed ? next : previous;
     });
-  }, [clearConfirmationResolutionTimer, updateToolConfirmationUiState]);
+  }, [
+    clearConfirmationResolutionTimer,
+    updatePendingToolConfirmationRequests,
+    updateToolConfirmationUiState,
+  ]);
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     clearActiveTokenFlushController("dispose");
@@ -315,6 +416,8 @@ export const useChatStream = ({
       clearTimeout(timerId);
     });
     confirmationResolveTimerByIdRef.current.clear();
+    pendingToolConfirmationRequestsRef.current = {};
+    setPendingToolConfirmationRequests({});
     toolConfirmationUiStateByIdRef.current = {};
     setToolConfirmationUiStateById({});
     pendingContinuationRequestRef.current = null;
@@ -374,7 +477,8 @@ export const useChatStream = ({
         const requestFrame = traceFrames.find(
           (frame) =>
             frame?.type === "tool_call" &&
-            frame?.payload?.confirmation_id === normalizedConfirmationId,
+            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
+              frame?.payload?.call_id === callId),
         );
         if (!requestFrame) {
           return message;
@@ -480,7 +584,7 @@ export const useChatStream = ({
           : {};
 
       if (toolName === HUMAN_INPUT_TOOL_NAME) {
-        misoLogger.log("ask_user_question_submit", {
+        unchainLogger.log("ask_user_question_submit", {
           confirmationId: normalizedConfirmationId,
           callId,
           approved: Boolean(approved),
@@ -534,7 +638,7 @@ export const useChatStream = ({
         if (userResponse !== undefined && userResponse !== null) {
           payload.modified_arguments = { user_response: userResponse };
         }
-        await api.miso.respondToolConfirmation(payload);
+        await api.unchain.respondToolConfirmation(payload);
         if (
           confirmationFollowupSignalByIdRef.current.get(
             normalizedConfirmationId,
@@ -604,7 +708,7 @@ export const useChatStream = ({
       );
 
       try {
-        await api.miso.respondToolConfirmation({
+        await api.unchain.respondToolConfirmation({
           confirmation_id: normalizedId,
           approved: Boolean(approved),
           reason: "",
@@ -622,23 +726,38 @@ export const useChatStream = ({
   );
 
   const replaceSessionMemoryForMessages = useCallback(
-    async (targetChatId, nextMessages) => {
-      if (!targetChatId || readMemorySettings().enabled !== true) {
+    async (
+      targetSessionId,
+      nextMessages,
+      {
+        forceMemoryEnabled = false,
+        memoryNamespace = "",
+        modelId = modelIdRef.current,
+      } = {},
+    ) => {
+      if (
+        !targetSessionId ||
+        (forceMemoryEnabled !== true && readMemorySettings().enabled !== true)
+      ) {
         return true;
       }
 
       try {
-        const response = await api.miso.replaceSessionMemory({
-          sessionId: targetChatId,
-          messages: buildHistoryForModel(nextMessages, targetChatId),
+        const response = await api.unchain.replaceSessionMemory({
+          sessionId: targetSessionId,
+          messages: buildHistoryForModel(nextMessages, chatId),
           options: {
-            modelId: modelIdRef.current,
+            modelId,
+            ...(forceMemoryEnabled === true ? { memory_enabled: true } : {}),
+            ...(memoryNamespace
+              ? { memory_namespace: memoryNamespace }
+              : {}),
           },
         });
 
         return response?.applied !== false;
       } catch (error) {
-        if (activeChatIdRef.current === targetChatId) {
+        if (activeChatIdRef.current === chatId) {
           setStreamError(
             error?.message || "Failed to sync short-term memory for this chat.",
           );
@@ -646,7 +765,7 @@ export const useChatStream = ({
         return false;
       }
     },
-    [activeChatIdRef, buildHistoryForModel, modelIdRef, setStreamError],
+    [activeChatIdRef, buildHistoryForModel, chatId, modelIdRef, setStreamError],
   );
 
   const runTurnRequest = useCallback(
@@ -662,6 +781,7 @@ export const useChatStream = ({
       memoryFallbackAttempted = false,
       forceHistoryFallback = false,
       historyOverride = null,
+      characterAgentConfig = null,
     }) => {
       const trimmedText = typeof text === "string" ? text.trim() : "";
       const normalizedAttachments = Array.isArray(attachments)
@@ -697,10 +817,16 @@ export const useChatStream = ({
         clearTimeout(timerId);
       });
       confirmationResolveTimerByIdRef.current.clear();
+      pendingToolConfirmationRequestsRef.current = {};
+      setPendingToolConfirmationRequests({});
       toolConfirmationUiStateByIdRef.current = {};
       setToolConfirmationUiStateById({});
       pendingContinuationRequestRef.current = null;
       setPendingContinuationRequest(null);
+      parentRunIdRef.current = "";
+      subagentMetaByRunIdRef.current.clear();
+      subagentFramesByRunIdRef.current.clear();
+      lastTokenRunIdRef.current = "";
 
       const assistantMessageId = `assistant-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const timestamp = Date.now();
@@ -761,6 +887,118 @@ export const useChatStream = ({
       } else if ("attachments" in userMessage) {
         delete userMessage.attachments;
       }
+
+      const persistImmediateMessages = (nextImmediateMessages) => {
+        messagesRef.current = nextImmediateMessages;
+        if (activeChatIdRef.current === targetChatId) {
+          setMessages(nextImmediateMessages);
+          return;
+        }
+
+        storageApi.setChatMessages(targetChatId, nextImmediateMessages, {
+          source: "chat-page",
+        });
+      };
+
+      let effectiveModelId = modelIdRef.current;
+      let effectiveThreadId = targetChatId;
+      let effectiveMemoryNamespace = "";
+      let effectiveToolkits = selectedToolkits;
+      let effectiveWorkspaceIds = selectedWorkspaceIds;
+      let effectiveAgentOrchestration = normalizeAgentOrchestration(
+        agentOrchestration,
+      );
+      let forceMemoryEnabled = false;
+
+      let resolvedCharacterConfig = characterAgentConfig;
+      if (isCharacterChat) {
+        if (!resolvedCharacterConfig) {
+          try {
+            resolvedCharacterConfig = await buildCharacterRunConfig();
+          } catch (error) {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return false;
+          }
+        }
+
+        if (!resolvedCharacterConfig?.session_id) {
+          setStreamError("Failed to prepare this character chat.");
+          return false;
+        }
+
+        effectiveThreadId = resolvedCharacterConfig.session_id;
+        effectiveMemoryNamespace =
+          typeof resolvedCharacterConfig.run_memory_namespace === "string"
+            ? resolvedCharacterConfig.run_memory_namespace.trim()
+            : "";
+        if (
+          typeof resolvedCharacterConfig.default_model === "string" &&
+          resolvedCharacterConfig.default_model.trim()
+        ) {
+          effectiveModelId = resolvedCharacterConfig.default_model.trim();
+        }
+        effectiveToolkits = [];
+        effectiveWorkspaceIds = [];
+        effectiveAgentOrchestration = { ...DEFAULT_AGENT_ORCHESTRATION };
+        forceMemoryEnabled = true;
+
+        const characterDecision =
+          resolvedCharacterConfig.decision &&
+          typeof resolvedCharacterConfig.decision === "object"
+            ? resolvedCharacterConfig.decision
+            : {};
+        const decisionAction =
+          typeof characterDecision.action === "string"
+            ? characterDecision.action.trim().toLowerCase()
+            : "";
+        const courtesyMessage =
+          typeof characterDecision.courtesy_message === "string" &&
+          characterDecision.courtesy_message.trim()
+            ? characterDecision.courtesy_message.trim()
+            : "";
+
+        if (decisionAction === "ignore" || decisionAction === "defer") {
+          characterLogger.log(decisionAction, {
+            characterId,
+            reason: characterDecision.reason || "unknown",
+            courtesyMessage: courtesyMessage || null,
+            evaluation: characterDecision.evaluation || null,
+          });
+          const immediateMessages =
+            decisionAction === "defer" && courtesyMessage
+              ? [
+                  ...normalizedBaseMessages,
+                  userMessage,
+                  {
+                    id: assistantMessageId,
+                    role: "assistant",
+                    content: courtesyMessage,
+                    createdAt: timestamp,
+                    updatedAt: timestamp,
+                    status: "done",
+                    meta: {
+                      model: effectiveModelId,
+                    },
+                  },
+                ]
+              : [...normalizedBaseMessages, userMessage];
+
+          persistImmediateMessages(immediateMessages);
+          if (clearComposer) {
+            setInputValue("");
+            setDraftAttachments([]);
+          }
+          setStreamError("");
+          streamHandleRef.current = null;
+          streamingChatIdRef.current = null;
+          activeStreamMessagesRef.current = null;
+          setStreamingChatId(null);
+          return true;
+        }
+      }
+
       const assistantPlaceholder = {
         id: assistantMessageId,
         role: "assistant",
@@ -769,16 +1007,21 @@ export const useChatStream = ({
         updatedAt: timestamp,
         status: "streaming",
         traceFrames: [],
+        subagentFrames: {},
+        subagentMetaByRunId: {},
         meta: {
-          model: modelIdRef.current,
+          model: effectiveModelId,
         },
       };
 
       const memoryEnabled =
-        readMemorySettings().enabled === true && forceHistoryFallback !== true;
+        forceHistoryFallback === true
+          ? false
+          : forceMemoryEnabled === true ||
+            readMemorySettings().enabled === true;
       const historyForModel = Array.isArray(historyOverride)
         ? historyOverride
-        : memoryEnabled
+          : memoryEnabled
           ? []
           : buildHistoryForModel(normalizedBaseMessages, targetChatId);
 
@@ -817,6 +1060,120 @@ export const useChatStream = ({
         storageApi.setChatMessages(targetChatId, nextStreamMessages, {
           source: "chat-page",
         });
+      };
+
+      const serializeSubagentFramesByRunId = () =>
+        Object.fromEntries(
+          Array.from(subagentFramesByRunIdRef.current.entries()).map(
+            ([runId, frames]) => [runId, Array.isArray(frames) ? [...frames] : []],
+          ),
+        );
+
+      const serializeSubagentMetaByRunId = () =>
+        Object.fromEntries(
+          Array.from(subagentMetaByRunIdRef.current.entries()).map(
+            ([runId, meta]) => [
+              runId,
+              {
+                subagentId:
+                  typeof meta?.subagentId === "string" ? meta.subagentId : "",
+                mode: typeof meta?.mode === "string" ? meta.mode : "",
+                template: typeof meta?.template === "string" ? meta.template : "",
+                batchId: typeof meta?.batchId === "string" ? meta.batchId : "",
+                parentId:
+                  typeof meta?.parentId === "string" ? meta.parentId : "",
+                lineage: Array.isArray(meta?.lineage)
+                  ? meta.lineage.filter(
+                      (item) => typeof item === "string" && item.trim(),
+                    )
+                  : [],
+                status: typeof meta?.status === "string" ? meta.status : "",
+              },
+            ],
+          ),
+        );
+
+      const isKnownSubagentRunId = (runId) =>
+        typeof runId === "string" &&
+        runId.length > 0 &&
+        (!parentRunIdRef.current || runId !== parentRunIdRef.current) &&
+        (subagentMetaByRunIdRef.current.has(runId) ||
+          subagentFramesByRunIdRef.current.has(runId));
+
+      const upsertSubagentMeta = (childRunId, updates) => {
+        if (typeof childRunId !== "string" || !childRunId.trim()) {
+          return null;
+        }
+
+        const previousMeta =
+          subagentMetaByRunIdRef.current.get(childRunId) || {};
+        const nextMeta = {
+          subagentId:
+            typeof updates?.subagentId === "string"
+              ? updates.subagentId
+              : typeof previousMeta?.subagentId === "string"
+                ? previousMeta.subagentId
+                : "",
+          mode:
+            typeof updates?.mode === "string"
+              ? updates.mode
+              : typeof previousMeta?.mode === "string"
+                ? previousMeta.mode
+                : "",
+          template:
+            typeof updates?.template === "string"
+              ? updates.template
+              : typeof previousMeta?.template === "string"
+                ? previousMeta.template
+                : "",
+          batchId:
+            typeof updates?.batchId === "string"
+              ? updates.batchId
+              : typeof previousMeta?.batchId === "string"
+                ? previousMeta.batchId
+                : "",
+          parentId:
+            typeof updates?.parentId === "string"
+              ? updates.parentId
+              : typeof previousMeta?.parentId === "string"
+                ? previousMeta.parentId
+                : "",
+          lineage: Array.isArray(updates?.lineage)
+            ? updates.lineage.filter(
+                (item) => typeof item === "string" && item.trim(),
+              )
+            : Array.isArray(previousMeta?.lineage)
+              ? previousMeta.lineage
+              : [],
+          status:
+            typeof updates?.status === "string"
+              ? updates.status
+              : typeof previousMeta?.status === "string"
+                ? previousMeta.status
+                : "",
+        };
+
+        subagentMetaByRunIdRef.current.set(childRunId, nextMeta);
+        if (!subagentFramesByRunIdRef.current.has(childRunId)) {
+          subagentFramesByRunIdRef.current.set(childRunId, []);
+        }
+        return nextMeta;
+      };
+
+      const syncAssistantSubagentState = (patchTime) => {
+        const serializedFrames = serializeSubagentFramesByRunId();
+        const serializedMeta = serializeSubagentMetaByRunId();
+        const nextStreamMessages = streamMessages.map((message) =>
+          message.id === assistantMessageId
+            ? {
+                ...message,
+                updatedAt: patchTime,
+                subagentFrames: serializedFrames,
+                subagentMetaByRunId: serializedMeta,
+              }
+            : message,
+        );
+        syncStreamMessages(nextStreamMessages);
       };
 
       let bufferedTokenDelta = "";
@@ -980,23 +1337,40 @@ export const useChatStream = ({
             ? systemPromptOverrides
             : {};
 
-        streamHandle = api.miso.startStreamV2(
+        streamHandle = api.unchain.startStreamV2(
           {
-            threadId: targetChatId,
+            threadId: effectiveThreadId,
             message: promptText,
             history: historyForModel,
             attachments: payloadAttachments,
             options: {
-              modelId: modelIdRef.current,
-              ...(forceHistoryFallback === true && {
-                memory_enabled: false,
+              modelId: effectiveModelId,
+              ...(forceHistoryFallback === true
+                ? { memory_enabled: false }
+                : forceMemoryEnabled === true
+                  ? { memory_enabled: true }
+                  : {}),
+              ...(effectiveMemoryNamespace
+                ? { memory_namespace: effectiveMemoryNamespace }
+                : {}),
+              ...(effectiveToolkits.length > 0 && {
+                toolkits: effectiveToolkits,
               }),
-              ...(selectedToolkits.length > 0 && {
-                toolkits: selectedToolkits,
+              ...(effectiveWorkspaceIds.length > 0 && {
+                selectedWorkspaceIds: effectiveWorkspaceIds,
               }),
-              ...(selectedWorkspaceIds.length > 0 && {
-                selectedWorkspaceIds,
+              ...(!isCharacterChat && {
+                agent_orchestration: effectiveAgentOrchestration,
               }),
+              ...(isCharacterChat
+                ? {
+                    agent_instructions:
+                      typeof resolvedCharacterConfig?.instructions === "string"
+                        ? resolvedCharacterConfig.instructions
+                        : "",
+                    disable_workspace_root: true,
+                  }
+                : {}),
               ...(Object.keys(systemPromptOverridesObject).length > 0 && {
                 system_prompt_v2: {
                   overrides: systemPromptOverridesObject,
@@ -1007,16 +1381,19 @@ export const useChatStream = ({
           },
           {
             onFrame: (frame) => {
-              if (!frame || frame.type === "token_delta") return;
-              if (
-                frame.type === "final_message" ||
-                frame.type === "tool_call" ||
-                frame.type === "error" ||
-                frame.type === "done"
-              ) {
-                flushBufferedTokenDelta();
+              /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
+                 writes to activeStreamMessagesRef but cannot update the closure variable). */
+              const _refMsgs = activeStreamMessagesRef.current?.messages;
+              if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
+                streamMessages = _refMsgs;
               }
-              const patchTime = Date.now();
+
+              if (!frame) return;
+              if (frame.type === "token_delta") {
+                lastTokenRunIdRef.current =
+                  frame.run_id || frame.payload?.run_id || "";
+                return;
+              }
 
               if (frame.type === "request_messages") {
                 const rawMessages = Array.isArray(frame.payload?.messages)
@@ -1050,7 +1427,7 @@ export const useChatStream = ({
                   typeof frame.payload?.previous_response_id === "string"
                     ? frame.payload.previous_response_id.trim()
                     : "";
-                misoLogger.log("request_messages", {
+                unchainLogger.log("request_messages", {
                   messages: requestMessagesForLog,
                   toolNames: requestToolNamesForLog,
                   ...(providerForLog ? { provider: providerForLog } : {}),
@@ -1061,22 +1438,53 @@ export const useChatStream = ({
                 return;
               }
 
+              const patchTime = Date.now();
+
+              /* continuation_request is now emitted as a tool_call with
+                 tool_name "__continuation__". Keep a legacy fallback so
+                 older runtimes still surface the continue UI. */
               if (frame.type === "continuation_request") {
                 const confirmationId =
                   typeof frame.payload?.confirmation_id === "string"
                     ? frame.payload.confirmation_id.trim()
                     : "";
                 const iteration = getTraceFrameIteration(frame);
-                if (confirmationId) {
-                  const state = { confirmationId, iteration, status: "idle" };
-                  pendingContinuationRequestRef.current = state;
-                  setPendingContinuationRequest(state);
+                if (!confirmationId || !Number.isFinite(iteration)) {
+                  return;
                 }
+
+                const nextRequest = {
+                  confirmationId,
+                  iteration,
+                  status: "idle",
+                };
+                pendingContinuationRequestRef.current = nextRequest;
+                setPendingContinuationRequest(nextRequest);
+                unchainLogger.log("continuation_request", {
+                  confirmationId,
+                  iteration,
+                  latestMessageRole:
+                    streamMessages[streamMessages.length - 1]?.role || "",
+                  attachedToLatestAssistantBubble:
+                    streamMessages[streamMessages.length - 1]?.id ===
+                    assistantMessageId,
+                });
+
+                const nextStreamMessages = streamMessages.map((message) =>
+                  message.id === assistantMessageId
+                    ? {
+                        ...message,
+                        updatedAt: patchTime,
+                        traceFrames: [...(message.traceFrames || []), frame],
+                      }
+                    : message,
+                );
+                syncStreamMessages(nextStreamMessages);
                 return;
               }
 
               if (frame.type === "error") {
-                misoLogger.error(
+                unchainLogger.error(
                   `error (iteration=${getTraceFrameIteration(frame)})`,
                   frame.payload,
                 );
@@ -1088,7 +1496,7 @@ export const useChatStream = ({
                     ? { ...frame.payload }
                     : {};
                 delete endPayload.bundle;
-                misoLogger.log("end", endPayload);
+                unchainLogger.log("end", endPayload);
               }
 
               if (
@@ -1096,11 +1504,147 @@ export const useChatStream = ({
                 frame.type === "response_received" ||
                 frame.type === "run_max_iterations"
               ) {
+                if (frame.type === "run_started" && !parentRunIdRef.current) {
+                  parentRunIdRef.current = frame.run_id || frame.payload?.run_id || "";
+                }
                 const label =
                   frame.type === "run_max_iterations"
                     ? "run_max_iterations"
-                    : (MISO_TRACE_LABEL_BY_TYPE[frame.type] ?? frame.type);
-                misoLogger.log(label, frame.payload);
+                    : (UNCHAIN_TRACE_LABEL_BY_TYPE[frame.type] ?? frame.type);
+                unchainLogger.log(label, frame.payload);
+              }
+
+              /* ── subagent lifecycle events: register mapping + log ── */
+              if (
+                frame.type === "subagent_spawned" ||
+                frame.type === "subagent_started" ||
+                frame.type === "subagent_completed" ||
+                frame.type === "subagent_failed" ||
+                frame.type === "subagent_handoff" ||
+                frame.type === "subagent_clarification_requested" ||
+                frame.type === "subagent_batch_started" ||
+                frame.type === "subagent_batch_joined"
+              ) {
+                const childRunId =
+                  typeof frame.payload?.child_run_id === "string"
+                    ? frame.payload.child_run_id
+                    : "";
+                if (childRunId) {
+                  const lifecycleStatus =
+                    frame.type === "subagent_spawned"
+                      ? "spawned"
+                      : frame.type === "subagent_started" ||
+                          frame.type === "subagent_handoff"
+                        ? "running"
+                        : frame.type === "subagent_completed"
+                          ? typeof frame.payload?.status === "string" &&
+                              frame.payload.status.trim()
+                            ? frame.payload.status.trim()
+                            : "completed"
+                          : frame.type === "subagent_failed"
+                            ? typeof frame.payload?.status === "string" &&
+                                frame.payload.status.trim()
+                              ? frame.payload.status.trim()
+                              : "failed"
+                          : frame.type ===
+                                "subagent_clarification_requested"
+                              ? "needs_clarification"
+                              : typeof subagentMetaByRunIdRef.current.get(
+                                    childRunId,
+                                  )?.status === "string"
+                                ? subagentMetaByRunIdRef.current.get(
+                                    childRunId,
+                                  ).status
+                                : "";
+                  upsertSubagentMeta(childRunId, {
+                    subagentId:
+                      typeof frame.payload?.subagent_id === "string"
+                        ? frame.payload.subagent_id
+                        : "",
+                    mode:
+                      typeof frame.payload?.mode === "string"
+                        ? frame.payload.mode
+                        : "",
+                    template:
+                      typeof frame.payload?.template === "string"
+                        ? frame.payload.template
+                        : "",
+                    batchId:
+                      typeof frame.payload?.batch_id === "string"
+                        ? frame.payload.batch_id
+                        : "",
+                    parentId:
+                      typeof frame.payload?.parent_id === "string"
+                        ? frame.payload.parent_id
+                        : "",
+                    lineage: Array.isArray(frame.payload?.lineage)
+                      ? frame.payload.lineage
+                      : undefined,
+                    status: lifecycleStatus,
+                  });
+                  syncAssistantSubagentState(patchTime);
+                }
+                unchainLogger.log(frame.type, frame.payload);
+                return;
+              }
+
+              const frameRunId = frame.run_id || frame.payload?.run_id || "";
+
+              /* ── Route subagent frames to their sub-timeline ── */
+              /* Known subagent: run_id already registered via lifecycle events */
+              const isKnownChild = isKnownSubagentRunId(frameRunId);
+              /* Unknown run_id that differs from parent: likely a subagent whose
+                 lifecycle event hasn't arrived yet (race condition) or whose
+                 run_id format differs. Register it eagerly. */
+              const isUnknownChild =
+                !isKnownChild &&
+                frameRunId.length > 0 &&
+                parentRunIdRef.current &&
+                frameRunId !== parentRunIdRef.current;
+
+              if (frameRunId && frameRunId !== parentRunIdRef.current) {
+                unchainLogger.log("subagent_frame_routing", {
+                  frameType: frame.type,
+                  runId: frameRunId,
+                  parentRunId: parentRunIdRef.current || "",
+                  isKnownSubagentRunId: isKnownChild,
+                  isUnknownSubagentRunId: isUnknownChild,
+                });
+              }
+
+              if (isKnownChild || isUnknownChild) {
+                if (isUnknownChild) {
+                  /* Eagerly register this run_id as a subagent so subsequent
+                     frames are also routed here. */
+                  upsertSubagentMeta(frameRunId, { status: "running" });
+                }
+                if (!subagentFramesByRunIdRef.current.has(frameRunId)) {
+                  subagentFramesByRunIdRef.current.set(frameRunId, []);
+                }
+                subagentFramesByRunIdRef.current.get(frameRunId).push(frame);
+
+                if (
+                  frame.type === "error" &&
+                  typeof subagentMetaByRunIdRef.current.get(frameRunId) ===
+                    "object" &&
+                  subagentMetaByRunIdRef.current.get(frameRunId) !== null
+                ) {
+                  upsertSubagentMeta(frameRunId, {
+                    status: "failed",
+                  });
+                }
+
+                syncAssistantSubagentState(patchTime);
+                return;
+              }
+
+              if (
+                frame.type === "final_message" ||
+                frame.type === "tool_call" ||
+                frame.type === "error" ||
+                frame.type === "done"
+              ) {
+                flushBufferedTokenDelta();
               }
 
               if (frame.type === "memory_prepare") {
@@ -1108,7 +1652,7 @@ export const useChatStream = ({
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                misoLogger.log("memory_prepare", {
+                unchainLogger.log("memory_prepare", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   before_estimated_tokens: payload.before_estimated_tokens,
@@ -1131,7 +1675,7 @@ export const useChatStream = ({
                   frame.payload && typeof frame.payload === "object"
                     ? frame.payload
                     : {};
-                misoLogger.log("memory_commit", {
+                unchainLogger.log("memory_commit", {
                   applied: payload.applied,
                   session_id: payload.session_id,
                   stored_message_count: payload.stored_message_count,
@@ -1183,6 +1727,10 @@ export const useChatStream = ({
                   typeof frame.payload?.tool_name === "string"
                     ? frame.payload.tool_name
                     : "";
+                const toolkitId =
+                  typeof frame.payload?.toolkit_id === "string"
+                    ? frame.payload.toolkit_id
+                    : "";
                 if (toolName === HUMAN_INPUT_TOOL_NAME) {
                   const interactConfig =
                     frame.payload?.interact_config &&
@@ -1194,7 +1742,7 @@ export const useChatStream = ({
                     typeof frame.payload.arguments === "object"
                       ? frame.payload.arguments
                       : {};
-                  misoLogger.log("ask_user_question_prompt", {
+                  unchainLogger.log("ask_user_question_prompt", {
                     callId,
                     confirmationId,
                     interactRequestId:
@@ -1239,6 +1787,43 @@ export const useChatStream = ({
                 if (callId && confirmationId && requiresConfirmation) {
                   confirmationIdByCallIdRef.current.set(callId, confirmationId);
                   confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                  updatePendingToolConfirmationRequests((previous) =>
+                    previous[confirmationId]
+                      ? previous
+                      : {
+                          ...previous,
+                          [confirmationId]: {
+                            confirmationId,
+                            callId,
+                            toolName,
+                            toolDisplayName:
+                              typeof frame.payload?.tool_display_name ===
+                              "string"
+                                ? frame.payload.tool_display_name
+                                : "",
+                            arguments:
+                              frame.payload?.arguments &&
+                              typeof frame.payload.arguments === "object"
+                                ? frame.payload.arguments
+                                : {},
+                            description:
+                              typeof frame.payload?.description === "string"
+                                ? frame.payload.description
+                                : "",
+                            interactType:
+                              typeof frame.payload?.interact_type === "string" &&
+                              frame.payload.interact_type
+                                ? frame.payload.interact_type
+                                : "confirmation",
+                            interactConfig:
+                              frame.payload?.interact_config &&
+                              typeof frame.payload.interact_config === "object"
+                                ? frame.payload.interact_config
+                                : {},
+                            requestedAt: patchTime,
+                          },
+                        },
+                  );
                   if (
                     confirmationFollowupSignalByIdRef.current.get(
                       confirmationId,
@@ -1262,17 +1847,22 @@ export const useChatStream = ({
                         },
                   );
 
-                  /* ── Auto-approve: if this tool is auto-approved, respond immediately ── */
-                  if (
+                  /* ── Auto-approve: only for "confirmation" type, never for user-input types ── */
+                  const itype =
+                    typeof frame.payload?.interact_type === "string"
+                      ? frame.payload.interact_type
+                      : "";
+                  const isAutoApprovable =
                     toolName !== HUMAN_INPUT_TOOL_NAME &&
-                    isToolAutoApproved(toolName)
-                  ) {
+                    (!itype || itype === "confirmation") &&
+                    isToolAutoApproved(toolkitId, toolName);
+                  if (isAutoApprovable) {
                     const autoPayload = {
                       confirmation_id: confirmationId,
                       approved: true,
                       reason: "",
                     };
-                    api.miso
+                    api.unchain
                       .respondToolConfirmation(autoPayload)
                       .then(() => {
                         if (
@@ -1327,7 +1917,7 @@ export const useChatStream = ({
                       ? frame.payload.result.tool
                       : "";
                 if (toolName === HUMAN_INPUT_TOOL_NAME) {
-                  misoLogger.log("ask_user_question_result", {
+                  unchainLogger.log("ask_user_question_result", {
                     callId,
                     result: frame.payload?.result,
                   });
@@ -1408,11 +1998,38 @@ export const useChatStream = ({
                         },
                       ];
 
+                  /* If this tool_call has a confirmation_id and an older
+                     frame with the same call_id already exists (emitted by
+                     on_event before the confirm callback), replace it so the
+                     confirmation UI renders correctly. */
+                  const frameCallId =
+                    typeof frame.payload?.call_id === "string"
+                      ? frame.payload.call_id
+                      : "";
+                  const frameHasConfirmation =
+                    typeof frame.payload?.confirmation_id === "string" &&
+                    frame.payload.confirmation_id;
+                  let mergedFrames = [...existingFrames, ...syntheticFrame];
+                  if (frameCallId && frameHasConfirmation) {
+                    const dupIdx = mergedFrames.findIndex(
+                      (f) =>
+                        f.type === "tool_call" &&
+                        f.payload?.call_id === frameCallId,
+                    );
+                    if (dupIdx >= 0) {
+                      mergedFrames[dupIdx] = frame;  // replace old frame
+                    } else {
+                      mergedFrames.push(frame);
+                    }
+                  } else {
+                    mergedFrames.push(frame);
+                  }
+
                   return {
                     ...message,
                     content: "",
                     updatedAt: patchTime,
-                    traceFrames: [...existingFrames, ...syntheticFrame, frame],
+                    traceFrames: mergedFrames,
                   };
                 });
                 syncStreamMessages(nextStreamMessages);
@@ -1436,24 +2053,36 @@ export const useChatStream = ({
                 typeof meta.thread_id === "string" &&
                 meta.thread_id.trim()
               ) {
-                storageApi.setChatThreadId(targetChatId, targetChatId, {
-                  source: "chat-page",
-                });
+                if (!isCharacterChat) {
+                  storageApi.setChatThreadId(targetChatId, meta.thread_id, {
+                    source: "chat-page",
+                  });
+                }
               }
 
               if (meta && typeof meta.model === "string" && meta.model.trim()) {
-                storageApi.setChatModel(
-                  targetChatId,
-                  { id: meta.model },
-                  { source: "chat-page" },
-                );
-                if (activeChatIdRef.current === targetChatId) {
+                if (!isCharacterChat) {
+                  storageApi.setChatModel(
+                    targetChatId,
+                    { id: meta.model },
+                    { source: "chat-page" },
+                  );
+                }
+                if (!isCharacterChat && activeChatIdRef.current === targetChatId) {
                   modelIdRef.current = meta.model;
                   setSelectedModelId(meta.model);
                 }
               }
             },
             onToken: (delta) => {
+              if (
+                lastTokenRunIdRef.current &&
+                isKnownSubagentRunId(lastTokenRunIdRef.current)
+              ) {
+                lastTokenRunIdRef.current = "";
+                return;
+              }
+              lastTokenRunIdRef.current = "";
               if (typeof delta !== "string" || !delta) {
                 return;
               }
@@ -1461,6 +2090,12 @@ export const useChatStream = ({
               thinkTagParser.feed(delta);
             },
             onDone: (done) => {
+              /* Sync closure with external updates before building final messages. */
+              const _refMsgs = activeStreamMessagesRef.current?.messages;
+              if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
+                streamMessages = _refMsgs;
+              }
+
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               const doneTime = Date.now();
@@ -1468,6 +2103,10 @@ export const useChatStream = ({
                 done?.bundle && typeof done.bundle === "object"
                   ? { ...done.bundle }
                   : undefined;
+              const nextAgentOrchestration =
+                bundle && bundle.agent_orchestration
+                  ? normalizeAgentOrchestration(bundle.agent_orchestration)
+                  : null;
 
               const nextStreamMessages = streamMessages.map((message) => {
                 if (message.id !== assistantMessageId) return message;
@@ -1489,8 +2128,25 @@ export const useChatStream = ({
               });
               syncStreamMessages(nextStreamMessages);
 
+              if (!isCharacterChat && nextAgentOrchestration) {
+                storageApi.setChatAgentOrchestration(
+                  targetChatId,
+                  nextAgentOrchestration,
+                  { source: "chat-page" },
+                );
+                if (
+                  typeof setAgentOrchestration === "function" &&
+                  activeChatIdRef.current === targetChatId
+                ) {
+                  setAgentOrchestration(nextAgentOrchestration);
+                }
+              }
+
               if (bundle && typeof bundle.consumed_tokens === "number") {
-                const modelId = modelIdRef.current || "";
+                const modelId =
+                  typeof bundle.model === "string" && bundle.model.trim()
+                    ? bundle.model.trim()
+                    : modelIdRef.current || "";
                 const colonIndex = modelId.indexOf(":");
                 const provider =
                   colonIndex > 0 ? modelId.slice(0, colonIndex) : "unknown";
@@ -1509,6 +2165,12 @@ export const useChatStream = ({
                     : {}),
                   ...(typeof bundle.output_tokens === "number"
                     ? { output_tokens: bundle.output_tokens }
+                    : {}),
+                  ...(typeof bundle.cache_read_input_tokens === "number"
+                    ? { cache_read_input_tokens: bundle.cache_read_input_tokens }
+                    : {}),
+                  ...(typeof bundle.cache_creation_input_tokens === "number"
+                    ? { cache_creation_input_tokens: bundle.cache_creation_input_tokens }
                     : {}),
                   max_context_window_tokens: bundle.max_context_window_tokens,
                   chatId: targetChatId,
@@ -1576,11 +2238,21 @@ export const useChatStream = ({
                   memoryFallbackAttempted: true,
                   forceHistoryFallback: true,
                   historyOverride: retryHistory,
+                  characterAgentConfig: resolvedCharacterConfig,
                 });
                 return;
               }
 
-              if (activeChatIdRef.current === targetChatId) {
+              /* T5: only show error banner if trace chain doesn't already
+                 have frames — when trace is visible, the ErrorNode in the
+                 timeline handles display so we avoid duplicating the message. */
+              const currentAssistantMsg = streamMessages.find(
+                (m) => m.id === assistantMessageId,
+              );
+              const traceHasContent =
+                Array.isArray(currentAssistantMsg?.traceFrames) &&
+                currentAssistantMsg.traceFrames.length > 0;
+              if (activeChatIdRef.current === targetChatId && !traceHasContent) {
                 setStreamError(errorMessage);
               }
               streamHandleRef.current = null;
@@ -1602,8 +2274,8 @@ export const useChatStream = ({
                 const errorFrame = {
                   seq: (message.traceFrames?.length || 0) + 1,
                   ts: errorTime,
+                  run_id: "",
                   type: "error",
-                  stage: "stream",
                   payload: { code: errorCode, message: errorMessage },
                 };
 
@@ -1675,25 +2347,32 @@ export const useChatStream = ({
 
       return true;
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeChatIdRef,
       activeStreamMessagesRef,
       appendSyntheticToolConfirmationDecision,
+      buildCharacterRunConfig,
       buildHistoryForModel,
+      characterId,
       clearActiveTokenFlushController,
       clearAllPendingToolConfirmations,
       clearConfirmationResolutionTimer,
       clearResolvedToolConfirmationByCallId,
       hydrateAttachmentPayloads,
+      agentOrchestration,
+      isCharacterChat,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
+      messagesRef,
       resolveAttachmentPayloads,
       selectedToolkits,
       selectedWorkspaceIds,
       setDraftAttachments,
       setInputValue,
       setMessages,
+      setAgentOrchestration,
       setSelectedModelId,
       setStreamError,
       storageApi,
@@ -1704,10 +2383,17 @@ export const useChatStream = ({
 
   const sendNewTurn = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
-    const text = inputValue.trim();
-    const hasAttachments = Array.isArray(draftAttachments)
-      ? draftAttachments.length > 0
+    const text = inputValueRef.current.trim();
+    const currentDraftAttachments = draftAttachmentsRef.current;
+    const hasAttachments = Array.isArray(currentDraftAttachments)
+      ? currentDraftAttachments.length > 0
       : false;
+    const normalizedSelectedModelId =
+      typeof selectedModelIdRef.current === "string" ? selectedModelIdRef.current.trim() : "";
+    const hasSelectedModel =
+      isCharacterChat ||
+      (normalizedSelectedModelId &&
+        normalizedSelectedModelId !== "unchain-unset");
     const hasActiveStream = Boolean(
       streamingChatIdRef.current && streamHandleRef.current,
     );
@@ -1720,8 +2406,13 @@ export const useChatStream = ({
       return;
     }
 
-    if (!api.miso.isBridgeAvailable()) {
+    if (!api.unchain.isBridgeAvailable()) {
       setStreamError("Miso bridge is unavailable in this runtime.");
+      return;
+    }
+
+    if (!hasSelectedModel) {
+      setStreamError("Select a model before sending a message.");
       return;
     }
 
@@ -1737,8 +2428,8 @@ export const useChatStream = ({
       mode: "send",
       chatId: currentChatId,
       text,
-      attachments: draftAttachments,
-      baseMessages: messages,
+      attachments: currentDraftAttachments,
+      baseMessages: messagesRef.current,
       clearComposer: true,
       missingAttachmentPayloadMode: "block",
     });
@@ -1746,9 +2437,8 @@ export const useChatStream = ({
     activeChatIdRef,
     attachmentsDisabledReason,
     attachmentsEnabled,
-    draftAttachments,
-    inputValue,
-    messages,
+    isCharacterChat,
+    messagesRef,
     runTurnRequest,
     setStreamError,
   ]);
@@ -1785,15 +2475,30 @@ export const useChatStream = ({
         return;
       }
 
-      if (!api.miso.isBridgeAvailable()) {
+      if (!api.unchain.isBridgeAvailable()) {
         setStreamError("Miso bridge is unavailable in this runtime.");
         return;
       }
 
       const baseMessages = messagesRef.current.slice(0, messageIndex);
+      const characterConfig = isCharacterChat
+        ? await buildCharacterRunConfig().catch((error) => {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return null;
+          })
+        : null;
+      if (isCharacterChat && !characterConfig?.session_id) {
+        return;
+      }
       const memoryReplaced = await replaceSessionMemoryForMessages(
-        currentChatId,
+        characterConfig?.session_id || currentChatId,
         baseMessages,
+        {
+          forceMemoryEnabled: isCharacterChat,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+        },
       );
       if (!memoryReplaced) {
         return;
@@ -1820,11 +2525,14 @@ export const useChatStream = ({
         clearComposer: false,
         reuseUserMessage: targetMessage,
         missingAttachmentPayloadMode: "degrade",
+        characterAgentConfig: characterConfig,
       });
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
+      buildCharacterRunConfig,
+      isCharacterChat,
       messagesRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
@@ -1861,15 +2569,30 @@ export const useChatStream = ({
         return;
       }
 
-      if (!api.miso.isBridgeAvailable()) {
+      if (!api.unchain.isBridgeAvailable()) {
         setStreamError("Miso bridge is unavailable in this runtime.");
         return;
       }
 
       const baseMessages = messagesRef.current.slice(0, messageIndex);
+      const characterConfig = isCharacterChat
+        ? await buildCharacterRunConfig().catch((error) => {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return null;
+          })
+        : null;
+      if (isCharacterChat && !characterConfig?.session_id) {
+        return;
+      }
       const memoryReplaced = await replaceSessionMemoryForMessages(
-        currentChatId,
+        characterConfig?.session_id || currentChatId,
         baseMessages,
+        {
+          forceMemoryEnabled: isCharacterChat,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+        },
       );
       if (!memoryReplaced) {
         return;
@@ -1896,11 +2619,14 @@ export const useChatStream = ({
         clearComposer: false,
         reuseUserMessage: targetMessage,
         missingAttachmentPayloadMode: "degrade",
+        characterAgentConfig: characterConfig,
       });
     },
     [
       activeChatIdRef,
       attachmentsEnabled,
+      buildCharacterRunConfig,
+      isCharacterChat,
       messagesRef,
       replaceSessionMemoryForMessages,
       runTurnRequest,
@@ -1944,9 +2670,24 @@ export const useChatStream = ({
       const nextMessages = workingMessages.filter(
         (item) => !turnMessageIds.has(item?.id),
       );
+      const characterConfig = isCharacterChat
+        ? await buildCharacterRunConfig().catch((error) => {
+            setStreamError(
+              error?.message || "Failed to prepare this character chat.",
+            );
+            return null;
+          })
+        : null;
+      if (isCharacterChat && !characterConfig?.session_id) {
+        return;
+      }
       const memoryReplaced = await replaceSessionMemoryForMessages(
-        currentChatId,
+        characterConfig?.session_id || currentChatId,
         nextMessages,
+        {
+          forceMemoryEnabled: isCharacterChat,
+          memoryNamespace: characterConfig?.run_memory_namespace || "",
+        },
       );
       if (!memoryReplaced) {
         return;
@@ -1957,10 +2698,13 @@ export const useChatStream = ({
     },
     [
       activeChatIdRef,
+      buildCharacterRunConfig,
       cancelCurrentStreamAndSettleMessages,
+      isCharacterChat,
       messagesRef,
       replaceSessionMemoryForMessages,
       setMessages,
+      setStreamError,
     ],
   );
 
@@ -1991,6 +2735,7 @@ export const useChatStream = ({
         clearTimeout(timerId);
       });
       confirmationResolveTimerById.clear();
+      pendingToolConfirmationRequestsRef.current = {};
       pendingContinuationRequestRef.current = null;
     };
   }, [
@@ -2007,6 +2752,7 @@ export const useChatStream = ({
     hasBackgroundStream,
     isStreaming,
     pendingContinuationRequest,
+    pendingToolConfirmationRequests,
     resendTurn,
     sendNewTurn,
     setStreamError,

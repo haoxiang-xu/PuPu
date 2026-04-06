@@ -1,9 +1,26 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
-import { getChatsStore } from "../../SERVICEs/chat_storage";
+import { getChatsStore, openCharacterChat, setChatModel } from "../../SERVICEs/chat_storage";
+import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 
 let lastChatMessagesProps = null;
+let lastChatInputProps = null;
+var mockScopedLogger;
+
+jest.mock("../../SERVICEs/console_logger", () => ({
+  createLogger: () => {
+    if (!mockScopedLogger) {
+      mockScopedLogger = {
+        log: jest.fn(),
+        warn: jest.fn(),
+        error: jest.fn(),
+        debug: jest.fn(),
+      };
+    }
+    return mockScopedLogger;
+  },
+}));
 
 jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
   __esModule: true,
@@ -30,23 +47,27 @@ jest.mock("../../COMPONENTs/chat-messages/chat_messages", () => ({
 
 jest.mock("../../COMPONENTs/chat-input/chat_input", () => ({
   __esModule: true,
-  default: ({ value, onChange, onSend, onStop, isStreaming }) => (
-    <div>
-      <input
-        data-testid="chat-input"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-      />
-      <button data-testid="send-button" onClick={onSend}>
-        Send
-      </button>
-      {isStreaming ? (
-        <button data-testid="stop-button" onClick={onStop}>
-          Stop
+  default: (props) => {
+    lastChatInputProps = props;
+    const { value, onChange, onSend, onStop, isStreaming, sendDisabled } = props;
+    return (
+      <div>
+        <input
+          data-testid="chat-input"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button data-testid="send-button" onClick={onSend} disabled={sendDisabled}>
+          Send
         </button>
-      ) : null}
-    </div>
-  ),
+        {isStreaming ? (
+          <button data-testid="stop-button" onClick={onStop}>
+            Stop
+          </button>
+        ) : null}
+      </div>
+    );
+  },
 }));
 
 describe("ChatInterface stop flow", () => {
@@ -57,10 +78,15 @@ describe("ChatInterface stop flow", () => {
   beforeEach(() => {
     window.localStorage.clear();
     lastChatMessagesProps = null;
+    lastChatInputProps = null;
     cancelSpy = jest.fn();
     streamHandlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
-    window.misoAPI = {
+    mockScopedLogger.log.mockClear();
+    mockScopedLogger.warn.mockClear();
+    mockScopedLogger.error.mockClear();
+    mockScopedLogger.debug.mockClear();
+    window.unchainAPI = {
       getStatus: jest.fn(async () => ({
         status: "ready",
         ready: true,
@@ -68,8 +94,12 @@ describe("ChatInterface stop flow", () => {
         reason: "",
       })),
       getModelCatalog: jest.fn(async () => ({
-        activeModel: null,
-        providers: {},
+        activeModel: "openai:gpt-5",
+        providers: {
+          openai: ["gpt-5"],
+          ollama: [],
+          anthropic: [],
+        },
         model_capabilities: {},
       })),
       startStream: jest.fn(),
@@ -80,6 +110,13 @@ describe("ChatInterface stop flow", () => {
         };
       }),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
+      buildCharacterAgentConfig: jest.fn(async () => ({
+        session_id: "character_nico__dm__main",
+        run_memory_namespace: "character_nico__rel__local_user",
+        default_model: "openai:gpt-4.1",
+        instructions: "You are Nico.",
+        decision: { action: "reply", courtesy_message: null },
+      })),
       cancelStream: jest.fn(),
       respondToolConfirmation: jest.fn(async () => ({ status: "ok" })),
     };
@@ -87,7 +124,7 @@ describe("ChatInterface stop flow", () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
-    delete window.misoAPI;
+    delete window.unchainAPI;
   });
 
   const renderChat = () =>
@@ -105,7 +142,9 @@ describe("ChatInterface stop flow", () => {
 
   const waitForReady = async () => {
     await waitFor(() => {
-      expect(window.misoAPI.getStatus).toHaveBeenCalled();
+      expect(window.unchainAPI.getStatus).toHaveBeenCalled();
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+      expect(lastChatInputProps?.sendDisabled).toBe(false);
     });
   };
 
@@ -132,14 +171,14 @@ describe("ChatInterface stop flow", () => {
   };
 
   const sendTurn = async (userContent, assistantContent) => {
-    const nextCallCount = window.misoAPI.startStreamV2.mock.calls.length + 1;
+    const nextCallCount = window.unchainAPI.startStreamV2.mock.calls.length + 1;
     fireEvent.change(screen.getByTestId("chat-input"), {
       target: { value: userContent },
     });
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(nextCallCount);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(nextCallCount);
       expect(streamHandlers).toBeTruthy();
     });
 
@@ -186,6 +225,214 @@ describe("ChatInterface stop flow", () => {
     expect(hasRenderPhaseWarning).toBe(false);
   });
 
+  test("disables send when no model is selected", async () => {
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: null,
+      providers: {
+        openai: ["gpt-5"],
+        ollama: [],
+        anthropic: [],
+      },
+      model_capabilities: {},
+    });
+
+    renderChat();
+
+    await waitFor(() => {
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+      expect(lastChatInputProps?.sendDisabled).toBe(true);
+      expect(lastChatInputProps?.disclaimer).toBe(
+        "Select a model to send a message.",
+      );
+      expect(screen.getByTestId("send-button")).toBeDisabled();
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello without model" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("character chats hide model/tools/workspace selectors and inject character config into stream", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+        },
+      },
+      { source: "test" },
+    );
+
+    renderChat();
+    await waitForReady();
+
+    await waitFor(() => {
+      expect(lastChatInputProps?.showModelSelector).toBe(false);
+      expect(lastChatInputProps?.showToolSelector).toBe(false);
+      expect(lastChatInputProps?.showWorkspaceSelector).toBe(false);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello Nico" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.buildCharacterAgentConfig).toHaveBeenCalledWith({
+        characterId: "nico",
+        threadId: "main",
+        humanId: "local_user",
+      });
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.threadId).toBe("character_nico__dm__main");
+    expect(payload.options.modelId).toBe("openai:gpt-4.1");
+    expect(payload.options.memory_enabled).toBe(true);
+    expect(payload.options.memory_namespace).toBe(
+      "character_nico__rel__local_user",
+    );
+    expect(payload.options.agent_instructions).toBe("You are Nico.");
+    expect(payload.options.disable_workspace_root).toBe(true);
+    expect(payload.options.toolkits).toBeUndefined();
+    expect(payload.options.selectedWorkspaceIds).toBeUndefined();
+    expect(payload.options.workspaceRoot).toBeUndefined();
+  });
+
+  test("character chat defer decisions reply locally without starting a stream", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+    openCharacterChat(
+      {
+        character: {
+          id: "nico",
+          name: "Nico",
+        },
+      },
+      { source: "test" },
+    );
+    window.unchainAPI.buildCharacterAgentConfig.mockResolvedValueOnce({
+      session_id: "character_nico__dm__main",
+      run_memory_namespace: "character_nico__rel__local_user",
+      instructions: "You are Nico.",
+      decision: {
+        action: "defer",
+        courtesy_message: "I'm working right now, later?",
+      },
+    });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Ping" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(lastChatMessagesProps?.messages).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ role: "user", content: "Ping" }),
+            expect.objectContaining({
+              role: "assistant",
+              content: "I'm working right now, later?",
+              status: "done",
+            }),
+          ]),
+      );
+    });
+  });
+
+  test("persists agent orchestration between turns and records token usage from bundle.model", async () => {
+    const seeded = getChatsStore();
+    setChatModel(seeded.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Implement the feature" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    const [firstPayload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(firstPayload.options.agent_orchestration).toEqual({
+      mode: "default",
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "final_message",
+        payload: {
+          content: "Here is the plan.",
+        },
+      });
+      streamHandlers.onDone({
+        bundle: {
+          model: "openai:gpt-4.1",
+          display_model: "openai:gpt-5",
+          active_agent: "developer",
+          agent_orchestration: {
+            mode: "developer_waiting_approval",
+          },
+          consumed_tokens: 21,
+          input_tokens: 13,
+          output_tokens: 8,
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        getChatsStore().chatsById[getChatsStore().activeChatId].agentOrchestration,
+      ).toEqual({
+        mode: "developer_waiting_approval",
+      });
+    });
+
+    expect(
+      getChatsStore().chatsById[getChatsStore().activeChatId].model,
+    ).toEqual({ id: "openai:gpt-5" });
+    expect(readTokenUsageRecords()).toEqual([
+      expect.objectContaining({
+        provider: "openai",
+        model: "gpt-4.1",
+        model_id: "openai:gpt-4.1",
+        consumed_tokens: 21,
+        input_tokens: 13,
+        output_tokens: 8,
+      }),
+    ]);
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Proceed" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    });
+
+    const [secondPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
+    expect(secondPayload.options.agent_orchestration).toEqual({
+      mode: "developer_waiting_approval",
+    });
+  });
+
   test("records a synthetic confirmation decision as soon as approval is accepted", async () => {
     renderChat();
     await waitForReady();
@@ -223,7 +470,7 @@ describe("ChatInterface stop flow", () => {
       approved: true,
     });
 
-    expect(window.misoAPI.respondToolConfirmation).toHaveBeenCalledWith({
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
       confirmation_id: "confirm-1",
       approved: true,
       reason: "",
@@ -258,6 +505,69 @@ describe("ChatInterface stop flow", () => {
           }),
         ]),
       );
+    });
+  });
+
+  test("auto-approves only toolkit-scoped tool matches", async () => {
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["code_toolkit"],
+        tools: ["code_toolkit:write"],
+      }),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run the write tool" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    streamHandlers.onFrame({
+      seq: 1,
+      ts: 100,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        confirmation_id: "confirm-1",
+        requires_confirmation: true,
+        toolkit_id: "code_toolkit",
+        tool_name: "write",
+        arguments: { path: "/tmp/demo.txt" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+        confirmation_id: "confirm-1",
+        approved: true,
+        reason: "",
+      });
+    });
+
+    streamHandlers.onFrame({
+      seq: 2,
+      ts: 110,
+      type: "tool_call",
+      payload: {
+        call_id: "call-2",
+        confirmation_id: "confirm-2",
+        requires_confirmation: true,
+        toolkit_id: "workspace_toolkit",
+        tool_name: "write",
+        arguments: { path: "/tmp/demo.txt" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -307,7 +617,7 @@ describe("ChatInterface stop flow", () => {
       },
     });
 
-    expect(window.misoAPI.respondToolConfirmation).toHaveBeenCalledWith({
+    expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
       confirmation_id: "confirm-1",
       approved: true,
       reason: "",
@@ -362,10 +672,10 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
     });
 
-    const [firstPayload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [firstPayload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(firstPayload.history).toEqual([]);
 
     streamHandlers.onError({
@@ -374,10 +684,10 @@ describe("ChatInterface stop flow", () => {
     });
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(2);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
     });
 
-    const [secondPayload] = window.misoAPI.startStreamV2.mock.calls[1];
+    const [secondPayload] = window.unchainAPI.startStreamV2.mock.calls[1];
     expect(secondPayload.threadId).toEqual(firstPayload.threadId);
     expect(secondPayload.options.memory_enabled).toBe(false);
     expect(secondPayload.history).toEqual(
@@ -388,6 +698,169 @@ describe("ChatInterface stop flow", () => {
         }),
       ]),
     );
+  });
+
+  test("stores child lifecycle metadata and child trace frames separately from the main trace", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Delegate the analysis" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "run_started",
+        run_id: "parent-run",
+        payload: {
+          run_id: "parent-run",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "subagent_started",
+        payload: {
+          child_run_id: "child-run-1",
+          subagent_id: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          parent_id: "developer",
+          lineage: ["developer", "developer.analyzer.1"],
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 120,
+        type: "tool_call",
+        run_id: "child-run-1",
+        payload: {
+          call_id: "child-call-1",
+          tool_name: "read_file",
+          arguments: {
+            path: "src/unchain/kernel/__init__.py",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.subagentMetaByRunId?.["child-run-1"]).toEqual(
+        expect.objectContaining({
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.1"],
+          status: "running",
+        }),
+      );
+      expect(assistantMessage?.subagentFrames?.["child-run-1"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool_call",
+            run_id: "child-run-1",
+          }),
+        ]),
+      );
+      expect(
+        assistantMessage?.traceFrames?.find(
+          (frame) => frame?.payload?.call_id === "child-call-1",
+        ),
+      ).toBeUndefined();
+    });
+  });
+
+  test("keeps child final messages out of the main trace when lifecycle metadata arrives later", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Delegate with delayed lifecycle metadata" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "run_started",
+        run_id: "parent-run",
+        payload: {
+          run_id: "parent-run",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "final_message",
+        run_id: "child-run-2",
+        payload: {
+          content: "Child delegate final output",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 120,
+        type: "subagent_completed",
+        payload: {
+          child_run_id: "child-run-2",
+          subagent_id: "developer.analyzer.2",
+          mode: "delegate",
+          template: "analyzer",
+          parent_id: "developer",
+          lineage: ["developer", "developer.analyzer.2"],
+          status: "completed",
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.subagentMetaByRunId?.["child-run-2"]).toEqual(
+        expect.objectContaining({
+          subagentId: "developer.analyzer.2",
+          mode: "delegate",
+          template: "analyzer",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.2"],
+          status: "completed",
+        }),
+      );
+      expect(assistantMessage?.subagentFrames?.["child-run-2"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "final_message",
+            run_id: "child-run-2",
+            payload: expect.objectContaining({
+              content: "Child delegate final output",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        assistantMessage?.traceFrames?.find(
+          (frame) =>
+            frame?.type === "final_message" && frame?.run_id === "child-run-2",
+        ),
+      ).toBeUndefined();
+    });
   });
 
   test("batches token updates per animation frame and flushes pending tokens on done", async () => {
@@ -449,6 +922,105 @@ describe("ChatInterface stop flow", () => {
       await waitFor(() => {
         expect(getAssistantMessage()?.content).toBe("Hello world");
         expect(getAssistantMessage()?.status).toBe("done");
+      });
+    } finally {
+      window.requestAnimationFrame = originalRaf;
+      window.cancelAnimationFrame = originalCancelRaf;
+    }
+  });
+
+  test("suppresses child token deltas while keeping parent token streaming intact", async () => {
+    const originalRaf = window.requestAnimationFrame;
+    const originalCancelRaf = window.cancelAnimationFrame;
+    const rafCallbacks = new Map();
+    let rafIdSeed = 0;
+    window.requestAnimationFrame = jest.fn((callback) => {
+      rafIdSeed += 1;
+      rafCallbacks.set(rafIdSeed, callback);
+      return rafIdSeed;
+    });
+    window.cancelAnimationFrame = jest.fn((id) => {
+      rafCallbacks.delete(id);
+    });
+
+    try {
+      renderChat();
+      await waitForReady();
+
+      fireEvent.change(screen.getByTestId("chat-input"), {
+        target: { value: "Token routing test" },
+      });
+      fireEvent.click(screen.getByTestId("send-button"));
+
+      await waitFor(() => {
+        expect(streamHandlers).toBeTruthy();
+      });
+
+      const getAssistantMessage = () =>
+        lastChatMessagesProps?.messages?.find(
+          (message) => message.role === "assistant",
+        );
+
+      act(() => {
+        streamHandlers.onFrame({
+          seq: 1,
+          ts: 100,
+          type: "run_started",
+          run_id: "parent-run",
+          payload: {
+            run_id: "parent-run",
+          },
+        });
+        streamHandlers.onFrame({
+          seq: 2,
+          ts: 110,
+          type: "subagent_started",
+          payload: {
+            child_run_id: "child-run-1",
+            subagent_id: "developer.analyzer.1",
+            mode: "delegate",
+            template: "analyzer",
+            parent_id: "developer",
+            lineage: ["developer", "developer.analyzer.1"],
+          },
+        });
+        streamHandlers.onFrame({
+          seq: 3,
+          ts: 120,
+          type: "token_delta",
+          run_id: "child-run-1",
+          payload: {
+            delta: "child output",
+          },
+        });
+        streamHandlers.onToken("child output");
+      });
+
+      await waitFor(() => {
+        expect(getAssistantMessage()?.content || "").toBe("");
+      });
+
+      act(() => {
+        streamHandlers.onFrame({
+          seq: 4,
+          ts: 130,
+          type: "token_delta",
+          run_id: "parent-run",
+          payload: {
+            delta: "parent output",
+          },
+        });
+        streamHandlers.onToken("parent output");
+      });
+
+      act(() => {
+        const callbacks = Array.from(rafCallbacks.values());
+        rafCallbacks.clear();
+        callbacks.forEach((callback) => callback(16));
+      });
+
+      await waitFor(() => {
+        expect(getAssistantMessage()?.content).toBe("parent output");
       });
     } finally {
       window.requestAnimationFrame = originalRaf;
@@ -560,6 +1132,20 @@ describe("ChatInterface stop flow", () => {
         ),
       ).toBeInTheDocument();
     });
+
+    expect(
+      mockScopedLogger.log.mock.calls.some((call) => {
+        const payload = call[1];
+        return (
+          payload &&
+          typeof payload === "object" &&
+          payload.confirmationId === "continue-1" &&
+          payload.iteration === 4 &&
+          payload.latestMessageRole === "assistant" &&
+          payload.attachedToLatestAssistantBubble === true
+        );
+      }),
+    ).toBe(true);
   });
 
   test("resend replaces short-term memory before starting a new stream", async () => {
@@ -584,16 +1170,16 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onResendMessage(secondUserMessage);
     });
 
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.session_id).toBe(lastChatMessagesProps.chatId);
     expect(replacePayload.messages).toEqual([
       { role: "user", content: "First turn" },
       { role: "assistant", content: "A1" },
     ]);
     expect(
-      window.misoAPI.replaceSessionMemory.mock.invocationCallOrder[0],
-    ).toBeLessThan(window.misoAPI.startStreamV2.mock.invocationCallOrder[2]);
+      window.unchainAPI.replaceSessionMemory.mock.invocationCallOrder[0],
+    ).toBeLessThan(window.unchainAPI.startStreamV2.mock.invocationCallOrder[2]);
   });
 
   test("edit replaces short-term memory before starting a new stream", async () => {
@@ -618,13 +1204,13 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onEditMessage(secondUserMessage, "Edited turn");
     });
 
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.messages).toEqual([
       { role: "user", content: "First turn" },
       { role: "assistant", content: "A1" },
     ]);
-    const [streamPayload] = window.misoAPI.startStreamV2.mock.calls[2];
+    const [streamPayload] = window.unchainAPI.startStreamV2.mock.calls[2];
     expect(streamPayload.message).toBe("Edited turn");
   });
 
@@ -650,8 +1236,8 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onDeleteMessage(firstAssistantMessage);
     });
 
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.messages).toEqual([
       { role: "user", content: "Second turn" },
       { role: "assistant", content: "A2" },
@@ -678,7 +1264,7 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     await waitFor(() => {
-      expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
       expect(streamHandlers).toBeTruthy();
     });
 
@@ -691,11 +1277,11 @@ describe("ChatInterface stop flow", () => {
     });
 
     expect(cancelSpy).toHaveBeenCalledTimes(1);
-    expect(window.misoAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
-    expect(window.misoAPI.replaceSessionMemory.mock.invocationCallOrder[0]).toBeGreaterThan(
+    expect(window.unchainAPI.replaceSessionMemory).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.replaceSessionMemory.mock.invocationCallOrder[0]).toBeGreaterThan(
       cancelSpy.mock.invocationCallOrder[0],
     );
-    const [replacePayload] = window.misoAPI.replaceSessionMemory.mock.calls[0];
+    const [replacePayload] = window.unchainAPI.replaceSessionMemory.mock.calls[0];
     expect(replacePayload.messages).toEqual([]);
     await waitFor(() => {
       const store = getChatsStore();
@@ -725,7 +1311,7 @@ describe("ChatInterface stop flow", () => {
       await lastChatMessagesProps.onResendMessage(firstUserMessage);
     });
 
-    expect(window.misoAPI.replaceSessionMemory).not.toHaveBeenCalled();
-    expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(2);
+    expect(window.unchainAPI.replaceSessionMemory).not.toHaveBeenCalled();
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(2);
   });
 });

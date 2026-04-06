@@ -1,27 +1,79 @@
 const STORAGE_KEY = "default_toolkits";
 const MAX_IDS = 100;
 const MAX_ID_LENGTH = 200;
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+const GLOBAL_SCOPE = "global";
+const DEFAULT_GLOBAL_TOOLKITS = Object.freeze(["core"]);
 
-const readStore = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return { version: SCHEMA_VERSION, scopes: {} };
-  }
-  try {
-    const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
-    if (
-      raw &&
-      typeof raw === "object" &&
-      raw.version === SCHEMA_VERSION &&
-      typeof raw.scopes === "object"
-    ) {
-      return raw;
-    }
-  } catch (_) {
-    // corrupted — reset
-  }
-  return { version: SCHEMA_VERSION, scopes: {} };
+const TOOLKIT_ID_ALIASES = Object.freeze({
+  workspace: "workspace_toolkit",
+  workspace_toolkit: "workspace_toolkit",
+  access_workspace_toolkit: "workspace_toolkit",
+  workspacetoolkit: "workspace_toolkit",
+  WorkspaceToolkit: "workspace_toolkit",
+  terminal: "terminal_toolkit",
+  terminal_toolkit: "terminal_toolkit",
+  run_terminal_toolkit: "terminal_toolkit",
+  terminaltoolkit: "terminal_toolkit",
+  TerminalToolkit: "terminal_toolkit",
+  core: "core",
+  core_toolkit: "core",
+  coretoolkit: "core",
+  CoreToolkit: "core",
+  code: "core",
+  code_toolkit: "core",
+  codetoolkit: "core",
+  CodeToolkit: "core",
+  ask_user: "core",
+  ask_user_toolkit: "core",
+  "ask-user-toolkit": "core",
+  interaction_toolkit: "core",
+  "interaction-toolkit": "core",
+  askusertoolkit: "core",
+  AskUserToolkit: "core",
+  external_api: "external_api",
+  external_api_toolkit: "external_api",
+  externalapitoolkit: "external_api",
+  ExternalAPIToolkit: "external_api",
+});
+
+const normalizeToolkitId = (value) => {
+  if (typeof value !== "string") return "";
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > MAX_ID_LENGTH) return "";
+  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[trimmed.toLowerCase()] || trimmed;
 };
+
+const sanitizeIds = (ids) => {
+  if (!Array.isArray(ids)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const id of ids) {
+    const normalized = normalizeToolkitId(id);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    result.push(normalized);
+    if (result.length >= MAX_IDS) break;
+  }
+  return result;
+};
+
+const sanitizeScopes = (scopes) => {
+  if (!scopes || typeof scopes !== "object") {
+    return {};
+  }
+  const normalized = {};
+  for (const [scopeKey, ids] of Object.entries(scopes)) {
+    if (typeof scopeKey !== "string" || !scopeKey.trim()) continue;
+    normalized[scopeKey] = sanitizeIds(ids);
+  }
+  return normalized;
+};
+
+const createDefaultStore = () => ({
+  version: SCHEMA_VERSION,
+  scopes: { [GLOBAL_SCOPE]: [...DEFAULT_GLOBAL_TOOLKITS] },
+});
 
 const writeStore = (store) => {
   if (typeof window === "undefined" || !window.localStorage) return;
@@ -32,55 +84,72 @@ const writeStore = (store) => {
   }
 };
 
-const sanitizeIds = (ids) => {
-  if (!Array.isArray(ids)) return [];
-  const seen = new Set();
-  const result = [];
-  for (const id of ids) {
-    if (typeof id !== "string") continue;
-    const trimmed = id.trim();
-    if (!trimmed || trimmed.length > MAX_ID_LENGTH) continue;
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    result.push(trimmed);
-    if (result.length >= MAX_IDS) break;
+const readStore = () => {
+  if (typeof window === "undefined" || !window.localStorage) {
+    return createDefaultStore();
   }
-  return result;
+
+  try {
+    const raw = JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "null");
+    if (raw && typeof raw === "object" && typeof raw.scopes === "object") {
+      const store = {
+        version: SCHEMA_VERSION,
+        scopes: sanitizeScopes(raw.scopes),
+      };
+      const hasGlobalScope = Object.prototype.hasOwnProperty.call(
+        store.scopes,
+        GLOBAL_SCOPE,
+      );
+      if (!hasGlobalScope) {
+        store.scopes[GLOBAL_SCOPE] = [...DEFAULT_GLOBAL_TOOLKITS];
+      }
+      if (raw.version !== SCHEMA_VERSION || !hasGlobalScope) {
+        writeStore(store);
+      }
+      return store;
+    }
+  } catch (_) {
+    // corrupted — reset
+  }
+
+  const initialStore = createDefaultStore();
+  writeStore(initialStore);
+  return initialStore;
 };
 
-export const getDefaultToolkitSelection = (scopeKey = "global") => {
+export const getDefaultToolkitSelection = (scopeKey = GLOBAL_SCOPE) => {
   const store = readStore();
-  const ids = store.scopes[scopeKey];
-  return sanitizeIds(ids);
+  return sanitizeIds(store.scopes[scopeKey]);
 };
 
 export const setDefaultToolkitEnabled = (
-  scopeKey = "global",
+  scopeKey = GLOBAL_SCOPE,
   toolkitId,
   enabled,
 ) => {
+  const normalizedToolkitId = normalizeToolkitId(toolkitId);
   const store = readStore();
   const current = sanitizeIds(store.scopes[scopeKey]);
+  if (!normalizedToolkitId) {
+    return current;
+  }
 
   let next;
   if (enabled) {
-    if (current.includes(toolkitId)) {
-      next = current;
-    } else {
-      next = [...current, toolkitId];
-    }
+    next = current.includes(normalizedToolkitId)
+      ? current
+      : [...current, normalizedToolkitId];
   } else {
-    next = current.filter((id) => id !== toolkitId);
+    next = current.filter((id) => id !== normalizedToolkitId);
   }
 
-  next = sanitizeIds(next);
-  store.scopes[scopeKey] = next;
+  store.scopes[scopeKey] = sanitizeIds(next);
   writeStore(store);
-  return next;
+  return store.scopes[scopeKey];
 };
 
-export const removeInvalidToolkitIds = (scopeKey = "global", validIds) => {
-  const validSet = new Set(validIds);
+export const removeInvalidToolkitIds = (scopeKey = GLOBAL_SCOPE, validIds) => {
+  const validSet = new Set(sanitizeIds(validIds));
   const store = readStore();
   const current = sanitizeIds(store.scopes[scopeKey]);
   const pruned = current.filter((id) => validSet.has(id));

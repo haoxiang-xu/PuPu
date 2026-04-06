@@ -1,13 +1,19 @@
-import { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
-import { SettingsModal } from "../settings/settings_modal";
-import { ToolkitModal } from "../toolkit/toolkit_modal";
-import { WorkspaceModal } from "../workspace/workspace_modal";
 import { buildExplorerFromTree } from "../../SERVICEs/chat_storage";
 import {
   ConfirmDeleteModal,
@@ -17,9 +23,9 @@ import {
 import { sideMenuChatTreeAPI } from "./side_menu_api";
 import { getRuntimePlatform } from "./side_menu_utils";
 import { buildSideMenuContextMenuItems } from "./side_menu_context_menu_items";
-import { MemoryInspectModal } from "../memory-inspect/memory_inspect_modal";
 import { useChatTreeStore } from "./hooks/use_chat_tree_store";
 import { useSideMenuActions } from "./hooks/use_side_menu_actions";
+import { useCharacterAvailability } from "./hooks/use_character_availability";
 import { filter_explorer_data } from "./utils/filter_explorer_data";
 import {
   exportChat,
@@ -27,8 +33,180 @@ import {
   importFromFile,
   importFromDroppedFile,
 } from "../../SERVICEs/chat_export";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../SERVICEs/feature_flags";
+
+/* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
+const SettingsModal = lazy(() =>
+  import("../settings/settings_modal").then((m) => ({ default: m.SettingsModal })),
+);
+const ToolkitModal = lazy(() =>
+  import("../toolkit/toolkit_modal").then((m) => ({ default: m.ToolkitModal })),
+);
+const AgentsModal = lazy(() =>
+  import("../agents/agents_modal").then((m) => ({ default: m.AgentsModal })),
+);
+const WorkspaceModal = lazy(() =>
+  import("../workspace/workspace_modal").then((m) => ({ default: m.WorkspaceModal })),
+);
+const MemoryInspectModal = lazy(() =>
+  import("../memory-inspect/memory_inspect_modal").then((m) => ({
+    default: m.MemoryInspectModal,
+  })),
+);
+/* eslint-enable import/first */
 
 export { sideMenuChatTreeAPI };
+
+const resolveCharacterAvatarSrc = (avatar) => {
+  const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
+  if (rawUrl) {
+    return rawUrl;
+  }
+
+  const rawPath =
+    typeof avatar?.absolute_path === "string"
+      ? avatar.absolute_path.trim()
+      : "";
+  if (!rawPath) {
+    return "";
+  }
+  if (/^(https?:|data:|file:)/i.test(rawPath)) {
+    return rawPath;
+  }
+  const normalized = rawPath.replace(/\\/g, "/");
+  return normalized.startsWith("/")
+    ? encodeURI(`file://${normalized}`)
+    : encodeURI(`file:///${normalized}`);
+};
+
+const characterFallbackInitial = (name) => {
+  const normalized =
+    typeof name === "string" && name.trim() ? name.trim().charAt(0) : "C";
+  return normalized.toUpperCase();
+};
+
+const AVAILABILITY_DOT_COLOR = {
+  available: "#92c353",
+  limited: "#ffaa44",
+  busy: "#d74654",
+  offline: "#93999e",
+};
+
+const CharacterChatRow = ({ node, depth, isDark, characterAvailability }) => {
+  const [imageBroken, setImageBroken] = useState(false);
+  const avatarSrc = resolveCharacterAvatarSrc(node.characterAvatar);
+  const showImage = Boolean(avatarSrc) && !imageBroken;
+
+  return (
+    <div
+      onClick={(event) => node.on_click && node.on_click(node, event)}
+      onContextMenu={(event) =>
+        node.on_context_menu && node.on_context_menu(node, event)
+      }
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        height: 42,
+        margin: "1px 3px",
+        paddingLeft: depth * 16 + 9,
+        paddingRight: 10,
+        borderRadius: 5,
+        cursor: "pointer",
+        userSelect: "none",
+        WebkitUserSelect: "none",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          width: 24,
+          height: 24,
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: "50%",
+            overflow: "hidden",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: isDark
+              ? "rgba(255,255,255,0.06)"
+              : "rgba(0,0,0,0.04)",
+            border: isDark
+              ? "1px solid rgba(255,255,255,0.10)"
+              : "1px solid rgba(0,0,0,0.08)",
+            color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
+            fontSize: 11,
+            fontWeight: 700,
+            fontFamily: "NunitoSans, sans-serif",
+          }}
+        >
+          {showImage ? (
+            <img
+              src={avatarSrc}
+              alt={`${node.characterName || node.label || "character"} avatar`}
+              onError={() => setImageBroken(true)}
+              style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            />
+          ) : (
+            characterFallbackInitial(node.characterName || node.label)
+          )}
+        </div>
+        {AVAILABILITY_DOT_COLOR[characterAvailability] && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: -2,
+              right: -2,
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              backgroundColor: AVAILABILITY_DOT_COLOR[characterAvailability],
+              border: `1.5px solid ${isDark ? "rgb(32,32,32)" : "rgb(248,248,248)"}`,
+              boxSizing: "content-box",
+            }}
+          />
+        )}
+      </div>
+
+      <div
+        style={{
+          minWidth: 0,
+          flex: 1,
+          fontSize: 12.5,
+          fontFamily: "Jost, sans-serif",
+          color: isDark ? "#fff" : "#171717",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {node.label}
+      </div>
+
+      {node.postfix ? (
+        <div
+          style={{
+            flexShrink: 0,
+            fontSize: 11,
+            fontFamily: "Jost, sans-serif",
+            color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.4)",
+          }}
+        >
+          {node.postfix}
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment, onThemeMode } =
@@ -36,7 +214,17 @@ const SideMenu = () => {
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
+  const [agentsOpen, setAgentsOpen] = useState(false);
+  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+
+  /* Track which lazy modals have been opened at least once.
+     Once mounted, they stay in the tree so Modal's exit animation can play. */
+  const lazyMountedRef = useRef({});
+  if (settingsOpen) lazyMountedRef.current.settings = true;
+  if (toolkitOpen) lazyMountedRef.current.toolkit = true;
+  if (agentsOpen) lazyMountedRef.current.agents = true;
+  if (workspaceModalOpen) lazyMountedRef.current.workspace = true;
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -56,12 +244,18 @@ const SideMenu = () => {
     sessionId: null,
     chatTitle: "",
   });
+  if (memoryInspect.open) lazyMountedRef.current.memory = true;
 
   const { chatStore, setChatStore, selectedNodeId } = useChatTreeStore();
+  const characterAvailabilityMap = useCharacterAvailability(
+    chatStore?.chatsById,
+  );
 
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
   const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const isAgentModalEnabled =
+    featureFlags.enable_user_access_to_agent_modal === true;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -83,6 +277,17 @@ const SideMenu = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    setFeatureFlags(readFeatureFlags());
+    return subscribeFeatureFlags(setFeatureFlags);
+  }, []);
+
+  useEffect(() => {
+    if (!isAgentModalEnabled) {
+      setAgentsOpen(false);
+    }
+  }, [isAgentModalEnabled]);
 
   const closeContextMenu = useCallback(
     () => setContextMenu((c) => ({ ...c, visible: false })),
@@ -223,13 +428,32 @@ const SideMenu = () => {
   );
 
   const explorerData = useMemo(() => {
-    if (!renaming.nodeId || !explorerModel.data[renaming.nodeId]) {
-      return explorerModel.data;
-    }
-    return {
-      ...explorerModel.data,
-      [renaming.nodeId]: {
-        ...explorerModel.data[renaming.nodeId],
+    const nextData = { ...explorerModel.data };
+
+    Object.entries(nextData).forEach(([nodeId, node]) => {
+      if (node?.entity !== "chat" || node?.chatKind !== "character") {
+        return;
+      }
+
+      nextData[nodeId] = {
+        ...node,
+        component: ({ node: componentNode, depth, isExpanded }) => (
+          <CharacterChatRow
+            node={componentNode}
+            depth={depth}
+            isExpanded={isExpanded}
+            isDark={isDark}
+            characterAvailability={
+              characterAvailabilityMap[componentNode.characterId] || ""
+            }
+          />
+        ),
+      };
+    });
+
+    if (renaming.nodeId && nextData[renaming.nodeId]) {
+      nextData[renaming.nodeId] = {
+        ...nextData[renaming.nodeId],
         component: ({ node }) => (
           <RenameRow
             node={node}
@@ -239,8 +463,10 @@ const SideMenu = () => {
             isDark={isDark}
           />
         ),
-      },
-    };
+      };
+    }
+
+    return nextData;
   }, [
     explorerModel.data,
     renaming.nodeId,
@@ -248,6 +474,7 @@ const SideMenu = () => {
     handleConfirmRename,
     handleCancelRename,
     isDark,
+    characterAvailabilityMap,
   ]);
 
   const { filteredData, filteredRoot } = useMemo(
@@ -379,9 +606,26 @@ const SideMenu = () => {
             iconSize: 16,
           }}
         />
+        {isAgentModalEnabled && (
+          <Button
+            prefix_icon="bot"
+            label="Agents"
+            onClick={() => setAgentsOpen(true)}
+            style={{
+              width: "100%",
+              justifyContent: "flex-start",
+              fontSize: 14,
+              padding: "5px 8px",
+              borderRadius: 6,
+              marginBottom: 2,
+              WebkitAppRegion: "no-drag",
+              iconSize: 16,
+            }}
+          />
+        )}
         <Button
           prefix_icon="folder_2"
-          label="Workspace"
+          label="Workspaces"
           onClick={() => setWorkspaceModalOpen(true)}
           style={{
             width: "100%",
@@ -406,6 +650,7 @@ const SideMenu = () => {
             userSelect: "none",
             flexShrink: 0,
           }}
+          onContextMenu={handleBackgroundContextMenu}
         >
           Chats
         </div>
@@ -467,17 +712,44 @@ const SideMenu = () => {
         onClick={() => setSettingsOpen(true)}
       />
 
-      <SettingsModal
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-      />
+      {/* Lazy modals: loaded on first open, kept mounted for exit animation */}
+      <Suspense fallback={null}>
+        {lazyMountedRef.current.settings && (
+          <SettingsModal
+            open={settingsOpen}
+            onClose={() => setSettingsOpen(false)}
+          />
+        )}
 
-      <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+        {lazyMountedRef.current.toolkit && (
+          <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
+        )}
 
-      <WorkspaceModal
-        open={workspaceModalOpen}
-        onClose={() => setWorkspaceModalOpen(false)}
-      />
+        {lazyMountedRef.current.agents && (
+          <AgentsModal
+            open={isAgentModalEnabled && agentsOpen}
+            onClose={() => setAgentsOpen(false)}
+          />
+        )}
+
+        {lazyMountedRef.current.workspace && (
+          <WorkspaceModal
+            open={workspaceModalOpen}
+            onClose={() => setWorkspaceModalOpen(false)}
+          />
+        )}
+
+        {lazyMountedRef.current.memory && (
+          <MemoryInspectModal
+            open={memoryInspect.open}
+            sessionId={memoryInspect.sessionId}
+            chatTitle={memoryInspect.chatTitle}
+            onClose={() =>
+              setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })
+            }
+          />
+        )}
+      </Suspense>
 
       <ContextMenu
         visible={contextMenu.visible}
@@ -494,15 +766,6 @@ const SideMenu = () => {
         onConfirm={() => handleDelete(confirmDelete.node)}
         label={confirmDelete.node?.label || ""}
         isDark={isDark}
-      />
-
-      <MemoryInspectModal
-        open={memoryInspect.open}
-        sessionId={memoryInspect.sessionId}
-        chatTitle={memoryInspect.chatTitle}
-        onClose={() =>
-          setMemoryInspect({ open: false, sessionId: null, chatTitle: "" })
-        }
       />
     </div>
   );

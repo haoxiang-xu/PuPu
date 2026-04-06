@@ -43,7 +43,7 @@ export const WorkspaceModal = ({ open, onClose }) => {
             letterSpacing: "-0.01em",
           }}
         >
-          Workspace
+          Workspaces
         </div>
       </div>
 

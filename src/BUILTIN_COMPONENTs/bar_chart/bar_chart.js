@@ -200,8 +200,11 @@ export const BarChart = ({
                     style={{
                       position: "absolute",
                       bottom: `calc(${pct}% + 8px)`,
-                      left: "50%",
-                      transform: "translateX(-50%)",
+                      ...(i >= data.length - 2 && data.length > 3
+                        ? { right: 0 }
+                        : i <= 1 && data.length > 3
+                          ? { left: 0 }
+                          : { left: "50%", transform: "translateX(-50%)" }),
                       backgroundColor: isDark ? "#2a2a2a" : "#fff",
                       border: `1px solid ${isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)"}`,
                       borderRadius: 6,

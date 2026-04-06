@@ -1,4 +1,8 @@
-import { formatBytes, readLocalStorageEntries } from "./storage_metrics";
+import {
+  formatBytes,
+  readLocalStorageEntries,
+  readLocalStorageEntriesAsync,
+} from "./storage_metrics";
 
 describe("storage_metrics", () => {
   beforeEach(() => {
@@ -16,6 +20,17 @@ describe("storage_metrics", () => {
     window.localStorage.setItem("large", "abcdefghij");
 
     const entries = readLocalStorageEntries();
+
+    expect(entries.length).toBe(2);
+    expect(entries[0].key).toBe("large");
+    expect(entries[0].size).toBeGreaterThan(entries[1].size);
+  });
+
+  test("readLocalStorageEntriesAsync returns size-sorted entries", async () => {
+    window.localStorage.setItem("small", "a");
+    window.localStorage.setItem("large", "abcdefghij");
+
+    const entries = await readLocalStorageEntriesAsync({ timeBudgetMs: 0 });
 
     expect(entries.length).toBe(2);
     expect(entries[0].key).toBe("large");

@@ -5,7 +5,7 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
-import { runtimeBridge } from "../../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 
 const readWorkspaceRoot = () => {
   try {

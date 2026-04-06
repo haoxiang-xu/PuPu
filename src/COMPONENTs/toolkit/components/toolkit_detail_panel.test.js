@@ -5,7 +5,7 @@ import api from "../../../SERVICEs/api";
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
-    miso: {
+    unchain: {
       getToolkitDetail: jest.fn(),
     },
   },
@@ -44,7 +44,7 @@ describe("ToolkitDetailPanel", () => {
   });
 
   test("uses builtin icon background color in the detail header", async () => {
-    api.miso.getToolkitDetail.mockResolvedValue({
+    api.unchain.getToolkitDetail.mockResolvedValue({
       toolkitId: "demo_toolkit",
       toolkitName: "Demo Toolkit",
       toolkitDescription: "Toolkit description",

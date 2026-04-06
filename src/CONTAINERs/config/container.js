@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   useSystemTheme,
   useWindowSize,
@@ -15,7 +15,12 @@ import InitSetupModal from "../../COMPONENTs/init-setup/init_setup_modal";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
-import { ConfigContext } from "./context";
+import {
+  ConfigContext,
+  ThemeContext,
+  EnvironmentContext,
+  NavigationContext,
+} from "./context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
 /* { Init Setup } ------------------------------------------------------------------------------------------------------------ */
@@ -30,7 +35,7 @@ import {
   isDevSettingsAvailable,
   readDevSettings,
 } from "../../COMPONENTs/settings/dev/storage";
-import { runtimeBridge } from "../../SERVICEs/bridges/miso_bridge";
+import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 const SETTINGS_STORAGE_KEY = "settings";
@@ -227,26 +232,47 @@ const ConfigContainer = ({ children }) => {
   const [showInitSetup, setShowInitSetup] = useState(() => !isSetupComplete());
   /* { Init Setup } ============================================ */
 
+  /* Memoized sub-context values — components subscribing to a granular
+     context only re-render when that specific slice changes. */
+  const themeValue = useMemo(
+    () => ({
+      syncWithSystemTheme,
+      setSyncWithSystemTheme,
+      availableThemes,
+      theme,
+      setTheme,
+      onThemeMode,
+      setOnThemeMode,
+    }),
+    [syncWithSystemTheme, availableThemes, theme, onThemeMode],
+  );
+
+  const environmentValue = useMemo(
+    () => ({ window_size, env_browser, device_type }),
+    [window_size, env_browser, device_type],
+  );
+
+  const navigationValue = useMemo(
+    () => ({ onFragment, setOnFragment }),
+    [onFragment],
+  );
+
+  /* Legacy combined value — kept for backward compatibility.
+     New code should prefer the granular contexts. */
+  const configValue = useMemo(
+    () => ({
+      ...themeValue,
+      ...environmentValue,
+      ...navigationValue,
+    }),
+    [themeValue, environmentValue, navigationValue],
+  );
+
   return (
-    <ConfigContext.Provider
-      value={{
-        /* { STYLE } ========================================== */
-        syncWithSystemTheme,
-        setSyncWithSystemTheme,
-        availableThemes,
-        theme,
-        setTheme,
-        onThemeMode,
-        setOnThemeMode,
-        /* { ENVIRONMENT } ==================================== */
-        window_size,
-        env_browser,
-        device_type,
-        /* { OTHERS } =========================================== */
-        onFragment,
-        setOnFragment,
-      }}
-    >
+    <ThemeContext.Provider value={themeValue}>
+    <EnvironmentContext.Provider value={environmentValue}>
+    <NavigationContext.Provider value={navigationValue}>
+    <ConfigContext.Provider value={configValue}>
       <div
         style={{
           position: "absolute",
@@ -285,6 +311,9 @@ const ConfigContainer = ({ children }) => {
       </div>
       {!isThemeBooting && <Scrollable />}
     </ConfigContext.Provider>
+    </NavigationContext.Provider>
+    </EnvironmentContext.Provider>
+    </ThemeContext.Provider>
   );
 };
 

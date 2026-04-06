@@ -1,1 +1,1 @@
-require("./miso_stream_client.test.cjs");
+require("./unchain_stream_client.test.cjs");

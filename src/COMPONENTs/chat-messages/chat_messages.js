@@ -1,5 +1,6 @@
-import { useContext } from "react";
+import { memo, useContext } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
+import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import MessageJumpControls from "./components/message_jump_controls";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
@@ -8,11 +9,16 @@ const ChatMessages = ({
   chatId,
   messages = [],
   isStreaming = false,
+  isCharacterChat = false,
+  characterName = "",
+  characterAvatar = null,
+  characterAvailability = "",
   onDeleteMessage,
   onResendMessage,
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
   className = "scrollable",
@@ -96,26 +102,58 @@ const ChatMessages = ({
                   boxSizing: "border-box",
                 }}
               >
-                <ChatBubble
-                  message={msg}
-                  onDeleteMessage={onDeleteMessage}
-                  onResendMessage={onResendMessage}
-                  onEditMessage={onEditMessage}
-                  onToolConfirmationDecision={onToolConfirmationDecision}
-                  toolConfirmationUiStateById={toolConfirmationUiStateById}
-                  disableActionButtons={isStreaming}
-                  traceFrames={msg.traceFrames}
-                  pendingContinuationRequest={
-                    messageIndex === messages.length - 1
-                      ? pendingContinuationRequest
-                      : undefined
-                  }
-                  onContinuationDecision={
-                    messageIndex === messages.length - 1
-                      ? onContinuationDecision
-                      : undefined
-                  }
-                />
+                {isCharacterChat ? (
+                  <CharacterChatBubble
+                    message={msg}
+                    characterName={characterName}
+                    characterAvatar={characterAvatar}
+                    characterAvailability={characterAvailability}
+                    onDeleteMessage={onDeleteMessage}
+                    onResendMessage={onResendMessage}
+                    onEditMessage={onEditMessage}
+                    onToolConfirmationDecision={onToolConfirmationDecision}
+                    toolConfirmationUiStateById={toolConfirmationUiStateById}
+                    pendingToolConfirmationRequests={
+                      pendingToolConfirmationRequests
+                    }
+                    disableActionButtons={isStreaming}
+                    traceFrames={msg.traceFrames}
+                    pendingContinuationRequest={
+                      messageIndex === messages.length - 1
+                        ? pendingContinuationRequest
+                        : undefined
+                    }
+                    onContinuationDecision={
+                      messageIndex === messages.length - 1
+                        ? onContinuationDecision
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <ChatBubble
+                    message={msg}
+                    onDeleteMessage={onDeleteMessage}
+                    onResendMessage={onResendMessage}
+                    onEditMessage={onEditMessage}
+                    onToolConfirmationDecision={onToolConfirmationDecision}
+                    toolConfirmationUiStateById={toolConfirmationUiStateById}
+                    pendingToolConfirmationRequests={
+                      pendingToolConfirmationRequests
+                    }
+                    disableActionButtons={isStreaming}
+                    traceFrames={msg.traceFrames}
+                    pendingContinuationRequest={
+                      messageIndex === messages.length - 1
+                        ? pendingContinuationRequest
+                        : undefined
+                    }
+                    onContinuationDecision={
+                      messageIndex === messages.length - 1
+                        ? onContinuationDecision
+                        : undefined
+                    }
+                  />
+                )}
               </div>
             );
           })}
@@ -137,4 +175,4 @@ const ChatMessages = ({
   );
 };
 
-export default ChatMessages;
+export default memo(ChatMessages);

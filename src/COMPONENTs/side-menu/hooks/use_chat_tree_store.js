@@ -10,9 +10,12 @@ export const useChatTreeStore = () => {
 
   useEffect(() => {
     setChatStore(getChatsStore());
-    const unsubscribe = subscribeChatsStore((nextStore) => {
-      setChatStore(nextStore);
-    });
+    const unsubscribe = subscribeChatsStore(
+      (nextStore) => {
+        setChatStore(nextStore);
+      },
+      { excludeEventTypes: ["chat_update_draft"] },
+    );
 
     return () => {
       unsubscribe();

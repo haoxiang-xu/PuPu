@@ -22,7 +22,7 @@ describe("build_toolkit_options", () => {
     ]);
 
     expect(options).toHaveLength(1);
-    expect(options[0].value).toBe("WorkspaceToolkit");
+    expect(options[0].value).toBe("workspace_toolkit");
     expect(options[0].label).toBe("Workspace Files");
     expect(options[0].description).toBe("Read and write project files");
     expect(options[0].search).toContain("workspace_toolkit");

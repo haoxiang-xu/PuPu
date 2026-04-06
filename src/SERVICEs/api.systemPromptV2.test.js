@@ -4,12 +4,12 @@ const writeSettings = (settings) => {
   window.localStorage.setItem("settings", JSON.stringify(settings || {}));
 };
 
-describe("api.miso.startStreamV2 system prompt injection", () => {
-  const originalMisoApi = window.misoAPI;
+describe("api.unchain.startStreamV2 system prompt injection", () => {
+  const originalMisoApi = window.unchainAPI;
 
   beforeEach(() => {
     window.localStorage.clear();
-    window.misoAPI = {
+    window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
     };
   });
@@ -20,7 +20,7 @@ describe("api.miso.startStreamV2 system prompt injection", () => {
   });
 
   afterAll(() => {
-    window.misoAPI = originalMisoApi;
+    window.unchainAPI = originalMisoApi;
   });
 
   test("injects runtime settings defaults into options.system_prompt_v2", () => {
@@ -36,13 +36,13 @@ describe("api.miso.startStreamV2 system prompt injection", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: { modelId: "openai:gpt-5" },
     });
 
-    expect(window.misoAPI.startStreamV2).toHaveBeenCalledTimes(1);
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.system_prompt_v2).toEqual({
       enabled: true,
       defaults: {
@@ -53,12 +53,12 @@ describe("api.miso.startStreamV2 system prompt injection", () => {
   });
 
   test("uses built-in global default rules when runtime config is missing", () => {
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: { modelId: "openai:gpt-5" },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.system_prompt_v2.enabled).toBe(true);
     expect(payload.options.system_prompt_v2.defaults.rules).toContain(
       "Tool use is optional.",
@@ -81,7 +81,7 @@ describe("api.miso.startStreamV2 system prompt injection", () => {
       },
     });
 
-    api.miso.startStreamV2({
+    api.unchain.startStreamV2({
       message: "hello",
       options: {
         modelId: "openai:gpt-5",
@@ -94,7 +94,7 @@ describe("api.miso.startStreamV2 system prompt injection", () => {
       },
     });
 
-    const [payload] = window.misoAPI.startStreamV2.mock.calls[0];
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
     expect(payload.options.system_prompt_v2).toEqual({
       enabled: true,
       defaults: {

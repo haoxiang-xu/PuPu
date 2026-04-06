@@ -20,9 +20,15 @@ export const isBuiltinToolkit = (toolkit) =>
   String(toolkit?.kind || "")
     .trim()
     .toLowerCase() === "builtin" ||
+  String(toolkit?.kind || "")
+    .trim()
+    .toLowerCase() === "core" ||
   String(toolkit?.source || "")
     .trim()
     .toLowerCase() === "builtin" ||
+  String(toolkit?.source || "")
+    .trim()
+    .toLowerCase() === "core" ||
   [toolkit?.toolkitId, toolkit?.name, toolkit?.class_name, toolkit?.module]
     .map((value) =>
       typeof value === "string" ? value.trim().toLowerCase() : "",
