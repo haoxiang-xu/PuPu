@@ -73,6 +73,7 @@ jobs:
       - name: Build React frontend
         working-directory: PuPu
         env:
+          CI: "false"
           PUPU_VERSION_PREPARED: "1"
         run: node scripts/build-web.cjs
 
