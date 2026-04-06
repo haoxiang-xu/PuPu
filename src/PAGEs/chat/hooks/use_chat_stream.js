@@ -469,7 +469,8 @@ export const useChatStream = ({
         const requestFrame = traceFrames.find(
           (frame) =>
             frame?.type === "tool_call" &&
-            frame?.payload?.confirmation_id === normalizedConfirmationId,
+            (frame?.payload?.confirmation_id === normalizedConfirmationId ||
+              frame?.payload?.call_id === callId),
         );
         if (!requestFrame) {
           return message;
@@ -1982,11 +1983,38 @@ export const useChatStream = ({
                         },
                       ];
 
+                  /* If this tool_call has a confirmation_id and an older
+                     frame with the same call_id already exists (emitted by
+                     on_event before the confirm callback), replace it so the
+                     confirmation UI renders correctly. */
+                  const frameCallId =
+                    typeof frame.payload?.call_id === "string"
+                      ? frame.payload.call_id
+                      : "";
+                  const frameHasConfirmation =
+                    typeof frame.payload?.confirmation_id === "string" &&
+                    frame.payload.confirmation_id;
+                  let mergedFrames = [...existingFrames, ...syntheticFrame];
+                  if (frameCallId && frameHasConfirmation) {
+                    const dupIdx = mergedFrames.findIndex(
+                      (f) =>
+                        f.type === "tool_call" &&
+                        f.payload?.call_id === frameCallId,
+                    );
+                    if (dupIdx >= 0) {
+                      mergedFrames[dupIdx] = frame;  // replace old frame
+                    } else {
+                      mergedFrames.push(frame);
+                    }
+                  } else {
+                    mergedFrames.push(frame);
+                  }
+
                   return {
                     ...message,
                     content: "",
                     updatedAt: patchTime,
-                    traceFrames: [...existingFrames, ...syntheticFrame, frame],
+                    traceFrames: mergedFrames,
                   };
                 });
                 syncStreamMessages(nextStreamMessages);

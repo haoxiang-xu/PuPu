@@ -407,10 +407,6 @@ def chat_stream_v2() -> Response:
                 ),
             )
 
-            # ── tool timeout tracking (diagnostic) ──
-            _TOOL_TIMEOUT_S = 60
-            _pending_tools: Dict[str, tuple] = {}  # call_id → (start_time, tool_name)
-
             for raw_event in root.stream_chat_events(
                 message=message,
                 history=history,
@@ -420,33 +416,6 @@ def chat_stream_v2() -> Response:
                 cancel_event=confirmation_cancel_event,
             ):
                 event_type = str(raw_event.get("type", "event")).strip() or "event"
-
-                # track tool execution time
-                if event_type == "tool_call":
-                    _cid = raw_event.get("call_id", "")
-                    _tname = raw_event.get("tool_name", "")
-                    if _cid:
-                        _pending_tools[_cid] = (time.time(), _tname)
-                elif event_type == "tool_result":
-                    _cid = raw_event.get("call_id", "")
-                    if _cid and _cid in _pending_tools:
-                        _start, _tname = _pending_tools.pop(_cid)
-                        _elapsed = time.time() - _start
-                        if _elapsed > _TOOL_TIMEOUT_S:
-                            import sys
-                            print(
-                                f"[TOOL TIMEOUT] {_tname} (call_id={_cid}) "
-                                f"took {_elapsed:.1f}s (threshold={_TOOL_TIMEOUT_S}s)",
-                                file=sys.stderr,
-                                flush=True,
-                            )
-                        elif _elapsed > 10:
-                            import sys
-                            print(
-                                f"[SLOW TOOL] {_tname} (call_id={_cid}) took {_elapsed:.1f}s",
-                                file=sys.stderr,
-                                flush=True,
-                            )
 
                 if event_type == "stream_summary":
                     bundle = raw_event.get("bundle")
@@ -501,18 +470,6 @@ def chat_stream_v2() -> Response:
                         timestamp_ms=event_ts_ms,
                     ),
                 )
-
-            # log any tools that never returned a result
-            if _pending_tools:
-                import sys
-                for _cid, (_start, _tname) in _pending_tools.items():
-                    _elapsed = time.time() - _start
-                    print(
-                        f"[TOOL NEVER RESOLVED] {_tname} (call_id={_cid}) "
-                        f"pending for {_elapsed:.1f}s when stream ended",
-                        file=sys.stderr,
-                        flush=True,
-                    )
 
             seq += 1
             finished_at = int(time.time() * 1000)

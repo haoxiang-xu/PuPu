@@ -487,29 +487,40 @@ const TraceChainV3 = ({
 
     const hasToolCall = displayFrames.some((f) => f.type === "tool_call");
 
-    /* ── pre-pass: merge final_message into preceding step ── */
+    /* ── pre-pass: merge final_message into FOLLOWING tool_call ──
+       Synthetic final_messages are injected BEFORE their tool_call in
+       traceFrames (by use_chat_stream.js). So "text before write" appears
+       in the array before tool_call(write). We scan forward: for each
+       final_message, find the next tool_call and associate with it. */
     const responseForStep = new Map();
     const standaloneFinalSeqs = new Set();
-    let prepassLastToolSeq = null;
 
     if (hasToolCall) {
-      for (const f of displayFrames) {
-        if (f.type === "tool_call") {
-          const tn = f.payload?.tool_name;
-          prepassLastToolSeq = (SUBAGENT_TOOLS.has(tn) || tn === "__continuation__")
-            ? null
-            : f.seq;
-        } else if (f.type === "final_message") {
-          const seq = Number(f.seq);
-          if (Number.isFinite(bubbleOwnedSeq) && seq === bubbleOwnedSeq) continue;
-          const content = typeof f.payload?.content === "string" ? f.payload.content.trim() : "";
-          if (!content) continue;
-          if (prepassLastToolSeq != null) {
-            const prev = responseForStep.get(prepassLastToolSeq) || "";
-            responseForStep.set(prepassLastToolSeq, prev ? `${prev}\n\n${content}` : content);
-          } else {
-            standaloneFinalSeqs.add(seq);
+      for (let fi = 0; fi < displayFrames.length; fi++) {
+        const f = displayFrames[fi];
+        if (f.type !== "final_message") continue;
+        const seq = Number(f.seq);
+        if (Number.isFinite(bubbleOwnedSeq) && seq === bubbleOwnedSeq) continue;
+        const content = typeof f.payload?.content === "string" ? f.payload.content.trim() : "";
+        if (!content) continue;
+
+        /* look ahead for the next non-subagent, non-continuation tool_call */
+        let nextToolSeq = null;
+        for (let fj = fi + 1; fj < displayFrames.length; fj++) {
+          if (displayFrames[fj].type === "tool_call") {
+            const tn = displayFrames[fj].payload?.tool_name;
+            if (!SUBAGENT_TOOLS.has(tn) && tn !== "__continuation__") {
+              nextToolSeq = displayFrames[fj].seq;
+            }
+            break;  // stop at first tool_call regardless
           }
+        }
+
+        if (nextToolSeq != null) {
+          const prev = responseForStep.get(nextToolSeq) || "";
+          responseForStep.set(nextToolSeq, prev ? `${prev}\n\n${content}` : content);
+        } else {
+          standaloneFinalSeqs.add(seq);
         }
       }
     }

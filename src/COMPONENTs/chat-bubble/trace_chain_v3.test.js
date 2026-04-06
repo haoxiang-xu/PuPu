@@ -28,27 +28,31 @@ const f = ({ seq, type, payload = {}, ts, run_id = "r1" }) => ({
 /* ═══════════════════════════════════════════════════════════════════════ */
 
 describe("TraceChainV3 — response merge", () => {
-  it("merges final_message into preceding tool_call step", () => {
+  it("merges final_message into FOLLOWING tool_call step (forward association)", () => {
+    /* Synthetic final_messages appear BEFORE their tool_call in traceFrames.
+       "I'll read it" → read_file,  "Now writing" → write_file */
     const { container } = wrap({
       frames: [
         f({ seq: 1, type: "stream_started", run_id: "", payload: {} }),
+        f({ seq: 1.5, type: "final_message", payload: { content: "I'll read the file." } }),
         f({ seq: 2, type: "tool_call", payload: { call_id: "c1", tool_name: "read_file", arguments: { path: "/x" } } }),
         f({ seq: 3, type: "tool_result", payload: { call_id: "c1", result: { output: "ok" } } }),
-        f({ seq: 4, type: "final_message", payload: { content: "I read the file." } }),
-        f({ seq: 5, type: "tool_call", payload: { call_id: "c2", tool_name: "write_file", arguments: { path: "/y" } } }),
-        f({ seq: 6, type: "tool_result", payload: { call_id: "c2", result: { output: "done" } } }),
-        f({ seq: 7, type: "done", run_id: "", payload: { finished_at: 700 } }),
+        f({ seq: 3.5, type: "final_message", payload: { content: "Now writing output." } }),
+        f({ seq: 4, type: "tool_call", payload: { call_id: "c2", tool_name: "write_file", arguments: { path: "/y" } } }),
+        f({ seq: 5, type: "tool_result", payload: { call_id: "c2", result: { output: "done" } } }),
+        f({ seq: 6, type: "done", run_id: "", payload: { finished_at: 600 } }),
       ],
       status: "done",
       bubbleOwnsFinalMessage: false,
     });
 
-    // "I read the file." should be present (merged into step)
-    expect(screen.getByText(/I read the file/)).toBeInTheDocument();
+    // Both texts should be present (merged into their respective step blocks)
+    expect(screen.getByText(/I'll read the file/)).toBeInTheDocument();
+    expect(screen.getByText(/Now writing output/)).toBeInTheDocument();
 
-    // It should be inside a data-step-response container
-    const stepResponse = container.querySelector("[data-step-response]");
-    expect(stepResponse).toBeTruthy();
+    // Both should be inside data-step-response containers
+    const stepResponses = container.querySelectorAll("[data-step-response]");
+    expect(stepResponses.length).toBe(2);
   });
 
   it("renders final_message standalone when it precedes all tool_calls", () => {

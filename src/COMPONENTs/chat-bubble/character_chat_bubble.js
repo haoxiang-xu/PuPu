@@ -1,6 +1,6 @@
 import { memo, useState, useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import TraceChain from "./trace_chain_v3";
+import TraceChain from "./trace_chain";
 import UserMessageBody from "./components/user_message_body";
 import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
