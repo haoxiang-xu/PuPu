@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -215,6 +216,14 @@ const SideMenu = () => {
   const [agentsOpen, setAgentsOpen] = useState(false);
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+
+  /* Track which lazy modals have been opened at least once.
+     Once mounted, they stay in the tree so Modal's exit animation can play. */
+  const lazyMountedRef = useRef({});
+  if (settingsOpen) lazyMountedRef.current.settings = true;
+  if (toolkitOpen) lazyMountedRef.current.toolkit = true;
+  if (agentsOpen) lazyMountedRef.current.agents = true;
+  if (workspaceModalOpen) lazyMountedRef.current.workspace = true;
   const [relativeNow, setRelativeNow] = useState(() => Date.now());
   const [contextMenu, setContextMenu] = useState({
     visible: false,
@@ -234,6 +243,7 @@ const SideMenu = () => {
     sessionId: null,
     chatTitle: "",
   });
+  if (memoryInspect.open) lazyMountedRef.current.memory = true;
 
   const { chatStore, setChatStore, selectedNodeId } = useChatTreeStore();
   const characterAvailabilityMap = useCharacterAvailability(
@@ -701,35 +711,36 @@ const SideMenu = () => {
         onClick={() => setSettingsOpen(true)}
       />
 
+      {/* Lazy modals: loaded on first open, kept mounted for exit animation */}
       <Suspense fallback={null}>
-        {settingsOpen && (
+        {lazyMountedRef.current.settings && (
           <SettingsModal
-            open
+            open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
           />
         )}
 
-        {toolkitOpen && (
-          <ToolkitModal open onClose={() => setToolkitOpen(false)} />
+        {lazyMountedRef.current.toolkit && (
+          <ToolkitModal open={toolkitOpen} onClose={() => setToolkitOpen(false)} />
         )}
 
-        {isAgentModalEnabled && agentsOpen && (
+        {lazyMountedRef.current.agents && (
           <AgentsModal
-            open
+            open={isAgentModalEnabled && agentsOpen}
             onClose={() => setAgentsOpen(false)}
           />
         )}
 
-        {workspaceModalOpen && (
+        {lazyMountedRef.current.workspace && (
           <WorkspaceModal
-            open
+            open={workspaceModalOpen}
             onClose={() => setWorkspaceModalOpen(false)}
           />
         )}
 
-        {memoryInspect.open && (
+        {lazyMountedRef.current.memory && (
           <MemoryInspectModal
-            open
+            open={memoryInspect.open}
             sessionId={memoryInspect.sessionId}
             chatTitle={memoryInspect.chatTitle}
             onClose={() =>
