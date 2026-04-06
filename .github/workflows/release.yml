@@ -32,7 +32,7 @@ jobs:
             curl ca-certificates git \
             libgtk-3-0t64 libnotify4 libnss3 libxss1 libxtst6 xauth xvfb \
             fakeroot dpkg binutils
-          curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+          curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
           apt-get install -y --no-install-recommends nodejs
           node --version && python3.12 --version
 
