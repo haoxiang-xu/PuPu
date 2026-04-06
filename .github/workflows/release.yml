@@ -81,7 +81,7 @@ jobs:
         working-directory: PuPu
         env:
           PUPU_VERSION_PREPARED: "1"
-        run: npx electron-builder --linux --x64
+        run: npx electron-builder --linux --x64 --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
