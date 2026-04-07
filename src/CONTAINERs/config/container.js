@@ -142,6 +142,7 @@ const ConfigContainer = ({ children }) => {
   /* load persisted appearance on first render */
   const _persisted = loadSettingsStorage();
   const _persistedThemeMode = _persisted?.appearance?.theme_mode;
+  const _persistedLocale = _persisted?.appearance?.locale;
   const initialThemeMode = resolveInitialThemeMode(
     _persistedThemeMode,
     system_theme,
@@ -154,6 +155,7 @@ const ConfigContainer = ({ children }) => {
     resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
   );
   const [onThemeMode, setOnThemeMode] = useState(initialThemeMode);
+  const [locale, setLocale] = useState(_persistedLocale || "en");
   const [isThemeBooting, setIsThemeBooting] = useState(true);
   const availableThemes = THEME_NAMES;
   const selectedTheme = DEFAULT_THEME_NAME;
@@ -194,6 +196,9 @@ const ConfigContainer = ({ children }) => {
       theme_mode: syncWithSystemTheme ? "sync_with_browser" : onThemeMode,
     });
   }, [onThemeMode, syncWithSystemTheme]);
+  useEffect(() => {
+    saveSettingsStorage("appearance", { locale });
+  }, [locale]);
 
   useEffect(() => {
     if (!isDevSettingsAvailable()) {
@@ -243,8 +248,10 @@ const ConfigContainer = ({ children }) => {
       setTheme,
       onThemeMode,
       setOnThemeMode,
+      locale,
+      setLocale,
     }),
-    [syncWithSystemTheme, availableThemes, theme, onThemeMode],
+    [syncWithSystemTheme, availableThemes, theme, onThemeMode, locale],
   );
 
   const environmentValue = useMemo(
