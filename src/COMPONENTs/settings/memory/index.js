@@ -8,6 +8,7 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { readMemorySettings, writeMemorySettings } from "./storage";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 import { MemoryInspectModal } from "../../memory-inspect/memory_inspect_modal";
@@ -32,6 +33,7 @@ const formatThresholdValue = (value) => {
 
 export const MemorySettings = ({ onNavigate }) => {
   const { onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const {
     models: openaiEmbeddingModels,
@@ -110,10 +112,10 @@ export const MemorySettings = ({ onNavigate }) => {
   return (
     <div>
       {/* ── Enable ── */}
-      <SettingsSection title="Chat Memory">
+      <SettingsSection title={t("memory.title")}>
         <SettingsRow
-          label="Enable memory"
-          description="Each chat keeps short-term memory, while long-term memory is shared globally and recalled automatically when relevant."
+          label={t("memory.enable_memory")}
+          description={t("memory.enable_memory_desc")}
         >
           <SemiSwitch
             on={settings.enabled}

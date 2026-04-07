@@ -11,10 +11,12 @@ import {
 } from "../../../SERVICEs/feature_flags";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { readDevSettings, writeDevSettings } from "./storage";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import UITestingModal from "../../ui-testing/ui_testing_modal";
 
 export const DevSettings = () => {
   const { onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
 
   const [chromeTerminalEnabled, setChromeTerminalEnabled] = useState(
@@ -116,7 +118,7 @@ export const DevSettings = () => {
     <div>
       <SettingsSection title="Developer" icon="terminal">
         <SettingsRow
-          label="Chrome Terminal"
+          label={t("dev.chrome_terminal")}
           description="Toggle Chromium DevTools for the main Electron window."
         >
           <SemiSwitch
@@ -169,11 +171,11 @@ export const DevSettings = () => {
         </div>
 
         <SettingsRow
-          label="UI Testing"
+          label={t("dev.ui_testing")}
           description="Open component testing modal with pre-written scenarios."
         >
           <Button
-            label="Open"
+            label={t("dev.open")}
             onClick={() => setShowUITesting(true)}
             style={{
               fontSize: 12,
