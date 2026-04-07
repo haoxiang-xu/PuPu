@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Select from "../../BUILTIN_COMPONENTs/select/select";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  SettingsRow — label + description + children                                                                               */
@@ -115,24 +116,39 @@ export const AppearanceSettings = () => {
     setOnThemeMode,
     syncWithSystemTheme,
     setSyncWithSystemTheme,
+    locale,
+    setLocale,
   } = useContext(ConfigContext);
 
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
 
   const themeValue = syncWithSystemTheme ? "sync_with_browser" : onThemeMode;
 
+  const selectStyle = {
+    minWidth: 140,
+    fontSize: 13,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: isDark
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(0,0,0,0.05)",
+  };
+  const selectOptionStyle = { height: 28, padding: "4px 8px", fontSize: 13 };
+  const selectDropdownStyle = { padding: 4 };
+
   return (
     <div>
-      <SettingsSection title="Appearance">
+      <SettingsSection title={t("appearance.title")}>
         <SettingsRow
-          label="Theme Mode"
-          description="Choose between light and dark mode"
+          label={t("appearance.theme_mode")}
+          description={t("appearance.theme_mode_desc")}
         >
           <Select
             options={[
-              { value: "light_mode", label: "Light" },
-              { value: "dark_mode", label: "Dark" },
-              { value: "sync_with_browser", label: "System" },
+              { value: "light_mode", label: t("appearance.theme_light") },
+              { value: "dark_mode", label: t("appearance.theme_dark") },
+              { value: "sync_with_browser", label: t("appearance.theme_system") },
             ]}
             value={themeValue}
             set_value={(val) => {
@@ -144,17 +160,27 @@ export const AppearanceSettings = () => {
               }
             }}
             filterable={false}
-            style={{
-              minWidth: 140,
-              fontSize: 13,
-              paddingVertical: 4,
-              paddingHorizontal: 10,
-              backgroundColor: isDark
-                ? "rgba(255,255,255,0.08)"
-                : "rgba(0,0,0,0.05)",
-            }}
-            option_style={{ height: 28, padding: "4px 8px", fontSize: 13 }}
-            dropdown_style={{ padding: 4 }}
+            style={selectStyle}
+            option_style={selectOptionStyle}
+            dropdown_style={selectDropdownStyle}
+          />
+        </SettingsRow>
+
+        <SettingsRow
+          label={t("appearance.language")}
+          description={t("appearance.language_desc")}
+        >
+          <Select
+            options={[
+              { value: "en", label: "English" },
+              { value: "zh-CN", label: "中文" },
+            ]}
+            value={locale}
+            set_value={setLocale}
+            filterable={false}
+            style={selectStyle}
+            option_style={selectOptionStyle}
+            dropdown_style={selectDropdownStyle}
           />
         </SettingsRow>
       </SettingsSection>
