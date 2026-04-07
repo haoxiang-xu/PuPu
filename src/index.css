@@ -50,3 +50,10 @@ code {
   font-weight: 200 900;
   font-style: italic;
 }
+@font-face {
+  font-family: "ShiWeiYongTuiHeiTi-CJK-TC-Thin";
+  src: url("BUILTIN_COMPONENTs/fonts/ShiWeiYongTuiHeiTi-CJK-TC-Thin/SweiFistLegCJKtc-Thin-2.ttf")
+    format("truetype");
+  font-weight: 200 900;
+  font-style: normal;
+}
