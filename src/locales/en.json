@@ -223,5 +223,8 @@
     "error": "Error",
     "select": "Select...",
     "search": "Search..."
+  },
+  "chat": {
+    "placeholder": "Message PuPu..."
   }
 }

@@ -223,5 +223,8 @@
     "error": "错误",
     "select": "选择...",
     "search": "搜索..."
+  },
+  "chat": {
+    "placeholder": "向 PuPu 发送消息..."
   }
 }
