@@ -10,6 +10,7 @@ import {
   validateWorkspaceRoot,
 } from "../settings/runtime";
 import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* ── Theme colours ───────────────────────────────────────────────────────── */
 
@@ -68,6 +69,7 @@ const Divider = ({ isDark }) => (
 
 const DefaultWorkspaceSection = ({ isDark }) => {
   const c = useThemeColors(isDark);
+  const { t } = useTranslation();
   const [workspaceRoot, setWorkspaceRoot] = useState(() => readWorkspaceRoot());
   const [savedWorkspaceRoot, setSavedWorkspaceRoot] = useState(() =>
     readWorkspaceRoot(),
@@ -162,7 +164,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <SubHeading isDark={isDark}>Default Workspace</SubHeading>
+      <SubHeading isDark={isDark}>{t("workspace.default_workspace")}</SubHeading>
 
       <div
         style={{
@@ -183,7 +185,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
             setError("");
             setInfo("");
           }}
-          placeholder="Enter workspace path..."
+          placeholder={t("workspace.enter_path")}
           style={{
             width: "100%",
             boxSizing: "border-box",
@@ -207,7 +209,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
           }}
         >
           <Button
-            label={isSaving ? "Saving..." : "Save"}
+            label={isSaving ? t("workspace.saving") : t("common.save")}
             onClick={handleSave}
             disabled={busy || !isDirty}
             style={{
@@ -221,7 +223,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
           />
           {browseSupported && (
             <Button
-              label={isBrowsing ? "..." : "Browse"}
+              label={isBrowsing ? "..." : t("workspace.browse")}
               onClick={handleBrowse}
               disabled={busy}
               style={{
@@ -236,7 +238,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
           )}
           {savedWorkspaceRoot.trim() && (
             <Button
-              label="Clear"
+              label={t("model_providers.clear")}
               onClick={handleClear}
               disabled={busy}
               style={{
@@ -253,7 +255,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
           )}
           {openFolderSupported && savedWorkspaceRoot.trim() && (
             <Button
-              label={isOpeningFolder ? "..." : "Open in Explorer"}
+              label={isOpeningFolder ? "..." : t("workspace.open_in_explorer")}
               onClick={handleOpenFolder}
               disabled={busy}
               style={{
@@ -300,7 +302,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
           lineHeight: 1.5,
         }}
       >
-        Applied to every Miso request when workspace toolkit is enabled.
+        {t("workspace.applied_desc")}
       </div>
     </div>
   );
@@ -312,6 +314,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
 
 const WorkspacesSection = ({ isDark }) => {
   const c = useThemeColors(isDark);
+  const { t } = useTranslation();
   const [items, setItems] = useState(() => readWorkspaces());
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState({ name: "", path: "" });
@@ -426,7 +429,7 @@ const WorkspacesSection = ({ isDark }) => {
 
   return (
     <div>
-      <SubHeading isDark={isDark}>Workspaces</SubHeading>
+      <SubHeading isDark={isDark}>{t("workspace.title")}</SubHeading>
 
       {items.length === 0 && editingId === null && (
         <div
@@ -437,7 +440,7 @@ const WorkspacesSection = ({ isDark }) => {
             padding: "4px 0 8px",
           }}
         >
-          No workspaces added yet.
+          {t("workspace.no_workspaces")}
         </div>
       )}
 
@@ -458,18 +461,18 @@ const WorkspacesSection = ({ isDark }) => {
             >
               <Input
                 value={editDraft.name}
-                placeholder="Name (optional)"
+                placeholder={t("workspace.name_optional")}
                 set_value={(v) => setEditDraft((d) => ({ ...d, name: v }))}
                 style={{ flex: 1, fontSize: 13, height: 34 }}
               />
               <Input
                 value={editDraft.path}
-                placeholder="/path/to/workspace"
+                placeholder={t("workspace.path_placeholder")}
                 set_value={(v) => setEditDraft((d) => ({ ...d, path: v }))}
                 postfix_component={
                   browseSupported ? (
                     <Button
-                      label="Browse"
+                      label={t("workspace.browse")}
                       onClick={handleBrowse}
                       disabled={isSaving}
                       style={{
@@ -505,7 +508,7 @@ const WorkspacesSection = ({ isDark }) => {
                 }}
               >
                 <Button
-                  label="Cancel"
+                  label={t("common.cancel")}
                   onClick={cancelEditing}
                   disabled={isSaving}
                   style={{
@@ -518,7 +521,7 @@ const WorkspacesSection = ({ isDark }) => {
                   }}
                 />
                 <Button
-                  label={isSaving ? "Saving..." : "Save"}
+                  label={isSaving ? t("workspace.saving") : t("common.save")}
                   onClick={handleSaveItem}
                   disabled={isSaving}
                   style={{
@@ -652,7 +655,7 @@ const WorkspacesSection = ({ isDark }) => {
         }}
       >
         <Button
-          label="+ Add Workspace"
+          label={t("workspace.add_workspace")}
           onClick={addItem}
           disabled={editingId !== null}
           style={{
@@ -675,7 +678,7 @@ const WorkspacesSection = ({ isDark }) => {
           padding: "4px 0 0",
         }}
       >
-        Named workspaces can be selected per-chat from the chat input toolbar.
+        {t("workspace.workspace_select_desc")}
       </div>
     </div>
   );

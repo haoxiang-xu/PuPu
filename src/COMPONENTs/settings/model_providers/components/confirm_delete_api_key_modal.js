@@ -1,5 +1,6 @@
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const ConfirmDeleteApiKeyModal = ({
   open,
@@ -7,7 +8,9 @@ const ConfirmDeleteApiKeyModal = ({
   onConfirm,
   label,
   isDark,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     open={open}
     onClose={onClose}
@@ -59,7 +62,7 @@ const ConfirmDeleteApiKeyModal = ({
         lineHeight: 1.3,
       }}
     >
-      Delete API Key?
+      {t("model_providers.delete_api_key")}
     </div>
 
     <div
@@ -70,13 +73,12 @@ const ConfirmDeleteApiKeyModal = ({
         lineHeight: 1.5,
       }}
     >
-      The saved <strong style={{ fontWeight: 600 }}>{label}</strong> key will be
-      permanently removed from local storage.
+      {t("model_providers.delete_api_key_desc", { label })}
     </div>
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
       <Button
-        label="Cancel"
+        label={t("common.cancel")}
         onClick={onClose}
         style={{
           fontSize: 13,
@@ -87,7 +89,7 @@ const ConfirmDeleteApiKeyModal = ({
         }}
       />
       <Button
-        label="Delete"
+        label={t("common.delete")}
         onClick={onConfirm}
         style={{
           fontSize: 13,
@@ -105,6 +107,7 @@ const ConfirmDeleteApiKeyModal = ({
       />
     </div>
   </Modal>
-);
+  );
+};
 
 export default ConfirmDeleteApiKeyModal;

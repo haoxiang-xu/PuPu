@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../appearance";
 import APIKeyInput from "./components/api_key_input";
 import ModelCard from "./components/model_card";
@@ -10,27 +11,34 @@ import ActiveDownloads from "./components/active_downloads";
 import { LIBRARY_CATEGORIES } from "./constants";
 import { useOllamaLibrary } from "./hooks/use_ollama_library";
 
-const OpenAISection = () => (
-  <SettingsSection title="OpenAI" icon="open_ai">
-    <APIKeyInput
-      storage_key="openai_api_key"
-      label="API Key"
-      placeholder="sk-..."
-    />
-  </SettingsSection>
-);
+const OpenAISection = () => {
+  const { t } = useTranslation();
+  return (
+    <SettingsSection title="OpenAI" icon="open_ai">
+      <APIKeyInput
+        storage_key="openai_api_key"
+        label={t("model_providers.api_key")}
+        placeholder="sk-..."
+      />
+    </SettingsSection>
+  );
+};
 
-const AnthropicSection = () => (
-  <SettingsSection title="Anthropic" icon="Anthropic">
-    <APIKeyInput
-      storage_key="anthropic_api_key"
-      label="API Key"
-      placeholder="sk-ant-..."
-    />
-  </SettingsSection>
-);
+const AnthropicSection = () => {
+  const { t } = useTranslation();
+  return (
+    <SettingsSection title="Anthropic" icon="Anthropic">
+      <APIKeyInput
+        storage_key="anthropic_api_key"
+        label={t("model_providers.api_key")}
+        placeholder="sk-ant-..."
+      />
+    </SettingsSection>
+  );
+};
 
 const OllamaLibraryBrowser = ({ isDark }) => {
+  const { t } = useTranslation();
   const {
     category,
     setCategory,
@@ -105,7 +113,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
         <Input
           value={rawQuery}
           set_value={setRawQuery}
-          placeholder="Search models…"
+          placeholder={t("model_providers.search_models")}
           prefix_icon="search"
           style={{
             width: "100%",
@@ -152,7 +160,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
               {error}
             </span>
             <Button
-              label="Retry"
+              label={t("model_providers.retry")}
               onClick={retrySearch}
               style={{
                 fontSize: 12,
@@ -172,7 +180,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
               color: mutedColor,
             }}
           >
-            No models found
+            {t("model_providers.no_models_found")}
           </div>
         ) : (
           models.map((model) => (
@@ -193,6 +201,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
 };
 
 const OllamaSection = () => {
+  const { t } = useTranslation();
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
@@ -209,7 +218,7 @@ const OllamaSection = () => {
           lineHeight: 1.5,
         }}
       >
-        Ollama runs locally — no API key required.
+        {t("model_providers.ollama_desc")}
       </p>
       <div
         style={{
@@ -223,7 +232,7 @@ const OllamaSection = () => {
           marginBottom: 0,
         }}
       >
-        Model Library
+        {t("model_providers.model_library")}
       </div>
       <OllamaLibraryBrowser isDark={isDark} />
     </SettingsSection>

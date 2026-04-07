@@ -3,10 +3,12 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import WorkspaceEditor from "./workspace_editor";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 export const WorkspaceModal = ({ open, onClose }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const { t } = useTranslation();
 
   return (
     <Modal
@@ -43,7 +45,7 @@ export const WorkspaceModal = ({ open, onClose }) => {
             letterSpacing: "-0.01em",
           }}
         >
-          Workspaces
+          {t("workspace.title")}
         </div>
       </div>
 

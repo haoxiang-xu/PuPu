@@ -93,16 +93,16 @@ export const DevSettings = () => {
         const response = await runtimeBridge.setChromeTerminalOpen(nextOpen);
         if (!response.ok) {
           throw new Error(
-            response.error || "Failed to toggle Chrome terminal.",
+            response.error || t("dev.chrome_toggle_failed"),
           );
         }
         setInfo(
-          nextOpen ? "Chrome terminal opened." : "Chrome terminal closed.",
+          nextOpen ? t("dev.chrome_opened") : t("dev.chrome_closed"),
         );
       } catch (toggleError) {
         setChromeTerminalEnabled(previousOpen);
         writeDevSettings({ chrome_terminal_enabled: previousOpen });
-        setError(toggleError?.message || "Failed to toggle Chrome terminal.");
+        setError(toggleError?.message || t("dev.chrome_toggle_failed"));
       } finally {
         setIsUpdating(false);
       }
@@ -119,7 +119,7 @@ export const DevSettings = () => {
       <SettingsSection title="Developer" icon="terminal">
         <SettingsRow
           label={t("dev.chrome_terminal")}
-          description="Toggle Chromium DevTools for the main Electron window."
+          description={t("dev.chrome_terminal_desc")}
         >
           <SemiSwitch
             on={chromeTerminalEnabled}
@@ -167,12 +167,12 @@ export const DevSettings = () => {
             paddingBottom: 6,
           }}
         >
-          This setting is available only in Electron development runtime.
+          {t("dev.electron_only")}
         </div>
 
         <SettingsRow
           label={t("dev.ui_testing")}
-          description="Open component testing modal with pre-written scenarios."
+          description={t("dev.ui_testing_desc")}
         >
           <Button
             label={t("dev.open")}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { TAG_PALETTE } from "../constants";
 
 const ModelCard = ({
@@ -10,6 +11,7 @@ const ModelCard = ({
   onPull,
   onCancel,
 }) => {
+  const { t } = useTranslation();
   const [selectedSize, setSelectedSize] = useState(model.sizes[0] || "");
 
   const pullKey = `${model.name}:${selectedSize}`;
@@ -163,7 +165,7 @@ const ModelCard = ({
                   gap: 3,
                 }}
               >
-                ✓ Installed
+                ✓ {t("model_providers.installed")}
               </span>
             ) : pullState ? (
               <div
@@ -235,7 +237,7 @@ const ModelCard = ({
               </div>
             ) : selectedSize || model.sizes.length === 0 ? (
               <Button
-                label="Pull"
+                label={t("model_providers.pull")}
                 onClick={() => onPull(model.name, selectedSize || model.name)}
                 style={{
                   height: 24,
