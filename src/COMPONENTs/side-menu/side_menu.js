@@ -37,6 +37,7 @@ import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const SettingsModal = lazy(() =>
@@ -211,6 +212,7 @@ const CharacterChatRow = ({ node, depth, isDark, characterAvailability }) => {
 const SideMenu = () => {
   const { theme, onFragment, setOnFragment, onThemeMode } =
     useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [toolkitOpen, setToolkitOpen] = useState(false);
@@ -414,6 +416,7 @@ const SideMenu = () => {
         onInspectMemory: handleInspectMemory,
         onExport: handleExport,
         onImport: handleImport,
+        t,
       }),
     [
       contextMenu.node,
@@ -424,6 +427,7 @@ const SideMenu = () => {
       handleInspectMemory,
       handleExport,
       handleImport,
+      t,
     ],
   );
 
@@ -550,7 +554,7 @@ const SideMenu = () => {
           no_separator
           value={searchQuery}
           set_value={setSearchQuery}
-          placeholder="Search..."
+          placeholder={t("side_menu.search")}
           postfix_component={
             searchQuery ? (
               <div
@@ -593,7 +597,7 @@ const SideMenu = () => {
         />
         <Button
           prefix_icon="tool"
-          label="Tools"
+          label={t("side_menu.tools")}
           onClick={() => setToolkitOpen(true)}
           style={{
             width: "100%",
@@ -609,7 +613,7 @@ const SideMenu = () => {
         {isAgentModalEnabled && (
           <Button
             prefix_icon="bot"
-            label="Agents"
+            label={t("side_menu.agents")}
             onClick={() => setAgentsOpen(true)}
             style={{
               width: "100%",
@@ -625,7 +629,7 @@ const SideMenu = () => {
         )}
         <Button
           prefix_icon="folder_2"
-          label="Workspaces"
+          label={t("side_menu.workspaces")}
           onClick={() => setWorkspaceModalOpen(true)}
           style={{
             width: "100%",
@@ -652,7 +656,7 @@ const SideMenu = () => {
           }}
           onContextMenu={handleBackgroundContextMenu}
         >
-          Chats
+          {t("side_menu.chats")}
         </div>
         <div
           className="scrollable"
@@ -678,7 +682,7 @@ const SideMenu = () => {
                 userSelect: "none",
               }}
             >
-              No chats found
+              {t("side_menu.no_chats_found")}
             </div>
           ) : (
             <Explorer
@@ -701,7 +705,7 @@ const SideMenu = () => {
 
       <Button
         prefix_icon="settings"
-        label="Settings"
+        label={t("side_menu.settings")}
         style={{
           position: "absolute",
           bottom: 12,

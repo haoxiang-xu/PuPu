@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 export const RenameRow = ({
   node,
@@ -241,7 +242,9 @@ export const ConfirmDeleteModal = ({
   onConfirm,
   label,
   isDark,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     open={open}
     onClose={onClose}
@@ -309,7 +312,7 @@ export const ConfirmDeleteModal = ({
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
       <Button
-        label="Cancel"
+        label={t("common.cancel")}
         onClick={onClose}
         style={{
           fontSize: 13,
@@ -320,7 +323,7 @@ export const ConfirmDeleteModal = ({
         }}
       />
       <Button
-        label="Delete"
+        label={t("common.delete")}
         onClick={onConfirm}
         style={{
           fontSize: 13,
@@ -338,4 +341,5 @@ export const ConfirmDeleteModal = ({
       />
     </div>
   </Modal>
-);
+  );
+};
