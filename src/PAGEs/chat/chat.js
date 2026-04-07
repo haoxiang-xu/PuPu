@@ -572,6 +572,7 @@ const ChatInterface = () => {
       effectiveDisclaimer, attachments.handleAttachFile, attachments.processFiles,
       draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+      t,
     ],
   );
 

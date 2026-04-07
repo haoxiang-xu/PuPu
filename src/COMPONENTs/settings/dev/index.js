@@ -107,7 +107,7 @@ export const DevSettings = () => {
         setIsUpdating(false);
       }
     },
-    [chromeTerminalEnabled, isUpdating],
+    [chromeTerminalEnabled, isUpdating, t],
   );
 
   const handleFeatureFlagToggle = useCallback((flagKey, nextOpen) => {
