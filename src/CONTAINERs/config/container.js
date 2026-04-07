@@ -76,6 +76,11 @@ const resolveInitialThemeMode = (persistedThemeMode, systemTheme) => {
 const THEME_NAMES = Object.keys(available_themes);
 const DEFAULT_THEME_NAME = THEME_NAMES[0] || null;
 
+const LOCALE_FONT = {
+  en: "Jost",
+  "zh-CN": "ChaoJiXiGOSHIKKUTi",
+};
+
 const resolveThemeDefinition = (themeName, themeMode) => {
   if (!themeName || !themeMode) {
     return null;
@@ -161,8 +166,17 @@ const ConfigContainer = ({ children }) => {
   const selectedTheme = DEFAULT_THEME_NAME;
 
   useEffect(() => {
-    setTheme(resolveThemeDefinition(selectedTheme, onThemeMode));
-  }, [onThemeMode, selectedTheme]);
+    const base = resolveThemeDefinition(selectedTheme, onThemeMode);
+    if (base) {
+      const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
+      setTheme({
+        ...base,
+        font: { ...base.font, fontFamily: localeFont },
+      });
+    } else {
+      setTheme(base);
+    }
+  }, [onThemeMode, selectedTheme, locale]);
   useEffect(() => {
     if (theme?.backgroundColor) {
       themeBridge.setBackgroundColor(theme.backgroundColor);
