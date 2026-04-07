@@ -1,11 +1,15 @@
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const ConfirmClearAll = ({
   isDark,
   onConfirm,
   onCancel,
-  label = "Clear all?",
-}) => (
+  label,
+}) => {
+  const { t } = useTranslation();
+  const displayLabel = label || t("local_storage.clear_all");
+  return (
   <div
     style={{
       display: "flex",
@@ -26,10 +30,10 @@ const ConfirmClearAll = ({
         color: isDark ? "rgba(255,120,120,0.9)" : "rgba(180,40,40,0.9)",
       }}
     >
-      {label}
+      {displayLabel}
     </span>
     <Button
-      label="Cancel"
+      label={t("common.cancel")}
       onClick={onCancel}
       style={{
         fontSize: 12,
@@ -40,7 +44,7 @@ const ConfirmClearAll = ({
       }}
     />
     <Button
-      label="Clear"
+      label={t("local_storage.clear_all_btn")}
       onClick={onConfirm}
       style={{
         fontSize: 12,
@@ -57,6 +61,7 @@ const ConfirmClearAll = ({
       }}
     />
   </div>
-);
+  );
+};
 
 export default ConfirmClearAll;
