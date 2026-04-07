@@ -1,0 +1,125 @@
+{
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "model_providers": "Model Providers",
+    "workspaces": "Workspaces",
+    "memory": "Memory",
+    "token_usage": "Token Usage",
+    "update": "Update",
+    "local_storage": "Local Storage",
+    "dev": "Dev"
+  },
+  "appearance": {
+    "title": "Appearance",
+    "theme_mode": "Theme Mode",
+    "theme_mode_desc": "Choose between light and dark mode",
+    "theme_light": "Light",
+    "theme_dark": "Dark",
+    "theme_system": "System",
+    "language": "Language",
+    "language_desc": "Choose display language"
+  },
+  "model_providers": {
+    "api_key": "API Key",
+    "retry": "Retry",
+    "clear": "Clear",
+    "all": "All",
+    "embedding": "Embedding",
+    "vision": "Vision",
+    "tools": "Tools",
+    "thinking": "Thinking"
+  },
+  "memory": {
+    "title": "Chat Memory",
+    "enable_memory": "Enable memory",
+    "enable_memory_desc": "Each chat keeps short-term memory, while long-term memory is shared globally and recalled automatically when relevant.",
+    "auto": "Auto"
+  },
+  "token_usage": {
+    "7_days": "7 days",
+    "30_days": "30 days",
+    "90_days": "90 days",
+    "all_time": "All time",
+    "day": "Day",
+    "week": "Week",
+    "month": "Month",
+    "input": "Input",
+    "output": "Output",
+    "consumed_tokens": "Consumed Tokens",
+    "input_tokens": "Input Tokens",
+    "output_tokens": "Output Tokens",
+    "requests": "Requests",
+    "avg_consumed": "Avg Consumed / Request",
+    "top_model": "Top Model",
+    "all_providers": "All Providers",
+    "all_models": "All Models",
+    "clear": "Clear",
+    "search_models": "Search models\u2026"
+  },
+  "app_update": {
+    "title": "Update",
+    "auto_update": "Auto update",
+    "auto_update_desc": "Automatically check for app updates",
+    "current_version": "Current Version",
+    "current_version_desc": "Installed application version",
+    "latest_version": "Latest Version",
+    "latest_version_desc": "Latest version from release channel",
+    "update_action": "Update Action",
+    "update_action_desc": "Check, download, and install updates from GitHub Releases",
+    "restart_to_install": "Restart to install",
+    "checking": "Checking...",
+    "downloading": "Downloading {progress}%",
+    "up_to_date": "Up to date",
+    "check_for_updates": "Check for updates",
+    "unavailable": "In-app updates are unavailable in the current runtime.",
+    "check_failed": "Failed to check for updates.",
+    "install_failed": "Failed to start update installation."
+  },
+  "local_storage": {
+    "delete_item": "Delete this item?",
+    "clear_all": "Clear all?",
+    "reset_settings_title": "Reset all settings to defaults?",
+    "reset_settings_desc": "Deleting the {key} key will restore all preferences \u2014 including theme, appearance, and any future settings \u2014 back to their default values. This cannot be undone.",
+    "reset_to_defaults": "Reset to defaults",
+    "reload": "Reload",
+    "clear_all_btn": "Clear all"
+  },
+  "dev": {
+    "chrome_terminal": "Chrome Terminal",
+    "ui_testing": "UI Testing",
+    "open": "Open"
+  },
+  "side_menu": {
+    "search": "Search...",
+    "tools": "Tools",
+    "agents": "Agents",
+    "workspaces": "Workspaces",
+    "settings": "Settings",
+    "chats": "Chats",
+    "no_chats_found": "No chats found"
+  },
+  "context_menu": {
+    "new_chat": "New Chat",
+    "new_folder": "New Folder",
+    "paste": "Paste",
+    "import": "Import",
+    "rename": "Rename",
+    "copy": "Copy",
+    "copy_of": "Copy of {label}",
+    "export": "Export",
+    "delete": "Delete",
+    "inspect_memory": "Inspect Memory"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "save": "Save",
+    "confirm": "Confirm",
+    "close": "Close",
+    "loading": "Loading...",
+    "error": "Error",
+    "select": "Select...",
+    "search": "Search..."
+  }
+}
