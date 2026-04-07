@@ -1,5 +1,5 @@
 import { useContext, useCallback, useMemo } from "react";
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import { LocaleContext } from "../../CONTAINERs/config/context";
 
 import en from "../../locales/en.json";
 import zhCN from "../../locales/zh-CN.json";
@@ -42,7 +42,7 @@ const interpolate = (template, vars) => {
 };
 
 export const useTranslation = () => {
-  const { locale, setLocale } = useContext(ConfigContext);
+  const { locale, setLocale } = useContext(LocaleContext);
   const currentLocale = locale || "en";
 
   const messages = useMemo(

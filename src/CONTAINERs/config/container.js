@@ -20,6 +20,7 @@ import {
   ThemeContext,
   EnvironmentContext,
   NavigationContext,
+  LocaleContext,
 } from "./context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
@@ -262,10 +263,13 @@ const ConfigContainer = ({ children }) => {
       setTheme,
       onThemeMode,
       setOnThemeMode,
-      locale,
-      setLocale,
     }),
-    [syncWithSystemTheme, availableThemes, theme, onThemeMode, locale],
+    [syncWithSystemTheme, availableThemes, theme, onThemeMode],
+  );
+
+  const localeValue = useMemo(
+    () => ({ locale, setLocale }),
+    [locale],
   );
 
   const environmentValue = useMemo(
@@ -283,14 +287,16 @@ const ConfigContainer = ({ children }) => {
   const configValue = useMemo(
     () => ({
       ...themeValue,
+      ...localeValue,
       ...environmentValue,
       ...navigationValue,
     }),
-    [themeValue, environmentValue, navigationValue],
+    [themeValue, localeValue, environmentValue, navigationValue],
   );
 
   return (
     <ThemeContext.Provider value={themeValue}>
+    <LocaleContext.Provider value={localeValue}>
     <EnvironmentContext.Provider value={environmentValue}>
     <NavigationContext.Provider value={navigationValue}>
     <ConfigContext.Provider value={configValue}>
@@ -334,6 +340,7 @@ const ConfigContainer = ({ children }) => {
     </ConfigContext.Provider>
     </NavigationContext.Provider>
     </EnvironmentContext.Provider>
+    </LocaleContext.Provider>
     </ThemeContext.Provider>
   );
 };

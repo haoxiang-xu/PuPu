@@ -1,6 +1,6 @@
 import { renderHook } from "@testing-library/react";
 import { useTranslation, resolveKey } from "./use_translation";
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import { LocaleContext } from "../../CONTAINERs/config/context";
 
 /* ── resolveKey unit tests ── */
 
@@ -32,9 +32,9 @@ describe("resolveKey", () => {
 const wrapper =
   (locale) =>
   ({ children }) => (
-    <ConfigContext.Provider value={{ locale, setLocale: () => {} }}>
+    <LocaleContext.Provider value={{ locale, setLocale: () => {} }}>
       {children}
-    </ConfigContext.Provider>
+    </LocaleContext.Provider>
   );
 
 describe("useTranslation", () => {

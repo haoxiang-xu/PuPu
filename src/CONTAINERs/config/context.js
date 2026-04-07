@@ -9,3 +9,4 @@ export const ConfigContext = createContext("");
 export const ThemeContext = createContext(null);
 export const EnvironmentContext = createContext(null);
 export const NavigationContext = createContext(null);
+export const LocaleContext = createContext(null);
