@@ -32,7 +32,7 @@ const formatThresholdValue = (value) => {
 };
 
 export const MemorySettings = ({ onNavigate }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const {
@@ -219,7 +219,7 @@ export const MemorySettings = ({ onNavigate }) => {
                 style={{
                   fontSize: 14,
                   height: 20,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
                   color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
                 }}
@@ -302,7 +302,7 @@ export const MemorySettings = ({ onNavigate }) => {
                 style={{
                   fontSize: 14,
                   height: 20,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
                   color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
                 }}

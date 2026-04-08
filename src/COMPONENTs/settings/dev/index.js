@@ -15,7 +15,7 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import UITestingModal from "../../ui-testing/ui_testing_modal";
 
 export const DevSettings = () => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
 
@@ -136,7 +136,7 @@ export const DevSettings = () => {
           <div
             style={{
               fontSize: 12,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: errorColor,
               paddingBottom: 10,
             }}
@@ -149,7 +149,7 @@ export const DevSettings = () => {
           <div
             style={{
               fontSize: 12,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: successColor,
               paddingBottom: 10,
             }}
@@ -161,7 +161,7 @@ export const DevSettings = () => {
         <div
           style={{
             fontSize: 11,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
             lineHeight: 1.5,
             paddingBottom: 6,
@@ -225,7 +225,7 @@ export const DevSettings = () => {
         <div
           style={{
             fontSize: 11,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
             lineHeight: 1.5,
             paddingBottom: featureFlagsSyncError ? 6 : 10,
@@ -238,7 +238,7 @@ export const DevSettings = () => {
           <div
             style={{
               fontSize: 12,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: errorColor,
               paddingBottom: 10,
             }}

@@ -38,6 +38,7 @@ const AnthropicSection = () => {
 };
 
 const OllamaLibraryBrowser = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const {
     category,
@@ -81,7 +82,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
             onClick={() => setCategory(cat.value)}
             style={{
               fontSize: 11,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               padding: "3px 10px",
               borderRadius: 999,
@@ -119,7 +120,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
             width: "100%",
             height: 34,
             fontSize: 13,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             borderRadius: 8,
             boxSizing: "border-box",
           }}
@@ -155,7 +156,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
             }}
           >
             <span
-              style={{ fontSize: 12, fontFamily: "Jost", color: mutedColor }}
+              style={{ fontSize: 12, fontFamily: theme?.font?.fontFamily || "Jost, sans-serif", color: mutedColor }}
             >
               {error}
             </span>
@@ -176,7 +177,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
               textAlign: "center",
               padding: "28px 0",
               fontSize: 12,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: mutedColor,
             }}
           >
@@ -202,7 +203,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
 
 const OllamaSection = () => {
   const { t } = useTranslation();
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
 
@@ -213,7 +214,7 @@ const OllamaSection = () => {
         style={{
           margin: "4px 0 6px",
           fontSize: 13,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: mutedColor,
           lineHeight: 1.5,
         }}
@@ -223,7 +224,7 @@ const OllamaSection = () => {
       <div
         style={{
           fontSize: 10,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           textTransform: "uppercase",
           letterSpacing: "1.5px",
           color: mutedColor,

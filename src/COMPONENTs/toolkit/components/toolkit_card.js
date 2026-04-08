@@ -1,3 +1,4 @@
+import { useContext } from "react";
 import ToolkitIcon, {
   isBuiltinToolkitIcon,
   isFileToolkitIcon,
@@ -6,6 +7,7 @@ import { SOURCE_CONFIG } from "../constants";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import Card from "../../../BUILTIN_COMPONENTs/card/card";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 const toDisplayName = (toolkit) => {
   const raw =
@@ -20,6 +22,7 @@ const toDisplayName = (toolkit) => {
 };
 
 const ToolkitCard = ({ toolkit, isDark, onToggleEnabled, onClick }) => {
+  const { theme } = useContext(ConfigContext);
   const displayName = toDisplayName(toolkit);
   const tools = Array.isArray(toolkit.tools) ? toolkit.tools : [];
   const sc = SOURCE_CONFIG[toolkit.source] || SOURCE_CONFIG.builtin;
@@ -120,7 +123,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled, onClick }) => {
         <span
           style={{
             fontSize: 11.5,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             fontWeight: 500,
             color: textColor,
             letterSpacing: "0.15px",
@@ -139,7 +142,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled, onClick }) => {
           <span
             style={{
               fontSize: 11.5,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 400,
               color: mutedColor,
               lineHeight: 1.45,
@@ -167,7 +170,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled, onClick }) => {
           <span
             style={{
               fontSize: 10,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               letterSpacing: "0.4px",
               textTransform: "lowercase",
@@ -185,7 +188,7 @@ const ToolkitCard = ({ toolkit, isDark, onToggleEnabled, onClick }) => {
             <span
               style={{
                 fontSize: 11,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 color: mutedColor,
               }}
             >

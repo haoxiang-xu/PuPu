@@ -172,7 +172,7 @@ const TitleBar = () => {
           left: isDarwin ? 125 : 54,
           transform: "translateY(-50%)",
           opacity: 0.84,
-          fontFamily: "Jost, sans-serif",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           fontSize: 12,
           letterSpacing: "0.08em",
           textTransform: "uppercase",

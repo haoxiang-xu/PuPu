@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import api from "../../../SERVICEs/api";
 import ToolkitIcon, {
   isBuiltinToolkitIcon,
@@ -16,6 +16,7 @@ import {
   isToolkitAutoApprove,
   setToolkitAutoApprove,
 } from "../../../SERVICEs/toolkit_auto_approve_store";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 const ToolkitAutoApproveConfirmModal = ({
   open,
@@ -246,6 +247,7 @@ const ToolkitDetailPanel = ({
   onDelete,
   onBack,
 }) => {
+  const { theme } = useContext(ConfigContext);
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
@@ -434,7 +436,7 @@ const ToolkitDetailPanel = ({
               <span
                 style={{
                   fontSize: 16,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   fontWeight: 600,
                   color: textColor,
                   display: "block",
@@ -448,7 +450,7 @@ const ToolkitDetailPanel = ({
                 <p
                   style={{
                     fontSize: 12,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     color: mutedColor,
                     margin: 0,
                     lineHeight: 1.55,
@@ -501,7 +503,7 @@ const ToolkitDetailPanel = ({
                   <span
                     style={{
                       fontSize: 11,
-                      fontFamily: "Jost",
+                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                       fontWeight: 500,
                       color: mutedColor,
                       textTransform: "uppercase",
@@ -524,7 +526,7 @@ const ToolkitDetailPanel = ({
                         key={tool.name || idx}
                         style={{
                           fontSize: 11.5,
-                          fontFamily: "Jost",
+                          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                           fontWeight: 500,
                           color: tagColor,
                           backgroundColor: tagBg,

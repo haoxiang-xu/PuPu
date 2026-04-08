@@ -309,7 +309,7 @@ const CharacterChatBubble = ({
                 color: isDark
                   ? "rgba(255,255,255,0.30)"
                   : "rgba(0,0,0,0.28)",
-                fontFamily: "Jost, sans-serif",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 lineHeight: 1,
                 paddingBottom: 2,
               }}

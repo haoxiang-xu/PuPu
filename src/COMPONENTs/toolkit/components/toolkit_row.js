@@ -1,3 +1,4 @@
+import { useContext } from "react";
 import ToolkitIcon, {
   isBuiltinToolkitIcon,
   isFileToolkitIcon,
@@ -5,6 +6,7 @@ import ToolkitIcon, {
 import { SOURCE_CONFIG } from "../constants";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 const toDisplayName = (toolkit) => {
   const raw =
@@ -25,6 +27,7 @@ const ToolkitRow = ({
   onToggleEnabled,
   onClick,
 }) => {
+  const { theme } = useContext(ConfigContext);
   const displayName = toDisplayName(toolkit);
   const tools = Array.isArray(toolkit.tools) ? toolkit.tools : [];
   const sc = SOURCE_CONFIG[toolkit.source] || SOURCE_CONFIG.builtin;
@@ -96,7 +99,7 @@ const ToolkitRow = ({
           <span
             style={{
               fontSize: 12.5,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               color: textColor,
               overflow: "hidden",
@@ -109,7 +112,7 @@ const ToolkitRow = ({
           <span
             style={{
               fontSize: 10,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               letterSpacing: "0.4px",
               textTransform: "lowercase",
@@ -129,7 +132,7 @@ const ToolkitRow = ({
             <span
               style={{
                 fontSize: 11,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 color: mutedColor,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -143,7 +146,7 @@ const ToolkitRow = ({
             <span
               style={{
                 fontSize: 11,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 color: mutedColor,
                 flexShrink: 0,
               }}

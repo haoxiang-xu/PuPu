@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useContext, useMemo, useState } from "react";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../settings/runtime";
 import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { ConfigContext } from "../../CONTAINERs/config/context";
 
 /* ── Theme colours ───────────────────────────────────────────────────────── */
 
@@ -30,11 +31,13 @@ const useThemeColors = (isDark) =>
 
 /* ── Sub-heading ─────────────────────────────────────────────────────────── */
 
-const SubHeading = ({ children, isDark, style }) => (
+const SubHeading = ({ children, isDark, style }) => {
+  const { theme } = useContext(ConfigContext);
+  return (
   <div
     style={{
       fontSize: 11,
-      fontFamily: "Jost, sans-serif",
+      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
       textTransform: "uppercase",
       letterSpacing: "1.6px",
       fontWeight: 500,
@@ -46,7 +49,8 @@ const SubHeading = ({ children, isDark, style }) => (
   >
     {children}
   </div>
-);
+  );
+};
 
 /* ── Thin vertical divider ───────────────────────────────────────────────── */
 
@@ -68,6 +72,7 @@ const Divider = ({ isDark }) => (
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const DefaultWorkspaceSection = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const c = useThemeColors(isDark);
   const { t } = useTranslation();
   const [workspaceRoot, setWorkspaceRoot] = useState(() => readWorkspaceRoot());
@@ -191,7 +196,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
             boxSizing: "border-box",
             padding: "10px 12px",
             fontSize: 14,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: isDark ? "#ccc" : "#222",
             background: "transparent",
             border: "none",
@@ -275,7 +280,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
         <div
           style={{
             fontSize: 12,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: c.error,
           }}
         >
@@ -286,7 +291,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
         <div
           style={{
             fontSize: 12,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: c.success,
           }}
         >
@@ -297,7 +302,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
       <div
         style={{
           fontSize: 11,
-          fontFamily: "Jost, sans-serif",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: c.muted,
           lineHeight: 1.5,
         }}
@@ -313,6 +318,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const WorkspacesSection = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const c = useThemeColors(isDark);
   const { t } = useTranslation();
   const [items, setItems] = useState(() => readWorkspaces());
@@ -436,7 +442,7 @@ const WorkspacesSection = ({ isDark }) => {
           style={{
             fontSize: 12,
             color: c.muted,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             padding: "4px 0 8px",
           }}
         >
@@ -492,7 +498,7 @@ const WorkspacesSection = ({ isDark }) => {
                 <div
                   style={{
                     fontSize: 11,
-                    fontFamily: "Jost, sans-serif",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     color: c.error,
                   }}
                 >
@@ -556,7 +562,7 @@ const WorkspacesSection = ({ isDark }) => {
               <div
                 style={{
                   fontSize: 13,
-                  fontFamily: "Jost, sans-serif",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   fontWeight: 500,
                   color: c.text,
                   overflow: "hidden",
@@ -672,7 +678,7 @@ const WorkspacesSection = ({ isDark }) => {
       <div
         style={{
           fontSize: 11,
-          fontFamily: "Jost, sans-serif",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: c.muted,
           lineHeight: 1.5,
           padding: "4px 0 0",

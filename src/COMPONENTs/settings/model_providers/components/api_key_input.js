@@ -9,7 +9,7 @@ import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refr
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const { t } = useTranslation();
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const [value, setValue] = useState(
@@ -129,7 +129,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         <span
           style={{
             fontSize: 13,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: accentColor,
             fontWeight: 500,
           }}
@@ -141,7 +141,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
           <span
             style={{
               fontSize: 11,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: successColor,
               opacity: 0.85,
             }}
@@ -164,7 +164,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
       <span
         style={{
           fontSize: 11,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: mutedColor,
           lineHeight: 1.4,
         }}

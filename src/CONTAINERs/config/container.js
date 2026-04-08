@@ -79,7 +79,7 @@ const DEFAULT_THEME_NAME = THEME_NAMES[0] || null;
 
 const LOCALE_FONT = {
   en: "Jost",
-  "zh-CN": "SiYuanHeiTi",
+  "zh-CN": "LXGWWenKai",
 };
 
 const resolveThemeDefinition = (themeName, themeMode) => {

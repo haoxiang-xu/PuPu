@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { TAG_PALETTE } from "../constants";
+import { ConfigContext } from "../../../../CONTAINERs/config/context";
 
 const ModelCard = ({
   model,
@@ -11,6 +12,7 @@ const ModelCard = ({
   onPull,
   onCancel,
 }) => {
+  const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const [selectedSize, setSelectedSize] = useState(model.sizes[0] || "");
 
@@ -55,7 +57,7 @@ const ModelCard = ({
           style={{
             fontSize: 13,
             fontWeight: 600,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: textColor,
             letterSpacing: "0.1px",
           }}
@@ -70,7 +72,7 @@ const ModelCard = ({
               key={tag}
               style={{
                 fontSize: 10,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 fontWeight: 500,
                 letterSpacing: "0.4px",
                 textTransform: "lowercase",
@@ -90,7 +92,7 @@ const ModelCard = ({
           <span
             style={{
               fontSize: 11,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: mutedColor,
               marginLeft: "auto",
               flexShrink: 0,
@@ -105,7 +107,7 @@ const ModelCard = ({
         <div
           style={{
             fontSize: 12,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
             lineHeight: 1.5,
             display: "-webkit-box",
@@ -134,7 +136,7 @@ const ModelCard = ({
               onClick={() => setSelectedSize(sz)}
               style={{
                 fontSize: 11,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 fontWeight: 500,
                 padding: "2px 8px",
                 borderRadius: 999,
@@ -158,7 +160,7 @@ const ModelCard = ({
               <span
                 style={{
                   fontSize: 11,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   color: "#4ade80",
                   display: "flex",
                   alignItems: "center",
@@ -181,7 +183,7 @@ const ModelCard = ({
                   <span
                     style={{
                       fontSize: 11,
-                      fontFamily: "Jost",
+                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                       color: mutedColor,
                     }}
                   >
@@ -227,7 +229,7 @@ const ModelCard = ({
                   <span
                     style={{
                       fontSize: 10,
-                      fontFamily: "Jost",
+                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                       color: "rgba(255,100,100,0.85)",
                     }}
                   >
@@ -244,7 +246,7 @@ const ModelCard = ({
                   fontSize: 11,
                   padding: "0 12px",
                   borderRadius: 999,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 }}
               />
             ) : null}

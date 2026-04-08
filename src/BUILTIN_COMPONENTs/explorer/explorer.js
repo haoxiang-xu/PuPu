@@ -455,6 +455,7 @@ const ExplorerRow = ({
   activeNodeId,
   contextMenuNodeId,
 }) => {
+  const { theme } = useContext(ConfigContext);
   const isActive =
     !isSource && activeNodeId != null && node.id === activeNodeId;
   const isFolder = getNodeType(node) === "folder";
@@ -700,7 +701,7 @@ const ExplorerRow = ({
         paddingRight: isSource ? 0 : 8,
         gap: 4,
         fontSize,
-        fontFamily: "Jost, sans-serif",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 400,
         color: colors.color,
         cursor: "pointer",
@@ -908,7 +909,7 @@ const ExplorerRow = ({
               paddingRight: 8,
               gap: 4,
               fontSize,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 400,
               color: colors.color,
               borderRadius: 5,
@@ -1687,7 +1688,7 @@ const Explorer = ({
         width: containerWidth,
         minHeight: 40,
         padding: "4px 0",
-        fontFamily: "Jost, sans-serif",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         overflow: "hidden",
         /* disable pointer events on tree during drag to prevent accidental clicks */
         pointerEvents: dragState.isDragging ? "none" : undefined,
@@ -1749,7 +1750,7 @@ const Explorer = ({
               paddingRight: 12,
               gap: 4,
               fontSize,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 400,
               color: colors.color,
               backgroundColor: colors.bg,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
 import api from "../../../SERVICEs/api";
 import {
   getDefaultToolkitSelection,
@@ -11,6 +11,7 @@ import LoadingDots from "../components/loading_dots";
 import PlaceholderBlock from "../components/placeholder_block";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 const isBaseById = (toolkitId) => {
   if (!toolkitId) return false;
@@ -24,6 +25,7 @@ const isBaseById = (toolkitId) => {
 };
 
 const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
+  const { theme } = useContext(ConfigContext);
   const [loading, setLoading] = useState(true);
   const [toolkits, setToolkits] = useState([]);
   const [error, setError] = useState(null);
@@ -135,7 +137,7 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
         style={{
           width: "100%",
           fontSize: 13,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           borderRadius: 7,
           color: isDark ? "#fff" : "#222",
           paddingVertical: 7,
@@ -147,7 +149,7 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
       <span
         style={{
           fontSize: 12,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           fontWeight: 500,
           color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
           marginTop: 4,
@@ -188,7 +190,7 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
             textAlign: "center",
             padding: 40,
             fontSize: 12,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
           }}
         >

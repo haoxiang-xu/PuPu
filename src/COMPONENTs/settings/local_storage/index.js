@@ -83,7 +83,7 @@ const OllamaSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        fontFamily: "Jost",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
         padding: "2px 8px",
         borderRadius: 999,
@@ -561,7 +561,7 @@ const RuntimeSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        fontFamily: "Jost",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
         padding: "2px 8px",
         borderRadius: 999,
@@ -847,7 +847,7 @@ const CharactersSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        fontFamily: "Jost",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
         padding: "2px 8px",
         borderRadius: 999,
@@ -1156,7 +1156,7 @@ export const LocalStorageSettings = () => {
                 <span
                   style={{
                     fontSize: 11,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     fontWeight: 500,
                     padding: "2px 8px",
                     borderRadius: 999,
@@ -1176,7 +1176,7 @@ export const LocalStorageSettings = () => {
                 <span
                   style={{
                     fontSize: 11,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     fontWeight: 500,
                     padding: "2px 8px",
                     borderRadius: 999,
@@ -1199,7 +1199,7 @@ export const LocalStorageSettings = () => {
               <span
                 style={{
                   fontSize: 11,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   fontWeight: 500,
                   padding: "2px 8px",
                   borderRadius: 999,

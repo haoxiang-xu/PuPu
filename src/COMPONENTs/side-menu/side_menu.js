@@ -96,7 +96,7 @@ const AVAILABILITY_DOT_COLOR = {
   offline: "#93999e",
 };
 
-const CharacterChatRow = ({ node, depth, isDark, characterAvailability }) => {
+const CharacterChatRow = ({ node, depth, isDark, theme, characterAvailability }) => {
   const [imageBroken, setImageBroken] = useState(false);
   const avatarSrc = resolveCharacterAvatarSrc(node.characterAvatar);
   const showImage = Boolean(avatarSrc) && !imageBroken;
@@ -183,7 +183,7 @@ const CharacterChatRow = ({ node, depth, isDark, characterAvailability }) => {
           minWidth: 0,
           flex: 1,
           fontSize: 12.5,
-          fontFamily: "Jost, sans-serif",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: isDark ? "#fff" : "#171717",
           overflow: "hidden",
           textOverflow: "ellipsis",
@@ -198,7 +198,7 @@ const CharacterChatRow = ({ node, depth, isDark, characterAvailability }) => {
           style={{
             flexShrink: 0,
             fontSize: 11,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.4)",
           }}
         >
@@ -447,6 +447,7 @@ const SideMenu = () => {
             depth={depth}
             isExpanded={isExpanded}
             isDark={isDark}
+            theme={theme}
             characterAvailability={
               characterAvailabilityMap[componentNode.characterId] || ""
             }
@@ -478,6 +479,7 @@ const SideMenu = () => {
     handleConfirmRename,
     handleCancelRename,
     isDark,
+    theme,
     characterAvailabilityMap,
   ]);
 
@@ -646,7 +648,7 @@ const SideMenu = () => {
           style={{
             padding: "4px 4px 6px",
             fontSize: 11,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             textTransform: "uppercase",
             letterSpacing: "1.5px",
             color: theme?.color || "rgba(255,255,255,0.9)",
@@ -676,7 +678,7 @@ const SideMenu = () => {
               style={{
                 padding: "12px 8px",
                 fontSize: 12,
-                fontFamily: "Jost, sans-serif",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 color: theme?.color || (isDark ? "#CCC" : "#444"),
                 opacity: 0.4,
                 userSelect: "none",
