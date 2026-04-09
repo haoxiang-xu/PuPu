@@ -45,6 +45,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG,
   CHANNELS.UNCHAIN.WRITE_FILE,
   CHANNELS.UNCHAIN.READ_FILE,
+  CHANNELS.SCREENSHOT.CAPTURE,
+  CHANNELS.SCREENSHOT.CHECK_AVAILABILITY,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -71,6 +73,7 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     ollamaService,
     unchainService,
     runtimeService,
+    screenshotService,
   } = services;
 
   ipcMain.on(CHANNELS.THEME.SET_BACKGROUND_COLOR, (_event, color) => {
@@ -266,6 +269,13 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UNCHAIN.READ_FILE, (_event, payload = {}) =>
     runtimeService.readFile(payload),
+  );
+
+  ipcMain.handle(CHANNELS.SCREENSHOT.CAPTURE, () =>
+    screenshotService.capture(),
+  );
+  ipcMain.handle(CHANNELS.SCREENSHOT.CHECK_AVAILABILITY, () =>
+    screenshotService.checkAvailability(),
   );
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_START, (event, payload) => {

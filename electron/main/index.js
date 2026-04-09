@@ -20,6 +20,7 @@ const { createRuntimeService } = require("./services/runtime/service");
 const { createOllamaService } = require("./services/ollama/service");
 const { createUnchainService } = require("./services/unchain/service");
 const { createUpdateService } = require("./services/update/service");
+const { createScreenshotService } = require("./services/screenshot/service");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 
 let autoUpdater = null;
@@ -88,6 +89,14 @@ if (!gotSingleInstanceLock) {
     autoUpdater,
   });
 
+  const screenshotService = createScreenshotService({
+    fs,
+    path,
+    os: require("os"),
+    child_process: require("child_process"),
+    getMainWindow: windowService.getMainWindow,
+  });
+
   registerIpcHandlers({
     ipcMain,
     app,
@@ -97,6 +106,7 @@ if (!gotSingleInstanceLock) {
       ollamaService,
       unchainService,
       runtimeService,
+      screenshotService,
     },
   });
 

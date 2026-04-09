@@ -18,6 +18,7 @@ const ChatInput = ({
   showAttachments = true,
   onAttachFile,
   onAttachLink,
+  onAttachScreenshot,
   modelCatalog,
   selectedModelId,
   onSelectModel,
@@ -153,6 +154,7 @@ const ChatInput = ({
                   focusShadow={panelFocusShadow}
                   onAttachFile={onAttachFile}
                   onAttachLink={onAttachLink}
+                  onAttachScreenshot={onAttachScreenshot}
                   modelOptions={modelOptions}
                   showModelSelector={showModelSelector}
                   selectedModelId={selectedModelId}

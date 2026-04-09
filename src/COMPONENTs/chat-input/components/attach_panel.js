@@ -121,6 +121,7 @@ const AttachPanel = ({
   focusShadow,
   onAttachFile,
   onAttachLink,
+  onAttachScreenshot,
   modelOptions,
   showModelSelector = true,
   selectedModelId,
@@ -298,6 +299,29 @@ const AttachPanel = ({
                 }}
               />
             </div>
+
+            {/* ── Screenshot button ── */}
+            {onAttachScreenshot && (
+              <div
+                title={
+                  attachmentsEnabled
+                    ? "Take a screenshot"
+                    : attachmentsDisabledReason ||
+                      "Current model does not support image inputs"
+                }
+              >
+                <Button
+                  prefix_icon="screenshot"
+                  onClick={onAttachScreenshot}
+                  disabled={!attachmentsEnabled}
+                  style={{
+                    color,
+                    fontSize: 14,
+                    borderRadius: floating ? 22 : 16,
+                  }}
+                />
+              </div>
+            )}
 
             {/* ── Tools selector (icon button + badge trigger) ── */}
             {showToolSelector ? (

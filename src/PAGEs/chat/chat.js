@@ -544,6 +544,7 @@ const ChatInterface = () => {
       disclaimer: effectiveDisclaimer,
       showAttachments: true,
       onAttachFile: attachments.handleAttachFile,
+      onAttachScreenshot: attachments.handleScreenshot,
       onDropFiles: attachments.processFiles,
       attachments: draftAttachments,
       onRemoveAttachment: attachments.removeDraftAttachment,
