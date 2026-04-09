@@ -85,3 +85,24 @@ code {
   font-weight: 700 900;
   font-style: normal;
 }
+@font-face {
+  font-family: "LXGWWenKai";
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai/LXGWWenKai-Light.ttf")
+    format("truetype");
+  font-weight: 200 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKai";
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai/LXGWWenKai-Regular.ttf")
+    format("truetype");
+  font-weight: 400 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKai";
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai/LXGWWenKai-Medium.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
+}
