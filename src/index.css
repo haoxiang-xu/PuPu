@@ -56,92 +56,78 @@ code {
   font-style: italic;
 }
 @font-face {
-  font-family: "SiYuanHeiTi";
-  src: url("BUILTIN_COMPONENTs/fonts/SiYuanHeiTi/SourceHanSansSC-ExtraLight-2.otf")
-    format("truetype");
-  font-weight: 200 300;
-  font-style: normal;
-}
-@font-face {
-  font-family: "SiYuanHeiTi";
-  src: url("BUILTIN_COMPONENTs/fonts/SiYuanHeiTi/SourceHanSansSC-Light-2.otf")
-    format("truetype");
-  font-weight: 300 400;
-  font-style: normal;
-}
-@font-face {
-  font-family: "SiYuanHeiTi";
-  src: url("BUILTIN_COMPONENTs/fonts/SiYuanHeiTi/SourceHanSansSC-Regular-2.otf")
-    format("truetype");
-  font-weight: 400 500;
-  font-style: normal;
-}
-@font-face {
-  font-family: "SiYuanHeiTi";
-  src: url("BUILTIN_COMPONENTs/fonts/SiYuanHeiTi/SourceHanSansSC-Medium-2.otf")
-    format("truetype");
-  font-weight: 500 600;
-  font-style: normal;
-}
-@font-face {
-  font-family: "SiYuanHeiTi";
-  src: url("BUILTIN_COMPONENTs/fonts/SiYuanHeiTi/SourceHanSansSC-Heavy-2.otf")
-    format("truetype");
-  font-weight: 700 900;
-  font-style: normal;
-}
-@font-face {
   font-family: "LXGWWenKai";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Chinese/LXGWWenKai-Light.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Chinese/LXGWWenKai-Light.ttf")
     format("truetype");
   font-weight: 200 300;
   font-style: normal;
 }
 @font-face {
   font-family: "LXGWWenKai";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Chinese/LXGWWenKai-Regular.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Chinese/LXGWWenKai-Regular.ttf")
     format("truetype");
   font-weight: 400 600;
   font-style: normal;
 }
 @font-face {
   font-family: "LXGWWenKai";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Chinese/LXGWWenKai-Medium.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Chinese/LXGWWenKai-Medium.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiTC";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_TraditionalChinese/LXGWWenKaiTC-Light.ttf")
+    format("truetype");
+  font-weight: 200 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiTC";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_TraditionalChinese/LXGWWenKaiTC-Regular.ttf")
+    format("truetype");
+  font-weight: 400 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiTC";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_TraditionalChinese/LXGWWenKaiTC-Bold.ttf")
     format("truetype");
   font-weight: 700 900;
   font-style: normal;
 }
 @font-face {
   font-family: "KleeOne";
-  src: url("BUILTIN_COMPONENTs/fonts/KleeOne_Japanese/KleeOne-Regular.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/KleeOne_Japanese/KleeOne-Regular.ttf")
     format("truetype");
   font-weight: 200 600;
   font-style: normal;
 }
 @font-face {
   font-family: "KleeOne";
-  src: url("BUILTIN_COMPONENTs/fonts/KleeOne_Japanese/KleeOne-SemiBold.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/KleeOne_Japanese/KleeOne-SemiBold.ttf")
     format("truetype");
   font-weight: 700 900;
   font-style: normal;
 }
 @font-face {
   font-family: "LXGWWenKaiKR";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Korean/LXGWWenKaiKR-Light.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Korean/LXGWWenKaiKR-Light.ttf")
     format("truetype");
   font-weight: 200 300;
   font-style: normal;
 }
 @font-face {
   font-family: "LXGWWenKaiKR";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Korean/LXGWWenKaiKR-Regular.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Korean/LXGWWenKaiKR-Regular.ttf")
     format("truetype");
   font-weight: 400 600;
   font-style: normal;
 }
 @font-face {
   font-family: "LXGWWenKaiKR";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Korean/LXGWWenKaiKR-Medium.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Korean/LXGWWenKaiKR-Medium.ttf")
     format("truetype");
   font-weight: 700 900;
   font-style: normal;

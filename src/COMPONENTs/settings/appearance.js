@@ -173,9 +173,15 @@ export const AppearanceSettings = () => {
           <Select
             options={[
               { value: "en", label: "English" },
-              { value: "zh-CN", label: "中文" },
+              { value: "zh-CN", label: "简体中文" },
+              { value: "zh-TW", label: "繁體中文" },
               { value: "ja", label: "日本語" },
               { value: "ko", label: "한국어" },
+              { value: "es", label: "Español" },
+              { value: "fr", label: "Français" },
+              { value: "de", label: "Deutsch" },
+              { value: "it", label: "Italiano" },
+              { value: "pt-BR", label: "Português (BR)" },
             ]}
             value={locale}
             set_value={setLocale}

@@ -84,12 +84,22 @@ const LOCALE_FONT = {
     title: "LXGWWenKai",
     paragraph: "LXGWWenKai",
   },
+  "zh-TW": {
+    body: "LXGWWenKaiTC",
+    title: "LXGWWenKaiTC",
+    paragraph: "LXGWWenKaiTC",
+  },
   ja: { body: "KleeOne", title: "KleeOne", paragraph: "KleeOne" },
   ko: {
     body: "LXGWWenKaiKR",
     title: "LXGWWenKaiKR",
     paragraph: "LXGWWenKaiKR",
   },
+  es: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  fr: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  de: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  it: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  "pt-BR": { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
 };
 
 const resolveThemeDefinition = (themeName, themeMode) => {
