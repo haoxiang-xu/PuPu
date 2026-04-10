@@ -154,7 +154,7 @@ const ChatBubble = ({
                 }
               : {}),
             fontSize: 14,
-            fontFamily: theme?.font?.fontFamily || "inherit",
+            fontFamily: theme?.font?.paragraphFontFamily || "inherit",
             color: theme?.color || "#222",
             lineHeight: 1.6,
             wordBreak: "break-word",

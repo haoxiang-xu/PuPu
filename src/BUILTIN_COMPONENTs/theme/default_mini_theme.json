@@ -26,6 +26,7 @@
     "font": {
       "fontFamily": "Jost",
       "titleFontFamily": "NunitoSans",
+      "paragraphFontFamily": "NunitoSans",
       "fontSize": 14,
       "color": "#222222"
     },
@@ -180,7 +181,6 @@
       "boxShadow": "0 6px 14px rgba(0, 0, 0, 0.28)"
     },
     "markdown": {
-      "fontFamily": "NunitoSans",
       "fontSize": 13,
       "lineHeight": 1.6,
       "color": "#222222",
@@ -343,6 +343,7 @@
     "font": {
       "fontFamily": "Jost",
       "titleFontFamily": "NunitoSans",
+      "paragraphFontFamily": "NunitoSans",
       "fontSize": 14,
       "color": "#FFFFFF"
     },
@@ -497,7 +498,6 @@
       "boxShadow": "0 8px 18px rgba(0, 0, 0, 0.45)"
     },
     "markdown": {
-      "fontFamily": "NunitoSans",
       "fontSize": 13,
       "lineHeight": 1.6,
       "color": "#E0E0E0",

@@ -270,7 +270,7 @@ const SeamlessMarkdown = ({
         ...markdownStyle,
         whiteSpace: "pre-wrap",
         wordBreak: "break-word",
-        fontFamily: theme?.font?.fontFamily || "inherit",
+        fontFamily: theme?.font?.paragraphFontFamily || "inherit",
         margin: 0,
       }}
     >

@@ -78,8 +78,12 @@ const THEME_NAMES = Object.keys(available_themes);
 const DEFAULT_THEME_NAME = THEME_NAMES[0] || null;
 
 const LOCALE_FONT = {
-  en: { body: "Jost", title: "NunitoSans" },
-  "zh-CN": { body: "LXGWWenKai", title: "LXGWWenKai" },
+  en: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  "zh-CN": {
+    body: "LXGWWenKai",
+    title: "LXGWWenKai",
+    paragraph: "LXGWWenKai",
+  },
 };
 
 const resolveThemeDefinition = (themeName, themeMode) => {
@@ -154,6 +158,10 @@ const applyInitialLocaleFont = () => {
       "--pupu-title-font-family",
       `"${localeFont.title}", sans-serif`,
     );
+    document.documentElement.style.setProperty(
+      "--pupu-paragraph-font-family",
+      `"${localeFont.paragraph}", sans-serif`,
+    );
   } catch {}
 };
 applyInitialLocaleFont();
@@ -195,6 +203,7 @@ const ConfigContainer = ({ children }) => {
           ...base.font,
           fontFamily: localeFont.body,
           titleFontFamily: localeFont.title,
+          paragraphFontFamily: localeFont.paragraph,
         },
       });
       if (typeof document !== "undefined") {
@@ -205,6 +214,10 @@ const ConfigContainer = ({ children }) => {
         document.documentElement.style.setProperty(
           "--pupu-title-font-family",
           `"${localeFont.title}", sans-serif`,
+        );
+        document.documentElement.style.setProperty(
+          "--pupu-paragraph-font-family",
+          `"${localeFont.paragraph}", sans-serif`,
         );
       }
     } else {
