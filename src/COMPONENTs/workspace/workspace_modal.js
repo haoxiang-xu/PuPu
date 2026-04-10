@@ -6,7 +6,7 @@ import WorkspaceEditor from "./workspace_editor";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 export const WorkspaceModal = ({ open, onClose }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const { t } = useTranslation();
 
@@ -40,7 +40,7 @@ export const WorkspaceModal = ({ open, onClose }) => {
           style={{
             fontSize: 22,
             fontWeight: 600,
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color: isDark ? "#fff" : "#222",
             letterSpacing: "-0.01em",
           }}

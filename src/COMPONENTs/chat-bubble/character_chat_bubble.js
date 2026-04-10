@@ -209,7 +209,7 @@ const CharacterChatBubble = ({
                     : "rgba(0,0,0,0.72)",
                   fontSize: 12,
                   fontWeight: 700,
-                  fontFamily: "NunitoSans, sans-serif",
+                  fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
                 }}
               >
                 {showImage ? (

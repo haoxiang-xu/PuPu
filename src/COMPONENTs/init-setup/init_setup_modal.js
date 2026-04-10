@@ -33,6 +33,7 @@ const SetupFlow = ({
   isDark,
   contentVisible,
   renderContent,
+  theme,
 }) => {
   const teal = "rgba(10,186,181,1)";
   const tealDim = "rgba(10,186,181,0.70)";
@@ -200,7 +201,7 @@ const SetupFlow = ({
                   style={{
                     fontSize: 12,
                     fontWeight: isActive ? 600 : 500,
-                    fontFamily: "NunitoSans, sans-serif",
+                    fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
                     color: labelColor,
                     lineHeight: `${TITLE_H}px`,
                     cursor: canClick ? "pointer" : "default",
@@ -244,7 +245,7 @@ const SetupFlow = ({
 
 /* ── Main component ──────────────────────────────────────────────────────────── */
 const InitSetupModal = ({ open, onClose }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const [step, setStep] = useState(STEP_WELCOME);
@@ -356,7 +357,7 @@ const InitSetupModal = ({ open, onClose }) => {
             fontSize: 12,
             textTransform: "uppercase",
             letterSpacing: "1.5px",
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color: textColor,
             opacity: 0.3,
           }}
@@ -372,7 +373,7 @@ const InitSetupModal = ({ open, onClose }) => {
               padding: 0,
               cursor: "pointer",
               fontSize: 11,
-              fontFamily: "NunitoSans, sans-serif",
+              fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
               color: skipColor,
               outline: "none",
               transition: "color 0.12s",
@@ -401,6 +402,7 @@ const InitSetupModal = ({ open, onClose }) => {
           isDark={isDark}
           contentVisible={contentVisible}
           renderContent={renderContent}
+          theme={theme}
         />
       </div>
     </Modal>

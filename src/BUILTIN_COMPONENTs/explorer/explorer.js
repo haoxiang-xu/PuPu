@@ -140,6 +140,7 @@ const getCharacterFallbackInitial = (name) => {
 };
 
 const CharacterDragAvatar = ({ avatar, name, isDark, size = 20 }) => {
+  const { theme } = useContext(ConfigContext);
   const [imageBroken, setImageBroken] = useState(false);
   const avatarSrc = resolveCharacterAvatarSrc(avatar);
   const showImage = Boolean(avatarSrc) && !imageBroken;
@@ -164,7 +165,7 @@ const CharacterDragAvatar = ({ avatar, name, isDark, size = 20 }) => {
         color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
         fontSize: 10,
         fontWeight: 700,
-        fontFamily: "NunitoSans, sans-serif",
+        fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
       }}
     >
       {showImage ? (

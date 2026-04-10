@@ -78,8 +78,8 @@ const THEME_NAMES = Object.keys(available_themes);
 const DEFAULT_THEME_NAME = THEME_NAMES[0] || null;
 
 const LOCALE_FONT = {
-  en: "Jost",
-  "zh-CN": "LXGWWenKai",
+  en: { body: "Jost", title: "NunitoSans" },
+  "zh-CN": { body: "LXGWWenKai", title: "LXGWWenKai" },
 };
 
 const resolveThemeDefinition = (themeName, themeMode) => {
@@ -172,7 +172,11 @@ const ConfigContainer = ({ children }) => {
       const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
       setTheme({
         ...base,
-        font: { ...base.font, fontFamily: localeFont },
+        font: {
+          ...base.font,
+          fontFamily: localeFont.body,
+          titleFontFamily: localeFont.title,
+        },
       });
     } else {
       setTheme(base);

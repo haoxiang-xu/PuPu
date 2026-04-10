@@ -54,7 +54,7 @@ const DEV_SETTINGS_PAGE = {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export const SettingsModal = ({ open, onClose }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const [selectedPage, setSelectedPage] = useState("appearance");
@@ -207,7 +207,7 @@ export const SettingsModal = ({ open, onClose }) => {
           style={{
             fontSize: 22,
             fontWeight: 600,
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color: isDark ? "#fff" : "#222",
             padding: "24px 32px 8px",
           }}

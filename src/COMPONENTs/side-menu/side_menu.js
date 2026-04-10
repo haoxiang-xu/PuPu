@@ -147,7 +147,7 @@ const CharacterChatRow = ({ node, depth, isDark, theme, characterAvailability })
             color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.72)",
             fontSize: 11,
             fontWeight: 700,
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
           }}
         >
           {showImage ? (

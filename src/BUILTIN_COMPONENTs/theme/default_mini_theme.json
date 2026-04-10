@@ -25,6 +25,7 @@
     },
     "font": {
       "fontFamily": "Jost",
+      "titleFontFamily": "NunitoSans",
       "fontSize": 14,
       "color": "#222222"
     },
@@ -342,6 +343,7 @@
     },
     "font": {
       "fontFamily": "Jost",
+      "titleFontFamily": "NunitoSans",
       "fontSize": 14,
       "color": "#FFFFFF"
     },

@@ -47,7 +47,7 @@ const ComingSoonPlaceholder = ({ icon, isDark, theme }) => (
       style={{
         fontSize: 14,
         fontWeight: 600,
-        fontFamily: "NunitoSans, sans-serif",
+        fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
         color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
       }}
     >
