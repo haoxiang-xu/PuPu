@@ -100,6 +100,7 @@ const LOCALE_FONT = {
   de: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
   it: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
   "pt-BR": { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  ru: { body: "Onest", title: "Onest", paragraph: "Onest" },
 };
 
 const resolveThemeDefinition = (themeName, themeMode) => {

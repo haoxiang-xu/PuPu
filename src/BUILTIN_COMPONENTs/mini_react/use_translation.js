@@ -11,6 +11,7 @@ import fr from "../../locales/fr.json";
 import de from "../../locales/de.json";
 import it from "../../locales/it.json";
 import ptBR from "../../locales/pt-BR.json";
+import ru from "../../locales/ru.json";
 
 const LOCALE_MAP = {
   en,
@@ -23,6 +24,7 @@ const LOCALE_MAP = {
   de,
   it,
   "pt-BR": ptBR,
+  ru,
 };
 
 /**

@@ -182,6 +182,7 @@ export const AppearanceSettings = () => {
               { value: "de", label: "Deutsch" },
               { value: "it", label: "Italiano" },
               { value: "pt-BR", label: "Português (BR)" },
+              { value: "ru", label: "Русский" },
             ]}
             value={locale}
             set_value={setLocale}
