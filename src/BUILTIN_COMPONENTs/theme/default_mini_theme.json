@@ -128,7 +128,6 @@
     "button": {
       "root": {
         "fontSize": 16,
-        "fontFamily": "Jost, sans-serif",
         "borderRadius": 7,
         "color": "#222222",
         "paddingVertical": 6,
@@ -446,7 +445,6 @@
     "button": {
       "root": {
         "fontSize": 16,
-        "fontFamily": "Jost, sans-serif",
         "borderRadius": 7,
         "color": "#CCCCCC",
         "paddingVertical": 6,

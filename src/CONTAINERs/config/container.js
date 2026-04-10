@@ -138,6 +138,25 @@ const migrateSettingsStorage = () => {
   } catch {}
 };
 migrateSettingsStorage();
+
+/* apply persisted locale font as CSS vars synchronously to avoid initial font flash */
+const applyInitialLocaleFont = () => {
+  if (typeof document === "undefined") return;
+  try {
+    const persisted = loadSettingsStorage();
+    const locale = persisted?.appearance?.locale || "en";
+    const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
+    document.documentElement.style.setProperty(
+      "--pupu-font-family",
+      `"${localeFont.body}", sans-serif`,
+    );
+    document.documentElement.style.setProperty(
+      "--pupu-title-font-family",
+      `"${localeFont.title}", sans-serif`,
+    );
+  } catch {}
+};
+applyInitialLocaleFont();
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 
 const ConfigContainer = ({ children }) => {
@@ -178,6 +197,16 @@ const ConfigContainer = ({ children }) => {
           titleFontFamily: localeFont.title,
         },
       });
+      if (typeof document !== "undefined") {
+        document.documentElement.style.setProperty(
+          "--pupu-font-family",
+          `"${localeFont.body}", sans-serif`,
+        );
+        document.documentElement.style.setProperty(
+          "--pupu-title-font-family",
+          `"${localeFont.title}", sans-serif`,
+        );
+      }
     } else {
       setTheme(base);
     }
