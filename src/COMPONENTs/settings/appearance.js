@@ -174,6 +174,7 @@ export const AppearanceSettings = () => {
             options={[
               { value: "en", label: "English" },
               { value: "zh-CN", label: "中文" },
+              { value: "ja", label: "日本語" },
             ]}
             value={locale}
             set_value={setLocale}

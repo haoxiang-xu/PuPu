@@ -111,3 +111,17 @@ code {
   font-weight: 700 900;
   font-style: normal;
 }
+@font-face {
+  font-family: "KleeOne";
+  src: url("BUILTIN_COMPONENTs/fonts/Klee_One/KleeOne-Regular.ttf")
+    format("truetype");
+  font-weight: 200 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "KleeOne";
+  src: url("BUILTIN_COMPONENTs/fonts/Klee_One/KleeOne-SemiBold.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
+}
