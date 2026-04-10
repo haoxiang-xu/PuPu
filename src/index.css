@@ -92,35 +92,35 @@ code {
 }
 @font-face {
   font-family: "LXGWWenKai";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai/LXGWWenKai-Light.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Chinese/LXGWWenKai-Light.ttf")
     format("truetype");
   font-weight: 200 300;
   font-style: normal;
 }
 @font-face {
   font-family: "LXGWWenKai";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai/LXGWWenKai-Regular.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Chinese/LXGWWenKai-Regular.ttf")
     format("truetype");
   font-weight: 400 600;
   font-style: normal;
 }
 @font-face {
   font-family: "LXGWWenKai";
-  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai/LXGWWenKai-Medium.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Chinese/LXGWWenKai-Medium.ttf")
     format("truetype");
   font-weight: 700 900;
   font-style: normal;
 }
 @font-face {
   font-family: "KleeOne";
-  src: url("BUILTIN_COMPONENTs/fonts/Klee_One/KleeOne-Regular.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne_Japanese/KleeOne-Regular.ttf")
     format("truetype");
   font-weight: 200 600;
   font-style: normal;
 }
 @font-face {
   font-family: "KleeOne";
-  src: url("BUILTIN_COMPONENTs/fonts/Klee_One/KleeOne-SemiBold.ttf")
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne_Japanese/KleeOne-SemiBold.ttf")
     format("truetype");
   font-weight: 700 900;
   font-style: normal;
