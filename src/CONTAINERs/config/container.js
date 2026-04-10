@@ -85,6 +85,11 @@ const LOCALE_FONT = {
     paragraph: "LXGWWenKai",
   },
   ja: { body: "KleeOne", title: "KleeOne", paragraph: "KleeOne" },
+  ko: {
+    body: "LXGWWenKaiKR",
+    title: "LXGWWenKaiKR",
+    paragraph: "LXGWWenKaiKR",
+  },
 };
 
 const resolveThemeDefinition = (themeName, themeMode) => {

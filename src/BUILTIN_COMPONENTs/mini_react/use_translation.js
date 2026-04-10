@@ -4,11 +4,13 @@ import { LocaleContext } from "../../CONTAINERs/config/context";
 import en from "../../locales/en.json";
 import zhCN from "../../locales/zh-CN.json";
 import ja from "../../locales/ja.json";
+import ko from "../../locales/ko.json";
 
 const LOCALE_MAP = {
   en,
   "zh-CN": zhCN,
   ja,
+  ko,
 };
 
 /**

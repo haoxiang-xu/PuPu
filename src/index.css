@@ -125,3 +125,24 @@ code {
   font-weight: 700 900;
   font-style: normal;
 }
+@font-face {
+  font-family: "LXGWWenKaiKR";
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Korean/LXGWWenKaiKR-Light.ttf")
+    format("truetype");
+  font-weight: 200 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiKR";
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Korean/LXGWWenKaiKR-Regular.ttf")
+    format("truetype");
+  font-weight: 400 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiKR";
+  src: url("BUILTIN_COMPONENTs/fonts/LXGWWenKai_Korean/LXGWWenKaiKR-Medium.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
+}
