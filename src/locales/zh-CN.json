@@ -179,7 +179,7 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ 添加工作区",
     "workspace_select_desc": "命名的工作区可以在聊天输入工具栏中按聊天选择。",
-    "applied_desc": "启用工作区工具包时，应用于每个 Miso 请求。"
+    "applied_desc": "启用工作区工具包时，应用于每个 Unchain 请求。"
   },
   "dev": {
     "chrome_terminal": "Chrome 终端",
@@ -245,10 +245,10 @@
     "store_subtitle": "浏览并安装社区工具包。即将推出。",
     "coming_soon_title": "即将推出",
     "coming_soon_subtitle": "此部分尚不可用。",
-    "miso_not_connected_title": "Miso 未连接",
-    "miso_not_connected_subtitle": "启动 Miso 运行时以加载您的工具目录。",
+    "unchain_not_connected_title": "Unchain 未连接",
+    "unchain_not_connected_subtitle": "启动 Unchain 运行时以加载您的工具目录。",
     "no_toolkits_title": "未找到工具包",
-    "no_toolkits_subtitle": "连接的 Miso 运行时中未注册任何可见的工具包。",
+    "no_toolkits_subtitle": "连接的 Unchain 运行时中未注册任何可见的工具包。",
     "load_catalog_failed": "加载工具包目录失败",
     "load_detail_failed": "加载工具包详情失败",
     "load_detail_title": "加载详情失败",

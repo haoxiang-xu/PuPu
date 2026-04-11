@@ -300,7 +300,7 @@ const normalizeModelCatalog = (payload) => {
   };
 };
 
-const normalizeMisoStatus = (status) => ({
+const normalizeUnchainStatus = (status) => ({
   status: typeof status?.status === "string" ? status.status : "unknown",
   ready: Boolean(status?.ready),
   url: status?.url || null,
@@ -358,6 +358,6 @@ export {
   hasBridgeMethod,
   assertBridgeMethod,
   normalizeModelCatalog,
-  normalizeMisoStatus,
+  normalizeUnchainStatus,
   normalizeUpdateState,
 };

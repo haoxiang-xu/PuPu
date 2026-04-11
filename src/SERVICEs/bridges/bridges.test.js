@@ -28,13 +28,13 @@ const collectJsFiles = (dirPath) => {
 };
 
 describe("bridge wrappers", () => {
-  const originalMisoAPI = window.unchainAPI;
+  const originalUnchainAPI = window.unchainAPI;
   const originalOllamaAPI = window.ollamaAPI;
   const originalThemeAPI = window.themeAPI;
   const originalWindowStateAPI = window.windowStateAPI;
 
   afterEach(() => {
-    window.unchainAPI = originalMisoAPI;
+    window.unchainAPI = originalUnchainAPI;
     window.ollamaAPI = originalOllamaAPI;
     window.themeAPI = originalThemeAPI;
     window.windowStateAPI = originalWindowStateAPI;

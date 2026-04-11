@@ -9,15 +9,15 @@ import {
 const toTrimmedString = (value) =>
   typeof value === "string" ? value.trim() : "";
 
-const invokeMiso = async (
+const invokeUnchain = async (
   methodName,
   args,
   {
     timeoutMs = 5000,
     timeoutCode = "unchain_bridge_timeout",
-    timeoutMessage = "Miso bridge request timed out",
+    timeoutMessage = "Unchain bridge request timed out",
     failureCode = "unchain_bridge_failed",
-    failureMessage = "Miso bridge request failed",
+    failureMessage = "Unchain bridge request failed",
   } = {},
 ) => {
   try {
@@ -65,7 +65,7 @@ export const runtimeBridge = {
     }
 
     const nextOpen = Boolean(open);
-    const response = await invokeMiso("setChromeTerminalOpen", [nextOpen], {
+    const response = await invokeUnchain("setChromeTerminalOpen", [nextOpen], {
       timeoutMs: 6000,
       timeoutCode: "unchain_chrome_terminal_timeout",
       timeoutMessage: "Chrome terminal toggle request timed out",
@@ -88,7 +88,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso(
+    const response = await invokeUnchain(
       "syncBuildFeatureFlagsSnapshot",
       [featureFlags],
       {
@@ -115,7 +115,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso("validateWorkspaceRoot", [path], {
+    const response = await invokeUnchain("validateWorkspaceRoot", [path], {
       timeoutMs: 6000,
       timeoutCode: "unchain_validate_workspace_timeout",
       timeoutMessage: "Workspace path validation timed out",
@@ -147,7 +147,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso("pickWorkspaceRoot", [defaultPath], {
+    const response = await invokeUnchain("pickWorkspaceRoot", [defaultPath], {
       timeoutMs: 20000,
       timeoutCode: "unchain_pick_workspace_timeout",
       timeoutMessage: "Workspace picker request timed out",
@@ -169,7 +169,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso("openRuntimeFolder", [path], {
+    const response = await invokeUnchain("openRuntimeFolder", [path], {
       timeoutMs: 10000,
       timeoutCode: "unchain_open_runtime_folder_timeout",
       timeoutMessage: "Open runtime folder request timed out",
@@ -192,7 +192,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso("getRuntimeDirSize", [dirPath], {
+    const response = await invokeUnchain("getRuntimeDirSize", [dirPath], {
       timeoutMs: 15000,
       timeoutCode: "unchain_runtime_size_timeout",
       timeoutMessage: "Runtime size request timed out",
@@ -222,7 +222,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso("getMemorySize", [], {
+    const response = await invokeUnchain("getMemorySize", [], {
       timeoutMs: 10000,
       timeoutCode: "unchain_memory_size_timeout",
       timeoutMessage: "Memory size request timed out",
@@ -252,7 +252,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso("getCharacterStorageSize", [], {
+    const response = await invokeUnchain("getCharacterStorageSize", [], {
       timeoutMs: 10000,
       timeoutCode: "unchain_character_storage_timeout",
       timeoutMessage: "Character storage request timed out",
@@ -289,7 +289,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("deleteCharacterStorageEntry", [entryName], {
+    return invokeUnchain("deleteCharacterStorageEntry", [entryName], {
       timeoutMs: 10000,
       timeoutCode: "unchain_character_storage_delete_timeout",
       timeoutMessage: "Character storage delete request timed out",
@@ -299,7 +299,7 @@ export const runtimeBridge = {
   },
 
   listSeedCharacters: async () => {
-    const response = await invokeMiso("listSeedCharacters", [], {
+    const response = await invokeUnchain("listSeedCharacters", [], {
       timeoutMs: 15000,
       timeoutCode: "unchain_seed_character_list_timeout",
       timeoutMessage: "Seed character list request timed out",
@@ -323,7 +323,7 @@ export const runtimeBridge = {
       );
     }
 
-    const response = await invokeMiso("listCharacters", [], {
+    const response = await invokeUnchain("listCharacters", [], {
       timeoutMs: 15000,
       timeoutCode: "unchain_character_list_timeout",
       timeoutMessage: "Character list request timed out",
@@ -347,7 +347,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("getCharacter", [characterId], {
+    return invokeUnchain("getCharacter", [characterId], {
       timeoutMs: 15000,
       timeoutCode: "unchain_character_get_timeout",
       timeoutMessage: "Character get request timed out",
@@ -364,7 +364,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("saveCharacter", [payload], {
+    return invokeUnchain("saveCharacter", [payload], {
       timeoutMs: 20000,
       timeoutCode: "unchain_character_save_timeout",
       timeoutMessage: "Character save request timed out",
@@ -381,7 +381,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("deleteCharacter", [characterId], {
+    return invokeUnchain("deleteCharacter", [characterId], {
       timeoutMs: 30000,
       timeoutCode: "unchain_character_delete_timeout",
       timeoutMessage: "Character delete request timed out",
@@ -398,7 +398,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("previewCharacterDecision", [payload], {
+    return invokeUnchain("previewCharacterDecision", [payload], {
       timeoutMs: 20000,
       timeoutCode: "unchain_character_preview_timeout",
       timeoutMessage: "Character preview request timed out",
@@ -415,7 +415,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("buildCharacterAgentConfig", [payload], {
+    return invokeUnchain("buildCharacterAgentConfig", [payload], {
       timeoutMs: 20000,
       timeoutCode: "unchain_character_build_timeout",
       timeoutMessage: "Character build request timed out",
@@ -432,7 +432,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("exportCharacter", [characterId, filePath], {
+    return invokeUnchain("exportCharacter", [characterId, filePath], {
       timeoutMs: 30000,
       timeoutCode: "unchain_character_export_timeout",
       timeoutMessage: "Character export request timed out",
@@ -449,7 +449,7 @@ export const runtimeBridge = {
       );
     }
 
-    return invokeMiso("importCharacter", [filePath], {
+    return invokeUnchain("importCharacter", [filePath], {
       timeoutMs: 30000,
       timeoutCode: "unchain_character_import_timeout",
       timeoutMessage: "Character import request timed out",
@@ -459,7 +459,7 @@ export const runtimeBridge = {
   },
 
   deleteRuntimeEntry: async (dirPath, entryName) => {
-    return invokeMiso("deleteRuntimeEntry", [dirPath, entryName], {
+    return invokeUnchain("deleteRuntimeEntry", [dirPath, entryName], {
       timeoutMs: 10000,
       timeoutCode: "unchain_runtime_delete_timeout",
       timeoutMessage: "Delete runtime entry request timed out",
@@ -469,7 +469,7 @@ export const runtimeBridge = {
   },
 
   clearRuntimeDir: async (dirPath) => {
-    return invokeMiso("clearRuntimeDir", [dirPath], {
+    return invokeUnchain("clearRuntimeDir", [dirPath], {
       timeoutMs: 15000,
       timeoutCode: "unchain_runtime_clear_timeout",
       timeoutMessage: "Clear runtime directory request timed out",
@@ -483,7 +483,7 @@ export const runtimeBridge = {
     hasBridgeMethod("unchainAPI", "writeFile"),
 
   showSaveDialog: async (options = {}) => {
-    return invokeMiso("showSaveDialog", [options], {
+    return invokeUnchain("showSaveDialog", [options], {
       timeoutMs: 30000,
       timeoutCode: "unchain_save_dialog_timeout",
       timeoutMessage: "Save dialog request timed out",
@@ -493,7 +493,7 @@ export const runtimeBridge = {
   },
 
   showOpenDialog: async (options = {}) => {
-    return invokeMiso("showOpenDialog", [options], {
+    return invokeUnchain("showOpenDialog", [options], {
       timeoutMs: 30000,
       timeoutCode: "unchain_open_dialog_timeout",
       timeoutMessage: "Open dialog request timed out",
@@ -503,7 +503,7 @@ export const runtimeBridge = {
   },
 
   writeFile: async (filePath, content) => {
-    return invokeMiso("writeFile", [filePath, content], {
+    return invokeUnchain("writeFile", [filePath, content], {
       timeoutMs: 15000,
       timeoutCode: "unchain_write_file_timeout",
       timeoutMessage: "Write file request timed out",
@@ -513,7 +513,7 @@ export const runtimeBridge = {
   },
 
   readFile: async (filePath) => {
-    return invokeMiso("readFile", [filePath], {
+    return invokeUnchain("readFile", [filePath], {
       timeoutMs: 15000,
       timeoutCode: "unchain_read_file_timeout",
       timeoutMessage: "Read file request timed out",

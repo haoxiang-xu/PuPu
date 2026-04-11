@@ -4,6 +4,18 @@ import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_tr
 import { TAG_PALETTE } from "../constants";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 
+/* Normalise Ollama pull error for compact UI display.
+ * Removes redundant "pull model manifest: NNN:" prefix, collapses newlines/tabs
+ * into single spaces, trims the result. */
+const formatPullError = (raw) => {
+  if (!raw) return "";
+  return String(raw)
+    .replace(/^pull model manifest:\s*\d*:?\s*/i, "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
 const ModelCard = ({
   model,
   isDark,
@@ -226,15 +238,21 @@ const ModelCard = ({
                   />
                 </div>
                 {pullState.error && (
-                  <span
+                  <div
                     style={{
                       fontSize: 10,
                       fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                       color: "rgba(255,100,100,0.85)",
+                      maxWidth: 200,
+                      lineHeight: 1.4,
+                      wordBreak: "break-word",
+                      overflowWrap: "anywhere",
+                      whiteSpace: "normal",
+                      textAlign: "right",
                     }}
                   >
-                    {pullState.error}
-                  </span>
+                    {formatPullError(pullState.error)}
+                  </div>
                 )}
               </div>
             ) : selectedSize || model.sizes.length === 0 ? (

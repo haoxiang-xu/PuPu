@@ -179,7 +179,7 @@
     "path_placeholder": "/chemin/vers/espace/de/travail",
     "add_workspace": "+ Ajouter un espace de travail",
     "workspace_select_desc": "Les espaces de travail nommés peuvent être sélectionnés par chat depuis la barre d'outils de saisie.",
-    "applied_desc": "Appliqué à chaque requête Miso lorsque le toolkit d'espace de travail est activé."
+    "applied_desc": "Appliqué à chaque requête Unchain lorsque le toolkit d'espace de travail est activé."
   },
   "dev": {
     "chrome_terminal": "Terminal Chrome",
@@ -245,10 +245,10 @@
     "store_subtitle": "Parcourez et installez des toolkits communautaires. Bientôt disponible.",
     "coming_soon_title": "Bientôt disponible",
     "coming_soon_subtitle": "Cette section n\u2019est pas encore disponible.",
-    "miso_not_connected_title": "Miso non connecté",
-    "miso_not_connected_subtitle": "Démarrez le runtime Miso pour charger votre catalogue d\u2019outils.",
+    "unchain_not_connected_title": "Unchain non connecté",
+    "unchain_not_connected_subtitle": "Démarrez le runtime Unchain pour charger votre catalogue d\u2019outils.",
     "no_toolkits_title": "Aucun toolkit trouvé",
-    "no_toolkits_subtitle": "Aucun toolkit visible n\u2019a été enregistré dans le runtime Miso connecté.",
+    "no_toolkits_subtitle": "Aucun toolkit visible n\u2019a été enregistré dans le runtime Unchain connecté.",
     "load_catalog_failed": "Échec du chargement du catalogue de toolkits",
     "load_detail_failed": "Échec du chargement des détails du toolkit",
     "load_detail_title": "Échec du chargement des détails",

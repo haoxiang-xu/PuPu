@@ -179,7 +179,7 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ 新增工作區",
     "workspace_select_desc": "命名的工作區可以在聊天輸入工具列中依聊天選擇。",
-    "applied_desc": "啟用工作區工具包時，套用於每個 Miso 請求。"
+    "applied_desc": "啟用工作區工具包時，套用於每個 Unchain 請求。"
   },
   "dev": {
     "chrome_terminal": "Chrome 終端機",
@@ -245,10 +245,10 @@
     "store_subtitle": "瀏覽並安裝社群工具組。即將推出。",
     "coming_soon_title": "即將推出",
     "coming_soon_subtitle": "此區段尚未開放。",
-    "miso_not_connected_title": "Miso 未連線",
-    "miso_not_connected_subtitle": "啟動 Miso 執行時以載入您的工具目錄。",
+    "unchain_not_connected_title": "Unchain 未連線",
+    "unchain_not_connected_subtitle": "啟動 Unchain 執行時以載入您的工具目錄。",
     "no_toolkits_title": "找不到工具組",
-    "no_toolkits_subtitle": "連線的 Miso 執行時中未註冊任何可見的工具組。",
+    "no_toolkits_subtitle": "連線的 Unchain 執行時中未註冊任何可見的工具組。",
     "load_catalog_failed": "載入工具組目錄失敗",
     "load_detail_failed": "載入工具組詳細資料失敗",
     "load_detail_title": "載入詳細資料失敗",

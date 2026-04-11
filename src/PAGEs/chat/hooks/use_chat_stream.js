@@ -47,7 +47,7 @@ const getTraceFrameIteration = (frame) => {
 };
 
 const unchainLogger = createLogger(
-  "MISO",
+  "UNCHAIN",
   "src/PAGEs/chat/hooks/use_chat_stream.js",
 );
 
@@ -2407,7 +2407,7 @@ export const useChatStream = ({
     }
 
     if (!api.unchain.isBridgeAvailable()) {
-      setStreamError("Miso bridge is unavailable in this runtime.");
+      setStreamError("Unchain bridge is unavailable in this runtime.");
       return;
     }
 
@@ -2476,7 +2476,7 @@ export const useChatStream = ({
       }
 
       if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Miso bridge is unavailable in this runtime.");
+        setStreamError("Unchain bridge is unavailable in this runtime.");
         return;
       }
 
@@ -2570,7 +2570,7 @@ export const useChatStream = ({
       }
 
       if (!api.unchain.isBridgeAvailable()) {
-        setStreamError("Miso bridge is unavailable in this runtime.");
+        setStreamError("Unchain bridge is unavailable in this runtime.");
         return;
       }
 

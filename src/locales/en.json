@@ -179,7 +179,7 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ Add Workspace",
     "workspace_select_desc": "Named workspaces can be selected per-chat from the chat input toolbar.",
-    "applied_desc": "Applied to every Miso request when workspace toolkit is enabled."
+    "applied_desc": "Applied to every Unchain request when workspace toolkit is enabled."
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",
@@ -245,10 +245,10 @@
     "store_subtitle": "Browse and install community toolkits. Coming soon.",
     "coming_soon_title": "Coming soon",
     "coming_soon_subtitle": "This section is not yet available.",
-    "miso_not_connected_title": "Miso not connected",
-    "miso_not_connected_subtitle": "Start the Miso runtime to load your tool catalog.",
+    "unchain_not_connected_title": "Unchain not connected",
+    "unchain_not_connected_subtitle": "Start the Unchain runtime to load your tool catalog.",
     "no_toolkits_title": "No toolkits found",
-    "no_toolkits_subtitle": "No visible toolkits were registered in the connected Miso runtime.",
+    "no_toolkits_subtitle": "No visible toolkits were registered in the connected Unchain runtime.",
     "load_catalog_failed": "Failed to load toolkit catalog",
     "load_detail_failed": "Failed to load toolkit detail",
     "load_detail_title": "Failed to load details",

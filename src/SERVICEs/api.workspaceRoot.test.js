@@ -5,7 +5,7 @@ const writeSettings = (settings) => {
 };
 
 describe("api.unchain.startStream workspace root injection", () => {
-  const originalMisoApi = window.unchainAPI;
+  const originalUnchainApi = window.unchainAPI;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -21,7 +21,7 @@ describe("api.unchain.startStream workspace root injection", () => {
   });
 
   afterAll(() => {
-    window.unchainAPI = originalMisoApi;
+    window.unchainAPI = originalUnchainApi;
   });
 
   test("does not inject workspace root when runtime setting is missing", () => {

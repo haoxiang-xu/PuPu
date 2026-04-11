@@ -5,7 +5,7 @@ const writeSettings = (settings) => {
 };
 
 describe("api.unchain.startStreamV2 system prompt injection", () => {
-  const originalMisoApi = window.unchainAPI;
+  const originalUnchainApi = window.unchainAPI;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -20,7 +20,7 @@ describe("api.unchain.startStreamV2 system prompt injection", () => {
   });
 
   afterAll(() => {
-    window.unchainAPI = originalMisoApi;
+    window.unchainAPI = originalUnchainApi;
   });
 
   test("injects runtime settings defaults into options.system_prompt_v2", () => {

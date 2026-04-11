@@ -110,8 +110,8 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
     return (
       <PlaceholderBlock
         icon="tool"
-        title={t("toolkit.miso_not_connected_title")}
-        subtitle={t("toolkit.miso_not_connected_subtitle")}
+        title={t("toolkit.unchain_not_connected_title")}
+        subtitle={t("toolkit.unchain_not_connected_subtitle")}
         isDark={isDark}
       />
     );
