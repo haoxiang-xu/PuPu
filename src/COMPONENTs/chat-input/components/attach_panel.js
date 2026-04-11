@@ -1,4 +1,4 @@
-import { useCallback, useContext, useState } from "react";
+import { useCallback, useContext, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
@@ -6,6 +6,9 @@ import AttachmentChipList from "./attachment_chip_list";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
+import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+
+const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
 const PILL_HEIGHT = 32;
 
@@ -144,8 +147,23 @@ const AttachPanel = ({
   const { theme } = useContext(ConfigContext);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+  const lastModelSelectorRefreshAt = useRef(0);
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
   const { workspaceOptions } = useChatInputWorkspaces();
+
+  const handleModelSelectorOpenChange = useCallback((next) => {
+    setOpenSelector(next ? "model" : null);
+    if (next) {
+      const now = Date.now();
+      if (
+        now - lastModelSelectorRefreshAt.current >
+        MODEL_SELECTOR_REFRESH_THROTTLE_MS
+      ) {
+        lastModelSelectorRefreshAt.current = now;
+        emitModelCatalogRefresh({ reason: "model_selector_opened" });
+      }
+    }
+  }, []);
 
   const handleToolsOpenChange = useCallback(
     (next) => {
@@ -268,7 +286,7 @@ const AttachPanel = ({
               show_trigger_icon={true}
               on_group_toggle={onGroupToggle}
               open={openSelector === "model"}
-              on_open_change={(next) => setOpenSelector(next ? "model" : null)}
+              on_open_change={handleModelSelectorOpenChange}
               style={{ ...pillStyle, maxWidth: 180 }}
               dropdown_style={{
                 maxWidth: 260,

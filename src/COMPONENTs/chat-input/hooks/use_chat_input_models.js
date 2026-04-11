@@ -61,6 +61,12 @@ export const useChatInputModels = ({ model_catalog, selected_model_id }) => {
   useEffect(() => {
     return subscribeModelCatalogRefresh(() => {
       setConfiguredProviders(read_configured_providers());
+      api.ollama
+        .listChatModels()
+        .then((models) => {
+          setLiveOllamaModels(models.map((m) => m.name));
+        })
+        .catch(() => {});
     });
   }, []);
 
