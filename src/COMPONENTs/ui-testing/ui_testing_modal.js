@@ -13,7 +13,7 @@ const COMPONENTS = [
    UITestingModal
    ═══════════════════════════════════════════════════════════════════════ */
 const UITestingModal = ({ open, onClose }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const [selectedKey, setSelectedKey] = useState(COMPONENTS[0].key);
@@ -147,7 +147,7 @@ const UITestingModal = ({ open, onClose }) => {
             style={{
               fontSize: 14,
               fontWeight: 400,
-              fontFamily: "'Jost', sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: isDark
                 ? "rgba(255,255,255,0.22)"
                 : "rgba(0,0,0,0.22)",

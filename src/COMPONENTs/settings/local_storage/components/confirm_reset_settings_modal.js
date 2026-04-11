@@ -1,7 +1,10 @@
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
-const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => (
+const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     open={open}
     onClose={onClose}
@@ -53,7 +56,7 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => (
         lineHeight: 1.3,
       }}
     >
-      Reset all settings to defaults?
+      {t("local_storage.reset_settings_title")}
     </div>
 
     <div
@@ -85,7 +88,7 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => (
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
       <Button
-        label="Cancel"
+        label={t("common.cancel")}
         onClick={onClose}
         style={{
           fontSize: 13,
@@ -96,7 +99,7 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => (
         }}
       />
       <Button
-        label="Reset to defaults"
+        label={t("local_storage.reset_to_defaults")}
         onClick={onConfirm}
         style={{
           fontSize: 13,
@@ -114,6 +117,7 @@ const ConfirmResetSettingsModal = ({ open, onClose, onConfirm, isDark }) => (
       />
     </div>
   </Modal>
-);
+  );
+};
 
 export default ConfirmResetSettingsModal;

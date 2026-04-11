@@ -85,7 +85,7 @@ const normalizeUserButtonStyle = (style) => {
 const DEFAULT_BUTTON_STYLE = {
   root: {
     fontSize: 16,
-    fontFamily: "Jost, sans-serif",
+    fontFamily: undefined,
     borderRadius: 7,
     color: "#222222",
     paddingVertical: 6,

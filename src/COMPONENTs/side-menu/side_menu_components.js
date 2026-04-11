@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { ConfigContext } from "../../CONTAINERs/config/context";
 
 export const RenameRow = ({
   node,
@@ -12,6 +14,7 @@ export const RenameRow = ({
   onCancel,
   isDark,
 }) => {
+  const { theme } = useContext(ConfigContext);
   const inputRef = useRef(null);
   const ICON_SIZE = 15; // Math.round(13 * 1.15)
 
@@ -28,6 +31,7 @@ export const RenameRow = ({
 
   return (
     <div
+      data-explorer-drag-disabled="true"
       style={{
         display: "flex",
         alignItems: "center",
@@ -35,7 +39,7 @@ export const RenameRow = ({
         paddingRight: 8,
         gap: 4,
         fontSize: 13,
-        fontFamily: "Jost, sans-serif",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         color: isDark ? "#CCC" : "#222",
       }}
     >
@@ -82,7 +86,7 @@ export const RenameRow = ({
           outline: "none",
           color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.85)",
           fontSize: 13,
-          fontFamily: "Jost, sans-serif",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           padding: "2px 4px",
           borderRadius: "3px 3px 0 0",
           lineHeight: 1.2,
@@ -113,6 +117,7 @@ export const RenameRow = ({
 };
 
 export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const ref = useRef(null);
 
   useEffect(() => {
@@ -208,7 +213,7 @@ export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
               padding: "8px",
               cursor: "pointer",
               fontSize: 13,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: textColor,
               borderRadius: 6,
             }}
@@ -241,7 +246,9 @@ export const ConfirmDeleteModal = ({
   onConfirm,
   label,
   isDark,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     open={open}
     onClose={onClose}
@@ -309,7 +316,7 @@ export const ConfirmDeleteModal = ({
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
       <Button
-        label="Cancel"
+        label={t("common.cancel")}
         onClick={onClose}
         style={{
           fontSize: 13,
@@ -320,7 +327,7 @@ export const ConfirmDeleteModal = ({
         }}
       />
       <Button
-        label="Delete"
+        label={t("common.delete")}
         onClick={onConfirm}
         style={{
           fontSize: 13,
@@ -338,4 +345,5 @@ export const ConfirmDeleteModal = ({
       />
     </div>
   </Modal>
-);
+  );
+};

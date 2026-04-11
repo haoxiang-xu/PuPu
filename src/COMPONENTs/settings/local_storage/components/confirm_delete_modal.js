@@ -1,7 +1,10 @@
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
-const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => (
+const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     open={open}
     onClose={onClose}
@@ -53,7 +56,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => (
         lineHeight: 1.3,
       }}
     >
-      Delete this item?
+      {t("local_storage.delete_item")}
     </div>
 
     <div
@@ -76,7 +79,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => (
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
       <Button
-        label="Cancel"
+        label={t("common.cancel")}
         onClick={onClose}
         style={{
           fontSize: 13,
@@ -87,7 +90,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => (
         }}
       />
       <Button
-        label="Delete"
+        label={t("common.delete")}
         onClick={onConfirm}
         style={{
           fontSize: 13,
@@ -105,6 +108,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, target, isDark }) => (
       />
     </div>
   </Modal>
-);
+  );
+};
 
 export default ConfirmDeleteModal;

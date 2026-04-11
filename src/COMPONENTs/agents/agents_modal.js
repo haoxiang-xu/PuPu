@@ -12,7 +12,7 @@ const SECTIONS = [
 ];
 
 /* ── Coming-soon placeholder ─────────────────────────────── */
-const ComingSoonPlaceholder = ({ icon, isDark }) => (
+const ComingSoonPlaceholder = ({ icon, isDark, theme }) => (
   <div
     style={{
       display: "flex",
@@ -47,7 +47,7 @@ const ComingSoonPlaceholder = ({ icon, isDark }) => (
       style={{
         fontSize: 14,
         fontWeight: 600,
-        fontFamily: "NunitoSans, sans-serif",
+        fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
         color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
       }}
     >
@@ -56,7 +56,7 @@ const ComingSoonPlaceholder = ({ icon, isDark }) => (
     <div
       style={{
         fontSize: 12,
-        fontFamily: "Jost, sans-serif",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         color: isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.3)",
         maxWidth: 280,
         lineHeight: 1.55,
@@ -69,7 +69,7 @@ const ComingSoonPlaceholder = ({ icon, isDark }) => (
 
 /* ── Main modal ──────────────────────────────────────────── */
 export const AgentsModal = ({ open, onClose }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedSection, setSelectedSection] = useState("agents");
 
@@ -153,6 +153,7 @@ export const AgentsModal = ({ open, onClose }) => {
             <ComingSoonPlaceholder
               icon={activeSection?.icon || "bot"}
               isDark={isDark}
+              theme={theme}
             />
           )}
         </div>

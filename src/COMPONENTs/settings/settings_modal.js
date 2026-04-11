@@ -15,64 +15,37 @@ import {
   readFeatureFlags,
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Settings pages configuration                                                                                               */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
+const PAGE_COMPONENTS = {
+  appearance: AppearanceSettings,
+  model_providers: ModelProvidersSettings,
+  runtime: RuntimeSettings,
+  memory: MemorySettings,
+  token_usage: TokenUsageSettings,
+  app_update: AppUpdateSettings,
+  local_storage: LocalStorageSettings,
+  dev: DevSettings,
+};
+
 const BASE_SETTINGS_PAGES = [
-  {
-    key: "appearance",
-    icon: "color",
-    label: "Appearance",
-    component: AppearanceSettings,
-  },
-  {
-    key: "model_providers",
-    icon: "pentagon",
-    label: "Model Providers",
-    component: ModelProvidersSettings,
-  },
-  {
-    key: "runtime",
-    icon: "folder_2",
-    label: "Workspaces",
-    component: RuntimeSettings,
-  },
-  {
-    key: "memory",
-    icon: "brain",
-    label: "Memory",
-    component: MemorySettings,
-  },
-  {
-    key: "token_usage",
-    icon: "bar_chart",
-    label: "Token Usage",
-    component: TokenUsageSettings,
-  },
-  {
-    key: "app_update",
-    icon: "download_cloud",
-    label: "Update",
-    component: AppUpdateSettings,
-  },
-  {
-    key: "local_storage",
-    icon: "data",
-    label: "Local Storage",
-    component: LocalStorageSettings,
-  },
-  // Future pages can be added here:
-  // { key: "general", icon: "settings", label: "General", component: GeneralSettings },
-  // { key: "account", icon: "user", label: "Account", component: AccountSettings },
+  { key: "appearance",      icon: "color",          labelKey: "settings.appearance" },
+  { key: "model_providers", icon: "pentagon",        labelKey: "settings.model_providers" },
+  { key: "runtime",         icon: "folder_2",        labelKey: "settings.workspaces" },
+  { key: "memory",          icon: "brain",           labelKey: "settings.memory" },
+  { key: "token_usage",     icon: "bar_chart",       labelKey: "settings.token_usage" },
+  { key: "app_update",      icon: "download_cloud",  labelKey: "settings.update" },
+  { key: "local_storage",   icon: "data",            labelKey: "settings.local_storage" },
 ];
 
 const DEV_SETTINGS_PAGE = {
   key: "dev",
   icon: "code",
-  label: "Dev",
-  component: DevSettings,
+  labelKey: "settings.dev",
   pinToBottom: true,
 };
 
@@ -81,7 +54,8 @@ const DEV_SETTINGS_PAGE = {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export const SettingsModal = ({ open, onClose }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const [selectedPage, setSelectedPage] = useState("appearance");
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
@@ -109,7 +83,7 @@ export const SettingsModal = ({ open, onClose }) => {
     settingsPages.find((p) => p.key === selectedPage) ||
     settingsPages[0] ||
     null;
-  const ActivePageComponent = activePage?.component || AppearanceSettings;
+  const ActivePageComponent = PAGE_COMPONENTS[activePage?.key] || AppearanceSettings;
 
   useEffect(() => {
     if (!activePage && settingsPages[0]) {
@@ -166,7 +140,7 @@ export const SettingsModal = ({ open, onClose }) => {
             padding: "8px 12px 12px",
           }}
         >
-          Settings
+          {t("settings.title")}
         </div>
 
         {/* Menu items */}
@@ -174,7 +148,7 @@ export const SettingsModal = ({ open, onClose }) => {
           <Button
             key={page.key}
             prefix_icon={page.icon}
-            label={page.label}
+            label={t(page.labelKey)}
             onClick={() => setSelectedPage(page.key)}
             style={{
               width: "100%",
@@ -233,12 +207,12 @@ export const SettingsModal = ({ open, onClose }) => {
           style={{
             fontSize: 22,
             fontWeight: 600,
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color: isDark ? "#fff" : "#222",
             padding: "24px 32px 8px",
           }}
         >
-          {activePage?.label || "Settings"}
+          {activePage ? t(activePage.labelKey) : t("settings.title")}
         </div>
 
         {/* Page content */}

@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SettingsSection } from "../appearance";
 import APIKeyInput from "./components/api_key_input";
 import ModelCard from "./components/model_card";
@@ -10,27 +11,35 @@ import ActiveDownloads from "./components/active_downloads";
 import { LIBRARY_CATEGORIES } from "./constants";
 import { useOllamaLibrary } from "./hooks/use_ollama_library";
 
-const OpenAISection = () => (
-  <SettingsSection title="OpenAI" icon="open_ai">
-    <APIKeyInput
-      storage_key="openai_api_key"
-      label="API Key"
-      placeholder="sk-..."
-    />
-  </SettingsSection>
-);
+const OpenAISection = () => {
+  const { t } = useTranslation();
+  return (
+    <SettingsSection title="OpenAI" icon="open_ai">
+      <APIKeyInput
+        storage_key="openai_api_key"
+        label={t("model_providers.api_key")}
+        placeholder="sk-..."
+      />
+    </SettingsSection>
+  );
+};
 
-const AnthropicSection = () => (
-  <SettingsSection title="Anthropic" icon="Anthropic">
-    <APIKeyInput
-      storage_key="anthropic_api_key"
-      label="API Key"
-      placeholder="sk-ant-..."
-    />
-  </SettingsSection>
-);
+const AnthropicSection = () => {
+  const { t } = useTranslation();
+  return (
+    <SettingsSection title="Anthropic" icon="Anthropic">
+      <APIKeyInput
+        storage_key="anthropic_api_key"
+        label={t("model_providers.api_key")}
+        placeholder="sk-ant-..."
+      />
+    </SettingsSection>
+  );
+};
 
 const OllamaLibraryBrowser = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const {
     category,
     setCategory,
@@ -73,7 +82,7 @@ const OllamaLibraryBrowser = ({ isDark }) => {
             onClick={() => setCategory(cat.value)}
             style={{
               fontSize: 11,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               padding: "3px 10px",
               borderRadius: 999,
@@ -105,13 +114,13 @@ const OllamaLibraryBrowser = ({ isDark }) => {
         <Input
           value={rawQuery}
           set_value={setRawQuery}
-          placeholder="Search models…"
+          placeholder={t("model_providers.search_models")}
           prefix_icon="search"
           style={{
             width: "100%",
             height: 34,
             fontSize: 13,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             borderRadius: 8,
             boxSizing: "border-box",
           }}
@@ -147,12 +156,12 @@ const OllamaLibraryBrowser = ({ isDark }) => {
             }}
           >
             <span
-              style={{ fontSize: 12, fontFamily: "Jost", color: mutedColor }}
+              style={{ fontSize: 12, fontFamily: theme?.font?.fontFamily || "Jost, sans-serif", color: mutedColor }}
             >
               {error}
             </span>
             <Button
-              label="Retry"
+              label={t("model_providers.retry")}
               onClick={retrySearch}
               style={{
                 fontSize: 12,
@@ -168,11 +177,11 @@ const OllamaLibraryBrowser = ({ isDark }) => {
               textAlign: "center",
               padding: "28px 0",
               fontSize: 12,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: mutedColor,
             }}
           >
-            No models found
+            {t("model_providers.no_models_found")}
           </div>
         ) : (
           models.map((model) => (
@@ -193,7 +202,8 @@ const OllamaLibraryBrowser = ({ isDark }) => {
 };
 
 const OllamaSection = () => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
 
@@ -204,17 +214,17 @@ const OllamaSection = () => {
         style={{
           margin: "4px 0 6px",
           fontSize: 13,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: mutedColor,
           lineHeight: 1.5,
         }}
       >
-        Ollama runs locally — no API key required.
+        {t("model_providers.ollama_desc")}
       </p>
       <div
         style={{
           fontSize: 10,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           textTransform: "uppercase",
           letterSpacing: "1.5px",
           color: mutedColor,
@@ -223,7 +233,7 @@ const OllamaSection = () => {
           marginBottom: 0,
         }}
       >
-        Model Library
+        {t("model_providers.model_library")}
       </div>
       <OllamaLibraryBrowser isDark={isDark} />
     </SettingsSection>

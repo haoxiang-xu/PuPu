@@ -66,6 +66,7 @@ const LabelRow = ({
   color,
   fontSize,
 }) => {
+  const { theme } = useContext(ConfigContext);
   const hasPrefix = prefix_icon || prefix_label;
   const hasPostfix = postfix_icon || postfix_label;
   if (!hasPrefix && !hasPostfix) return null;
@@ -75,7 +76,7 @@ const LabelRow = ({
     alignItems: "center",
     gap: 4,
     fontSize: fontSize ?? 12,
-    fontFamily: "Jost, -apple-system, sans-serif",
+    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
     fontWeight: 500,
     color,
     opacity: 0.55,
@@ -369,7 +370,7 @@ const Slider = ({
               : "left 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease, transform 0.15s ease",
             pointerEvents: "none",
             fontSize: style?.fontSize ?? 11,
-            fontFamily: "Jost, -apple-system, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             fontWeight: 500,
             color: labelColor,
             opacity: thumbVisible ? 0 : 0.65,
@@ -463,7 +464,7 @@ const Slider = ({
               padding: "3px 8px",
               borderRadius: 5,
               fontSize: 11,
-              fontFamily: "Jost, -apple-system, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               whiteSpace: "nowrap",
               lineHeight: "16px",
@@ -736,7 +737,7 @@ const RangeSlider = ({
               padding: "3px 8px",
               borderRadius: 5,
               fontSize: 11,
-              fontFamily: "Jost, -apple-system, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               whiteSpace: "nowrap",
               lineHeight: "16px",
@@ -812,7 +813,7 @@ const RangeSlider = ({
               : "left 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease, transform 0.15s ease",
             pointerEvents: "none",
             fontSize: style?.fontSize ?? 11,
-            fontFamily: "Jost, -apple-system, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             fontWeight: 500,
             color: labelColor,
             opacity: thumbVisible ? 0 : 0.65,
@@ -852,7 +853,7 @@ const RangeSlider = ({
               : "left 0.18s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.15s ease, transform 0.15s ease",
             pointerEvents: "none",
             fontSize: style?.fontSize ?? 11,
-            fontFamily: "Jost, -apple-system, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             fontWeight: 500,
             color: labelColor,
             opacity: thumbVisible ? 0 : 0.65,

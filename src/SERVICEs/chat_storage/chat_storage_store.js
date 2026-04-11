@@ -1025,6 +1025,7 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
           store.tree,
           parentInfo.parentId,
           parentInfo.index,
+          store.chatsById,
         );
         store.activeChatId = fallbackChatId || null;
       }
@@ -1033,14 +1034,17 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
         if (store.activeChatId) {
           const map = buildTreeNodeLookupByChatId(store.tree);
           store.tree.selectedNodeId =
-            map[store.activeChatId] || firstChatNodeIdInTree(store.tree) || null;
+            map[store.activeChatId] ||
+            firstChatNodeIdInTree(store.tree, store.chatsById) ||
+            null;
         } else {
-          store.tree.selectedNodeId = firstChatNodeIdInTree(store.tree) || null;
+          store.tree.selectedNodeId =
+            firstChatNodeIdInTree(store.tree, store.chatsById) || null;
         }
       }
 
       if (!store.activeChatId || !store.chatsById[store.activeChatId]) {
-        const firstChatId = firstChatInTree(store.tree);
+        const firstChatId = firstChatInTree(store.tree, store.chatsById);
         if (firstChatId && store.chatsById[firstChatId]) {
           store.activeChatId = firstChatId;
         }

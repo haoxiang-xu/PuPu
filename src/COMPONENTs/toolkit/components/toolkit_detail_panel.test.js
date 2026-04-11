@@ -2,6 +2,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import ToolkitDetailPanel from "./toolkit_detail_panel";
 import api from "../../../SERVICEs/api";
 
+jest.mock("../../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
+  __esModule: true,
+  useTranslation: () => ({ t: (key) => key, locale: "en", setLocale: () => {} }),
+}));
+
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
   default: {
