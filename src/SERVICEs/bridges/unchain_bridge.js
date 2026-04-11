@@ -521,6 +521,20 @@ export const runtimeBridge = {
       failureMessage: "Failed to read file",
     });
   },
+
+  isValidateApiKeyAvailable: () =>
+    hasBridgeMethod("unchainAPI", "validateApiKey"),
+
+  validateApiKey: async (provider, apiKey) => {
+    const result = await invokeMiso("validateApiKey", [provider, apiKey], {
+      timeoutMs: 12000,
+      timeoutCode: "unchain_validate_api_key_timeout",
+      timeoutMessage: "API key validation request timed out",
+      failureCode: "unchain_validate_api_key_failed",
+      failureMessage: "Failed to validate API key",
+    });
+    return result || { valid: false, error: "No response from validation" };
+  },
 };
 
 export default runtimeBridge;

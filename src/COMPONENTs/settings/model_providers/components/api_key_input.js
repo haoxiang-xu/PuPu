@@ -5,6 +5,7 @@ import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import ConfirmDeleteApiKeyModal from "./confirm_delete_api_key_modal";
 import { readModelProviders, writeModelProviders } from "../storage";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
+import runtimeBridge from "../../../../SERVICEs/bridges/unchain_bridge";
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const { onThemeMode } = useContext(ConfigContext);
@@ -31,10 +32,10 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     const trimmed = value.trim();
     setValidationError("");
 
-    if (trimmed && typeof window.unchainAPI?.validateApiKey === "function") {
+    if (trimmed && runtimeBridge.isValidateApiKeyAvailable()) {
       setValidating(true);
       try {
-        const result = await window.unchainAPI.validateApiKey(provider, trimmed);
+        const result = await runtimeBridge.validateApiKey(provider, trimmed);
         if (result && !result.valid) {
           console.warn(`[APIKeyInput] ${provider} key validation failed:`, result.error);
           setValidationError(result.error || "Invalid API key");
