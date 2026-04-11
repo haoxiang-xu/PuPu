@@ -43,6 +43,7 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.IMPORT_CHARACTER,
   CHANNELS.UNCHAIN.SHOW_SAVE_DIALOG,
   CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG,
+  CHANNELS.UNCHAIN.VALIDATE_API_KEY,
   CHANNELS.UNCHAIN.WRITE_FILE,
   CHANNELS.UNCHAIN.READ_FILE,
 ]);
@@ -260,6 +261,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG, async (_event, payload = {}) =>
     runtimeService.showOpenDialog(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.VALIDATE_API_KEY,
+    async (_event, payload = {}) =>
+      unchainService.validateMisoApiKey(payload.provider, payload.apiKey),
   );
   ipcMain.handle(CHANNELS.UNCHAIN.WRITE_FILE, (_event, payload = {}) =>
     runtimeService.writeFile(payload),

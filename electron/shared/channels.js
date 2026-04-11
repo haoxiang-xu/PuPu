@@ -49,6 +49,7 @@ const CHANNELS = Object.freeze({
     IMPORT_CHARACTER: "unchain:import-character",
     SHOW_SAVE_DIALOG: "unchain:show-save-dialog",
     SHOW_OPEN_DIALOG: "unchain:show-open-dialog",
+    VALIDATE_API_KEY: "unchain:validate-api-key",
     WRITE_FILE: "unchain:write-file",
     READ_FILE: "unchain:read-file",
     STREAM_START: "unchain:stream:start",

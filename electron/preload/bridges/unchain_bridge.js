@@ -71,6 +71,8 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     }),
   importCharacter: (filePath) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.IMPORT_CHARACTER, { filePath }),
+  validateApiKey: (provider, apiKey) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.VALIDATE_API_KEY, { provider, apiKey }),
   showSaveDialog: (options = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.SHOW_SAVE_DIALOG, options),
   showOpenDialog: (options = {}) =>

@@ -17,23 +17,47 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const [saved, setSaved] = useState(() => !!readModelProviders()[storage_key]);
   const [justSaved, setJustSaved] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [validating, setValidating] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
   const accentColor = isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.7)";
   const successColor = "#4CAF50";
+  const errorColor = "#EF5350";
 
-  const handleSave = useCallback(() => {
+  const provider = storage_key.startsWith("openai") ? "openai" : "anthropic";
+
+  const handleSave = useCallback(async () => {
     const trimmed = value.trim();
+    setValidationError("");
+
+    if (trimmed && typeof window.unchainAPI?.validateApiKey === "function") {
+      setValidating(true);
+      try {
+        const result = await window.unchainAPI.validateApiKey(provider, trimmed);
+        if (result && !result.valid) {
+          console.warn(`[APIKeyInput] ${provider} key validation failed:`, result.error);
+          setValidationError(result.error || "Invalid API key");
+          setValidating(false);
+          return;
+        }
+      } catch (_err) {
+        // IPC call failed (e.g. app not fully ready) — skip validation and allow save
+      }
+      setValidating(false);
+    }
+
     writeModelProviders({ [storage_key]: trimmed });
     emitModelCatalogRefresh();
     setValue(trimmed);
     setSaved(!!trimmed);
     setJustSaved(true);
-  }, [value, storage_key]);
+  }, [value, storage_key, provider]);
 
   const handleChange = useCallback((v) => {
     setValue(v);
     setJustSaved(false);
+    setValidationError("");
   }, []);
 
   const handleClear = useCallback(() => {
@@ -41,6 +65,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     emitModelCatalogRefresh();
     setValue("");
     setSaved(false);
+    setValidationError("");
   }, [storage_key]);
 
   const isDirty = value.trim() !== (readModelProviders()[storage_key] || "");
@@ -75,14 +100,14 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
       />
 
       <Button
-        label={justSaved ? "Saved" : "Save"}
+        label={validating ? "Checking…" : justSaved ? "Saved" : "Save"}
         onClick={handleSave}
         style={{
           paddingVertical: 2,
           paddingHorizontal: 8,
           borderRadius: 4,
           fontSize: 13,
-          opacity: isDirty ? 1 : 0.35,
+          opacity: isDirty && !validating ? 1 : 0.35,
           hoverBackgroundColor: isDark
             ? "rgba(255,255,255,0.08)"
             : "rgba(0,0,0,0.06)",
@@ -135,7 +160,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
           {label}
         </span>
 
-        {saved && (
+        {saved && !validationError && (
           <span
             style={{
               fontSize: 11,
@@ -159,17 +184,30 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         style={{ width: "100%", fontSize: 13, height: 34 }}
       />
 
-      <span
-        style={{
-          fontSize: 11,
-          fontFamily: "Jost",
-          color: mutedColor,
-          lineHeight: 1.4,
-        }}
-      >
-        Your key is stored locally and never sent anywhere except the provider's
-        API endpoint.
-      </span>
+      {validationError ? (
+        <span
+          style={{
+            fontSize: 11,
+            fontFamily: "Jost",
+            color: errorColor,
+            lineHeight: 1.4,
+          }}
+        >
+          {validationError}
+        </span>
+      ) : (
+        <span
+          style={{
+            fontSize: 11,
+            fontFamily: "Jost",
+            color: mutedColor,
+            lineHeight: 1.4,
+          }}
+        >
+          Your key is stored locally and never sent anywhere except the
+          provider's API endpoint.
+        </span>
+      )}
 
       <ConfirmDeleteApiKeyModal
         open={confirmOpen}

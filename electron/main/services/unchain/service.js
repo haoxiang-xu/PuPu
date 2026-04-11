@@ -1680,6 +1680,31 @@ const createUnchainService = ({
     });
   };
 
+  const validateMisoApiKey = async (provider, apiKey) => {
+    if (provider === "openai") {
+      const response = await fetch("https://api.openai.com/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (response.ok) return { valid: true };
+      if (response.status === 401) return { valid: false, error: "Invalid API key" };
+      if (response.status === 403) return { valid: false, error: "API key does not have permission" };
+      return { valid: false, error: `Validation failed (${response.status})` };
+    }
+    if (provider === "anthropic") {
+      const response = await fetch("https://api.anthropic.com/v1/models", {
+        headers: {
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+      });
+      if (response.ok) return { valid: true };
+      if (response.status === 401) return { valid: false, error: "Invalid API key" };
+      if (response.status === 403) return { valid: false, error: "API key does not have permission" };
+      return { valid: false, error: `Validation failed (${response.status})` };
+    }
+    return { valid: false, error: "Unsupported provider" };
+  };
+
   const handleStreamCancel = (_event, payload) => {
     const requestId = payload?.requestId;
     if (typeof requestId === "string") {
@@ -1709,6 +1734,7 @@ const createUnchainService = ({
     exportMisoCharacter,
     importMisoCharacter,
     submitMisoToolConfirmation,
+    validateMisoApiKey,
     handleStreamStart,
     handleStreamStartV2,
     handleStreamCancel,
