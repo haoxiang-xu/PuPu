@@ -27,6 +27,14 @@ const INDENT = 16;
 const LINE_LEFT = 9;
 const DRAG_THRESHOLD = 5;
 const AUTO_EXPAND_DELAY = 500;
+const DRAG_BLOCK_SELECTOR = [
+  "input",
+  "textarea",
+  "select",
+  "button",
+  "[contenteditable='true']",
+  "[data-explorer-drag-disabled='true']",
+].join(",");
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Helpers                                                                                                                      */
@@ -108,6 +116,13 @@ const isDescendantOf = (map, ancestorId, targetId) => {
     if (isDescendantOf(map, childId, targetId)) return true;
   }
   return false;
+};
+
+const shouldSkipRowDragStart = (target) => {
+  if (typeof Element === "undefined" || !(target instanceof Element)) {
+    return false;
+  }
+  return Boolean(target.closest(DRAG_BLOCK_SELECTOR));
 };
 
 const resolveCharacterAvatarSrc = (avatar) => {
@@ -565,6 +580,9 @@ const ExplorerRow = ({
 
   const handleMouseDown = useCallback(
     (e) => {
+      if (shouldSkipRowDragStart(e.target)) {
+        return;
+      }
       setPressed(true);
       if (draggable && e.button === 0 && onDragStart) {
         onDragStart(e, node.id);
@@ -585,6 +603,9 @@ const ExplorerRow = ({
       <div
         ref={combinedRef}
         onMouseDown={(e) => {
+          if (shouldSkipRowDragStart(e.target)) {
+            return;
+          }
           setPressed(true);
           if (draggable && e.button === 0 && onDragStart) {
             onDragStart(e, node.id);

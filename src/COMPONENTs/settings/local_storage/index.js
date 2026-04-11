@@ -85,7 +85,7 @@ const OllamaSection = ({ isDark }) => {
         fontSize: 11,
         fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
-        padding: "2px 8px",
+        padding: "1px 8px",
         borderRadius: 999,
         border: `1px solid ${
           amber
@@ -110,8 +110,9 @@ const OllamaSection = ({ isDark }) => {
           : isDark
             ? "rgba(255,255,255,0.35)"
             : "rgba(0,0,0,0.38)",
-        lineHeight: 1.8,
+        lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -129,7 +130,7 @@ const OllamaSection = ({ isDark }) => {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
           {status === "ready" && (
             <>
               {statusPill(
@@ -563,7 +564,7 @@ const RuntimeSection = ({ isDark }) => {
         fontSize: 11,
         fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
-        padding: "2px 8px",
+        padding: "1px 8px",
         borderRadius: 999,
         border: `1px solid ${
           amber
@@ -588,8 +589,9 @@ const RuntimeSection = ({ isDark }) => {
           : isDark
             ? "rgba(255,255,255,0.35)"
             : "rgba(0,0,0,0.38)",
-        lineHeight: 1.8,
+        lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -607,7 +609,7 @@ const RuntimeSection = ({ isDark }) => {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
           {status === "ready" && (
             <>
               {statusPill(
@@ -849,7 +851,7 @@ const CharactersSection = ({ isDark }) => {
         fontSize: 11,
         fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
-        padding: "2px 8px",
+        padding: "1px 8px",
         borderRadius: 999,
         border: `1px solid ${
           amber
@@ -874,8 +876,9 @@ const CharactersSection = ({ isDark }) => {
           : isDark
             ? "rgba(255,255,255,0.35)"
             : "rgba(0,0,0,0.38)",
-        lineHeight: 1.8,
+        lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -893,7 +896,7 @@ const CharactersSection = ({ isDark }) => {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
           {status === "ready" && (
             <>
               {statusPill(
@@ -928,7 +931,6 @@ const CharactersSection = ({ isDark }) => {
               !confirmClearAll &&
               !isClearing && (
                 <Button
-                  prefix_icon="delete"
                   label={t("local_storage.clear_all_btn")}
                   onClick={() => setConfirmClearAll(true)}
                   style={{
@@ -1150,7 +1152,7 @@ export const LocalStorageSettings = () => {
             gap: 12,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
             {(!isLoading || entries.length > 0) && (
               <>
                 <span
@@ -1158,7 +1160,7 @@ export const LocalStorageSettings = () => {
                     fontSize: 11,
                     fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     fontWeight: 500,
-                    padding: "2px 8px",
+                    padding: "1px 8px",
                     borderRadius: 999,
                     border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                     backgroundColor: isDark
@@ -1167,8 +1169,9 @@ export const LocalStorageSettings = () => {
                     color: isDark
                       ? "rgba(255,255,255,0.35)"
                       : "rgba(0,0,0,0.38)",
-                    lineHeight: 1.8,
+                    lineHeight: 1.5,
                     fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {entries.length} {entries.length === 1 ? "key" : "keys"}
@@ -1178,7 +1181,7 @@ export const LocalStorageSettings = () => {
                     fontSize: 11,
                     fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     fontWeight: 500,
-                    padding: "2px 8px",
+                    padding: "1px 8px",
                     borderRadius: 999,
                     border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                     backgroundColor: isDark
@@ -1187,8 +1190,9 @@ export const LocalStorageSettings = () => {
                     color: isDark
                       ? "rgba(255,255,255,0.35)"
                       : "rgba(0,0,0,0.38)",
-                    lineHeight: 1.8,
+                    lineHeight: 1.5,
                     fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {formatBytes(totalSize)} total
@@ -1201,7 +1205,7 @@ export const LocalStorageSettings = () => {
                   fontSize: 11,
                   fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   fontWeight: 500,
-                  padding: "2px 8px",
+                  padding: "1px 8px",
                   borderRadius: 999,
                   border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                   backgroundColor: isDark
@@ -1210,8 +1214,9 @@ export const LocalStorageSettings = () => {
                   color: isDark
                     ? "rgba(255,255,255,0.35)"
                     : "rgba(0,0,0,0.38)",
-                  lineHeight: 1.8,
+                  lineHeight: 1.5,
                   fontVariantNumeric: "tabular-nums",
+                  whiteSpace: "nowrap",
                 }}
               >
                 {t("local_storage.loading")}

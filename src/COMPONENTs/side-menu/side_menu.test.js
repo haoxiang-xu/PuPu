@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 
 import SideMenu from "./side_menu";
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => (
   <span data-testid="icon" />
@@ -21,7 +21,9 @@ const renderSideMenu = () =>
         onThemeMode: "light_mode",
       }}
     >
-      <SideMenu />
+      <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+        <SideMenu />
+      </LocaleContext.Provider>
     </ConfigContext.Provider>,
   );
 

@@ -31,6 +31,7 @@ export const RenameRow = ({
 
   return (
     <div
+      data-explorer-drag-disabled="true"
       style={{
         display: "flex",
         alignItems: "center",
