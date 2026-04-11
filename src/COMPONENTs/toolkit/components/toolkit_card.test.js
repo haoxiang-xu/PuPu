@@ -1,6 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import ToolkitCard from "./toolkit_card";
 
+jest.mock("../../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
+  __esModule: true,
+  useTranslation: () => ({ t: (key) => key, locale: "en", setLocale: () => {} }),
+}));
+
 jest.mock("./toolkit_icon", () => ({
   __esModule: true,
   default: ({ icon }) => <span data-testid="toolkit-icon">{icon?.type || "fallback"}</span>,

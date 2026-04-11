@@ -12,6 +12,7 @@ import PlaceholderBlock from "../components/placeholder_block";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const isBaseById = (toolkitId) => {
   if (!toolkitId) return false;
@@ -26,6 +27,7 @@ const isBaseById = (toolkitId) => {
 
 const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [toolkits, setToolkits] = useState([]);
   const [error, setError] = useState(null);
@@ -57,11 +59,11 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
 
       setToolkits(merged);
     } catch (err) {
-      setError(err?.message || "Failed to load toolkit catalog");
+      setError(err?.message || t("toolkit.load_catalog_failed"));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     loadCatalog();
@@ -108,8 +110,8 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
     return (
       <PlaceholderBlock
         icon="tool"
-        title="Miso not connected"
-        subtitle="Start the Miso runtime to load your tool catalog."
+        title={t("toolkit.miso_not_connected_title")}
+        subtitle={t("toolkit.miso_not_connected_subtitle")}
         isDark={isDark}
       />
     );
@@ -119,8 +121,8 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
     return (
       <PlaceholderBlock
         icon="tool"
-        title="No toolkits found"
-        subtitle="No visible toolkits were registered in the connected Miso runtime."
+        title={t("toolkit.no_toolkits_title")}
+        subtitle={t("toolkit.no_toolkits_subtitle")}
         isDark={isDark}
       />
     );
@@ -133,7 +135,7 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
         prefix_icon="search"
         value={search}
         set_value={(v) => setSearch(v)}
-        placeholder="Search toolkits..."
+        placeholder={t("toolkit.search_placeholder")}
         style={{
           width: "100%",
           fontSize: 13,
