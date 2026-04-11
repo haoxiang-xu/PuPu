@@ -1,7 +1,9 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import pull_store from "../pull_store";
 
 const ActiveDownloads = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const [pullingMap, setPullingMap] = useState(() => ({ ...pull_store.map }));
   useEffect(() => pull_store.subscribe(setPullingMap), []);
 
@@ -31,7 +33,7 @@ const ActiveDownloads = ({ isDark }) => {
       <div
         style={{
           fontSize: 10,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           textTransform: "uppercase",
           letterSpacing: "1.4px",
           color: mutedColor,
@@ -75,7 +77,7 @@ const ActiveDownloads = ({ isDark }) => {
               <span
                 style={{
                   fontSize: 12,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   fontWeight: 500,
                   color: isError ? "rgba(255,100,100,0.85)" : textColor,
                   flex: 1,
@@ -91,7 +93,7 @@ const ActiveDownloads = ({ isDark }) => {
               <span
                 style={{
                   fontSize: 11,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   color: mutedColor,
                   flexShrink: 0,
                 }}

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import api from "../../../SERVICEs/api";
 import ToolkitIcon, {
   isBuiltinToolkitIcon,
@@ -16,13 +16,17 @@ import {
   isToolkitAutoApprove,
   setToolkitAutoApprove,
 } from "../../../SERVICEs/toolkit_auto_approve_store";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const ToolkitAutoApproveConfirmModal = ({
   open,
   onClose,
   onConfirm,
   isDark,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     open={open}
     onClose={onClose}
@@ -92,7 +96,7 @@ const ToolkitAutoApproveConfirmModal = ({
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
       <Button
-        label="Cancel"
+        label={t("common.cancel")}
         onClick={onClose}
         style={{
           fontSize: 13,
@@ -103,7 +107,7 @@ const ToolkitAutoApproveConfirmModal = ({
         }}
       />
       <Button
-        label="Enable Auto Approve"
+        label={t("toolkit.enable_auto_approve")}
         onClick={() => {
           onConfirm?.();
           onClose?.();
@@ -124,7 +128,8 @@ const ToolkitAutoApproveConfirmModal = ({
       />
     </div>
   </Modal>
-);
+  );
+};
 
 const ToolkitDeleteConfirmModal = ({
   open,
@@ -132,7 +137,9 @@ const ToolkitDeleteConfirmModal = ({
   onConfirm,
   isDark,
   toolkitLabel,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <Modal
     open={open}
     onClose={onClose}
@@ -201,7 +208,7 @@ const ToolkitDeleteConfirmModal = ({
 
     <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
       <Button
-        label="Cancel"
+        label={t("common.cancel")}
         onClick={onClose}
         style={{
           fontSize: 13,
@@ -212,7 +219,7 @@ const ToolkitDeleteConfirmModal = ({
         }}
       />
       <Button
-        label="Delete"
+        label={t("common.delete")}
         onClick={() => {
           onConfirm?.();
           onClose?.();
@@ -233,7 +240,8 @@ const ToolkitDeleteConfirmModal = ({
       />
     </div>
   </Modal>
-);
+  );
+};
 
 const ToolkitDetailPanel = ({
   toolkitId,
@@ -246,6 +254,8 @@ const ToolkitDetailPanel = ({
   onDelete,
   onBack,
 }) => {
+  const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
@@ -296,7 +306,7 @@ const ToolkitDetailPanel = ({
       })
       .catch((err) => {
         if (cancelled) return;
-        setError(err?.message || "Failed to load toolkit detail");
+        setError(err?.message || t("toolkit.load_detail_failed"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -305,7 +315,7 @@ const ToolkitDetailPanel = ({
     return () => {
       cancelled = true;
     };
-  }, [toolkitId, toolName]);
+  }, [toolkitId, toolName, t]);
 
   // Auto-scroll to tool heading if toolName is provided
   useEffect(() => {
@@ -434,7 +444,7 @@ const ToolkitDetailPanel = ({
               <span
                 style={{
                   fontSize: 16,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   fontWeight: 600,
                   color: textColor,
                   display: "block",
@@ -448,7 +458,7 @@ const ToolkitDetailPanel = ({
                 <p
                   style={{
                     fontSize: 12,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     color: mutedColor,
                     margin: 0,
                     lineHeight: 1.55,
@@ -487,7 +497,7 @@ const ToolkitDetailPanel = ({
           {error && (
             <PlaceholderBlock
               icon="tool"
-              title="Failed to load details"
+              title={t("toolkit.load_detail_title")}
               subtitle={error}
               isDark={isDark}
             />
@@ -501,7 +511,7 @@ const ToolkitDetailPanel = ({
                   <span
                     style={{
                       fontSize: 11,
-                      fontFamily: "Jost",
+                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                       fontWeight: 500,
                       color: mutedColor,
                       textTransform: "uppercase",
@@ -524,7 +534,7 @@ const ToolkitDetailPanel = ({
                         key={tool.name || idx}
                         style={{
                           fontSize: 11.5,
-                          fontFamily: "Jost",
+                          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                           fontWeight: 500,
                           color: tagColor,
                           backgroundColor: tagBg,
@@ -541,10 +551,10 @@ const ToolkitDetailPanel = ({
               )}
 
               {/* ── Settings ── */}
-              <SettingsSection title="Settings">
+              <SettingsSection title={t("toolkit.settings_section")}>
                 <SettingsRow
-                  label="Auto Enable"
-                  description="Automatically enable this toolkit for new chats"
+                  label={t("toolkit.auto_enable_label")}
+                  description={t("toolkit.auto_enable_desc")}
                 >
                   <SemiSwitch
                     on={Boolean(defaultEnabled)}
@@ -556,8 +566,8 @@ const ToolkitDetailPanel = ({
                 </SettingsRow>
 
                 <SettingsRow
-                  label="Auto Approve Tools"
-                  description="Automatically approve all tool executions without confirmation"
+                  label={t("toolkit.auto_approve_label")}
+                  description={t("toolkit.auto_approve_desc")}
                 >
                   <SemiSwitch
                     on={autoApprove}
@@ -571,16 +581,16 @@ const ToolkitDetailPanel = ({
                 </SettingsRow>
 
                 <SettingsRow
-                  label="Delete Toolkit"
+                  label={t("toolkit.delete_label")}
                   description={
                     isBuiltin
-                      ? "Built-in toolkits cannot be removed"
-                      : "Remove this toolkit from your installation"
+                      ? t("toolkit.delete_desc_builtin")
+                      : t("toolkit.delete_desc")
                   }
                 >
                   <Button
                     prefix_icon="delete"
-                    label="Delete"
+                    label={t("common.delete")}
                     onClick={() => {
                       if (!isBuiltin) setShowDeleteConfirm(true);
                     }}
@@ -651,8 +661,8 @@ const ToolkitDetailPanel = ({
               ) : (
                 <PlaceholderBlock
                   icon="tool"
-                  title="No documentation"
-                  subtitle="This toolkit does not provide a README."
+                  title={t("toolkit.no_documentation_title")}
+                  subtitle={t("toolkit.no_documentation_subtitle")}
                   isDark={isDark}
                 />
               )}

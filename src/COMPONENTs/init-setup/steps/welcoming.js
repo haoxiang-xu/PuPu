@@ -3,7 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
 const WelcomingStep = ({ onNext }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const headingColor = isDark ? "#ffffff" : "#222222";
@@ -23,7 +23,7 @@ const WelcomingStep = ({ onNext }) => {
         style={{
           fontSize: 22,
           fontWeight: 600,
-          fontFamily: "NunitoSans, sans-serif",
+          fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
           color: headingColor,
           lineHeight: 1.25,
           marginBottom: 8,
@@ -36,7 +36,7 @@ const WelcomingStep = ({ onNext }) => {
       <div
         style={{
           fontSize: 13,
-          fontFamily: "NunitoSans, sans-serif",
+          fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
           color: subColor,
           lineHeight: 1.6,
           maxWidth: 340,
@@ -68,7 +68,7 @@ const WelcomingStep = ({ onNext }) => {
               alignItems: "center",
               gap: 9,
               fontSize: 12,
-              fontFamily: "NunitoSans, sans-serif",
+              fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
               color: subColor,
             }}
           >

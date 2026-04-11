@@ -37,7 +37,7 @@ const AssistantMessageBody = ({
         style={{
           margin: 0,
           whiteSpace: "pre-wrap",
-          fontFamily: theme?.font?.fontFamily || "inherit",
+          fontFamily: theme?.font?.paragraphFontFamily || "inherit",
           fontSize: ASSISTANT_MARKDOWN_FONT_SIZE,
           lineHeight: ASSISTANT_MARKDOWN_LINE_HEIGHT,
           color: theme?.color || "#222",

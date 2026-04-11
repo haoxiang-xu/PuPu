@@ -1,10 +1,12 @@
 import {
   useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 const TRACK_PADDING = 3;
@@ -12,6 +14,7 @@ const BUTTON_HEIGHT = 28;
 const CONTROL_HEIGHT = BUTTON_HEIGHT + TRACK_PADDING * 2;
 
 const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
   const [indicator, setIndicator] = useState({ left: 0, width: 0 });
@@ -150,7 +153,7 @@ const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
               borderRadius: 7,
               border: "none",
               cursor: "pointer",
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontSize: 13,
               fontWeight: 600,
               lineHeight: 1,

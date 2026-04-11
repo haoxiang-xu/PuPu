@@ -47,4 +47,34 @@ describe("Explorer", () => {
 
     fireEvent.mouseUp(document);
   });
+
+  test("does not start dragging from inputs inside custom rows", () => {
+    renderExplorer({
+      data: {
+        renaming_chat: {
+          label: "Rename ghost",
+          component: () => (
+            <div data-explorer-drag-disabled="true">
+              <input aria-label="Rename value" defaultValue="Nico" />
+            </div>
+          ),
+        },
+      },
+      root: ["renaming_chat"],
+    });
+
+    const input = screen.getByLabelText("Rename value");
+    fireEvent.mouseDown(input, {
+      button: 0,
+      clientX: 32,
+      clientY: 20,
+    });
+    fireEvent.mouseMove(document, {
+      clientX: 72,
+      clientY: 20,
+    });
+
+    expect(screen.queryByText("Rename ghost")).not.toBeInTheDocument();
+    expect(document.body.style.userSelect).toBe("");
+  });
 });

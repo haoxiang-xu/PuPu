@@ -1,3 +1,4 @@
+import { useContext } from "react";
 import ToolkitIcon, {
   isBuiltinToolkitIcon,
   isFileToolkitIcon,
@@ -5,13 +6,15 @@ import ToolkitIcon, {
 import { SOURCE_CONFIG } from "../constants";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
-const toDisplayName = (toolkit) => {
+const toDisplayName = (toolkit, unknownLabel) => {
   const raw =
     toolkit.toolkitName ||
     toolkit.class_name ||
     toolkit.name ||
-    "Unknown Toolkit";
+    unknownLabel;
   return raw
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")
@@ -25,7 +28,9 @@ const ToolkitRow = ({
   onToggleEnabled,
   onClick,
 }) => {
-  const displayName = toDisplayName(toolkit);
+  const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const displayName = toDisplayName(toolkit, t("toolkit.unknown_toolkit"));
   const tools = Array.isArray(toolkit.tools) ? toolkit.tools : [];
   const sc = SOURCE_CONFIG[toolkit.source] || SOURCE_CONFIG.builtin;
   const enabled = Boolean(toolkit.defaultEnabled);
@@ -96,7 +101,7 @@ const ToolkitRow = ({
           <span
             style={{
               fontSize: 12.5,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               color: textColor,
               overflow: "hidden",
@@ -109,7 +114,7 @@ const ToolkitRow = ({
           <span
             style={{
               fontSize: 10,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontWeight: 500,
               letterSpacing: "0.4px",
               textTransform: "lowercase",
@@ -121,7 +126,7 @@ const ToolkitRow = ({
               whiteSpace: "nowrap",
             }}
           >
-            {sc.label}
+            {t(sc.labelKey)}
           </span>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -129,7 +134,7 @@ const ToolkitRow = ({
             <span
               style={{
                 fontSize: 11,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 color: mutedColor,
                 overflow: "hidden",
                 textOverflow: "ellipsis",
@@ -143,7 +148,7 @@ const ToolkitRow = ({
             <span
               style={{
                 fontSize: 11,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 color: mutedColor,
                 flexShrink: 0,
               }}
@@ -166,7 +171,7 @@ const ToolkitRow = ({
           onClick={(e) => e.stopPropagation()}
         >
           <Tooltip
-            label="Auto-enable for new chats"
+            label={t("toolkit.auto_enable_card")}
             position="top"
             style={{ whiteSpace: "nowrap" }}
             wrapper_style={{ flexShrink: 0 }}

@@ -13,6 +13,7 @@ import { ollamaBridge } from "../../../SERVICEs/bridges/ollama_bridge";
 
 /* ── shared sub-components ──────────────────────────────────────────────────── */
 const StatusBadge = ({ status, label }) => {
+  const { theme } = useContext(ConfigContext);
   const iconSrc =
     status === "ok" ? "check" : status === "error" ? "error" : "circle";
   const color =
@@ -39,7 +40,7 @@ const StatusBadge = ({ status, label }) => {
         background: bg,
         color,
         fontSize: 12,
-        fontFamily: "Jost",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
         border: `1px solid ${color}33`,
       }}
@@ -56,6 +57,7 @@ const StatusBadge = ({ status, label }) => {
 
 /* ── API Key sub-step ───────────────────────────────────────────────────────── */
 const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const storageKey = `${providerKey}_api_key`;
   const [value, setValue] = useState(
     () => readModelProviders()[storageKey] || "",
@@ -82,7 +84,7 @@ const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
       <div
         style={{
           fontSize: 14,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: mutedColor,
           lineHeight: 1.5,
         }}
@@ -122,7 +124,7 @@ const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
             style={{
               root: {
                 fontSize: 13,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 fontWeight: 600,
               },
             }}
@@ -137,6 +139,7 @@ const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
 
 /* ── Ollama sub-step ─────────────────────────────────────────────────────────── */
 const OllamaSubStep = ({ isDark }) => {
+  const { theme } = useContext(ConfigContext);
   const [ollamaStatus, setOllamaStatus] = useState("checking");
   const [installProgress, setInstallProgress] = useState(null);
   const [installError, setInstallError] = useState(null);
@@ -196,7 +199,7 @@ const OllamaSubStep = ({ isDark }) => {
       <div
         style={{
           fontSize: 14,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: mutedColor,
           lineHeight: 1.5,
         }}
@@ -209,7 +212,7 @@ const OllamaSubStep = ({ isDark }) => {
         <span
           style={{
             fontSize: 13,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
           }}
         >
@@ -219,7 +222,7 @@ const OllamaSubStep = ({ isDark }) => {
           <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
             <ArcSpinner size={14} stroke_width={2} />
             <span
-              style={{ fontSize: 12, fontFamily: "Jost", color: mutedColor }}
+              style={{ fontSize: 12, fontFamily: theme?.font?.fontFamily || "Jost, sans-serif", color: mutedColor }}
             >
               Checking…
             </span>
@@ -262,7 +265,7 @@ const OllamaSubStep = ({ isDark }) => {
                 <span
                   style={{
                     fontSize: 13,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     color: mutedColor,
                   }}
                 >
@@ -302,7 +305,7 @@ const OllamaSubStep = ({ isDark }) => {
               <span
                 style={{
                   fontSize: 13,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   color: "#e05c5c",
                 }}
               >
@@ -323,7 +326,7 @@ const OllamaSubStep = ({ isDark }) => {
           <div
             style={{
               fontSize: 13,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: mutedColor,
               lineHeight: 1.5,
             }}
@@ -349,7 +352,7 @@ const OllamaSubStep = ({ isDark }) => {
           <span
             style={{
               fontSize: 13,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: mutedColor,
               lineHeight: 1.5,
             }}
@@ -381,7 +384,7 @@ const ConfigureProvidersStep = ({
   setProviderSubStep,
   onNext,
 }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
@@ -415,7 +418,7 @@ const ConfigureProvidersStep = ({
           style={{
             fontSize: 18,
             fontWeight: 700,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: headingColor,
             letterSpacing: "-0.3px",
           }}
@@ -426,7 +429,7 @@ const ConfigureProvidersStep = ({
       <div
         style={{
           fontSize: 14,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: subColor,
           marginBottom: 22,
           lineHeight: 1.5,
@@ -459,7 +462,7 @@ const ConfigureProvidersStep = ({
                 style={{
                   root: {
                     fontSize: 12,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     fontWeight: 500,
                     borderRadius: 999,
                     paddingVertical: 3,

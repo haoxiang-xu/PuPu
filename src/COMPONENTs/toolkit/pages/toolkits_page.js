@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ToolkitStorePage from "./toolkit_store_page";
 import ToolkitInstalledPage from "./toolkit_installed_page";
 import ToolkitDetailPanel from "../components/toolkit_detail_panel";
@@ -8,11 +9,12 @@ import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 const SLIDE_DURATION = 260;
 
 const TOOLKIT_SUB_PAGES = [
-  { key: "store", icon: "search", label: "Store" },
-  { key: "installed", icon: "tool", label: "Installed" },
+  { key: "store", icon: "search", labelKey: "toolkit.store" },
+  { key: "installed", icon: "tool", labelKey: "toolkit.installed" },
 ];
 
 const ToolkitsPage = ({ isDark }) => {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("installed");
 
   /* ── Handlers from ToolkitInstalledPage ── */
@@ -62,7 +64,7 @@ const ToolkitsPage = ({ isDark }) => {
     return (
       <Button
         prefix_icon={item.icon}
-        label={item.label}
+        label={t(item.labelKey)}
         onClick={() => {
           setActiveTab(item.key);
           if (detailVisible) closeDetail();

@@ -17,7 +17,7 @@ const PROVIDER_ICON = {
 };
 
 const CompletionStep = ({ selectedProviders, onFinish }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
@@ -49,7 +49,7 @@ const CompletionStep = ({ selectedProviders, onFinish }) => {
         style={{
           fontSize: 18,
           fontWeight: 700,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: headingColor,
           marginBottom: 6,
           letterSpacing: "-0.3px",
@@ -60,7 +60,7 @@ const CompletionStep = ({ selectedProviders, onFinish }) => {
       <div
         style={{
           fontSize: 14,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: subColor,
           marginBottom: 24,
           lineHeight: 1.5,
@@ -102,7 +102,7 @@ const CompletionStep = ({ selectedProviders, onFinish }) => {
                   style={{
                     fontSize: 13,
                     fontWeight: 600,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     color: headingColor,
                     flex: 1,
                   }}
@@ -117,7 +117,7 @@ const CompletionStep = ({ selectedProviders, onFinish }) => {
                 <span
                   style={{
                     fontSize: 12,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     color: subColor,
                   }}
                 >

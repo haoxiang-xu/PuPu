@@ -1,4 +1,5 @@
-import { useCallback, useState } from "react";
+import { useCallback, useContext, useState } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
@@ -19,7 +20,7 @@ const isTextEntryTarget = (target) =>
 
 /* ── shared footer helpers ── */
 
-const ClearAllFooter = ({ onClear, isDark }) => (
+const ClearAllFooter = ({ onClear, isDark, theme }) => (
   <button
     onMouseDown={(e) => {
       e.preventDefault();
@@ -32,14 +33,14 @@ const ClearAllFooter = ({ onClear, isDark }) => (
       cursor: "pointer",
       fontSize: 11,
       color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-      fontFamily: "Jost, sans-serif",
+      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
     }}
   >
     clear all
   </button>
 );
 
-const WorkspaceFooter = ({ onClear, hasSelection, onAdd, isDark }) => {
+const WorkspaceFooter = ({ onClear, hasSelection, onAdd, isDark, theme }) => {
   const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
 
@@ -58,7 +59,7 @@ const WorkspaceFooter = ({ onClear, hasSelection, onAdd, isDark }) => {
             cursor: "pointer",
             fontSize: 11,
             color: mutedColor,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             textAlign: "left",
           }}
         >
@@ -99,7 +100,7 @@ const WorkspaceFooter = ({ onClear, hasSelection, onAdd, isDark }) => {
         <span
           style={{
             fontSize: 12,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: textColor,
             fontWeight: 500,
           }}
@@ -140,6 +141,7 @@ const AttachPanel = ({
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
 }) => {
+  const { theme } = useContext(ConfigContext);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
@@ -322,6 +324,7 @@ const AttachPanel = ({
                       <ClearAllFooter
                         onClear={() => (onToolkitsChange || (() => {}))([])}
                         isDark={isDark}
+                        theme={theme}
                       />
                     ) : null
                   }
@@ -375,6 +378,7 @@ const AttachPanel = ({
                         setWorkspaceModalOpen(true);
                       }}
                       isDark={isDark}
+                      theme={theme}
                     />
                   }
                   custom_trigger={

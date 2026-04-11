@@ -9,6 +9,7 @@ import {
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
   refreshCharacterChatMetadata,
@@ -146,6 +147,7 @@ const HeroHeadline = ({ isDark }) => {
 };
 
 const ChatInterface = () => {
+  const { t } = useTranslation();
   const { theme, onFragment, onThemeMode } = useContext(ConfigContext);
 
   const [bootstrapped] = useState(() => bootstrapChatsStore());
@@ -539,7 +541,7 @@ const ChatInterface = () => {
       isStreaming: stream.isStreaming,
       sendDisabled: isSendDisabled,
       placeholder: unchainStatus.ready
-        ? "Message PuPu Chat..."
+        ? t("chat.placeholder")
         : `Miso unavailable (${unchainStatus.status})${unchainStatus.reason ? `: ${unchainStatus.reason}` : ""}`,
       disclaimer: effectiveDisclaimer,
       showAttachments: true,
@@ -570,6 +572,7 @@ const ChatInterface = () => {
       effectiveDisclaimer, attachments.handleAttachFile, attachments.processFiles,
       draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+      t,
     ],
   );
 

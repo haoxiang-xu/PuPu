@@ -191,7 +191,7 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
             style={{
               padding: "12px 16px",
               color: theme.fontColor,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               fontSize: 14,
             }}
           >

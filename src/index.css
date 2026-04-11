@@ -1,3 +1,8 @@
+:root {
+  --pupu-font-family: "Jost", sans-serif;
+  --pupu-title-font-family: "NunitoSans", sans-serif;
+}
+
 body {
   position: absolute;
   top: 0;
@@ -6,7 +11,7 @@ body {
   height: 100%;
   margin: 0;
   padding: 0;
-  font-family: "Jost", sans-serif;
+  font-family: var(--pupu-font-family);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -30,6 +35,13 @@ code {
   font-style: italic;
 }
 @font-face {
+  font-family: "Onest";
+  src: url("BUILTIN_COMPONENTs/fonts/Onest/Onest-VariableFont_wght.ttf")
+    format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+}
+@font-face {
   font-family: "HackNerdFont";
   src: url("BUILTIN_COMPONENTs/fonts/HackNerdFont/HackNerdFont-Regular.ttf")
     format("truetype");
@@ -49,4 +61,81 @@ code {
     format("truetype");
   font-weight: 200 900;
   font-style: italic;
+}
+@font-face {
+  font-family: "LXGWWenKai";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Chinese/LXGWWenKai-Light.ttf")
+    format("truetype");
+  font-weight: 200 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKai";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Chinese/LXGWWenKai-Regular.ttf")
+    format("truetype");
+  font-weight: 400 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKai";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Chinese/LXGWWenKai-Medium.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiTC";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_TraditionalChinese/LXGWWenKaiTC-Light.ttf")
+    format("truetype");
+  font-weight: 200 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiTC";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_TraditionalChinese/LXGWWenKaiTC-Regular.ttf")
+    format("truetype");
+  font-weight: 400 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiTC";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_TraditionalChinese/LXGWWenKaiTC-Bold.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "KleeOne";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/KleeOne_Japanese/KleeOne-Regular.ttf")
+    format("truetype");
+  font-weight: 200 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "KleeOne";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/KleeOne_Japanese/KleeOne-SemiBold.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiKR";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Korean/LXGWWenKaiKR-Light.ttf")
+    format("truetype");
+  font-weight: 200 300;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiKR";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Korean/LXGWWenKaiKR-Regular.ttf")
+    format("truetype");
+  font-weight: 400 600;
+  font-style: normal;
+}
+@font-face {
+  font-family: "LXGWWenKaiKR";
+  src: url("BUILTIN_COMPONENTs/fonts/KleeOne/LXGWWenKai_Korean/LXGWWenKaiKR-Medium.ttf")
+    format("truetype");
+  font-weight: 700 900;
+  font-style: normal;
 }
