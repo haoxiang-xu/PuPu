@@ -1,7 +1,7 @@
 import { api } from "./api";
 
 describe("api.unchain character methods", () => {
-  const originalMisoApi = window.unchainAPI;
+  const originalUnchainApi = window.unchainAPI;
 
   beforeEach(() => {
     window.unchainAPI = {
@@ -25,7 +25,7 @@ describe("api.unchain character methods", () => {
   });
 
   afterAll(() => {
-    window.unchainAPI = originalMisoApi;
+    window.unchainAPI = originalUnchainApi;
   });
 
   test("listCharacters normalizes the bridge response", async () => {

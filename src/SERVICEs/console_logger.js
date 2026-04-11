@@ -4,7 +4,7 @@
  *  Usage:
  *    import { createLogger } from "../SERVICEs/console_logger";
  *
- *    const logger = createLogger("MISO", "src/PAGEs/chat/chat.js");
+ *    const logger = createLogger("UNCHAIN", "src/PAGEs/chat/chat.js");
  *    logger.log("stream", "Connection established", payload);
  *    logger.warn("stream", "Retrying …");
  *    logger.error("stream", "Connection failed", err);
@@ -95,7 +95,7 @@ const MODULE_PALETTE = Object.freeze({
  * Build the `%c`-interpolated format string + css arguments for one log line.
  *
  * @param {"log"|"warn"|"error"|"debug"} level
- * @param {string}  moduleName   e.g. "MISO"
+ * @param {string}  moduleName   e.g. "UNCHAIN"
  * @param {string}  action       e.g. "stream"
  * @param {string}  filePath     e.g. "src/PAGEs/chat/chat.js"
  * @param {object}  [palette]    Optional per-module LEVEL_PALETTE override
@@ -124,7 +124,7 @@ const buildBadge = (level, moduleName, action, filePath, palette) => {
 /**
  * Create a scoped logger bound to a module name and source-file path.
  *
- * @param {string} moduleName  Human-readable module tag (e.g. "MISO", "UI")
+ * @param {string} moduleName  Human-readable module tag (e.g. "UNCHAIN", "UI")
  * @param {string} filePath    Relative source path (e.g. "src/PAGEs/chat/chat.js")
  * @returns {{ log, warn, error, debug }}
  */

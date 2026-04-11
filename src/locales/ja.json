@@ -179,7 +179,7 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ ワークスペースを追加",
     "workspace_select_desc": "名前付きワークスペースはチャット入力ツールバーからチャットごとに選択できます。",
-    "applied_desc": "ワークスペースツールキットが有効な場合、すべての Miso リクエストに適用されます。"
+    "applied_desc": "ワークスペースツールキットが有効な場合、すべての Unchain リクエストに適用されます。"
   },
   "dev": {
     "chrome_terminal": "Chrome ターミナル",
@@ -245,10 +245,10 @@
     "store_subtitle": "コミュニティのツールキットを閲覧してインストールします。近日公開。",
     "coming_soon_title": "近日公開",
     "coming_soon_subtitle": "このセクションはまだ利用できません。",
-    "miso_not_connected_title": "Miso が接続されていません",
-    "miso_not_connected_subtitle": "Miso ランタイムを起動してツールカタログを読み込んでください。",
+    "unchain_not_connected_title": "Unchain が接続されていません",
+    "unchain_not_connected_subtitle": "Unchain ランタイムを起動してツールカタログを読み込んでください。",
     "no_toolkits_title": "ツールキットが見つかりません",
-    "no_toolkits_subtitle": "接続された Miso ランタイムに表示可能なツールキットは登録されていません。",
+    "no_toolkits_subtitle": "接続された Unchain ランタイムに表示可能なツールキットは登録されていません。",
     "load_catalog_failed": "ツールキットカタログの読み込みに失敗しました",
     "load_detail_failed": "ツールキットの詳細の読み込みに失敗しました",
     "load_detail_title": "詳細の読み込みに失敗しました",

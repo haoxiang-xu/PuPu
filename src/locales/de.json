@@ -179,7 +179,7 @@
     "path_placeholder": "/pfad/zum/arbeitsbereich",
     "add_workspace": "+ Arbeitsbereich hinzufügen",
     "workspace_select_desc": "Benannte Arbeitsbereiche können pro Chat aus der Chat-Eingabeleiste ausgewählt werden.",
-    "applied_desc": "Wird auf jede Miso-Anfrage angewendet, wenn das Arbeitsbereich-Toolkit aktiviert ist."
+    "applied_desc": "Wird auf jede Unchain-Anfrage angewendet, wenn das Arbeitsbereich-Toolkit aktiviert ist."
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",
@@ -245,10 +245,10 @@
     "store_subtitle": "Durchsuchen Sie Community-Toolkits und installieren Sie diese. Demnächst verfügbar.",
     "coming_soon_title": "Demnächst verfügbar",
     "coming_soon_subtitle": "Dieser Bereich ist noch nicht verfügbar.",
-    "miso_not_connected_title": "Miso nicht verbunden",
-    "miso_not_connected_subtitle": "Starten Sie die Miso-Laufzeit, um Ihren Tool-Katalog zu laden.",
+    "unchain_not_connected_title": "Unchain nicht verbunden",
+    "unchain_not_connected_subtitle": "Starten Sie die Unchain-Laufzeit, um Ihren Tool-Katalog zu laden.",
     "no_toolkits_title": "Keine Toolkits gefunden",
-    "no_toolkits_subtitle": "In der verbundenen Miso-Laufzeit wurden keine sichtbaren Toolkits registriert.",
+    "no_toolkits_subtitle": "In der verbundenen Unchain-Laufzeit wurden keine sichtbaren Toolkits registriert.",
     "load_catalog_failed": "Laden des Toolkit-Katalogs fehlgeschlagen",
     "load_detail_failed": "Laden der Toolkit-Details fehlgeschlagen",
     "load_detail_title": "Laden der Details fehlgeschlagen",
