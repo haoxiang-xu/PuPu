@@ -1681,6 +1681,11 @@ const createUnchainService = ({
   };
 
   const validateMisoApiKey = async (provider, apiKey) => {
+    // HTTP headers only allow Latin-1 characters (code points 0-255).
+    // Reject keys with non-Latin-1 characters before attempting a network call.
+    if (!/^[\x00-\xFF]*$/.test(apiKey)) {
+      return { valid: false, error: "Invalid API key" };
+    }
     if (provider === "openai") {
       const response = await fetch("https://api.openai.com/v1/models", {
         headers: { Authorization: `Bearer ${apiKey}` },
