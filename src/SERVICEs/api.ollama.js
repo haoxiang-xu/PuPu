@@ -243,8 +243,9 @@ export const createOllamaApi = () => ({
         "thinking",
         "code",
         "cloud",
+        "audio",
       ]);
-      const SIZE_RE = /^\d+(\.\d+)?[kKmMbBxX]$/;
+      const SIZE_RE = /^[a-z]?\d+(\.\d+)?[kmbx](-[a-z0-9]+)?$/i;
 
       const models = [];
       const anchors = doc.querySelectorAll("a[href^='/library/']");
@@ -257,6 +258,11 @@ export const createOllamaApi = () => ({
         const descEl = a.querySelector("p");
         const description = descEl ? descEl.textContent.trim() : "";
 
+        const fullText = a.textContent || "";
+        const pullsMatch = fullText.match(/([\d.]+[kKmMbB])\s+Pulls/i);
+        const pulls = pullsMatch ? pullsMatch[1] : "";
+        const pullsToken = pulls.toLowerCase();
+
         const textNodes = Array.from(a.querySelectorAll("span, p"))
           .map((el) => el.textContent.trim().toLowerCase())
           .filter(Boolean);
@@ -267,14 +273,10 @@ export const createOllamaApi = () => ({
         textNodes.forEach((t) => {
           if (CATEGORY_KEYWORDS.has(t)) {
             if (!tags.includes(t)) tags.push(t);
-          } else if (SIZE_RE.test(t)) {
+          } else if (t !== pullsToken && SIZE_RE.test(t)) {
             if (!sizes.includes(t)) sizes.push(t);
           }
         });
-
-        const fullText = a.textContent || "";
-        const pullsMatch = fullText.match(/([\d.]+[kKmMbB])\s+Pulls/i);
-        const pulls = pullsMatch ? pullsMatch[1] : "";
 
         models.push({ name: slug, description, tags, sizes, pulls });
       });
