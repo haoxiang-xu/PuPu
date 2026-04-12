@@ -76,6 +76,55 @@ function Resolve-Python312Command {
   throw "Python 3.12.x is required to build unchain-server."
 }
 
+function Get-PythonRuntimeBinaryArgs {
+  param(
+    [Parameter(Mandatory = $true)][string]$PythonPath
+  )
+
+  $runtimeDllProbe = @"
+from pathlib import Path
+import sys
+
+seen = set()
+roots = [
+    Path(sys.base_prefix) / "Library" / "bin",
+    Path(sys.base_prefix) / "DLLs",
+    Path(sys.prefix) / "Library" / "bin",
+    Path(sys.prefix) / "DLLs",
+]
+
+for root in roots:
+    if not root.exists():
+        continue
+    for pattern in (
+        "ffi*.dll",
+        "libffi*.dll",
+        "libssl*.dll",
+        "libcrypto*.dll",
+        "liblzma*.dll",
+        "libbz2*.dll",
+        "libexpat*.dll",
+        "sqlite3*.dll",
+    ):
+        for path in root.glob(pattern):
+            resolved = str(path.resolve())
+            key = resolved.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            print(resolved)
+"@
+
+  $binaryArgs = @()
+  $runtimeDlls = @($runtimeDllProbe | & $PythonPath -)
+  foreach ($dllPath in $runtimeDlls) {
+    if ($dllPath -and (Test-Path -LiteralPath $dllPath)) {
+      $binaryArgs += @("--add-binary", "${dllPath};.")
+    }
+  }
+  return $binaryArgs
+}
+
 # Resolve root directory (two levels up from this script)
 $ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
@@ -96,8 +145,6 @@ if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON
   exit 1
 }
 
-# Python / venv setup
-$resolvedPython = Resolve-Python312Command
 $VENV_DIR = if ($env:UNCHAIN_BUILD_VENV) { $env:UNCHAIN_BUILD_VENV } else { Join-Path $ROOT_DIR ".venv-unchain-build" }
 
 $VENV_PY = Join-Path $VENV_DIR "Scripts\python.exe"
@@ -109,6 +156,7 @@ if ((Test-Path $VENV_PY) -and -not (Test-Python312Command -Command $VENV_PY)) {
 }
 
 if (-not (Test-Path $VENV_PY)) {
+  $resolvedPython = Resolve-Python312Command
   Write-Host "Creating build venv at $VENV_DIR ..."
   & $resolvedPython.Command @($resolvedPython.Arguments + @("-m", "venv", $VENV_DIR))
   if ($LASTEXITCODE -ne 0) { Write-Error "Failed to create venv"; exit 1 }
@@ -187,6 +235,7 @@ if ($existingPythonPath) {
 }
 
 # Build with PyInstaller
+$runtimeBinaryArgs = Get-PythonRuntimeBinaryArgs -PythonPath $VENV_PY
 $pyinstallerArgs = @(
   "-m", "PyInstaller",
   "--clean",
@@ -224,7 +273,8 @@ $pyinstallerArgs = @(
   "--hidden-import", "qdrant_client.http",
   "--hidden-import", "qdrant_client.http.models",
   "--hidden-import", "qdrant_client.local",
-  "--hidden-import", "qdrant_client.local.local_collection",
+  "--hidden-import", "qdrant_client.local.local_collection"
+) + $runtimeBinaryArgs + @(
   $ENTRYPOINT
 )
 

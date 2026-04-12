@@ -10,7 +10,7 @@
       <img src="./public/assets/download_mac.svg" alt="Download for Mac" />
     </a>
     &nbsp;&nbsp;
-    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.3.exe">
+    <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.4.exe">
       <img src="./public/assets/download_windows.svg" alt="Download for Windows" />
     </a>
     &nbsp;&nbsp;
@@ -41,17 +41,17 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 
 Download the latest release:
 
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.3-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.3-intel.dmg"><img src="./public/assets/download_mac_intel.svg" alt="Mac (Intel)" /></a>
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>
 
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.3.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.4.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
 
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.3.AppImage"><img src="./public/assets/download_linux_appimage.svg" alt="Linux (.AppImage)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.3.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.4.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
 
 ### Windows
 
 1. Download the latest `.exe` installer:
 
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.3.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.4.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
 
 2. Run the installer.
 3. Launch PuPu from the Start menu.
@@ -60,7 +60,7 @@ Download the latest release:
 
 1. Download the latest `.dmg`:
 
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.3-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.3-intel.dmg"><img src="./public/assets/download_mac_intel.svg" alt="Mac (Intel)" /></a>
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>
 
 2. Open the disk image.
 3. Drag PuPu into `Applications`.
@@ -70,12 +70,12 @@ Download the latest release:
 
 1. Download the latest:
 
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.3.AppImage"><img src="./public/assets/download_linux_appimage.svg" alt="Linux (.AppImage)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.3.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.4.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
 
 2. If you use the `.deb`, install it with:
 
 ```bash
-sudo apt install ./PuPu_0.1.3.deb
+sudo apt install ./PuPu_0.1.4.deb
 ```
 
 3. If your system reports a Chromium sandbox permission error, run:
