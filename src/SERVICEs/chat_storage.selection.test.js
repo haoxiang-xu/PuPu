@@ -4,11 +4,25 @@ import {
   createChatInSelectedContext,
   createChatWithMessagesInSelectedContext,
   createFolder,
+  deleteTreeNodeCascade,
   duplicateTreeNodeSubtree,
   getChatsStore,
   setChatMessages,
   selectTreeNode,
+  updateChatDraft,
 } from "./chat_storage";
+
+const findNodeIdByChatId = (tree, chatId) =>
+  Object.entries(tree.nodesById || {}).find(
+    ([, node]) => node?.entity === "chat" && node?.chatId === chatId,
+  )?.[0] || null;
+
+const countPendingTransientChats = (store) =>
+  Object.values(store.chatsById || {}).filter(
+    (chat) =>
+      chat?.isTransientNewChat === true &&
+      (!Array.isArray(chat.messages) || chat.messages.length === 0),
+  ).length;
 
 describe("chat_storage folder selection behavior", () => {
   beforeEach(() => {
@@ -176,5 +190,69 @@ describe("chat_storage folder selection behavior", () => {
         expect.objectContaining({ role: "user", content: "seeded content" }),
       ]),
     );
+  });
+
+  test("deleteTreeNodeCascade replaces the last chat with a new transient chat", () => {
+    const before = getChatsStore();
+    const oldChatId = before.activeChatId;
+    const oldNodeId = findNodeIdByChatId(before.tree, oldChatId);
+
+    const afterDelete = deleteTreeNodeCascade(
+      { nodeId: oldNodeId },
+      { source: "test" },
+    );
+
+    expect(Object.keys(afterDelete.chatsById).length).toBe(1);
+    expect(afterDelete.chatsById[oldChatId]).toBeUndefined();
+    expect(afterDelete.activeChatId).toBeTruthy();
+    expect(afterDelete.activeChatId).not.toBe(oldChatId);
+
+    const replacementChat = afterDelete.chatsById[afterDelete.activeChatId];
+    expect(replacementChat.title).toBe("New Chat");
+    expect(replacementChat.messages).toEqual([]);
+    expect(replacementChat.isTransientNewChat).toBe(true);
+    expect(
+      afterDelete.tree.nodesById[afterDelete.tree.selectedNodeId]?.chatId,
+    ).toBe(afterDelete.activeChatId);
+  });
+
+  test("chat updates do not resurrect a deleted chat id", () => {
+    const before = getChatsStore();
+    const oldChatId = before.activeChatId;
+    const oldNodeId = findNodeIdByChatId(before.tree, oldChatId);
+
+    deleteTreeNodeCascade({ nodeId: oldNodeId }, { source: "test" });
+    setChatMessages(
+      oldChatId,
+      [{ role: "user", content: "should not revive" }],
+      { source: "test" },
+    );
+    updateChatDraft(
+      oldChatId,
+      { text: "stale draft" },
+      { source: "test" },
+    );
+
+    const after = getChatsStore();
+    expect(after.chatsById[oldChatId]).toBeUndefined();
+    expect(after.lruChatIds).not.toContain(oldChatId);
+    expect(findNodeIdByChatId(after.tree, oldChatId)).toBeNull();
+  });
+
+  test("creating a new chat replaces the previous empty transient new chat", () => {
+    const first = createChatInSelectedContext(
+      { parentFolderId: null },
+      { source: "test" },
+    );
+    const second = createChatInSelectedContext(
+      { parentFolderId: null },
+      { source: "test" },
+    );
+
+    const after = second.store;
+    expect(after.chatsById[first.chatId]).toBeUndefined();
+    expect(after.chatsById[second.chatId]).toBeTruthy();
+    expect(after.activeChatId).toBe(second.chatId);
+    expect(countPendingTransientChats(after)).toBe(1);
   });
 });
