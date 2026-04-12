@@ -41,11 +41,11 @@ If you find the project useful, ⭐⭐⭐ star the repo.
 
 Download the latest release:
 
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-intel.dmg"><img src="./public/assets/download_mac_intel.svg" alt="Mac (Intel)" /></a>
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>
 
 <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu.Setup.0.1.4.exe"><img src="./public/assets/download_windows.svg" alt="Download for Windows" /></a>
 
-<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4.AppImage"><img src="./public/assets/download_linux_appimage.svg" alt="Linux (.AppImage)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.4.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
+<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.4.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
 
 ### Windows
 
@@ -60,7 +60,7 @@ Download the latest release:
 
 1. Download the latest `.dmg`:
 
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-intel.dmg"><img src="./public/assets/download_mac_intel.svg" alt="Mac (Intel)" /></a>
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4-arm64.dmg"><img src="./public/assets/download_mac_apple_silicon.svg" alt="Mac (Apple Silicon)" /></a>
 
 2. Open the disk image.
 3. Drag PuPu into `Applications`.
@@ -70,7 +70,7 @@ Download the latest release:
 
 1. Download the latest:
 
-   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu-0.1.4.AppImage"><img src="./public/assets/download_linux_appimage.svg" alt="Linux (.AppImage)" /></a>&nbsp;&nbsp;<a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.4.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
+   <a href="https://github.com/haoxiang-xu/PuPu/releases/latest/download/PuPu_0.1.4.deb"><img src="./public/assets/download_linux_deb.svg" alt="Linux (.deb)" /></a>
 
 2. If you use the `.deb`, install it with:
 
