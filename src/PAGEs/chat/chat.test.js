@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
 import { getChatsStore, openCharacterChat, setChatModel } from "../../SERVICEs/chat_storage";
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
@@ -136,7 +136,9 @@ describe("ChatInterface stop flow", () => {
           onThemeMode: "light_mode",
         }}
       >
-        <ChatInterface />
+        <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+          <ChatInterface />
+        </LocaleContext.Provider>
       </ConfigContext.Provider>,
     );
 
@@ -508,6 +510,132 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("keeps low-risk shell tool calls in assistant trace frames", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run pwd" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "tool_call",
+        payload: {
+          call_id: "call-shell",
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "pwd" },
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "tool_result",
+        payload: {
+          call_id: "call-shell",
+          toolkit_id: "core",
+          tool_name: "shell",
+          result: { ok: true, stdout: "/tmp\n" },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.traceFrames).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool_call",
+            payload: expect.objectContaining({
+              call_id: "call-shell",
+              tool_name: "shell",
+            }),
+          }),
+          expect.objectContaining({
+            type: "tool_result",
+            payload: expect.objectContaining({
+              call_id: "call-shell",
+              tool_name: "shell",
+            }),
+          }),
+        ]),
+      );
+    });
+  });
+
+  test("replaces a bare shell tool call with the enriched confirmation frame", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run install" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "tool_call",
+        payload: {
+          call_id: "call-shell",
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "npm install" },
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "tool_call",
+        payload: {
+          call_id: "call-shell",
+          confirmation_id: "confirm-shell",
+          requires_confirmation: true,
+          toolkit_id: "core",
+          tool_name: "shell",
+          arguments: { action: "run", command: "npm install" },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      const shellToolCalls = (assistantMessage?.traceFrames || []).filter(
+        (frame) =>
+          frame.type === "tool_call" &&
+          frame.payload?.call_id === "call-shell",
+      );
+
+      expect(shellToolCalls).toHaveLength(1);
+      expect(shellToolCalls[0]?.payload).toEqual(
+        expect.objectContaining({
+          confirmation_id: "confirm-shell",
+          requires_confirmation: true,
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-shell"]?.status,
+      ).toBe("idle");
+    });
+  });
+
   test("auto-approves only toolkit-scoped tool matches", async () => {
     window.localStorage.setItem(
       "toolkit_auto_approve",
@@ -700,7 +828,7 @@ describe("ChatInterface stop flow", () => {
     );
   });
 
-  test("stores child lifecycle metadata and child trace frames separately from the main trace", async () => {
+  test("stores child lifecycle metadata and child shell trace frames separately from the main trace", async () => {
     renderChat();
     await waitForReady();
 
@@ -743,9 +871,10 @@ describe("ChatInterface stop flow", () => {
         run_id: "child-run-1",
         payload: {
           call_id: "child-call-1",
-          tool_name: "read_file",
+          tool_name: "shell",
           arguments: {
-            path: "src/unchain/kernel/__init__.py",
+            action: "run",
+            command: "pwd",
           },
         },
       });
@@ -770,6 +899,9 @@ describe("ChatInterface stop flow", () => {
           expect.objectContaining({
             type: "tool_call",
             run_id: "child-run-1",
+            payload: expect.objectContaining({
+              tool_name: "shell",
+            }),
           }),
         ]),
       );

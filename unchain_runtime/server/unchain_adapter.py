@@ -3514,17 +3514,6 @@ def stream_chat_events(
         getattr(agent, "_toolkits", []),
     )
 
-    # Build set of tool names that require confirmation — their tool_call
-    # events from on_event are suppressed because confirm_cb emits the
-    # enriched version with confirmation_id.
-    _confirmation_tool_names: set[str] = set()
-    for _tk in getattr(agent, "_toolkits", []):
-        for _tool in getattr(_tk, "tools", {}).values():
-            if getattr(_tool, "requires_confirmation", False):
-                _tname = getattr(_tool, "name", "")
-                if isinstance(_tname, str) and _tname.strip():
-                    _confirmation_tool_names.add(_tname.strip())
-
     def on_event(event: Dict[str, Any]) -> None:
         if not isinstance(event, dict):
             return
@@ -3541,10 +3530,6 @@ def stream_chat_events(
         # Suppress the bare tool_call for ask_user_question — our on_human_input
         # callback emits the proper PuPu-format tool_call with interact_config
         if event_type == "tool_call" and event.get("tool_name") == "ask_user_question":
-            return
-        # Suppress bare tool_call for tools that require confirmation —
-        # confirm_cb emits the enriched version with confirmation_id
-        if event_type == "tool_call" and event.get("tool_name") in _confirmation_tool_names:
             return
         # Enrich tool_call events with workspace display names
         if event_type == "tool_call" and _ws_display_names:
