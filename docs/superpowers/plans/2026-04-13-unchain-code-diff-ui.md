@@ -1,71 +1,83 @@
-# Unchain Code Diff UI — Implementation Plan
+# Unchain Code Diff UI — Implementation Plan (v2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Surface unified diffs as the approval UI for unchain's file-writing tools (`write_file` / `create_file` / `delete_file` / any `edit_*` tools), rendered in the PuPu frontend via a new `code_diff` interact component. Approved/rejected cards stay in the timeline as history.
+**Goal:** Surface unified diffs as the approval UI for `CoreToolkit.write` and `CoreToolkit.edit` in the standalone unchain repo, rendered in the PuPu frontend via a new `code_diff` interact component. Approved/rejected cards stay in the timeline as history. Session-based auto-approve is intentionally excluded.
 
-**Architecture:** Reuse the existing tool-confirmation protocol. unchain's `ToolConfirmationRequest` already supports `interact_type` / `interact_config`; we compute a unified diff payload inside a small hook on `WorkspaceToolkit` and set those fields from `unchain/tools/confirmation.py`. PuPu adapter already propagates these fields verbatim. Frontend gets a new `CodeDiffInteract` React component registered in `interactRegistry`.
+**Architecture:** Extend `ToolConfirmationPolicy` dataclass with `interact_type` / `interact_config` fields. Add a confirmation resolver to `write` and `edit` that reads the target file, computes a unified diff via `build_code_diff_payload`, and returns a policy carrying `interact_type="code_diff"` + `interact_config={...}`. `confirmation.py` is patched to propagate the new policy fields onto `ToolConfirmationRequest`. PuPu adapter already propagates arbitrary `interact_type` verbatim — one dead-code cleanup to its legacy tool-name list plus a regression test. Frontend gets a new `CodeDiffInteract` React component registered in `interactRegistry`.
 
-**Tech Stack:** Python `difflib.unified_diff` (stdlib), pytest, React (no new JS dependencies — diff is parsed inline), existing PuPu interact framework.
+**Tech Stack:** Python 3.12+ `difflib` (stdlib), pytest, React 19 function components with inline styles, React Testing Library.
 
-**Spec reference:** `docs/superpowers/specs/2026-04-13-unchain-code-diff-ui-design.md`
+**Spec:** `docs/superpowers/specs/2026-04-13-unchain-code-diff-ui-design.md`
+
+**Repos:**
+- unchain: `~/Desktop/GITRepo/unchain/` (branch `dev`)
+- PuPu: `~/Desktop/GITRepo/PuPu/` (branch `dev`)
 
 ---
 
 ## Investigation Findings (Step 0 — resolved before writing plan)
 
-All four open questions from the spec (§4.3) have been resolved via source grep:
+All 4 spec §4.3 open questions resolved by source grep. Plan tasks use these findings directly — no in-task investigation needed.
 
-1. **Confirmation callback contract (unchain):** `ToolConfirmationRequest` in `miso/src/unchain/tools/models.py:209-229` already has `interact_type: str = "confirmation"` and `interact_config: dict | list | None = None`. Its `to_dict()` emits these fields. The callback is invoked in `miso/src/unchain/tools/confirmation.py:38-45` as a pre-execution gate. **Implication:** no unchain kernel change — tools populate these fields on the request object.
+1. **`ToolConfirmationPolicy` shape**: defined at `unchain/src/unchain/tools/models.py:202-225`, frozen dataclass with fields `requires_confirmation: bool = True`, `description: str = ""`, `render_component: dict | None = None`. It does NOT yet have `interact_type` / `interact_config`. We extend it in Task 2.
 
-2. **File-writing tool inventory (unchain):** Lives in `miso/src/unchain/toolkits/builtin/workspace/workspace.py`. Confirmed: `write_file` (line 555), `create_file` (line 575), `delete_file` (line 593). Additional edit-shaped tools (`replace_lines`, `search_and_replace`, etc.) may exist — Task 3 grep-confirms and wires them in. No `multi_edit` / `apply_patch` was found in the initial sweep — Task 4 confirms absence or wires in if present.
+2. **`ToolConfirmationRequest` shape**: at `unchain/src/unchain/tools/models.py:286-310`, already has `interact_type: str = "confirmation"` and `interact_config: dict | list | None = None`. No dataclass change needed on the request side.
 
-3. **Reject contract:** `miso/src/unchain/tools/confirmation.py:71-86` — rejected calls return a dict `{"denied": True, "tool": ..., "reason": ...}` from the toolkit execute path, no exception. A `tool_denied` event is also emitted (line 49-58). **Implication:** `code_diff` preserves this automatically — we only change the *request* payload, not the response handling.
+3. **Confirmation resolver pattern**: `CoreToolkit.shell` uses this. Resolver registered via `self.register(self.shell, requires_confirmation=True, confirmation_resolver=self._resolve_shell_confirmation, ...)` at `unchain/src/unchain/toolkits/builtin/core/core.py:140-146`. Resolver signature: `(arguments: dict, execution_context: ToolExecutionContext | None) -> ToolConfirmationPolicy`. Framework invokes it at `unchain/src/unchain/tools/confirmation.py:74-79`. Reference impl at `core.py:922-943`.
 
-4. **PuPu adapter propagation:** `PuPu/unchain_runtime/server/unchain_adapter.py` — `_make_tool_confirm_callback` (~line 459) calls `_build_tool_confirmation_request_payload` (~line 294), which explicitly copies `interact_type` and `interact_config` from the request. **Implication:** zero adapter code change; Task 5 becomes a regression-test-only task.
+4. **`execute_confirmable_tool_call` request construction**: `unchain/src/unchain/tools/confirmation.py:94-113`. We patch inside this block to read `interact_type` / `interact_config` from `confirmation_policy` and pass them to the `ToolConfirmationRequest` constructor.
 
-**One spec correction:** `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES` in `unchain_adapter.py:134-139` currently lists `{write_file, delete_file, move_file, terminal_exec}` — it does **not** include `create_file` or any edit-shaped tool. Plan Task 2 adds `create_file`; Task 3 adds any edit tools it wires in.
+5. **PuPu adapter propagation**: `_make_tool_confirm_callback` (~line 459) delegates to `_build_tool_confirmation_request_payload` (~line 294) which already copies `interact_type` / `interact_config` verbatim from the request. Task 5 is a regression test + dead-code cleanup of `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES`.
+
+6. **Current write/edit confirmation goes through**: `CoreToolkit` hard-codes `requires_confirmation=True` when registering `write` and `edit` (`core.py:109-122`). PuPu's legacy tool-name list is dead code — it lists `write_file / delete_file / move_file` which don't exist in standalone unchain. Fixing the list doesn't change behavior, but it's worth cleaning up.
 
 ---
 
 ## File Structure
 
-**unchain** (`~/Desktop/GITRepo/miso/`):
+**unchain repo (`~/Desktop/GITRepo/unchain/`):**
 
 | File | Action | Responsibility |
 |---|---|---|
-| `src/unchain/tools/_diff_helpers.py` | create | `build_code_diff_payload` pure function + helpers |
-| `src/unchain/toolkits/builtin/workspace/workspace.py` | modify | Add `build_confirmation_interact(tool_name, arguments) -> dict \| None` method that dispatches per tool and calls `build_code_diff_payload` |
-| `src/unchain/tools/confirmation.py` | modify | After constructing `ToolConfirmationRequest`, if the toolkit implements `build_confirmation_interact`, call it and copy results into the request's `interact_type` / `interact_config` fields |
-| `tests/unchain/tools/test_diff_helpers.py` | create | Unit tests for `build_code_diff_payload` |
-| `tests/unchain/toolkits/test_workspace_code_diff.py` | create | Integration tests for `WorkspaceToolkit.build_confirmation_interact` |
-| `tests/unchain/tools/test_confirmation_interact_dispatch.py` | create | Test that `confirmation.py` calls toolkit hook and populates request |
+| `src/unchain/tools/_diff_helpers.py` | create | `build_code_diff_payload(path, old, new, operation)` pure stdlib function |
+| `src/unchain/tools/models.py` | modify | Extend `ToolConfirmationPolicy` dataclass with `interact_type` + `interact_config` fields; update `from_raw` classmethod to honor them |
+| `src/unchain/tools/confirmation.py` | modify | Read `interact_type` / `interact_config` from the active policy and pass them to the `ToolConfirmationRequest` constructor |
+| `src/unchain/toolkits/builtin/core/core.py` | modify | Add `_resolve_write_confirmation` and `_resolve_edit_confirmation` resolvers; wire them via `self.register(..., confirmation_resolver=...)` for `write` and `edit` |
+| `tests/test_diff_helpers.py` | create | 11 unit tests for `build_code_diff_payload` |
+| `tests/test_confirmation_policy_interact_fields.py` | create | Tests that `ToolConfirmationPolicy` carries `interact_type` / `interact_config` and propagates them to `ToolConfirmationRequest` via `execute_confirmable_tool_call` |
+| `tests/test_core_write_edit_code_diff.py` | create | Integration tests that `write` / `edit` resolvers produce valid `code_diff` policies and fall back on binary/oversized inputs |
 
-**PuPu** (`~/Desktop/GITRepo/PuPu/`):
+**PuPu repo (`~/Desktop/GITRepo/PuPu/`):**
 
 | File | Action | Responsibility |
 |---|---|---|
-| `unchain_runtime/server/unchain_adapter.py` | modify | Add `create_file` to `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES`. (+ any additional edit tools enumerated in Task 3) |
-| `src/COMPONENTs/interact/CodeDiffInteract.js` | create | New React interact component |
-| `src/COMPONENTs/interact/CodeDiffInteract.css` (or styled equivalent) | create | Styling for the three states |
-| `src/COMPONENTs/interact/interact_registry.js` | modify | Register `code_diff` → `CodeDiffInteract` |
-| `src/PAGEs/chat/hooks/use_chat_stream.js` | verify (no change expected) | Confirm `tool_call` dispatch is keyed on `interact_type` presence, not on `tool_name === "ask_user_question"` |
-| `tests/server/test_adapter_code_diff_propagation.py` | create | Regression test that adapter forwards `interact_type="code_diff"` verbatim |
-| `src/COMPONENTs/interact/__tests__/CodeDiffInteract.test.js` | create | Frontend unit tests (jest + RTL) |
+| `unchain_runtime/server/unchain_adapter.py` | modify | Replace stale `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES` entries with the new ones (dead-code cleanup) |
+| `unchain_runtime/server/tests/test_adapter_code_diff_propagation.py` | create | Regression test: adapter forwards `interact_type="code_diff"` verbatim |
+| `src/COMPONENTs/chat-bubble/interact/code_diff_interact.js` | create | New React interact component |
+| `src/COMPONENTs/chat-bubble/interact/interact_registry.js` | modify | Register `code_diff: CodeDiffInteract` |
+| `src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js` | create | RTL unit tests for the component |
+| `src/PAGEs/chat/hooks/use_chat_stream.js` | verify (no change expected) | Confirm `isAutoApprovable` still excludes `code_diff`; confirm `tool_call` dispatch is generic |
+| `src/PAGEs/chat/hooks/use_chat_stream.code_diff_guard.test.js` | create | Targeted regression test asserting `code_diff` is NOT auto-approved even when `sessionAutoApproveRef` would otherwise match |
 
-**Note:** The PuPu frontend file paths above (`src/COMPONENTs/interact/...`) are inferred from the spec. Task 6 verifies the actual location by locating `ConfirmInteract.js` and mirroring it.
+**Docs:**
+
+| File | Action |
+|---|---|
+| `docs/superpowers/plans/2026-04-13-unchain-code-diff-ui.md` | this plan |
+| `~/.claude/projects/-Users-red-Desktop/memory/project_pupu_code_diff_ui.md` | new memory entry on Task 9 |
 
 ---
 
 ## Task 1: `build_code_diff_payload` helper (unchain)
 
 **Files:**
-- Create: `~/Desktop/GITRepo/miso/src/unchain/tools/_diff_helpers.py`
-- Create: `~/Desktop/GITRepo/miso/tests/unchain/tools/test_diff_helpers.py`
+- Create: `~/Desktop/GITRepo/unchain/src/unchain/tools/_diff_helpers.py`
+- Create: `~/Desktop/GITRepo/unchain/tests/test_diff_helpers.py`
 
 - [ ] **Step 1.1: Write the failing tests**
 
-Create `tests/unchain/tools/test_diff_helpers.py`:
+Create `~/Desktop/GITRepo/unchain/tests/test_diff_helpers.py`:
 
 ```python
 """Unit tests for build_code_diff_payload."""
@@ -99,7 +111,7 @@ def test_create_mode():
     assert "+world" in result["unified_diff"]
 
 
-def test_delete_mode():
+def test_delete_mode_sanity():
     result = build_code_diff_payload("gone.py", "bye\nbye\n", "", "delete")
     assert result is not None
     assert result["sub_operation"] == "delete"
@@ -114,7 +126,6 @@ def test_truncation_over_200_lines():
     assert result["truncated"] is True
     assert result["displayed_lines"] == 200
     assert result["total_lines"] > 200
-    assert result["unified_diff"].count("\n") <= 200 + 5  # small slack for header
 
 
 def test_binary_bytes_with_nul_returns_none():
@@ -155,8 +166,7 @@ def test_crlf_lf_normalized():
     new = "line1\nline2\n"
     result = build_code_diff_payload("mixed.py", old, new, "edit")
     assert result is not None
-    # After normalization these should produce an empty or near-empty diff
-    assert "line1" not in result["unified_diff"] or result["unified_diff"] == ""
+    assert result["unified_diff"] == ""
 
 
 def test_bytes_input_decoded_as_utf8():
@@ -181,22 +191,22 @@ def test_exception_in_difflib_returns_none(monkeypatch):
 - [ ] **Step 1.2: Run tests to verify they fail**
 
 ```bash
-cd ~/Desktop/GITRepo/miso
-PYTHONPATH=src pytest tests/unchain/tools/test_diff_helpers.py -v
+cd ~/Desktop/GITRepo/unchain
+PYTHONPATH=src pytest tests/test_diff_helpers.py -v
 ```
 
 Expected: all fail with `ModuleNotFoundError: No module named 'unchain.tools._diff_helpers'`.
 
 - [ ] **Step 1.3: Implement `_diff_helpers.py`**
 
-Create `src/unchain/tools/_diff_helpers.py`:
+Create `~/Desktop/GITRepo/unchain/src/unchain/tools/_diff_helpers.py`:
 
 ```python
-"""Diff payload builder for code_diff interact UI.
+"""Diff payload builder for the code_diff interact UI.
 
-This is intentionally dependency-free (stdlib only) and returns None on any
-condition where a diff should NOT be shown (binary, oversized, internal error).
-Callers fall back to the legacy confirmation UI in that case.
+Dependency-free (stdlib only). Returns None on any condition where a diff
+should NOT be shown (binary, oversized, internal error); callers fall back
+to the legacy confirmation UI in that case.
 """
 from __future__ import annotations
 
@@ -244,10 +254,8 @@ def build_code_diff_payload(
     """Build a single file entry for a code_diff interact_config.
 
     Returns None when code_diff is NOT appropriate — caller must fall back
-    to the legacy confirmation path:
-      - binary content (NUL byte or non-UTF-8)
-      - combined old+new size exceeds max_bytes
-      - any unexpected exception (logged)
+    to the legacy confirmation path (binary content, oversized, or any
+    unexpected exception, which is logged at WARNING).
     """
     try:
         old_text = _coerce_text(old_content)
@@ -317,22 +325,22 @@ def build_code_diff_payload(
 - [ ] **Step 1.4: Run tests to verify they pass**
 
 ```bash
-PYTHONPATH=src pytest tests/unchain/tools/test_diff_helpers.py -v
+PYTHONPATH=src pytest tests/test_diff_helpers.py -v
 ```
 
-Expected: all 10 tests PASS.
+Expected: all 11 tests PASS.
 
 - [ ] **Step 1.5: Commit**
 
 ```bash
-cd ~/Desktop/GITRepo/miso
-git add src/unchain/tools/_diff_helpers.py tests/unchain/tools/test_diff_helpers.py
+cd ~/Desktop/GITRepo/unchain
+git add src/unchain/tools/_diff_helpers.py tests/test_diff_helpers.py
 git commit -m "$(cat <<'EOF'
-feat(unchain): add build_code_diff_payload helper
+feat(tools): add build_code_diff_payload helper
 
-Pure stdlib helper that emits unified-diff payloads for the upcoming
-code_diff interact UI, or returns None for binary / oversized / errored
-inputs so callers can fall back to legacy confirmation.
+Pure stdlib helper emitting unified-diff payloads for the upcoming
+code_diff interact UI, or None for binary / oversized / errored inputs
+so callers can fall back to legacy confirmation.
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
@@ -341,452 +349,372 @@ EOF
 
 ---
 
-## Task 2: `WorkspaceToolkit.build_confirmation_interact` hook + confirmation.py dispatch
+## Task 2: Extend `ToolConfirmationPolicy` with interact fields (unchain)
 
 **Files:**
-- Modify: `~/Desktop/GITRepo/miso/src/unchain/toolkits/builtin/workspace/workspace.py`
-- Modify: `~/Desktop/GITRepo/miso/src/unchain/tools/confirmation.py`
-- Create: `~/Desktop/GITRepo/miso/tests/unchain/toolkits/test_workspace_code_diff.py`
-- Create: `~/Desktop/GITRepo/miso/tests/unchain/tools/test_confirmation_interact_dispatch.py`
+- Modify: `~/Desktop/GITRepo/unchain/src/unchain/tools/models.py:202-225`
+- Create: `~/Desktop/GITRepo/unchain/tests/test_confirmation_policy_interact_fields.py`
 
-### 2A — Read the target files first
+- [ ] **Step 2.1: Write the failing test**
 
-- [ ] **Step 2.1: Read current `confirmation.py` in full to identify exact injection point**
-
-```bash
-cat ~/Desktop/GITRepo/miso/src/unchain/tools/confirmation.py
-```
-
-Locate the block around line 38-45 where `ToolConfirmationRequest` is constructed. Also identify how `tool_obj` → toolkit is reachable (typically there's a toolkit registry lookup). Record the exact variable names in a scratch note; the actual edit in Step 2.6 uses these names.
-
-- [ ] **Step 2.2: Read `WorkspaceToolkit` around line 555 to confirm tool method signatures**
-
-```bash
-sed -n '540,620p' ~/Desktop/GITRepo/miso/src/unchain/toolkits/builtin/workspace/workspace.py
-```
-
-Confirm that:
-- `write_file(self, path, content, append=False)` exists
-- `create_file` exists and takes similar args
-- `delete_file(self, path)` exists
-- There's a `_resolve_workspace_path()` helper for path → absolute-path resolution
-
-### 2B — Write the failing integration test for the toolkit hook
-
-- [ ] **Step 2.3: Write `tests/unchain/toolkits/test_workspace_code_diff.py`**
+Create `~/Desktop/GITRepo/unchain/tests/test_confirmation_policy_interact_fields.py`:
 
 ```python
-"""Integration tests for WorkspaceToolkit.build_confirmation_interact."""
+"""Tests for ToolConfirmationPolicy interact_type/interact_config fields."""
 from __future__ import annotations
 
-from pathlib import Path
-
-import pytest
-
-from unchain.toolkits.builtin.workspace.workspace import WorkspaceToolkit
+from unchain.tools.models import ToolConfirmationPolicy
 
 
-@pytest.fixture
-def workspace(tmp_path: Path) -> WorkspaceToolkit:
-    return WorkspaceToolkit(workspace_root=str(tmp_path))
+def test_policy_defaults():
+    p = ToolConfirmationPolicy()
+    assert p.requires_confirmation is True
+    assert p.description == ""
+    assert p.render_component is None
+    assert p.interact_type == "confirmation"
+    assert p.interact_config is None
 
 
-def test_write_file_overwrite_builds_edit_diff(workspace, tmp_path):
-    (tmp_path / "foo.py").write_text("old\n")
-    result = workspace.build_confirmation_interact(
-        "write_file", {"path": "foo.py", "content": "new\n"}
+def test_policy_with_code_diff_interact():
+    cfg = {
+        "title": "Edit foo.py",
+        "operation": "edit",
+        "path": "foo.py",
+        "unified_diff": "--- a/foo.py\n+++ b/foo.py\n",
+        "truncated": False,
+        "total_lines": 2,
+        "displayed_lines": 2,
+        "fallback_description": "edit foo.py (+1 -0)",
+    }
+    p = ToolConfirmationPolicy(
+        requires_confirmation=True,
+        description="Edit foo.py",
+        interact_type="code_diff",
+        interact_config=cfg,
     )
-    assert result is not None
-    assert result["interact_type"] == "code_diff"
-    cfg = result["interact_config"]
-    assert cfg["operation"] == "edit"
-    assert len(cfg["files"]) == 1
-    assert cfg["files"][0]["sub_operation"] == "edit"
-    assert "-old" in cfg["files"][0]["unified_diff"]
-    assert "+new" in cfg["files"][0]["unified_diff"]
+    assert p.interact_type == "code_diff"
+    assert p.interact_config == cfg
 
 
-def test_write_file_new_path_builds_create_diff(workspace, tmp_path):
-    result = workspace.build_confirmation_interact(
-        "write_file", {"path": "brand_new.py", "content": "hello\n"}
+def test_from_raw_bool_true():
+    p = ToolConfirmationPolicy.from_raw(True)
+    assert p.requires_confirmation is True
+    assert p.interact_type == "confirmation"
+    assert p.interact_config is None
+
+
+def test_from_raw_bool_false():
+    p = ToolConfirmationPolicy.from_raw(False)
+    assert p.requires_confirmation is False
+    assert p.interact_type == "confirmation"
+
+
+def test_from_raw_dict_with_interact_fields():
+    raw = {
+        "requires_confirmation": True,
+        "description": "Edit",
+        "interact_type": "code_diff",
+        "interact_config": {"operation": "edit", "path": "foo.py"},
+    }
+    p = ToolConfirmationPolicy.from_raw(raw)
+    assert p.interact_type == "code_diff"
+    assert p.interact_config == {"operation": "edit", "path": "foo.py"}
+
+
+def test_from_raw_dict_without_interact_fields():
+    raw = {"requires_confirmation": True, "description": "ok"}
+    p = ToolConfirmationPolicy.from_raw(raw)
+    assert p.interact_type == "confirmation"
+    assert p.interact_config is None
+
+
+def test_from_raw_passes_existing_policy_through():
+    original = ToolConfirmationPolicy(
+        requires_confirmation=True,
+        interact_type="code_diff",
+        interact_config={"foo": "bar"},
     )
-    assert result is not None
-    cfg = result["interact_config"]
-    assert cfg["operation"] == "create"
-    assert cfg["files"][0]["sub_operation"] == "create"
-
-
-def test_create_file_builds_create_diff(workspace, tmp_path):
-    result = workspace.build_confirmation_interact(
-        "create_file", {"path": "x.py", "content": "body\n"}
-    )
-    assert result is not None
-    assert result["interact_config"]["operation"] == "create"
-
-
-def test_delete_file_builds_delete_diff(workspace, tmp_path):
-    (tmp_path / "gone.py").write_text("bye\nbye\n")
-    result = workspace.build_confirmation_interact(
-        "delete_file", {"path": "gone.py"}
-    )
-    assert result is not None
-    cfg = result["interact_config"]
-    assert cfg["operation"] == "delete"
-    assert cfg["files"][0]["sub_operation"] == "delete"
-    assert "-bye" in cfg["files"][0]["unified_diff"]
-
-
-def test_binary_file_fallback_returns_none(workspace, tmp_path):
-    # Write a file with NUL bytes -> coerce_text returns None -> fallback
-    (tmp_path / "blob.bin").write_bytes(b"\x00\x01\x02")
-    result = workspace.build_confirmation_interact(
-        "write_file", {"path": "blob.bin", "content": "new text"}
-    )
-    assert result is None
-
-
-def test_append_mode_treats_existing_plus_new(workspace, tmp_path):
-    (tmp_path / "log.txt").write_text("line1\n")
-    result = workspace.build_confirmation_interact(
-        "write_file",
-        {"path": "log.txt", "content": "line2\n", "append": True},
-    )
-    assert result is not None
-    cfg = result["interact_config"]
-    assert cfg["operation"] == "edit"
-    assert "+line2" in cfg["files"][0]["unified_diff"]
-
-
-def test_unknown_tool_returns_none(workspace, tmp_path):
-    result = workspace.build_confirmation_interact(
-        "some_other_tool", {"path": "x"}
-    )
-    assert result is None
+    p = ToolConfirmationPolicy.from_raw(original)
+    assert p is original
 ```
 
-- [ ] **Step 2.4: Run tests to verify they fail**
+- [ ] **Step 2.2: Run tests to verify they fail**
 
 ```bash
-cd ~/Desktop/GITRepo/miso
-PYTHONPATH=src pytest tests/unchain/toolkits/test_workspace_code_diff.py -v
+cd ~/Desktop/GITRepo/unchain
+PYTHONPATH=src pytest tests/test_confirmation_policy_interact_fields.py -v
 ```
 
-Expected: all fail with `AttributeError: 'WorkspaceToolkit' object has no attribute 'build_confirmation_interact'`.
+Expected: all fail with `TypeError: __init__() got an unexpected keyword argument 'interact_type'`.
 
-### 2C — Implement the toolkit hook
+- [ ] **Step 2.3: Read current `models.py:202-225` to lock the exact context**
 
-- [ ] **Step 2.5: Add `build_confirmation_interact` method to `WorkspaceToolkit`**
+```bash
+sed -n '195,235p' ~/Desktop/GITRepo/unchain/src/unchain/tools/models.py
+```
 
-Open `~/Desktop/GITRepo/miso/src/unchain/toolkits/builtin/workspace/workspace.py`. Add this method on the `WorkspaceToolkit` class (near the other public methods, e.g. right before or after `write_file`):
+Confirm the class definition matches the investigation snippet (frozen dataclass, three fields, `from_raw` classmethod).
+
+- [ ] **Step 2.4: Patch `ToolConfirmationPolicy`**
+
+Edit `~/Desktop/GITRepo/unchain/src/unchain/tools/models.py`. Replace the existing `ToolConfirmationPolicy` dataclass and its `from_raw` classmethod with:
 
 ```python
-def build_confirmation_interact(
-    self,
-    tool_name: str,
-    arguments: dict,
-) -> dict | None:
-    """Return {interact_type, interact_config} for a file-tool call, or None.
+@dataclass(frozen=True)
+class ToolConfirmationPolicy:
+    requires_confirmation: bool = True
+    description: str = ""
+    render_component: dict[str, Any] | None = None
+    interact_type: str = "confirmation"
+    interact_config: dict[str, Any] | list[Any] | None = None
 
-    None signals the caller to fall back to the legacy confirmation UI
-    (binary content, oversized files, unknown tool, any error).
-    """
-    from unchain.tools._diff_helpers import build_code_diff_payload
-
-    try:
-        if tool_name in ("write_file", "create_file"):
-            path = arguments.get("path")
-            if not isinstance(path, str) or not path:
-                return None
-            new_content = arguments.get("content", "")
-            if not isinstance(new_content, (str, bytes)):
-                return None
-            target = self._resolve_workspace_path(path)
-
-            existed = target.exists() and target.is_file()
-            if existed:
-                try:
-                    old_bytes = target.read_bytes()
-                except OSError:
-                    return None
-            else:
-                old_bytes = b""
-
-            append = bool(arguments.get("append", False))
-            if append and existed:
-                if isinstance(new_content, bytes):
-                    new_bytes = old_bytes + new_content
-                else:
-                    try:
-                        new_bytes = old_bytes + new_content.encode("utf-8")
-                    except Exception:
-                        return None
-            else:
-                if isinstance(new_content, bytes):
-                    new_bytes = new_content
-                else:
-                    new_bytes = new_content.encode("utf-8")
-
-            if existed:
-                sub_op_hint = "edit"
-                operation = "edit"
-            else:
-                sub_op_hint = "create"
-                operation = "create"
-
-            file_payload = build_code_diff_payload(
-                path, old_bytes, new_bytes, sub_op_hint
+    @classmethod
+    def from_raw(
+        cls,
+        raw: bool | dict[str, Any] | "ToolConfirmationPolicy" | None,
+    ) -> "ToolConfirmationPolicy":
+        if isinstance(raw, ToolConfirmationPolicy):
+            return raw
+        if isinstance(raw, bool):
+            return cls(requires_confirmation=raw)
+        if isinstance(raw, dict):
+            render_component = raw.get("render_component")
+            interact_type_raw = raw.get("interact_type", "confirmation")
+            interact_type = (
+                interact_type_raw
+                if isinstance(interact_type_raw, str) and interact_type_raw
+                else "confirmation"
             )
-            if file_payload is None:
-                return None
-
-            title = (
-                f"{'Create' if operation == 'create' else 'Edit'} {path}"
+            interact_config_raw = raw.get("interact_config")
+            interact_config = (
+                interact_config_raw
+                if isinstance(interact_config_raw, (dict, list))
+                else None
             )
-            return {
-                "interact_type": "code_diff",
-                "interact_config": {
-                    "title": title,
-                    "operation": operation,
-                    "files": [file_payload],
-                    "overflow_count": 0,
-                    "fallback_description": self._describe_diff(file_payload),
-                },
-            }
-
-        if tool_name == "delete_file":
-            path = arguments.get("path")
-            if not isinstance(path, str) or not path:
-                return None
-            target = self._resolve_workspace_path(path)
-            if not (target.exists() and target.is_file()):
-                return None
-            try:
-                old_bytes = target.read_bytes()
-            except OSError:
-                return None
-
-            file_payload = build_code_diff_payload(
-                path, old_bytes, b"", "delete"
+            return cls(
+                requires_confirmation=bool(raw.get("requires_confirmation", True)),
+                description=str(raw.get("description") or ""),
+                render_component=render_component if isinstance(render_component, dict) else None,
+                interact_type=interact_type,
+                interact_config=interact_config,
             )
-            if file_payload is None:
-                return None
-            return {
-                "interact_type": "code_diff",
-                "interact_config": {
-                    "title": f"Delete {path}",
-                    "operation": "delete",
-                    "files": [file_payload],
-                    "overflow_count": 0,
-                    "fallback_description": self._describe_diff(file_payload),
-                },
-            }
-
-        return None
-    except Exception:
-        import logging
-        logging.getLogger(__name__).warning(
-            "build_confirmation_interact failed for %s", tool_name, exc_info=True
-        )
-        return None
-
-
-@staticmethod
-def _describe_diff(file_payload: dict) -> str:
-    path = file_payload.get("path", "?")
-    op = file_payload.get("sub_operation", "edit")
-    diff = file_payload.get("unified_diff", "")
-    plus = sum(1 for line in diff.split("\n") if line.startswith("+") and not line.startswith("+++"))
-    minus = sum(1 for line in diff.split("\n") if line.startswith("-") and not line.startswith("---"))
-    return f"{op} {path} (+{plus} -{minus})"
+        return cls()
 ```
 
-- [ ] **Step 2.6: Run toolkit tests to verify they pass**
+- [ ] **Step 2.5: Run tests to verify they pass**
 
 ```bash
-PYTHONPATH=src pytest tests/unchain/toolkits/test_workspace_code_diff.py -v
+PYTHONPATH=src pytest tests/test_confirmation_policy_interact_fields.py -v
 ```
 
 Expected: all 7 tests PASS.
 
-### 2D — Wire up `confirmation.py` dispatch
+- [ ] **Step 2.6: Commit**
 
-- [ ] **Step 2.7: Write the failing dispatch test**
+```bash
+cd ~/Desktop/GITRepo/unchain
+git add src/unchain/tools/models.py tests/test_confirmation_policy_interact_fields.py
+git commit -m "$(cat <<'EOF'
+feat(tools): add interact_type/interact_config to ToolConfirmationPolicy
 
-Create `tests/unchain/tools/test_confirmation_interact_dispatch.py`:
+Extends the policy dataclass so confirmation resolvers can surface
+custom interact payloads (e.g. code_diff) in addition to the existing
+render_component hook. from_raw() honors both new fields when
+constructing a policy from a dict.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 3: Propagate interact fields from policy to request (unchain)
+
+**Files:**
+- Modify: `~/Desktop/GITRepo/unchain/src/unchain/tools/confirmation.py:94-113`
+- Create: `~/Desktop/GITRepo/unchain/tests/test_confirmation_interact_propagation.py`
+
+- [ ] **Step 3.1: Write the failing test**
+
+Create `~/Desktop/GITRepo/unchain/tests/test_confirmation_interact_propagation.py`:
 
 ```python
-"""Test that confirmation.py invokes toolkit.build_confirmation_interact."""
+"""Test that execute_confirmable_tool_call propagates policy interact fields."""
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-import pytest
+from unchain.tools.confirmation import execute_confirmable_tool_call
+from unchain.tools.models import ToolConfirmationPolicy, ToolConfirmationRequest
 
 
-def test_confirmation_request_gets_code_diff_from_toolkit(monkeypatch):
-    from unchain.tools import confirmation as conf_mod
-    from unchain.tools.models import ToolConfirmationRequest
+def _make_tool_call(name: str = "write", args: dict | None = None, call_id: str = "c-1"):
+    tool_call = MagicMock()
+    tool_call.name = name
+    tool_call.call_id = call_id
+    tool_call.arguments = args if args is not None else {"path": "foo.py", "content": "x"}
+    return tool_call
 
-    captured_request: dict = {}
 
-    def fake_on_tool_confirm(req):
-        captured_request["req"] = req
-        return {"approved": True, "modified_arguments": None}
-
-    # Synthetic toolkit that returns a code_diff interact
-    synthetic_interact = {
-        "interact_type": "code_diff",
-        "interact_config": {"operation": "edit", "files": [{"path": "a.py"}]},
-    }
-
-    toolkit = MagicMock()
-    toolkit.execute.return_value = {"ok": True}
-    toolkit.build_confirmation_interact.return_value = synthetic_interact
-
+def _make_tool_obj(resolver_return):
     tool_obj = MagicMock()
     tool_obj.requires_confirmation = True
-    tool_obj.description = "desc"
+    tool_obj.observe = False
+    tool_obj.description = "write"
+    tool_obj.render_component = None
+    tool_obj.confirmation_resolver = MagicMock(return_value=resolver_return)
+    return tool_obj
 
-    tool_call = MagicMock()
-    tool_call.name = "write_file"
-    tool_call.call_id = "call-1"
-    tool_call.arguments = {"path": "a.py", "content": "x"}
 
-    # Exercise: call the real dispatch path from confirmation.py.
-    # The exact function name depends on current source — adapt the
-    # import below after reading confirmation.py in Step 2.1.
-    outcome = conf_mod.run_tool_with_confirmation(
-        tool_call=tool_call,
-        tool_obj=tool_obj,
+def test_policy_interact_fields_reach_request():
+    captured = {}
+
+    def on_tool_confirm(req: ToolConfirmationRequest):
+        captured["req"] = req
+        return {"approved": True, "modified_arguments": None}
+
+    policy = ToolConfirmationPolicy(
+        requires_confirmation=True,
+        description="Edit foo.py",
+        interact_type="code_diff",
+        interact_config={
+            "title": "Edit foo.py",
+            "operation": "edit",
+            "path": "foo.py",
+            "unified_diff": "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-old\n+new\n",
+            "truncated": False,
+            "total_lines": 5,
+            "displayed_lines": 5,
+            "fallback_description": "edit foo.py (+1 -1)",
+        },
+    )
+    toolkit = MagicMock()
+    toolkit.get.return_value = _make_tool_obj(policy)
+    toolkit.execute.return_value = {"ok": True}
+
+    outcome = execute_confirmable_tool_call(
         toolkit=toolkit,
-        on_tool_confirm=fake_on_tool_confirm,
+        tool_call=_make_tool_call(),
+        on_tool_confirm=on_tool_confirm,
+        loop=None,
         callback=None,
         run_id="run-1",
         iteration=0,
-        loop=None,
     )
 
     assert outcome.denied is False
-    req = captured_request["req"]
-    assert isinstance(req, ToolConfirmationRequest)
+    req = captured["req"]
     assert req.interact_type == "code_diff"
-    assert req.interact_config == synthetic_interact["interact_config"]
+    assert req.interact_config == policy.interact_config
 
 
-def test_confirmation_request_unchanged_when_toolkit_returns_none(monkeypatch):
-    from unchain.tools import confirmation as conf_mod
-    from unchain.tools.models import ToolConfirmationRequest
+def test_default_policy_keeps_request_defaults():
+    captured = {}
 
-    captured_request: dict = {}
-
-    def fake_on_tool_confirm(req):
-        captured_request["req"] = req
+    def on_tool_confirm(req: ToolConfirmationRequest):
+        captured["req"] = req
         return {"approved": True, "modified_arguments": None}
 
     toolkit = MagicMock()
+    toolkit.get.return_value = _make_tool_obj(ToolConfirmationPolicy())
     toolkit.execute.return_value = {"ok": True}
-    toolkit.build_confirmation_interact.return_value = None
 
-    tool_obj = MagicMock()
-    tool_obj.requires_confirmation = True
-    tool_obj.description = "desc"
-
-    tool_call = MagicMock()
-    tool_call.name = "write_file"
-    tool_call.call_id = "call-2"
-    tool_call.arguments = {"path": "blob.bin", "content": "x"}
-
-    conf_mod.run_tool_with_confirmation(
-        tool_call=tool_call,
-        tool_obj=tool_obj,
+    execute_confirmable_tool_call(
         toolkit=toolkit,
-        on_tool_confirm=fake_on_tool_confirm,
+        tool_call=_make_tool_call(),
+        on_tool_confirm=on_tool_confirm,
+        loop=None,
         callback=None,
         run_id="run-1",
         iteration=0,
-        loop=None,
     )
-
-    req = captured_request["req"]
-    assert req.interact_type == "confirmation"  # default unchanged
+    req = captured["req"]
+    assert req.interact_type == "confirmation"
     assert req.interact_config is None
 ```
 
-> **Implementation note for this test:** the exact name and signature of the dispatch function (`run_tool_with_confirmation` above) must match what exists in `confirmation.py` after Step 2.1. If the current API differs, rename both the test call and the actual production function consistently in Step 2.8.
-
-- [ ] **Step 2.8: Run the test to verify it fails**
+- [ ] **Step 3.2: Run tests to verify they fail**
 
 ```bash
-PYTHONPATH=src pytest tests/unchain/tools/test_confirmation_interact_dispatch.py -v
+cd ~/Desktop/GITRepo/unchain
+PYTHONPATH=src pytest tests/test_confirmation_interact_propagation.py -v
 ```
 
-Expected: fail — either with an AttributeError (toolkit hook not consulted) or assertion error (`interact_type == 'confirmation'` but we wanted `code_diff`).
+Expected: `test_policy_interact_fields_reach_request` fails because `req.interact_type == "confirmation"` (the default). Second test may already pass.
 
-- [ ] **Step 2.9: Patch `confirmation.py` to invoke the toolkit hook**
+- [ ] **Step 3.3: Read current `confirmation.py:94-113`**
 
-Locate the block in `src/unchain/tools/confirmation.py` where `ToolConfirmationRequest` is constructed (currently around line 38-45, per Step 2.1 findings). Immediately **before** calling `on_tool_confirm(confirmation_request)`, insert:
+```bash
+sed -n '70,120p' ~/Desktop/GITRepo/unchain/src/unchain/tools/confirmation.py
+```
+
+Confirm the block structure matches the investigation:
+- Line 74-79: `confirmation_policy = ToolConfirmationPolicy.from_raw(tool_obj.confirmation_resolver(...))`
+- Line ~94: `if tool_obj is not None and requires_confirmation and callable(on_tool_confirm):`
+- Line 103-113: `ToolConfirmationRequest(...)` construction.
+
+- [ ] **Step 3.4: Patch the request construction**
+
+Edit `~/Desktop/GITRepo/unchain/src/unchain/tools/confirmation.py`. In the `if tool_obj is not None and requires_confirmation and callable(on_tool_confirm):` block, locate the existing `confirmation_request = ToolConfirmationRequest(...)` call and replace it with this version that also passes `interact_type` and `interact_config`:
 
 ```python
-# Allow toolkit to upgrade the interact payload for this tool call.
-builder = getattr(toolkit, "build_confirmation_interact", None)
-if callable(builder):
-    try:
-        enhancement = builder(
-            tool_call.name,
-            tool_call.arguments if isinstance(tool_call.arguments, dict) else {},
+        # Propagate interact_type / interact_config from the resolved policy
+        # onto the request. Policy may be None if no resolver was registered —
+        # in that case the request defaults apply ("confirmation" / None).
+        policy_interact_type = (
+            confirmation_policy.interact_type
+            if confirmation_policy is not None
+            else "confirmation"
         )
-    except Exception:
-        import logging
-        logging.getLogger(__name__).warning(
-            "toolkit.build_confirmation_interact failed for %s",
-            tool_call.name,
-            exc_info=True,
+        policy_interact_config = (
+            confirmation_policy.interact_config
+            if confirmation_policy is not None
+            else None
         )
-        enhancement = None
-    if isinstance(enhancement, dict):
-        interact_type = enhancement.get("interact_type")
-        interact_config = enhancement.get("interact_config")
-        if isinstance(interact_type, str) and interact_type:
-            confirmation_request.interact_type = interact_type
-        if interact_config is not None:
-            confirmation_request.interact_config = interact_config
+
+        confirmation_request = ToolConfirmationRequest(
+            tool_name=tool_call.name,
+            call_id=tool_call.call_id,
+            arguments=tool_call.arguments if isinstance(tool_call.arguments, dict) else {},
+            description=(
+                confirmation_policy.description
+                if confirmation_policy is not None and confirmation_policy.description
+                else tool_obj.description
+            ),
+            interact_type=policy_interact_type,
+            interact_config=policy_interact_config,
+            render_component=effective_render,
+        )
 ```
 
-**Important:** if Step 2.1 revealed that `confirmation.py` does NOT already receive `toolkit` as a parameter in this code path, you must also plumb it in — either as a new parameter on the dispatch function or via an attribute on `tool_obj`. Keep this change minimal and mirror however `toolkit.execute(...)` is currently reached in the same function.
-
-- [ ] **Step 2.10: Run the dispatch test again**
+- [ ] **Step 3.5: Run tests to verify they pass**
 
 ```bash
-PYTHONPATH=src pytest tests/unchain/tools/test_confirmation_interact_dispatch.py -v
+PYTHONPATH=src pytest tests/test_confirmation_interact_propagation.py -v
 ```
 
 Expected: both tests PASS.
 
-- [ ] **Step 2.11: Run the entire unchain test suite to catch regressions**
+- [ ] **Step 3.6: Run the surrounding confirmation test suite to catch regressions**
 
 ```bash
-PYTHONPATH=src pytest tests/unchain/ -x --ignore=tests/test_broth_core.py --ignore=tests/test_agent_core.py
+PYTHONPATH=src pytest tests/ -k "confirmation or tool" --no-header 2>&1 | tail -20
 ```
 
-Expected: no new failures. If any pre-existing failures unrelated to this change show up, note them but do not fix here.
+Expected: no new failures. Note any pre-existing failures but do not fix them here.
 
-- [ ] **Step 2.12: Commit**
+- [ ] **Step 3.7: Commit**
 
 ```bash
-cd ~/Desktop/GITRepo/miso
-git add \
-  src/unchain/toolkits/builtin/workspace/workspace.py \
-  src/unchain/tools/confirmation.py \
-  tests/unchain/toolkits/test_workspace_code_diff.py \
-  tests/unchain/tools/test_confirmation_interact_dispatch.py
+cd ~/Desktop/GITRepo/unchain
+git add src/unchain/tools/confirmation.py tests/test_confirmation_interact_propagation.py
 git commit -m "$(cat <<'EOF'
-feat(unchain): wire code_diff interact for workspace file tools
+feat(tools): propagate policy interact fields to confirmation request
 
-WorkspaceToolkit now exposes build_confirmation_interact(), invoked
-from tools/confirmation.py before the user-confirmation callback.
-write_file / create_file / delete_file surface a unified diff as the
-approval payload; binary / oversized / errored inputs fall back to the
-legacy confirmation UI transparently.
+execute_confirmable_tool_call now copies interact_type / interact_config
+from the resolved ToolConfirmationPolicy onto ToolConfirmationRequest,
+enabling resolver-driven custom interact UIs (e.g. code_diff).
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
@@ -795,380 +723,598 @@ EOF
 
 ---
 
-## Task 3: Enumerate and wire additional edit-shaped tools
+## Task 4: Wire `write` / `edit` resolvers to produce `code_diff` policies (unchain)
 
 **Files:**
-- Modify: `~/Desktop/GITRepo/miso/src/unchain/toolkits/builtin/workspace/workspace.py` (extend `build_confirmation_interact` switch)
-- Modify: `~/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py` (extend `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES`)
-- Modify: `~/Desktop/GITRepo/miso/tests/unchain/toolkits/test_workspace_code_diff.py` (add cases per tool found)
+- Modify: `~/Desktop/GITRepo/unchain/src/unchain/toolkits/builtin/core/core.py`
+- Create: `~/Desktop/GITRepo/unchain/tests/test_core_write_edit_code_diff.py`
 
-- [ ] **Step 3.1: Discover edit-shaped tools**
+### 4A — Read the existing registration and tool bodies
 
-```bash
-cd ~/Desktop/GITRepo/miso
-grep -n "def " src/unchain/toolkits/builtin/workspace/workspace.py \
-  | grep -iE "edit|replace|patch|modify|insert|append"
-```
-
-Also check `toolkit.toml`:
+- [ ] **Step 4.1: Read the `write` and `edit` registration in `_register_tools`**
 
 ```bash
-grep -E "^\[\[tools\]\]|^name" src/unchain/toolkits/builtin/workspace/*.toml
+sed -n '90,160p' ~/Desktop/GITRepo/unchain/src/unchain/toolkits/builtin/core/core.py
 ```
 
-Record each tool name and its arguments. Typical suspects: `replace_lines`, `search_and_replace`, `insert_lines`, `apply_patch`.
+Confirm that `write` and `edit` are registered with `requires_confirmation=True` but no `confirmation_resolver`. Record the exact argument style (positional vs kwarg, trailing comma) to mirror it.
 
-- [ ] **Step 3.2: For each edit-shaped tool found, extend the switch in `build_confirmation_interact`**
+- [ ] **Step 4.2: Read the `write` and `edit` method bodies and helpers**
 
-Pattern: read the target file's current bytes, apply the tool's transformation **in memory** (use the same logic the tool itself uses, or call a shared helper), compute the diff, return the payload. If applying the transformation in memory is non-trivial or duplicates the tool, extract a `_simulate_<tool>(path, arguments) -> tuple[bytes, bytes]` helper that both the tool and `build_confirmation_interact` call.
+```bash
+sed -n '170,270p' ~/Desktop/GITRepo/unchain/src/unchain/toolkits/builtin/core/core.py  # _resolve_absolute_path, _read_text_file
+sed -n '345,475p' ~/Desktop/GITRepo/unchain/src/unchain/toolkits/builtin/core/core.py  # write, edit
+```
 
-Example for `replace_lines(path, start, end, new_content)`:
+Confirm helper signatures:
+- `self._resolve_absolute_path(path) -> (Path | None, str | None)`
+- `self._read_text_file(target) -> (str | None, dict | None)` (second element is an error payload)
+
+### 4B — Write the failing integration tests
+
+- [ ] **Step 4.3: Write `tests/test_core_write_edit_code_diff.py`**
 
 ```python
-if tool_name == "replace_lines":
-    path = arguments.get("path")
-    if not isinstance(path, str):
-        return None
-    target = self._resolve_workspace_path(path)
-    if not (target.exists() and target.is_file()):
-        return None
-    try:
-        old_bytes = target.read_bytes()
-        old_text = old_bytes.decode("utf-8")
-    except (OSError, UnicodeDecodeError):
-        return None
-    lines = old_text.splitlines(keepends=True)
-    start = int(arguments.get("start", 0))
-    end = int(arguments.get("end", start))
-    replacement = arguments.get("new_content", "")
-    if not isinstance(replacement, str):
-        return None
-    new_text = "".join(lines[:start]) + replacement + "".join(lines[end:])
-    file_payload = build_code_diff_payload(
-        path, old_bytes, new_text.encode("utf-8"), "edit"
-    )
-    if file_payload is None:
-        return None
-    return {
-        "interact_type": "code_diff",
-        "interact_config": {
-            "title": f"Edit {path}",
-            "operation": "edit",
-            "files": [file_payload],
-            "overflow_count": 0,
-            "fallback_description": self._describe_diff(file_payload),
-        },
-    }
-```
-
-**Do the same for every tool found in Step 3.1.** The common shape is: (1) parse args, (2) read old bytes, (3) simulate the edit in-memory, (4) build payload, (5) wrap in interact_config.
-
-- [ ] **Step 3.3: Add a test case per new tool in `test_workspace_code_diff.py`**
-
-For each new tool, mirror the structure of `test_write_file_overwrite_builds_edit_diff`: set up a file in `tmp_path`, call `workspace.build_confirmation_interact(tool_name, args)`, assert `interact_type == "code_diff"` and the diff contains expected `-old` / `+new` markers.
-
-- [ ] **Step 3.4: Run toolkit tests**
-
-```bash
-cd ~/Desktop/GITRepo/miso
-PYTHONPATH=src pytest tests/unchain/toolkits/test_workspace_code_diff.py -v
-```
-
-Expected: all PASS.
-
-- [ ] **Step 3.5: Extend PuPu's `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES`**
-
-Open `~/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py` and locate `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES` (~line 134-139). Add `create_file` and every edit-shaped tool enumerated in Step 3.1. Example (exact names depend on Step 3.1 findings):
-
-```python
-_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
-    "write_file",
-    "create_file",         # new
-    "delete_file",
-    "move_file",
-    "terminal_exec",
-    "replace_lines",       # new (if found)
-    "search_and_replace",  # new (if found)
-    # ... add all edit-shaped tools found
-}
-```
-
-- [ ] **Step 3.6: Commit**
-
-```bash
-cd ~/Desktop/GITRepo/miso
-git add src/unchain/toolkits/builtin/workspace/workspace.py tests/unchain/toolkits/test_workspace_code_diff.py
-git commit -m "$(cat <<'EOF'
-feat(unchain): extend code_diff to edit-shaped workspace tools
-
-Adds build_confirmation_interact branches for every edit-shaped tool
-in WorkspaceToolkit (replace_lines, search_and_replace, etc.) by
-simulating each tool's transformation in memory and reusing
-build_code_diff_payload.
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
-EOF
-)"
-
-cd ~/Desktop/GITRepo/PuPu
-git add unchain_runtime/server/unchain_adapter.py
-git commit -m "$(cat <<'EOF'
-feat(adapter): add create_file and edit tools to legacy confirm list
-
-Ensures the frontend receives confirmation events (including code_diff
-payloads) for every workspace tool that actually mutates disk.
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 4: Multi-file batch tool (conditional)
-
-**Files:**
-- Modify: `~/Desktop/GITRepo/miso/src/unchain/toolkits/builtin/workspace/workspace.py`
-- Modify: `~/Desktop/GITRepo/miso/tests/unchain/toolkits/test_workspace_code_diff.py`
-
-- [ ] **Step 4.1: Check whether a batch tool exists**
-
-```bash
-grep -niE "multi_edit|apply_patch|batch_edit|edit_many" \
-  ~/Desktop/GITRepo/miso/src/unchain/toolkits/builtin/workspace/
-```
-
-**If no such tool exists:** skip this task entirely. Document in the commit that no batch tool was found and move on.
-
-**If one exists:** continue to Step 4.2.
-
-- [ ] **Step 4.2: Add integration test for batch case**
-
-Append to `tests/unchain/toolkits/test_workspace_code_diff.py`:
-
-```python
-def test_batch_edit_builds_multi_diff(workspace, tmp_path):
-    (tmp_path / "a.py").write_text("A1\n")
-    (tmp_path / "b.py").write_text("B1\n")
-    (tmp_path / "c.py").write_text("C1\n")
-    result = workspace.build_confirmation_interact(
-        "<batch_tool_name>",  # replace with actual name
-        {
-            "edits": [  # replace arg shape with actual schema
-                {"path": "a.py", "content": "A2\n"},
-                {"path": "b.py", "content": "B2\n"},
-                {"path": "c.py", "content": "C2\n"},
-            ]
-        },
-    )
-    assert result is not None
-    cfg = result["interact_config"]
-    assert cfg["operation"] == "multi"
-    assert len(cfg["files"]) == 3
-    assert cfg["overflow_count"] == 0
-
-
-def test_batch_edit_overflow(workspace, tmp_path):
-    for i in range(12):
-        (tmp_path / f"f{i}.py").write_text(f"old{i}\n")
-    edits = [
-        {"path": f"f{i}.py", "content": f"new{i}\n"} for i in range(12)
-    ]
-    result = workspace.build_confirmation_interact(
-        "<batch_tool_name>", {"edits": edits}
-    )
-    assert result is not None
-    cfg = result["interact_config"]
-    assert len(cfg["files"]) == 10
-    assert cfg["overflow_count"] == 2
-
-
-def test_batch_edit_binary_member_falls_back(workspace, tmp_path):
-    (tmp_path / "good.py").write_text("ok\n")
-    (tmp_path / "blob.bin").write_bytes(b"\x00\x01")
-    result = workspace.build_confirmation_interact(
-        "<batch_tool_name>",
-        {
-            "edits": [
-                {"path": "good.py", "content": "ok2\n"},
-                {"path": "blob.bin", "content": "x"},
-            ]
-        },
-    )
-    assert result is None  # entire batch falls back
-```
-
-- [ ] **Step 4.3: Implement the batch branch in `build_confirmation_interact`**
-
-```python
-if tool_name == "<batch_tool_name>":
-    edits = arguments.get("edits")
-    if not isinstance(edits, list) or not edits:
-        return None
-
-    file_payloads: list[dict] = []
-    for edit in edits:
-        if not isinstance(edit, dict):
-            return None
-        sub_path = edit.get("path")
-        sub_content = edit.get("content", "")
-        if not isinstance(sub_path, str) or not sub_path:
-            return None
-        sub_target = self._resolve_workspace_path(sub_path)
-        if sub_target.exists() and sub_target.is_file():
-            try:
-                sub_old = sub_target.read_bytes()
-            except OSError:
-                return None
-            sub_op = "edit"
-        else:
-            sub_old = b""
-            sub_op = "create"
-        if isinstance(sub_content, bytes):
-            sub_new = sub_content
-        else:
-            try:
-                sub_new = sub_content.encode("utf-8")
-            except Exception:
-                return None
-        payload = build_code_diff_payload(
-            sub_path, sub_old, sub_new, sub_op
-        )
-        if payload is None:
-            return None  # atomic fallback for whole batch
-        file_payloads.append(payload)
-
-    MAX_DISPLAYED = 10
-    overflow = max(0, len(file_payloads) - MAX_DISPLAYED)
-    displayed = file_payloads[:MAX_DISPLAYED]
-    title = f"Multi-file edit ({len(file_payloads)} files)"
-    return {
-        "interact_type": "code_diff",
-        "interact_config": {
-            "title": title,
-            "operation": "multi",
-            "files": displayed,
-            "overflow_count": overflow,
-            "fallback_description": (
-                f"Batch edit of {len(file_payloads)} files"
-            ),
-        },
-    }
-```
-
-Replace `<batch_tool_name>` with the actual name, and `arguments.get("edits")` with the real arg key.
-
-- [ ] **Step 4.4: Run tests**
-
-```bash
-cd ~/Desktop/GITRepo/miso
-PYTHONPATH=src pytest tests/unchain/toolkits/test_workspace_code_diff.py -v
-```
-
-Expected: all PASS.
-
-- [ ] **Step 4.5: Commit**
-
-```bash
-git add src/unchain/toolkits/builtin/workspace/workspace.py tests/unchain/toolkits/test_workspace_code_diff.py
-git commit -m "$(cat <<'EOF'
-feat(unchain): support multi-file batch tool in code_diff
-
-Adds overflow handling (>10 files) and atomic fallback when any
-member of the batch is binary or oversized.
-
-Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
-EOF
-)"
-```
-
----
-
-## Task 5: PuPu adapter regression test
-
-**Files:**
-- Create: `~/Desktop/GITRepo/PuPu/tests/server/test_adapter_code_diff_propagation.py`
-
-- [ ] **Step 5.1: Write the regression test**
-
-```python
-"""Regression test: _build_tool_confirmation_request_payload propagates
-interact_type='code_diff' and interact_config verbatim."""
+"""Integration tests that CoreToolkit resolvers produce code_diff policies."""
 from __future__ import annotations
 
-from unchain_runtime.server.unchain_adapter import (
-    _build_tool_confirmation_request_payload,
-)
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from unchain.toolkits.builtin.core.core import CoreToolkit
+from unchain.tools.models import ToolConfirmationPolicy
 
 
-def test_code_diff_interact_type_is_preserved():
-    class FakeReq:
-        def to_dict(self):
-            return {
-                "tool_name": "write_file",
-                "call_id": "call-xyz",
-                "arguments": {"path": "foo.py", "content": "new"},
-                "description": "Write File",
-                "interact_type": "code_diff",
-                "interact_config": {
-                    "title": "Edit foo.py",
-                    "operation": "edit",
-                    "files": [
-                        {
-                            "path": "foo.py",
-                            "sub_operation": "edit",
-                            "unified_diff": "--- a/foo.py\n+++ b/foo.py\n",
-                            "truncated": False,
-                            "total_lines": 2,
-                            "displayed_lines": 2,
-                        }
-                    ],
-                    "overflow_count": 0,
-                    "fallback_description": "edit foo.py (+1 -0)",
-                },
-            }
+@pytest.fixture
+def toolkit(tmp_path: Path) -> CoreToolkit:
+    return CoreToolkit(workspace_root=str(tmp_path))
 
-    payload = _build_tool_confirmation_request_payload(FakeReq())
+
+def _abspath(tmp_path: Path, rel: str) -> str:
+    return str(tmp_path / rel)
+
+
+def test_write_overwrite_builds_code_diff_policy(toolkit, tmp_path):
+    target = tmp_path / "foo.py"
+    target.write_text("old\n")
+    policy = toolkit._resolve_write_confirmation(
+        {"path": _abspath(tmp_path, "foo.py"), "content": "new\n"},
+        None,
+    )
+    assert isinstance(policy, ToolConfirmationPolicy)
+    assert policy.requires_confirmation is True
+    assert policy.interact_type == "code_diff"
+    cfg = policy.interact_config
+    assert isinstance(cfg, dict)
+    assert cfg["operation"] == "edit"
+    assert cfg["path"] == _abspath(tmp_path, "foo.py")
+    assert "-old" in cfg["unified_diff"]
+    assert "+new" in cfg["unified_diff"]
+    assert cfg["truncated"] is False
+
+
+def test_write_new_path_builds_create_diff(toolkit, tmp_path):
+    policy = toolkit._resolve_write_confirmation(
+        {"path": _abspath(tmp_path, "brand_new.py"), "content": "hello\n"},
+        None,
+    )
+    assert policy.interact_type == "code_diff"
+    assert policy.interact_config["operation"] == "create"
+
+
+def test_write_binary_existing_falls_back(toolkit, tmp_path):
+    (tmp_path / "blob.bin").write_bytes(b"\x00\x01\x02")
+    policy = toolkit._resolve_write_confirmation(
+        {"path": _abspath(tmp_path, "blob.bin"), "content": "text"},
+        None,
+    )
+    # Fall back → plain confirmation, no interact override
+    assert policy.requires_confirmation is True
+    assert policy.interact_type == "confirmation"
+    assert policy.interact_config is None
+
+
+def test_edit_simple_replace_builds_code_diff(toolkit, tmp_path):
+    target = tmp_path / "foo.py"
+    target.write_text("hello world\n")
+    policy = toolkit._resolve_edit_confirmation(
+        {
+            "path": _abspath(tmp_path, "foo.py"),
+            "old_string": "world",
+            "new_string": "there",
+        },
+        None,
+    )
+    assert policy.interact_type == "code_diff"
+    cfg = policy.interact_config
+    assert cfg["operation"] == "edit"
+    assert "-hello world" in cfg["unified_diff"]
+    assert "+hello there" in cfg["unified_diff"]
+
+
+def test_edit_target_missing_falls_back(toolkit, tmp_path):
+    policy = toolkit._resolve_edit_confirmation(
+        {
+            "path": _abspath(tmp_path, "nope.py"),
+            "old_string": "x",
+            "new_string": "y",
+        },
+        None,
+    )
+    assert policy.requires_confirmation is True
+    assert policy.interact_type == "confirmation"
+
+
+def test_edit_old_string_not_found_falls_back(toolkit, tmp_path):
+    (tmp_path / "foo.py").write_text("alpha\n")
+    policy = toolkit._resolve_edit_confirmation(
+        {
+            "path": _abspath(tmp_path, "foo.py"),
+            "old_string": "MISSING",
+            "new_string": "y",
+        },
+        None,
+    )
+    assert policy.interact_type == "confirmation"
+
+
+def test_edit_large_diff_is_truncated(toolkit, tmp_path):
+    lines = [f"line {i}" for i in range(400)]
+    (tmp_path / "big.py").write_text("\n".join(lines) + "\n")
+    policy = toolkit._resolve_edit_confirmation(
+        {
+            "path": _abspath(tmp_path, "big.py"),
+            "old_string": "line ",
+            "new_string": "LINE ",
+            "replace_all": True,
+        },
+        None,
+    )
+    assert policy.interact_type == "code_diff"
+    cfg = policy.interact_config
+    assert cfg["truncated"] is True
+    assert cfg["displayed_lines"] == 200
+
+
+def test_write_resolver_registered_on_tool(toolkit):
+    tool = toolkit.tools.get("write")
+    assert tool is not None
+    assert tool.requires_confirmation is True
+    assert callable(tool.confirmation_resolver)
+
+
+def test_edit_resolver_registered_on_tool(toolkit):
+    tool = toolkit.tools.get("edit")
+    assert tool is not None
+    assert tool.requires_confirmation is True
+    assert callable(tool.confirmation_resolver)
+```
+
+- [ ] **Step 4.4: Run tests to verify they fail**
+
+```bash
+cd ~/Desktop/GITRepo/unchain
+PYTHONPATH=src pytest tests/test_core_write_edit_code_diff.py -v
+```
+
+Expected: all fail with `AttributeError: 'CoreToolkit' object has no attribute '_resolve_write_confirmation'` and similar for `_resolve_edit_confirmation`. The last two tests fail because `tool.confirmation_resolver` is `None`.
+
+### 4C — Implement the resolvers and wire them
+
+- [ ] **Step 4.5: Add the resolver methods to `CoreToolkit`**
+
+Open `~/Desktop/GITRepo/unchain/src/unchain/toolkits/builtin/core/core.py`. Add the following imports at the top of the file if not already present:
+
+```python
+from unchain.tools._diff_helpers import build_code_diff_payload
+```
+
+Then add these two methods on `CoreToolkit` (placement: near `_resolve_shell_confirmation` around line 922 — keep all confirmation resolvers together):
+
+```python
+    def _resolve_write_confirmation(
+        self,
+        arguments: dict[str, Any],
+        execution_context: "ToolExecutionContext | None",
+    ) -> ToolConfirmationPolicy:
+        """Build a code_diff confirmation policy for the `write` tool.
+
+        Falls back to a plain confirmation policy when the target is
+        binary, oversized, unreadable, or the path cannot be resolved.
+        """
+        path_arg = arguments.get("path")
+        new_content = arguments.get("content", "")
+        if not isinstance(path_arg, str) or not path_arg or not isinstance(new_content, str):
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        target, err = self._resolve_absolute_path(path_arg)
+        if target is None or err is not None:
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        existed = target.exists() and target.is_file()
+        if existed:
+            old_raw, load_error = self._read_text_file(target)
+            if old_raw is None or load_error is not None:
+                return ToolConfirmationPolicy(requires_confirmation=True)
+        else:
+            old_raw = ""
+
+        operation = "edit" if existed else "create"
+        file_payload = build_code_diff_payload(
+            str(target), old_raw, new_content, operation
+        )
+        if file_payload is None:
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        title = f"{'Edit' if existed else 'Create'} {target}"
+        interact_config = {
+            "title": title,
+            "operation": operation,
+            "path": str(target),
+            "unified_diff": file_payload["unified_diff"],
+            "truncated": file_payload["truncated"],
+            "total_lines": file_payload["total_lines"],
+            "displayed_lines": file_payload["displayed_lines"],
+            "fallback_description": self._describe_code_diff(file_payload, str(target)),
+        }
+        return ToolConfirmationPolicy(
+            requires_confirmation=True,
+            description=title,
+            interact_type="code_diff",
+            interact_config=interact_config,
+        )
+
+    def _resolve_edit_confirmation(
+        self,
+        arguments: dict[str, Any],
+        execution_context: "ToolExecutionContext | None",
+    ) -> ToolConfirmationPolicy:
+        """Build a code_diff confirmation policy for the `edit` tool.
+
+        Simulates the string-replace in memory to produce a diff without
+        mutating disk. Falls back to a plain confirmation policy when the
+        target is missing, binary, or the old_string is not found.
+        """
+        path_arg = arguments.get("path")
+        old_string = arguments.get("old_string")
+        new_string = arguments.get("new_string", "")
+        replace_all = bool(arguments.get("replace_all", False))
+
+        if (
+            not isinstance(path_arg, str) or not path_arg
+            or not isinstance(old_string, str)
+            or not isinstance(new_string, str)
+        ):
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        target, err = self._resolve_absolute_path(path_arg)
+        if target is None or err is not None:
+            return ToolConfirmationPolicy(requires_confirmation=True)
+        if not (target.exists() and target.is_file()):
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        old_raw, load_error = self._read_text_file(target)
+        if old_raw is None or load_error is not None:
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        match_count = old_raw.count(old_string)
+        if match_count == 0:
+            return ToolConfirmationPolicy(requires_confirmation=True)
+        if match_count > 1 and not replace_all:
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        replacement_count = match_count if replace_all else 1
+        new_raw = old_raw.replace(old_string, new_string, replacement_count)
+
+        file_payload = build_code_diff_payload(
+            str(target), old_raw, new_raw, "edit"
+        )
+        if file_payload is None:
+            return ToolConfirmationPolicy(requires_confirmation=True)
+
+        title = f"Edit {target}"
+        interact_config = {
+            "title": title,
+            "operation": "edit",
+            "path": str(target),
+            "unified_diff": file_payload["unified_diff"],
+            "truncated": file_payload["truncated"],
+            "total_lines": file_payload["total_lines"],
+            "displayed_lines": file_payload["displayed_lines"],
+            "fallback_description": self._describe_code_diff(file_payload, str(target)),
+        }
+        return ToolConfirmationPolicy(
+            requires_confirmation=True,
+            description=title,
+            interact_type="code_diff",
+            interact_config=interact_config,
+        )
+
+    @staticmethod
+    def _describe_code_diff(file_payload: dict, path: str) -> str:
+        diff = file_payload.get("unified_diff", "") or ""
+        plus = sum(
+            1 for line in diff.split("\n")
+            if line.startswith("+") and not line.startswith("+++")
+        )
+        minus = sum(
+            1 for line in diff.split("\n")
+            if line.startswith("-") and not line.startswith("---")
+        )
+        op = file_payload.get("sub_operation", "edit")
+        return f"{op} {path} (+{plus} -{minus})"
+```
+
+- [ ] **Step 4.6: Wire the resolvers into `_register_tools`**
+
+In the same file, find the existing `self.register(self.write, ...)` and `self.register(self.edit, ...)` calls (around line 109-122 per investigation). Add `confirmation_resolver=` kwargs:
+
+```python
+        self.register(
+            self.write,
+            description="Write UTF-8 text file (overwrite or create).",
+            requires_confirmation=True,
+            confirmation_resolver=self._resolve_write_confirmation,
+            history_arguments_optimizer=self._compact_write_args,
+        )
+        self.register(
+            self.edit,
+            description="Replace a string in a file (single or all occurrences).",
+            requires_confirmation=True,
+            confirmation_resolver=self._resolve_edit_confirmation,
+            history_arguments_optimizer=self._compact_edit_args,
+        )
+```
+
+Preserve any other kwargs already present in the existing registration calls (the shown snippet lists the ones known from investigation; if `_register_tools` passes additional options, keep them intact and only add `confirmation_resolver`).
+
+- [ ] **Step 4.7: Run tests to verify they pass**
+
+```bash
+cd ~/Desktop/GITRepo/unchain
+PYTHONPATH=src pytest tests/test_core_write_edit_code_diff.py -v
+```
+
+Expected: all 9 tests PASS.
+
+- [ ] **Step 4.8: Run full unchain suite for regressions**
+
+```bash
+PYTHONPATH=src pytest tests/ -q 2>&1 | tail -25
+```
+
+Expected: `test_core_toolkit.py` and other CoreToolkit tests still pass. Record any pre-existing failures (Broth migration debt) but do not fix here.
+
+- [ ] **Step 4.9: Commit**
+
+```bash
+cd ~/Desktop/GITRepo/unchain
+git add \
+  src/unchain/toolkits/builtin/core/core.py \
+  tests/test_core_write_edit_code_diff.py
+git commit -m "$(cat <<'EOF'
+feat(core): add code_diff confirmation resolvers for write/edit
+
+CoreToolkit.write and CoreToolkit.edit now surface a unified diff as
+their approval UI via _resolve_write_confirmation and
+_resolve_edit_confirmation. Each resolver reads the target file in
+memory, simulates the edit, computes a diff via
+build_code_diff_payload, and returns a ToolConfirmationPolicy carrying
+interact_type="code_diff" + interact_config. Binary / oversized /
+unresolvable / non-matching inputs fall back to a plain confirmation
+policy, preserving the legacy UI transparently.
+
+Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
+## Task 5: PuPu adapter — dead-code cleanup + propagation regression test
+
+**Files:**
+- Modify: `~/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py:133-138`
+- Create: `~/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/test_adapter_code_diff_propagation.py`
+
+### 5A — Regression test first
+
+- [ ] **Step 5.1: Check whether a tests directory already exists**
+
+```bash
+ls ~/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/ 2>&1
+```
+
+If it does not exist, create it:
+
+```bash
+mkdir -p ~/Desktop/GITRepo/PuPu/unchain_runtime/server/tests
+touch ~/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/__init__.py
+```
+
+- [ ] **Step 5.2: Write the regression test**
+
+Create `~/Desktop/GITRepo/PuPu/unchain_runtime/server/tests/test_adapter_code_diff_propagation.py`:
+
+```python
+"""Regression test: PuPu adapter propagates code_diff interact fields."""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+# Make the sibling unchain repo importable (mirrors production bootstrap)
+_UNCHAIN_SRC = Path(__file__).resolve().parents[3].parent / "unchain" / "src"
+if _UNCHAIN_SRC.is_dir() and str(_UNCHAIN_SRC) not in sys.path:
+    sys.path.insert(0, str(_UNCHAIN_SRC))
+
+# Make the server package importable
+_SERVER_DIR = Path(__file__).resolve().parents[1]
+if str(_SERVER_DIR) not in sys.path:
+    sys.path.insert(0, str(_SERVER_DIR))
+
+from unchain_adapter import _build_tool_confirmation_request_payload  # noqa: E402
+
+
+class _FakeReq:
+    def __init__(self, raw):
+        self._raw = raw
+
+    def to_dict(self):
+        return dict(self._raw)
+
+
+def test_code_diff_interact_fields_preserved():
+    cfg = {
+        "title": "Edit /abs/foo.py",
+        "operation": "edit",
+        "path": "/abs/foo.py",
+        "unified_diff": "--- a/foo.py\n+++ b/foo.py\n@@ -1 +1 @@\n-old\n+new\n",
+        "truncated": False,
+        "total_lines": 5,
+        "displayed_lines": 5,
+        "fallback_description": "edit /abs/foo.py (+1 -1)",
+    }
+    req = _FakeReq({
+        "tool_name": "write",
+        "call_id": "c-xyz",
+        "arguments": {"path": "/abs/foo.py", "content": "new"},
+        "description": "Edit /abs/foo.py",
+        "interact_type": "code_diff",
+        "interact_config": cfg,
+    })
+
+    payload = _build_tool_confirmation_request_payload(req)
+
     assert payload["interact_type"] == "code_diff"
-    assert payload["interact_config"]["operation"] == "edit"
-    assert payload["interact_config"]["files"][0]["path"] == "foo.py"
-    assert "render_component" not in payload
+    assert payload["interact_config"] == cfg
+    assert payload["tool_name"] == "write"
+    assert payload["arguments"] == {"path": "/abs/foo.py", "content": "new"}
 
 
-def test_confirmation_default_when_no_interact_type():
-    class FakeReq:
-        def to_dict(self):
-            return {
-                "tool_name": "write_file",
-                "call_id": "c-1",
-                "arguments": {},
-                "description": "",
-            }
-
-    payload = _build_tool_confirmation_request_payload(FakeReq())
+def test_default_interact_type_is_confirmation():
+    req = _FakeReq({
+        "tool_name": "write",
+        "call_id": "c-2",
+        "arguments": {},
+        "description": "",
+    })
+    payload = _build_tool_confirmation_request_payload(req)
     assert payload["interact_type"] == "confirmation"
     assert payload["interact_config"] == {}
 ```
 
-- [ ] **Step 5.2: Run and verify it passes**
+- [ ] **Step 5.3: Run the regression test**
 
 ```bash
 cd ~/Desktop/GITRepo/PuPu
-PYTHONPATH=. pytest tests/server/test_adapter_code_diff_propagation.py -v
+PYTHONPATH=unchain_runtime/server python -m pytest unchain_runtime/server/tests/test_adapter_code_diff_propagation.py -v
 ```
 
-Expected: PASS on both (current adapter code already does the right thing — this locks that contract).
+Expected: both tests PASS (the adapter already does the right thing — this locks the contract).
 
-- [ ] **Step 5.3: Commit**
+### 5B — Dead-code cleanup
+
+- [ ] **Step 5.4: Read the current legacy list and its call sites**
 
 ```bash
-git add tests/server/test_adapter_code_diff_propagation.py
-git commit -m "$(cat <<'EOF'
-test(adapter): lock code_diff interact_type propagation contract
+grep -n "_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES" ~/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py
+```
 
-Regression test ensures _build_tool_confirmation_request_payload
-forwards interact_type and interact_config verbatim — the frontend
-relies on this for the new code_diff UI.
+Expected matches: the definition (~line 133-138), `_should_force_legacy_confirmation` (~line 1442), and `_mark_workspace_tools_for_confirmation` (~line 2454).
+
+- [ ] **Step 5.5: Patch the list**
+
+In `~/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py`, locate:
+
+```python
+_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
+    "write_file",
+    "delete_file",
+    "move_file",
+    "terminal_exec",
+}
+```
+
+Replace with:
+
+```python
+_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
+    # Standalone unchain CoreToolkit names
+    "write",
+    "edit",
+    # TerminalToolkit (unchanged)
+    "terminal_exec",
+}
+```
+
+- [ ] **Step 5.6: Check the toolkit_id guard in `_should_force_legacy_confirmation`**
+
+```bash
+sed -n '1440,1455p' ~/Desktop/GITRepo/PuPu/unchain_runtime/server/unchain_adapter.py
+```
+
+This function checks `toolkit_id in {"workspace_toolkit", "terminal_toolkit"}`. The standalone unchain's CoreToolkit has `toolkit_id == "core"`, so `write` / `edit` still won't match this guard — which is fine, because CoreToolkit already hard-codes `requires_confirmation=True` on these tools at registration time. Leave the guard as-is; do NOT add `"core"`. The list cleanup is a pure cleanup — confirmation for `write`/`edit` continues to flow through the tool's own `requires_confirmation` attribute.
+
+Add a clarifying comment above the legacy list:
+
+```python
+# NOTE: this list originally forced legacy confirmation for miso's old
+# workspace/terminal tools. In the standalone unchain repo, CoreToolkit's
+# `write` and `edit` already declare `requires_confirmation=True` at
+# registration time (see unchain core.py), so inclusion here is mostly
+# defensive / cleanup. TerminalToolkit's `terminal_exec` still depends on
+# this list via `_should_force_legacy_confirmation`.
+_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
+    "write",
+    "edit",
+    "terminal_exec",
+}
+```
+
+- [ ] **Step 5.7: Rerun the regression test**
+
+```bash
+cd ~/Desktop/GITRepo/PuPu
+PYTHONPATH=unchain_runtime/server python -m pytest unchain_runtime/server/tests/test_adapter_code_diff_propagation.py -v
+```
+
+Expected: still passing.
+
+- [ ] **Step 5.8: Commit**
+
+Per PuPu's `.claude/CLAUDE.md`, run impact analysis before editing any symbol. Since `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES` is a module-level constant, run:
+
+```bash
+cd ~/Desktop/GITRepo/PuPu
+# Use the gitnexus MCP server from Claude Code; from a terminal this is
+# an indicative check only. The human reviewer running this plan should
+# invoke gitnexus_impact({target: "_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES",
+#                         direction: "upstream"}) and confirm d=1 callers
+# are limited to _should_force_legacy_confirmation and
+# _mark_workspace_tools_for_confirmation (both inside unchain_adapter.py).
+```
+
+Then commit:
+
+```bash
+git add \
+  unchain_runtime/server/unchain_adapter.py \
+  unchain_runtime/server/tests/test_adapter_code_diff_propagation.py \
+  unchain_runtime/server/tests/__init__.py
+git commit -m "$(cat <<'EOF'
+fix(adapter): update legacy confirmation list for standalone unchain
+
+Replaces stale {write_file, delete_file, move_file} entries with the
+standalone unchain tool names {write, edit}. Adds a regression test
+that locks the adapter's propagation contract for the new code_diff
+interact_type.
+
+This is a dead-code cleanup: CoreToolkit already declares these tools
+as requires_confirmation=True at registration, so runtime behavior is
+unchanged. The comment above the list clarifies the current role.
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
@@ -1177,221 +1323,233 @@ EOF
 
 ---
 
-## Task 6: `CodeDiffInteract` React component
+## Task 6: `CodeDiffInteract` React component + RTL tests
 
 **Files:**
-- Create: `~/Desktop/GITRepo/PuPu/src/COMPONENTs/interact/CodeDiffInteract.js` (path TBD from Step 6.1)
-- Create: test file alongside per PuPu convention
+- Create: `~/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/interact/code_diff_interact.js`
+- Create: `~/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js`
 
-### 6A — Locate existing interact components
+### 6A — Read neighbors for convention alignment
 
-- [ ] **Step 6.1: Find the existing interact components directory**
-
-```bash
-cd ~/Desktop/GITRepo/PuPu
-grep -rl "ConfirmInteract" src/ --include="*.js" --include="*.jsx"
-```
-
-Record the actual directory (e.g. `src/COMPONENTs/interact/` or `src/components/interact/`). Use this as the target directory for the new component. Read `ConfirmInteract.js` and `interact_registry.js` in full to match conventions (prop names, styling approach, imports).
-
-### 6B — Write the failing test
-
-- [ ] **Step 6.2: Write `CodeDiffInteract.test.js` alongside the existing interact tests**
-
-Locate how existing interact tests are structured:
+- [ ] **Step 6.1: Read `confirm_interact.js` to mirror imports, style tokens, button pattern**
 
 ```bash
-grep -rl "ConfirmInteract" src/ --include="*.test.js" --include="*.test.jsx"
+cat ~/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/interact/confirm_interact.js
 ```
 
-Mirror that structure. Write:
+Note: `useContext`, the `Button` import path, `theme?.modal || {}` access, `hexToRgba` helper, `buildActionStyle` pattern, `ACTION_BUTTON_WIDTH`, the `disabled` prop behavior.
 
-```jsx
+- [ ] **Step 6.2: Read the existing interact registry to confirm the import shape**
+
+```bash
+cat ~/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/interact/interact_registry.js
+```
+
+Record whether components are default-exported or named-exported by `ConfirmInteract`, and match.
+
+### 6B — Write the failing RTL tests
+
+- [ ] **Step 6.3: Write `code_diff_interact.test.js`**
+
+```js
 import React from "react";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { CodeDiffInteract } from "./CodeDiffInteract";
+import CodeDiffInteract from "./code_diff_interact";
 
 const baseConfig = {
-  title: "Edit foo.py",
+  title: "Edit /abs/foo.py",
   operation: "edit",
-  files: [
-    {
-      path: "foo.py",
-      sub_operation: "edit",
-      unified_diff:
-        "--- a/foo.py\n+++ b/foo.py\n@@ -1,2 +1,2 @@\n-old\n+new\n",
-      truncated: false,
-      total_lines: 4,
-      displayed_lines: 4,
-    },
-  ],
-  overflow_count: 0,
-  fallback_description: "edit foo.py (+1 -1)",
+  path: "/abs/foo.py",
+  unified_diff:
+    "--- a/foo.py\n+++ b/foo.py\n@@ -1,2 +1,2 @@\n-old\n+new\n",
+  truncated: false,
+  total_lines: 4,
+  displayed_lines: 4,
+  fallback_description: "edit /abs/foo.py (+1 -1)",
 };
 
+const baseUiState = { status: "pending", error: null, resolved: false, decision: null };
+
 describe("CodeDiffInteract", () => {
-  test("renders pending state with approve/reject buttons", () => {
+  test("pending state shows Approve/Reject buttons", () => {
     const onSubmit = jest.fn();
     render(
       <CodeDiffInteract
         config={baseConfig}
         onSubmit={onSubmit}
-        status="pending"
+        uiState={baseUiState}
         isDark={false}
-      />
+      />,
     );
-    expect(screen.getByText("Edit foo.py")).toBeInTheDocument();
-    expect(screen.getByText("foo.py")).toBeInTheDocument();
+    expect(screen.getByText("Edit /abs/foo.py")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /approve/i })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /reject/i })).toBeInTheDocument();
+    expect(screen.queryByText(/always allow/i)).not.toBeInTheDocument();
   });
 
-  test("classifies diff lines correctly", () => {
+  test("diff lines are classified by prefix", () => {
     render(
       <CodeDiffInteract
         config={baseConfig}
         onSubmit={jest.fn()}
-        status="pending"
+        uiState={baseUiState}
         isDark={false}
-      />
+      />,
     );
-    const added = screen.getByText("+new");
-    const removed = screen.getByText("-old");
-    expect(added).toHaveClass("diff-line-added");
-    expect(removed).toHaveClass("diff-line-removed");
+    expect(screen.getByText("-old")).toHaveAttribute(
+      "data-diff-kind",
+      "removed",
+    );
+    expect(screen.getByText("+new")).toHaveAttribute(
+      "data-diff-kind",
+      "added",
+    );
   });
 
-  test("renders approved state with badge and no buttons", () => {
+  test("approved state hides buttons and shows badge", () => {
     render(
       <CodeDiffInteract
         config={baseConfig}
         onSubmit={jest.fn()}
-        status="approved"
+        uiState={{ ...baseUiState, status: "resolved", resolved: true, decision: "approved" }}
         isDark={false}
-      />
+      />,
     );
     expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
     expect(screen.getByText(/approved/i)).toBeInTheDocument();
   });
 
-  test("renders rejected state with red badge", () => {
+  test("rejected state shows reject badge", () => {
     render(
       <CodeDiffInteract
         config={baseConfig}
         onSubmit={jest.fn()}
-        status="rejected"
+        uiState={{ ...baseUiState, status: "resolved", resolved: true, decision: "rejected" }}
         isDark={false}
-      />
+      />,
     );
     expect(screen.queryByRole("button", { name: /reject/i })).not.toBeInTheDocument();
     expect(screen.getByText(/rejected/i)).toBeInTheDocument();
   });
 
-  test("shows truncation notice when truncated", () => {
+  test("truncated notice shows hidden line count", () => {
     const cfg = {
       ...baseConfig,
-      files: [{ ...baseConfig.files[0], truncated: true, total_lines: 500, displayed_lines: 200 }],
+      truncated: true,
+      total_lines: 500,
+      displayed_lines: 200,
     };
     render(
       <CodeDiffInteract
         config={cfg}
         onSubmit={jest.fn()}
-        status="pending"
+        uiState={baseUiState}
         isDark={false}
-      />
+      />,
     );
     expect(screen.getByText(/300 more lines hidden/i)).toBeInTheDocument();
   });
 
-  test("shows overflow notice", () => {
-    const cfg = { ...baseConfig, overflow_count: 3 };
-    render(
-      <CodeDiffInteract
-        config={cfg}
-        onSubmit={jest.fn()}
-        status="pending"
-        isDark={false}
-      />
-    );
-    expect(screen.getByText(/\+ 3 more files not shown/i)).toBeInTheDocument();
-  });
-
-  test("clicking Approve calls onSubmit with approved:true", () => {
+  test("Approve click emits {approved:true, scope:'once'}", () => {
     const onSubmit = jest.fn();
     render(
       <CodeDiffInteract
         config={baseConfig}
         onSubmit={onSubmit}
-        status="pending"
+        uiState={baseUiState}
         isDark={false}
-      />
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: /approve/i }));
-    expect(onSubmit).toHaveBeenCalledWith({ approved: true });
+    expect(onSubmit).toHaveBeenCalledWith({ approved: true, scope: "once" });
   });
 
-  test("clicking Reject calls onSubmit with approved:false", () => {
+  test("Reject click emits {approved:false, scope:'once'}", () => {
     const onSubmit = jest.fn();
     render(
       <CodeDiffInteract
         config={baseConfig}
         onSubmit={onSubmit}
-        status="pending"
+        uiState={baseUiState}
         isDark={false}
-      />
+      />,
     );
     fireEvent.click(screen.getByRole("button", { name: /reject/i }));
-    expect(onSubmit).toHaveBeenCalledWith({ approved: false });
+    expect(onSubmit).toHaveBeenCalledWith({ approved: false, scope: "once" });
   });
 
-  test("malformed unified_diff falls back to <pre>", () => {
-    const cfg = {
-      ...baseConfig,
-      files: [
-        {
-          ...baseConfig.files[0],
-          unified_diff: "not a valid diff at all",
-        },
-      ],
-    };
+  test("malformed unified_diff renders fallback pre without crashing", () => {
+    const cfg = { ...baseConfig, unified_diff: "NOT A VALID DIFF AT ALL" };
     render(
       <CodeDiffInteract
         config={cfg}
         onSubmit={jest.fn()}
-        status="pending"
+        uiState={baseUiState}
         isDark={false}
-      />
+      />,
     );
-    // Should render something — no crash
-    expect(screen.getByText("foo.py")).toBeInTheDocument();
+    expect(screen.getByText("Edit /abs/foo.py")).toBeInTheDocument();
+    expect(screen.getByTestId("code-diff-fallback-pre")).toBeInTheDocument();
+  });
+
+  test("disabled prop hides buttons", () => {
+    render(
+      <CodeDiffInteract
+        config={baseConfig}
+        onSubmit={jest.fn()}
+        uiState={baseUiState}
+        isDark={false}
+        disabled
+      />,
+    );
+    expect(screen.queryByRole("button", { name: /approve/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /reject/i })).not.toBeInTheDocument();
   });
 });
 ```
 
-- [ ] **Step 6.3: Run the tests to verify they fail**
+- [ ] **Step 6.4: Run the tests to verify they fail**
 
 ```bash
 cd ~/Desktop/GITRepo/PuPu
-npx jest src/.../CodeDiffInteract.test.js
+npx jest src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js --no-coverage
 ```
 
 Expected: all fail (component does not exist).
 
 ### 6C — Implement the component
 
-- [ ] **Step 6.4: Create `CodeDiffInteract.js`**
-
-Use the exact directory discovered in Step 6.1. Match the file's module format (CJS / ESM) to neighbors:
+- [ ] **Step 6.5: Create `code_diff_interact.js`**
 
 ```jsx
-import React from "react";
+/**
+ * CodeDiffInteract – Approve / Reject with a unified diff preview.
+ *
+ * Props (standardised by InteractWrapper):
+ *   config   – { title, operation, path, unified_diff, truncated,
+ *               total_lines, displayed_lines, fallback_description }
+ *   onSubmit – called with { approved: boolean, scope: "once" }
+ *   uiState  – { status, error, resolved, decision }
+ *   isDark   – theme flag
+ *   disabled – true when actions should be blocked
+ *
+ * Does NOT support the "Always allow" scope. See
+ * docs/superpowers/specs/2026-04-13-unchain-code-diff-ui-design.md §3.5.
+ */
 
-const OP_LABELS = {
-  edit: "Edit",
-  create: "Create",
-  delete: "Delete",
-  multi: "Multi-file edit",
-};
+import { useContext, useMemo } from "react";
+import ConfigContext from "../../../CONTAINERs/config/config_context";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
+
+const ACTION_BUTTON_WIDTH = 96;
+
+const buildActionStyle = (accent) => ({
+  width: ACTION_BUTTON_WIDTH,
+  height: 28,
+  borderRadius: 6,
+  color: accent,
+  borderColor: accent,
+});
 
 function parseDiffLines(unifiedDiff) {
   if (!unifiedDiff || typeof unifiedDiff !== "string") return [];
@@ -1399,7 +1557,9 @@ function parseDiffLines(unifiedDiff) {
   let oldLineNo = 0;
   let newLineNo = 0;
   const lines = unifiedDiff.split("\n");
+  let sawHunk = false;
   for (const raw of lines) {
+    if (raw.length === 0) continue;
     if (raw.startsWith("---") || raw.startsWith("+++")) {
       rows.push({ kind: "file-header", text: raw });
       continue;
@@ -1410,6 +1570,7 @@ function parseDiffLines(unifiedDiff) {
         oldLineNo = parseInt(m[1], 10);
         newLineNo = parseInt(m[2], 10);
       }
+      sawHunk = true;
       rows.push({ kind: "hunk", text: raw });
       continue;
     }
@@ -1434,51 +1595,16 @@ function parseDiffLines(unifiedDiff) {
       newLineNo += 1;
       continue;
     }
-    if (raw.length === 0) continue;
-    rows.push({ kind: "context", text: raw });
   }
+  // If no hunk header ever seen, treat as malformed → caller uses fallback.
+  if (!sawHunk) return null;
   return rows;
-}
-
-function DiffBody({ unifiedDiff, isDark }) {
-  let rows;
-  try {
-    rows = parseDiffLines(unifiedDiff);
-  } catch (e) {
-    rows = null;
-  }
-  if (!rows || rows.length === 0) {
-    return (
-      <pre className={`code-diff-raw ${isDark ? "dark" : ""}`}>
-        {unifiedDiff || "(no changes)"}
-      </pre>
-    );
-  }
-  return (
-    <div className={`code-diff-body ${isDark ? "dark" : ""}`}>
-      {rows.map((row, idx) => {
-        let cls = "diff-line";
-        if (row.kind === "added") cls += " diff-line-added";
-        else if (row.kind === "removed") cls += " diff-line-removed";
-        else if (row.kind === "hunk") cls += " diff-line-hunk";
-        else if (row.kind === "file-header") cls += " diff-line-fileheader";
-        else cls += " diff-line-context";
-        return (
-          <div key={idx} className={cls}>
-            <span className="diff-lineno old">{row.oldNo ?? ""}</span>
-            <span className="diff-lineno new">{row.newNo ?? ""}</span>
-            <span className="diff-text">{row.text}</span>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 function countPlusMinus(unifiedDiff) {
   if (!unifiedDiff) return { plus: 0, minus: 0 };
-  let plus = 0,
-    minus = 0;
+  let plus = 0;
+  let minus = 0;
   for (const line of unifiedDiff.split("\n")) {
     if (line.startsWith("+") && !line.startsWith("+++")) plus += 1;
     else if (line.startsWith("-") && !line.startsWith("---")) minus += 1;
@@ -1486,232 +1612,287 @@ function countPlusMinus(unifiedDiff) {
   return { plus, minus };
 }
 
-function FileBlock({ file, isDark }) {
-  const { plus, minus } = countPlusMinus(file.unified_diff);
-  const hiddenCount = Math.max(0, (file.total_lines || 0) - (file.displayed_lines || 0));
+const DiffBody = ({ unifiedDiff, isDark }) => {
+  const rows = useMemo(() => parseDiffLines(unifiedDiff), [unifiedDiff]);
+  if (rows === null || rows === undefined) {
+    return (
+      <pre
+        data-testid="code-diff-fallback-pre"
+        style={{
+          fontFamily:
+            "ui-monospace, Menlo, Consolas, monospace",
+          fontSize: 12,
+          whiteSpace: "pre",
+          padding: 8,
+          margin: 0,
+          backgroundColor: isDark ? "#0d1117" : "#f6f8fa",
+          color: isDark ? "#e8e8e8" : "#1f2328",
+          overflowX: "auto",
+          borderRadius: 4,
+        }}
+      >
+        {unifiedDiff || "(no changes)"}
+      </pre>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div
+        style={{
+          fontSize: 12,
+          fontStyle: "italic",
+          color: isDark ? "#8c959f" : "#656d76",
+          padding: 8,
+        }}
+      >
+        (no changes)
+      </div>
+    );
+  }
   return (
-    <div className="code-diff-file">
-      <div className="code-diff-file-header">
-        <span className="code-diff-path">{file.path}</span>
-        <span className="code-diff-subop">{file.sub_operation}</span>
-        <span className="code-diff-stats">
+    <div
+      style={{
+        fontFamily: "ui-monospace, Menlo, Consolas, monospace",
+        fontSize: 12,
+        lineHeight: 1.5,
+        backgroundColor: isDark ? "#0d1117" : "#f6f8fa",
+        borderRadius: 4,
+        overflowX: "auto",
+        border: `1px solid ${isDark ? "#30363d" : "#eaeef2"}`,
+      }}
+    >
+      {rows.map((row, idx) => {
+        let bg = "transparent";
+        let fg = isDark ? "#e8e8e8" : "#1f2328";
+        if (row.kind === "added") {
+          bg = isDark ? "#033a16" : "#e6ffec";
+        } else if (row.kind === "removed") {
+          bg = isDark ? "#67060c" : "#ffebe9";
+        } else if (row.kind === "hunk") {
+          bg = isDark ? "#0c2d6b" : "#ddf4ff";
+          fg = isDark ? "#79c0ff" : "#0969da";
+        } else if (row.kind === "file-header") {
+          fg = isDark ? "#8c959f" : "#8c959f";
+        }
+        return (
+          <div
+            key={idx}
+            data-diff-kind={row.kind}
+            style={{
+              display: "flex",
+              padding: "0 8px",
+              whiteSpace: "pre",
+              backgroundColor: bg,
+              color: fg,
+            }}
+          >
+            <span
+              style={{
+                display: "inline-block",
+                width: "2.5em",
+                textAlign: "right",
+                paddingRight: 8,
+                color: isDark ? "#6e7681" : "#8c959f",
+                userSelect: "none",
+              }}
+            >
+              {row.oldNo ?? ""}
+            </span>
+            <span
+              style={{
+                display: "inline-block",
+                width: "2.5em",
+                textAlign: "right",
+                paddingRight: 8,
+                color: isDark ? "#6e7681" : "#8c959f",
+                userSelect: "none",
+              }}
+            >
+              {row.newNo ?? ""}
+            </span>
+            <span>{row.text}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const CodeDiffInteract = ({ config, onSubmit, uiState, disabled }) => {
+  const { isDark, theme } = useContext(ConfigContext);
+  const mt = theme?.modal || {};
+  const successAccent = mt.successAccent || (isDark ? "#4ADE80" : "#22C55E");
+  const errorAccent = mt.errorAccent || (isDark ? "#F87171" : "#DC3545");
+
+  const title = config?.title || "Code changes";
+  const operation = config?.operation || "edit";
+  const unifiedDiff = config?.unified_diff || "";
+  const truncated = Boolean(config?.truncated);
+  const totalLines = config?.total_lines || 0;
+  const displayedLines = config?.displayed_lines || 0;
+  const hiddenLines = Math.max(0, totalLines - displayedLines);
+
+  const { plus, minus } = countPlusMinus(unifiedDiff);
+
+  const resolved = Boolean(uiState?.resolved);
+  const decision = uiState?.decision;
+
+  let cardBorderLeft = `3px solid transparent`;
+  let cardOpacity = 1;
+  if (resolved && decision === "approved") {
+    cardBorderLeft = `3px solid ${successAccent}`;
+    cardOpacity = 0.75;
+  } else if (resolved && decision === "rejected") {
+    cardBorderLeft = `3px solid ${errorAccent}`;
+    cardOpacity = 0.75;
+  }
+
+  return (
+    <div
+      style={{
+        border: `1px solid ${isDark ? "#3a3a3a" : "#d0d7de"}`,
+        borderLeft: cardBorderLeft,
+        borderRadius: 8,
+        padding: 12,
+        margin: "8px 0",
+        backgroundColor: isDark ? "#1b1b1b" : "#ffffff",
+        color: isDark ? "#e8e8e8" : "#1f2328",
+        opacity: cardOpacity,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        <span style={{ fontWeight: 600 }}>{title}</span>
+        <span
+          style={{
+            fontSize: 10,
+            padding: "2px 6px",
+            borderRadius: 4,
+            textTransform: "uppercase",
+            backgroundColor: isDark ? "#2d2d2d" : "#eaeef2",
+            color: isDark ? "#cfcfcf" : "#57606a",
+          }}
+        >
+          {operation}
+        </span>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          fontSize: 11,
+          marginBottom: 6,
+          alignItems: "center",
+          color: isDark ? "#8c959f" : "#656d76",
+          fontFamily: "ui-monospace, Menlo, Consolas, monospace",
+        }}
+      >
+        <span>{config?.path || ""}</span>
+        <span style={{ marginLeft: "auto" }}>
           +{plus} -{minus}
         </span>
       </div>
-      <DiffBody unifiedDiff={file.unified_diff} isDark={isDark} />
-      {file.truncated && (
-        <div className="code-diff-truncated">
-          truncated — {hiddenCount} more lines hidden
+      <DiffBody unifiedDiff={unifiedDiff} isDark={isDark} />
+      {truncated && (
+        <div
+          style={{
+            fontSize: 11,
+            color: isDark ? "#8c959f" : "#656d76",
+            fontStyle: "italic",
+            padding: "4px 0 0 0",
+          }}
+        >
+          truncated — {hiddenLines} more lines hidden
         </div>
       )}
-    </div>
-  );
-}
-
-export function CodeDiffInteract({ config, onSubmit, status, isDark }) {
-  const title = config?.title || "Code changes";
-  const operation = config?.operation || "edit";
-  const files = Array.isArray(config?.files) ? config.files : [];
-  const overflow = config?.overflow_count || 0;
-
-  const stateClass =
-    status === "approved"
-      ? "code-diff-state-approved"
-      : status === "rejected"
-      ? "code-diff-state-rejected"
-      : "code-diff-state-pending";
-
-  return (
-    <div className={`code-diff-card ${stateClass} ${isDark ? "dark" : ""}`}>
-      <div className="code-diff-header">
-        <span className="code-diff-title">{title}</span>
-        <span className="code-diff-op-badge">{OP_LABELS[operation] || operation}</span>
-      </div>
-      <div className="code-diff-files">
-        {files.map((f, idx) => (
-          <FileBlock key={`${f.path}-${idx}`} file={f} isDark={isDark} />
-        ))}
-        {overflow > 0 && (
-          <div className="code-diff-overflow">+ {overflow} more files not shown</div>
-        )}
-      </div>
-      <div className="code-diff-footer">
-        {status === "pending" && (
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          marginTop: 10,
+          alignItems: "center",
+        }}
+      >
+        {!disabled && !resolved && (
           <>
-            <button
-              type="button"
-              className="code-diff-btn code-diff-btn-approve"
-              onClick={() => onSubmit && onSubmit({ approved: true })}
-            >
-              Approve
-            </button>
-            <button
-              type="button"
-              className="code-diff-btn code-diff-btn-reject"
-              onClick={() => onSubmit && onSubmit({ approved: false })}
-            >
-              Reject
-            </button>
+            <Button
+              label="Approve"
+              onClick={() => onSubmit && onSubmit({ approved: true, scope: "once" })}
+              style={buildActionStyle(successAccent)}
+            />
+            <Button
+              label="Reject"
+              onClick={() => onSubmit && onSubmit({ approved: false, scope: "once" })}
+              style={buildActionStyle(errorAccent)}
+            />
           </>
         )}
-        {status === "approved" && (
-          <span className="code-diff-badge code-diff-badge-approved">
+        {resolved && decision === "approved" && (
+          <span
+            style={{
+              fontSize: 12,
+              padding: "4px 10px",
+              borderRadius: 4,
+              backgroundColor: isDark ? "#0f2b14" : "#dafbe1",
+              color: isDark ? "#4ADE80" : "#1a7f37",
+            }}
+          >
             ✓ Approved
           </span>
         )}
-        {status === "rejected" && (
-          <span className="code-diff-badge code-diff-badge-rejected">
+        {resolved && decision === "rejected" && (
+          <span
+            style={{
+              fontSize: 12,
+              padding: "4px 10px",
+              borderRadius: 4,
+              backgroundColor: isDark ? "#2b0f13" : "#ffebe9",
+              color: isDark ? "#F87171" : "#82061e",
+            }}
+          >
             ✗ Rejected
           </span>
         )}
       </div>
     </div>
   );
-}
+};
 
 export default CodeDiffInteract;
 ```
 
-- [ ] **Step 6.5: Create `CodeDiffInteract.css`** (or the styled-components / SCSS equivalent used by neighbors)
+**Import path verification:** Step 6.1 determined the actual `ConfigContext` and `Button` module paths. Adjust the two import lines at the top of the file to match whatever `confirm_interact.js` uses. The paths `../../../CONTAINERs/config/config_context` and `../../../BUILTIN_COMPONENTs/input/button` above are the most likely based on the PuPu directory conventions in `CLAUDE.md`, but the source of truth is what the sibling `confirm_interact.js` actually imports.
 
-```css
-.code-diff-card {
-  border: 1px solid #d0d7de;
-  border-radius: 8px;
-  padding: 12px;
-  margin: 8px 0;
-  background: #ffffff;
-  font-family: inherit;
-}
-.code-diff-card.dark {
-  background: #1b1b1b;
-  border-color: #3a3a3a;
-  color: #e8e8e8;
-}
-.code-diff-card.code-diff-state-approved {
-  opacity: 0.75;
-  border-left: 3px solid #22c55e;
-}
-.code-diff-card.code-diff-state-rejected {
-  opacity: 0.75;
-  border-left: 3px solid #ef4444;
-}
-
-.code-diff-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-.code-diff-title { font-weight: 600; }
-.code-diff-op-badge {
-  font-size: 11px;
-  padding: 2px 6px;
-  background: #eaeef2;
-  border-radius: 4px;
-  text-transform: uppercase;
-}
-.code-diff-card.dark .code-diff-op-badge { background: #2d2d2d; }
-
-.code-diff-file { margin-bottom: 12px; }
-.code-diff-file-header {
-  display: flex;
-  gap: 8px;
-  font-size: 12px;
-  margin-bottom: 4px;
-  align-items: center;
-}
-.code-diff-path { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 600; }
-.code-diff-subop { color: #656d76; text-transform: uppercase; font-size: 10px; }
-.code-diff-stats { margin-left: auto; color: #656d76; font-family: ui-monospace, Menlo, monospace; }
-
-.code-diff-body {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.5;
-  border: 1px solid #eaeef2;
-  border-radius: 4px;
-  overflow-x: auto;
-  background: #f6f8fa;
-}
-.code-diff-card.dark .code-diff-body { background: #0d1117; border-color: #30363d; }
-.code-diff-raw {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 12px;
-  white-space: pre;
-  padding: 8px;
-  background: #f6f8fa;
-  border-radius: 4px;
-  overflow-x: auto;
-}
-.code-diff-card.dark .code-diff-raw { background: #0d1117; }
-
-.diff-line {
-  display: flex;
-  padding: 0 8px;
-  white-space: pre;
-}
-.diff-lineno {
-  display: inline-block;
-  width: 3em;
-  text-align: right;
-  padding-right: 8px;
-  color: #8c959f;
-  user-select: none;
-}
-.diff-line-added { background: #e6ffec; }
-.diff-line-removed { background: #ffebe9; }
-.code-diff-card.dark .diff-line-added { background: #033a16; }
-.code-diff-card.dark .diff-line-removed { background: #67060c; }
-.diff-line-hunk { background: #ddf4ff; color: #0969da; }
-.code-diff-card.dark .diff-line-hunk { background: #0c2d6b; color: #79c0ff; }
-.diff-line-fileheader { color: #8c959f; }
-
-.code-diff-truncated, .code-diff-overflow {
-  font-size: 11px;
-  color: #8c959f;
-  font-style: italic;
-  padding: 4px 8px;
-}
-
-.code-diff-footer { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
-.code-diff-btn {
-  padding: 6px 14px;
-  border: 1px solid #d0d7de;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 13px;
-  background: #f6f8fa;
-}
-.code-diff-btn-approve { background: #1f883d; color: white; border-color: #1f883d; }
-.code-diff-btn-reject { background: #ffffff; color: #cf222e; border-color: #cf222e; }
-.code-diff-badge { font-size: 12px; padding: 4px 10px; border-radius: 4px; }
-.code-diff-badge-approved { background: #dafbe1; color: #1a7f37; }
-.code-diff-badge-rejected { background: #ffebe9; color: #82061e; }
-```
-
-Import the CSS inside `CodeDiffInteract.js` with a single `import "./CodeDiffInteract.css";` if that's the pattern used by `ConfirmInteract.js`; otherwise inline styles per local convention.
-
-- [ ] **Step 6.6: Run tests**
+- [ ] **Step 6.6: Run the tests to verify they pass**
 
 ```bash
 cd ~/Desktop/GITRepo/PuPu
-npx jest src/.../CodeDiffInteract.test.js
+npx jest src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js --no-coverage
 ```
 
-Expected: all PASS. If any fail, read the assertion error and patch the component minimally — do not change the tests.
+Expected: all 9 tests PASS. If any fail, read the assertion error and patch the component minimally — do NOT rewrite the tests.
 
 - [ ] **Step 6.7: Commit**
 
 ```bash
-git add src/.../CodeDiffInteract.js src/.../CodeDiffInteract.css src/.../CodeDiffInteract.test.js
+git add src/COMPONENTs/chat-bubble/interact/code_diff_interact.js src/COMPONENTs/chat-bubble/interact/code_diff_interact.test.js
 git commit -m "$(cat <<'EOF'
 feat(ui): add CodeDiffInteract component
 
-New interact component renders unified diffs with per-line +/- coloring,
-three states (pending/approved/rejected), truncation and overflow notices,
-and approve/reject buttons that conform to the existing interact onSubmit
-contract.
+New interact component renders a unified diff with per-line +/-
+coloring, two-column line numbers, pending / approved / rejected
+states with D2 de-saturated styling, and Approve / Reject buttons.
+Intentionally omits the "Always allow" button — code_diff does not
+participate in session auto-approve (see spec §3.5).
+
+onSubmit payload is { approved: boolean, scope: "once" } for
+structural compatibility with ConfirmInteract.
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
@@ -1720,86 +1901,154 @@ EOF
 
 ---
 
-## Task 7: Register `code_diff` in interact registry + verify stream handler
+## Task 7: Register `code_diff` in interact registry + verify `use_chat_stream` guard
 
 **Files:**
-- Modify: `~/Desktop/GITRepo/PuPu/src/.../interact_registry.js`
-- Modify (conditional): `~/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.js`
+- Modify: `~/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/interact/interact_registry.js`
+- Create: `~/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.code_diff_guard.test.js`
+- Verify (no change): `~/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.js`
 
-- [ ] **Step 7.1: Read `interact_registry.js`**
+### 7A — Registry wiring
+
+- [ ] **Step 7.1: Read the current registry file**
 
 ```bash
-cat ~/Desktop/GITRepo/PuPu/src/.../interact_registry.js   # path from Task 6.1
+cat ~/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/interact/interact_registry.js
 ```
 
-- [ ] **Step 7.2: Add `code_diff` entry**
+- [ ] **Step 7.2: Add the import and registry entry**
 
-Edit `interact_registry.js` to import and register:
+Edit `~/Desktop/GITRepo/PuPu/src/COMPONENTs/chat-bubble/interact/interact_registry.js`. Add the import alongside the existing ones:
 
 ```js
-import { CodeDiffInteract } from "./CodeDiffInteract";
+import CodeDiffInteract from "./code_diff_interact";
+```
 
+Add the entry to the registry object (keep existing entries intact, match trailing comma / quoting style):
+
+```js
 const interactRegistry = {
-  confirmation: ConfirmInteract,
-  single: SingleSelectInteract,
-  multi: MultiSelectInteract,
-  text_input: TextInputInteract,
-  multi_choice: MultiChoiceInteract,
-  code_diff: CodeDiffInteract,  // new
+  // ... existing entries
+  code_diff: CodeDiffInteract,
 };
 ```
 
-Keep the exact surrounding style (named export vs default, trailing comma, semicolons) consistent with the existing file.
+### 7B — `use_chat_stream` guard verification
 
-- [ ] **Step 7.3: Verify `use_chat_stream.js` tool_call dispatch is generic**
+- [ ] **Step 7.3: Verify the tool_call dispatch is generic**
 
 ```bash
-grep -nE "ask_user_question|interact_type|tool_call" \
+grep -n "interact_type\|ask_user_question\|HUMAN_INPUT_TOOL_NAME" \
+  ~/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.js | head -20
+```
+
+Confirm that the `tool_call` frame handler dispatches to the interact path based on presence of `interact_type` in the payload, NOT hard-coded to `tool_name === "ask_user_question"`. If the check is generic, no change is needed.
+
+- [ ] **Step 7.4: Verify the `isAutoApprovable` guard still excludes non-confirmation types**
+
+```bash
+grep -n "isAutoApprovable\|isSessionAllowed" \
   ~/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.js
 ```
 
-**Two things to confirm by reading the matches:**
+The production line from commit `54f82c1` must be present and unchanged:
 
-(a) The `tool_call` frame handler that routes to `InteractWrapper` keys its decision on whether `frame.payload.interact_type` is set (or `frame.payload.interact_config` is non-null), **not** on `frame.payload.tool_name === "ask_user_question"`.
-
-(b) After receiving an approve/reject response from `/chat/tool/confirmation`, the frame is NOT removed from `message.traceFrames`. Instead a `status` field (or similar) is mutated to `"approved"` / `"rejected"`, and the interact component is re-rendered in the new state.
-
-**If (a) is already correct:** no change. Commit only the registry edit.
-
-**If (a) is wrong** (hard-coded on tool name): generalize the check. Replace a line like:
 ```js
-if (frame.type === "tool_call" && frame.payload.tool_name === "ask_user_question") { ... }
+(!itype || itype === "confirmation") &&
 ```
-with:
+
+If the clause has been weakened (e.g. removed or changed to allow `code_diff`), this is a regression — fix it to restore the guard before proceeding. If the clause is present, no change is needed.
+
+### 7C — Regression test for the guard
+
+- [ ] **Step 7.5: Write a targeted jest test**
+
+Create `~/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.code_diff_guard.test.js`:
+
 ```js
-if (frame.type === "tool_call" && frame.payload.interact_type) { ... }
+/**
+ * Guard regression test: a tool_call frame with interact_type="code_diff"
+ * must NOT be auto-approved even when the same toolkit:tool pair is in
+ * the session auto-approve set. This locks the spec §5.3 verification.
+ *
+ * We verify the guard by reading the source file and asserting the
+ * critical clause is present. A full hook integration test would drag
+ * in the entire streaming pipeline; a source assertion is the lightest
+ * way to lock the invariant against future refactors.
+ */
+
+const fs = require("fs");
+const path = require("path");
+
+const HOOK_PATH = path.join(__dirname, "use_chat_stream.js");
+
+describe("use_chat_stream code_diff auto-approve guard", () => {
+  let source;
+
+  beforeAll(() => {
+    source = fs.readFileSync(HOOK_PATH, "utf8");
+  });
+
+  test("source file exists", () => {
+    expect(source.length).toBeGreaterThan(0);
+  });
+
+  test("isAutoApprovable clause excludes non-confirmation interact types", () => {
+    // The exact clause from 54f82c1 — must remain literally in place.
+    const clause = /\(!itype\s*\|\|\s*itype\s*===\s*"confirmation"\)/;
+    expect(source).toMatch(clause);
+  });
+
+  test("isAutoApprovable branch references HUMAN_INPUT_TOOL_NAME", () => {
+    // Human input must also be excluded from session auto-approve.
+    expect(source).toMatch(/toolName\s*!==\s*HUMAN_INPUT_TOOL_NAME/);
+  });
+
+  test("sessionAutoApproveRef key shape is toolkitId:toolName", () => {
+    // Ensure keys don't accidentally become path-scoped later, which
+    // would broaden the auto-approve surface.
+    expect(source).toMatch(/sessionAutoApproveRef\.current\.has\(\s*`\$\{toolkitId\}:\$\{toolName\}`\s*\)/);
+  });
+});
 ```
-and confirm the surrounding branch still handles `ask_user_question` (it should — same code path).
 
-**If (b) is wrong** (frame removed on response): change the response handler so it *updates* the frame's `status` in `message.traceFrames` rather than filtering it out. The exact diff depends on current structure — keep the change targeted.
-
-- [ ] **Step 7.4: Manual sanity check — does the app still boot?**
+- [ ] **Step 7.6: Run the test to verify it passes**
 
 ```bash
 cd ~/Desktop/GITRepo/PuPu
-# Use whatever start command is canonical (check package.json "scripts"):
-grep -A5 '"scripts"' package.json
-# Then run the dev server — e.g.:
-npm run dev  # or npm start / yarn dev
+npx jest src/PAGEs/chat/hooks/use_chat_stream.code_diff_guard.test.js --no-coverage
 ```
 
-Open the app, send one message to an agent that just echoes text (no file tool). Confirm no JavaScript errors in console and that previous interact types (ask_user_question if reachable) still work. Kill the dev server.
+Expected: all 4 tests PASS (assuming the guard is still in place; if it isn't, this test is the canary that will fire in CI forever).
 
-- [ ] **Step 7.5: Commit**
+### 7D — Sanity check and commit
+
+- [ ] **Step 7.7: Boot the dev server for a sanity check**
 
 ```bash
-git add src/.../interact_registry.js
-# Only include use_chat_stream.js if it was actually modified
-git commit -m "$(cat <<'EOF'
-feat(ui): register code_diff in interact registry
+cd ~/Desktop/GITRepo/PuPu
+npm run start:web
+```
 
-Wires up the new CodeDiffInteract component. [If use_chat_stream.js was
-touched, add a second sentence explaining the targeted change.]
+Wait until the React dev server is ready (watch for "Compiled successfully" or similar). Open the app in a browser, confirm no JavaScript console errors at boot, confirm the existing `ConfirmInteract` still renders (by triggering any shell / ask_user_question flow). Kill the dev server.
+
+If there are console errors introduced by the new registry entry, check for typos in the import path or missing default export; fix and re-run.
+
+- [ ] **Step 7.8: Commit**
+
+Per PuPu's `.claude/CLAUDE.md`, before committing run `gitnexus_detect_changes({scope: "staged"})` from Claude Code to verify the change set matches expectations.
+
+```bash
+git add \
+  src/COMPONENTs/chat-bubble/interact/interact_registry.js \
+  src/PAGEs/chat/hooks/use_chat_stream.code_diff_guard.test.js
+git commit -m "$(cat <<'EOF'
+feat(ui): register code_diff in interact registry + guard test
+
+Wires CodeDiffInteract into the interact registry. Adds a regression
+test that asserts the existing use_chat_stream.js isAutoApprovable
+clause continues to exclude non-confirmation interact types (spec §5.3
+safety red line).
 
 Co-Authored-By: Claude Opus 4.6 (1M context) <noreply@anthropic.com>
 EOF
@@ -1810,43 +2059,67 @@ EOF
 
 ## Task 8: End-to-end manual verification
 
-**No file changes.** This is the final verification gate before declaring the feature done.
+No file changes — this is the final verification gate.
 
-- [ ] **Step 8.1: Start PuPu in dev mode connected to the unchain branch**
+- [ ] **Step 8.1: Boot PuPu in dev mode against the unchain branch**
 
-Follow the project's standard dev-run procedure. Ensure unchain is resolved from `~/Desktop/GITRepo/miso/src` (editable install or sys-path equivalent) so the workspace toolkit changes are active.
+In one terminal:
+
+```bash
+cd ~/Desktop/GITRepo/unchain
+git log --oneline -1  # verify you're on the branch with Task 1-4 commits
+```
+
+In another terminal:
+
+```bash
+cd ~/Desktop/GITRepo/PuPu
+UNCHAIN_SOURCE_PATH="$HOME/Desktop/GITRepo/unchain" npm start
+```
+
+The `UNCHAIN_SOURCE_PATH` env var (see `unchain_adapter.py:23-39`) forces PuPu to load the standalone unchain repo at the expected branch. Wait until both Flask and React are up.
 
 - [ ] **Step 8.2: Run the E2E checklist**
 
-For each scenario below, open a chat, instruct the agent, and verify the expected outcome. Check the box only when the scenario is green.
+For each scenario, prompt a real agent run and check the expected outcome. Check the box ONLY when green.
 
-- [ ] **E2E-1 (small edit):** Ask the agent to edit an existing `.py` file in the workspace with a small change. **Expect:** diff card appears, shows removed and added lines, Approve button works, after approve the card de-saturates with a green left edge, diff content still visible.
-- [ ] **E2E-2 (create):** Ask agent to create a new `.md` file with a few lines. **Expect:** card shows operation "create", every line prefixed with `+`, approve works.
-- [ ] **E2E-3 (delete):** Ask agent to delete a file. **Expect:** card shows "delete", all lines prefixed with `-`, red/green edge on approve.
-- [ ] **E2E-4 (truncation):** Pre-populate a file with 500 lines, ask agent to rewrite all 500. **Expect:** diff shows ~200 lines, then the "X more lines hidden" notice.
-- [ ] **E2E-5 (binary fallback):** Ask agent to write to a path whose existing content is binary (e.g. a PNG). **Expect:** falls back to the legacy confirmation UI, no crash.
-- [ ] **E2E-6 (reject):** Ask agent to write a file, click Reject. **Expect:** card takes rejected style (red edge, "✗ Rejected"), agent receives the denial (it should say something like "user denied" or retry), no hang.
-- [ ] **E2E-7 (history persistence):** After approving a diff, send more messages so the chat scrolls. Scroll back up. **Expect:** the old diff card still renders correctly in approved state.
-- [ ] **E2E-8 (batch, only if Task 4 applied):** Ask agent to use the batch tool on 3 files. **Expect:** single card with 3 file blocks, single approve, all three execute.
-- [ ] **E2E-9 (overflow, only if Task 4 applied):** Ask agent to use the batch tool on 12 files. **Expect:** 10 file blocks + "+2 more files not shown" notice.
-- [ ] **E2E-10 (regression: ask_user_question):** Trigger a flow that uses `ask_user_question` (any existing questionnaire path). **Expect:** unchanged behavior — single/multi/text_input UIs still work.
+- [ ] **E2E-1 (write overwrite):** Ask the agent to rewrite an existing small `.py` file in the workspace. Expect: diff card appears with `-` / `+` lines, Approve button works, card de-saturates with a green left edge, diff still visible.
+- [ ] **E2E-2 (write create):** Ask the agent to create a new `.md` file. Expect: card shows operation "create" badge; every line prefixed with `+`; Approve works.
+- [ ] **E2E-3 (edit string replace):** Ask the agent to `edit` a single word in an existing file. Expect: one `-old` / `+new` pair in the diff; Approve works.
+- [ ] **E2E-4 (truncation):** Pre-populate a file with ~500 lines of a pattern, ask the agent to `edit` with `replace_all` to change every line. Expect: diff shows ~200 lines, then "truncated — N more lines hidden" notice.
+- [ ] **E2E-5 (binary fallback):** Ask the agent to `write` to a path whose existing content is binary (e.g. an existing PNG). Expect: falls back to the legacy `ConfirmInteract` UI (Allow once / Always allow / Deny buttons), no crash.
+- [ ] **E2E-6 (reject):** On a `write` diff card, click Reject. Expect: card takes rejected style (red edge, "✗ Rejected"), agent receives `{"denied": True, ...}` and continues gracefully (no hang, no orphan event).
+- [ ] **E2E-7 (history persistence):** After approving a diff, send several more messages so the chat scrolls. Scroll back up. Expect: the old diff card still renders correctly in approved state.
+- [ ] **E2E-8 (session guard):** On a `write` diff card, click Approve. Immediately trigger another `write` to a different file. Expect: a NEW diff card appears (NOT auto-approved), proving the session auto-approve fast-lane does not swallow `code_diff`.
+- [ ] **E2E-9 (regression: ConfirmInteract):** Trigger a flow that uses `ask_user_question` (any existing questionnaire path). Expect: unchanged behavior — single / multi / text_input UIs still work.
+- [ ] **E2E-10 (regression: ConfirmInteract Always allow):** Trigger a `shell` confirmation (not code_diff — a non-file shell action). Click "Always allow". Trigger the same shell again. Expect: second call is auto-approved (existing behavior unchanged).
 
 - [ ] **Step 8.3: If any E2E scenario fails**
 
 Do NOT paper over with a quick fix. Root-cause it:
-- Check the browser console for JS errors → likely a component / registry issue (Task 6 or 7)
-- Check the PuPu server logs for Python errors → likely an adapter propagation issue (Task 2 or 5)
-- Check the unchain logs → likely a toolkit hook issue (Task 2 or 3)
-Narrow the failure with the smallest possible repro, then fix in the corresponding task's code and re-run that E2E case. Add a test capturing the bug before committing the fix.
+- Browser console errors → Task 6 or 7 component / registry issue
+- PuPu Flask log errors → Task 5 adapter or propagation issue
+- unchain log errors → Task 3 or 4 resolver / confirmation.py issue
+- Frame stays pending forever → Task 3 propagation contract broken, or Task 7 stream handler regression
 
-- [ ] **Step 8.4: Commit the manual verification record**
+Narrow to the smallest repro, fix in the corresponding task, add a test that captures the bug, then re-run the failing scenario.
 
-This is a documentation-only commit to mark the feature done.
+- [ ] **Step 8.4: Append a verification log to the plan**
+
+Append to this file (`docs/superpowers/plans/2026-04-13-unchain-code-diff-ui.md`) at the bottom:
+
+```markdown
+---
+## Verification Log
+- Date: YYYY-MM-DD
+- E2E-1 through E2E-10: [results]
+- Follow-ups: [none | link to follow-up issues]
+```
+
+Commit:
 
 ```bash
 cd ~/Desktop/GITRepo/PuPu
-# Append a brief "Verification Log" section to the spec or plan doc
-# recording: date, checklist outcomes, any follow-ups.
 git add docs/superpowers/plans/2026-04-13-unchain-code-diff-ui.md
 git commit -m "$(cat <<'EOF'
 docs: record code_diff UI E2E verification results
@@ -1860,69 +2133,113 @@ EOF
 
 ## Task 9: Update auto-memory
 
-- [ ] **Step 9.1: Add a project memory entry**
+- [ ] **Step 9.1: Create a project memory entry**
 
 Create `~/.claude/projects/-Users-red-Desktop/memory/project_pupu_code_diff_ui.md`:
 
 ```markdown
 ---
 name: PuPu code_diff interact UI
-description: Unified diff UI for unchain file tools via new code_diff interact_type, completed YYYY-MM-DD
+description: Unified diff approval UI for unchain CoreToolkit write/edit, completed YYYY-MM-DD
 type: project
 ---
 
-unchain workspace file tools (write_file / create_file / delete_file /
-[edit tools from Task 3] / [batch tool from Task 4 if applied]) now surface
-a unified diff as the approval UI. Protocol: `interact_type = "code_diff"`
-in ToolConfirmationRequest, payload shape documented in
-`PuPu/docs/superpowers/specs/2026-04-13-unchain-code-diff-ui-design.md`.
+Standalone unchain repo (~/Desktop/GITRepo/unchain/) now surfaces a
+unified diff as the approval UI for CoreToolkit.write and
+CoreToolkit.edit via a new `interact_type="code_diff"`. Approved /
+rejected cards persist in the PuPu chat timeline with de-saturated
+styling. Binary / oversized / unresolvable inputs fall back to the
+legacy confirmation UI transparently.
 
-Implementation:
-- unchain: `src/unchain/tools/_diff_helpers.py` (pure), toolkit hook
-  `WorkspaceToolkit.build_confirmation_interact`, dispatch in
-  `src/unchain/tools/confirmation.py`
-- PuPu adapter: zero code change, one regression test locking propagation
-- PuPu frontend: `CodeDiffInteract` component + `interact_registry` entry
+## Implementation
+- unchain:
+  - `src/unchain/tools/_diff_helpers.py` (pure stdlib diff builder)
+  - `ToolConfirmationPolicy` extended with `interact_type` /
+    `interact_config` fields at `src/unchain/tools/models.py`
+  - `execute_confirmable_tool_call` propagates those fields from policy
+    to request at `src/unchain/tools/confirmation.py`
+  - `CoreToolkit._resolve_write_confirmation` and
+    `_resolve_edit_confirmation` in
+    `src/unchain/toolkits/builtin/core/core.py`, wired via
+    `confirmation_resolver=` at tool registration
+- PuPu:
+  - `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES` cleaned up
+    (write_file/delete_file/move_file → write/edit), with a comment
+    explaining the current dead-code-ish role
+  - `src/COMPONENTs/chat-bubble/interact/code_diff_interact.js` new
+    component registered in `interact_registry.js`
+  - Regression test at
+    `src/PAGEs/chat/hooks/use_chat_stream.code_diff_guard.test.js`
+    locks the spec §5.3 auto-approve guard
 
-Binary / oversized / errored inputs fall back to legacy confirmation UI.
-Approved/rejected cards persist in the timeline with de-saturated styling.
+## Deliberate non-features (spec §2, §3.5, §9)
+- Multi-file / batch diff UI (no such tool in unchain)
+- Session-based auto-approve for code_diff (high-risk visualised
+  operations do NOT share the fast-lane that ConfirmInteract uses)
+- Shell-command parsing to reconstruct a diff
+- Syntax highlighting, side-by-side view, partial approve
 
-How to apply: see spec + plan docs for protocol details. When adding a
-new file-mutating tool, remember to (1) add a branch in
-`build_confirmation_interact`, (2) add the name to
-`_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES` in `unchain_adapter.py`.
+## How to apply
+When adding a new file-mutating tool to CoreToolkit (or any unchain
+toolkit), follow the resolver pattern:
+1. Write a `_resolve_X_confirmation(arguments, execution_context)`
+   method that reads the target file, simulates the edit in memory,
+   calls `build_code_diff_payload`, and returns a
+   `ToolConfirmationPolicy` with `interact_type="code_diff"` +
+   `interact_config`.
+2. Register via `self.register(..., confirmation_resolver=...)`.
+3. No changes needed on PuPu front-end — the registry dispatches by
+   `interact_type`.
 ```
 
-- [ ] **Step 9.2: Add to MEMORY.md index**
+- [ ] **Step 9.2: Update `MEMORY.md` index**
 
-Edit `~/.claude/projects/-Users-red-Desktop/memory/MEMORY.md` and append:
+Append to `~/.claude/projects/-Users-red-Desktop/memory/MEMORY.md`:
 
 ```
-- [PuPu code_diff UI](project_pupu_code_diff_ui.md) — unified diff approval UI for unchain workspace tools (complete)
+- [PuPu code_diff UI](project_pupu_code_diff_ui.md) — unified diff approval UI for unchain CoreToolkit write/edit (complete)
 ```
+
+- [ ] **Step 9.3: Also correct the stale `PuPu unchain migration` entry**
+
+The existing entry `project_pupu_unchain_migration.md` still points at `~/Desktop/GITRepo/miso/src/unchain/`, which is obsolete — the live path is the standalone `~/Desktop/GITRepo/unchain/`. Edit that memory file and update the path references. This is a drive-by cleanup, not strictly required for the feature, but prevents future sessions from repeating the miso/unchain path confusion that cost us several commits in this project.
+
+- [ ] **Step 9.4: No commit required for memory updates** (memory is outside any git repo).
 
 ---
 
 ## Self-Review Notes
 
-Run against the spec (`2026-04-13-unchain-code-diff-ui-design.md`):
+**Spec coverage check** (against `docs/superpowers/specs/2026-04-13-unchain-code-diff-ui-design.md`):
 
-- §1 Goal → covered by Tasks 1-7.
+- §1 Goal → Task 1-7 cover the end-to-end pipeline.
 - §2 Non-goals → no task touches them.
-- §3 Protocol (event shape, lifecycle, invariants) → Task 2 (backend), Task 5 (adapter), Task 6/7 (frontend).
-- §4.1 unchain changes → Tasks 1, 2, 3, 4.
-- §4.2 PuPu adapter → Tasks 3.5, 5 (test-only + `_LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES` update).
-- §4.3 Step-0 open questions → pre-resolved in the "Investigation Findings" section at the top of this plan.
-- §5 Frontend → Tasks 6, 7.
-- §6 Testing → each production task has matching tests; §6.5 manual checklist lives in Task 8.
-- §7 Edge cases → covered in Task 1 tests + Task 2 fallback logic + Task 6 malformed-diff test.
-- §8 Impl order → this plan's task order matches.
-- §9 Future work → explicitly not in this plan.
+- §3.1 Event shape → Task 4 produces the exact schema; Task 5 regression test locks its propagation; Task 6 tests render against the same schema.
+- §3.2 Lifecycle → Task 4 (produce policy) → Task 3 (policy→request) → Task 5 (adapter) → Task 6 (component) → approve/reject returns via existing `use_chat_stream` path.
+- §3.3 Fallback rules → Task 1 enforces thresholds in the helper; Task 4 returns plain policy on None.
+- §3.4 Invariants → Task 3 is the one targeted change; dataclass/SSE/endpoint left alone.
+- §3.5 Session-approval interaction → Task 6 omits "Always allow"; Task 7 guard test locks the red line.
+- §4.1 unchain changes → Tasks 1-4 cover models, confirmation, core, helper.
+- §4.2 PuPu adapter → Task 5 covers legacy-list cleanup + regression test.
+- §4.3 Step 0 open questions → pre-resolved in Investigation Findings section.
+- §5 Frontend → Tasks 6 (component) and 7 (registry + guard verification).
+- §6 Testing → every production task has matching unit/integration tests; §6.6 manual checklist lives in Task 8.
+- §7 Edge cases → Task 1 helper covers binary / oversize / exception; Task 4 resolver covers missing target / non-matching edit / path resolution failure; Task 6 component covers malformed diff fallback.
+- §8 Impl order → this plan's Task 1→9 mirrors it.
+- §9 Future work → explicitly out of scope.
 
-**Type-consistency check:** `build_code_diff_payload` signature and return shape is consistent between `_diff_helpers.py`, the workspace hook, and the frontend tests. `interact_type` / `interact_config` names match unchain's `ToolConfirmationRequest` dataclass. CSS class names (`diff-line-added`, `diff-line-removed`) match what the test asserts.
+**Placeholder scan:**
+- No "TBD" / "TODO" / "implement later" strings.
+- The exact `_register_tools` call sites in Task 4 Step 4.6 note "preserve any other kwargs already present" — this is a concrete instruction to keep the existing kwargs intact, not a placeholder.
+- Task 6 Step 6.5 notes that import paths must be verified against `confirm_interact.js` — this is a concrete verification instruction with the expected paths spelled out.
 
-**Known gaps flagged for execution:**
-- Task 2 Step 2.7 uses a placeholder dispatch function name (`run_tool_with_confirmation`). Execution must read `confirmation.py` first and adjust both the test and the production edit to match the real API.
-- Task 6 Step 6.1 must locate the actual frontend interact directory. The plan uses `src/COMPONENTs/interact/` as a placeholder.
-- Task 4 is entirely conditional on whether a batch tool exists; Step 4.1 decides.
-- Task 3 is driven by Step 3.1's grep output; the specific edit-tool branches to add are discovered at implementation time.
+**Type consistency check:**
+- `build_code_diff_payload` return shape (`{path, sub_operation, unified_diff, truncated, total_lines, displayed_lines}`) used identically in Task 1 (definition), Task 4 (callers in resolvers), Task 6 (frontend config keys).
+- `interact_config` schema (`{title, operation, path, unified_diff, truncated, total_lines, displayed_lines, fallback_description}`) identical in Task 4 resolvers, Task 5 regression test, Task 6 component tests.
+- `onSubmit` payload `{approved, scope: "once"}` matches between Task 6 component and Task 7 dispatch.
+- `ToolConfirmationPolicy` field names (`interact_type`, `interact_config`) consistent between Task 2 (definition), Task 3 (consumer), Task 4 (producer).
+
+**Known risks to watch during execution:**
+- Task 4 Step 4.2 might reveal extra kwargs on the existing `register` calls (e.g. `icon`, `aliases`) that must be preserved. The plan instructs to preserve them verbatim.
+- Task 5 Step 5.2's regression test relies on `_build_tool_confirmation_request_payload` being importable from the `unchain_runtime/server` directory with a bootstrap that mirrors production. If PuPu uses a different test runner layout, Step 5.3 will surface the import error and the bootstrap can be adjusted.
+- Task 6 Step 6.1 — the actual ConfigContext / Button import paths must match confirm_interact.js exactly. The plan spells out the most likely paths but Step 6.1 is the source of truth.
