@@ -4,7 +4,7 @@
 
 **Goal:** Add "Claude Code" as a new provider option in PuPu's model providers settings. When selected, PuPu routes chat through the `claude-agent-sdk` Python package instead of the native unchain agent loop, surfacing Claude Code's thinking, tool calls, and user questions in the existing PuPu UI.
 
-**Architecture:** A new `claude_code_adapter.py` module lives alongside `unchain_adapter.py` in the Flask sidecar. `_create_agent()` branches on `provider == "claude_code"` and returns a `ClaudeCodeAgentWrapper` whose `.run(...)` signature mirrors the unchain agent — so `stream_chat_events()` needs no changes. The wrapper runs an asyncio event loop inside the existing worker thread, iterates `claude_agent_sdk.query(...)`, and maps SDK message/block types to PuPu's event dict format. A new `thinking_delta` frame type carries `ThinkingBlock` content; it renders in `trace_chain_v3.js` using PuPu's existing design language. CLI availability is detected via an Electron service mirroring the Ollama pattern.
+**Architecture:** A new `claude_code_adapter.py` module lives alongside `unchain_adapter.py` in the Flask sidecar. `_create_agent()` branches on `provider == "claude_code"` and returns a `ClaudeCodeAgentWrapper` whose `.run(...)` signature mirrors the unchain agent — so `stream_chat_events()` needs only minimal branching. The wrapper runs an asyncio event loop inside the existing worker thread, iterates `claude_agent_sdk.query(...)`, and maps SDK message/block dataclasses to PuPu's event dict format. `ThinkingBlock` content should map to PuPu's existing `reasoning` frame type; `use_chat_stream.js` already turns streamed `<think>` content into `reasoning` trace frames, and `trace_chain_v3.js` already renders `reasoning`. Provider health should be checked by the sidecar/SDK path, not by requiring a global `claude` binary, because current `claude-agent-sdk` wheels bundle the Claude Code CLI.
 
 **Tech Stack:**
 - Backend: Python 3.10+, `claude-agent-sdk` (pip), `asyncio`, existing Flask sidecar
@@ -17,11 +17,21 @@
 - `Task` tool → PuPu subagent timeline mapping (for now, Task renders as a normal tool_call)
 - `TodoWrite` → Todo panel
 - Session resume / history deduplication (each turn re-sends full history as a fresh query)
-- Rich tool confirmation with argument editing (`can_use_tool` only supports bool)
+- Rich tool confirmation with argument editing (`can_use_tool` returns allow/deny permission objects, not edited arguments)
 
 **Known limitations baked into Phase 1:**
 - Each user turn starts a fresh `query()` call with the full conversation history serialized into the prompt. Wasteful but correct. Optimize via `ClaudeSDKClient` session caching in Phase 2.
 - When the Claude Code provider is selected, PuPu's Qdrant memory, character system, and custom toolkits are **greyed out** in the UI. They do not apply to this backend.
+
+**Review corrections added 2026-04-13:**
+- Use `.venv/bin/python` for local sidecar tests and installs. This repo expects a Python 3.12 virtualenv; bare `python` is not available in the current shell and system `python3` is too old for the sidecar.
+- Tests should follow the existing `unchain_runtime/server/tests/test_unchain_adapter_capabilities.py` import pattern: insert `unchain_runtime/server` into `sys.path`, then `import claude_code_adapter` / `import unchain_adapter`. Do not use `from unchain_runtime.server import ...` unless the sidecar imports are first made package-safe; `unchain_adapter.py` currently imports modules such as `prompts` as server-root modules.
+- Do not rely on `block.type` or `msg.role` for real SDK objects. Current Agent SDK docs show dataclasses such as `TextBlock(text)`, `ThinkingBlock(thinking, signature)`, `ToolUseBlock(id, name, input)`, `ToolResultBlock(tool_use_id, content, is_error)`, and message classes such as `AssistantMessage` / `ResultMessage`. Mapper code should use SDK classes when available, and fallback attribute-shape checks for tests.
+- `can_use_tool` is not an async bool callback in the current Python Agent SDK shape. It accepts `(tool, input, context)` and returns `PermissionResultAllow()` or `PermissionResultDeny(message=...)`. Keep PuPu's existing sync confirmation flow, but wrap the response into SDK permission result objects.
+- `ClaudeCodeAgentWrapper.run()` must return an object with `.messages`, `.status`, `.iteration`, token usage attributes, etc. `stream_chat_events()` calls `result.messages` and `_build_bundle_from_result(result, agent)`, so returning a plain dict will break.
+- Electron has `electron/shared/channels.js`, `electron/main/ipc/register_handlers.js`, and `electron/preload/channels.js`. There is no `electron/shared/ipc_channels.js` and no `electron/main/services/index.js` in this repo.
+- Existing Electron services are `.js` only; do not add `.cjs` mirrors unless the test/build setup is intentionally changed.
+- Frontend model selection also requires `src/SERVICEs/api.shared.js`, `src/COMPONENTs/chat-input/constants.js`, `src/COMPONENTs/chat-input/hooks/use_chat_input_models.js`, `src/COMPONENTs/chat-input/utils/build_model_options.js`, and the quick chips in `src/PAGEs/chat/chat.js`, not just settings.
 
 ---
 
@@ -30,20 +40,28 @@
 **Files to create:**
 - `unchain_runtime/server/claude_code_adapter.py` — the wrapper module (event mapping, async loop, ClaudeCodeAgentWrapper class)
 - `unchain_runtime/server/tests/test_claude_code_adapter.py` — unit tests for event mapping + wrapper behavior
-- `electron/main/services/claude_code/service.js` — CLI availability detection + IPC handlers
-- `electron/main/services/claude_code/service.cjs` — CommonJS mirror for electron main
+- `electron/main/services/claude_code/service.js` — optional SDK/provider status helper if a separate Electron check remains useful
+- `electron/preload/bridges/claude_code_bridge.js` — renderer bridge for provider status if using Electron status IPC
 - `src/COMPONENTs/settings/model_providers/claude_code_section.js` — Settings UI section for the new provider
 - `src/SERVICEs/api.claude_code.js` — renderer-side facade for the IPC calls
 
 **Files to modify:**
 - `unchain_runtime/server/unchain_adapter.py` — branch in `_create_agent()`, extend provider validation
-- `unchain_runtime/server/requirements.txt` (or equivalent) — add `claude-agent-sdk>=0.1.0`
-- `src/PAGEs/chat/hooks/use_chat_stream.js` — add `thinking_delta` dispatch case
-- `src/COMPONENTs/chat-bubble/trace_chain_v3.js` — add `thinking_delta` to `DISPLAY_FRAME_TYPES` + add renderer
+- `unchain_runtime/server/requirements.txt` — add `claude-agent-sdk>=0.1.0`
+- `src/PAGEs/chat/hooks/use_chat_stream.js` — only if the adapter emits a new frame type; prefer mapping SDK thinking to existing `reasoning`
+- `src/COMPONENTs/chat-bubble/trace_chain_v3.js` — only if a new frame type is truly needed; `reasoning` already exists
 - `src/COMPONENTs/settings/model_providers/index.js` — register the new section
-- `electron/main/services/index.js` (or wherever services are registered) — register `claude_code` service
+- `electron/main/index.js` — instantiate `claude_code` service if using Electron status IPC
+- `electron/main/ipc/register_handlers.js` — register IPC handlers
 - `electron/preload/index.js` — expose `window.claudeCodeAPI`
-- `electron/shared/ipc_channels.js` — new IPC channel constants
+- `electron/preload/channels.js` — allowlist invoke/event channels
+- `electron/shared/channels.js` — new IPC channel constants
+- `src/SERVICEs/api.shared.js` — normalize `claude_code` provider catalog entries
+- `src/SERVICEs/api.js` — add the `claudeCode` API facade if it should be reachable through the shared `api` object
+- `src/COMPONENTs/chat-input/constants.js` — add Claude Code model group/prefix
+- `src/COMPONENTs/chat-input/hooks/use_chat_input_models.js` — include Claude Code models when configured/available
+- `src/COMPONENTs/chat-input/utils/build_model_options.js` — build picker options for `claude_code:*`
+- `src/PAGEs/chat/chat.js` — include Claude Code quick chips and provider icon/fallback
 
 ---
 
@@ -61,22 +79,27 @@ Create `unchain_runtime/server/tests/test_claude_code_adapter.py`:
 ```python
 import unittest
 from unittest import mock
+import sys
+from pathlib import Path
+
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+if str(SERVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVER_ROOT))
+
+import claude_code_adapter
 
 
 class TestClaudeCodeAdapterImport(unittest.TestCase):
     def test_is_sdk_available_returns_bool(self):
-        from unchain_runtime.server import claude_code_adapter
         result = claude_code_adapter.is_sdk_available()
         self.assertIsInstance(result, bool)
 
     def test_get_sdk_import_error_none_when_available(self):
-        from unchain_runtime.server import claude_code_adapter
         if claude_code_adapter.is_sdk_available():
             self.assertIsNone(claude_code_adapter.get_sdk_import_error())
 
     def test_get_sdk_import_error_message_when_missing(self):
         with mock.patch.dict("sys.modules", {"claude_agent_sdk": None}):
-            from unchain_runtime.server import claude_code_adapter
             import importlib
             importlib.reload(claude_code_adapter)
             # After reload, if SDK is missing it should report an error string
@@ -90,11 +113,13 @@ if __name__ == "__main__":
     unittest.main()
 ```
 
+For every later test snippet in this plan, reuse this import style (`import claude_code_adapter`, `import unchain_adapter`) instead of package imports unless the sidecar is first converted to package-relative imports.
+
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
 cd /Users/red/Desktop/GITRepo/PuPu
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
 ```
 Expected: `ModuleNotFoundError: No module named 'unchain_runtime.server.claude_code_adapter'`
 
@@ -120,7 +145,7 @@ try:
 except ImportError as exc:  # pragma: no cover - environment dependent
     _SDK_IMPORT_ERROR = (
         f"claude-agent-sdk is not installed: {exc}. "
-        "Run `pip install claude-agent-sdk` to enable the Claude Code provider."
+        "Run `.venv/bin/python -m pip install claude-agent-sdk` to enable the Claude Code provider."
     )
 
 
@@ -142,7 +167,7 @@ def get_sdk_module():
 - [ ] **Step 4: Run tests to verify they pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
 ```
 Expected: PASS
 
@@ -189,7 +214,7 @@ class _FakeTextBlock:
 
 class TestEventMapping(unittest.TestCase):
     def test_map_text_block_to_token_delta(self):
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
         block = _FakeTextBlock(type="text", text="Hello, world")
         ctx = {"run_id": "run-abc", "iteration": 2, "session_id": "sess-1"}
         events = list(claude_code_adapter.map_content_block(block, ctx))
@@ -206,7 +231,7 @@ class TestEventMapping(unittest.TestCase):
 - [ ] **Step 2: Run test to verify failure**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
 ```
 Expected: `AttributeError: module ... has no attribute 'map_content_block'`
 
@@ -223,7 +248,7 @@ def map_content_block(block: Any, ctx: dict) -> Iterable[dict]:
 
     ctx carries run_id, iteration, session_id that must be stamped on every event.
     """
-    block_type = getattr(block, "type", None)
+    block_type = _block_kind(block)
 
     if block_type == "text":
         yield _base_event(ctx, "token_delta", delta=getattr(block, "text", ""))
@@ -239,12 +264,31 @@ def _base_event(ctx: dict, event_type: str, **fields) -> dict:
         "session_id": ctx.get("session_id", ""),
         **fields,
     }
+
+
+def _block_kind(block: Any) -> str:
+    """Return a stable block kind for real SDK dataclasses and fake tests."""
+    explicit_type = getattr(block, "type", None)
+    if isinstance(explicit_type, str) and explicit_type:
+        return explicit_type
+    class_name = type(block).__name__
+    if class_name == "TextBlock" or hasattr(block, "text"):
+        return "text"
+    if class_name == "ThinkingBlock" or hasattr(block, "thinking"):
+        return "thinking"
+    if class_name == "ToolUseBlock" or (
+        hasattr(block, "id") and hasattr(block, "name") and hasattr(block, "input")
+    ):
+        return "tool_use"
+    if class_name == "ToolResultBlock" or hasattr(block, "tool_use_id"):
+        return "tool_result"
+    return ""
 ```
 
 - [ ] **Step 4: Run test to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
 ```
 Expected: PASS
 
@@ -257,11 +301,13 @@ git commit -m "feat(claude-code): map TextBlock to token_delta event"
 
 ---
 
-## Task 3: Event mapping — `ThinkingBlock` → `thinking_delta` (new event type)
+## Task 3: Event mapping — `ThinkingBlock` → existing `reasoning` frame
 
 **Files:**
 - Modify: `unchain_runtime/server/claude_code_adapter.py`
 - Modify: `unchain_runtime/server/tests/test_claude_code_adapter.py`
+
+**Context:** PuPu already has a `reasoning` trace frame type and `use_chat_stream.js` already converts streamed `<think>` spans into `reasoning` frames. Reuse that path for Claude Code `ThinkingBlock` instead of introducing `thinking_delta`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -273,14 +319,14 @@ class _FakeThinkingBlock:
     thinking: str
 
 
-def test_map_thinking_block_to_thinking_delta(self):
-    from unchain_runtime.server import claude_code_adapter
+def test_map_thinking_block_to_reasoning(self):
+    import claude_code_adapter
     block = _FakeThinkingBlock(type="thinking", thinking="Let me consider...")
     ctx = {"run_id": "run-x", "iteration": 1, "session_id": "s1"}
     events = list(claude_code_adapter.map_content_block(block, ctx))
     self.assertEqual(len(events), 1)
-    self.assertEqual(events[0]["type"], "thinking_delta")
-    self.assertEqual(events[0]["delta"], "Let me consider...")
+    self.assertEqual(events[0]["type"], "reasoning")
+    self.assertEqual(events[0]["reasoning"], "Let me consider...")
     self.assertEqual(events[0]["run_id"], "run-x")
 ```
 
@@ -289,7 +335,7 @@ Note: add `_FakeThinkingBlock` dataclass at the top of the test file alongside `
 - [ ] **Step 2: Run test to verify failure**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping.test_map_thinking_block_to_thinking_delta -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping.test_map_thinking_block_to_reasoning -v
 ```
 Expected: `AssertionError: 0 != 1` (no events yielded)
 
@@ -298,14 +344,14 @@ Expected: `AssertionError: 0 != 1` (no events yielded)
 In `claude_code_adapter.py`, add after the text branch:
 ```python
     if block_type == "thinking":
-        yield _base_event(ctx, "thinking_delta", delta=getattr(block, "thinking", ""))
+        yield _base_event(ctx, "reasoning", reasoning=getattr(block, "thinking", ""))
         return
 ```
 
 - [ ] **Step 4: Run test to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
 ```
 Expected: PASS
 
@@ -313,7 +359,7 @@ Expected: PASS
 
 ```bash
 git add unchain_runtime/server/claude_code_adapter.py unchain_runtime/server/tests/test_claude_code_adapter.py
-git commit -m "feat(claude-code): map ThinkingBlock to thinking_delta event"
+git commit -m "feat(claude-code): map ThinkingBlock to reasoning event"
 ```
 
 ---
@@ -339,7 +385,7 @@ class _FakeToolUseBlock:
 
 
 def test_map_tool_use_block_to_tool_call(self):
-    from unchain_runtime.server import claude_code_adapter
+    import claude_code_adapter
     block = _FakeToolUseBlock(
         type="tool_use",
         id="toolu_123",
@@ -363,7 +409,7 @@ def test_map_tool_use_block_to_tool_call(self):
 - [ ] **Step 2: Run test to verify failure**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping.test_map_tool_use_block_to_tool_call -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping.test_map_tool_use_block_to_tool_call -v
 ```
 Expected: `AssertionError: 0 != 1`
 
@@ -390,7 +436,7 @@ Add to `claude_code_adapter.py`:
 - [ ] **Step 4: Run test to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
 ```
 Expected: PASS
 
@@ -409,7 +455,7 @@ git commit -m "feat(claude-code): map ToolUseBlock to tool_call event"
 - Modify: `unchain_runtime/server/claude_code_adapter.py`
 - Modify: `unchain_runtime/server/tests/test_claude_code_adapter.py`
 
-**Context:** `ToolResultBlock.content` is a `list[TextBlock | dict]`. We flatten to a string: concat `TextBlock.text` and `str(dict)`.
+**Context:** Current SDK docs show `ToolResultBlock.content` as `str | list[dict] | None`. Older/fake tests may use list items with `.text`. Flatten all supported shapes to a string.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -424,7 +470,7 @@ class _FakeToolResultBlock:
 
 
 def test_map_tool_result_block_to_tool_result(self):
-    from unchain_runtime.server import claude_code_adapter
+    import claude_code_adapter
     block = _FakeToolResultBlock(
         type="tool_result",
         tool_use_id="toolu_123",
@@ -442,7 +488,7 @@ def test_map_tool_result_block_to_tool_result(self):
 
 
 def test_map_tool_result_block_with_error(self):
-    from unchain_runtime.server import claude_code_adapter
+    import claude_code_adapter
     block = _FakeToolResultBlock(
         type="tool_result",
         tool_use_id="x",
@@ -463,7 +509,9 @@ Add to `claude_code_adapter.py`:
 ```python
     if block_type == "tool_result":
         content_parts = []
-        for part in getattr(block, "content", None) or []:
+        raw_content = getattr(block, "content", None)
+        parts = [raw_content] if isinstance(raw_content, str) else (raw_content or [])
+        for part in parts:
             if hasattr(part, "text"):
                 content_parts.append(getattr(part, "text", ""))
             elif isinstance(part, dict):
@@ -484,7 +532,7 @@ Add to `claude_code_adapter.py`:
 - [ ] **Step 4: Run tests to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestEventMapping -v
 ```
 Expected: PASS
 
@@ -503,7 +551,7 @@ git commit -m "feat(claude-code): map ToolResultBlock to tool_result event"
 - Modify: `unchain_runtime/server/claude_code_adapter.py`
 - Modify: `unchain_runtime/server/tests/test_claude_code_adapter.py`
 
-**Context:** `AssistantMessage.content` is a list of content blocks. We iterate and call `map_content_block` for each. At the end of the full stream, `ResultMessage` signals "done", and we emit a `final_message` event assembling the full assistant text.
+**Context:** `AssistantMessage.content` is a list of content blocks. Use SDK class names or attribute-shape checks, not `msg.role`, because real Agent SDK message dataclasses do not expose the fake `role` field used in these tests. At the end of the full stream, `ResultMessage` signals "done"; prefer its `result`/text when present, otherwise emit a `final_message` from the accumulated assistant text.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -516,7 +564,7 @@ class _FakeAssistantMessage:
 
 class TestMessageMapping(unittest.TestCase):
     def test_map_assistant_message_yields_events_per_block(self):
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
         msg = _FakeAssistantMessage(
             role="assistant",
             content=[
@@ -533,7 +581,7 @@ class TestMessageMapping(unittest.TestCase):
         self.assertEqual(events[2]["type"], "tool_call")
 
     def test_map_assistant_message_accumulates_text_for_final_message(self):
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
         buf = claude_code_adapter.TextBuffer()
         msg = _FakeAssistantMessage(
             role="assistant",
@@ -576,30 +624,54 @@ def map_message(msg: Any, ctx: dict, text_buffer: "TextBuffer | None" = None) ->
     If text_buffer is provided, accumulates all TextBlock text into it so the
     caller can emit a final_message at stream end.
     """
-    role = getattr(msg, "role", "")
+    message_kind = _message_kind(msg)
     content = getattr(msg, "content", None) or []
 
-    if role == "assistant":
+    if message_kind == "assistant":
         for block in content:
-            if text_buffer is not None and getattr(block, "type", None) == "text":
+            if text_buffer is not None and _block_kind(block) == "text":
                 text_buffer.append(getattr(block, "text", ""))
             yield from map_content_block(block, ctx)
         return
 
-    if role == "user":
-        # ResultMessage (role="user") contains tool_result blocks
+    if message_kind == "user":
         for block in content:
             yield from map_content_block(block, ctx)
         return
 
-    # system/other — no-op for now
+    if message_kind == "result":
+        result_text = getattr(msg, "result", "") or getattr(msg, "text", "")
+        if text_buffer is not None and result_text and not text_buffer.get():
+            text_buffer.append(str(result_text))
+        return
+
+    # system/other/rate-limit/task notifications — no-op for Phase 1
     return
+
+
+def _message_kind(msg: Any) -> str:
+    """Return a stable message kind for real SDK dataclasses and fake tests."""
+    role = getattr(msg, "role", None)
+    if role == "assistant":
+        return "assistant"
+    if role == "user":
+        return "user"
+    class_name = type(msg).__name__
+    if class_name == "AssistantMessage":
+        return "assistant"
+    if class_name == "UserMessage":
+        return "user"
+    if class_name == "ResultMessage" or hasattr(msg, "result"):
+        return "result"
+    if hasattr(msg, "content"):
+        return "assistant"
+    return ""
 ```
 
 - [ ] **Step 4: Run tests to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
 ```
 Expected: PASS
 
@@ -618,43 +690,58 @@ git commit -m "feat(claude-code): map AssistantMessage and ResultMessage to even
 - Modify: `unchain_runtime/server/claude_code_adapter.py`
 - Modify: `unchain_runtime/server/tests/test_claude_code_adapter.py`
 
-**Context:** PuPu's existing `on_tool_confirm` callback (`unchain_adapter.py:459-528`) blocks on `threading.Event` until the user responds. `claude-agent-sdk`'s `can_use_tool` is an **async** callback returning `bool`. We need to bridge: from async SDK-land, call the sync `on_tool_confirm`, but run it in a thread executor so we don't block the event loop. The response object from PuPu has a `"decision"` key which is `"approve"` or `"deny"`.
+**Context:** PuPu's existing `on_tool_confirm` callback (`unchain_adapter.py:459-528`) blocks on `threading.Event` until the user responds and returns `{ "approved": bool, "reason": str, "modified_arguments": dict | None }`. Current `claude-agent-sdk` exposes an async `can_use_tool(tool, input, context)` callback that returns `PermissionResultAllow()` or `PermissionResultDeny(message=...)`. We need to bridge: from async SDK-land, call the sync `on_tool_confirm`, run it in a thread executor so we don't block the event loop, then wrap the result in SDK permission objects.
 
 - [ ] **Step 1: Write the failing test**
 
 ```python
 import asyncio
 
+class PermissionResultAllow:
+    pass
+
+
+class PermissionResultDeny:
+    def __init__(self, message=""):
+        self.message = message
+
+
+class _FakeSdkForPermissions:
+    PermissionResultAllow = PermissionResultAllow
+    PermissionResultDeny = PermissionResultDeny
+
 
 class TestCanUseToolBridge(unittest.TestCase):
     def test_bridge_approves_when_on_tool_confirm_returns_approve(self):
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
 
         captured_request = {}
         def fake_on_tool_confirm(req):
             captured_request["req"] = req
-            return {"decision": "approve", "modified_arguments": None}
+            return {"approved": True, "modified_arguments": None}
 
-        bridge = claude_code_adapter.make_can_use_tool_bridge(fake_on_tool_confirm)
-
-        result = asyncio.run(bridge("Bash", {"command": "ls"}))
-        self.assertTrue(result)
+        with mock.patch.object(claude_code_adapter, "get_sdk_module", return_value=_FakeSdkForPermissions):
+            bridge = claude_code_adapter.make_can_use_tool_bridge(fake_on_tool_confirm)
+            result = asyncio.run(bridge("Bash", {"command": "ls"}))
+        self.assertEqual(type(result).__name__, "PermissionResultAllow")
         self.assertIsNotNone(captured_request.get("req"))
 
     def test_bridge_denies_when_on_tool_confirm_returns_deny(self):
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
         def fake(req):
-            return {"decision": "deny"}
-        bridge = claude_code_adapter.make_can_use_tool_bridge(fake)
-        result = asyncio.run(bridge("Bash", {"command": "rm -rf /"}))
-        self.assertFalse(result)
+            return {"approved": False, "reason": "dangerous command"}
+        with mock.patch.object(claude_code_adapter, "get_sdk_module", return_value=_FakeSdkForPermissions):
+            bridge = claude_code_adapter.make_can_use_tool_bridge(fake)
+            result = asyncio.run(bridge("Bash", {"command": "rm -rf /"}))
+        self.assertEqual(type(result).__name__, "PermissionResultDeny")
 
     def test_bridge_returns_false_when_callback_none(self):
-        from unchain_runtime.server import claude_code_adapter
-        bridge = claude_code_adapter.make_can_use_tool_bridge(None)
-        # None callback → permissive default (allow), matching PuPu behavior
-        result = asyncio.run(bridge("Read", {"file_path": "/tmp/a"}))
-        self.assertTrue(result)
+        import claude_code_adapter
+        with mock.patch.object(claude_code_adapter, "get_sdk_module", return_value=_FakeSdkForPermissions):
+            bridge = claude_code_adapter.make_can_use_tool_bridge(None)
+            # None callback → permissive default (allow), matching PuPu behavior
+            result = asyncio.run(bridge("Read", {"file_path": "/tmp/a"}))
+        self.assertEqual(type(result).__name__, "PermissionResultAllow")
 ```
 
 - [ ] **Step 2: Run test to verify failure**
@@ -671,16 +758,17 @@ from typing import Awaitable, Callable
 
 def make_can_use_tool_bridge(
     on_tool_confirm: Callable[[Any], dict] | None,
-) -> Callable[[str, dict], Awaitable[bool]]:
+) -> Callable[[str, dict, Any], Awaitable[Any]]:
     """Bridge PuPu's sync on_tool_confirm to SDK's async can_use_tool callback.
 
     Returns a function matching SDK signature:
-        async def can_use_tool(tool_name: str, tool_input: dict) -> bool
+        async def can_use_tool(tool_name: str, tool_input: dict, context=None)
     """
 
-    async def can_use_tool(tool_name: str, tool_input: dict) -> bool:
+    async def can_use_tool(tool_name: str, tool_input: dict, context=None):
+        sdk = get_sdk_module()
         if on_tool_confirm is None:
-            return True  # permissive default when no confirm handler wired up
+            return sdk.PermissionResultAllow()
 
         # Build a minimal request object shaped like PuPu's tool_confirm_request.
         # PuPu's _build_tool_confirmation_request_payload (unchain_adapter.py:...)
@@ -697,8 +785,11 @@ def make_can_use_tool_bridge(
         loop = asyncio.get_running_loop()
         response = await loop.run_in_executor(None, on_tool_confirm, req)
 
-        decision = (response or {}).get("decision", "deny")
-        return decision == "approve"
+        approved = bool((response or {}).get("approved", False))
+        if approved:
+            return sdk.PermissionResultAllow()
+        reason = (response or {}).get("reason") or "Tool use denied"
+        return sdk.PermissionResultDeny(message=str(reason))
 
     return can_use_tool
 ```
@@ -706,7 +797,7 @@ def make_can_use_tool_bridge(
 - [ ] **Step 4: Run tests to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestCanUseToolBridge -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestCanUseToolBridge -v
 ```
 Expected: PASS
 
@@ -740,7 +831,7 @@ git commit -m "feat(claude-code): bridge async can_use_tool to PuPu on_tool_conf
 ```python
 class TestClaudeCodeAgentWrapper(unittest.TestCase):
     def test_wrapper_exposes_run_method(self):
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
         wrapper = claude_code_adapter.ClaudeCodeAgentWrapper(
             cwd="/tmp",
             system_prompt="",
@@ -752,13 +843,13 @@ class TestClaudeCodeAgentWrapper(unittest.TestCase):
 
     def test_wrapper_has_provider_attribute(self):
         """_create_agent() downstream code reads agent.provider."""
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
         wrapper = claude_code_adapter.ClaudeCodeAgentWrapper(cwd="/tmp")
         self.assertEqual(wrapper.provider, "claude_code")
 
     def test_wrapper_run_invokes_callback_with_events(self):
         """Fake the SDK query() with pre-canned messages and verify events flow through callback."""
-        from unchain_runtime.server import claude_code_adapter
+        import claude_code_adapter
         received = []
 
         def callback(ev):
@@ -771,7 +862,11 @@ class TestClaudeCodeAgentWrapper(unittest.TestCase):
                 content=[_FakeTextBlock(type="text", text="Hi there")],
             )
 
-        with mock.patch.object(claude_code_adapter, "_sdk_query", fake_query):
+        fake_sdk = mock.Mock()
+        fake_sdk.ClaudeAgentOptions = lambda **kwargs: kwargs
+
+        with mock.patch.object(claude_code_adapter, "_sdk_query", fake_query), \
+             mock.patch.object(claude_code_adapter, "get_sdk_module", return_value=fake_sdk):
             wrapper = claude_code_adapter.ClaudeCodeAgentWrapper(cwd="/tmp")
             wrapper.run(
                 messages=[{"role": "user", "content": "hello"}],
@@ -804,6 +899,7 @@ Add to `claude_code_adapter.py`:
 ```python
 import threading
 import uuid
+from types import SimpleNamespace
 
 _sdk_query = None  # tests patch this; real .run() calls get_sdk_module().query
 
@@ -849,7 +945,7 @@ class ClaudeCodeAgentWrapper:
         memory_namespace: str = "",
         cancel_event: threading.Event | None = None,
         **_ignored_kwargs,
-    ) -> dict:
+    ) -> SimpleNamespace:
         """Runs one turn of Claude Code via the SDK. Blocks until done."""
         run_id = f"run-{uuid.uuid4()}"
         ctx = {"run_id": run_id, "iteration": 0, "session_id": session_id}
@@ -889,10 +985,16 @@ class ClaudeCodeAgentWrapper:
                 "content": final_text,
             })
 
-        return {
-            "messages": messages + [{"role": "assistant", "content": final_text}],
-            "bundle": {"model": self.model, "active_agent": "claude_code"},
-        }
+        return SimpleNamespace(
+            messages=messages + [{"role": "assistant", "content": final_text}],
+            input_tokens=0,
+            output_tokens=0,
+            cache_read_input_tokens=0,
+            cache_creation_input_tokens=0,
+            status="completed",
+            iteration=0,
+            previous_response_id=None,
+        )
 
 
 def _build_prompt_from_messages(messages: list) -> str:
@@ -955,7 +1057,7 @@ def _build_sdk_options(
 - [ ] **Step 4: Run tests to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
 ```
 Expected: PASS
 
@@ -980,7 +1082,7 @@ git commit -m "feat(claude-code): implement ClaudeCodeAgentWrapper.run() with as
 
 ```python
 def test_map_askuserquestion_tool_use_becomes_question_event(self):
-    from unchain_runtime.server import claude_code_adapter
+    import claude_code_adapter
     block = _FakeToolUseBlock(
         type="tool_use",
         id="q_1",
@@ -1057,7 +1159,7 @@ Modify `map_content_block` in `claude_code_adapter.py`. Replace the `if block_ty
 - [ ] **Step 4: Run tests to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
 ```
 Expected: PASS (all existing tests + new one)
 
@@ -1084,20 +1186,19 @@ Append to `test_claude_code_adapter.py`:
 ```python
 class TestCreateAgentIntegration(unittest.TestCase):
     def test_create_agent_returns_wrapper_for_claude_code_provider(self):
-        from unchain_runtime.server import unchain_adapter, claude_code_adapter
         options = {
             "provider": "claude_code",
             "workspace_roots": ["/tmp"],
         }
-        # Only run this test if SDK available; otherwise skip
-        if not claude_code_adapter.is_sdk_available():
-            self.skipTest("claude-agent-sdk not installed")
-        agent = unchain_adapter._create_agent(options, session_id="test-session")
+        fake_sdk = mock.Mock()
+        fake_sdk.ClaudeAgentOptions = lambda **kwargs: kwargs
+        with mock.patch.object(claude_code_adapter, "is_sdk_available", return_value=True), \
+             mock.patch.object(claude_code_adapter, "get_sdk_module", return_value=fake_sdk):
+            agent = unchain_adapter._create_agent(options, session_id="test-session")
         self.assertIsInstance(agent, claude_code_adapter.ClaudeCodeAgentWrapper)
         self.assertEqual(agent.provider, "claude_code")
 
     def test_create_agent_raises_clear_error_if_sdk_missing(self):
-        from unchain_runtime.server import unchain_adapter, claude_code_adapter
         if claude_code_adapter.is_sdk_available():
             self.skipTest("SDK is installed, can't test missing case")
         options = {"provider": "claude_code"}
@@ -1109,15 +1210,13 @@ class TestCreateAgentIntegration(unittest.TestCase):
 - [ ] **Step 2: Run test to verify failure**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestCreateAgentIntegration -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestCreateAgentIntegration -v
 ```
 Expected: `AssertionError: <unchain agent> is not an instance of ClaudeCodeAgentWrapper` (or similar)
 
-- [ ] **Step 3: Patch `_parse_model_overrides` to accept `claude_code`**
+- [ ] **Step 3: Patch provider validation/defaults to accept `claude_code`**
 
-In `unchain_adapter.py` around line 608, find the provider validation. Look for the set of valid providers (`{"openai", "anthropic", "ollama"}`). Change to `{"openai", "anthropic", "ollama", "claude_code"}`.
-
-Exact edit: search for the occurrence of the tuple/set containing `"openai", "anthropic", "ollama"` in `_parse_model_overrides` and `_get_runtime_config`, and add `"claude_code"` to **each** instance.
+In `unchain_adapter.py`, update all hardcoded provider sets in `_SUPPORTED_PROVIDERS`, `_parse_model_overrides`, and `_get_runtime_config` from `{"openai", "anthropic", "ollama"}` to include `"claude_code"`. Also update `_provider_default_model()` to return a stable display model such as `"default"` for `claude_code`, and ensure `get_capability_catalog()` / `get_model_capability_catalog()` can expose the provider if the frontend should show it from the model catalog.
 
 - [ ] **Step 4: Add branch at top of `_create_agent`**
 
@@ -1126,9 +1225,10 @@ In `unchain_adapter.py` at line 3164, modify `_create_agent` — insert the bran
 ```python
 def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
     # Claude Code provider branches early — it doesn't use unchain agent.
-    provider_preview = (get_runtime_config(options) or {}).get("provider", "")
+    selected_config = get_runtime_config(options) or {}
+    provider_preview = selected_config.get("provider", "")
     if provider_preview == "claude_code":
-        from unchain_runtime.server import claude_code_adapter as _cca
+        import claude_code_adapter as _cca
         if not _cca.is_sdk_available():
             raise RuntimeError(
                 _cca.get_sdk_import_error()
@@ -1142,7 +1242,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
             system_prompt=str(opts.get("system_prompt", "") or ""),
             allowed_tools=opts.get("allowed_tools") or None,
             disallowed_tools=opts.get("disallowed_tools") or None,
-            model=str(opts.get("model", "") or "") or None,
+            model=selected_config.get("model") or "default",
             mcp_servers=opts.get("mcp_servers") or {},
             max_iterations=_resolve_agent_max_iterations(options),
         )
@@ -1168,8 +1268,8 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
 - [ ] **Step 5: Run tests to verify pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
-python -m unittest unchain_runtime.server.tests.test_unchain_adapter_capabilities -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_unchain_adapter_capabilities -v
 ```
 Expected: PASS (both the new integration tests AND the existing capabilities tests)
 
@@ -1194,10 +1294,8 @@ git commit -m "feat(claude-code): route claude_code provider through wrapper in 
 ```python
 class TestStreamChatEventsEndToEnd(unittest.TestCase):
     def test_stream_chat_events_yields_events_from_fake_sdk(self):
-        from unchain_runtime.server import unchain_adapter, claude_code_adapter
-
-        if not claude_code_adapter.is_sdk_available():
-            self.skipTest("SDK not installed")
+        import unchain_adapter
+        import claude_code_adapter
 
         async def fake_query(prompt, options=None):
             yield _FakeAssistantMessage(
@@ -1208,7 +1306,12 @@ class TestStreamChatEventsEndToEnd(unittest.TestCase):
                 ],
             )
 
-        with mock.patch.object(claude_code_adapter, "_sdk_query", fake_query):
+        fake_sdk = mock.Mock()
+        fake_sdk.ClaudeAgentOptions = lambda **kwargs: kwargs
+
+        with mock.patch.object(claude_code_adapter, "is_sdk_available", return_value=True), \
+             mock.patch.object(claude_code_adapter, "get_sdk_module", return_value=fake_sdk), \
+             mock.patch.object(claude_code_adapter, "_sdk_query", fake_query):
             events = list(unchain_adapter.stream_chat_events(
                 message="hi",
                 history=[],
@@ -1218,7 +1321,7 @@ class TestStreamChatEventsEndToEnd(unittest.TestCase):
             ))
 
         types = [e.get("type") for e in events]
-        self.assertIn("thinking_delta", types)
+        self.assertIn("reasoning", types)
         self.assertIn("token_delta", types)
         self.assertIn("final_message", types)
 ```
@@ -1226,7 +1329,7 @@ class TestStreamChatEventsEndToEnd(unittest.TestCase):
 - [ ] **Step 2: Run test to verify failure or pass**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestStreamChatEventsEndToEnd -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter.TestStreamChatEventsEndToEnd -v
 ```
 Expected: PASS if earlier tasks are all complete. If FAIL, diagnose: most likely the `_sdk_query` monkey-patch didn't take effect because `drive()` still calls `get_sdk_module().query` — adjust `ClaudeCodeAgentWrapper.run` so it prefers `_sdk_query` when set (already done in Task 8, but verify).
 
@@ -1271,14 +1374,14 @@ dependencies = [
 
 ```bash
 cd /Users/red/Desktop/GITRepo/PuPu/unchain_runtime
-pip install claude-agent-sdk
+.venv/bin/python -m pip install claude-agent-sdk
 ```
-Verify: `python -c "import claude_agent_sdk; print(claude_agent_sdk.__version__)"`
+Verify: `.venv/bin/python -c "import claude_agent_sdk; print(claude_agent_sdk.__version__)"`
 
 - [ ] **Step 4: Re-run the adapter tests to confirm nothing regressed**
 
 ```bash
-python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
+.venv/bin/python -m unittest unchain_runtime.server.tests.test_claude_code_adapter -v
 ```
 Expected: PASS. Integration tests that previously skipped (SDK unavailable) should now run.
 
@@ -1291,177 +1394,167 @@ git commit -m "chore(claude-code): add claude-agent-sdk dependency"
 
 ---
 
-## Task 13: Electron — Claude Code CLI detection service
+## Task 13: Electron — Claude Code provider status service
 
 **Files:**
 - Create: `electron/main/services/claude_code/service.js`
-- Create: `electron/main/services/claude_code/service.cjs`
 
-**Context:** Mirror the Ollama service pattern (`electron/main/services/ollama/service.js`). The detection approach: run `claude --version` and capture output. If the binary is missing (`ENOENT`), set status to `"not_found"`. If found, capture the version string.
+**Context:** Do not require a global `claude` binary for provider availability. Current `claude-agent-sdk` wheels bundle the CLI, so a global `claude --version` check can incorrectly mark a working SDK install as unavailable. The Electron status service should either:
+- ask the sidecar for adapter status (`is_sdk_available()`, import error, optional auth probe), or
+- present a softer "global CLI helper status" that is informational only and never gates using the provider.
+
+If you still add Electron IPC, mirror the current repo structure: `.js` service only, registered from `electron/main/index.js` and `electron/main/ipc/register_handlers.js`.
 
 - [ ] **Step 1: Create `electron/main/services/claude_code/service.js`**
 
 ```javascript
-const { spawn } = require("child_process");
+const createClaudeCodeService = ({ app, fs, path, spawnSync }) => {
+  let state = { status: "unknown", version: "", error: "" };
 
-let claudeCodeStatus = "unknown"; // "unknown" | "checking" | "ready" | "not_found" | "error"
-let claudeCodeVersion = "";
-let lastCheckError = "";
+  const resolvePython = () => {
+    if (process.env.UNCHAIN_PYTHON_BIN) return process.env.UNCHAIN_PYTHON_BIN;
+    const appPath = app.getAppPath();
+    return process.platform === "win32"
+      ? path.join(appPath, ".venv", "Scripts", "python.exe")
+      : path.join(appPath, ".venv", "bin", "python");
+  };
 
-const checkClaudeCodeCli = () =>
-  new Promise((resolve) => {
-    const proc = spawn("claude", ["--version"], {
-      stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env },
-    });
+  const checkClaudeCodeProvider = () => {
+    const python = resolvePython();
+    if (!fs.existsSync(python)) {
+      state = { status: "error", version: "", error: `Python not found at ${python}` };
+      return state;
+    }
+    const probe = spawnSync(
+      python,
+      ["-c", "import claude_agent_sdk; print(getattr(claude_agent_sdk, '__version__', 'installed'))"],
+      { encoding: "utf8", timeout: 5000 },
+    );
+    if (probe.status === 0) {
+      state = { status: "ready", version: String(probe.stdout || "").trim(), error: "" };
+      return state;
+    }
+    state = {
+      status: "not_installed",
+      version: "",
+      error: String(probe.stderr || probe.error?.message || "claude-agent-sdk unavailable").trim(),
+    };
+    return state;
+  };
 
-    let stdoutBuf = "";
-    let stderrBuf = "";
-
-    proc.stdout.on("data", (chunk) => {
-      stdoutBuf += chunk.toString();
-    });
-    proc.stderr.on("data", (chunk) => {
-      stderrBuf += chunk.toString();
-    });
-
-    proc.on("error", (err) => {
-      if (err.code === "ENOENT") {
-        claudeCodeStatus = "not_found";
-        lastCheckError = "Claude Code CLI not found in PATH";
-      } else {
-        claudeCodeStatus = "error";
-        lastCheckError = err.message;
-      }
-      claudeCodeVersion = "";
-      resolve({ status: claudeCodeStatus, version: "", error: lastCheckError });
-    });
-
-    proc.on("close", (code) => {
-      if (code === 0) {
-        claudeCodeStatus = "ready";
-        claudeCodeVersion = stdoutBuf.trim() || "unknown";
-        lastCheckError = "";
-      } else {
-        claudeCodeStatus = "error";
-        lastCheckError = stderrBuf.trim() || `exit code ${code}`;
-        claudeCodeVersion = "";
-      }
-      resolve({
-        status: claudeCodeStatus,
-        version: claudeCodeVersion,
-        error: lastCheckError,
-      });
-    });
-
-    setTimeout(() => {
-      try {
-        proc.kill();
-      } catch (_) {}
-    }, 5000);
-  });
-
-const getClaudeCodeStatus = () => ({
-  status: claudeCodeStatus,
-  version: claudeCodeVersion,
-  error: lastCheckError,
-});
-
-module.exports = {
-  checkClaudeCodeCli,
-  getClaudeCodeStatus,
+  return {
+    checkClaudeCodeProvider,
+    getClaudeCodeStatus: () => state,
+  };
 };
+
+module.exports = { createClaudeCodeService };
 ```
 
-- [ ] **Step 2: Create the `.cjs` mirror**
+- [ ] **Step 2: Add a test**
 
-Copy the same contents to `electron/main/services/claude_code/service.cjs` (PuPu convention: both .js and .cjs variants exist for electron tests).
-
-- [ ] **Step 3: Add a test**
-
-Create `electron/main/services/claude_code/service.test.cjs`:
+Create `electron/main/services/claude_code/service.test.js`:
 ```javascript
-const { checkClaudeCodeCli, getClaudeCodeStatus } = require("./service.cjs");
+const { createClaudeCodeService } = require("./service");
 
 describe("claude_code service", () => {
+  const service = createClaudeCodeService({
+    app: { getAppPath: () => process.cwd() },
+    fs: require("fs"),
+    path: require("path"),
+    spawnSync: require("child_process").spawnSync,
+  });
+
   test("getClaudeCodeStatus returns a status object with expected keys", () => {
-    const s = getClaudeCodeStatus();
+    const s = service.getClaudeCodeStatus();
     expect(s).toHaveProperty("status");
     expect(s).toHaveProperty("version");
     expect(s).toHaveProperty("error");
   });
 
-  test("checkClaudeCodeCli resolves with status object", async () => {
-    const result = await checkClaudeCodeCli();
+  test("checkClaudeCodeProvider resolves with status object", async () => {
+    const result = service.checkClaudeCodeProvider();
     expect(result).toHaveProperty("status");
-    expect(["ready", "not_found", "error"]).toContain(result.status);
+    expect(["ready", "not_installed", "unknown", "error"]).toContain(result.status);
   });
 });
 ```
 
-- [ ] **Step 4: Run the test**
+- [ ] **Step 3: Run the test**
 
 ```bash
 cd /Users/red/Desktop/GITRepo/PuPu
-npm test -- electron/main/services/claude_code/service.test.cjs
+npm test -- electron/main/services/claude_code/service.test.js --watchAll=false
 ```
-Expected: PASS (the `ready` branch passes if user has claude installed; otherwise `not_found`)
+Expected: PASS. The result should describe SDK/provider status, not merely global CLI status.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 4: Commit**
 
 ```bash
 git add electron/main/services/claude_code/
-git commit -m "feat(claude-code): add CLI detection service mirroring Ollama pattern"
+git commit -m "feat(claude-code): add provider status service"
 ```
 
 ---
 
-## Task 14: Electron — IPC channel for CLI status
+## Task 14: Electron — IPC channel for provider status
 
 **Files:**
-- Modify: `electron/shared/ipc_channels.js` — add new constant
-- Modify: `electron/main/index.js` (or wherever IPC handlers are registered) — register handler
-- Modify: `electron/preload/index.js` (or wherever bridges are exposed) — expose `window.claudeCodeAPI`
+- Modify: `electron/shared/channels.js` — add new channel constants under `CHANNELS.CLAUDE_CODE`
+- Modify: `electron/main/index.js` — instantiate and pass `claudeCodeService`
+- Modify: `electron/main/ipc/register_handlers.js` — allowlist and register handlers
+- Modify: `electron/preload/channels.js` — allowlist preload invoke channels
+- Modify: `electron/preload/index.js` — expose `window.claudeCodeAPI`
+- Create: `electron/preload/bridges/claude_code_bridge.js` — preload bridge wrapper
 - Create: `src/SERVICEs/api.claude_code.js` — renderer-side facade
 
 - [ ] **Step 1: Add IPC channel constant**
 
-In `electron/shared/ipc_channels.js`, add:
+In `electron/shared/channels.js`, add:
 ```javascript
-exports.CLAUDE_CODE_GET_STATUS = "claude_code:get_status";
-exports.CLAUDE_CODE_CHECK_CLI = "claude_code:check_cli";
+CLAUDE_CODE: Object.freeze({
+  GET_STATUS: "claude-code:get-status",
+  CHECK_PROVIDER: "claude-code:check-provider",
+}),
 ```
 
 - [ ] **Step 2: Register the IPC handlers in electron main**
 
-In `electron/main/index.js` (or the service registration file), find where Ollama's IPC handlers are registered. Add alongside:
+In `electron/main/index.js`, instantiate the service alongside Ollama and pass it to `registerIpcHandlers`. In `electron/main/ipc/register_handlers.js`, add `CHANNELS.CLAUDE_CODE.GET_STATUS` and `CHANNELS.CLAUDE_CODE.CHECK_PROVIDER` to `IPC_HANDLE_CHANNELS`, destructure `claudeCodeService`, and register:
 ```javascript
-const claudeCodeService = require("./services/claude_code/service.cjs");
-const { CLAUDE_CODE_GET_STATUS, CLAUDE_CODE_CHECK_CLI } = require("../shared/ipc_channels");
-
-ipcMain.handle(CLAUDE_CODE_GET_STATUS, () => claudeCodeService.getClaudeCodeStatus());
-ipcMain.handle(CLAUDE_CODE_CHECK_CLI, async () => {
-  return await claudeCodeService.checkClaudeCodeCli();
-});
+ipcMain.handle(CHANNELS.CLAUDE_CODE.GET_STATUS, () =>
+  claudeCodeService.getClaudeCodeStatus(),
+);
+ipcMain.handle(CHANNELS.CLAUDE_CODE.CHECK_PROVIDER, async () =>
+  claudeCodeService.checkClaudeCodeProvider(),
+);
 ```
 
 - [ ] **Step 3: Expose the bridge in preload**
 
-In `electron/preload/index.js` (or wherever `window.ollamaAPI` is defined), add:
+Create `electron/preload/bridges/claude_code_bridge.js` and use `CHANNELS`, matching `ollama_bridge.js`:
 ```javascript
-contextBridge.exposeInMainWorld("claudeCodeAPI", {
-  getStatus: () => ipcRenderer.invoke("claude_code:get_status"),
-  checkCli: () => ipcRenderer.invoke("claude_code:check_cli"),
+const { CHANNELS } = require("../../shared/channels");
+
+const createClaudeCodeBridge = (ipcRenderer) => ({
+  getStatus: () => ipcRenderer.invoke(CHANNELS.CLAUDE_CODE.GET_STATUS),
+  checkProvider: () => ipcRenderer.invoke(CHANNELS.CLAUDE_CODE.CHECK_PROVIDER),
 });
+
+module.exports = { createClaudeCodeBridge };
 ```
+
+Then import it from `electron/preload/index.js` and expose `window.claudeCodeAPI`. Also add both `CHANNELS.CLAUDE_CODE.*` invoke channels to `electron/preload/channels.js`.
 
 - [ ] **Step 4: Create renderer-side facade**
 
 Create `src/SERVICEs/api.claude_code.js`:
 ```javascript
-const bridge = typeof window !== "undefined" ? window.claudeCodeAPI : null;
+const getBridge = () =>
+  typeof window !== "undefined" ? window.claudeCodeAPI : null;
 
 export const getClaudeCodeStatus = async () => {
+  const bridge = getBridge();
   if (!bridge) return { status: "unknown", version: "", error: "bridge unavailable" };
   try {
     return await bridge.getStatus();
@@ -1470,10 +1563,11 @@ export const getClaudeCodeStatus = async () => {
   }
 };
 
-export const checkClaudeCodeCli = async () => {
+export const checkClaudeCodeProvider = async () => {
+  const bridge = getBridge();
   if (!bridge) return { status: "unknown", version: "", error: "bridge unavailable" };
   try {
-    return await bridge.checkCli();
+    return await bridge.checkProvider();
   } catch (err) {
     return { status: "error", version: "", error: String(err) };
   }
@@ -1488,168 +1582,60 @@ npm start
 ```
 Then in the renderer console:
 ```javascript
-await window.claudeCodeAPI.checkCli()
-// Expected: { status: "ready", version: "claude x.y.z", error: "" }
-// Or: { status: "not_found", ... } if not installed
+await window.claudeCodeAPI.checkProvider()
+// Expected: { status: "ready", version: "...", error: "" }
+// Or: { status: "not_installed", ... } if the Python SDK is unavailable
 ```
 
 - [ ] **Step 6: Commit**
 
 ```bash
-git add electron/shared/ipc_channels.js electron/main/index.js electron/preload/index.js src/SERVICEs/api.claude_code.js
-git commit -m "feat(claude-code): expose CLI status via IPC bridge"
+git add electron/shared/channels.js electron/main/index.js electron/main/ipc/register_handlers.js electron/preload/channels.js electron/preload/index.js electron/preload/bridges/claude_code_bridge.js src/SERVICEs/api.claude_code.js
+git commit -m "feat(claude-code): expose provider status via IPC bridge"
 ```
 
 ---
 
-## Task 15: Frontend — add `thinking_delta` dispatch in `use_chat_stream.js`
+## Task 15: Frontend — verify existing `reasoning` dispatch path
 
 **Files:**
-- Modify: `src/PAGEs/chat/hooks/use_chat_stream.js` (onFrame handler, around line 1383)
+- Usually none. Only modify `src/PAGEs/chat/hooks/use_chat_stream.js` if backend events prove incompatible.
 
-**Context:** The `onFrame` handler is a long if/chain. We add `thinking_delta` handling before the existing subagent/tool routing. Its job: append the new frame to the active assistant message's `traceFrames` so it gets rendered progressively.
+**Context:** The current hook already contains a thinking parser that buffers model thinking into synthetic `reasoning` frames (`bufferedThinkingDelta`, `accumulatedThinkingText`, `flushBufferedThinkingDelta`). Because Task 3 now maps SDK `ThinkingBlock` to `reasoning`, adding a new `thinking_delta` branch is unnecessary for Phase 1.
 
-- [ ] **Step 1: Read the current `onFrame` structure to find the exact insertion point**
+- [ ] **Step 1: Confirm `reasoning` frames are preserved**
 
-```bash
-grep -n "onFrame" /Users/red/Desktop/GITRepo/PuPu/src/PAGEs/chat/hooks/use_chat_stream.js
-```
-Find the first `if (frame.type === "token_delta")` branch — insert `thinking_delta` handling right before or after it. Best placement: right before `token_delta` so thinking arrives before visible text.
+Read `src/PAGEs/chat/hooks/use_chat_stream.js` around the `onFrame` handler and verify that non-token, non-subagent frames fall through to the generic append-to-`traceFrames` path. If `reasoning` does not reach that path, add only the minimal branch needed to append `frame.type === "reasoning"` frames.
 
-- [ ] **Step 2: Add the dispatch case**
+- [ ] **Step 2: Smoke test with a fake backend frame**
 
-In `use_chat_stream.js`, near the start of the `onFrame` if-chain:
-```javascript
-if (frame.type === "thinking_delta") {
-  const delta = frame.payload?.delta || "";
-  if (!delta) return;
-  // Append to current assistant message traceFrames so trace_chain_v3 renders it.
-  setStreamingThinking((prev) => (prev || "") + delta);
-  appendTraceFrameToStreamingMessage(frame);
-  return;
-}
-```
+Use the backend fake SDK test from Task 11 and confirm `reasoning` appears in `traceFrames`. Do not introduce `setStreamingThinking` or `appendTraceFrameToStreamingMessage`; those helpers do not exist in the current file.
 
-- [ ] **Step 3: Wire up `setStreamingThinking` state**
-
-If no such state exists, add near the top of the `useChatStream` hook body:
-```javascript
-const [streamingThinking, setStreamingThinking] = useState("");
-```
-
-Reset it on new streams (find where other streaming state is reset; add `setStreamingThinking("")` there).
-
-- [ ] **Step 4: Make sure `appendTraceFrameToStreamingMessage` helper exists**
-
-If the codebase already has a helper for adding frames to the streaming assistant message, use it. If not, the handler may need to directly mutate `activeStreamMessagesRef.current.messages[lastAssistantIndex].traceFrames`. Check how `tool_call` is handled — copy that pattern.
-
-- [ ] **Step 5: Smoke test via fake frame injection**
-
-No unit test for this — verified end-to-end in Task 18 smoke test. Skip to commit.
-
-- [ ] **Step 6: Commit**
+- [ ] **Step 3: Commit only if code changed**
 
 ```bash
 git add src/PAGEs/chat/hooks/use_chat_stream.js
-git commit -m "feat(claude-code): dispatch thinking_delta frames in chat stream hook"
+git commit -m "feat(claude-code): preserve Claude Code reasoning frames"
 ```
 
 ---
 
-## Task 16: Frontend — render `thinking_delta` in `trace_chain_v3.js`
+## Task 16: Frontend — verify existing `reasoning` renderer
 
 **Files:**
-- Modify: `src/COMPONENTs/chat-bubble/trace_chain_v3.js`
+- Usually none. Only modify `src/COMPONENTs/chat-bubble/trace_chain_v3.js` if the existing renderer is insufficient.
 
-**Context:** Add `thinking_delta` to `DISPLAY_FRAME_TYPES` (line 16-23) and add a renderer case. User specified: **not folded by default, using PuPu's design language.**
+**Context:** `trace_chain_v3.js` already includes `reasoning` in `DISPLAY_FRAME_TYPES` and renders `frame.type === "reasoning" || frame.type === "observation"`. Reuse this for Claude Code thinking in Phase 1. Add a new display frame type only if product requirements demand a separate "Claude Code Thinking" label after the backend is working.
 
-- [ ] **Step 1: Add to `DISPLAY_FRAME_TYPES`**
+- [ ] **Step 1: Verify current rendering**
 
-In `trace_chain_v3.js` around line 16-23:
-```javascript
-const DISPLAY_FRAME_TYPES = new Set([
-  "reasoning",
-  "observation",
-  "thinking_delta",  // Claude Code thinking blocks
-  "tool_call",
-  "tool_result",
-  "final_message",
-  "error",
-]);
-```
+Read `DISPLAY_FRAME_TYPES` and the reasoning/observation branch in `trace_chain_v3.js`. Confirm a `reasoning` frame with `payload.reasoning` renders expanded and matches PuPu's existing trace design.
 
-- [ ] **Step 2: Add the renderer case**
-
-Find where `frame.type === "reasoning"` is rendered (lines ~554-892). Add a parallel branch for `thinking_delta`. PuPu's design language for this should use:
-- The same color palette as the reasoning block but with a distinct indicator
-- A 💭 / brain-icon prefix (or use existing iconography)
-- Expanded by default (no `isCollapsed` initial state)
-- Left border or accent to distinguish from normal text
-
-Example skeleton (adapt colors/fonts to match existing `trace_chain_v3.js` style):
-```javascript
-if (frame.type === "thinking_delta") {
-  const delta = frame.payload?.delta || "";
-  return (
-    <div
-      key={key}
-      style={{
-        marginTop: 8,
-        marginBottom: 8,
-        padding: "8px 12px",
-        borderLeft: `2px solid ${isDark ? "#6b6b8f" : "#9ca3c8"}`,
-        color: isDark ? "#a8a8c0" : "#6b6b8a",
-        fontSize: 13,
-        fontStyle: "italic",
-        lineHeight: 1.5,
-        whiteSpace: "pre-wrap",
-      }}
-    >
-      <div
-        style={{
-          fontSize: 11,
-          textTransform: "uppercase",
-          letterSpacing: 0.8,
-          opacity: 0.7,
-          marginBottom: 4,
-        }}
-      >
-        Thinking
-      </div>
-      {delta}
-    </div>
-  );
-}
-```
-
-**Note:** check the existing `trace_chain_v3.js` styling conventions before committing to these exact colors. The snippet above is a template — match it to whatever palette PuPu's reasoning/observation blocks already use. If there's a shared `useTheme` or color constants file, use those instead of hardcoded hex.
-
-- [ ] **Step 3: Handle consecutive `thinking_delta` frames**
-
-Since thinking arrives as a stream of small deltas, consecutive frames should **visually merge into one block** rather than rendering as many separate boxes. Look at how consecutive `token_delta` frames are merged in existing code — apply the same pattern. This may mean aggregating deltas in `use_chat_stream.js` (Task 15) and rendering only the accumulated buffer, rather than one box per frame.
-
-Concrete approach: in Task 15, instead of appending every `thinking_delta` frame to `traceFrames`, maintain a **single** synthetic `thinking_block` frame per assistant turn and append deltas to its `payload.delta`. Then the renderer sees one frame per thinking session.
-
-If this refactor is cleaner, update Task 15's step 2 to:
-```javascript
-if (frame.type === "thinking_delta") {
-  const delta = frame.payload?.delta || "";
-  if (!delta) return;
-  appendOrCreateThinkingFrame(delta);  // merges into single frame
-  return;
-}
-```
-...and implement `appendOrCreateThinkingFrame` to locate the most recent `thinking_block` frame in the assistant's `traceFrames` and append to its delta, creating a new one if none exists.
-
-- [ ] **Step 4: Smoke test rendering**
-
-Manually: use the end-to-end test in Task 18 to verify thinking appears in UI with correct styling.
-
-- [ ] **Step 5: Commit**
+- [ ] **Step 2: Commit only if code changed**
 
 ```bash
-git add src/COMPONENTs/chat-bubble/trace_chain_v3.js src/PAGEs/chat/hooks/use_chat_stream.js
-git commit -m "feat(claude-code): render thinking_delta frames in chat bubble"
+git add src/COMPONENTs/chat-bubble/trace_chain_v3.js
+git commit -m "feat(claude-code): render Claude Code reasoning frames"
 ```
 
 ---
@@ -1661,27 +1647,29 @@ git commit -m "feat(claude-code): render thinking_delta frames in chat bubble"
 - Modify: `src/COMPONENTs/settings/model_providers/index.js`
 
 **Context:** The section shows:
-- Status badge (green if CLI ready, yellow if checking, red if not_found)
+- Status badge (green if provider ready, yellow if checking, red if SDK/auth unavailable)
 - "Check again" button
-- Install instructions (expandable) if CLI not found
-- A note: "Authentication is handled by the `claude` CLI. Run `claude login` in your terminal."
+- Install/auth instructions if the SDK or login state is unavailable
+- A note: "Authentication is handled by Claude Code. Run `claude login` in your terminal if using the global CLI, or follow the SDK's auth instructions."
 - **No API key input** (explicitly)
 
 - [ ] **Step 1: Create the section component**
 
 Create `src/COMPONENTs/settings/model_providers/claude_code_section.js`:
 ```javascript
-import React, { useEffect, useState, useContext } from "react";
-import { ConfigContext } from "../../../CONTAINERs/ConfigContainer";
-import { checkClaudeCodeCli, getClaudeCodeStatus } from "../../../SERVICEs/api.claude_code";
+import { useEffect, useState, useContext } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { checkClaudeCodeProvider, getClaudeCodeStatus } from "../../../SERVICEs/api.claude_code";
+import { SettingsSection } from "../appearance";
 
 const ClaudeCodeSection = () => {
-  const { isDark } = useContext(ConfigContext);
+  const { onThemeMode } = useContext(ConfigContext);
+  const isDark = onThemeMode === "dark_mode";
   const [status, setStatus] = useState({ status: "checking", version: "", error: "" });
 
   const refresh = async () => {
     setStatus((s) => ({ ...s, status: "checking" }));
-    const result = await checkClaudeCodeCli();
+    const result = await checkClaudeCodeProvider();
     setStatus(result);
   };
 
@@ -1699,7 +1687,7 @@ const ClaudeCodeSection = () => {
   const badgeColor = {
     ready: isDark ? "#3ddc84" : "#22a06b",
     checking: isDark ? "#e8c547" : "#b48a00",
-    not_found: isDark ? "#ff6b6b" : "#c93838",
+    not_installed: isDark ? "#ff6b6b" : "#c93838",
     error: isDark ? "#ff6b6b" : "#c93838",
     unknown: isDark ? "#888" : "#666",
   }[status.status] || "#888";
@@ -1707,20 +1695,13 @@ const ClaudeCodeSection = () => {
   const label = {
     ready: `Connected · ${status.version}`,
     checking: "Checking...",
-    not_found: "Claude Code CLI not found",
+    not_installed: "Claude Agent SDK not installed",
     error: "Error",
     unknown: "Unknown",
   }[status.status] || status.status;
 
   return (
-    <div
-      style={{
-        padding: 16,
-        borderRadius: 8,
-        backgroundColor: isDark ? "#1a1a22" : "#f7f7fa",
-        marginBottom: 12,
-      }}
-    >
+    <SettingsSection title="Claude Code" icon="Anthropic">
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
         <div
           style={{
@@ -1758,10 +1739,10 @@ const ClaudeCodeSection = () => {
           marginBottom: 8,
         }}
       >
-        Authentication is handled by the <code>claude</code> CLI. Run <code>claude login</code> in your terminal if you haven't already.
+        Authentication is handled by Claude Code. Run <code>claude login</code> in your terminal if you use the global CLI, or follow the Agent SDK auth flow.
       </div>
 
-      {status.status === "not_found" && (
+      {status.status === "not_installed" && (
         <div
           style={{
             fontSize: 12,
@@ -1772,8 +1753,8 @@ const ClaudeCodeSection = () => {
             marginBottom: 8,
           }}
         >
-          Install Claude Code:{" "}
-          <code>curl -fsSL https://claude.ai/install.sh | bash</code>
+          Install the Python SDK in PuPu's sidecar env:{" "}
+          <code>.venv/bin/python -m pip install -r unchain_runtime/server/requirements.txt</code>
         </div>
       )}
 
@@ -1791,7 +1772,7 @@ const ClaudeCodeSection = () => {
       >
         Check again
       </button>
-    </div>
+    </SettingsSection>
   );
 };
 
@@ -1833,9 +1814,15 @@ git commit -m "feat(claude-code): add Claude Code provider section to settings U
 ## Task 18: Frontend — provider selection plumbing (making it actually selectable as active provider)
 
 **Files:**
-- Modify: wherever PuPu determines which provider to send in `options.provider` when starting a chat stream. This is likely in `src/SERVICEs/api.unchain.js` or a context provider.
+- Modify: `src/SERVICEs/api.shared.js`
+- Modify: `src/SERVICEs/api.unchain.js`
+- Modify: `src/COMPONENTs/chat-input/constants.js`
+- Modify: `src/COMPONENTs/chat-input/hooks/use_chat_input_models.js`
+- Modify: `src/COMPONENTs/chat-input/utils/build_model_options.js`
+- Modify: `src/PAGEs/chat/chat.js`
+- Modify tests for each touched module
 
-**Context:** PuPu already has the concept of an "active provider" (openai/anthropic/ollama). We need to add `claude_code` as a valid option and add a way for the user to **select** it — probably a dropdown or radio button in the chat composer area or model picker.
+**Context:** PuPu stores the selected model as a provider-prefixed model id such as `openai:gpt-5` in chat storage, then sends it as `options.modelId` from `use_chat_stream.js`. Add a synthetic catalog/model id such as `claude_code:default` so the existing picker can select it. Do not invent a parallel selected-provider setting unless the existing model-id flow cannot support it.
 
 This task is the least mechanical because it depends on PuPu's existing model-selection UX — do recon first.
 
@@ -1847,23 +1834,24 @@ grep -rn "modelId\|model_id" /Users/red/Desktop/GITRepo/PuPu/src/SERVICEs/api.un
 grep -rn "selectedModel\|activeModel" /Users/red/Desktop/GITRepo/PuPu/src/
 ```
 Find:
-- Where the active model/provider is stored (likely localStorage)
-- Where it's read when building the chat payload
-- What UI component lets the user pick it
+- `src/SERVICEs/chat_storage/chat_storage_store.js` stores `model.id`
+- `src/PAGEs/chat/hooks/use_chat_stream.js` sends `options.modelId`
+- `src/COMPONENTs/chat-input/hooks/use_chat_input_models.js` and `src/COMPONENTs/chat-input/utils/build_model_options.js` build picker groups
+- `src/PAGEs/chat/chat.js` builds quick model chips on the empty-state screen
 
 Report findings before continuing. Ground the rest of this task in concrete file paths.
 
 - [ ] **Step 2: Add `claude_code` to the valid providers list in the frontend**
 
-Wherever the frontend has a provider whitelist (e.g., `["openai", "anthropic", "ollama"]`), add `"claude_code"`.
+Update frontend provider whitelists/normalizers. At minimum, `normalizeModelCatalog()` in `src/SERVICEs/api.shared.js` should preserve `providers.claude_code`, and `src/COMPONENTs/chat-input/constants.js` should add `MODEL_GROUPS.CLAUDE_CODE` plus `MODEL_PROVIDER_PREFIXES[MODEL_GROUPS.CLAUDE_CODE] = "claude_code:"`.
 
 - [ ] **Step 3: Add a "Claude Code" option in the model picker UI**
 
-Typically a dropdown item or a radio option. When selected, store `{ provider: "claude_code", model: "" }` in settings.
+Add a picker option with `value: "claude_code:default"`, `label: "Claude Code"`, and `trigger_label: "Claude Code"`. Gate it on provider status/configuration if desired, but do not require an API key.
 
 - [ ] **Step 4: Verify end-to-end — chat composer sends correct options.provider**
 
-Start PuPu, select Claude Code, open DevTools Network tab, send a message. Confirm the POST to `/chat/stream_v2` includes `"provider": "claude_code"` in the `options` payload.
+Start PuPu, select Claude Code, open DevTools Network tab, send a message. Confirm the stream payload includes `options.modelId: "claude_code:default"` or `options.provider: "claude_code"` depending on the final implementation. Backend `_parse_model_overrides()` must accept the same shape.
 
 - [ ] **Step 5: Commit**
 
@@ -1885,18 +1873,25 @@ git commit -m "feat(claude-code): wire Claude Code into frontend provider select
 
 - [ ] **Step 1: Add a shared helper to detect active provider**
 
-Create or reuse an existing hook:
+Create or reuse a helper that reads the active chat model id from chat storage, not `settings.selected_model`:
 ```javascript
 // src/SERVICEs/hooks/use_active_provider.js
 import { useState, useEffect } from "react";
+import { getChatsStore } from "../chat_storage";
+
+const providerFromModelId = (modelId) =>
+  typeof modelId === "string" && modelId.includes(":")
+    ? modelId.split(":", 1)[0]
+    : "";
 
 export const useActiveProvider = () => {
   const [provider, setProvider] = useState("");
   useEffect(() => {
     const read = () => {
       try {
-        const root = JSON.parse(localStorage.getItem("settings") || "{}");
-        setProvider(root?.selected_model?.provider || "");
+        const store = getChatsStore();
+        const activeChat = store?.chats?.find((chat) => chat.id === store.activeChatId);
+        setProvider(providerFromModelId(activeChat?.model?.id || ""));
       } catch {
         setProvider("");
       }
@@ -1908,7 +1903,7 @@ export const useActiveProvider = () => {
   return provider;
 };
 ```
-Adapt the `root?.selected_model?.provider` path to match what Task 18 actually uses.
+If the target UI is already inside chat and receives `selectedModelId`, prefer parsing that prop directly instead of adding a global hook.
 
 - [ ] **Step 2: In memory settings, check active provider and grey out**
 
@@ -1950,9 +1945,8 @@ git commit -m "feat(claude-code): disable memory/toolkit/character UI when provi
 
 - [ ] **Step 1: Prerequisites**
 
-- Claude Code CLI installed: `claude --version` succeeds
-- User is logged in: `claude login` completed at least once
-- `claude-agent-sdk` installed in PuPu's Python environment
+- `claude-agent-sdk` installed in PuPu's Python 3.12 sidecar environment
+- User is authenticated for Claude Code. If using the global CLI auth flow, `claude login` has completed at least once.
 
 - [ ] **Step 2: Start PuPu in dev mode**
 
@@ -2043,8 +2037,8 @@ git commit -m "docs(claude-code): phase 1 smoke test findings"
 - ✅ Integration into _create_agent (Task 10)
 - ✅ E2E backend test (Task 11)
 - ✅ SDK dependency declaration (Task 12)
-- ✅ CLI availability detection (Tasks 13, 14)
-- ✅ Frontend thinking rendering — dispatch (Task 15) and UI (Task 16)
+- ✅ Provider/SDK availability detection (Tasks 13, 14)
+- ✅ Frontend thinking rendering via existing reasoning path — dispatch (Task 15) and UI (Task 16)
 - ✅ Settings UI for provider (Task 17)
 - ✅ Provider selection plumbing (Task 18)
 - ✅ Grey out incompatible features (Task 19)
@@ -2059,8 +2053,8 @@ git commit -m "docs(claude-code): phase 1 smoke test findings"
 
 **Known plan weaknesses:**
 - Task 18 is less concrete than others because it requires recon of existing model-picker UI. The task explicitly calls this out and asks the executor to do recon first.
-- Task 16's exact color palette is a template — the executor must adapt to PuPu's real design tokens, which weren't captured verbatim here.
-- Task 19 assumes the existence of a settings storage shape (`root.selected_model.provider`) that must be adjusted to match what Task 18 actually implements.
+- Task 13/14 still need a product decision on whether provider status should live in Electron IPC, a sidecar HTTP route, or both. Do not gate the provider on a global `claude` binary.
+- Task 19 should parse the selected chat model id (`claude_code:default`) or receive the active provider from the chat page. Do not use the old placeholder `root.selected_model.provider` path.
 
 ---
 
