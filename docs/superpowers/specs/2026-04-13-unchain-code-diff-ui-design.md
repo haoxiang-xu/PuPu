@@ -61,7 +61,7 @@ Emitted as a `tool_call` SSE frame (already whitelisted in PuPu's `_UNSANITIZED_
 3. `execute_confirmable_tool_call` in `src/unchain/tools/confirmation.py` constructs `ToolConfirmationRequest` and **propagates `interact_type` / `interact_config` from the policy into the request object**. This is the one targeted change in `confirmation.py`.
 4. PuPu adapter (`_make_tool_confirm_callback` + `_build_tool_confirmation_request_payload`) already propagates these fields verbatim — no change needed.
 5. Frontend `InteractWrapper` looks up `code_diff` in the interact registry and renders `CodeDiffInteract` with approve/reject buttons.
-6. User clicks → `POST /chat/tool/confirmation { confirmation_id, approved }` → adapter unblocks `threading.Event` → tool resumes (or short-circuits to `{"denied": True, ...}` on reject, per existing contract).
+6. User clicks → `CodeDiffInteract` calls `onSubmit({ approved, scope: "once" })`. The surrounding `InteractWrapper` / `use_chat_stream` code posts `/chat/tool/confirmation { confirmation_id, approved }` → adapter unblocks `threading.Event` → tool resumes (or short-circuits to `{"denied": True, ...}` on reject, per existing contract). See §3.5 for why `scope` is always `"once"`.
 7. Frame stays in `message.traceFrames`; `CodeDiffInteract` re-renders in `approved` / `rejected` state (D2 style: opacity 0.75, 3px left edge in green or red, buttons replaced by a status badge).
 
 ### 3.3 Fallback rules
@@ -76,6 +76,28 @@ Emitted as a `tool_call` SSE frame (already whitelisted in PuPu's `_UNSANITIZED_
 - No change to `/chat/tool/confirmation` endpoint.
 - Reject-path semantics unchanged: `{"denied": True, "tool": ..., "reason": ...}` is emitted just like for any other confirmation rejection. A `tool_denied` event is still emitted.
 - `code_diff` never blocks tool execution: any failure in the diff path falls back to the legacy `interact_type="confirmation"`.
+- **Session-based auto-approve is intentionally NOT supported for `code_diff`.** See §3.5.
+
+### 3.5 Session-based approval interaction (deliberate no-op)
+
+PuPu added session-scoped approval in commit `54f82c1`: `ConfirmInteract` now has three buttons (`Allow once` / `Always allow` / `Deny`), and `onSubmit` emits `{ approved, scope: "once" | "session" }`. The `"session"` scope adds the `toolkitId:toolName` pair to `sessionAutoApproveRef` in `use_chat_stream.js`, causing subsequent same-tool confirmation requests in the current chat to auto-approve.
+
+The existing `isAutoApprovable` guard in `use_chat_stream.js` already excludes non-`confirmation` interact types:
+
+```js
+const isAutoApprovable =
+    toolName !== HUMAN_INPUT_TOOL_NAME &&
+    (!itype || itype === "confirmation") &&   // code_diff excluded here
+    (isToolAutoApproved(toolkitId, toolName) || isSessionAllowed);
+```
+
+This spec **does not change that guard**. `CodeDiffInteract` therefore:
+
+- Renders only two buttons: `Approve` and `Reject`. No `Always allow`.
+- Calls `onSubmit({ approved, scope: "once" })` to keep the payload structurally compatible with `ConfirmInteract`, but `scope` is hard-coded to `"once"`.
+- Bypasses the session auto-approve fast-lane by design — every `write` / `edit` call surfaces a fresh diff card, preserving the core value proposition of the feature (the user always sees what's about to change).
+
+Future work (§9) may revisit this if user feedback asks for a fast-lane, but the current decision is: **high-risk visualised operations should not share the low-risk-confirmation fast-lane.**
 
 ## 4. Backend Changes
 
@@ -128,16 +150,19 @@ In `execute_confirmable_tool_call`, at the point where `ToolConfirmationRequest`
 
 (Path verified during implementation by locating `ConfirmInteract.js` and mirroring its directory.)
 
-**Props** (match existing interact component conventions):
+**Props** (match existing interact component conventions, specifically `ConfirmInteract` post-54f82c1):
 
 ```js
 <CodeDiffInteract
   config={interact_config}          // §3.1 schema (single-file, no files[] array)
-  onSubmit={(result) => ...}        // result = { approved: bool }
-  status="pending" | "approved" | "rejected"
+  onSubmit={(result) => ...}        // result = { approved: bool, scope: "once" }
+  uiState={{ status, error, resolved, decision }}
   isDark={bool}
+  disabled={bool}                   // true when actions should be blocked
 />
 ```
+
+**`onSubmit` contract**: always emits `scope: "once"`. `CodeDiffInteract` does NOT render an "Always allow" button — see §3.5 for the rationale. `scope` is included in the payload purely for structural compatibility with `ConfirmInteract`; downstream `handleToolConfirmationDecision` already handles `scope: "once"` as the default no-op.
 
 **Render tree:**
 
@@ -173,12 +198,13 @@ One-line addition registering `code_diff: CodeDiffInteract` alongside the existi
 
 ### 5.3 Verify — `src/PAGEs/chat/hooks/use_chat_stream.js`
 
-Expected zero code change. Two things to verify during implementation:
+Expected zero code change. Three things to verify during implementation:
 
 1. `tool_call` frame handler dispatches to `InteractWrapper` based on presence of `interact_type` in payload, **not** hard-coded to `tool_name === "ask_user_question"`.
 2. After an approve/reject response, the frame is **not** removed from `message.traceFrames` — instead a `status` field (or similar) is mutated so the interact component re-renders in the new state. Required for D2 persistent-history.
+3. The existing `isAutoApprovable` guard (added in 54f82c1) still excludes `code_diff` — i.e. the line `(!itype || itype === "confirmation")` must remain. This is the safety red line; a regression here would let session auto-approve swallow `code_diff` cards, defeating the feature.
 
-If either assumption fails, apply a targeted patch. Do not rewrite the stream handler.
+If any assumption fails, apply a targeted patch. Do not rewrite the stream handler.
 
 ### 5.4 `trace_chain.js`
 
@@ -223,6 +249,10 @@ Two cases:
 ### 6.4 PuPu adapter regression test
 
 One file: `tests/server/test_adapter_code_diff_propagation.py`. Constructs a fake request object with `interact_type="code_diff"` and a realistic `interact_config`, calls `_build_tool_confirmation_request_payload`, asserts both fields are preserved verbatim. Locks the propagation contract.
+
+### 6.4.5 `use_chat_stream` auto-approve guard regression test
+
+One targeted test asserting that when a `tool_call` frame arrives with `interact_type="code_diff"` AND the `toolkitId:toolName` pair is already in `sessionAutoApproveRef` (simulated), the stream handler does **not** auto-approve it. Locks the §5.3 verification point against future refactors.
 
 ### 6.5 Frontend RTL tests — `CodeDiffInteract.test.js`
 
@@ -279,3 +309,4 @@ Each step is independently testable and committable.
 - Multi-file / batch support — schema can be extended by wrapping the current single-file shape in a `files[]` array without breaking existing consumers.
 - Shell-tool integration ("reconstruct a diff from `rm foo.py`") — intentionally avoided due to parsing fragility.
 - Dynamic truncation thresholds per file type.
+- Session-based auto-approve fast-lane for `code_diff` (§3.5). Intentionally excluded in v1 for safety; revisit only if concrete user feedback asks for it, and only with an opt-in-per-path scope so "approved foo.py once" can't silently allow edits to bar.py.
