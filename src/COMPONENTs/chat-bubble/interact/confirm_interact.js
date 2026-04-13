@@ -1,12 +1,10 @@
 /**
- * ConfirmInteract – Allow / Deny buttons extracted from TraceChain.
+ * ConfirmInteract – Allow / Don't ask again / Deny buttons.
  *
- * Props (standardised by InteractWrapper):
- *   config   – unused for confirmation type
- *   onSubmit – called with { approved: boolean }
- *   uiState  – { status, error, resolved, decision }
- *   isDark   – theme flag
- *   disabled – true when actions should be blocked
+ * onSubmit payload:
+ *   { approved: boolean, scope: "once" | "session" }
+ *   - "once"    → single approval / denial
+ *   - "session" → approve and remember for the current chat session
  */
 
 import { useContext } from "react";
@@ -23,7 +21,7 @@ const hexToRgba = (hex, a) => {
   return `rgba(${r},${g},${b},${a})`;
 };
 
-const ACTION_BUTTON_WIDTH = 80;
+const ACTION_BUTTON_WIDTH = 128;
 
 const buildActionStyle = (accent) => ({
   width: ACTION_BUTTON_WIDTH,
@@ -44,19 +42,25 @@ const ConfirmInteract = ({ onSubmit, disabled }) => {
   const mt = theme?.modal || {};
   const successAccent = mt.successAccent || (isDark ? "#4ADE80" : "#22C55E");
   const errorAccent = mt.errorAccent || (isDark ? "#F87171" : "#DC3545");
+  const warningAccent = mt.warningAccent || (isDark ? "#FBBF24" : "#F59E0B");
 
   if (disabled) return null;
 
   return (
     <div style={{ display: "flex", gap: 6 }}>
       <Button
-        label="Allow"
-        onClick={() => onSubmit({ approved: true })}
+        label="Allow once"
+        onClick={() => onSubmit({ approved: true, scope: "once" })}
         style={buildActionStyle(successAccent)}
       />
       <Button
+        label="Always allow"
+        onClick={() => onSubmit({ approved: true, scope: "session" })}
+        style={buildActionStyle(warningAccent)}
+      />
+      <Button
         label="Deny"
-        onClick={() => onSubmit({ approved: false })}
+        onClick={() => onSubmit({ approved: false, scope: "once" })}
         style={buildActionStyle(errorAccent)}
       />
     </div>

@@ -125,6 +125,7 @@ export const useChatStream = ({
 
   const streamHandleRef = useRef(null);
   const streamingChatIdRef = useRef(null);
+  const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
   const confirmationIdByCallIdRef = useRef(new Map());
   const confirmationCallIdByIdRef = useRef(new Map());
   const confirmationFollowupSignalByIdRef = useRef(new Map());
@@ -188,6 +189,12 @@ export const useChatStream = ({
   useEffect(() => {
     toolConfirmationUiStateByIdRef.current = toolConfirmationUiStateById;
   }, [toolConfirmationUiStateById]);
+
+  /* Session-scoped "Don't ask again" list is reset whenever the active
+   * chat changes, matching the semantics of "only in this session". */
+  useEffect(() => {
+    sessionAutoApproveRef.current.clear();
+  }, [chatId]);
 
   const isStreaming = streamingChatId === chatId;
   const hasBackgroundStream = Boolean(
@@ -558,7 +565,7 @@ export const useChatStream = ({
   );
 
   const handleToolConfirmationDecision = useCallback(
-    async ({ confirmationId, approved, userResponse }) => {
+    async ({ confirmationId, approved, userResponse, scope }) => {
       const normalizedConfirmationId =
         typeof confirmationId === "string" ? confirmationId.trim() : "";
       if (!normalizedConfirmationId) {
@@ -572,6 +579,21 @@ export const useChatStream = ({
         typeof requestFrame?.payload?.tool_name === "string"
           ? requestFrame.payload.tool_name
           : "";
+      const toolkitId =
+        typeof requestFrame?.payload?.toolkit_id === "string"
+          ? requestFrame.payload.toolkit_id
+          : "";
+
+      /* Session-scoped "Don't ask again": remember this tool so that
+       * subsequent requests within the same chat are auto-approved. */
+      if (
+        approved &&
+        scope === "session" &&
+        toolName &&
+        toolName !== HUMAN_INPUT_TOOL_NAME
+      ) {
+        sessionAutoApproveRef.current.add(`${toolkitId}:${toolName}`);
+      }
       const interactConfig =
         requestFrame?.payload?.interact_config &&
         typeof requestFrame.payload.interact_config === "object"
@@ -1852,10 +1874,13 @@ export const useChatStream = ({
                     typeof frame.payload?.interact_type === "string"
                       ? frame.payload.interact_type
                       : "";
+                  const isSessionAllowed = sessionAutoApproveRef.current.has(
+                    `${toolkitId}:${toolName}`,
+                  );
                   const isAutoApprovable =
                     toolName !== HUMAN_INPUT_TOOL_NAME &&
                     (!itype || itype === "confirmation") &&
-                    isToolAutoApproved(toolkitId, toolName);
+                    (isToolAutoApproved(toolkitId, toolName) || isSessionAllowed);
                   if (isAutoApprovable) {
                     const autoPayload = {
                       confirmation_id: confirmationId,
