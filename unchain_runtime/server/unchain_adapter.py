@@ -131,10 +131,15 @@ _GENERAL_MODEL_BY_PROVIDER = {
 }
 _DEVELOPER_AGENT_NAME = "pupu_developer"
 _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
+# Originally this list forced legacy confirmation for miso's old
+# workspace/terminal tools. In the standalone unchain repo, CoreToolkit's
+# `write` and `edit` already declare `requires_confirmation=True` at
+# registration time (see unchain core.py), so their entries here are
+# mostly defensive / cleanup. TerminalToolkit's `terminal_exec` still
+# depends on this list via `_should_force_legacy_confirmation`.
 _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
-    "write_file",
-    "delete_file",
-    "move_file",
+    "write",
+    "edit",
     "terminal_exec",
 }
 _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR = "_pupu_original_tool_name"

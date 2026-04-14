@@ -162,7 +162,7 @@ const TraceChainRunner = () => {
           overflowX: "hidden",
         }}
       >
-        <div style={{ padding: "64px 128px 0px" }}>
+        <div style={{ padding: "64px 32px 120px 232px" }}>
           {frames.length > 0 ? (
             <TraceChain
               frames={frames}
@@ -191,19 +191,19 @@ const TraceChainRunner = () => {
         </div>
       </div>
 
-      {/* ── bottom control bar (glassmorphism, centered) ── */}
+      {/* ── bottom control bar (glassmorphism, centered within content area) ── */}
       <div
         style={{
           position: "absolute",
           bottom: 16,
-          left: "50%",
+          left: "calc(50% + 100px)",
           transform: "translateX(-50%)",
           zIndex: 3,
           display: "flex",
           alignItems: "center",
           gap: 8,
           padding: "6px 16px",
-          maxWidth: "calc(100% - 40px)",
+          maxWidth: "calc(100% - 264px)",
           borderRadius: 10,
           background: overlay_bg,
           border: overlay_border,

@@ -659,6 +659,130 @@ const ERROR_SCENARIO = {
 };
 
 /* ═══════════════════════════════════════════════════════════════════════
+   Scenario 8 — Code Diff (write tool approval)
+   reasoning → tool_call(write + interact_type=code_diff) → await approve
+   ═══════════════════════════════════════════════════════════════════════ */
+const CODE_DIFF_UNIFIED = (
+  "--- a/src/unchain/tools/confirmation.py\n" +
+  "+++ b/src/unchain/tools/confirmation.py\n" +
+  "@@ -100,7 +100,21 @@\n" +
+  "         policy_render = confirmation_policy.render_component if confirmation_policy is not None else None\n" +
+  "         if isinstance(policy_render, dict) and policy_render:\n" +
+  "             effective_render = dict(policy_render)\n" +
+  "+\n" +
+  "+        # Propagate interact_type / interact_config from the resolved\n" +
+  "+        # policy onto the request. Policy may be None if no resolver\n" +
+  "+        # ran — in that case the request defaults apply.\n" +
+  "+        policy_interact_type = (\n" +
+  "+            confirmation_policy.interact_type\n" +
+  "+            if confirmation_policy is not None\n" +
+  '+            else "confirmation"\n' +
+  "+        )\n" +
+  "+        policy_interact_config = (\n" +
+  "+            confirmation_policy.interact_config\n" +
+  "+            if confirmation_policy is not None\n" +
+  "+            else None\n" +
+  "+        )\n" +
+  "+\n" +
+  "         confirmation_request = ToolConfirmationRequest(\n" +
+  "             tool_name=tool_call.name,\n" +
+  "             call_id=tool_call.call_id,\n"
+);
+
+const CODE_DIFF_SCENARIO = {
+  name: "Code Diff (write)",
+  description: "write tool surfaces a unified diff as the approval UI",
+  frames: [
+    f({ seq: 1, type: "stream_started" }),
+    f({
+      seq: 2,
+      type: "reasoning",
+      payload: {
+        reasoning:
+          "I need to propagate interact_type / interact_config from the policy onto the confirmation request so the frontend can render the new code_diff UI.",
+      },
+    }),
+    f({
+      seq: 3,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        confirmation_id: "confirm-1",
+        requires_confirmation: true,
+        tool_name: "write",
+        tool_display_name: "write",
+        description: "Edit src/unchain/tools/confirmation.py",
+        interact_type: "code_diff",
+        interact_config: {
+          title: "Edit src/unchain/tools/confirmation.py",
+          operation: "edit",
+          path: "src/unchain/tools/confirmation.py",
+          unified_diff: CODE_DIFF_UNIFIED,
+          truncated: false,
+          total_lines: CODE_DIFF_UNIFIED.split("\n").length,
+          displayed_lines: CODE_DIFF_UNIFIED.split("\n").length,
+          fallback_description: "edit confirmation.py (+14 -0)",
+        },
+        arguments: {
+          path: "src/unchain/tools/confirmation.py",
+          content: "<full file content elided>",
+        },
+      },
+    }),
+  ],
+  onApproveFrames: [
+    f({
+      seq: 4,
+      type: "tool_confirmed",
+      payload: { call_id: "call-1" },
+      ts: 3500,
+    }),
+    f({
+      seq: 5,
+      type: "tool_result",
+      payload: {
+        call_id: "call-1",
+        result: {
+          path: "src/unchain/tools/confirmation.py",
+          bytes_written: 3412,
+          append: false,
+        },
+      },
+      ts: 4000,
+    }),
+    f({
+      seq: 6,
+      type: "final_message",
+      payload: {
+        content:
+          "Done — `confirmation.py` now propagates `interact_type` / `interact_config` from the resolved policy onto the request.",
+      },
+      ts: 4800,
+    }),
+    f({ seq: 7, type: "done", ts: 5000 }),
+  ],
+  onDenyFrames: [
+    f({
+      seq: 4,
+      type: "tool_denied",
+      payload: { call_id: "call-1" },
+      ts: 3500,
+    }),
+    f({
+      seq: 5,
+      type: "final_message",
+      payload: {
+        content:
+          "Understood, I'll leave `confirmation.py` alone for now.",
+      },
+      ts: 4000,
+    }),
+    f({ seq: 6, type: "done", ts: 4200 }),
+  ],
+  waitForConfirmation: "confirm-1",
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
    Export all scenarios
    ═══════════════════════════════════════════════════════════════════════ */
 const TRACE_CHAIN_SCENARIOS = [
@@ -669,6 +793,7 @@ const TRACE_CHAIN_SCENARIOS = [
   DELEGATE_SUBAGENT,
   WORKER_BATCH,
   ERROR_SCENARIO,
+  CODE_DIFF_SCENARIO,
 ];
 
 export default TRACE_CHAIN_SCENARIOS;
