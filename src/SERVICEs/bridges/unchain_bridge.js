@@ -526,7 +526,7 @@ export const runtimeBridge = {
     hasBridgeMethod("unchainAPI", "validateApiKey"),
 
   validateApiKey: async (provider, apiKey) => {
-    const result = await invokeMiso("validateApiKey", [provider, apiKey], {
+    const result = await invokeUnchain("validateApiKey", [provider, apiKey], {
       timeoutMs: 12000,
       timeoutCode: "unchain_validate_api_key_timeout",
       timeoutMessage: "API key validation request timed out",
