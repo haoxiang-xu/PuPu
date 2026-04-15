@@ -1,15 +1,24 @@
 import { BASE_TOOLKIT_IDENTIFIERS, KIND_CONFIG } from "../constants";
 
-export const kindConfig = (kind) =>
-  KIND_CONFIG[kind] || {
-    label: kind || "Unknown",
+export const kindConfig = (kind, t) => {
+  const cfg = KIND_CONFIG[kind];
+  if (cfg) {
+    return {
+      ...cfg,
+      label: t ? t(cfg.labelKey) : cfg.labelKey,
+    };
+  }
+  return {
+    label: kind || (t ? t("toolkit.unknown") : "Unknown"),
     color: "#94a3b8",
     bg: "rgba(148,163,184,0.12)",
     border: "rgba(148,163,184,0.20)",
   };
+};
 
-export const toDisplayName = (toolkit) => {
-  const raw = toolkit.class_name || toolkit.name || "Unknown Toolkit";
+export const toDisplayName = (toolkit, t) => {
+  const fallback = t ? t("toolkit.unknown_toolkit") : "Unknown Toolkit";
+  const raw = toolkit.class_name || toolkit.name || fallback;
   return raw
     .replace(/([a-z])([A-Z])/g, "$1 $2")
     .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2")

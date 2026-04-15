@@ -199,7 +199,10 @@ const Markdown = ({
     const id = idRef.current;
     const markdownTheme = mergedMarkdownTheme;
     const baseFontFamily =
-      markdownTheme.fontFamily || theme?.font?.fontFamily || "Jost";
+      markdownTheme.fontFamily ||
+      theme?.font?.paragraphFontFamily ||
+      theme?.font?.fontFamily ||
+      "NunitoSans, sans-serif";
     const baseFontSize = toPx(markdownTheme.fontSize, "16px");
     const baseLineHeight = toLineHeight(markdownTheme.lineHeight, 1.6);
     const baseColor = markdownTheme.color || theme?.color || "#222222";

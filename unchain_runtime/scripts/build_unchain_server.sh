@@ -54,6 +54,43 @@ resolve_python312() {
   return 1
 }
 
+collect_python_runtime_binaries() {
+  local python_bin="$1"
+  "$python_bin" - <<'PY'
+from pathlib import Path
+import sys
+
+seen = set()
+roots = [
+    Path(sys.base_prefix) / "Library" / "bin",
+    Path(sys.base_prefix) / "DLLs",
+    Path(sys.prefix) / "Library" / "bin",
+    Path(sys.prefix) / "DLLs",
+]
+
+for root in roots:
+    if not root.exists():
+        continue
+    for pattern in (
+        "ffi*.dll",
+        "libffi*.dll",
+        "libssl*.dll",
+        "libcrypto*.dll",
+        "liblzma*.dll",
+        "libbz2*.dll",
+        "libexpat*.dll",
+        "sqlite3*.dll",
+    ):
+        for path in root.glob(pattern):
+            resolved = str(path.resolve())
+            key = resolved.casefold()
+            if key in seen:
+                continue
+            seen.add(key)
+            print(resolved)
+PY
+}
+
 if [[ -z "$TARGET_OS" ]]; then
   case "$(uname -s)" in
     Darwin) TARGET_OS="macos" ;;
@@ -103,7 +140,6 @@ if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
   exit 1
 fi
 
-PYTHON_BIN="$(resolve_python312)"
 VENV_DIR="${UNCHAIN_BUILD_VENV:-"$ROOT_DIR/.venv-unchain-build"}"
 if [[ -x "$VENV_DIR/bin/python" ]]; then
   VENV_PY="$VENV_DIR/bin/python"
@@ -124,6 +160,7 @@ if [[ -n "$VENV_PY" ]] && ! is_python312 "$VENV_PY"; then
 fi
 
 if [[ -z "$VENV_PY" ]]; then
+  PYTHON_BIN="$(resolve_python312)"
   "$PYTHON_BIN" -m venv "$VENV_DIR"
 
   if [[ -x "$VENV_DIR/bin/python" ]]; then
@@ -241,6 +278,12 @@ PYINSTALLER_ARGS=(
   --hidden-import qdrant_client.local
   --hidden-import qdrant_client.local.local_collection
 )
+
+while IFS= read -r runtime_binary; do
+  if [[ -n "$runtime_binary" && -f "$runtime_binary" ]]; then
+    PYINSTALLER_ARGS+=(--add-binary "${runtime_binary}${PYI_DATA_SEP}.")
+  fi
+done < <(collect_python_runtime_binaries "$VENV_PY")
 
 if [[ -n "$TARGET_ARCH" ]]; then
   PYINSTALLER_ARGS+=(--target-arch "$TARGET_ARCH")

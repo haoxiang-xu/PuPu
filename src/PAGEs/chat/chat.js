@@ -9,6 +9,7 @@ import {
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import {
   bootstrapChatsStore,
   refreshCharacterChatMetadata,
@@ -146,6 +147,7 @@ const HeroHeadline = ({ isDark }) => {
 };
 
 const ChatInterface = () => {
+  const { t } = useTranslation();
   const { theme, onFragment, onThemeMode } = useContext(ConfigContext);
 
   const [bootstrapped] = useState(() => bootstrapChatsStore());
@@ -328,7 +330,7 @@ const ChatInterface = () => {
     };
   }, [session.messages, session.activeChatIdRef, storageApi, stream.isStreaming]);
 
-  const refreshMisoStatus = useCallback(async () => {
+  const refreshUnchainStatus = useCallback(async () => {
     try {
       const status = await api.unchain.getStatus();
       commitUnchainStatus({
@@ -362,7 +364,7 @@ const ChatInterface = () => {
         status: "error",
         ready: false,
         url: null,
-        reason: "Failed to query Miso status",
+        reason: "Failed to query Unchain status",
       });
     }
   }, [commitUnchainStatus]);
@@ -404,16 +406,16 @@ const ChatInterface = () => {
   ]);
 
   useEffect(() => {
-    refreshMisoStatus();
+    refreshUnchainStatus();
 
     const timer = setInterval(() => {
-      refreshMisoStatus();
+      refreshUnchainStatus();
     }, unchainStatusPollInterval);
 
     return () => {
       clearInterval(timer);
     };
-  }, [refreshMisoStatus, unchainStatusPollInterval]);
+  }, [refreshUnchainStatus, unchainStatusPollInterval]);
 
   useEffect(() => {
     if (!unchainStatus.ready) {
@@ -459,13 +461,13 @@ const ChatInterface = () => {
 
   const effectiveDisclaimer = useMemo(() => {
     if (stream.streamError) {
-      return `Miso error: ${stream.streamError}`;
+      return `Unchain error: ${stream.streamError}`;
     }
     if (stream.hasBackgroundStream) {
       return "Another chat is streaming a response...";
     }
     if (stream.isStreaming) {
-      return "Miso is streaming a response...";
+      return "Unchain is streaming a response...";
     }
     if (!unchainStatus.ready) {
       return unchainStatus.reason
@@ -539,8 +541,8 @@ const ChatInterface = () => {
       isStreaming: stream.isStreaming,
       sendDisabled: isSendDisabled,
       placeholder: unchainStatus.ready
-        ? "Message PuPu Chat..."
-        : `Miso unavailable (${unchainStatus.status})${unchainStatus.reason ? `: ${unchainStatus.reason}` : ""}`,
+        ? t("chat.placeholder")
+        : `Unchain unavailable (${unchainStatus.status})${unchainStatus.reason ? `: ${unchainStatus.reason}` : ""}`,
       disclaimer: effectiveDisclaimer,
       showAttachments: true,
       onAttachFile: attachments.handleAttachFile,
@@ -571,6 +573,7 @@ const ChatInterface = () => {
       effectiveDisclaimer, attachments.handleAttachFile, attachments.processFiles,
       draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+      t,
     ],
   );
 

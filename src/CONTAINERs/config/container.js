@@ -20,6 +20,7 @@ import {
   ThemeContext,
   EnvironmentContext,
   NavigationContext,
+  LocaleContext,
 } from "./context";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
@@ -75,6 +76,32 @@ const resolveInitialThemeMode = (persistedThemeMode, systemTheme) => {
 
 const THEME_NAMES = Object.keys(available_themes);
 const DEFAULT_THEME_NAME = THEME_NAMES[0] || null;
+
+const LOCALE_FONT = {
+  en: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  "zh-CN": {
+    body: "LXGWWenKai",
+    title: "LXGWWenKai",
+    paragraph: "LXGWWenKai",
+  },
+  "zh-TW": {
+    body: "LXGWWenKaiTC",
+    title: "LXGWWenKaiTC",
+    paragraph: "LXGWWenKaiTC",
+  },
+  ja: { body: "KleeOne", title: "KleeOne", paragraph: "KleeOne" },
+  ko: {
+    body: "LXGWWenKaiKR",
+    title: "LXGWWenKaiKR",
+    paragraph: "LXGWWenKaiKR",
+  },
+  es: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  fr: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  de: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  it: { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  "pt-BR": { body: "Jost", title: "NunitoSans", paragraph: "NunitoSans" },
+  ru: { body: "Onest", title: "Onest", paragraph: "Onest" },
+};
 
 const resolveThemeDefinition = (themeName, themeMode) => {
   if (!themeName || !themeMode) {
@@ -132,6 +159,29 @@ const migrateSettingsStorage = () => {
   } catch {}
 };
 migrateSettingsStorage();
+
+/* apply persisted locale font as CSS vars synchronously to avoid initial font flash */
+const applyInitialLocaleFont = () => {
+  if (typeof document === "undefined") return;
+  try {
+    const persisted = loadSettingsStorage();
+    const locale = persisted?.appearance?.locale || "en";
+    const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
+    document.documentElement.style.setProperty(
+      "--pupu-font-family",
+      `"${localeFont.body}", sans-serif`,
+    );
+    document.documentElement.style.setProperty(
+      "--pupu-title-font-family",
+      `"${localeFont.title}", sans-serif`,
+    );
+    document.documentElement.style.setProperty(
+      "--pupu-paragraph-font-family",
+      `"${localeFont.paragraph}", sans-serif`,
+    );
+  } catch {}
+};
+applyInitialLocaleFont();
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 
 const ConfigContainer = ({ children }) => {
@@ -142,6 +192,7 @@ const ConfigContainer = ({ children }) => {
   /* load persisted appearance on first render */
   const _persisted = loadSettingsStorage();
   const _persistedThemeMode = _persisted?.appearance?.theme_mode;
+  const _persistedLocale = _persisted?.appearance?.locale;
   const initialThemeMode = resolveInitialThemeMode(
     _persistedThemeMode,
     system_theme,
@@ -154,13 +205,42 @@ const ConfigContainer = ({ children }) => {
     resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
   );
   const [onThemeMode, setOnThemeMode] = useState(initialThemeMode);
+  const [locale, setLocale] = useState(_persistedLocale || "en");
   const [isThemeBooting, setIsThemeBooting] = useState(true);
   const availableThemes = THEME_NAMES;
   const selectedTheme = DEFAULT_THEME_NAME;
 
   useEffect(() => {
-    setTheme(resolveThemeDefinition(selectedTheme, onThemeMode));
-  }, [onThemeMode, selectedTheme]);
+    const base = resolveThemeDefinition(selectedTheme, onThemeMode);
+    if (base) {
+      const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
+      setTheme({
+        ...base,
+        font: {
+          ...base.font,
+          fontFamily: localeFont.body,
+          titleFontFamily: localeFont.title,
+          paragraphFontFamily: localeFont.paragraph,
+        },
+      });
+      if (typeof document !== "undefined") {
+        document.documentElement.style.setProperty(
+          "--pupu-font-family",
+          `"${localeFont.body}", sans-serif`,
+        );
+        document.documentElement.style.setProperty(
+          "--pupu-title-font-family",
+          `"${localeFont.title}", sans-serif`,
+        );
+        document.documentElement.style.setProperty(
+          "--pupu-paragraph-font-family",
+          `"${localeFont.paragraph}", sans-serif`,
+        );
+      }
+    } else {
+      setTheme(base);
+    }
+  }, [onThemeMode, selectedTheme, locale]);
   useEffect(() => {
     if (theme?.backgroundColor) {
       themeBridge.setBackgroundColor(theme.backgroundColor);
@@ -194,6 +274,9 @@ const ConfigContainer = ({ children }) => {
       theme_mode: syncWithSystemTheme ? "sync_with_browser" : onThemeMode,
     });
   }, [onThemeMode, syncWithSystemTheme]);
+  useEffect(() => {
+    saveSettingsStorage("appearance", { locale });
+  }, [locale]);
 
   useEffect(() => {
     if (!isDevSettingsAvailable()) {
@@ -247,6 +330,11 @@ const ConfigContainer = ({ children }) => {
     [syncWithSystemTheme, availableThemes, theme, onThemeMode],
   );
 
+  const localeValue = useMemo(
+    () => ({ locale, setLocale }),
+    [locale],
+  );
+
   const environmentValue = useMemo(
     () => ({ window_size, env_browser, device_type }),
     [window_size, env_browser, device_type],
@@ -262,14 +350,16 @@ const ConfigContainer = ({ children }) => {
   const configValue = useMemo(
     () => ({
       ...themeValue,
+      ...localeValue,
       ...environmentValue,
       ...navigationValue,
     }),
-    [themeValue, environmentValue, navigationValue],
+    [themeValue, localeValue, environmentValue, navigationValue],
   );
 
   return (
     <ThemeContext.Provider value={themeValue}>
+    <LocaleContext.Provider value={localeValue}>
     <EnvironmentContext.Provider value={environmentValue}>
     <NavigationContext.Provider value={navigationValue}>
     <ConfigContext.Provider value={configValue}>
@@ -313,6 +403,7 @@ const ConfigContainer = ({ children }) => {
     </ConfigContext.Provider>
     </NavigationContext.Provider>
     </EnvironmentContext.Provider>
+    </LocaleContext.Provider>
     </ThemeContext.Provider>
   );
 };

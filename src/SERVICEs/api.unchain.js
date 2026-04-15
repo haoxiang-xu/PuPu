@@ -4,7 +4,7 @@ import {
   assertBridgeMethod,
   hasBridgeMethod,
   isObject,
-  normalizeMisoStatus,
+  normalizeUnchainStatus,
   normalizeModelCatalog,
   toFrontendApiError,
   withTimeout,
@@ -493,7 +493,7 @@ const injectSystemPromptV2IntoPayload = (payload) => {
   };
 };
 
-const normalizeMisoV2Payload = (payload) => {
+const normalizeUnchainV2Payload = (payload) => {
   const payloadWithWorkspaceRoot = injectWorkspaceRootIntoPayload(payload);
   const payloadWithSystemPromptV2 = injectSystemPromptV2IntoPayload(
     payloadWithWorkspaceRoot,
@@ -516,14 +516,14 @@ export const createUnchainApi = () => {
           () => method(),
           4000,
           "unchain_status_timeout",
-          "Miso status request timed out",
+          "Unchain status request timed out",
         );
-        return normalizeMisoStatus(status);
+        return normalizeUnchainStatus(status);
       } catch (error) {
         throw toFrontendApiError(
           error,
           "unchain_status_failed",
-          "Failed to query Miso status",
+          "Failed to query Unchain status",
         );
       }
     },
@@ -539,14 +539,14 @@ export const createUnchainApi = () => {
           () => method(),
           6000,
           "unchain_model_catalog_timeout",
-          "Miso model catalog request timed out",
+          "Unchain model catalog request timed out",
         );
         return normalizeModelCatalog(payload);
       } catch (error) {
         throw toFrontendApiError(
           error,
           "unchain_model_catalog_failed",
-          "Failed to query Miso model catalog",
+          "Failed to query Unchain model catalog",
         );
       }
     },
@@ -562,14 +562,14 @@ export const createUnchainApi = () => {
           () => method(),
           6000,
           "unchain_toolkit_catalog_timeout",
-          "Miso toolkit catalog request timed out",
+          "Unchain toolkit catalog request timed out",
         );
         return payload || { toolkits: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(
           error,
           "unchain_toolkit_catalog_failed",
-          "Failed to query Miso toolkit catalog",
+          "Failed to query Unchain toolkit catalog",
         );
       }
     },
@@ -585,14 +585,14 @@ export const createUnchainApi = () => {
           () => method(),
           8000,
           "unchain_tool_modal_catalog_timeout",
-          "Miso tool modal catalog request timed out",
+          "Unchain tool modal catalog request timed out",
         );
         return payload || { toolkits: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(
           error,
           "unchain_tool_modal_catalog_failed",
-          "Failed to query Miso tool modal catalog",
+          "Failed to query Unchain tool modal catalog",
         );
       }
     },
@@ -615,7 +615,7 @@ export const createUnchainApi = () => {
           () => method(toolkitId, toolName),
           6000,
           "unchain_toolkit_detail_timeout",
-          "Miso toolkit detail request timed out",
+          "Unchain toolkit detail request timed out",
         );
         return (
           payload || {
@@ -631,7 +631,7 @@ export const createUnchainApi = () => {
         throw toFrontendApiError(
           error,
           "unchain_toolkit_detail_failed",
-          "Failed to query Miso toolkit detail",
+          "Failed to query Unchain toolkit detail",
         );
       }
     },
@@ -695,7 +695,7 @@ export const createUnchainApi = () => {
         ) {
           throw new FrontendApiError(
             "invalid_stream_handle",
-            "Miso bridge returned an invalid stream handle",
+            "Unchain bridge returned an invalid stream handle",
           );
         }
         return streamHandle;
@@ -703,7 +703,7 @@ export const createUnchainApi = () => {
         throw toFrontendApiError(
           error,
           "unchain_stream_start_failed",
-          "Failed to start Miso stream",
+          "Failed to start Unchain stream",
         );
       }
     },
@@ -863,7 +863,7 @@ export const createUnchainApi = () => {
     replaceSessionMemory: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "replaceSessionMemory");
-        const normalizedPayload = normalizeMisoV2Payload(payload);
+        const normalizedPayload = normalizeUnchainV2Payload(payload);
         const sessionIdRaw =
           normalizedPayload?.sessionId ?? normalizedPayload?.session_id;
         const sessionId =
@@ -889,7 +889,7 @@ export const createUnchainApi = () => {
             }),
           15000,
           "unchain_session_memory_replace_timeout",
-          "Miso session memory replace request timed out",
+          "Unchain session memory replace request timed out",
         );
 
         return isObject(response) ? response : { applied: false };
@@ -897,7 +897,7 @@ export const createUnchainApi = () => {
         throw toFrontendApiError(
           error,
           "unchain_session_memory_replace_failed",
-          "Failed to replace Miso session memory",
+          "Failed to replace Unchain session memory",
         );
       }
     },
@@ -905,7 +905,7 @@ export const createUnchainApi = () => {
     startStreamV2: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStreamV2");
-        const normalizedPayload = normalizeMisoV2Payload(payload);
+        const normalizedPayload = normalizeUnchainV2Payload(payload);
         const streamHandle = method(normalizedPayload, handlers);
         if (
           !isObject(streamHandle) ||
@@ -913,7 +913,7 @@ export const createUnchainApi = () => {
         ) {
           throw new FrontendApiError(
             "invalid_stream_handle",
-            "Miso bridge returned an invalid stream handle",
+            "Unchain bridge returned an invalid stream handle",
           );
         }
         return streamHandle;
@@ -921,13 +921,13 @@ export const createUnchainApi = () => {
         throw toFrontendApiError(
           error,
           "unchain_stream_v2_start_failed",
-          "Failed to start Miso v2 stream",
+          "Failed to start Unchain v2 stream",
         );
       }
     },
   };
 
-  const retrieveMisoModelList = async (provider = null) => {
+  const retrieveUnchainModelList = async (provider = null) => {
     const catalog = await unchainApi.getModelCatalog();
     if (typeof provider !== "string" || !provider.trim()) {
       return catalog.providers;
@@ -938,8 +938,8 @@ export const createUnchainApi = () => {
       : [];
   };
 
-  unchainApi.retrieveModelList = retrieveMisoModelList;
-  unchainApi.listModels = retrieveMisoModelList;
+  unchainApi.retrieveModelList = retrieveUnchainModelList;
+  unchainApi.listModels = retrieveUnchainModelList;
 
   return unchainApi;
 };

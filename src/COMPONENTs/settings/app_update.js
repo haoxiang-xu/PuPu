@@ -4,6 +4,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { SemiSwitch } from "../../BUILTIN_COMPONENTs/input/switch";
 import { api } from "../../SERVICEs/api";
 import { SettingsRow, SettingsSection } from "./appearance";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const toProgress = (value) => {
   const numeric = Number(value);
@@ -21,6 +22,7 @@ const toProgress = (value) => {
 
 export const AppUpdateSettings = () => {
   const { onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const updateBridgeAvailable = api.appUpdate.isBridgeAvailable();
   const [actionPending, setActionPending] = useState(false);
@@ -160,22 +162,22 @@ export const AppUpdateSettings = () => {
 
   const buttonLabel = useMemo(() => {
     if (stage === "downloaded") {
-      return "Restart to install";
+      return t("app_update.restart_to_install");
     }
     if (stage === "checking") {
-      return "Checking...";
+      return t("app_update.checking");
     }
     if (stage === "downloading") {
-      return `Downloading ${progress}%`;
+      return t("app_update.downloading", { progress });
     }
     if (stage === "no_update") {
-      return "Up to date";
+      return t("app_update.up_to_date");
     }
     if (stage === "error") {
-      return "Retry";
+      return t("model_providers.retry");
     }
-    return "Check for updates";
-  }, [progress, stage]);
+    return t("app_update.check_for_updates");
+  }, [progress, stage, t]);
 
   const buttonDisabled =
     !updateBridgeAvailable ||
@@ -194,10 +196,10 @@ export const AppUpdateSettings = () => {
 
   return (
     <div>
-      <SettingsSection title="udpate" icon="update">
+      <SettingsSection title={t("app_update.title")} icon="update">
         <SettingsRow
-          label="auto updte"
-          description="Automatically check for app updates"
+          label={t("app_update.auto_update")}
+          description={t("app_update.auto_update_desc")}
         >
           <SemiSwitch
             on={autoUpdte}
@@ -207,8 +209,8 @@ export const AppUpdateSettings = () => {
         </SettingsRow>
 
         <SettingsRow
-          label="Current Version"
-          description="Installed application version"
+          label={t("app_update.current_version")}
+          description={t("app_update.current_version_desc")}
         >
           <span
             style={{
@@ -222,8 +224,8 @@ export const AppUpdateSettings = () => {
         </SettingsRow>
 
         <SettingsRow
-          label="Latest Version"
-          description="Latest version from release channel"
+          label={t("app_update.latest_version")}
+          description={t("app_update.latest_version_desc")}
         >
           <span
             style={{
@@ -237,8 +239,8 @@ export const AppUpdateSettings = () => {
         </SettingsRow>
 
         <SettingsRow
-          label="Update Action"
-          description="Check, download, and install updates from GitHub Releases"
+          label={t("app_update.update_action")}
+          description={t("app_update.update_action_desc")}
         >
           <Button
             prefix_icon="update"
@@ -274,8 +276,8 @@ export const AppUpdateSettings = () => {
         >
           {message ||
             (!updateBridgeAvailable
-              ? "In-app updates are unavailable in this runtime."
-              : "Use the button above to check for app updates.")}
+              ? t("app_update.unavailable")
+              : t("app_update.check_for_updates"))}
         </div>
       </SettingsSection>
     </div>

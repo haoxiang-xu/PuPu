@@ -635,7 +635,7 @@ function Scatter({
                   <div
                     style={{
                       fontSize: 12,
-                      fontFamily: "Jost, sans-serif",
+                      fontFamily: config_theme?.font?.fontFamily || "Jost, sans-serif",
                       fontWeight: 500,
                       color: theme.tooltipColor,
                       marginBottom: tooltip.point.content ? 4 : 0,
@@ -649,7 +649,7 @@ function Scatter({
                   <div
                     style={{
                       fontSize: 11,
-                      fontFamily: "Jost, sans-serif",
+                      fontFamily: config_theme?.font?.fontFamily || "Jost, sans-serif",
                       color: theme.tooltipMetaColor,
                       lineHeight: 1.5,
                       wordBreak: "break-word",
@@ -689,7 +689,7 @@ function Scatter({
                     <span
                       style={{
                         fontSize: 10,
-                        fontFamily: "Jost, sans-serif",
+                        fontFamily: config_theme?.font?.fontFamily || "Jost, sans-serif",
                         color: theme.tooltipMetaColor,
                         letterSpacing: "0.3px",
                         textTransform: "uppercase",
@@ -755,7 +755,7 @@ function Scatter({
               <span
                 style={{
                   fontSize: 11,
-                  fontFamily: "Jost, sans-serif",
+                  fontFamily: config_theme?.font?.fontFamily || "Jost, sans-serif",
                   color: theme.labelColor,
                   userSelect: "none",
                   WebkitUserSelect: "none",

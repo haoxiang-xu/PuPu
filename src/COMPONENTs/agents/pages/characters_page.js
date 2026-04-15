@@ -1,15 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { getChatsStore, openCharacterChat } from "../../../SERVICEs/chat_storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 const CHARACTER_SUB_PAGES = [
   { key: "added", icon: "check", label: "Following" },
   { key: "find", icon: "search", label: "Discover" },
 ];
-
-const FONT = "Jost, sans-serif";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Helpers                                                                                              */
@@ -108,7 +107,11 @@ const CharacterStatePanel = ({
   body,
   isDark,
   testId,
-}) => (
+}) => {
+  const { theme } = useContext(ConfigContext);
+  const FONT = theme?.font?.fontFamily || "Jost, sans-serif";
+  const TITLE_FONT = theme?.font?.titleFontFamily || "NunitoSans, sans-serif";
+  return (
   <div
     data-testid={testId}
     style={{
@@ -144,7 +147,7 @@ const CharacterStatePanel = ({
       style={{
         fontSize: 14,
         fontWeight: 600,
-        fontFamily: "NunitoSans, sans-serif",
+        fontFamily: TITLE_FONT,
         color: isDark ? "rgba(255,255,255,0.55)" : "rgba(0,0,0,0.5)",
       }}
     >
@@ -162,9 +165,12 @@ const CharacterStatePanel = ({
       {body}
     </div>
   </div>
-);
+  );
+};
 
 const CharacterAvatar = ({ character, isDark, size = 54 }) => {
+  const { theme } = useContext(ConfigContext);
+  const TITLE_FONT = theme?.font?.titleFontFamily || "NunitoSans, sans-serif";
   const [imageBroken, setImageBroken] = useState(false);
   const avatarSrc = resolveAvatarSrc(character);
   const showImage = Boolean(avatarSrc) && !imageBroken;
@@ -186,7 +192,7 @@ const CharacterAvatar = ({ character, isDark, size = 54 }) => {
         color: isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.74)",
         fontSize: Math.round(size * 0.33),
         fontWeight: 700,
-        fontFamily: "NunitoSans, sans-serif",
+        fontFamily: TITLE_FONT,
         letterSpacing: "0.03em",
       }}
     >
@@ -211,6 +217,8 @@ const CharacterAvatar = ({ character, isDark, size = 54 }) => {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenChat }) => {
+  const { theme } = useContext(ConfigContext);
+  const FONT = theme?.font?.fontFamily || "Jost, sans-serif";
   const [hovered, setHovered] = useState(false);
 
   const bg = isSelected
@@ -292,6 +300,8 @@ const CharacterContactRow = ({ character, isDark, isSelected, onClick, onOpenCha
 
 /* ── Circular action button for detail panel (using Button component) ── */
 const DetailActionCircle = ({ icon, label, color, isDark, onClick, disabled }) => {
+  const { theme } = useContext(ConfigContext);
+  const FONT = theme?.font?.fontFamily || "Jost, sans-serif";
   const baseColor = color || (isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.55)");
 
   return (
@@ -344,6 +354,9 @@ const CharacterDetailPanel = ({
   onRemove,
   isRemoving,
 }) => {
+  const { theme } = useContext(ConfigContext);
+  const FONT = theme?.font?.fontFamily || "Jost, sans-serif";
+  const TITLE_FONT = theme?.font?.titleFontFamily || "NunitoSans, sans-serif";
   const [imageBroken, setImageBroken] = useState(false);
 
   useEffect(() => {
@@ -455,7 +468,7 @@ const CharacterDetailPanel = ({
               color: isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.3)",
               fontSize: 56,
               fontWeight: 700,
-              fontFamily: "NunitoSans, sans-serif",
+              fontFamily: TITLE_FONT,
             }}
           >
             {fallbackInitial(character)}
@@ -469,7 +482,7 @@ const CharacterDetailPanel = ({
           style={{
             fontSize: 20,
             fontWeight: 700,
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: TITLE_FONT,
             color: isDark ? "#fff" : "#171717",
           }}
         >
@@ -653,6 +666,9 @@ const EASE_OUT_QUINT = "cubic-bezier(0.22, 1, 0.36, 1)";
 /* ── Card content (shared between states) ── */
 
 const SwipeCardContent = ({ character, isDark, dragX }) => {
+  const { theme } = useContext(ConfigContext);
+  const FONT = theme?.font?.fontFamily || "Jost, sans-serif";
+  const TITLE_FONT = theme?.font?.titleFontFamily || "NunitoSans, sans-serif";
   const [imageBroken, setImageBroken] = useState(false);
   const avatarSrc = resolveAvatarSrc(character);
   const showImage = Boolean(avatarSrc) && !imageBroken;
@@ -720,7 +736,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
               color: "rgba(255,255,255,0.7)",
               fontSize: 72,
               fontWeight: 700,
-              fontFamily: "NunitoSans, sans-serif",
+              fontFamily: TITLE_FONT,
             }}
           >
             {fallbackInitial(character)}
@@ -743,7 +759,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
               fontSize: 22,
               fontWeight: 700,
               color: "#fff",
-              fontFamily: "NunitoSans, sans-serif",
+              fontFamily: TITLE_FONT,
               textShadow: "0 1px 4px rgba(0,0,0,0.3)",
             }}
           >
@@ -780,7 +796,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
           </div>
           <div style={{
             color: "#fff", fontSize: 22, fontWeight: 800,
-            fontFamily: "NunitoSans, sans-serif", letterSpacing: 4,
+            fontFamily: TITLE_FONT, letterSpacing: 4,
             textShadow: "0 2px 8px rgba(0,0,0,0.2)",
           }}>
             LIKE
@@ -813,7 +829,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
           </div>
           <div style={{
             color: "#fff", fontSize: 22, fontWeight: 800,
-            fontFamily: "NunitoSans, sans-serif", letterSpacing: 4,
+            fontFamily: TITLE_FONT, letterSpacing: 4,
             textShadow: "0 2px 8px rgba(0,0,0,0.2)",
           }}>
             NOPE
@@ -839,7 +855,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
         ) : null}
 
         <div style={{
-          fontSize: 20, fontWeight: 700, fontFamily: "NunitoSans, sans-serif",
+          fontSize: 20, fontWeight: 700, fontFamily: TITLE_FONT,
           color: isDark ? "#fff" : "#171717", lineHeight: 1.2,
         }}>
           {character?.name || "Character"}
@@ -896,6 +912,9 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
 /* ── SwipeStack ── */
 
 const SwipeStack = ({ characters, isDark, onSwipeRight, onSwipeLeft }) => {
+  const { theme } = useContext(ConfigContext);
+  const FONT = theme?.font?.fontFamily || "Jost, sans-serif";
+  const TITLE_FONT = theme?.font?.titleFontFamily || "NunitoSans, sans-serif";
   const [currentIndex, setCurrentIndex] = useState(0);
 
   /* drag state — not in React state to avoid re-renders during drag */
@@ -1025,7 +1044,7 @@ const SwipeStack = ({ characters, isDark, onSwipeRight, onSwipeLeft }) => {
           <span style={{ fontSize: 32 }}>&#9749;</span>
         </div>
         <div style={{
-          fontSize: 18, fontWeight: 700, fontFamily: "NunitoSans, sans-serif",
+          fontSize: 18, fontWeight: 700, fontFamily: TITLE_FONT,
           color: isDark ? "rgba(255,255,255,0.8)" : "rgba(0,0,0,0.7)",
         }}>
           You've seen everyone!

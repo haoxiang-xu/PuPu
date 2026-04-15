@@ -5,7 +5,7 @@ const writeSettings = (settings) => {
 };
 
 describe("api.unchain.startStreamV2 memory/provider options", () => {
-  const originalMisoApi = window.unchainAPI;
+  const originalUnchainApi = window.unchainAPI;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -21,7 +21,7 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
   });
 
   afterAll(() => {
-    window.unchainAPI = originalMisoApi;
+    window.unchainAPI = originalUnchainApi;
   });
 
   test("injects anthropic provider key without generic apiKey fields", () => {

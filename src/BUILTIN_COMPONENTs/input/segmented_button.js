@@ -37,6 +37,7 @@ const SegmentedButtonCell = forwardRef(
     },
     ref,
   ) => {
+    const { theme } = useContext(ConfigContext);
     const [hovered, setHovered] = useState(false);
     const [pressed, setPressed] = useState(false);
 
@@ -64,7 +65,7 @@ const SegmentedButtonCell = forwardRef(
           gap: 6,
           padding: btnPadding,
           fontSize,
-          fontFamily: "Jost, sans-serif",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           fontWeight: 500,
           color: isDisabled
             ? isDark

@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import api from "../../../../SERVICEs/api";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
+import { createLogger } from "../../../../SERVICEs/console_logger";
 import pull_store from "../pull_store";
+
+const ollamaUiLogger = createLogger(
+  "OLLAMA",
+  "src/COMPONENTs/settings/model_providers/hooks/use_ollama_library.js",
+);
 
 export const useOllamaLibrary = () => {
   const [category, setCategory] = useState("");
@@ -58,7 +64,12 @@ export const useOllamaLibrary = () => {
   const handlePull = useCallback((modelName, size) => {
     const fullName = size ? `${modelName}:${size}` : modelName;
     const key = fullName;
-    if (pull_store.refs[key]) return;
+    if (pull_store.refs[key]) {
+      ollamaUiLogger.log("pull_duplicate", { model: fullName });
+      return;
+    }
+
+    ollamaUiLogger.log("pull_request", { model: fullName });
 
     const controller = new AbortController();
     pull_store.refs[key] = controller;
@@ -77,6 +88,7 @@ export const useOllamaLibrary = () => {
         },
       })
       .then(() => {
+        ollamaUiLogger.log("pull_resolved", { model: fullName });
         emitModelCatalogRefresh({
           reason: "ollama_pull_completed",
           model: fullName,
@@ -93,8 +105,14 @@ export const useOllamaLibrary = () => {
       .catch((err) => {
         delete pull_store.refs[key];
         if (err?.name === "AbortError" || err?.code === "abort") {
+          ollamaUiLogger.log("pull_aborted", { model: fullName });
           pull_store.delete(key);
         } else {
+          ollamaUiLogger.error("pull_rejected", {
+            model: fullName,
+            code: err?.code || null,
+            error: err?.message || String(err),
+          });
           pull_store.set(key, {
             status: "error",
             percent: null,
@@ -106,6 +124,7 @@ export const useOllamaLibrary = () => {
   }, []);
 
   const handleCancel = useCallback((key) => {
+    ollamaUiLogger.log("pull_cancel", { model: key });
     pull_store.refs[key]?.abort();
     delete pull_store.refs[key];
     pull_store.delete(key);

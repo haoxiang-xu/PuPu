@@ -2,12 +2,14 @@ import { useCallback, useContext, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import { Input } from "../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ConfirmDeleteApiKeyModal from "./confirm_delete_api_key_modal";
 import { readModelProviders, writeModelProviders } from "../storage";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const [value, setValue] = useState(
@@ -75,7 +77,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
       />
 
       <Button
-        label={justSaved ? "Saved" : "Save"}
+        label={justSaved ? t("model_providers.saved") : t("model_providers.save")}
         onClick={handleSave}
         style={{
           paddingVertical: 2,
@@ -91,7 +93,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
 
       {saved && (
         <Button
-          label="Clear"
+          label={t("model_providers.clear")}
           onClick={() => setConfirmOpen(true)}
           style={{
             paddingVertical: 2,
@@ -127,7 +129,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         <span
           style={{
             fontSize: 13,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: accentColor,
             fontWeight: 500,
           }}
@@ -139,12 +141,12 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
           <span
             style={{
               fontSize: 11,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: successColor,
               opacity: 0.85,
             }}
           >
-            ✓ Saved
+            ✓ {t("model_providers.saved")}
           </span>
         )}
       </div>
@@ -162,13 +164,12 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
       <span
         style={{
           fontSize: 11,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: mutedColor,
           lineHeight: 1.4,
         }}
       >
-        Your key is stored locally and never sent anywhere except the provider's
-        API endpoint.
+        {t("model_providers.key_storage_desc")}
       </span>
 
       <ConfirmDeleteApiKeyModal

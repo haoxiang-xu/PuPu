@@ -11,10 +11,12 @@ import {
 } from "../../../SERVICEs/feature_flags";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { readDevSettings, writeDevSettings } from "./storage";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import UITestingModal from "../../ui-testing/ui_testing_modal";
 
 export const DevSettings = () => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
 
   const [chromeTerminalEnabled, setChromeTerminalEnabled] = useState(
@@ -91,21 +93,21 @@ export const DevSettings = () => {
         const response = await runtimeBridge.setChromeTerminalOpen(nextOpen);
         if (!response.ok) {
           throw new Error(
-            response.error || "Failed to toggle Chrome terminal.",
+            response.error || t("dev.chrome_toggle_failed"),
           );
         }
         setInfo(
-          nextOpen ? "Chrome terminal opened." : "Chrome terminal closed.",
+          nextOpen ? t("dev.chrome_opened") : t("dev.chrome_closed"),
         );
       } catch (toggleError) {
         setChromeTerminalEnabled(previousOpen);
         writeDevSettings({ chrome_terminal_enabled: previousOpen });
-        setError(toggleError?.message || "Failed to toggle Chrome terminal.");
+        setError(toggleError?.message || t("dev.chrome_toggle_failed"));
       } finally {
         setIsUpdating(false);
       }
     },
-    [chromeTerminalEnabled, isUpdating],
+    [chromeTerminalEnabled, isUpdating, t],
   );
 
   const handleFeatureFlagToggle = useCallback((flagKey, nextOpen) => {
@@ -116,8 +118,8 @@ export const DevSettings = () => {
     <div>
       <SettingsSection title="Developer" icon="terminal">
         <SettingsRow
-          label="Chrome Terminal"
-          description="Toggle Chromium DevTools for the main Electron window."
+          label={t("dev.chrome_terminal")}
+          description={t("dev.chrome_terminal_desc")}
         >
           <SemiSwitch
             on={chromeTerminalEnabled}
@@ -134,7 +136,7 @@ export const DevSettings = () => {
           <div
             style={{
               fontSize: 12,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: errorColor,
               paddingBottom: 10,
             }}
@@ -147,7 +149,7 @@ export const DevSettings = () => {
           <div
             style={{
               fontSize: 12,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: successColor,
               paddingBottom: 10,
             }}
@@ -159,21 +161,21 @@ export const DevSettings = () => {
         <div
           style={{
             fontSize: 11,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
             lineHeight: 1.5,
             paddingBottom: 6,
           }}
         >
-          This setting is available only in Electron development runtime.
+          {t("dev.electron_only")}
         </div>
 
         <SettingsRow
-          label="UI Testing"
-          description="Open component testing modal with pre-written scenarios."
+          label={t("dev.ui_testing")}
+          description={t("dev.ui_testing_desc")}
         >
           <Button
-            label="Open"
+            label={t("dev.open")}
             onClick={() => setShowUITesting(true)}
             style={{
               fontSize: 12,
@@ -223,7 +225,7 @@ export const DevSettings = () => {
         <div
           style={{
             fontSize: 11,
-            fontFamily: "Jost, sans-serif",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
             lineHeight: 1.5,
             paddingBottom: featureFlagsSyncError ? 6 : 10,
@@ -236,7 +238,7 @@ export const DevSettings = () => {
           <div
             style={{
               fontSize: 12,
-              fontFamily: "Jost, sans-serif",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: errorColor,
               paddingBottom: 10,
             }}

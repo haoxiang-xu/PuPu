@@ -93,7 +93,13 @@ export const useSideMenuActions = ({
 
   const handleDelete = useCallback(
     (node) => {
-      deleteTreeNodeCascade({ nodeId: node.id }, { source: "side-menu" });
+      const nodeId = node?.id;
+      if (!nodeId) {
+        setConfirmDelete({ open: false, node: null });
+        return;
+      }
+
+      deleteTreeNodeCascade({ nodeId }, { source: "side-menu" });
       setChatStore(getChatsStore());
       setConfirmDelete({ open: false, node: null });
     },

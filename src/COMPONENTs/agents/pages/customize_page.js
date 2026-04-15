@@ -7,8 +7,6 @@ import { SegmentedButton } from "../../../BUILTIN_COMPONENTs/input/segmented_but
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 
-const FONT = "Jost, sans-serif";
-
 /* ── Circular avatar ───────────────────────────────────────── */
 const Avatar = ({ avatar, setAvatar, isDark, size = 96 }) => {
   const [hovered, setHovered] = useState(false);
@@ -155,6 +153,7 @@ const SectionTitle = ({ children, isDark }) => (
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 const CustomizePage = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
+  const FONT = theme?.font?.fontFamily || "Jost, sans-serif";
   const color = theme?.color || (isDark ? "#fff" : "#111");
   const metaColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
 

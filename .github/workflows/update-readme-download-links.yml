@@ -1,0 +1,87 @@
+name: Update README Download Links
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-readme:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Fetch release assets
+        id: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ASSETS=$(gh release view "${{ steps.version.outputs.tag }}" --json assets --jq '[.assets[].name] | join(" ")')
+          echo "names=$ASSETS" >> "$GITHUB_OUTPUT"
+
+      - name: Check and update README download links
+        id: update
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+
+          # Find the old version string used in download links (pattern: digits.digits.digits)
+          # Only look at lines that are part of download URLs or install commands
+          OLD_VERSION=$(grep -P 'releases/latest/download|apt install' README.md \
+            | grep -oP '\d+\.\d+\.\d+' | head -1)
+
+          if [ -z "$OLD_VERSION" ]; then
+            echo "No versioned download links found in README."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$OLD_VERSION" = "$VERSION" ]; then
+            echo "README already references version $VERSION — no update needed."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Replace the old version with the new version only on download/install lines,
+          # so unrelated occurrences of the version string elsewhere are untouched.
+          echo "Replacing $OLD_VERSION -> $VERSION in README.md (download/install lines only)"
+          sed -i "/releases\/latest\/download\|apt install/s/$OLD_VERSION/$VERSION/g" README.md
+
+          if git diff --quiet README.md; then
+            echo "No changes after substitution."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "old_version=$OLD_VERSION" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: auto/update-readme-downloads-v${{ steps.version.outputs.version }}
+          base: main
+          commit-message: "docs: update README download links to v${{ steps.version.outputs.version }}"
+          title: "docs: update README download links to v${{ steps.version.outputs.version }}"
+          body: |
+            Automated update of README download links.
+
+            - Old version: `${{ steps.update.outputs.old_version }}`
+            - New version: `${{ steps.version.outputs.version }}`
+
+            Triggered by release ${{ github.event.release.tag_name }}.
+          labels: documentation

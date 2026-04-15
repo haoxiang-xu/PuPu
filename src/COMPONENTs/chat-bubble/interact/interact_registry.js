@@ -1,3 +1,4 @@
+import CodeDiffInteract from "./code_diff_interact";
 import ConfirmInteract from "./confirm_interact";
 import MultiChoiceInteract from "./multi_choice_interact";
 import MultiSelectInteract from "./multi_select_interact";
@@ -10,6 +11,7 @@ const interactRegistry = {
   single: SingleSelectInteract,
   multi: MultiSelectInteract,
   text_input: TextInputInteract,
+  code_diff: CodeDiffInteract,
 };
 
 export default interactRegistry;

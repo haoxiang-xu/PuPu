@@ -5,6 +5,7 @@ import AttachPanel from "./components/attach_panel";
 import InputActionButtons from "./components/input_action_buttons";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
 import { useFileDropOverlay } from "./hooks/use_file_drop_overlay";
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const ChatInput = ({
   value,
@@ -13,7 +14,7 @@ const ChatInput = ({
   onStop,
   isStreaming = false,
   sendDisabled = false,
-  placeholder = "Message Mini UI Chat...",
+  placeholder: placeholderProp,
   disclaimer,
   showAttachments = true,
   onAttachFile,
@@ -36,6 +37,8 @@ const ChatInput = ({
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
 }) => {
+  const { t } = useTranslation();
+  const placeholder = placeholderProp || t("chat.placeholder");
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const inputRef = useRef(null);
