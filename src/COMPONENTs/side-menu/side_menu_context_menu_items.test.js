@@ -8,6 +8,22 @@ import {
   setChatMessages,
 } from "../../SERVICEs/chat_storage";
 
+const testT = (key, params = {}) => {
+  const labels = {
+    "context_menu.copy_of": `Copy of ${params.label}`,
+    "context_menu.delete": "Delete",
+    "context_menu.import": "Import",
+    "context_menu.inspect_memory": "Inspect Memory",
+    "context_menu.new_chat": "New Chat",
+    "context_menu.new_folder": "New Folder",
+    "context_menu.paste": "Paste",
+    "context_menu.rename": "Rename",
+    "context_menu.copy": "Copy",
+    "context_menu.export": "Export",
+  };
+  return labels[key] || key;
+};
+
 describe("side_menu_context_menu_items root paste", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -22,6 +38,7 @@ describe("side_menu_context_menu_items root paste", () => {
       handleStartRename: jest.fn(),
       setClipboard: jest.fn(),
       setConfirmDelete: jest.fn(),
+      t: testT,
     });
 
     expect(items.some((item) => item?.label === "Paste")).toBe(true);
@@ -56,6 +73,7 @@ describe("side_menu_context_menu_items root paste", () => {
       handleStartRename: jest.fn(),
       setClipboard: jest.fn(),
       setConfirmDelete: jest.fn(),
+      t: testT,
     });
     const pasteItem = items.find((item) => item?.label === "Paste");
 
@@ -114,6 +132,7 @@ describe("side_menu_context_menu_items root paste", () => {
       handleStartRename: jest.fn(),
       setClipboard: jest.fn(),
       setConfirmDelete: jest.fn(),
+      t: testT,
     });
     const pasteItem = items.find((item) => item?.label === "Paste");
 
@@ -163,6 +182,7 @@ describe("side_menu_context_menu_items root paste", () => {
       handleStartRename: jest.fn(),
       setClipboard: jest.fn(),
       setConfirmDelete: jest.fn(),
+      t: testT,
     });
     const pasteItem = items.find((item) => item?.label === "Paste");
 
@@ -211,6 +231,7 @@ describe("side_menu_context_menu_items root paste", () => {
       setClipboard: jest.fn(),
       setConfirmDelete: jest.fn(),
       onInspectMemory: jest.fn(),
+      t: testT,
     });
 
     expect(items.some((item) => item?.label === "Inspect Memory")).toBe(true);

@@ -243,8 +243,9 @@ export const createOllamaApi = () => ({
         "thinking",
         "code",
         "cloud",
+        "audio",
       ]);
-      const SIZE_RE = /^\d+(\.\d+)?[kKmMbBxX]$/;
+      const SIZE_RE = /^[a-z]?\d+(\.\d+)?[kmbx](-[a-z0-9]+)?$/i;
 
       const models = [];
       const anchors = doc.querySelectorAll("a[href^='/library/']");
@@ -257,6 +258,11 @@ export const createOllamaApi = () => ({
         const descEl = a.querySelector("p");
         const description = descEl ? descEl.textContent.trim() : "";
 
+        const fullText = a.textContent || "";
+        const pullsMatch = fullText.match(/([\d.]+[kKmMbB])\s+Pulls/i);
+        const pulls = pullsMatch ? pullsMatch[1] : "";
+        const pullsToken = pulls.toLowerCase();
+
         const textNodes = Array.from(a.querySelectorAll("span, p"))
           .map((el) => el.textContent.trim().toLowerCase())
           .filter(Boolean);
@@ -267,14 +273,10 @@ export const createOllamaApi = () => ({
         textNodes.forEach((t) => {
           if (CATEGORY_KEYWORDS.has(t)) {
             if (!tags.includes(t)) tags.push(t);
-          } else if (SIZE_RE.test(t)) {
+          } else if (t !== pullsToken && SIZE_RE.test(t)) {
             if (!sizes.includes(t)) sizes.push(t);
           }
         });
-
-        const fullText = a.textContent || "";
-        const pullsMatch = fullText.match(/([\d.]+[kKmMbB])\s+Pulls/i);
-        const pulls = pullsMatch ? pullsMatch[1] : "";
 
         models.push({ name: slug, description, tags, sizes, pulls });
       });
@@ -295,18 +297,36 @@ export const createOllamaApi = () => ({
       throw new FrontendApiError("invalid_argument", "Model name is required");
     }
 
-    const response = await withTimeout(
-      () =>
-        fetch(`${OLLAMA_BASE}/api/pull`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name: modelName, stream: true }),
-          signal: signal || undefined,
-        }),
-      60000,
-      "ollama_pull_timeout",
-      "Ollama pull request timed out",
-    );
+    const startedAt = Date.now();
+    ollamaLogger.log("pull_start", { model: modelName });
+
+    let response;
+    try {
+      response = await withTimeout(
+        () =>
+          fetch(`${OLLAMA_BASE}/api/pull`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ name: modelName, stream: true }),
+            signal: signal || undefined,
+          }),
+        60000,
+        "ollama_pull_timeout",
+        "Ollama pull request timed out",
+      );
+    } catch (fetchErr) {
+      ollamaLogger.error("pull_fetch_failed", {
+        model: modelName,
+        error: fetchErr?.message || String(fetchErr),
+      });
+      throw fetchErr;
+    }
+
+    ollamaLogger.log("pull_http_response", {
+      model: modelName,
+      status: response.status,
+      ok: response.ok,
+    });
 
     if (!response.ok) {
       throw new FrontendApiError(
@@ -319,15 +339,67 @@ export const createOllamaApi = () => ({
 
     const reader = response.body?.getReader();
     if (!reader) {
+      ollamaLogger.error("pull_no_stream", { model: modelName });
       throw new FrontendApiError("stream_error", "No response body stream");
     }
 
     const decoder = new TextDecoder();
     let buffer = "";
+    let frameCount = 0;
+    let lastFrameAt = Date.now();
+    let lastStatus = null;
+    let lastCompleted = null;
+    let lastDigest = null;
+    let stagnantRepeats = 0;
 
     while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+      const readStartedAt = Date.now();
+      const gapSinceLastFrame = readStartedAt - lastFrameAt;
+      if (gapSinceLastFrame > 5000) {
+        ollamaLogger.warn("pull_stall", {
+          model: modelName,
+          gapMs: gapSinceLastFrame,
+          lastStatus,
+          lastCompleted,
+          lastDigest,
+        });
+      }
+
+      let readResult;
+      try {
+        readResult = await reader.read();
+      } catch (readErr) {
+        ollamaLogger.error("pull_read_failed", {
+          model: modelName,
+          elapsedMs: Date.now() - startedAt,
+          frameCount,
+          lastStatus,
+          error: readErr?.message || String(readErr),
+        });
+        throw readErr;
+      }
+
+      const { done, value } = readResult;
+      if (done) {
+        ollamaLogger.log("pull_stream_closed", {
+          model: modelName,
+          elapsedMs: Date.now() - startedAt,
+          frameCount,
+          lastStatus,
+        });
+        break;
+      }
+
+      const chunkBytes = value?.length ?? 0;
+      const chunkGap = Date.now() - readStartedAt;
+      if (chunkGap > 3000) {
+        ollamaLogger.warn("pull_slow_read", {
+          model: modelName,
+          readMs: chunkGap,
+          bytes: chunkBytes,
+        });
+      }
+
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
@@ -335,25 +407,118 @@ export const createOllamaApi = () => ({
       for (const line of lines) {
         const trimmed = line.trim();
         if (!trimmed) continue;
+        let obj;
         try {
-          const obj = JSON.parse(trimmed);
-          const status = typeof obj.status === "string" ? obj.status : "";
-          const completed =
-            typeof obj.completed === "number" ? obj.completed : null;
-          const total = typeof obj.total === "number" ? obj.total : null;
-          const percent =
-            completed !== null && total !== null && total > 0
-              ? Math.round((completed / total) * 100)
-              : null;
-          if (typeof onProgress === "function") {
-            onProgress({ status, percent, completed, total });
+          obj = JSON.parse(trimmed);
+        } catch (parseErr) {
+          ollamaLogger.warn("pull_parse_failed", {
+            model: modelName,
+            line: trimmed.slice(0, 200),
+            error: parseErr?.message || String(parseErr),
+          });
+          continue;
+        }
+
+        const status = typeof obj.status === "string" ? obj.status : "";
+        const errorMsg = typeof obj.error === "string" ? obj.error : null;
+        const completed =
+          typeof obj.completed === "number" ? obj.completed : null;
+        const total = typeof obj.total === "number" ? obj.total : null;
+        const digest = typeof obj.digest === "string" ? obj.digest : null;
+        const percent =
+          completed !== null && total !== null && total > 0
+            ? Math.round((completed / total) * 100)
+            : null;
+
+        frameCount += 1;
+        const nowFrameAt = Date.now();
+        const frameGap = nowFrameAt - lastFrameAt;
+        lastFrameAt = nowFrameAt;
+
+        // Detect explicit error from Ollama backend (e.g. "pull model manifest: file does not exist")
+        if (errorMsg) {
+          ollamaLogger.error("pull_error_frame", {
+            model: modelName,
+            frame: frameCount,
+            error: errorMsg,
+            raw: obj,
+          });
+          throw new FrontendApiError(
+            "ollama_pull_error",
+            errorMsg,
+            null,
+            { model: modelName, frame: frameCount, raw: obj },
+          );
+        }
+
+        // Frame with no status and no error — likely an unknown payload, dump raw obj
+        if (!status) {
+          ollamaLogger.warn("pull_unknown_frame", {
+            model: modelName,
+            frame: frameCount,
+            raw: obj,
+          });
+        }
+
+        // Detect stagnation: same digest with same completed value across frames
+        const isDownloading = status.startsWith("downloading");
+        if (isDownloading && digest === lastDigest && completed === lastCompleted) {
+          stagnantRepeats += 1;
+        } else {
+          if (stagnantRepeats >= 3) {
+            ollamaLogger.warn("pull_layer_stagnant", {
+              model: modelName,
+              digest: lastDigest,
+              completed: lastCompleted,
+              repeats: stagnantRepeats,
+            });
           }
-          if (status === "success") return;
-        } catch (_) {
-          // ignore non-JSON lines
+          stagnantRepeats = 0;
+        }
+
+        ollamaLogger.log("pull_frame", {
+          model: modelName,
+          frame: frameCount,
+          gapMs: frameGap,
+          status,
+          percent,
+          completed,
+          total,
+          digest,
+        });
+
+        if (isDownloading) {
+          lastDigest = digest;
+          lastCompleted = completed;
+        }
+        lastStatus = status;
+
+        if (typeof onProgress === "function") {
+          onProgress({ status, percent, completed, total });
+        }
+        if (status === "success") {
+          ollamaLogger.log("pull_success", {
+            model: modelName,
+            elapsedMs: Date.now() - startedAt,
+            frameCount,
+          });
+          return;
         }
       }
     }
+
+    // Stream closed without ever seeing "success" — treat as failure
+    ollamaLogger.error("pull_incomplete", {
+      model: modelName,
+      frameCount,
+      lastStatus,
+    });
+    throw new FrontendApiError(
+      "ollama_pull_incomplete",
+      `Pull stream ended without success (last status: "${lastStatus || "none"}")`,
+      null,
+      { model: modelName, frames: frameCount, lastStatus },
+    );
   },
 
   deleteModel: async (name) => {

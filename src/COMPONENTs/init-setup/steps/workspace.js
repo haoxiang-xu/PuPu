@@ -25,7 +25,7 @@ const writeWorkspaceRoot = (path) => {
 };
 
 const WorkspaceStep = ({ onNext }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const [path, setPath] = useState(() => readWorkspaceRoot());
@@ -117,7 +117,7 @@ const WorkspaceStep = ({ onNext }) => {
           style={{
             fontSize: 18,
             fontWeight: 700,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: headingColor,
             letterSpacing: "-0.3px",
           }}
@@ -128,7 +128,7 @@ const WorkspaceStep = ({ onNext }) => {
       <div
         style={{
           fontSize: 14,
-          fontFamily: "Jost",
+          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           color: subColor,
           marginBottom: 28,
           lineHeight: 1.5,
@@ -187,7 +187,7 @@ const WorkspaceStep = ({ onNext }) => {
           >
             <ArcSpinner size={14} stroke_width={2} />
             <span
-              style={{ fontSize: 12, fontFamily: "Jost", color: mutedColor }}
+              style={{ fontSize: 12, fontFamily: theme?.font?.fontFamily || "Jost, sans-serif", color: mutedColor }}
             >
               Validating…
             </span>
@@ -200,7 +200,7 @@ const WorkspaceStep = ({ onNext }) => {
               alignItems: "center",
               gap: 5,
               fontSize: 12,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: validation.valid ? "rgba(10,186,181,1)" : "#e05c5c",
             }}
           >

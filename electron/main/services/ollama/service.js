@@ -176,12 +176,16 @@ const createOllamaService = ({
   };
 
   const searchLibrary = async ({ query = "", category = "" } = {}) => {
-    const q = encodeURIComponent(String(query || "").trim());
-    const c = encodeURIComponent(String(category || "").trim());
+    const rawQuery = String(query || "").trim();
+    const rawCategory = String(category || "").trim();
+    const q = encodeURIComponent(rawQuery);
+    const c = encodeURIComponent(rawCategory);
     const parts = [];
     if (q) parts.push(`q=${q}`);
     if (c) parts.push(`c=${c}`);
-    const url = `https://ollama.com/search${parts.length ? "?" + parts.join("&") : ""}`;
+    const url = parts.length
+      ? `https://ollama.com/search?${parts.join("&")}`
+      : `https://ollama.com/library`;
 
     return new Promise((resolve, reject) => {
       const req = https.get(

@@ -581,12 +581,14 @@ const TraceChain = ({
         onToolConfirmationDecision({
           confirmationId,
           approved: responseData?.approved ?? false,
+          scope: responseData?.scope === "session" ? "session" : "once",
         });
       } else {
         onToolConfirmationDecision({
           confirmationId,
           approved: true,
           userResponse: responseData,
+          scope: "once",
         });
       }
     },

@@ -13,10 +13,11 @@ jobs:
     steps:
       - name: Check if source branch is dev
         run: |
-          if [ "${{ github.head_ref }}" != "dev" ]; then
-            echo "❌ Only the 'dev' branch is allowed to merge into 'main'."
-            echo "Current source branch: ${{ github.head_ref }}"
-            exit 1
+          SOURCE="${{ github.head_ref }}"
+          if [ "$SOURCE" = "dev" ] || [[ "$SOURCE" == auto/update-readme-downloads-* ]]; then
+            echo "✅ Source branch '$SOURCE' is allowed. Merge allowed."
           else
-            echo "✅ Source branch is 'dev'. Merge allowed."
+            echo "❌ Only the 'dev' branch (or automated 'auto/update-readme-downloads-*' branches) is allowed to merge into 'main'."
+            echo "Current source branch: $SOURCE"
+            exit 1
           fi

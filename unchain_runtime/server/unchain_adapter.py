@@ -131,10 +131,15 @@ _GENERAL_MODEL_BY_PROVIDER = {
 }
 _DEVELOPER_AGENT_NAME = "pupu_developer"
 _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
+# Originally this list forced legacy confirmation for miso's old
+# workspace/terminal tools. In the standalone unchain repo, CoreToolkit's
+# `write` and `edit` already declare `requires_confirmation=True` at
+# registration time (see unchain core.py), so their entries here are
+# mostly defensive / cleanup. TerminalToolkit's `terminal_exec` still
+# depends on this list via `_should_force_legacy_confirmation`.
 _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
-    "write_file",
-    "delete_file",
-    "move_file",
+    "write",
+    "edit",
     "terminal_exec",
 }
 _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR = "_pupu_original_tool_name"
@@ -3514,17 +3519,6 @@ def stream_chat_events(
         getattr(agent, "_toolkits", []),
     )
 
-    # Build set of tool names that require confirmation — their tool_call
-    # events from on_event are suppressed because confirm_cb emits the
-    # enriched version with confirmation_id.
-    _confirmation_tool_names: set[str] = set()
-    for _tk in getattr(agent, "_toolkits", []):
-        for _tool in getattr(_tk, "tools", {}).values():
-            if getattr(_tool, "requires_confirmation", False):
-                _tname = getattr(_tool, "name", "")
-                if isinstance(_tname, str) and _tname.strip():
-                    _confirmation_tool_names.add(_tname.strip())
-
     def on_event(event: Dict[str, Any]) -> None:
         if not isinstance(event, dict):
             return
@@ -3541,10 +3535,6 @@ def stream_chat_events(
         # Suppress the bare tool_call for ask_user_question — our on_human_input
         # callback emits the proper PuPu-format tool_call with interact_config
         if event_type == "tool_call" and event.get("tool_name") == "ask_user_question":
-            return
-        # Suppress bare tool_call for tools that require confirmation —
-        # confirm_cb emits the enriched version with confirmation_id
-        if event_type == "tool_call" and event.get("tool_name") in _confirmation_tool_names:
             return
         # Enrich tool_call events with workspace display names
         if event_type == "tool_call" and _ws_display_names:

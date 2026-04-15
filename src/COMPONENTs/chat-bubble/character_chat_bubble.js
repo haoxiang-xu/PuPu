@@ -209,7 +209,7 @@ const CharacterChatBubble = ({
                     : "rgba(0,0,0,0.72)",
                   fontSize: 12,
                   fontWeight: 700,
-                  fontFamily: "NunitoSans, sans-serif",
+                  fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
                 }}
               >
                 {showImage ? (
@@ -267,7 +267,7 @@ const CharacterChatBubble = ({
                   }
                 : {}),
               fontSize: 14,
-              fontFamily: theme?.font?.fontFamily || "inherit",
+              fontFamily: theme?.font?.paragraphFontFamily || "inherit",
               color: theme?.color || "#222",
               lineHeight: 1.6,
               wordBreak: "break-word",
@@ -309,7 +309,7 @@ const CharacterChatBubble = ({
                 color: isDark
                   ? "rgba(255,255,255,0.30)"
                   : "rgba(0,0,0,0.28)",
-                fontFamily: "Jost, sans-serif",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 lineHeight: 1,
                 paddingBottom: 2,
               }}

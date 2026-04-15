@@ -652,7 +652,7 @@ const MemoryInspectModal = ({
           style={{
             fontSize: 22,
             fontWeight: 600,
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color,
             userSelect: "none",
             WebkitUserSelect: "none",

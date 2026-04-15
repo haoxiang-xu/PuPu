@@ -125,19 +125,22 @@ export const buildParentIndex = (tree) => {
   return parentById;
 };
 
-export const firstChatInSubtree = (tree, nodeId) => {
+export const firstChatInSubtree = (tree, nodeId, chatsById = null) => {
   const node = tree.nodesById[nodeId];
   if (!node) {
     return null;
   }
 
   if (node.entity === "chat") {
+    if (chatsById && !chatsById[node.chatId]) {
+      return null;
+    }
     return node.chatId;
   }
 
   if (node.entity === "folder") {
     for (const childId of node.children) {
-      const found = firstChatInSubtree(tree, childId);
+      const found = firstChatInSubtree(tree, childId, chatsById);
       if (found) return found;
     }
   }
@@ -145,19 +148,22 @@ export const firstChatInSubtree = (tree, nodeId) => {
   return null;
 };
 
-export const firstChatNodeIdInSubtree = (tree, nodeId) => {
+export const firstChatNodeIdInSubtree = (tree, nodeId, chatsById = null) => {
   const node = tree.nodesById[nodeId];
   if (!node) {
     return null;
   }
 
   if (node.entity === "chat") {
+    if (chatsById && !chatsById[node.chatId]) {
+      return null;
+    }
     return nodeId;
   }
 
   if (node.entity === "folder") {
     for (const childId of node.children) {
-      const found = firstChatNodeIdInSubtree(tree, childId);
+      const found = firstChatNodeIdInSubtree(tree, childId, chatsById);
       if (found) return found;
     }
   }
@@ -165,17 +171,17 @@ export const firstChatNodeIdInSubtree = (tree, nodeId) => {
   return null;
 };
 
-export const firstChatInTree = (tree) => {
+export const firstChatInTree = (tree, chatsById = null) => {
   for (const rootId of tree.root) {
-    const found = firstChatInSubtree(tree, rootId);
+    const found = firstChatInSubtree(tree, rootId, chatsById);
     if (found) return found;
   }
   return null;
 };
 
-export const firstChatNodeIdInTree = (tree) => {
+export const firstChatNodeIdInTree = (tree, chatsById = null) => {
   for (const rootId of tree.root) {
-    const found = firstChatNodeIdInSubtree(tree, rootId);
+    const found = firstChatNodeIdInSubtree(tree, rootId, chatsById);
     if (found) return found;
   }
   return null;
@@ -573,20 +579,21 @@ export const findFallbackChatIdNearContainer = (
   tree,
   parentFolderId,
   startIndex,
+  chatsById = null,
 ) => {
   const siblings = getSiblingIds(tree, parentFolderId);
 
   for (let i = startIndex; i < siblings.length; i += 1) {
-    const found = firstChatInSubtree(tree, siblings[i]);
+    const found = firstChatInSubtree(tree, siblings[i], chatsById);
     if (found) return found;
   }
 
   for (let i = startIndex - 1; i >= 0; i -= 1) {
-    const found = firstChatInSubtree(tree, siblings[i]);
+    const found = firstChatInSubtree(tree, siblings[i], chatsById);
     if (found) return found;
   }
 
-  return firstChatInTree(tree);
+  return firstChatInTree(tree, chatsById);
 };
 
 export const collectSubtreeNodeIds = (tree, nodeId, bucket = []) => {

@@ -8,6 +8,7 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import { SettingsRow, SettingsSection } from "../appearance";
 import { readMemorySettings, writeMemorySettings } from "./storage";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
 import { MemoryInspectModal } from "../../memory-inspect/memory_inspect_modal";
@@ -31,7 +32,8 @@ const formatThresholdValue = (value) => {
 };
 
 export const MemorySettings = ({ onNavigate }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const {
     models: openaiEmbeddingModels,
@@ -110,10 +112,10 @@ export const MemorySettings = ({ onNavigate }) => {
   return (
     <div>
       {/* ── Enable ── */}
-      <SettingsSection title="Chat Memory">
+      <SettingsSection title={t("memory.title")}>
         <SettingsRow
-          label="Enable memory"
-          description="Each chat keeps short-term memory, while long-term memory is shared globally and recalled automatically when relevant."
+          label={t("memory.enable_memory")}
+          description={t("memory.enable_memory_desc")}
         >
           <SemiSwitch
             on={settings.enabled}
@@ -122,8 +124,8 @@ export const MemorySettings = ({ onNavigate }) => {
           />
         </SettingsRow>
         <SettingsRow
-          label="Enable long-term memory"
-          description="Stable profile, facts, episodes, and reusable workflows are extracted and shared across chats."
+          label={t("memory.enable_long_term")}
+          description={t("memory.enable_long_term_desc")}
         >
           <SemiSwitch
             on={settings.long_term_enabled}
@@ -132,11 +134,11 @@ export const MemorySettings = ({ onNavigate }) => {
           />
         </SettingsRow>
         <SettingsRow
-          label="Inspect long-term memory"
-          description="Visualise all long-term memory vectors in a PCA scatter plot."
+          label={t("memory.inspect_long_term")}
+          description={t("memory.inspect_long_term_desc")}
         >
           <Button
-            label="Inspect"
+            label={t("memory.inspect")}
             onClick={() => setInspectOpen(true)}
             style={{
               fontSize: 12,
@@ -162,12 +164,12 @@ export const MemorySettings = ({ onNavigate }) => {
       </SettingsSection>
 
       {/* ── Embedding model ── */}
-      <SettingsSection title="Embedding Model">
+      <SettingsSection title={t("memory.embedding_model")}>
         <SettingsRow
-          label="Provider"
+          label={t("memory.provider")}
           description={
             settings.embedding_provider === "auto"
-              ? "Uses the current chat model's provider. Falls back to OpenAI → Ollama."
+              ? t("memory.auto_provider_desc")
               : undefined
           }
         >
@@ -191,15 +193,15 @@ export const MemorySettings = ({ onNavigate }) => {
           (openaiEmbeddingLoading ? (
             <SettingsRow label="Model">
               <span style={{ fontSize: 12, color: mutedColor }}>
-                Loading models…
+                {t("memory.loading_models")}
               </span>
             </SettingsRow>
           ) : openaiEmbeddingError || openaiEmbeddingModels.length === 0 ? (
             <SettingsRow label="Model">
               <span style={{ fontSize: 12, color: mutedColor }}>
                 {openaiEmbeddingError
-                  ? "Could not load OpenAI embedding models."
-                  : "No embedding models available."}
+                  ? t("memory.openai_load_error")
+                  : t("memory.no_models_available")}
               </span>
             </SettingsRow>
           ) : (
@@ -211,13 +213,13 @@ export const MemorySettings = ({ onNavigate }) => {
                 }))}
                 value={selectedOpenAIModel}
                 set_value={(val) => update({ openai_embedding_model: val })}
-                placeholder="Select embedding model"
+                placeholder={t("memory.select_embedding_model")}
                 filterable={true}
                 filter_mode="panel"
                 style={{
                   fontSize: 14,
                   height: 20,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
                   color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
                 }}
@@ -229,7 +231,7 @@ export const MemorySettings = ({ onNavigate }) => {
           (embeddingLoading ? (
             <SettingsRow label="Model">
               <span style={{ fontSize: 12, color: mutedColor }}>
-                Loading models…
+                {t("memory.loading_models")}
               </span>
             </SettingsRow>
           ) : embeddingError || embeddingModels.length === 0 ? (
@@ -237,8 +239,8 @@ export const MemorySettings = ({ onNavigate }) => {
               label="Model"
               description={
                 embeddingError
-                  ? "Could not connect to Ollama."
-                  : "No embedding models installed."
+                  ? t("memory.ollama_connect_error")
+                  : t("memory.no_embedding_installed")
               }
             >
               <button
@@ -256,7 +258,7 @@ export const MemorySettings = ({ onNavigate }) => {
                   whiteSpace: "nowrap",
                 }}
               >
-                Go to Model Providers → Ollama
+                {t("memory.go_to_ollama")}
               </button>
             </SettingsRow>
           ) : (
@@ -294,13 +296,13 @@ export const MemorySettings = ({ onNavigate }) => {
                   }
                   update({ ollama_embedding_model: val });
                 }}
-                placeholder="Select embedding model"
+                placeholder={t("memory.select_embedding_model")}
                 filterable={true}
                 filter_mode="panel"
                 style={{
                   fontSize: 14,
                   height: 20,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   borderRadius: 6,
                   color: isDark ? "rgba(255,255,255,0.80)" : "rgba(0,0,0,0.80)",
                 }}
@@ -317,19 +319,16 @@ export const MemorySettings = ({ onNavigate }) => {
               lineHeight: 1.5,
             }}
           >
-            If the current chat model is Anthropic (no embedding API), memory
-            will fall back to OpenAI if an API key is configured, then Ollama if
-            reachable. If neither is available, memory is skipped for that
-            request — configure a provider explicitly to avoid this.
+            {t("memory.auto_fallback_desc")}
           </div>
         )}
       </SettingsSection>
 
       {/* ── Context strategy ── */}
-      <SettingsSection title="Context Strategy">
+      <SettingsSection title={t("memory.context_strategy")}>
         <SettingsRow
-          label={`Last N turns — ${settings.last_n_turns}`}
-          description="Recent conversation turns always included in context."
+          label={t("memory.last_n_turns", { count: settings.last_n_turns })}
+          description={t("memory.last_n_turns_desc")}
         >
           <Slider
             value={settings.last_n_turns}
@@ -343,8 +342,8 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         <SettingsRow
-          label={`Recall top K — ${settings.vector_top_k}`}
-          description="Semantically similar past messages injected as context."
+          label={t("memory.recall_top_k", { count: settings.vector_top_k })}
+          description={t("memory.recall_top_k_desc")}
         >
           <Slider
             value={settings.vector_top_k}
@@ -358,8 +357,8 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         <SettingsRow
-          label={`Recall threshold — ${formatThresholdValue(settings.vector_min_score)}`}
-          description="Minimum similarity score for short-term recall. Set to Off to disable score filtering."
+          label={t("memory.recall_threshold", { value: formatThresholdValue(settings.vector_min_score) })}
+          description={t("memory.recall_threshold_desc")}
         >
           <Slider
             value={settings.vector_min_score}
@@ -374,10 +373,10 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
       </SettingsSection>
 
-      <SettingsSection title="Long-Term Memory">
+      <SettingsSection title={t("memory.long_term_memory")}>
         <SettingsRow
-          label={`Extract every N turns — ${settings.long_term_extract_every_n_turns}`}
-          description="Long-term memory extraction runs after this many complete user → assistant turns."
+          label={t("memory.extract_every_n", { count: settings.long_term_extract_every_n_turns })}
+          description={t("memory.extract_every_n_desc")}
         >
           <Slider
             value={settings.long_term_extract_every_n_turns}
@@ -394,8 +393,8 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         <SettingsRow
-          label={`Long-term top K — ${settings.long_term_top_k}`}
-          description="How many long-term memories can be recalled for facts, episodes, and playbooks."
+          label={t("memory.long_term_top_k", { count: settings.long_term_top_k })}
+          description={t("memory.long_term_top_k_desc")}
         >
           <Slider
             value={settings.long_term_top_k}
@@ -410,8 +409,8 @@ export const MemorySettings = ({ onNavigate }) => {
         </SettingsRow>
 
         <SettingsRow
-          label={`Long-term threshold — ${formatThresholdValue(settings.long_term_min_score)}`}
-          description="Minimum similarity score for recalled facts, episodes, and playbooks. Set to Off to disable score filtering."
+          label={t("memory.long_term_threshold", { value: formatThresholdValue(settings.long_term_min_score) })}
+          description={t("memory.long_term_threshold_desc")}
         >
           <Slider
             value={settings.long_term_min_score}

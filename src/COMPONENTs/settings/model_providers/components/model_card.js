@@ -1,6 +1,20 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { TAG_PALETTE } from "../constants";
+import { ConfigContext } from "../../../../CONTAINERs/config/context";
+
+/* Normalise Ollama pull error for compact UI display.
+ * Removes redundant "pull model manifest: NNN:" prefix, collapses newlines/tabs
+ * into single spaces, trims the result. */
+const formatPullError = (raw) => {
+  if (!raw) return "";
+  return String(raw)
+    .replace(/^pull model manifest:\s*\d*:?\s*/i, "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
 
 const ModelCard = ({
   model,
@@ -10,6 +24,8 @@ const ModelCard = ({
   onPull,
   onCancel,
 }) => {
+  const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const [selectedSize, setSelectedSize] = useState(model.sizes[0] || "");
 
   const pullKey = `${model.name}:${selectedSize}`;
@@ -53,7 +69,7 @@ const ModelCard = ({
           style={{
             fontSize: 13,
             fontWeight: 600,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: textColor,
             letterSpacing: "0.1px",
           }}
@@ -68,7 +84,7 @@ const ModelCard = ({
               key={tag}
               style={{
                 fontSize: 10,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 fontWeight: 500,
                 letterSpacing: "0.4px",
                 textTransform: "lowercase",
@@ -88,7 +104,7 @@ const ModelCard = ({
           <span
             style={{
               fontSize: 11,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: mutedColor,
               marginLeft: "auto",
               flexShrink: 0,
@@ -103,7 +119,7 @@ const ModelCard = ({
         <div
           style={{
             fontSize: 12,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: mutedColor,
             lineHeight: 1.5,
             display: "-webkit-box",
@@ -132,7 +148,7 @@ const ModelCard = ({
               onClick={() => setSelectedSize(sz)}
               style={{
                 fontSize: 11,
-                fontFamily: "Jost",
+                fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 fontWeight: 500,
                 padding: "2px 8px",
                 borderRadius: 999,
@@ -156,14 +172,14 @@ const ModelCard = ({
               <span
                 style={{
                   fontSize: 11,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   color: "#4ade80",
                   display: "flex",
                   alignItems: "center",
                   gap: 3,
                 }}
               >
-                ✓ Installed
+                ✓ {t("model_providers.installed")}
               </span>
             ) : pullState ? (
               <div
@@ -179,7 +195,7 @@ const ModelCard = ({
                   <span
                     style={{
                       fontSize: 11,
-                      fontFamily: "Jost",
+                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                       color: mutedColor,
                     }}
                   >
@@ -222,27 +238,33 @@ const ModelCard = ({
                   />
                 </div>
                 {pullState.error && (
-                  <span
+                  <div
                     style={{
                       fontSize: 10,
-                      fontFamily: "Jost",
+                      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                       color: "rgba(255,100,100,0.85)",
+                      maxWidth: 200,
+                      lineHeight: 1.4,
+                      wordBreak: "break-word",
+                      overflowWrap: "anywhere",
+                      whiteSpace: "normal",
+                      textAlign: "right",
                     }}
                   >
-                    {pullState.error}
-                  </span>
+                    {formatPullError(pullState.error)}
+                  </div>
                 )}
               </div>
             ) : selectedSize || model.sizes.length === 0 ? (
               <Button
-                label="Pull"
+                label={t("model_providers.pull")}
                 onClick={() => onPull(model.name, selectedSize || model.name)}
                 style={{
                   height: 24,
                   fontSize: 11,
                   padding: "0 12px",
                   borderRadius: 999,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                 }}
               />
             ) : null}

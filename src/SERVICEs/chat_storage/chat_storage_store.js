@@ -405,6 +405,21 @@ const cleanupTransientActiveChat = (store, preferredNextChatId = null) => {
   return removableChatId;
 };
 
+const cleanupPreviousTransientActiveChat = (
+  store,
+  previousActiveChatId,
+  nextChatId,
+) => {
+  if (!previousActiveChatId || previousActiveChatId === nextChatId) {
+    return null;
+  }
+  if (store.activeChatId !== previousActiveChatId) {
+    return null;
+  }
+
+  return cleanupTransientActiveChat(store, nextChatId);
+};
+
 export const getChatsStore = () => {
   const synced = writeStore(readStore(), {
     emit: false,
@@ -503,6 +518,7 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
 
   const next = withStore(
     (store) => {
+      const previousActiveChatId = store.activeChatId;
       const parentFolderId = resolveSelectedParentFolderId(
         store,
         params.parentFolderId,
@@ -519,6 +535,7 @@ export const createChatInSelectedContext = (params = {}, options = {}) => {
         parentFolderId,
       });
       createdNodeId = nodeId;
+      cleanupPreviousTransientActiveChat(store, previousActiveChatId, chat.id);
       updateActiveAndSelectedFromChatId(store, chat.id);
       store.updatedAt = now();
       return store;
@@ -667,6 +684,7 @@ export const createChatWithMessagesInSelectedContext = (
 
   const next = withStore(
     (store) => {
+      const previousActiveChatId = store.activeChatId;
       const parentFolderId = resolveSelectedParentFolderId(
         store,
         params.parentFolderId,
@@ -707,6 +725,11 @@ export const createChatWithMessagesInSelectedContext = (
         parentFolderId,
       });
       createdNodeId = nodeId;
+      cleanupPreviousTransientActiveChat(
+        store,
+        previousActiveChatId,
+        finalizedChat.id,
+      );
       updateActiveAndSelectedFromChatId(store, finalizedChat.id);
       store.updatedAt = now();
       return store;
@@ -1025,6 +1048,7 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
           store.tree,
           parentInfo.parentId,
           parentInfo.index,
+          store.chatsById,
         );
         store.activeChatId = fallbackChatId || null;
       }
@@ -1033,21 +1057,24 @@ export const deleteTreeNodeCascade = ({ nodeId } = {}, options = {}) => {
         if (store.activeChatId) {
           const map = buildTreeNodeLookupByChatId(store.tree);
           store.tree.selectedNodeId =
-            map[store.activeChatId] || firstChatNodeIdInTree(store.tree) || null;
+            map[store.activeChatId] ||
+            firstChatNodeIdInTree(store.tree, store.chatsById) ||
+            null;
         } else {
-          store.tree.selectedNodeId = firstChatNodeIdInTree(store.tree) || null;
+          store.tree.selectedNodeId =
+            firstChatNodeIdInTree(store.tree, store.chatsById) || null;
         }
       }
 
       if (!store.activeChatId || !store.chatsById[store.activeChatId]) {
-        const firstChatId = firstChatInTree(store.tree);
+        const firstChatId = firstChatInTree(store.tree, store.chatsById);
         if (firstChatId && store.chatsById[firstChatId]) {
           store.activeChatId = firstChatId;
         }
       }
 
       if (!store.activeChatId || !store.chatsById[store.activeChatId]) {
-        const chat = createChatSession();
+        const chat = createChatSession({ isTransientNewChat: true });
         store.chatsById[chat.id] = chat;
         const nodeIdForChat = ensureTreeHasNodeForChat(store, chat.id, {
           parentFolderId: null,
@@ -1102,11 +1129,11 @@ const updateChatSessionById = (chatId, updater, options = {}) => {
       if (!chatId) {
         return store;
       }
+      if (!store.chatsById[chatId]) {
+        return store;
+      }
 
-      const existing = sanitizeChatSession(
-        store.chatsById[chatId] || { id: chatId },
-        chatId,
-      );
+      const existing = sanitizeChatSession(store.chatsById[chatId], chatId);
       const lockedCharacter = isLockedCharacterChat(existing);
       const candidate = clone(existing) || existing;
       const updated =

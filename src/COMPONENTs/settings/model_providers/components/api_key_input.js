@@ -2,13 +2,15 @@ import { useCallback, useContext, useState } from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
 import { Input } from "../../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ConfirmDeleteApiKeyModal from "./confirm_delete_api_key_modal";
 import { readModelProviders, writeModelProviders } from "../storage";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
 import runtimeBridge from "../../../../SERVICEs/bridges/unchain_bridge";
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
+  const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const [value, setValue] = useState(
@@ -117,7 +119,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
 
       {saved && (
         <Button
-          label="Clear"
+          label={t("model_providers.clear")}
           onClick={() => setConfirmOpen(true)}
           style={{
             paddingVertical: 2,
@@ -153,7 +155,7 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
         <span
           style={{
             fontSize: 13,
-            fontFamily: "Jost",
+            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
             color: accentColor,
             fontWeight: 500,
           }}
@@ -165,12 +167,12 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
           <span
             style={{
               fontSize: 11,
-              fontFamily: "Jost",
+              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
               color: successColor,
               opacity: 0.85,
             }}
           >
-            ✓ Saved
+            ✓ {t("model_providers.saved")}
           </span>
         )}
       </div>

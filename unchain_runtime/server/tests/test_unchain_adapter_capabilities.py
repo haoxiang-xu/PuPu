@@ -1626,6 +1626,196 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(tool_result.get("toolkit_id"), "core")
         self.assertEqual(tool_result.get("toolkit_name"), "Core")
 
+    def test_stream_chat_events_forwards_confirmation_capable_shell_tool_call(self) -> None:
+        class FakeToolkit:
+            def __init__(self):
+                self.tools = {"shell": SimpleNamespace(requires_confirmation=True)}
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_ID_ATTR, "core")
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_NAME_ATTR, "Core")
+
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-5"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
+                self._toolkits = [FakeToolkit()]
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                **_kwargs,
+            ):
+                del messages, payload, max_iterations, on_tool_confirm
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "tool_call",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "call_id": "call-shell",
+                            "tool_name": "shell",
+                            "arguments": {
+                                "action": "run",
+                                "command": "pwd",
+                            },
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "tool_result",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "call_id": "call-shell",
+                            "tool_name": "shell",
+                            "result": {"ok": True},
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                )
+            )
+
+        tool_call = next(
+            event
+            for event in events
+            if event.get("type") == "tool_call"
+            and event.get("tool_name") == "shell"
+        )
+        tool_result = next(
+            event
+            for event in events
+            if event.get("type") == "tool_result"
+            and event.get("tool_name") == "shell"
+        )
+        self.assertEqual(tool_call.get("call_id"), "call-shell")
+        self.assertNotIn("confirmation_id", tool_call)
+        self.assertEqual(tool_call.get("toolkit_id"), "core")
+        self.assertEqual(tool_call.get("toolkit_name"), "Core")
+        self.assertEqual(tool_result.get("toolkit_id"), "core")
+        self.assertEqual(tool_result.get("toolkit_name"), "Core")
+
+    def test_stream_chat_events_still_suppresses_bare_ask_user_question_tool_call(self) -> None:
+        class FakeToolkit:
+            def __init__(self):
+                self.tools = {"ask_user_question": SimpleNamespace(requires_confirmation=False)}
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_ID_ATTR, "core")
+                setattr(self, unchain_adapter._RUNTIME_TOOLKIT_NAME_ATTR, "Core")
+
+        class FakeAgent:
+            def __init__(self):
+                self.provider = "openai"
+                self.max_iterations = 3
+                self._display_model = "openai:gpt-5"
+                self._general_model_id = "openai:gpt-5"
+                self._developer_model_id = "openai:gpt-5"
+                self._orchestration_role = "developer"
+                self._orchestration_next_mode = "default"
+                self._memory_runtime = {
+                    "requested": False,
+                    "available": False,
+                    "reason": "",
+                }
+                self._toolkits = [FakeToolkit()]
+
+            def run(
+                self,
+                messages,
+                payload=None,
+                callback=None,
+                max_iterations=None,
+                on_tool_confirm=None,
+                **_kwargs,
+            ):
+                del messages, payload, max_iterations, on_tool_confirm
+                if callable(callback):
+                    callback(
+                        {
+                            "type": "tool_call",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "call_id": "call-ask",
+                            "tool_name": "ask_user_question",
+                            "arguments": {"question": "Continue?"},
+                        }
+                    )
+                    callback(
+                        {
+                            "type": "final_message",
+                            "run_id": "run-1",
+                            "iteration": 0,
+                            "timestamp": time.time(),
+                            "content": "done",
+                        }
+                    )
+                return SimpleNamespace(
+                    messages=[{"role": "assistant", "content": "done"}],
+                    consumed_tokens=0,
+                    input_tokens=0,
+                    output_tokens=0,
+                    status="completed",
+                    iteration=0,
+                    previous_response_id=None,
+                )
+
+        with mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
+            events = list(
+                unchain_adapter.stream_chat_events(
+                    message="hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "openai:gpt-5"},
+                )
+            )
+
+        self.assertFalse(
+            any(
+                event.get("type") == "tool_call"
+                and event.get("tool_name") == "ask_user_question"
+                for event in events
+            )
+        )
+        self.assertTrue(any(event.get("type") == "final_message" for event in events))
+
     def test_build_requested_toolkits_rejects_duplicate_tool_names(self) -> None:
         toolkit_a = SimpleNamespace(
             tools={"read": object()},

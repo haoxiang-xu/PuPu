@@ -37,7 +37,7 @@ const SelectProvidersStep = ({
   setSelectedProviders,
   onNext,
 }) => {
-  const { onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const nameColor = isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.85)";
@@ -242,7 +242,7 @@ const SelectProvidersStep = ({
                           style={{
                             fontSize: 13,
                             fontWeight: 600,
-                            fontFamily: "NunitoSans, sans-serif",
+                            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
                             color: selected ? accent : nameColor,
                             marginBottom: 5,
                             transition: "color 0.15s",
@@ -257,7 +257,7 @@ const SelectProvidersStep = ({
                       <div
                         style={{
                           fontSize: 11,
-                          fontFamily: "NunitoSans, sans-serif",
+                          fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
                           color: descColor,
                           lineHeight: 1.5,
                           marginBottom: 10,
@@ -271,7 +271,7 @@ const SelectProvidersStep = ({
                       <div
                         style={{
                           fontSize: 10,
-                          fontFamily: "NunitoSans, sans-serif",
+                          fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
                           fontWeight: 600,
                           color: selected ? accent : tagColor,
                           background: selected ? `${accent}15` : tagBg,
@@ -301,7 +301,7 @@ const SelectProvidersStep = ({
           root: {
             alignSelf: "flex-start",
             fontSize: 13,
-            fontFamily: "NunitoSans, sans-serif",
+            fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             fontWeight: 600,
           },
         }}

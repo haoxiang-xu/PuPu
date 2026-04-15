@@ -1,6 +1,6 @@
 export const SECTIONS = [
-  { key: "toolkits", icon: "tool", label: "Toolkits" },
-  { key: "skills", icon: "education", label: "Skills" },
+  { key: "toolkits", icon: "tool", labelKey: "toolkit.toolkits" },
+  { key: "skills", icon: "education", labelKey: "toolkit.skills" },
 ];
 
 export const BASE_TOOLKIT_IDENTIFIERS = new Set([
@@ -12,19 +12,19 @@ export const BASE_TOOLKIT_IDENTIFIERS = new Set([
 
 export const KIND_CONFIG = {
   core: {
-    label: "Core",
+    labelKey: "toolkit.kind_core",
     color: "#a78bfa",
     bg: "rgba(167,139,250,0.13)",
     border: "rgba(167,139,250,0.22)",
   },
   builtin: {
-    label: "Built-in",
+    labelKey: "toolkit.kind_builtin",
     color: "#34d399",
     bg: "rgba(52,211,153,0.12)",
     border: "rgba(52,211,153,0.20)",
   },
   integration: {
-    label: "Integration",
+    labelKey: "toolkit.kind_integration",
     color: "#fb923c",
     bg: "rgba(251,146,60,0.12)",
     border: "rgba(251,146,60,0.20)",
@@ -33,17 +33,17 @@ export const KIND_CONFIG = {
 
 export const SOURCE_CONFIG = {
   builtin: {
-    label: "Built-in",
+    labelKey: "toolkit.source_builtin",
     color: "#34d399",
     bg: "rgba(52,211,153,0.12)",
   },
   local: {
-    label: "Local",
+    labelKey: "toolkit.source_local",
     color: "#60a5fa",
     bg: "rgba(96,165,250,0.12)",
   },
   plugin: {
-    label: "Plugin",
+    labelKey: "toolkit.source_plugin",
     color: "#fb923c",
     bg: "rgba(251,146,60,0.12)",
   },

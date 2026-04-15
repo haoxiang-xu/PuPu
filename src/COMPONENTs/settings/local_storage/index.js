@@ -23,9 +23,11 @@ import ConfirmClearAll from "./components/confirm_clear_all";
 import ConfirmDeleteModal from "./components/confirm_delete_modal";
 import { api } from "../../../SERVICEs/api";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 const OllamaSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const [status, setStatus] = useState("loading");
   const [models, setModels] = useState([]);
   const hasOllamaBridge = api.ollama.isBridgeAvailable();
@@ -81,9 +83,9 @@ const OllamaSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        fontFamily: "Jost",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
-        padding: "2px 8px",
+        padding: "1px 8px",
         borderRadius: 999,
         border: `1px solid ${
           amber
@@ -108,8 +110,9 @@ const OllamaSection = ({ isDark }) => {
           : isDark
             ? "rgba(255,255,255,0.35)"
             : "rgba(0,0,0,0.38)",
-        lineHeight: 1.8,
+        lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -127,7 +130,7 @@ const OllamaSection = ({ isDark }) => {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
           {status === "ready" && (
             <>
               {statusPill(
@@ -136,17 +139,17 @@ const OllamaSection = ({ isDark }) => {
               {statusPill(`${formatBytes(totalSize)} total`)}
             </>
           )}
-          {status === "offline" && statusPill("offline", true)}
-          {status === "not_found" && statusPill("not installed", true)}
-          {status === "loading" && statusPill("loading…")}
-          {status === "starting" && statusPill("starting…")}
+          {status === "offline" && statusPill(t("local_storage.offline"), true)}
+          {status === "not_found" && statusPill(t("local_storage.not_installed"), true)}
+          {status === "loading" && statusPill(t("local_storage.loading"))}
+          {status === "starting" && statusPill(t("local_storage.starting"))}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           {hasOllamaBridge &&
             (status === "offline" || status === "starting") && (
               <Button
-                label="Restart"
+                label={t("local_storage.restart")}
                 onClick={handleRestart}
                 style={{
                   fontSize: 12,
@@ -158,7 +161,7 @@ const OllamaSection = ({ isDark }) => {
               />
             )}
           <Button
-            label="Reload"
+            label={t("local_storage.reload")}
             onClick={load}
             style={{
               fontSize: 12,
@@ -191,7 +194,7 @@ const OllamaSection = ({ isDark }) => {
               fontFamily: theme?.font?.fontFamily || "inherit",
             }}
           >
-            Ollama is not installed. Get it at:
+            {t("local_storage.ollama_not_installed")}
           </div>
           <div
             style={{
@@ -224,7 +227,7 @@ const OllamaSection = ({ isDark }) => {
             fontFamily: theme?.font?.fontFamily || "inherit",
           }}
         >
-          Starting Ollama in the background…
+          {t("local_storage.ollama_starting")}
         </div>
       )}
 
@@ -249,8 +252,8 @@ const OllamaSection = ({ isDark }) => {
             }}
           >
             {hasOllamaBridge
-              ? "Ollama failed to start. Try restarting it:"
-              : "Ollama is not running. Start it with:"}
+              ? t("local_storage.ollama_failed_start")
+              : t("local_storage.ollama_not_running")}
           </div>
           <div
             style={{
@@ -280,7 +283,7 @@ const OllamaSection = ({ isDark }) => {
                 fontFamily: theme?.font?.fontFamily || "inherit",
               }}
             >
-              No models installed
+              {t("local_storage.no_models")}
             </div>
           ) : (
             models.map((model) => (
@@ -482,6 +485,7 @@ const readRuntimeWorkspaceRoot = () => {
 
 const RuntimeSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const hasApi = runtimeBridge.isRuntimeStorageAvailable();
 
   const [status, setStatus] = useState("loading");
@@ -558,9 +562,9 @@ const RuntimeSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        fontFamily: "Jost",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
-        padding: "2px 8px",
+        padding: "1px 8px",
         borderRadius: 999,
         border: `1px solid ${
           amber
@@ -585,8 +589,9 @@ const RuntimeSection = ({ isDark }) => {
           : isDark
             ? "rgba(255,255,255,0.35)"
             : "rgba(0,0,0,0.38)",
-        lineHeight: 1.8,
+        lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -594,7 +599,7 @@ const RuntimeSection = ({ isDark }) => {
   );
 
   return (
-    <SettingsSection title="Runtime">
+    <SettingsSection title={t("local_storage.section_runtime")}>
       <div
         style={{
           display: "flex",
@@ -604,7 +609,7 @@ const RuntimeSection = ({ isDark }) => {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
           {status === "ready" && (
             <>
               {statusPill(
@@ -613,16 +618,16 @@ const RuntimeSection = ({ isDark }) => {
               {statusPill(`${formatBytes(total)} total`)}
             </>
           )}
-          {status === "loading" && statusPill("loading…")}
-          {status === "no_path" && statusPill("not configured", true)}
-          {status === "not_found" && statusPill("not found", true)}
-          {status === "unavailable" && statusPill("unavailable", true)}
+          {status === "loading" && statusPill(t("local_storage.loading"))}
+          {status === "no_path" && statusPill(t("local_storage.not_configured"), true)}
+          {status === "not_found" && statusPill(t("local_storage.not_found"), true)}
+          {status === "unavailable" && statusPill(t("local_storage.unavailable"), true)}
         </div>
 
         {hasApi && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Button
-              label="Reload"
+              label={t("local_storage.reload")}
               onClick={load}
               style={{
                 fontSize: 12,
@@ -634,7 +639,7 @@ const RuntimeSection = ({ isDark }) => {
             />
             {status === "ready" && entries.length > 0 && !confirmClearAll && (
               <Button
-                label="Clear all"
+                label={t("local_storage.clear_all_btn")}
                 onClick={() => setConfirmClearAll(true)}
                 style={{
                   fontSize: 12,
@@ -656,7 +661,7 @@ const RuntimeSection = ({ isDark }) => {
         <div style={{ paddingBottom: 8 }}>
           <ConfirmClearAll
             isDark={isDark}
-            label="Delete all files in the workspace root?"
+            label={t("local_storage.runtime_clear_all_confirm")}
             onConfirm={handleClearAll}
             onCancel={() => setConfirmClearAll(false)}
           />
@@ -681,10 +686,10 @@ const RuntimeSection = ({ isDark }) => {
           }}
         >
           {status === "no_path" &&
-            "No workspace root configured in Runtime settings."}
-          {status === "not_found" && `Path not found: ${workspacePath}`}
+            t("local_storage.runtime_no_path")}
+          {status === "not_found" && t("local_storage.runtime_not_found", { path: workspacePath })}
           {status === "unavailable" &&
-            "Runtime size is only available in the desktop app."}
+            t("local_storage.runtime_unavailable")}
         </div>
       )}
 
@@ -698,7 +703,7 @@ const RuntimeSection = ({ isDark }) => {
             fontFamily: theme?.font?.fontFamily || "inherit",
           }}
         >
-          No files found
+          {t("local_storage.no_files")}
         </div>
       )}
 
@@ -721,6 +726,7 @@ const RuntimeSection = ({ isDark }) => {
 
 const CharactersSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const hasApi =
     runtimeBridge.isCharacterStorageAvailable() &&
     runtimeBridge.isCharacterApiAvailable();
@@ -843,9 +849,9 @@ const CharactersSection = ({ isDark }) => {
     <span
       style={{
         fontSize: 11,
-        fontFamily: "Jost",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
-        padding: "2px 8px",
+        padding: "1px 8px",
         borderRadius: 999,
         border: `1px solid ${
           amber
@@ -870,8 +876,9 @@ const CharactersSection = ({ isDark }) => {
           : isDark
             ? "rgba(255,255,255,0.35)"
             : "rgba(0,0,0,0.38)",
-        lineHeight: 1.8,
+        lineHeight: 1.5,
         fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
       }}
     >
       {label}
@@ -879,7 +886,7 @@ const CharactersSection = ({ isDark }) => {
   );
 
   return (
-    <SettingsSection title="Characters">
+    <SettingsSection title={t("local_storage.section_characters")}>
       <div
         style={{
           display: "flex",
@@ -889,7 +896,7 @@ const CharactersSection = ({ isDark }) => {
           gap: 12,
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
           {status === "ready" && (
             <>
               {statusPill(
@@ -901,15 +908,15 @@ const CharactersSection = ({ isDark }) => {
             </>
           )}
           {(status === "loading" || isClearing) &&
-            statusPill(isClearing ? "clearing..." : "loading...")}
-          {status === "unavailable" && statusPill("unavailable", true)}
-          {status === "error" && statusPill("error", true)}
+            statusPill(isClearing ? t("local_storage.clearing") : t("local_storage.loading"))}
+          {status === "unavailable" && statusPill(t("local_storage.unavailable"), true)}
+          {status === "error" && statusPill(t("local_storage.error"), true)}
         </div>
 
         {hasApi && (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Button
-              label="Reload"
+              label={t("local_storage.reload")}
               onClick={load}
               style={{
                 fontSize: 12,
@@ -924,8 +931,7 @@ const CharactersSection = ({ isDark }) => {
               !confirmClearAll &&
               !isClearing && (
                 <Button
-                  prefix_icon="delete"
-                  label="Clear all"
+                  label={t("local_storage.clear_all_btn")}
                   onClick={() => setConfirmClearAll(true)}
                   style={{
                     fontSize: 12,
@@ -951,15 +957,14 @@ const CharactersSection = ({ isDark }) => {
           fontFamily: theme?.font?.fontFamily || "inherit",
         }}
       >
-        Reads runtime storage behind Agents > Characters, not browser
-        localStorage.
+        {t("local_storage.characters_desc")}
       </div>
 
       {confirmClearAll && (
         <div style={{ paddingBottom: 8 }}>
           <ConfirmClearAll
             isDark={isDark}
-            label="Delete all saved characters and their runtime memory?"
+            label={t("local_storage.characters_clear_all_confirm")}
             onConfirm={handleClearAll}
             onCancel={() => setConfirmClearAll(false)}
           />
@@ -982,9 +987,9 @@ const CharactersSection = ({ isDark }) => {
           }}
         >
           {status === "unavailable" &&
-            "Character storage is only available in the desktop app."}
+            t("local_storage.characters_unavailable")}
           {status === "error" &&
-            (errorMessage || "Could not load character storage right now.")}
+            (errorMessage || t("local_storage.characters_load_error"))}
         </div>
       )}
 
@@ -998,7 +1003,7 @@ const CharactersSection = ({ isDark }) => {
             fontFamily: theme?.font?.fontFamily || "inherit",
           }}
         >
-          No character storage yet
+          {t("local_storage.no_characters")}
         </div>
       )}
 
@@ -1043,6 +1048,7 @@ const normalizeMemoryStats = (result) => {
 
 export const LocalStorageSettings = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
 
   const [entries, setEntries] = useState(() => _cachedLocalStorageEntries ?? []);
@@ -1136,7 +1142,7 @@ export const LocalStorageSettings = () => {
 
   return (
     <div>
-      <SettingsSection title="System">
+      <SettingsSection title={t("local_storage.section_system")}>
         <div
           style={{
             display: "flex",
@@ -1146,15 +1152,15 @@ export const LocalStorageSettings = () => {
             gap: 12,
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", minWidth: 0 }}>
             {(!isLoading || entries.length > 0) && (
               <>
                 <span
                   style={{
                     fontSize: 11,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     fontWeight: 500,
-                    padding: "2px 8px",
+                    padding: "1px 8px",
                     borderRadius: 999,
                     border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                     backgroundColor: isDark
@@ -1163,8 +1169,9 @@ export const LocalStorageSettings = () => {
                     color: isDark
                       ? "rgba(255,255,255,0.35)"
                       : "rgba(0,0,0,0.38)",
-                    lineHeight: 1.8,
+                    lineHeight: 1.5,
                     fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {entries.length} {entries.length === 1 ? "key" : "keys"}
@@ -1172,9 +1179,9 @@ export const LocalStorageSettings = () => {
                 <span
                   style={{
                     fontSize: 11,
-                    fontFamily: "Jost",
+                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                     fontWeight: 500,
-                    padding: "2px 8px",
+                    padding: "1px 8px",
                     borderRadius: 999,
                     border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                     backgroundColor: isDark
@@ -1183,8 +1190,9 @@ export const LocalStorageSettings = () => {
                     color: isDark
                       ? "rgba(255,255,255,0.35)"
                       : "rgba(0,0,0,0.38)",
-                    lineHeight: 1.8,
+                    lineHeight: 1.5,
                     fontVariantNumeric: "tabular-nums",
+                    whiteSpace: "nowrap",
                   }}
                 >
                   {formatBytes(totalSize)} total
@@ -1195,9 +1203,9 @@ export const LocalStorageSettings = () => {
               <span
                 style={{
                   fontSize: 11,
-                  fontFamily: "Jost",
+                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
                   fontWeight: 500,
-                  padding: "2px 8px",
+                  padding: "1px 8px",
                   borderRadius: 999,
                   border: `1px solid ${isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.07)"}`,
                   backgroundColor: isDark
@@ -1206,18 +1214,19 @@ export const LocalStorageSettings = () => {
                   color: isDark
                     ? "rgba(255,255,255,0.35)"
                     : "rgba(0,0,0,0.38)",
-                  lineHeight: 1.8,
+                  lineHeight: 1.5,
                   fontVariantNumeric: "tabular-nums",
+                  whiteSpace: "nowrap",
                 }}
               >
-                loading…
+                {t("local_storage.loading")}
               </span>
             )}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <Button
-              label="Reload"
+              label={t("local_storage.reload")}
               onClick={refresh}
               style={{
                 fontSize: 12,
@@ -1229,7 +1238,7 @@ export const LocalStorageSettings = () => {
             />
             {entries.length > 0 && !confirmClear && (
               <Button
-                label="Clear all"
+                label={t("local_storage.clear_all_btn")}
                 onClick={() => setConfirmClear(true)}
                 style={{
                   fontSize: 12,
@@ -1250,7 +1259,7 @@ export const LocalStorageSettings = () => {
           <div style={{ paddingBottom: 8 }}>
             <ConfirmClearAll
               isDark={isDark}
-              label="Clear all local storage?"
+              label={t("local_storage.system_clear_all_confirm")}
               onConfirm={handleClearAll}
               onCancel={() => setConfirmClear(false)}
             />
@@ -1267,7 +1276,7 @@ export const LocalStorageSettings = () => {
               fontFamily: theme?.font?.fontFamily || "inherit",
             }}
           >
-            Reading local storage…
+            {t("local_storage.reading")}
           </div>
         ) : entries.length === 0 ? (
           <div
@@ -1279,7 +1288,7 @@ export const LocalStorageSettings = () => {
               fontFamily: theme?.font?.fontFamily || "inherit",
             }}
           >
-            No data stored
+            {t("local_storage.no_data")}
           </div>
         ) : (
           <div>

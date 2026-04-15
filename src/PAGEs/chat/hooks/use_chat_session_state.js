@@ -157,10 +157,17 @@ export const useChatSessionState = ({
         return;
       }
 
-      flushDraftToStore(currentActiveId);
+      const currentActiveChat = currentActiveId
+        ? nextStore?.chatsById?.[currentActiveId]
+        : null;
+      const currentActiveStillExists = Boolean(currentActiveChat);
+      if (currentActiveStillExists) {
+        flushDraftToStore(currentActiveId);
+      }
       activeChatIdRef.current = nextActiveId;
 
       if (
+        currentActiveStillExists &&
         activeStreamMessagesRef.current?.chatId === currentActiveId &&
         Array.isArray(activeStreamMessagesRef.current?.messages)
       ) {

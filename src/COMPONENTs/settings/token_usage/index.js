@@ -5,6 +5,7 @@ import { BarChart } from "../../../BUILTIN_COMPONENTs/bar_chart";
 import { SettingsSection } from "../appearance";
 import { readTokenUsageRecords, clearTokenUsageRecords } from "./storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  Constants                                                                                                                  */
@@ -19,16 +20,16 @@ const PROVIDER_ICON = {
 };
 
 const RANGE_OPTIONS = [
-  { value: "7d", label: "7 days", trigger_label: "7d" },
-  { value: "30d", label: "30 days", trigger_label: "30d" },
-  { value: "90d", label: "90 days", trigger_label: "90d" },
-  { value: "all", label: "All time", trigger_label: "All" },
+  { value: "7d", labelKey: "7_days", trigger_label: "7d" },
+  { value: "30d", labelKey: "30_days", trigger_label: "30d" },
+  { value: "90d", labelKey: "90_days", trigger_label: "90d" },
+  { value: "all", labelKey: "all_time", trigger_label: "All" },
 ];
 
 const GRANULARITY_OPTIONS = [
-  { value: "day", label: "Day" },
-  { value: "week", label: "Week" },
-  { value: "month", label: "Month" },
+  { value: "day", labelKey: "day" },
+  { value: "week", labelKey: "week" },
+  { value: "month", labelKey: "month" },
 ];
 
 const COMPACT_STYLE = {
@@ -46,13 +47,13 @@ const CHART_UNIT_HEADROOM = 18;
 const BREAKDOWN_SERIES = [
   {
     key: "input",
-    label: "Input",
+    labelKey: "input",
     lightColor: "rgba(14,165,233,0.84)",
     darkColor: "rgba(56,189,248,0.9)",
   },
   {
     key: "output",
-    label: "Output",
+    labelKey: "output",
     lightColor: "rgba(249,115,22,0.84)",
     darkColor: "rgba(251,146,60,0.9)",
   },
@@ -290,7 +291,7 @@ const ChartTitle = ({ title, description, isDark, fontFamily }) => (
   </div>
 );
 
-const BreakdownLegend = ({ isDark, fontFamily }) => (
+const BreakdownLegend = ({ isDark, fontFamily, series }) => (
   <div
     style={{
       display: "flex",
@@ -300,9 +301,9 @@ const BreakdownLegend = ({ isDark, fontFamily }) => (
       flexWrap: "wrap",
     }}
   >
-    {BREAKDOWN_SERIES.map((series) => (
+    {series.map((s) => (
       <div
-        key={series.key}
+        key={s.key}
         style={{
           display: "flex",
           alignItems: "center",
@@ -317,10 +318,10 @@ const BreakdownLegend = ({ isDark, fontFamily }) => (
             width: 10,
             height: 10,
             borderRadius: 999,
-            backgroundColor: isDark ? series.darkColor : series.lightColor,
+            backgroundColor: isDark ? s.darkColor : s.lightColor,
           }}
         />
-        {series.label}
+        {s.label}
       </div>
     ))}
   </div>
@@ -331,7 +332,8 @@ const TokenBreakdownChart = ({
   height = BREAKDOWN_CHART_HEIGHT,
   isDark,
   fontFamily,
-  emptyMessage = "No input/output breakdown yet",
+  emptyMessage,
+  series = BREAKDOWN_SERIES,
 }) => {
   const [hoveredIndex, setHoveredIndex] = useState(null);
   const hasUsableData = data.some(
@@ -506,9 +508,9 @@ const TokenBreakdownChart = ({
                     <div style={{ fontWeight: 600, marginBottom: 2 }}>
                       {entry.label}
                     </div>
-                    {BREAKDOWN_SERIES.map((series) => (
+                    {series.map((s) => (
                       <div
-                        key={series.key}
+                        key={s.key}
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
@@ -518,8 +520,8 @@ const TokenBreakdownChart = ({
                             : "rgba(0,0,0,0.8)",
                         }}
                       >
-                        <span>{series.label}</span>
-                        <span>{formatTokenCount(entry[series.key] || 0)}</span>
+                        <span>{s.label}</span>
+                        <span>{formatTokenCount(entry[s.key] || 0)}</span>
                       </div>
                     ))}
                   </div>
@@ -536,14 +538,14 @@ const TokenBreakdownChart = ({
                     height: "100%",
                   }}
                 >
-                  {BREAKDOWN_SERIES.map((series) => {
-                    const value = entry[series.key] || 0;
+                  {series.map((s) => {
+                    const value = entry[s.key] || 0;
                     const pct =
                       value > 0 ? Math.max((value / niceMax) * 100, 1) : 0;
                     return (
                       <div
-                        key={series.key}
-                        aria-label={`${series.label} ${entry.label}: ${formatTokenCount(value)} tokens`}
+                        key={s.key}
+                        aria-label={`${s.label} ${entry.label}: ${formatTokenCount(value)} tokens`}
                         style={{
                           flex: 1,
                           maxWidth: 18,
@@ -551,8 +553,8 @@ const TokenBreakdownChart = ({
                           minHeight: value > 0 ? 2 : 0,
                           borderRadius: `${BREAKDOWN_BAR_RADIUS}px ${BREAKDOWN_BAR_RADIUS}px 1px 1px`,
                           backgroundColor: isDark
-                            ? series.darkColor
-                            : series.lightColor,
+                            ? s.darkColor
+                            : s.lightColor,
                           opacity: isHovered || value === 0 ? 1 : 0.92,
                           transition:
                             "height 0.4s cubic-bezier(.4,0,.2,1), opacity 0.15s",
@@ -653,6 +655,7 @@ const StatCard = ({ label, value, isDark, fontFamily }) => {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export const TokenUsageSettings = () => {
+  const { t } = useTranslation();
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const fontFamily = theme?.font?.fontFamily || "inherit";
@@ -663,6 +666,22 @@ export const TokenUsageSettings = () => {
   const [model, setModel] = useState(ALL);
   const [range, setRange] = useState("30d");
   const [granularity, setGranularity] = useState("day");
+
+  // Translated versions of module-level constants
+  const rangeOptions = useMemo(() => RANGE_OPTIONS.map(opt => ({
+    ...opt,
+    label: t(`token_usage.${opt.labelKey}`),
+  })), [t]);
+
+  const granularityOptions = useMemo(() => GRANULARITY_OPTIONS.map(opt => ({
+    ...opt,
+    label: t(`token_usage.${opt.labelKey}`),
+  })), [t]);
+
+  const breakdownSeries = useMemo(() => BREAKDOWN_SERIES.map(s => ({
+    ...s,
+    label: t(`token_usage.${s.labelKey}`),
+  })), [t]);
 
   // Derive provider & model options from records
   const { providerOptions, modelOptions } = useMemo(() => {
@@ -681,7 +700,7 @@ export const TokenUsageSettings = () => {
     }
 
     const provOpts = [
-      { value: ALL, label: "All Providers", trigger_label: "All" },
+      { value: ALL, label: t("token_usage.all_providers"), trigger_label: "All" },
       ...[...providerSet].sort().map((p) => ({
         value: p,
         label: p.charAt(0).toUpperCase() + p.slice(1),
@@ -698,7 +717,7 @@ export const TokenUsageSettings = () => {
         : [...modelMap.values()].filter((m) => m.provider === provider);
 
     const modOpts = [
-      { value: ALL, label: "All Models", trigger_label: "All Models" },
+      { value: ALL, label: t("token_usage.all_models"), trigger_label: t("token_usage.all_models") },
       ...filteredModels
         .sort((a, b) => a.model_id.localeCompare(b.model_id))
         .map((m) => ({
@@ -709,7 +728,7 @@ export const TokenUsageSettings = () => {
     ];
 
     return { providerOptions: provOpts, modelOptions: modOpts };
-  }, [records, provider]);
+  }, [records, provider, t]);
 
   // When provider changes, reset model to ALL
   const handleProviderChange = useCallback((val) => {
@@ -746,7 +765,7 @@ export const TokenUsageSettings = () => {
       }}
     >
       {/* ── Summary stats ───────────────────────────────────────────────── */}
-      <SettingsSection title="Overview">
+      <SettingsSection title={t("token_usage.overview")}>
         <div
           data-testid="token-usage-overview-grid"
           style={{
@@ -760,37 +779,37 @@ export const TokenUsageSettings = () => {
           }}
         >
           <StatCard
-            label="Consumed Tokens"
+            label={t("token_usage.consumed_tokens")}
             value={formatTokenCount(totalConsumedTokens)}
             isDark={isDark}
             fontFamily={fontFamily}
           />
           <StatCard
-            label="Input Tokens"
+            label={t("token_usage.input_tokens")}
             value={formatTokenCount(totalInputTokens)}
             isDark={isDark}
             fontFamily={fontFamily}
           />
           <StatCard
-            label="Output Tokens"
+            label={t("token_usage.output_tokens")}
             value={formatTokenCount(totalOutputTokens)}
             isDark={isDark}
             fontFamily={fontFamily}
           />
           <StatCard
-            label="Requests"
+            label={t("token_usage.requests")}
             value={requestCount.toLocaleString()}
             isDark={isDark}
             fontFamily={fontFamily}
           />
           <StatCard
-            label="Avg Consumed / Request"
+            label={t("token_usage.avg_consumed")}
             value={formatTokenCount(avgConsumedTokens)}
             isDark={isDark}
             fontFamily={fontFamily}
           />
           <StatCard
-            label="Top Model"
+            label={t("token_usage.top_model")}
             value={topModel}
             isDark={isDark}
             fontFamily={fontFamily}
@@ -799,7 +818,7 @@ export const TokenUsageSettings = () => {
       </SettingsSection>
 
       {/* ── Chart + inline filters ─────────────────────────────────────── */}
-      <SettingsSection title="Usage">
+      <SettingsSection title={t("token_usage.usage")}>
         <div
           data-testid="token-usage-filters"
           style={{
@@ -831,18 +850,18 @@ export const TokenUsageSettings = () => {
             options={modelOptions}
             value={model}
             set_value={setModel}
-            filterable={modelOptions.length > 6}
-            search_placeholder="Search models…"
+            filterable={true}
+            search_placeholder={t("token_usage.search_models")}
             style={{
               ...COMPACT_STYLE,
               flex: "2 1 0",
               minWidth: 0,
             }}
             option_style={OPT_STYLE}
-            dropdown_style={{ ...DD_STYLE, padding: 6 }}
+            dropdown_style={{ ...DD_STYLE, padding: 6, maxHeight: 280 }}
           />
           <Select
-            options={GRANULARITY_OPTIONS}
+            options={granularityOptions}
             value={granularity}
             set_value={setGranularity}
             filterable={false}
@@ -855,7 +874,7 @@ export const TokenUsageSettings = () => {
             dropdown_style={DD_STYLE}
           />
           <Select
-            options={RANGE_OPTIONS}
+            options={rangeOptions}
             value={range}
             set_value={setRange}
             filterable={false}
@@ -878,8 +897,8 @@ export const TokenUsageSettings = () => {
           }}
         >
           <ChartTitle
-            title="Consumed Usage"
-            description="Total tokens consumed per selected time bucket."
+            title={t("token_usage.consumed_usage")}
+            description={t("token_usage.consumed_usage_desc")}
             isDark={isDark}
             fontFamily={fontFamily}
           />
@@ -887,7 +906,7 @@ export const TokenUsageSettings = () => {
             <BarChart
               data={chartData}
               height={220}
-              emptyMessage="No token usage data yet"
+              emptyMessage={t("token_usage.no_data")}
             />
           </div>
         </div>
@@ -901,24 +920,26 @@ export const TokenUsageSettings = () => {
           }}
         >
           <ChartTitle
-            title="Input / Output Breakdown"
-            description="Separated token flow for requests and responses."
+            title={t("token_usage.breakdown")}
+            description={t("token_usage.breakdown_desc")}
             isDark={isDark}
             fontFamily={fontFamily}
           />
-          <BreakdownLegend isDark={isDark} fontFamily={fontFamily} />
+          <BreakdownLegend isDark={isDark} fontFamily={fontFamily} series={breakdownSeries} />
           <div style={{ marginTop: CHART_UNIT_HEADROOM }}>
             <TokenBreakdownChart
               data={breakdownChartData}
               isDark={isDark}
               fontFamily={fontFamily}
+              emptyMessage={t("token_usage.no_data")}
+              series={breakdownSeries}
             />
           </div>
         </div>
       </SettingsSection>
 
       {/* ── Danger zone ─────────────────────────────────────────────────── */}
-      <SettingsSection title="Data">
+      <SettingsSection title={t("token_usage.data")}>
         <div
           style={{
             display: "flex",
@@ -941,7 +962,7 @@ export const TokenUsageSettings = () => {
                 marginBottom: 2,
               }}
             >
-              Clear usage data
+              {t("token_usage.clear_usage")}
             </div>
             <div
               style={{
@@ -951,11 +972,11 @@ export const TokenUsageSettings = () => {
                 opacity: 0.45,
               }}
             >
-              Remove all stored token usage records
+              {t("token_usage.clear_usage_desc")}
             </div>
           </div>
           <Button
-            label="Clear"
+            label={t("token_usage.clear")}
             onClick={handleClear}
             style={{
               fontSize: 13,
