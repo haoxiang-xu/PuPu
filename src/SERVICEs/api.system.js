@@ -106,6 +106,42 @@ export const createSystemApi = () => ({
       }
     },
 
+    getAutoUpdate: async () => {
+      if (!hasBridgeMethod("appUpdateAPI", "getAutoUpdate")) {
+        return true;
+      }
+      try {
+        const method = assertBridgeMethod("appUpdateAPI", "getAutoUpdate");
+        const enabled = await withTimeout(
+          () => method(),
+          3000,
+          "auto_update_get_timeout",
+          "Auto-update preference request timed out",
+        );
+        return enabled !== false;
+      } catch {
+        return true;
+      }
+    },
+
+    setAutoUpdate: async (enabled) => {
+      try {
+        const method = assertBridgeMethod("appUpdateAPI", "setAutoUpdate");
+        return await withTimeout(
+          () => method(enabled),
+          3000,
+          "auto_update_set_timeout",
+          "Auto-update preference save timed out",
+        );
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "auto_update_set_failed",
+          "Failed to save auto-update preference",
+        );
+      }
+    },
+
     onStateChange: (callback) => {
       if (typeof callback !== "function") {
         return () => {};

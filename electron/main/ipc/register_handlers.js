@@ -6,6 +6,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UPDATE.GET_STATE,
   CHANNELS.UPDATE.CHECK_AND_DOWNLOAD,
   CHANNELS.UPDATE.INSTALL_NOW,
+  CHANNELS.UPDATE.GET_AUTO_UPDATE,
+  CHANNELS.UPDATE.SET_AUTO_UPDATE,
   CHANNELS.OLLAMA.GET_STATUS,
   CHANNELS.OLLAMA.LIST_INSTALLED_MODELS,
   CHANNELS.OLLAMA.INSTALL,
@@ -94,6 +96,12 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UPDATE.INSTALL_NOW, async () =>
     updateService.installDownloadedAppUpdate(),
+  );
+  ipcMain.handle(CHANNELS.UPDATE.GET_AUTO_UPDATE, () =>
+    updateService.getAutoUpdateEnabled(),
+  );
+  ipcMain.handle(CHANNELS.UPDATE.SET_AUTO_UPDATE, (_event, payload = {}) =>
+    updateService.setAutoUpdateEnabled(payload.enabled),
   );
 
   ipcMain.handle(CHANNELS.OLLAMA.GET_STATUS, () => ollamaService.getStatus());

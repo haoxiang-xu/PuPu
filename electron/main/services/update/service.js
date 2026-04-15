@@ -11,7 +11,10 @@ const UPDATE_STAGES = Object.freeze({
 
 const UPDATE_SUPPORTED_PLATFORMS = new Set(["darwin", "win32"]);
 
-const createUpdateService = ({ app, webContents, autoUpdater }) => {
+// Delay (ms) between app window creation and the startup auto-update check.
+const STARTUP_CHECK_DELAY_MS = 8000;
+
+const createUpdateService = ({ app, webContents, autoUpdater, fs, path }) => {
   let autoUpdaterConfigured = false;
   let updateCheckInFlight = false;
   let updateDownloaded = false;
@@ -267,6 +270,45 @@ const createUpdateService = ({ app, webContents, autoUpdater }) => {
     }
   };
 
+  // ── auto-update preference (persisted to userData) ──────────────────────
+
+  const getAutoUpdatePrefPath = () =>
+    path.join(app.getPath("userData"), "auto_update_pref.json");
+
+  const getAutoUpdateEnabled = () => {
+    try {
+      const raw = fs.readFileSync(getAutoUpdatePrefPath(), "utf8");
+      const parsed = JSON.parse(raw);
+      return parsed?.enabled !== false; // default true
+    } catch {
+      return true; // default true if file missing or unreadable
+    }
+  };
+
+  const setAutoUpdateEnabled = (enabled) => {
+    try {
+      fs.writeFileSync(
+        getAutoUpdatePrefPath(),
+        JSON.stringify({ enabled: Boolean(enabled) }),
+        "utf8",
+      );
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error?.message || "Failed to save preference" };
+    }
+  };
+
+  const scheduleStartupAutoUpdateCheck = () => {
+    if (!isInAppUpdateSupported()) {
+      return;
+    }
+    setTimeout(() => {
+      if (getAutoUpdateEnabled()) {
+        checkAndDownloadAppUpdate().catch(() => {});
+      }
+    }, STARTUP_CHECK_DELAY_MS);
+  };
+
   return {
     UPDATE_STAGES,
     isInAppUpdateSupported,
@@ -274,6 +316,9 @@ const createUpdateService = ({ app, webContents, autoUpdater }) => {
     getAppUpdateStatePayload,
     checkAndDownloadAppUpdate,
     installDownloadedAppUpdate,
+    getAutoUpdateEnabled,
+    setAutoUpdateEnabled,
+    scheduleStartupAutoUpdateCheck,
   };
 };
 

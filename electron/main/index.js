@@ -86,6 +86,8 @@ if (!gotSingleInstanceLock) {
     app,
     webContents,
     autoUpdater,
+    fs,
+    path,
   });
 
   registerIpcHandlers({
@@ -138,6 +140,7 @@ if (!gotSingleInstanceLock) {
     }
 
     windowService.createMainWindow();
+    updateService.scheduleStartupAutoUpdateCheck();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
