@@ -195,6 +195,7 @@ const createMainWindowService = ({
         // Keep preload module loading compatible after modularization.
         sandbox: false,
         backgroundThrottling: false,
+        webviewTag: true,
       },
     };
 
