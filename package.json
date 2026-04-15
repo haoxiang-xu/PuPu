@@ -119,8 +119,7 @@
     ],
     "mac": {
       "target": [
-        "dmg",
-        "zip"
+        "dmg"
       ],
       "forceCodeSigning": false,
       "icon": "public/icon.icns"
