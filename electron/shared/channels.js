@@ -65,6 +65,10 @@ const CHANNELS = Object.freeze({
     HANDLE_ACTION: "window-state-event-handler",
     LISTENER_EVENT: "window-state-event-listener",
   }),
+  BROWSER: Object.freeze({
+    // Reserved for Phase 2+ (persistence, cookie import, CDP).
+    // Phase 1 does not use IPC for browser mode — webview tag is enabled at the BrowserWindow level.
+  }),
 });
 
 module.exports = {
