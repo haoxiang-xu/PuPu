@@ -1,0 +1,139 @@
+<h2>Section 3 / 5 · 后端组件与运行时集成</h2>
+<p class="subtitle">新增 5 个后端模块 + 改造 unchain_adapter 的核心构建路径</p>
+
+<div class="section">
+  <p class="label">FILES · 新增 + 修改</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.7;padding:20px;white-space:pre">
+unchain_runtime/server/
+│
+├─ <span style="color:#9ece6a">agent_spec.py</span>            <span style="opacity:0.5">NEW · dataclass + codec + validate</span>
+├─ <span style="color:#9ece6a">agent_registry.py</span>        <span style="opacity:0.5">NEW · in-memory merged registry</span>
+├─ <span style="color:#9ece6a">agent_store.py</span>           <span style="opacity:0.5">NEW · JSON persistence (user agents)</span>
+├─ <span style="color:#9ece6a">agent_service.py</span>         <span style="opacity:0.5">NEW · CRUD + validation + seeding</span>
+├─ <span style="color:#9ece6a">route_agents.py</span>          <span style="opacity:0.5">NEW · Flask blueprint /agents</span>
+│
+├─ <span style="color:#e0af68">prompts/agents/developer.py</span>  <span style="opacity:0.5">MOD · + DEVELOPER_SPEC constant</span>
+├─ <span style="color:#e0af68">prompts/agents/analyzer.py</span>   <span style="opacity:0.5">MOD · + ANALYZER_SPEC constant</span>
+├─ <span style="color:#e0af68">prompts/agents/executor.py</span>   <span style="opacity:0.5">MOD · + EXECUTOR_SPEC constant</span>
+├─ <span style="color:#e0af68">prompts/agents/__init__.py</span>   <span style="opacity:0.5">MOD · re-export SPECs + BUILTIN_SPECS tuple</span>
+│
+├─ <span style="color:#e0af68">unchain_adapter.py</span>       <span style="opacity:0.5">MOD · refactor _build_developer_agent</span>
+│                              <span style="opacity:0.5">→ _build_agent_from_spec</span>
+│                              <span style="opacity:0.5">+ read primary_agent_id from payload</span>
+│
+├─ <span style="color:#e0af68">app.py</span>                   <span style="opacity:0.5">MOD · boot registry, register blueprint</span>
+│
+└─ tests/
+   ├─ <span style="color:#9ece6a">test_agent_spec.py</span>       <span style="opacity:0.5">NEW</span>
+   ├─ <span style="color:#9ece6a">test_agent_registry.py</span>   <span style="opacity:0.5">NEW</span>
+   ├─ <span style="color:#9ece6a">test_agent_store.py</span>      <span style="opacity:0.5">NEW</span>
+   ├─ <span style="color:#9ece6a">test_agent_service.py</span>    <span style="opacity:0.5">NEW</span>
+   ├─ <span style="color:#9ece6a">test_route_agents.py</span>     <span style="opacity:0.5">NEW</span>
+   └─ <span style="color:#e0af68">test_unchain_adapter_*.py</span> <span style="opacity:0.5">MOD · regression on _build_agent_from_spec</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">CORE REFACTOR · unchain_adapter.py</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:11.8px;line-height:1.65;padding:20px;white-space:pre">
+<span style="color:#bb9af7">def</span> <span style="color:#7aa2f7">_build_agent_from_spec</span>(
+    *,
+    spec: <span style="color:#7dcfff">AgentSpec</span>,
+    registry: <span style="color:#7dcfff">AgentRegistry</span>,
+    <span style="opacity:0.5"># unchain SDK modules (injected)</span>
+    UnchainAgent, ToolsModule, MemoryModule, PoliciesModule,
+    SubagentModule, SubagentTemplate, SubagentPolicy,
+    <span style="opacity:0.5"># session context</span>
+    provider: <span style="color:#7dcfff">str</span>,
+    model: <span style="color:#7dcfff">str</span>,
+    api_key: <span style="color:#7dcfff">str</span>,
+    user_modules: <span style="color:#7dcfff">dict[str, str]</span> | <span style="color:#e0af68">None</span>,
+    session_toolkits: <span style="color:#7dcfff">list</span>,
+    memory_manager,
+    max_iterations: <span style="color:#7dcfff">int</span>,
+    enable_subagents: <span style="color:#7dcfff">bool</span> = <span style="color:#e0af68">True</span>,
+) -> UnchainAgent:
+    <span style="opacity:0.5"># 1. 解析能力交集</span>
+    toolkits = registry.resolve_toolkits(spec, session_toolkits)
+    delegates = registry.resolve_delegates(spec) <span style="color:#bb9af7">if</span> enable_subagents <span style="color:#bb9af7">else</span> ()
+    effective_max_iters = spec.max_iterations <span style="color:#bb9af7">or</span> max_iterations
+    effective_model = spec.default_model <span style="color:#bb9af7">or</span> model
+
+    <span style="opacity:0.5"># 2. 组装 modules(所有 agent 共用)</span>
+    modules = []
+    <span style="color:#bb9af7">if</span> toolkits:
+        modules.append(ToolsModule(tools=<span style="color:#7dcfff">tuple</span>(toolkits)))
+    <span style="color:#bb9af7">if</span> memory_manager <span style="color:#bb9af7">is not</span> <span style="color:#e0af68">None</span>:
+        modules.append(MemoryModule(memory=memory_manager))
+    modules.append(PoliciesModule(max_iterations=effective_max_iters))
+    modules.append(_optimizers_module(...))  <span style="opacity:0.5"># 沿用现有</span>
+
+    <span style="opacity:0.5"># 3. Subagent templates 来自 registry,不再硬编码</span>
+    <span style="color:#bb9af7">if</span> delegates:
+        templates = <span style="color:#bb9af7">tuple</span>(
+            SubagentTemplate(
+                name=d.id,
+                description=d.description,
+                agent=_build_agent_from_spec(
+                    spec=d,
+                    registry=registry,
+                    <span style="opacity:0.5"># 递归构建,但不开启嵌套 subagent</span>
+                    enable_subagents=<span style="color:#e0af68">False</span>,
+                    max_iterations=<span style="color:#7dcfff">max</span>(<span style="color:#e0af68">2</span>, effective_max_iters // <span style="color:#e0af68">3</span>),
+                    ...
+                ),
+                allowed_tools=registry.resolve_toolkits(d, session_toolkits),
+                allowed_modes=(<span style="color:#9ece6a">"delegate"</span>, <span style="color:#9ece6a">"worker"</span>),
+                output_mode=<span style="color:#9ece6a">"last_message"</span>,
+                memory_policy=<span style="color:#9ece6a">"ephemeral"</span>,
+                parallel_safe=<span style="color:#e0af68">True</span>,
+            )
+            <span style="color:#bb9af7">for</span> d <span style="color:#bb9af7">in</span> delegates
+        )
+        modules.append(SubagentModule(templates=templates, policy=_DEFAULT_POLICY))
+
+    <span style="opacity:0.5"># 4. 拼 instructions</span>
+    instructions = _compose_agent_prompt(
+        spec.prompt_sections,
+        user_modules=user_modules <span style="color:#bb9af7">or</span> {},
+    )
+
+    <span style="color:#bb9af7">return</span> UnchainAgent(
+        name=spec.id,
+        instructions=instructions,
+        provider=provider,
+        model=effective_model,
+        api_key=api_key <span style="color:#bb9af7">or</span> <span style="color:#e0af68">None</span>,
+        modules=<span style="color:#7dcfff">tuple</span>(modules),
+    )
+
+
+<span style="opacity:0.5"># _create_agent 被重构为:</span>
+<span style="color:#bb9af7">def</span> <span style="color:#7aa2f7">_create_agent</span>(payload, ..., registry):
+    agent_id = payload.get(<span style="color:#9ece6a">"primary_agent_id"</span>) <span style="color:#bb9af7">or</span> <span style="color:#9ece6a">"pupu_developer"</span>
+    spec = registry.get(agent_id) <span style="color:#bb9af7">or</span> registry.get(<span style="color:#9ece6a">"pupu_developer"</span>)
+    <span style="color:#bb9af7">if</span> spec <span style="color:#bb9af7">is</span> <span style="color:#e0af68">None</span>:
+        <span style="color:#bb9af7">raise</span> RuntimeError(<span style="color:#9ece6a">"pupu_developer missing from registry"</span>)
+    <span style="color:#bb9af7">return</span> _build_agent_from_spec(spec=spec, registry=registry, ...)
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">BOOT · Flask 启动顺序</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.8;padding:18px;white-space:pre">
+app.py::create_app():
+  1. Flask() instance
+  2. <b>agent_service.boot(registry)</b>          <span style="opacity:0.5"># ← new</span>
+       ├─ agent_service.seed_builtin()        <span style="opacity:0.5"># register BUILTIN_SPECS</span>
+       └─ agent_service.load_user_agents()    <span style="opacity:0.5"># scan store dir</span>
+  3. register blueprints (routes.py, route_chat.py, ..., <b>route_agents.py</b>)
+  4. memory_factory lazy-init
+  5. return app
+    </div>
+  </div>
+</div>

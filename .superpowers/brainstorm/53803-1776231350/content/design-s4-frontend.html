@@ -1,0 +1,211 @@
+<h2>Section 4 / 5 · 前端 Agents modal UI</h2>
+<p class="subtitle">填充 agents tab + 创建表单 + chat 集成点</p>
+
+<div class="section">
+  <p class="label">① AGENTS TAB · Library 布局(left list + right detail)</p>
+  <div class="mockup">
+    <div class="mockup-header">AgentsModal · Agents tab</div>
+    <div class="mockup-body" style="padding:0">
+      <div style="padding:12px 16px;border-bottom:1px solid rgba(255,255,255,0.08)">
+        <div style="display:flex;gap:12px;align-items:center">
+          <div style="display:inline-flex;gap:4px;padding:3px;background:rgba(255,255,255,0.05);border-radius:7px">
+            <div style="padding:6px 14px;font-size:12px;border-radius:5px;background:rgba(255,255,255,0.08)">Agents</div>
+            <div style="padding:6px 14px;font-size:12px;opacity:0.55">Characters</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;height:360px">
+        <div style="width:38%;border-right:1px solid rgba(255,255,255,0.08);display:flex;flex-direction:column">
+          <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;gap:8px;align-items:center">
+            <input class="mock-input" placeholder="Search agents..." style="flex:1;font-size:12px;padding:6px 10px" disabled>
+            <div style="padding:6px 10px;border-radius:6px;background:rgba(122,162,247,0.14);font-size:11px;color:#7aa2f7">+ New</div>
+          </div>
+          <div style="flex:1;overflow:hidden;font-size:12px">
+            <div style="padding:6px 14px;font-size:10px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase">Builtin · 3</div>
+            <div style="display:flex;gap:10px;padding:10px 14px;border-left:2px solid #7aa2f7;background:rgba(122,162,247,0.08)">
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(122,162,247,0.2);display:flex;align-items:center;justify-content:center;font-size:11px">🧑‍💻</div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <b>PuPu Developer</b>
+                  <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.06);opacity:0.5;text-transform:uppercase">builtin</span>
+                </div>
+                <div style="font-size:11px;opacity:0.55;margin-top:2px">全栈编码专家,支持 subagent delegation</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;padding:10px 14px;opacity:0.88">
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(158,206,106,0.2);display:flex;align-items:center;justify-content:center;font-size:11px">🔍</div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <b>PuPu Analyzer</b>
+                  <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.06);opacity:0.5;text-transform:uppercase">builtin</span>
+                </div>
+                <div style="font-size:11px;opacity:0.55;margin-top:2px">只读代码分析专家</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;padding:10px 14px;opacity:0.88">
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(224,175,104,0.2);display:flex;align-items:center;justify-content:center;font-size:11px">⚡</div>
+              <div style="flex:1">
+                <div style="display:flex;align-items:center;gap:6px">
+                  <b>PuPu Executor</b>
+                  <span style="font-size:9px;padding:1px 5px;border-radius:3px;background:rgba(255,255,255,0.06);opacity:0.5;text-transform:uppercase">builtin</span>
+                </div>
+                <div style="font-size:11px;opacity:0.55;margin-top:2px">终端命令执行者</div>
+              </div>
+            </div>
+            <div style="padding:10px 14px 6px;font-size:10px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase">Custom · 2</div>
+            <div style="display:flex;gap:10px;padding:10px 14px;opacity:0.88">
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(187,154,247,0.2);display:flex;align-items:center;justify-content:center;font-size:11px">📝</div>
+              <div style="flex:1">
+                <div><b>中英互译</b></div>
+                <div style="font-size:11px;opacity:0.55;margin-top:2px">专注中英学术文献互译</div>
+              </div>
+            </div>
+            <div style="display:flex;gap:10px;padding:10px 14px;opacity:0.88">
+              <div style="width:28px;height:28px;border-radius:7px;background:rgba(125,207,255,0.2);display:flex;align-items:center;justify-content:center;font-size:11px">🔬</div>
+              <div style="flex:1">
+                <div><b>Research Buddy</b></div>
+                <div style="font-size:11px;opacity:0.55;margin-top:2px">论文摘要 + 引用整理</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1;padding:18px 22px;font-size:12px;line-height:1.65">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+            <div style="width:42px;height:42px;border-radius:10px;background:rgba(122,162,247,0.2);display:flex;align-items:center;justify-content:center;font-size:18px">🧑‍💻</div>
+            <div style="flex:1">
+              <div style="display:flex;align-items:center;gap:8px">
+                <b style="font-size:15px">PuPu Developer</b>
+                <span style="font-size:9px;padding:2px 6px;border-radius:4px;background:rgba(255,255,255,0.06);opacity:0.55;text-transform:uppercase">builtin</span>
+              </div>
+              <div style="font-size:10px;opacity:0.5;font-family:Menlo,monospace">pupu_developer</div>
+            </div>
+            <div style="display:flex;gap:6px;opacity:0.4">
+              <div class="mock-button" style="padding:4px 10px;font-size:10px">Clone</div>
+              <div class="mock-button" style="padding:4px 10px;font-size:10px">Export</div>
+            </div>
+          </div>
+          <p style="opacity:0.7;margin:0 0 14px">全栈编码专家,支持 subagent delegation。</p>
+          <div style="font-size:10px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase;margin-bottom:6px">Capability</div>
+          <div style="display:flex;gap:16px;font-size:11.5px">
+            <div><span style="opacity:0.5">Toolkits:</span> <code>*</code></div>
+            <div><span style="opacity:0.5">Delegates:</span> <code>*</code></div>
+            <div><span style="opacity:0.5">Max iters:</span> <code>default</code></div>
+          </div>
+          <div style="margin-top:16px;font-size:10px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase;margin-bottom:6px">Prompt Sections</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px">
+            <span style="padding:3px 9px;border-radius:4px;background:rgba(255,255,255,0.05);font-size:10.5px">identity</span>
+            <span style="padding:3px 9px;border-radius:4px;background:rgba(255,255,255,0.05);font-size:10.5px">capability</span>
+            <span style="padding:3px 9px;border-radius:4px;background:rgba(255,255,255,0.05);font-size:10.5px">workflow</span>
+            <span style="padding:3px 9px;border-radius:4px;background:rgba(255,255,255,0.05);font-size:10.5px">delegation</span>
+            <span style="padding:3px 9px;border-radius:4px;background:rgba(255,255,255,0.05);font-size:10.5px">constraints</span>
+            <span style="padding:3px 9px;border-radius:4px;background:rgba(255,255,255,0.05);font-size:10.5px">fallback</span>
+          </div>
+          <div style="margin-top:18px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06);font-size:11px;opacity:0.55">
+            内置 agent 不可编辑。想修改请点 <b>Clone</b> 创建副本。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px">
+  <p class="label">② CREATE / EDIT FORM · 用户自建 agent 的表单</p>
+  <div class="mockup">
+    <div class="mockup-header">New Agent · scrollable</div>
+    <div class="mockup-body" style="padding:20px 28px;font-size:12px;line-height:1.65">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:18px">
+        <div style="width:62px;height:62px;border-radius:50%;border:1px dashed rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;opacity:0.45;font-size:10px">Upload</div>
+        <div style="flex:1">
+          <div style="font-size:10px;opacity:0.4;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px">Name</div>
+          <input class="mock-input" placeholder="My research assistant" style="width:100%;font-size:13px;padding:8px 12px" disabled>
+          <div style="display:flex;gap:8px;margin-top:6px;font-size:10px;opacity:0.5">
+            <span>id:</span> <code>research_buddy</code>
+            <span style="opacity:0.5">· auto-generated, editable before save</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="font-size:10px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase;margin:16px 0 8px">Identity</div>
+      <input class="mock-input" placeholder="Description (one line)" style="width:100%;font-size:12px;padding:7px 11px" disabled>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input class="mock-input" placeholder="Tag..." style="flex:1;font-size:11px;padding:6px 10px" disabled>
+        <div style="padding:5px 10px;border-radius:4px;background:rgba(255,255,255,0.05);font-size:11px;opacity:0.5">+ Add tag</div>
+      </div>
+
+      <div style="font-size:10px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase;margin:18px 0 8px">Prompt Sections (6)</div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div>
+          <div style="font-size:10.5px;opacity:0.55;margin-bottom:3px">identity <span style="color:#f7768e">*</span></div>
+          <div class="placeholder" style="padding:10px;font-size:11px;height:36px">You are...</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;opacity:0.55;margin-bottom:3px">capability</div>
+          <div class="placeholder" style="padding:10px;font-size:11px;height:26px;opacity:0.5">(optional)</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;opacity:0.55;margin-bottom:3px">workflow</div>
+          <div class="placeholder" style="padding:10px;font-size:11px;height:26px;opacity:0.5">(optional)</div>
+        </div>
+        <div style="display:flex;gap:10px;opacity:0.6">
+          <span style="font-size:10.5px">+ delegation</span>
+          <span style="font-size:10.5px">+ constraints</span>
+          <span style="font-size:10.5px">+ fallback</span>
+        </div>
+      </div>
+
+      <div style="font-size:10px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase;margin:20px 0 8px">Capability</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div>
+          <div style="font-size:10.5px;opacity:0.55;margin-bottom:3px">Allowed toolkits</div>
+          <div class="placeholder" style="padding:8px;font-size:11px">workspace × &nbsp; + Add</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;opacity:0.55;margin-bottom:3px">Allowed delegates</div>
+          <div class="placeholder" style="padding:8px;font-size:11px">pupu_analyzer × &nbsp; + Add</div>
+        </div>
+        <div>
+          <div style="font-size:10.5px;opacity:0.55;margin-bottom:3px">Max iterations</div>
+          <input class="mock-input" placeholder="default" style="width:100%;font-size:11px;padding:6px 10px" disabled>
+        </div>
+        <div>
+          <div style="font-size:10.5px;opacity:0.55;margin-bottom:3px">Default model</div>
+          <div class="placeholder" style="padding:6px 10px;font-size:11px">(session default)</div>
+        </div>
+      </div>
+
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;padding-top:14px;border-top:1px solid rgba(255,255,255,0.06)">
+        <div class="mock-button" style="padding:6px 14px;font-size:11px;opacity:0.55">Cancel</div>
+        <div class="mock-button" style="padding:6px 14px;font-size:11px;background:rgba(122,162,247,0.18);color:#7aa2f7">Save</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:20px">
+  <p class="label">③ CHAT INTEGRATION · primary_agent_id 选择器</p>
+  <div class="mockup">
+    <div class="mockup-header">Chat toolbar · 当前会话的 primary agent</div>
+    <div class="mockup-body" style="padding:16px 20px;font-size:12px">
+      <div style="padding:14px;background:rgba(255,255,255,0.03);border-radius:8px">
+        <div class="placeholder" style="padding:14px;opacity:0.55;margin-bottom:10px">User message area (preview)</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,0.05);border-radius:8px">
+          <div style="display:flex;align-items:center;gap:6px;padding:4px 10px;background:rgba(122,162,247,0.14);border-radius:6px;font-size:11px;color:#7aa2f7">
+            🧑‍💻 PuPu Developer ▾
+          </div>
+          <div style="opacity:0.3">|</div>
+          <div style="display:flex;gap:6px;font-size:11px;opacity:0.65">
+            <span style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.05)">workspace</span>
+            <span style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.05)">terminal</span>
+            <span style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.05)">+ toolkit</span>
+          </div>
+          <div style="flex:1"></div>
+          <div class="mock-button" style="padding:5px 12px;font-size:11px">Send ↑</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p style="opacity:0.6;font-size:11.5px;margin-top:8px">
+    Agent 选择器显示在 toolkit 选择器左侧。点击展开下拉:builtin 置顶 + custom。切换后 <b>新一轮</b>对话生效,正在流式的当前回复不中断。
+  </p>
+</div>

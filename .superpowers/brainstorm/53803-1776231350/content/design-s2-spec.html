@@ -1,0 +1,163 @@
+<h2>Section 2 / 5 · AgentSpec 数据模型</h2>
+<p class="subtitle">一个 agent 就是一条 frozen dataclass + 等价的 JSON schema</p>
+
+<div class="section">
+  <p class="label">PYTHON DATACLASS · agent_spec.py</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.65;padding:20px;white-space:pre">
+<span style="color:#bb9af7">from</span> dataclasses <span style="color:#bb9af7">import</span> dataclass, field
+<span style="color:#bb9af7">from</span> typing <span style="color:#bb9af7">import</span> Optional
+
+<span style="color:#7aa2f7">PROMPT_SECTION_KEYS</span> = (
+    <span style="color:#9ece6a">"identity"</span>, <span style="color:#9ece6a">"capability"</span>, <span style="color:#9ece6a">"workflow"</span>,
+    <span style="color:#9ece6a">"delegation"</span>, <span style="color:#9ece6a">"constraints"</span>, <span style="color:#9ece6a">"fallback"</span>,
+)
+
+<span style="color:#e0af68">@dataclass(frozen=True)</span>
+<span style="color:#bb9af7">class</span> <span style="color:#7dcfff">AgentSpec</span>:
+    <span style="opacity:0.5"># ── Identity ──</span>
+    id: <span style="color:#7dcfff">str</span>                                <span style="opacity:0.5"># slug, globally unique</span>
+    name: <span style="color:#7dcfff">str</span>                              <span style="opacity:0.5"># display name</span>
+    description: <span style="color:#7dcfff">str</span> = <span style="color:#9ece6a">""</span>
+    avatar: <span style="color:#7dcfff">Optional[str]</span> = <span style="color:#e0af68">None</span>           <span style="opacity:0.5"># file path or data URL</span>
+
+    <span style="opacity:0.5"># ── Prompt(6 段)──</span>
+    prompt_sections: <span style="color:#7dcfff">dict[str, str]</span> = field(default_factory=<span style="color:#7dcfff">dict</span>)
+
+    <span style="opacity:0.5"># ── Capability(硬约束)──</span>
+    allowed_toolkits: <span style="color:#7dcfff">tuple[str, ...]</span> = (<span style="color:#9ece6a">"*"</span>,)
+    allowed_delegates: <span style="color:#7dcfff">tuple[str, ...]</span> = (<span style="color:#9ece6a">"*"</span>,)
+    max_iterations: <span style="color:#7dcfff">Optional[int]</span> = <span style="color:#e0af68">None</span>
+    default_model: <span style="color:#7dcfff">Optional[str]</span> = <span style="color:#e0af68">None</span>
+
+    <span style="opacity:0.5"># ── Meta ──</span>
+    is_builtin: <span style="color:#7dcfff">bool</span> = <span style="color:#e0af68">False</span>
+    source: <span style="color:#7dcfff">str</span> = <span style="color:#9ece6a">"user_json"</span>       <span style="opacity:0.5"># "python" | "user_json"</span>
+    tags: <span style="color:#7dcfff">tuple[str, ...]</span> = ()
+    created_at: <span style="color:#7dcfff">Optional[str]</span> = <span style="color:#e0af68">None</span>
+    updated_at: <span style="color:#7dcfff">Optional[str]</span> = <span style="color:#e0af68">None</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">JSON · 用户自建 agent 在 agent_store 里的样子</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.65;padding:20px;white-space:pre">
+{
+  <span style="color:#bb9af7">"id"</span>: <span style="color:#9ece6a">"my_translator"</span>,
+  <span style="color:#bb9af7">"name"</span>: <span style="color:#9ece6a">"中英互译"</span>,
+  <span style="color:#bb9af7">"description"</span>: <span style="color:#9ece6a">"专注中英学术文献互译"</span>,
+  <span style="color:#bb9af7">"avatar"</span>: <span style="color:#9ece6a">"/Users/red/.pupu/avatars/translator.png"</span>,
+
+  <span style="color:#bb9af7">"prompt_sections"</span>: {
+    <span style="color:#bb9af7">"identity"</span>: <span style="color:#9ece6a">"You are a bilingual academic translator..."</span>,
+    <span style="color:#bb9af7">"capability"</span>: <span style="color:#9ece6a">"You can read files in the workspace..."</span>,
+    <span style="color:#bb9af7">"workflow"</span>: <span style="color:#9ece6a">"- Read source. - Translate. - Review tone."</span>,
+    <span style="color:#bb9af7">"constraints"</span>: <span style="color:#9ece6a">"Never paraphrase names..."</span>,
+    <span style="color:#bb9af7">"fallback"</span>: <span style="color:#9ece6a">"For non-translation chat, answer directly."</span>
+    <span style="opacity:0.5">// delegation 可省略 —— 不 delegate</span>
+  },
+
+  <span style="color:#bb9af7">"allowed_toolkits"</span>: [<span style="color:#9ece6a">"workspace"</span>],     <span style="opacity:0.5">// 只需要读写文件</span>
+  <span style="color:#bb9af7">"allowed_delegates"</span>: [],               <span style="opacity:0.5">// 不需要 delegate</span>
+  <span style="color:#bb9af7">"max_iterations"</span>: <span style="color:#e0af68">null</span>,
+  <span style="color:#bb9af7">"default_model"</span>: <span style="color:#e0af68">null</span>,
+
+  <span style="color:#bb9af7">"is_builtin"</span>: <span style="color:#e0af68">false</span>,
+  <span style="color:#bb9af7">"source"</span>: <span style="color:#9ece6a">"user_json"</span>,
+  <span style="color:#bb9af7">"tags"</span>: [<span style="color:#9ece6a">"translation"</span>, <span style="color:#9ece6a">"writing"</span>],
+  <span style="color:#bb9af7">"created_at"</span>: <span style="color:#9ece6a">"2026-04-13T10:20:00Z"</span>,
+  <span style="color:#bb9af7">"updated_at"</span>: <span style="color:#9ece6a">"2026-04-13T10:20:00Z"</span>
+}
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">PYTHON SPEC · 内置 agent 在 prompts/agents/developer.py 里的样子</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.65;padding:20px;white-space:pre">
+<span style="opacity:0.5"># 原文件不动 DEVELOPER_PROMPT_SECTIONS,额外导出一个 SPEC:</span>
+
+<span style="color:#bb9af7">from</span> ..agent_spec <span style="color:#bb9af7">import</span> AgentSpec
+
+DEVELOPER_PROMPT_SECTIONS = { ... }  <span style="opacity:0.5"># 原有</span>
+
+DEVELOPER_SPEC = AgentSpec(
+    id=<span style="color:#9ece6a">"pupu_developer"</span>,
+    name=<span style="color:#9ece6a">"PuPu Developer"</span>,
+    description=<span style="color:#9ece6a">"全栈编码专家,支持 subagent delegation"</span>,
+    prompt_sections=DEVELOPER_PROMPT_SECTIONS,
+    allowed_toolkits=(<span style="color:#9ece6a">"*"</span>,),
+    allowed_delegates=(<span style="color:#9ece6a">"*"</span>,),
+    is_builtin=<span style="color:#e0af68">True</span>,
+    source=<span style="color:#9ece6a">"python"</span>,
+    tags=(<span style="color:#9ece6a">"coding"</span>, <span style="color:#9ece6a">"builtin"</span>),
+)
+
+<span style="opacity:0.5"># analyzer.py:</span>
+ANALYZER_SPEC = AgentSpec(
+    id=<span style="color:#9ece6a">"pupu_analyzer"</span>,
+    name=<span style="color:#9ece6a">"PuPu Analyzer"</span>,
+    description=<span style="color:#9ece6a">"只读代码分析专家"</span>,
+    prompt_sections=ANALYZER_PROMPT_SECTIONS,
+    allowed_toolkits=(<span style="color:#9ece6a">"workspace_read_only"</span>,),  <span style="opacity:0.5"># 见字段说明</span>
+    allowed_delegates=(),        <span style="opacity:0.5"># 分析器不派生</span>
+    is_builtin=<span style="color:#e0af68">True</span>,
+    source=<span style="color:#9ece6a">"python"</span>,
+    tags=(<span style="color:#9ece6a">"analysis"</span>, <span style="color:#9ece6a">"builtin"</span>),
+)
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>字段语义说明</h3>
+  <table style="width:100%;border-collapse:collapse;font-size:12.5px;line-height:1.6">
+    <thead>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.15);text-align:left">
+        <th style="padding:8px 6px;width:22%">字段</th>
+        <th style="padding:8px 6px;width:78%">语义</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>id</code></td>
+        <td style="padding:8px 6px">slug,<code>^[a-z][a-z0-9_]{1,39}$</code>。内置 <b>必须</b>以 <code>pupu_</code> 开头;用户 <b>禁止</b>使用 <code>pupu_</code> 前缀。Registry 注册冲突时,内置胜出 + 记 warning。</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>prompt_sections</code></td>
+        <td style="padding:8px 6px">dict,键必须是 6 段之一。缺失的段在组装时跳过,<b>identity 是必填项</b>,其他可选。</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>allowed_toolkits</code></td>
+        <td style="padding:8px 6px"><code>("*",)</code> = 任意 toolkit 都允许;<code>()</code> = 禁用所有 toolkit;<code>("workspace",)</code> = 只允许 workspace_toolkit。运行时与 <b>会话选择做交集</b>(硬约束方向:agent 上限卡住会话选择)。</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>allowed_delegates</code></td>
+        <td style="padding:8px 6px"><code>("*",)</code> = 可 delegate 到任意池内 agent;<code>()</code> = 不能 delegate;<code>("pupu_analyzer",)</code> = 白名单。运行时组装 SubagentModule 时按这个字段筛选 registry。</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>max_iterations</code></td>
+        <td style="padding:8px 6px"><code>None</code> = 用 payload.max_iterations(全局默认),非 None = 覆盖。用于给 analyzer 这种设小值。</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>default_model</code></td>
+        <td style="padding:8px 6px"><code>None</code> = 用 payload.model;非 None = 覆盖(例如某个 agent 坚持用 haiku)。仅 primary 生效,subagent 沿用父 agent 的模型。</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>is_builtin</code></td>
+        <td style="padding:8px 6px">前端只读标志 + 防误删。内置=<code>true</code>,用户自建=<code>false</code>。</td>
+      </tr>
+      <tr style="border-bottom:1px solid rgba(255,255,255,0.06)">
+        <td style="padding:8px 6px"><code>source</code></td>
+        <td style="padding:8px 6px"><code>"python"</code>(来自 prompts/agents/*.py)或 <code>"user_json"</code>(来自 agent_store)。前端区分 icon,后端选择持久化路径。</td>
+      </tr>
+      <tr>
+        <td style="padding:8px 6px"><code>avatar</code></td>
+        <td style="padding:8px 6px">可选。绝对路径 / data URL / null。内置 agent 暂时无头像,前端用 tags 配默认 icon。复用 character_avatars 还是新建 agent_avatars 在 Section 3 定。</td>
+      </tr>
+    </tbody>
+  </table>
+</div>

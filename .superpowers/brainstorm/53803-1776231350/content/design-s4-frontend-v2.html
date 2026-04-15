@@ -1,0 +1,123 @@
+<h2>Section 4 / 5 · 前端集成(精简版)</h2>
+<p class="subtitle">砍掉 Agents tab 的编辑 UI,只做 chat toolbar 选择器 + 只读 registry 快照</p>
+
+<div class="section">
+  <p class="label">① 文件清单 · 精简后</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.7;padding:20px;white-space:pre">
+src/
+├─ <span style="color:#9ece6a">SERVICEs/api.agents.js</span>                        <span style="opacity:0.5">NEW · listAgents / getAgent (read-only)</span>
+├─ <span style="color:#9ece6a">SERVICEs/bridges/agents_bridge.js</span>             <span style="opacity:0.5">NEW · renderer-side wrapper</span>
+├─ <span style="color:#e0af68">SERVICEs/api.unchain.js</span>                       <span style="opacity:0.5">MOD · + injectPrimaryAgentIntoPayload</span>
+├─ <span style="color:#e0af68">SERVICEs/chat_storage/chat_storage_store.js</span>   <span style="opacity:0.5">MOD · session.primaryAgentId field</span>
+├─ <span style="color:#e0af68">SERVICEs/chat_storage/chat_storage_sanitize.js</span><span style="opacity:0.5">MOD · default null + validate</span>
+├─ <span style="color:#e0af68">CONTAINERs/config/container.js</span>                <span style="opacity:0.5">MOD · boot-load agents snapshot</span>
+├─ <span style="color:#e0af68">CONTAINERs/config/context.js</span>                  <span style="opacity:0.5">MOD · expose agents field</span>
+├─ <span style="color:#9ece6a">PAGEs/chat/components/primary_agent_selector.js</span>  <span style="opacity:0.5">NEW · toolbar dropdown</span>
+├─ <span style="color:#e0af68">PAGEs/chat/hooks/use_chat_stream.js</span>           <span style="opacity:0.5">MOD · wire primary_agent_id</span>
+├─ <span style="color:#e0af68">PAGEs/chat/chat.js</span>                            <span style="opacity:0.5">MOD · place selector in toolbar</span>
+│
+│  <span style="opacity:0.4;text-decoration:line-through">COMPONENTs/agents/pages/agents_page.js           ✗ 不做</span>
+│  <span style="opacity:0.4;text-decoration:line-through">COMPONENTs/agents/pages/agent_edit_form.js       ✗ 不做</span>
+│  <span style="opacity:0.4;text-decoration:line-through">COMPONENTs/agents/agents_modal.js (agents tab)   ✗ 维持 Coming soon</span>
+
+electron/
+├─ <span style="color:#9ece6a">shared/channels.js</span>                            <span style="opacity:0.5">MOD · + AGENTS.LIST, AGENTS.GET</span>
+├─ <span style="color:#9ece6a">main/services/agents/service.js</span>               <span style="opacity:0.5">NEW · HTTP proxy to Flask /agents</span>
+├─ <span style="color:#9ece6a">main/ipc/agents_handlers.js</span>                   <span style="opacity:0.5">NEW · list/get only</span>
+├─ <span style="color:#e0af68">main/ipc/register_handlers.js</span>                 <span style="opacity:0.5">MOD · register agents handlers</span>
+├─ <span style="color:#9ece6a">preload/bridges/agents_bridge.js</span>              <span style="opacity:0.5">NEW · contextBridge exposeInMainWorld</span>
+└─ <span style="color:#e0af68">preload/index.js</span>                              <span style="opacity:0.5">MOD · register agentsAPI</span>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <p class="label">② CHAT TOOLBAR · primary_agent 选择器 (同原 mockup)</p>
+  <div class="mockup">
+    <div class="mockup-header">Chat toolbar · primary agent selector</div>
+    <div class="mockup-body" style="padding:16px 20px">
+      <div style="padding:14px;background:rgba(255,255,255,0.03);border-radius:8px">
+        <div class="placeholder" style="padding:14px;opacity:0.55;margin-bottom:10px">User message area</div>
+        <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;background:rgba(255,255,255,0.05);border-radius:8px;position:relative">
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 11px;background:rgba(122,162,247,0.14);border-radius:6px;font-size:11px;color:#7aa2f7;cursor:pointer">
+            🧑‍💻 PuPu Developer <span style="opacity:0.6">▾</span>
+          </div>
+          <div style="opacity:0.3">|</div>
+          <div style="display:flex;gap:6px;font-size:11px;opacity:0.65">
+            <span style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.05)">workspace</span>
+            <span style="padding:3px 8px;border-radius:4px;background:rgba(255,255,255,0.05)">terminal</span>
+          </div>
+          <div style="flex:1"></div>
+          <div class="mock-button" style="padding:5px 12px;font-size:11px">Send ↑</div>
+        </div>
+        <div style="margin-top:12px;padding:8px;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.06);border-radius:7px;max-width:280px;font-size:11.5px">
+          <div style="font-size:9px;letter-spacing:0.08em;opacity:0.4;text-transform:uppercase;padding:4px 10px">BUILTIN</div>
+          <div style="display:flex;gap:9px;padding:7px 10px;background:rgba(122,162,247,0.12);border-radius:5px">
+            <span>🧑‍💻</span>
+            <div style="flex:1">
+              <div><b>PuPu Developer</b></div>
+              <div style="opacity:0.55;font-size:10.5px">全栈编码专家</div>
+            </div>
+            <span style="color:#7aa2f7">✓</span>
+          </div>
+          <div style="display:flex;gap:9px;padding:7px 10px;opacity:0.85">
+            <span>🔍</span>
+            <div style="flex:1">
+              <div>PuPu Analyzer</div>
+              <div style="opacity:0.55;font-size:10.5px">只读代码分析</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:9px;padding:7px 10px;opacity:0.85">
+            <span>⚡</span>
+            <div style="flex:1">
+              <div>PuPu Executor</div>
+              <div style="opacity:0.55;font-size:10.5px">终端命令执行</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <p class="label">③ DATA FLOW · Agent 选择 + payload 注入</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:11.8px;line-height:1.7;padding:20px;white-space:pre">
+<span style="opacity:0.5">┌── Boot time ──────────────────────────────────────────────────┐</span>
+  ConfigContainer.init():
+    ...
+    agents = <b>await api.agents.listAgents()</b>          <span style="opacity:0.5"># ← 拉快照</span>
+    context.agents = { byId: {...}, ordered: [...] }
+
+<span style="opacity:0.5">┌── User clicks selector ───────────────────────────────────────┐</span>
+  PrimaryAgentSelector opens dropdown:
+    render <b>context.agents.ordered</b> as items
+
+  user selects "pupu_analyzer":
+    onChange("pupu_analyzer")
+      → chat_storage_store.updateSession(
+          sessionId, { primaryAgentId: <span style="color:#9ece6a">"pupu_analyzer"</span> })
+      → re-render current selector with new selection
+      <span style="opacity:0.5"># 当前正在流式的 stream 不中断,下一条 message 生效</span>
+
+<span style="opacity:0.5">┌── Next user message ──────────────────────────────────────────┐</span>
+  useChatStream.startStreamV2(sessionId, text):
+    payload = buildPayload(session, ...)
+    payload = normalizeMisoV2Payload(payload)
+      ├─ <b>injectPrimaryAgentIntoPayload</b>(payload, session)
+      │     payload.primary_agent_id = session.primaryAgentId
+      │                                <span style="opacity:0.5">|| "pupu_developer"</span>
+      ├─ injectSystemPromptV2IntoPayload
+      ├─ injectMemoryIntoPayload
+      ├─ injectWorkspaceRootIntoPayload
+      └─ injectProviderApiKeyIntoPayload
+    → unchainBridge.startStreamV2(payload)
+    → ... (IPC to Flask)
+    → _create_agent reads payload.primary_agent_id
+    → registry.get(id) or fallback to pupu_developer
+    → _build_agent_from_spec(spec, ...)
+    </div>
+  </div>
+</div>
