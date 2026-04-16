@@ -168,7 +168,7 @@ const ChatInterface = () => {
     return { hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key };
   });
 
-  const activeStreamMessagesRef = useRef(null);
+  const activeStreamsRef = useRef(new Map());
   const messagePersistTimerRef = useRef(null);
   const commitUnchainStatus = useCallback((nextStatus) => {
     setUnchainStatus((currentStatus) =>
@@ -193,7 +193,7 @@ const ChatInterface = () => {
     bootstrapped,
     draftAttachments,
     setDraftAttachments,
-    activeStreamMessagesRef,
+    activeStreamsRef,
     setStreamError,
   });
   const activeChatIdRef = session.activeChatIdRef;
@@ -300,7 +300,7 @@ const ChatInterface = () => {
     modelIdRef: session.modelIdRef,
     setSelectedModelId: session.setSelectedModelId,
     setAgentOrchestration: session.setAgentOrchestration,
-    activeStreamMessagesRef,
+    activeStreamsRef,
   });
 
   useEffect(() => {
@@ -463,9 +463,6 @@ const ChatInterface = () => {
     if (stream.streamError) {
       return `Unchain error: ${stream.streamError}`;
     }
-    if (stream.hasBackgroundStream) {
-      return "Another chat is streaming a response...";
-    }
     if (stream.isStreaming) {
       return "Unchain is streaming a response...";
     }
@@ -485,14 +482,12 @@ const ChatInterface = () => {
     hasSelectedModel,
     attachmentsDisabledReason,
     unchainStatus,
-    stream.hasBackgroundStream,
     stream.isStreaming,
     stream.streamError,
   ]);
 
   const isSendDisabled =
     (!unchainStatus.ready && !stream.isStreaming) ||
-    stream.hasBackgroundStream ||
     !hasSelectedModel;
 
   const [characterAvailability, setCharacterAvailability] = useState("");

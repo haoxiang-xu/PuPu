@@ -19,7 +19,7 @@ export const useChatSessionState = ({
   bootstrapped: bootstrappedProp,
   draftAttachments,
   setDraftAttachments,
-  activeStreamMessagesRef,
+  activeStreamsRef,
   setStreamError,
 }) => {
   const [bootstrappedFallback] = useState(() => bootstrapChatsStore());
@@ -166,14 +166,15 @@ export const useChatSessionState = ({
       }
       activeChatIdRef.current = nextActiveId;
 
+      const leavingStreamState = activeStreamsRef.current.get(currentActiveId);
       if (
         currentActiveStillExists &&
-        activeStreamMessagesRef.current?.chatId === currentActiveId &&
-        Array.isArray(activeStreamMessagesRef.current?.messages)
+        leavingStreamState &&
+        Array.isArray(leavingStreamState.messages)
       ) {
         setChatMessages(
           currentActiveId,
-          activeStreamMessagesRef.current.messages,
+          leavingStreamState.messages,
           {
             source: "chat-page",
           },
@@ -182,7 +183,12 @@ export const useChatSessionState = ({
 
       setActiveChatId(nextActiveId);
       setStreamError("");
-      setMessages(nextActiveChat.messages || []);
+      const enteringStreamState = activeStreamsRef.current.get(nextActiveId);
+      const restoredMessages =
+        enteringStreamState && Array.isArray(enteringStreamState.messages)
+          ? enteringStreamState.messages
+          : nextActiveChat.messages || [];
+      setMessages(restoredMessages);
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setAgentOrchestration(
@@ -224,7 +230,7 @@ export const useChatSessionState = ({
       unsubscribe();
     };
   }, [
-    activeStreamMessagesRef,
+    activeStreamsRef,
     flushDraftToStore,
     setDraftAttachments,
     setStreamError,

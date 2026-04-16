@@ -83,7 +83,7 @@ export const useChatStream = ({
   modelIdRef,
   setSelectedModelId,
   setAgentOrchestration,
-  activeStreamMessagesRef,
+  activeStreamsRef,
 }) => {
   const {
     buildHistoryForModel,
@@ -91,7 +91,7 @@ export const useChatStream = ({
     hydrateAttachmentPayloads,
     resolveAttachmentPayloads,
   } = attachmentApi;
-  const [streamingChatId, setStreamingChatId] = useState(null);
+  const [streamingChatIds, setStreamingChatIds] = useState(() => new Set());
   const [internalStreamError, setInternalStreamError] = useState("");
   const streamError =
     controlledStreamError !== undefined
@@ -123,8 +123,8 @@ export const useChatStream = ({
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
 
-  const streamHandleRef = useRef(null);
-  const streamingChatIdRef = useRef(null);
+  const streamHandlesRef = useRef(new Map());
+  const streamingChatIdsRef = useRef(new Set());
   const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
   const confirmationIdByCallIdRef = useRef(new Map());
   const confirmationCallIdByIdRef = useRef(new Map());
@@ -161,7 +161,8 @@ export const useChatStream = ({
         return null;
       }
 
-      const streamState = activeStreamMessagesRef.current;
+      const currentChatId = activeChatIdRef.current;
+      const streamState = activeStreamsRef.current.get(currentChatId);
       const streamMessages = Array.isArray(streamState?.messages)
         ? streamState.messages
         : [];
@@ -183,7 +184,7 @@ export const useChatStream = ({
 
       return null;
     },
-    [activeStreamMessagesRef],
+    [activeChatIdRef, activeStreamsRef],
   );
 
   useEffect(() => {
@@ -196,10 +197,9 @@ export const useChatStream = ({
     sessionAutoApproveRef.current.clear();
   }, [chatId]);
 
-  const isStreaming = streamingChatId === chatId;
-  const hasBackgroundStream = Boolean(
-    streamingChatId && streamingChatId !== chatId,
-  );
+  const isStreaming = streamingChatIds.has(chatId);
+  const hasBackgroundStream =
+    streamingChatIds.size > 0 && !streamingChatIds.has(chatId);
 
   const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
     const controller = activeTokenFlushControllerRef.current;
@@ -404,18 +404,20 @@ export const useChatStream = ({
   ]);
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
-    clearActiveTokenFlushController("dispose");
-    if (
-      streamHandleRef.current &&
-      typeof streamHandleRef.current.cancel === "function"
-    ) {
-      streamHandleRef.current.cancel();
-    }
     const currentChatId = activeChatIdRef.current;
-    streamHandleRef.current = null;
-    streamingChatIdRef.current = null;
-    activeStreamMessagesRef.current = null;
-    setStreamingChatId(null);
+    clearActiveTokenFlushController("dispose");
+    const handle = streamHandlesRef.current.get(currentChatId);
+    if (handle && typeof handle.cancel === "function") {
+      handle.cancel();
+    }
+    streamHandlesRef.current.delete(currentChatId);
+    streamingChatIdsRef.current.delete(currentChatId);
+    activeStreamsRef.current.delete(currentChatId);
+    setStreamingChatIds((prev) => {
+      const next = new Set(prev);
+      next.delete(currentChatId);
+      return next;
+    });
     confirmationIdByCallIdRef.current.clear();
     confirmationCallIdByIdRef.current.clear();
     confirmationFollowupSignalByIdRef.current.clear();
@@ -443,7 +445,7 @@ export const useChatStream = ({
     return nextMessages;
   }, [
     activeChatIdRef,
-    activeStreamMessagesRef,
+    activeStreamsRef,
     clearActiveTokenFlushController,
     messagesRef,
     setMessages,
@@ -464,8 +466,8 @@ export const useChatStream = ({
 
       const callId =
         confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const streamState = activeStreamMessagesRef.current;
-      const targetChatId = streamState?.chatId;
+      const targetChatId = activeChatIdRef.current;
+      const streamState = activeStreamsRef.current.get(targetChatId);
       const streamMessages = Array.isArray(streamState?.messages)
         ? streamState.messages
         : [];
@@ -546,10 +548,9 @@ export const useChatStream = ({
         return false;
       }
 
-      activeStreamMessagesRef.current = {
-        chatId: targetChatId,
+      activeStreamsRef.current.set(targetChatId, {
         messages: nextStreamMessages,
-      };
+      });
 
       if (activeChatIdRef.current === targetChatId) {
         setMessages(nextStreamMessages);
@@ -561,7 +562,7 @@ export const useChatStream = ({
 
       return true;
     },
-    [activeChatIdRef, activeStreamMessagesRef, setMessages, storageApi],
+    [activeChatIdRef, activeStreamsRef, setMessages, storageApi],
   );
 
   const handleToolConfirmationDecision = useCallback(
@@ -1013,10 +1014,14 @@ export const useChatStream = ({
             setDraftAttachments([]);
           }
           setStreamError("");
-          streamHandleRef.current = null;
-          streamingChatIdRef.current = null;
-          activeStreamMessagesRef.current = null;
-          setStreamingChatId(null);
+          streamHandlesRef.current.delete(targetChatId);
+          streamingChatIdsRef.current.delete(targetChatId);
+          activeStreamsRef.current.delete(targetChatId);
+          setStreamingChatIds((prev) => {
+            const next = new Set(prev);
+            next.delete(targetChatId);
+            return next;
+          });
           return true;
         }
       }
@@ -1059,20 +1064,18 @@ export const useChatStream = ({
         setDraftAttachments([]);
       }
       setStreamError("");
-      setStreamingChatId(targetChatId);
-      streamingChatIdRef.current = targetChatId;
-      activeStreamMessagesRef.current = {
-        chatId: targetChatId,
+      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
+      streamingChatIdsRef.current.add(targetChatId);
+      activeStreamsRef.current.set(targetChatId, {
         messages: nextMessages,
-      };
+      });
 
       let streamMessages = nextMessages;
       const syncStreamMessages = (nextStreamMessages) => {
         streamMessages = nextStreamMessages;
-        activeStreamMessagesRef.current = {
-          chatId: targetChatId,
+        activeStreamsRef.current.set(targetChatId, {
           messages: nextStreamMessages,
-        };
+        });
 
         if (activeChatIdRef.current === targetChatId) {
           setMessages(nextStreamMessages);
@@ -1404,8 +1407,8 @@ export const useChatStream = ({
           {
             onFrame: (frame) => {
               /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
-                 writes to activeStreamMessagesRef but cannot update the closure variable). */
-              const _refMsgs = activeStreamMessagesRef.current?.messages;
+                 writes to activeStreamsRef but cannot update the closure variable). */
+              const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
                 streamMessages = _refMsgs;
               }
@@ -2116,7 +2119,7 @@ export const useChatStream = ({
             },
             onDone: (done) => {
               /* Sync closure with external updates before building final messages. */
-              const _refMsgs = activeStreamMessagesRef.current?.messages;
+              const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
                 streamMessages = _refMsgs;
               }
@@ -2202,10 +2205,14 @@ export const useChatStream = ({
                 });
               }
 
-              streamHandleRef.current = null;
-              streamingChatIdRef.current = null;
-              activeStreamMessagesRef.current = null;
-              setStreamingChatId(null);
+              streamHandlesRef.current.delete(targetChatId);
+              streamingChatIdsRef.current.delete(targetChatId);
+              activeStreamsRef.current.delete(targetChatId);
+              setStreamingChatIds((prev) => {
+                const next = new Set(prev);
+                next.delete(targetChatId);
+                return next;
+              });
               clearAllPendingToolConfirmations();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
@@ -2219,8 +2226,8 @@ export const useChatStream = ({
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               if (
-                streamHandleRef.current === null &&
-                streamingChatIdRef.current === null
+                !streamHandlesRef.current.has(targetChatId) &&
+                !streamingChatIdsRef.current.has(targetChatId)
               ) {
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
@@ -2239,10 +2246,14 @@ export const useChatStream = ({
                     "Memory is unavailable for this request. Retrying with recent history.",
                   );
                 }
-                streamHandleRef.current = null;
-                streamingChatIdRef.current = null;
-                activeStreamMessagesRef.current = null;
-                setStreamingChatId(null);
+                streamHandlesRef.current.delete(targetChatId);
+                streamingChatIdsRef.current.delete(targetChatId);
+                activeStreamsRef.current.delete(targetChatId);
+                setStreamingChatIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(targetChatId);
+                  return next;
+                });
                 clearAllPendingToolConfirmations();
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
@@ -2280,9 +2291,13 @@ export const useChatStream = ({
               if (activeChatIdRef.current === targetChatId && !traceHasContent) {
                 setStreamError(errorMessage);
               }
-              streamHandleRef.current = null;
-              streamingChatIdRef.current = null;
-              setStreamingChatId(null);
+              streamHandlesRef.current.delete(targetChatId);
+              streamingChatIdsRef.current.delete(targetChatId);
+              setStreamingChatIds((prev) => {
+                const next = new Set(prev);
+                next.delete(targetChatId);
+                return next;
+              });
               clearAllPendingToolConfirmations();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
@@ -2324,7 +2339,7 @@ export const useChatStream = ({
                 };
               });
               syncStreamMessages(nextStreamMessages);
-              activeStreamMessagesRef.current = null;
+              activeStreamsRef.current.delete(targetChatId);
             },
           },
         );
@@ -2333,10 +2348,14 @@ export const useChatStream = ({
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
         setStreamError(errorMessage);
-        streamHandleRef.current = null;
-        streamingChatIdRef.current = null;
-        activeStreamMessagesRef.current = null;
-        setStreamingChatId(null);
+        streamHandlesRef.current.delete(targetChatId);
+        streamingChatIdsRef.current.delete(targetChatId);
+        activeStreamsRef.current.delete(targetChatId);
+        setStreamingChatIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetChatId);
+          return next;
+        });
 
         setMessages(
           nextMessages.map((message) =>
@@ -2353,7 +2372,7 @@ export const useChatStream = ({
         return false;
       }
 
-      streamHandleRef.current = streamHandle;
+      streamHandlesRef.current.set(targetChatId, streamHandle);
 
       if (streamHandle?.requestId) {
         const nextStreamMessages = streamMessages.map((message) =>
@@ -2375,7 +2394,7 @@ export const useChatStream = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeChatIdRef,
-      activeStreamMessagesRef,
+      activeStreamsRef,
       appendSyntheticToolConfirmationDecision,
       buildCharacterRunConfig,
       buildHistoryForModel,
@@ -2419,15 +2438,11 @@ export const useChatStream = ({
       isCharacterChat ||
       (normalizedSelectedModelId &&
         normalizedSelectedModelId !== "unchain-unset");
-    const hasActiveStream = Boolean(
-      streamingChatIdRef.current && streamHandleRef.current,
+    const thisChatsStreamActive = Boolean(
+      streamingChatIdsRef.current.has(currentChatId) &&
+        streamHandlesRef.current.has(currentChatId),
     );
-    if (!currentChatId || (!text && !hasAttachments) || hasActiveStream) {
-      if (hasActiveStream && streamingChatIdRef.current !== currentChatId) {
-        setStreamError(
-          "Another chat is still generating. Switch back to stop it or wait.",
-        );
-      }
+    if (!currentChatId || (!text && !hasAttachments) || thisChatsStreamActive) {
       return;
     }
 
@@ -2482,21 +2497,17 @@ export const useChatStream = ({
         typeof targetMessage?.content === "string"
           ? targetMessage.content.trim()
           : "";
-      const hasActiveStream = Boolean(
-        streamingChatIdRef.current && streamHandleRef.current,
+      const thisChatsStreamActive = Boolean(
+        streamingChatIdsRef.current.has(currentChatId) &&
+          streamHandlesRef.current.has(currentChatId),
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        hasActiveStream
+        thisChatsStreamActive
       ) {
-        if (hasActiveStream && streamingChatIdRef.current !== currentChatId) {
-          setStreamError(
-            "Another chat is still generating. Switch back to stop it or wait.",
-          );
-        }
         return;
       }
 
@@ -2576,21 +2587,17 @@ export const useChatStream = ({
           ? messagesRef.current[messageIndex]
           : null;
       const text = typeof nextContent === "string" ? nextContent.trim() : "";
-      const hasActiveStream = Boolean(
-        streamingChatIdRef.current && streamHandleRef.current,
+      const thisChatsStreamActive = Boolean(
+        streamingChatIdsRef.current.has(currentChatId) &&
+          streamHandlesRef.current.has(currentChatId),
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        hasActiveStream
+        thisChatsStreamActive
       ) {
-        if (hasActiveStream && streamingChatIdRef.current !== currentChatId) {
-          setStreamError(
-            "Another chat is still generating. Switch back to stop it or wait.",
-          );
-        }
         return;
       }
 
@@ -2686,8 +2693,8 @@ export const useChatStream = ({
 
       if (
         deletingStreamingAssistant &&
-        streamHandleRef.current &&
-        streamingChatIdRef.current === currentChatId
+        streamHandlesRef.current.has(currentChatId) &&
+        streamingChatIdsRef.current.has(currentChatId)
       ) {
         workingMessages = cancelCurrentStreamAndSettleMessages();
       }
@@ -2743,15 +2750,14 @@ export const useChatStream = ({
 
     return () => {
       clearActiveTokenFlushController("dispose");
-      if (
-        streamHandleRef.current &&
-        typeof streamHandleRef.current.cancel === "function"
-      ) {
-        streamHandleRef.current.cancel();
+      for (const handle of streamHandlesRef.current.values()) {
+        if (handle && typeof handle.cancel === "function") {
+          handle.cancel();
+        }
       }
-      streamHandleRef.current = null;
-      streamingChatIdRef.current = null;
-      activeStreamMessagesRef.current = null;
+      streamHandlesRef.current.clear();
+      streamingChatIdsRef.current.clear();
+      activeStreamsRef.current.clear();
       clearAttachmentPayloads();
       confirmationIdByCallId.clear();
       confirmationCallIdById.clear();
@@ -2764,7 +2770,7 @@ export const useChatStream = ({
       pendingContinuationRequestRef.current = null;
     };
   }, [
-    activeStreamMessagesRef,
+    activeStreamsRef,
     clearActiveTokenFlushController,
     clearAttachmentPayloads,
   ]);
