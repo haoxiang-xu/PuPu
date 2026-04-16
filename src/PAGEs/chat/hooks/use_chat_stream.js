@@ -2747,17 +2747,20 @@ export const useChatStream = ({
       confirmationFollowupSignalByIdRef.current;
     const confirmationResolveTimerById =
       confirmationResolveTimerByIdRef.current;
+    const streamHandles = streamHandlesRef.current;
+    const streamingChatIds = streamingChatIdsRef.current;
+    const activeStreams = activeStreamsRef.current;
 
     return () => {
       clearActiveTokenFlushController("dispose");
-      for (const handle of streamHandlesRef.current.values()) {
+      for (const handle of streamHandles.values()) {
         if (handle && typeof handle.cancel === "function") {
           handle.cancel();
         }
       }
-      streamHandlesRef.current.clear();
-      streamingChatIdsRef.current.clear();
-      activeStreamsRef.current.clear();
+      streamHandles.clear();
+      streamingChatIds.clear();
+      activeStreams.clear();
       clearAttachmentPayloads();
       confirmationIdByCallId.clear();
       confirmationCallIdById.clear();
