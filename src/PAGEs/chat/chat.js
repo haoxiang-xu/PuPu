@@ -784,7 +784,23 @@ const ChatInterface = () => {
             loadBatchSize={6}
             topLoadThreshold={80}
           />
-          <ChatInput {...sharedChatInputProps} />
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: -32,
+                height: 32,
+                pointerEvents: "none",
+                background: isDark
+                  ? "linear-gradient(to bottom, rgba(18,18,18,0), rgba(18,18,18,1))"
+                  : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1))",
+              }}
+            />
+            <ChatInput {...sharedChatInputProps} />
+          </div>
         </>
       )}
     </div>
