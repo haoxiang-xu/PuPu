@@ -420,6 +420,76 @@ export const useChatAttachments = ({
     }
   }, [attachmentsDisabledReason, attachmentsEnabled, setStreamError]);
 
+  const handleScreenshot = useCallback(async () => {
+    if (!attachmentsEnabled) {
+      setStreamError(
+        attachmentsDisabledReason ||
+          "Current model does not support image inputs.",
+      );
+      return;
+    }
+    if (!supportsImageAttachments) {
+      setStreamError("Current model does not support image attachments.");
+      return;
+    }
+    if (draftAttachments.length >= maxAttachmentCount) {
+      setStreamError(
+        `Cannot add more attachments (max ${maxAttachmentCount}).`,
+      );
+      return;
+    }
+
+    const result = await window.screenshotAPI.capture();
+
+    if (!result?.ok) {
+      if (!result?.cancelled) {
+        setStreamError(result?.error || "Screenshot failed.");
+      }
+      return;
+    }
+
+    // base64 length → approximate byte size
+    const byteLength = Math.ceil((result.data.length * 3) / 4);
+    if (byteLength > maxAttachmentBytes) {
+      setStreamError(
+        `Screenshot too large (max ${(maxAttachmentBytes / 1024 / 1024).toFixed(0)} MB). Try selecting a smaller region.`,
+      );
+      return;
+    }
+
+    const id = `att-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    const mimeType = result.mimeType || "image/png";
+    const metadata = {
+      id,
+      kind: "file",
+      name: "screenshot.png",
+      source: "screenshot",
+      mimeType,
+      ext: "png",
+      size: byteLength,
+      createdAt: Date.now(),
+    };
+    const payload = {
+      type: "image",
+      source: { type: "base64", media_type: mimeType, data: result.data },
+    };
+
+    rememberAttachmentPayloads(chatId, [{ id, payload }]);
+    await saveAttachmentPayload(id, payload, "screenshot.png").catch(() => {});
+    setDraftAttachments((prev) => [...prev, metadata]);
+  }, [
+    attachmentsDisabledReason,
+    attachmentsEnabled,
+    chatId,
+    draftAttachments.length,
+    maxAttachmentBytes,
+    maxAttachmentCount,
+    rememberAttachmentPayloads,
+    setDraftAttachments,
+    setStreamError,
+    supportsImageAttachments,
+  ]);
+
   const handleFileInputChange = useCallback(
     async (event) => {
       const rawFiles = Array.from(event?.target?.files || []);
@@ -458,6 +528,7 @@ export const useChatAttachments = ({
     setDraftAttachments,
     createAttachmentPrompt,
     handleAttachFile,
+    handleScreenshot,
     handleFileInputChange,
     processFiles,
     removeDraftAttachment,

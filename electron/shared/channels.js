@@ -65,6 +65,10 @@ const CHANNELS = Object.freeze({
     HANDLE_ACTION: "window-state-event-handler",
     LISTENER_EVENT: "window-state-event-listener",
   }),
+  SCREENSHOT: Object.freeze({
+    CAPTURE: "screenshot:capture",
+    CHECK_AVAILABILITY: "screenshot:check-availability",
+  }),
 });
 
 module.exports = {
