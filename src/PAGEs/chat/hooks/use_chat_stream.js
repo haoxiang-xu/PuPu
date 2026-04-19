@@ -561,6 +561,8 @@ export const useChatStream = ({
       if (activeChatIdRef.current === targetChatId) {
         setMessages(nextStreamMessages);
       } else {
+        // Tool confirmation is infrequent + user-visible — bypass the throttle.
+        cancelBackgroundPersist(targetChatId);
         storageApi.setChatMessages(targetChatId, nextStreamMessages, {
           source: "chat-page",
         });
