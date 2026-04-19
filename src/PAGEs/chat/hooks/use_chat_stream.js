@@ -10,6 +10,11 @@ import {
 } from "../utils/chat_turn_utils";
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
+import {
+  scheduleBackgroundPersist,
+  flushBackgroundPersist,
+  cancelBackgroundPersist,
+} from "./background_stream_persister";
 
 const STREAM_TRACE_LEVEL = "minimal";
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
@@ -1082,9 +1087,7 @@ export const useChatStream = ({
           return;
         }
 
-        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
-          source: "chat-page",
-        });
+        scheduleBackgroundPersist(targetChatId, nextStreamMessages);
       };
 
       const serializeSubagentFramesByRunId = () =>
