@@ -415,6 +415,7 @@ export const useChatStream = ({
     if (handle && typeof handle.cancel === "function") {
       handle.cancel();
     }
+    cancelBackgroundPersist(currentChatId);
     streamHandlesRef.current.delete(currentChatId);
     streamingChatIdsRef.current.delete(currentChatId);
     activeStreamsRef.current.delete(currentChatId);
@@ -1019,6 +1020,7 @@ export const useChatStream = ({
             setDraftAttachments([]);
           }
           setStreamError("");
+          cancelBackgroundPersist(targetChatId);
           streamHandlesRef.current.delete(targetChatId);
           streamingChatIdsRef.current.delete(targetChatId);
           activeStreamsRef.current.delete(targetChatId);
@@ -2208,6 +2210,9 @@ export const useChatStream = ({
                 });
               }
 
+              if (activeChatIdRef.current !== targetChatId) {
+                flushBackgroundPersist(targetChatId);
+              }
               streamHandlesRef.current.delete(targetChatId);
               streamingChatIdsRef.current.delete(targetChatId);
               activeStreamsRef.current.delete(targetChatId);
@@ -2249,6 +2254,7 @@ export const useChatStream = ({
                     "Memory is unavailable for this request. Retrying with recent history.",
                   );
                 }
+                cancelBackgroundPersist(targetChatId);
                 streamHandlesRef.current.delete(targetChatId);
                 streamingChatIdsRef.current.delete(targetChatId);
                 activeStreamsRef.current.delete(targetChatId);
@@ -2342,6 +2348,9 @@ export const useChatStream = ({
                 };
               });
               syncStreamMessages(nextStreamMessages);
+              if (activeChatIdRef.current !== targetChatId) {
+                flushBackgroundPersist(targetChatId);
+              }
               activeStreamsRef.current.delete(targetChatId);
             },
           },
@@ -2351,6 +2360,7 @@ export const useChatStream = ({
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
         setStreamError(errorMessage);
+        cancelBackgroundPersist(targetChatId);
         streamHandlesRef.current.delete(targetChatId);
         streamingChatIdsRef.current.delete(targetChatId);
         activeStreamsRef.current.delete(targetChatId);
