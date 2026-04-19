@@ -12,6 +12,10 @@ import {
   updateChatDraft,
 } from "../../../SERVICEs/chat_storage";
 import { settleStreamingAssistantMessages } from "../utils/chat_turn_utils";
+import {
+  cancelBackgroundPersist,
+  flushAllBackgroundPersist,
+} from "./background_stream_persister";
 
 const DRAFT_PERSIST_DELAY_MS = 250;
 
@@ -179,10 +183,16 @@ export const useChatSessionState = ({
             source: "chat-page",
           },
         );
+        // We just wrote fresh state; drop any pending throttled write.
+        cancelBackgroundPersist(currentActiveId);
       }
 
       setActiveChatId(nextActiveId);
       setStreamError("");
+      // Entering chat becomes foreground — subsequent tokens hit setMessages
+      // directly; drop any pending background-persist for this chat so its
+      // stale scheduled write doesn't overwrite fresher storage later.
+      cancelBackgroundPersist(nextActiveId);
       const enteringStreamState = activeStreamsRef.current.get(nextActiveId);
       const restoredMessages =
         enteringStreamState && Array.isArray(enteringStreamState.messages)
@@ -235,6 +245,17 @@ export const useChatSessionState = ({
     setDraftAttachments,
     setStreamError,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onBeforeUnload = () => {
+      flushAllBackgroundPersist();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, []);
 
   useEffect(() => {
     const chatsById = bootstrapped?.store?.chatsById || {};
