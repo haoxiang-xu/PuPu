@@ -19,7 +19,12 @@ export const useMessageWindowScroll = ({
   initial_visible_count,
   load_batch_size,
   top_load_threshold,
+  boot_visible_count,
 }) => {
+  const effectiveBootCount =
+    typeof boot_visible_count === "number" && boot_visible_count > 0
+      ? Math.min(boot_visible_count, initial_visible_count)
+      : initial_visible_count;
   const messagesRef = useRef(null);
   const messageNodeRefs = useRef(new Map());
   const lastScrollTopRef = useRef(0);
@@ -214,13 +219,45 @@ export const useMessageWindowScroll = ({
 
     activeChatIdRef.current = chat_id;
     lastScrollTopRef.current = 0;
-    const nextStart = Math.max(0, messages.length - initial_visible_count);
-    visibleStartRef.current = nextStart;
-    setVisibleStartIndex(nextStart);
+    const bootStart = Math.max(0, messages.length - effectiveBootCount);
+    const finalStart = Math.max(0, messages.length - initial_visible_count);
+    visibleStartRef.current = bootStart;
+    setVisibleStartIndex(bootStart);
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
-  }, [chat_id, initial_visible_count, messages.length]);
+
+    if (bootStart === finalStart) {
+      return;
+    }
+
+    const expandToFinal = () => {
+      if (activeChatIdRef.current !== chat_id) {
+        return;
+      }
+      visibleStartRef.current = finalStart;
+      setVisibleStartIndex(finalStart);
+    };
+
+    if (typeof window === "undefined") {
+      expandToFinal();
+      return;
+    }
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(expandToFinal, {
+        timeout: 240,
+      });
+      return () => {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        }
+      };
+    }
+
+    const timerId = setTimeout(expandToFinal, 0);
+    return () => clearTimeout(timerId);
+  }, [chat_id, effectiveBootCount, initial_visible_count, messages.length]);
 
   useEffect(() => {
     if (messages.length > 0) {
