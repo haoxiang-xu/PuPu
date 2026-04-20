@@ -12,11 +12,12 @@ export default function ToastHost() {
   const timersRef = useRef(new Map());
 
   useEffect(() => {
+    const timers = timersRef.current;
     const unsub = subscribe((event) => {
       if (event.kind === "dismiss") {
         setItems((prev) => prev.filter((it) => it.id !== event.id));
-        const t = timersRef.current.get(event.id);
-        if (t) { clearTimeout(t); timersRef.current.delete(event.id); }
+        const t = timers.get(event.id);
+        if (t) { clearTimeout(t); timers.delete(event.id); }
         return;
       }
       if (event.kind !== "show") return;
@@ -27,14 +28,14 @@ export default function ToastHost() {
       setItems((prev) => [...prev, event]);
       const t = setTimeout(() => {
         setItems((prev) => prev.filter((it) => it.id !== event.id));
-        timersRef.current.delete(event.id);
+        timers.delete(event.id);
       }, event.duration);
-      timersRef.current.set(event.id, t);
+      timers.set(event.id, t);
     });
     return () => {
       unsub();
-      for (const t of timersRef.current.values()) clearTimeout(t);
-      timersRef.current.clear();
+      for (const t of timers.values()) clearTimeout(t);
+      timers.clear();
     };
   }, []);
 
