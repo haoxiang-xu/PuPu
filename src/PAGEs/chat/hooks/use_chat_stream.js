@@ -15,6 +15,7 @@ import {
   flushBackgroundPersist,
   cancelBackgroundPersist,
 } from "./background_stream_persister";
+import { createStreamFlushScheduler } from "./stream_flush_scheduler";
 
 const STREAM_TRACE_LEVEL = "minimal";
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
@@ -1079,6 +1080,14 @@ export const useChatStream = ({
         messages: nextMessages,
       });
 
+      const activeFlushScheduler = createStreamFlushScheduler({
+        onFlush: (nextStreamMessages) => {
+          if (activeChatIdRef.current === targetChatId) {
+            setMessages(nextStreamMessages);
+          }
+        },
+      });
+
       let streamMessages = nextMessages;
       const syncStreamMessages = (nextStreamMessages) => {
         streamMessages = nextStreamMessages;
@@ -1087,7 +1096,7 @@ export const useChatStream = ({
         });
 
         if (activeChatIdRef.current === targetChatId) {
-          setMessages(nextStreamMessages);
+          activeFlushScheduler.commit(nextStreamMessages);
           return;
         }
 
@@ -2224,6 +2233,7 @@ export const useChatStream = ({
                 return next;
               });
               clearAllPendingToolConfirmations();
+              activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
               if (activeChatIdRef.current !== targetChatId) {
@@ -2239,6 +2249,7 @@ export const useChatStream = ({
                 !streamHandlesRef.current.has(targetChatId) &&
                 !streamingChatIdsRef.current.has(targetChatId)
               ) {
+                activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
                 return;
@@ -2266,6 +2277,7 @@ export const useChatStream = ({
                   return next;
                 });
                 clearAllPendingToolConfirmations();
+                activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
 
@@ -2310,6 +2322,7 @@ export const useChatStream = ({
                 return next;
               });
               clearAllPendingToolConfirmations();
+              activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
 
@@ -2358,6 +2371,7 @@ export const useChatStream = ({
           },
         );
       } catch (error) {
+        activeFlushScheduler.flushSync();
         disposeBufferedTokenFlush();
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";

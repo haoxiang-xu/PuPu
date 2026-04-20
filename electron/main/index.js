@@ -21,7 +21,9 @@ const { createOllamaService } = require("./services/ollama/service");
 const { createUnchainService } = require("./services/unchain/service");
 const { createUpdateService } = require("./services/update/service");
 const { createScreenshotService } = require("./services/screenshot/service");
+const { createChatStorageService } = require("./services/chat_storage/service");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
+const fsp = require("fs/promises");
 
 let autoUpdater = null;
 try {
@@ -57,6 +59,13 @@ if (!gotSingleInstanceLock) {
     fs,
     path,
     getMainWindow: windowService.getMainWindow,
+  });
+
+  const chatStorageService = createChatStorageService({
+    app,
+    fs,
+    fsp,
+    path,
   });
 
   const ollamaService = createOllamaService({
@@ -107,6 +116,7 @@ if (!gotSingleInstanceLock) {
       unchainService,
       runtimeService,
       screenshotService,
+      chatStorageService,
     },
   });
 
@@ -116,6 +126,9 @@ if (!gotSingleInstanceLock) {
     unchainService.stopMiso();
   };
 
+  app.on("before-quit", () => {
+    chatStorageService.flushSync();
+  });
   app.on("before-quit", stopBackgroundServices);
   app.on("will-quit", stopBackgroundServices);
 
@@ -128,7 +141,9 @@ if (!gotSingleInstanceLock) {
     windowService.createMainWindow();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await chatStorageService.init();
+
     updateService.applyUnsupportedRuntimeMessage();
 
     ollamaService.startOllama();

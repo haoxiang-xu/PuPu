@@ -1,5 +1,4 @@
 import {
-  CHATS_STORAGE_KEY,
   DEFAULT_CHAT_TITLE,
   DEFAULT_FOLDER_LABEL,
   MAX_ACTIVE_MESSAGES_WHEN_TRIMMING,
@@ -47,7 +46,6 @@ import {
   firstChatNodeIdInTree,
   getSiblingIds,
   insertNodeIntoParent,
-  makeInitialTreeFromChats,
   removeChatFromTreeByChatId,
   resolveSelectedParentFolderId,
   sanitizeExplorerReorderPayload,
@@ -55,6 +53,45 @@ import {
   sortChatsByUpdatedAt,
 } from "./chat_storage_tree";
 import { normalizeStore } from "./chat_storage_migrate";
+import { createChatStorageBackend } from "./chat_storage_backend";
+
+const storageBackend = createChatStorageBackend();
+const hasIpcBackend = () =>
+  typeof window !== "undefined" && !!window.chatStorageAPI;
+let memoryStore = null;
+
+const ensureMemoryStoreLoaded = () => {
+  // Only cache the memory mirror when running against the IPC backend. In the
+  // localStorage-fallback path (jsdom tests, pure web builds) the source of
+  // truth is localStorage itself, and callers may legitimately mutate it
+  // between reads — a stale mirror would break that contract.
+  // NOTE: 即使 bootstrap 为空，也要跑 normalizeStore —— 它会 seed 默认 chat +
+  // tree node。原本 getChatsStore 通过 writeStore 触发这步，现在热路径简化后
+  // 必须在 readStore 入口保证；且空 bootstrap 产生的 seed 必须立刻持久化，
+  // 否则后续 read 会每次生成不同 id 的 seed chat。
+  if (!hasIpcBackend()) {
+    const bootstrap = storageBackend.readBootstrap();
+    if (bootstrap) return normalizeStore(bootstrap);
+    const seeded = normalizeStore(null);
+    try {
+      storageBackend.persist(seeded);
+    } catch {
+      // no-op
+    }
+    return seeded;
+  }
+  if (memoryStore !== null) return memoryStore;
+  const bootstrap = storageBackend.readBootstrap();
+  memoryStore = normalizeStore(bootstrap);
+  if (!bootstrap) {
+    try {
+      storageBackend.persist(memoryStore);
+    } catch {
+      // no-op
+    }
+  }
+  return memoryStore;
+};
 
 const storeSubscribers = new Set();
 
@@ -205,87 +242,124 @@ const emitStoreChange = (store, event = {}) => {
   if (storeSubscribers.size === 0) {
     return;
   }
-
-  const snapshot =
-    typeof structuredClone === "function"
-      ? structuredClone(store)
-      : clone(store);
-  if (!snapshot) {
-    return;
-  }
-
   for (const listener of storeSubscribers) {
     try {
-      listener(snapshot, event);
+      listener(store, event);
     } catch {
       // no-op
     }
   }
 };
 
-const writeStore = (store, options = {}) => {
-  const normalized = normalizeStore(store);
-  const bounded = dropLeastRecentlyUsedChats(normalized);
-  const finalized = normalizeStore(bounded);
+let pendingEmit = null;
+let microtaskScheduled = false;
+
+const flushPendingEmit = () => {
+  microtaskScheduled = false;
+  if (!pendingEmit) return;
+  const { store, emit, event } = pendingEmit;
+  pendingEmit = null;
+  try {
+    storageBackend.persist(store);
+  } catch (error) {
+    console.error("[chat-storage] backend persist failed:", error);
+  }
+  if (emit) emitStoreChange(store, event);
+};
+
+const schedulePersistAndEmit = (store, options) => {
   const emit = options.emit !== false;
   const event = {
     type: options.type || "store_write",
     source: options.source || "unknown",
   };
-
-  if (typeof window === "undefined" || !window.localStorage) {
-    if (emit) emitStoreChange(finalized, event);
-    return finalized;
-  }
-
-  try {
-    window.localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(finalized));
-    if (emit) emitStoreChange(finalized, event);
-    return finalized;
-  } catch {
-    const fallback = createEmptyStoreV2();
-
-    if (finalized.activeChatId && finalized.chatsById[finalized.activeChatId]) {
-      fallback.chatsById[finalized.activeChatId] =
-        finalized.chatsById[finalized.activeChatId];
-      fallback.activeChatId = finalized.activeChatId;
-      fallback.lruChatIds = [finalized.activeChatId];
-      fallback.tree = makeInitialTreeFromChats(
-        fallback.chatsById,
-        [finalized.activeChatId],
-        finalized.activeChatId,
-      );
-    }
-
-    const recovered = normalizeStore(fallback);
-
-    try {
-      window.localStorage.setItem(CHATS_STORAGE_KEY, JSON.stringify(recovered));
-    } catch {
-      // swallow persist failure to avoid UI crash
-    }
-
-    if (emit) emitStoreChange(recovered, event);
-    return recovered;
+  // 同 tick 内多次 writeStore 只合并为一次 persist + 一次 emit。
+  // 始终保留最新的 store、event；emit=false 不升级 emit=true（bootstrap 等静默写入不应点燃 subscribers）。
+  pendingEmit = {
+    store,
+    event,
+    emit: (pendingEmit?.emit ?? false) || emit,
+  };
+  if (!microtaskScheduled) {
+    microtaskScheduled = true;
+    queueMicrotask(flushPendingEmit);
   }
 };
 
-const readStore = () => {
-  if (typeof window === "undefined" || !window.localStorage) {
-    return createEmptyStoreV2();
+export const flushStoreEmitSync = () => {
+  flushPendingEmit();
+};
+
+const writeStore = (store, options = {}) => {
+  if (hasIpcBackend()) {
+    // IPC 路径：memoryStore 同步更新 → 立即一致性读；persist/emit 合并到 microtask
+    memoryStore = store;
+    schedulePersistAndEmit(store, options);
+    return store;
   }
 
+  // jsdom / 纯 web fallback：没有 memoryStore，persist 必须同步到 localStorage，
+  // 否则下一次 withStore 的 readStore() 会读到旧数据
   try {
-    const raw = window.localStorage.getItem(CHATS_STORAGE_KEY);
-    if (!raw) {
-      return createEmptyStoreV2();
-    }
-
-    const parsed = JSON.parse(raw);
-    return normalizeStore(parsed);
-  } catch {
-    return normalizeStore({});
+    storageBackend.persist(store);
+  } catch (error) {
+    console.error("[chat-storage] backend persist failed:", error);
   }
+  if (options.emit !== false) {
+    emitStoreChange(store, {
+      type: options.type || "store_write",
+      source: options.source || "unknown",
+    });
+  }
+  return store;
+};
+
+// —— Storage GC (LRU 淘汰 + 大小整形) ——
+// 从 writeStore 热路径移除，改为 idle 触发。
+// 调用点：setChatMessages / createChatWithMessagesInSelectedContext / duplicateTreeNodeSubtree
+// (所有"可能新增数据"的 mutation)。热路径 (selectTreeNode / updateChatDraft / renameTreeNode) 不触发。
+let gcScheduled = false;
+
+const runStoreGCNow = () => {
+  gcScheduled = false;
+  const current = memoryStore || readStore();
+  if (!current) return;
+  const working = clone(current) || current;
+  const bounded = dropLeastRecentlyUsedChats(working);
+  const finalized = normalizeStore(bounded);
+  if (hasIpcBackend()) {
+    memoryStore = finalized;
+  }
+  schedulePersistAndEmit(finalized, {
+    type: "store_gc",
+    source: "system",
+  });
+};
+
+const scheduleStoreGC = () => {
+  if (gcScheduled) return;
+  gcScheduled = true;
+  const schedule =
+    typeof window !== "undefined" &&
+    typeof window.requestIdleCallback === "function"
+      ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
+      : (cb) => setTimeout(cb, 500);
+  schedule(runStoreGCNow);
+};
+
+// 页面关闭前强制 flush pending microtask：保证最后一次 writeStore 的
+// persist (IPC write) 和 emit 都落地。electron main 的 before-quit 会再做一次
+// 磁盘 flushSync，这里只负责把 renderer 侧未发出的 IPC 挤出去。
+if (
+  typeof window !== "undefined" &&
+  typeof window.addEventListener === "function"
+) {
+  window.addEventListener("beforeunload", flushPendingEmit);
+  window.addEventListener("pagehide", flushPendingEmit);
+}
+
+const readStore = () => {
+  return ensureMemoryStoreLoaded();
 };
 
 const withStore = (mutate, options = {}) => {
@@ -421,12 +495,8 @@ const cleanupPreviousTransientActiveChat = (
 };
 
 export const getChatsStore = () => {
-  const synced = writeStore(readStore(), {
-    emit: false,
-    source: "system",
-    type: "store_bootstrap",
-  });
-  return clone(synced) || createEmptyStoreV2();
+  const current = readStore();
+  return clone(current) || createEmptyStoreV2();
 };
 
 export const subscribeChatsStore = (listener, options = {}) => {
@@ -740,6 +810,7 @@ export const createChatWithMessagesInSelectedContext = (
     },
   );
 
+  scheduleStoreGC();
   return {
     chatId: createdChatId,
     nodeId: createdNodeId,
@@ -903,6 +974,7 @@ export const duplicateTreeNodeSubtree = (params = {}, options = {}) => {
     },
   );
 
+  scheduleStoreGC();
   return {
     nodeId: duplicatedNodeId,
     store: clone(next) || next,
@@ -1192,7 +1264,7 @@ export const updateChatDraft = (chatId, patch = {}, options = {}) => {
 };
 
 export const setChatMessages = (chatId, messages, options = {}) => {
-  return updateChatSessionById(
+  const next = updateChatSessionById(
     chatId,
     (chat) => {
       const nextMessages = sanitizeMessages(messages);
@@ -1213,6 +1285,8 @@ export const setChatMessages = (chatId, messages, options = {}) => {
     },
     { ...options, type: "chat_update_messages" },
   );
+  scheduleStoreGC();
+  return next;
 };
 
 export const setChatGeneratedUnread = (

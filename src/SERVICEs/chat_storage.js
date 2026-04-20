@@ -24,6 +24,7 @@ export {
   subscribeChatsStore,
   updateChatDraft,
   applyExplorerReorder,
+  flushStoreEmitSync,
 } from "./chat_storage/chat_storage_store";
 export { chatsStorageConstants } from "./chat_storage/chat_storage_constants";
 export { buildExplorerFromTree, sanitizeExplorerReorderPayload } from "./chat_storage/chat_storage_tree";

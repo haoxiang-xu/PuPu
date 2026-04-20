@@ -2,6 +2,10 @@ const CHANNELS = Object.freeze({
   APP: Object.freeze({
     GET_VERSION: "app:get-version",
   }),
+  CHAT_STORAGE: Object.freeze({
+    BOOTSTRAP_READ: "chat-storage:bootstrap-read",
+    WRITE: "chat-storage:write",
+  }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",
     CHECK_AND_DOWNLOAD: "update:check-and-download",

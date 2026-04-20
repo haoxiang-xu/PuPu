@@ -1,5 +1,10 @@
 const path = require("path");
 const { CHANNELS } = require("../../shared/channels");
+const {
+  registerChatStorageHandlers,
+  CHAT_STORAGE_SYNC_CHANNELS,
+  CHAT_STORAGE_ON_CHANNELS,
+} = require("../services/chat_storage/register_handlers");
 
 const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.APP.GET_VERSION,
@@ -56,7 +61,10 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
   CHANNELS.UNCHAIN.STREAM_CANCEL,
+  ...CHAT_STORAGE_ON_CHANNELS,
 ]);
+
+const IPC_ON_SYNC_CHANNELS = Object.freeze([...CHAT_STORAGE_SYNC_CHANNELS]);
 
 const MAIN_EVENT_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_EVENT,
@@ -74,7 +82,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     unchainService,
     runtimeService,
     screenshotService,
+    chatStorageService,
   } = services;
+
+  registerChatStorageHandlers({ ipcMain, chatStorageService });
 
   ipcMain.on(CHANNELS.THEME.SET_BACKGROUND_COLOR, (_event, color) => {
     windowService.handleThemeSetBackgroundColor(color);
@@ -295,5 +306,6 @@ module.exports = {
   registerIpcHandlers,
   IPC_HANDLE_CHANNELS,
   IPC_ON_CHANNELS,
+  IPC_ON_SYNC_CHANNELS,
   MAIN_EVENT_CHANNELS,
 };
