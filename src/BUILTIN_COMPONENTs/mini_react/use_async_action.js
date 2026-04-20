@@ -28,6 +28,19 @@ export default function useAsyncAction(action, options = {}) {
   const idRef = useRef(`async-${nextInstanceId++}`);
   const mountedRef = useRef(true);
 
+  const actionRef = useRef(action);
+  const labelRef = useRef(label);
+  const pendingDelayRef = useRef(pendingDelayMs);
+  const progressThresholdRef = useRef(progressThresholdMs);
+  const onErrorRef = useRef(onError);
+  const onSuccessRef = useRef(onSuccess);
+  actionRef.current = action;
+  labelRef.current = label;
+  pendingDelayRef.current = pendingDelayMs;
+  progressThresholdRef.current = progressThresholdMs;
+  onErrorRef.current = onError;
+  onSuccessRef.current = onSuccess;
+
   useEffect(() => () => {
     mountedRef.current = false;
     if (abortRef.current) abortRef.current.abort();
@@ -52,33 +65,33 @@ export default function useAsyncAction(action, options = {}) {
 
     pendingTimerRef.current = setTimeout(() => {
       if (mountedRef.current && runningRef.current) setPending(true);
-    }, pendingDelayMs);
+    }, pendingDelayRef.current);
 
     progressTimerRef.current = setTimeout(() => {
       if (runningRef.current) {
         const pid = `${idRef.current}-${Date.now()}`;
         progressIdRef.current = pid;
-        progressStart(pid, label);
+        progressStart(pid, labelRef.current);
       }
-    }, progressThresholdMs);
+    }, progressThresholdRef.current);
 
     try {
-      const result = await action(...args, { signal: ac.signal });
+      const result = await actionRef.current(...args, { signal: ac.signal });
       cleanup();
       runningRef.current = false;
       if (mountedRef.current) setPending(false);
-      if (onSuccess) onSuccess(result);
+      if (onSuccessRef.current) onSuccessRef.current(result);
       return result;
     } catch (err) {
       cleanup();
       runningRef.current = false;
       if (mountedRef.current) { setPending(false); setError(err); }
       if (isAbort(err)) return undefined;
-      if (onError) onError(err);
-      else toast.error(`${label}: ${err?.message || "失败"}`);
+      if (onErrorRef.current) onErrorRef.current(err);
+      else toast.error(`${labelRef.current}: ${err?.message || "失败"}`);
       return undefined;
     }
-  }, [action, label, pendingDelayMs, progressThresholdMs, onError, onSuccess, cleanup]);
+  }, [cleanup]);
 
   const reset = useCallback(() => setError(null), []);
 
