@@ -29,6 +29,7 @@ import {
   sanitizeSelectedToolkits,
   sanitizeSelectedWorkspaceIds,
   sanitizeSystemPromptOverrides,
+  trimText,
   unique,
   deriveChatTitle,
 } from "./chat_storage_sanitize";
@@ -1193,6 +1194,44 @@ export const applyExplorerReorder = ({ data, root } = {}, options = {}) => {
   return clone(next) || next;
 };
 
+// No-op guard helpers. Chat switch re-hydrates local React state from the
+// store, which then triggers effects that write the same values back. The
+// guards below short-circuit those writes before they reach withStore/
+// normalize/persist/emit — cutting the chat-switch cascade we saw in the
+// DevTools flame chart.
+const readChatSnapshotUnsafe = (chatId) => {
+  if (!chatId) return null;
+  const current = readStore();
+  const chat = current?.chatsById?.[chatId];
+  return chat || null;
+};
+
+const arraysShallowEq = (a, b) => {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+};
+
+const agentOrchestrationEq = (a, b) => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.mode === b.mode;
+};
+
+const attachmentIdsEq = (a, b) => {
+  if (a === b) return true;
+  if (!Array.isArray(a) || !Array.isArray(b)) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i += 1) {
+    if ((a[i]?.id || "") !== (b[i]?.id || "")) return false;
+  }
+  return true;
+};
+
 const updateChatSessionById = (chatId, updater, options = {}) => {
   const source = options.source || "unknown";
 
@@ -1248,6 +1287,22 @@ const updateChatSessionById = (chatId, updater, options = {}) => {
 };
 
 export const updateChatDraft = (chatId, patch = {}, options = {}) => {
+  const existing = readChatSnapshotUnsafe(chatId);
+  if (existing) {
+    const draft = existing.draft || {};
+    const hasText = Object.prototype.hasOwnProperty.call(patch, "text");
+    const hasAttachments = Object.prototype.hasOwnProperty.call(
+      patch,
+      "attachments",
+    );
+    const nextText = hasText ? trimText(patch.text || "", 20000) : null;
+    const textSame = !hasText || (draft.text || "") === nextText;
+    const attachmentsSame =
+      !hasAttachments || attachmentIdsEq(draft.attachments, patch.attachments);
+    if (textSame && attachmentsSame) {
+      return getChatsStore();
+    }
+  }
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -1335,6 +1390,15 @@ export const setChatAgentOrchestration = (
   agentOrchestration,
   options = {},
 ) => {
+  const existing = readChatSnapshotUnsafe(chatId);
+  if (existing) {
+    const nextAgent = isLockedCharacterChat(existing)
+      ? { mode: "default" }
+      : sanitizeAgentOrchestration(agentOrchestration);
+    if (agentOrchestrationEq(existing.agentOrchestration, nextAgent)) {
+      return getChatsStore();
+    }
+  }
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -1353,6 +1417,15 @@ export const setChatSelectedToolkits = (
   selectedToolkits,
   options = {},
 ) => {
+  const existing = readChatSnapshotUnsafe(chatId);
+  if (existing) {
+    const nextToolkits = isLockedCharacterChat(existing)
+      ? []
+      : sanitizeSelectedToolkits(selectedToolkits);
+    if (arraysShallowEq(existing.selectedToolkits, nextToolkits)) {
+      return getChatsStore();
+    }
+  }
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -1371,6 +1444,15 @@ export const setChatSelectedWorkspaceIds = (
   selectedWorkspaceIds,
   options = {},
 ) => {
+  const existing = readChatSnapshotUnsafe(chatId);
+  if (existing) {
+    const nextWorkspaces = isLockedCharacterChat(existing)
+      ? []
+      : sanitizeSelectedWorkspaceIds(selectedWorkspaceIds);
+    if (arraysShallowEq(existing.selectedWorkspaceIds, nextWorkspaces)) {
+      return getChatsStore();
+    }
+  }
   return updateChatSessionById(
     chatId,
     (chat) => ({
@@ -1381,6 +1463,68 @@ export const setChatSelectedWorkspaceIds = (
       updatedAt: now(),
     }),
     { ...options, type: "chat_update_workspace_ids" },
+  );
+};
+
+// Bundle setter: writes toolkits/agent/workspace in one updateChatSessionById
+// call. Used at chat-switch where all three local states get re-hydrated and
+// their effects would otherwise fire three separate store writes in series.
+export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
+  const existing = readChatSnapshotUnsafe(chatId);
+  if (!existing) return getChatsStore();
+  const locked = isLockedCharacterChat(existing);
+
+  const hasAgent = Object.prototype.hasOwnProperty.call(
+    patch,
+    "agentOrchestration",
+  );
+  const hasToolkits = Object.prototype.hasOwnProperty.call(
+    patch,
+    "selectedToolkits",
+  );
+  const hasWorkspaces = Object.prototype.hasOwnProperty.call(
+    patch,
+    "selectedWorkspaceIds",
+  );
+
+  const nextAgent = hasAgent
+    ? locked
+      ? { mode: "default" }
+      : sanitizeAgentOrchestration(patch.agentOrchestration)
+    : null;
+  const nextToolkits = hasToolkits
+    ? locked
+      ? []
+      : sanitizeSelectedToolkits(patch.selectedToolkits)
+    : null;
+  const nextWorkspaces = hasWorkspaces
+    ? locked
+      ? []
+      : sanitizeSelectedWorkspaceIds(patch.selectedWorkspaceIds)
+    : null;
+
+  const agentSame =
+    !hasAgent || agentOrchestrationEq(existing.agentOrchestration, nextAgent);
+  const toolkitsSame =
+    !hasToolkits || arraysShallowEq(existing.selectedToolkits, nextToolkits);
+  const workspacesSame =
+    !hasWorkspaces ||
+    arraysShallowEq(existing.selectedWorkspaceIds, nextWorkspaces);
+
+  if (agentSame && toolkitsSame && workspacesSame) {
+    return getChatsStore();
+  }
+
+  return updateChatSessionById(
+    chatId,
+    (chat) => {
+      const out = { ...chat, updatedAt: now() };
+      if (hasAgent) out.agentOrchestration = nextAgent;
+      if (hasToolkits) out.selectedToolkits = nextToolkits;
+      if (hasWorkspaces) out.selectedWorkspaceIds = nextWorkspaces;
+      return out;
+    },
+    { ...options, type: "chat_update_session_bundle" },
   );
 };
 

@@ -18,6 +18,7 @@ export {
   setChatModel,
   setChatSelectedToolkits,
   setChatSelectedWorkspaceIds,
+  setChatSessionBundle,
   setChatSystemPromptOverrides,
   setChatThreadId,
   setChatTitle,

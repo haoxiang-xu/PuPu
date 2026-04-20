@@ -3,10 +3,8 @@ import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
   setChatMessages,
-  setChatAgentOrchestration,
   setChatModel,
-  setChatSelectedToolkits,
-  setChatSelectedWorkspaceIds,
+  setChatSessionBundle,
   setChatThreadId,
   subscribeChatsStore,
   updateChatDraft,
@@ -334,38 +332,21 @@ export const useChatSessionState = ({
       return;
     }
 
-    setChatSelectedToolkits(currentChatId, selectedToolkits, {
-      source: "chat-page",
-    });
-  }, [activeChatKind, selectedToolkits]);
-
-  useEffect(() => {
-    const currentChatId = activeChatIdRef.current;
-    if (!currentChatId) {
-      return;
-    }
-    if (activeChatKind === "character") {
-      return;
-    }
-
-    setChatAgentOrchestration(currentChatId, agentOrchestration, {
-      source: "chat-page",
-    });
-  }, [activeChatKind, agentOrchestration]);
-
-  useEffect(() => {
-    const currentChatId = activeChatIdRef.current;
-    if (!currentChatId) {
-      return;
-    }
-    if (activeChatKind === "character") {
-      return;
-    }
-
-    setChatSelectedWorkspaceIds(currentChatId, selectedWorkspaceIds, {
-      source: "chat-page",
-    });
-  }, [activeChatKind, selectedWorkspaceIds]);
+    setChatSessionBundle(
+      currentChatId,
+      {
+        selectedToolkits,
+        agentOrchestration,
+        selectedWorkspaceIds,
+      },
+      { source: "chat-page" },
+    );
+  }, [
+    activeChatKind,
+    selectedToolkits,
+    agentOrchestration,
+    selectedWorkspaceIds,
+  ]);
 
   useEffect(() => {
     return () => {
