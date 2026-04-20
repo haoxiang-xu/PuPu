@@ -16,6 +16,12 @@ import {
   cancelBackgroundPersist,
 } from "./background_stream_persister";
 import { createStreamFlushScheduler } from "./stream_flush_scheduler";
+import {
+  start as progressStart,
+  stop as progressStop,
+} from "../../../SERVICEs/progress_bus";
+
+const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
 const STREAM_TRACE_LEVEL = "minimal";
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
@@ -98,6 +104,16 @@ export const useChatStream = ({
     resolveAttachmentPayloads,
   } = attachmentApi;
   const [streamingChatIds, setStreamingChatIds] = useState(() => new Set());
+
+  useEffect(() => {
+    if (streamingChatIds.size > 0) {
+      progressStart(CHAT_STREAM_PROGRESS_ID, "chat_stream");
+    } else {
+      progressStop(CHAT_STREAM_PROGRESS_ID);
+    }
+    return () => progressStop(CHAT_STREAM_PROGRESS_ID);
+  }, [streamingChatIds]);
+
   const [internalStreamError, setInternalStreamError] = useState("");
   const streamError =
     controlledStreamError !== undefined
@@ -942,12 +958,65 @@ export const useChatStream = ({
       );
       let forceMemoryEnabled = false;
 
+      /* Optimistic UI: push user message + assistant placeholder BEFORE any await.
+         For character chats, buildCharacterRunConfig() below can be a slow IPC round-trip;
+         we don't want Send to feel frozen during that wait. Rollback on failure. */
+      const optimisticAssistantPlaceholder = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        status: "streaming",
+        traceFrames: [],
+        subagentFrames: {},
+        subagentMetaByRunId: {},
+        meta: {
+          model: effectiveModelId,
+        },
+      };
+      const optimisticMessages = [
+        ...normalizedBaseMessages,
+        userMessage,
+        optimisticAssistantPlaceholder,
+      ];
+      const previousInputValue = inputValue;
+      const previousDraftAttachments = draftAttachments;
+
+      setMessages(optimisticMessages);
+      if (clearComposer) {
+        setInputValue("");
+        setDraftAttachments([]);
+      }
+      setStreamError("");
+      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
+      streamingChatIdsRef.current.add(targetChatId);
+      activeStreamsRef.current.set(targetChatId, {
+        messages: optimisticMessages,
+      });
+
+      const rollbackOptimistic = () => {
+        setMessages(normalizedBaseMessages);
+        streamingChatIdsRef.current.delete(targetChatId);
+        setStreamingChatIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetChatId);
+          return next;
+        });
+        activeStreamsRef.current.delete(targetChatId);
+        if (clearComposer) {
+          setInputValue(previousInputValue);
+          setDraftAttachments(previousDraftAttachments);
+        }
+      };
+
       let resolvedCharacterConfig = characterAgentConfig;
       if (isCharacterChat) {
         if (!resolvedCharacterConfig) {
           try {
             resolvedCharacterConfig = await buildCharacterRunConfig();
           } catch (error) {
+            rollbackOptimistic();
             setStreamError(
               error?.message || "Failed to prepare this character chat.",
             );
@@ -956,6 +1025,7 @@ export const useChatStream = ({
         }
 
         if (!resolvedCharacterConfig?.session_id) {
+          rollbackOptimistic();
           setStreamError("Failed to prepare this character chat.");
           return false;
         }
@@ -1036,21 +1106,6 @@ export const useChatStream = ({
         }
       }
 
-      const assistantPlaceholder = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: "",
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        status: "streaming",
-        traceFrames: [],
-        subagentFrames: {},
-        subagentMetaByRunId: {},
-        meta: {
-          model: effectiveModelId,
-        },
-      };
-
       const memoryEnabled =
         forceHistoryFallback === true
           ? false
@@ -1062,23 +1117,10 @@ export const useChatStream = ({
           ? []
           : buildHistoryForModel(normalizedBaseMessages, targetChatId);
 
-      const nextMessages = [
-        ...normalizedBaseMessages,
-        userMessage,
-        assistantPlaceholder,
-      ];
-
-      setMessages(nextMessages);
-      if (clearComposer) {
-        setInputValue("");
-        setDraftAttachments([]);
-      }
-      setStreamError("");
-      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
-      streamingChatIdsRef.current.add(targetChatId);
-      activeStreamsRef.current.set(targetChatId, {
-        messages: nextMessages,
-      });
+      /* Optimistic push already happened before the character block.
+         `nextMessages` is the same value; keep the binding so downstream code
+         (streamMessages initial value, etc.) stays unchanged. */
+      const nextMessages = optimisticMessages;
 
       const activeFlushScheduler = createStreamFlushScheduler({
         onFlush: (nextStreamMessages) => {

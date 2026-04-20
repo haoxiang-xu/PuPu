@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from "react";
 import api from "../../../../SERVICEs/api";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
 import { createLogger } from "../../../../SERVICEs/console_logger";
+import {
+  start as progressStart,
+  stop as progressStop,
+} from "../../../../SERVICEs/progress_bus";
 import pull_store from "../pull_store";
 
 const ollamaUiLogger = createLogger(
@@ -74,6 +78,7 @@ export const useOllamaLibrary = () => {
     const controller = new AbortController();
     pull_store.refs[key] = controller;
     pull_store.set(key, { status: "starting", percent: null, error: null });
+    progressStart(`ollama_pull_${key}`, `ollama_pull:${fullName}`);
 
     api.ollama
       .pullModel({
@@ -88,6 +93,7 @@ export const useOllamaLibrary = () => {
         },
       })
       .then(() => {
+        progressStop(`ollama_pull_${key}`);
         ollamaUiLogger.log("pull_resolved", { model: fullName });
         emitModelCatalogRefresh({
           reason: "ollama_pull_completed",
@@ -103,6 +109,7 @@ export const useOllamaLibrary = () => {
           .catch(() => {});
       })
       .catch((err) => {
+        progressStop(`ollama_pull_${key}`);
         delete pull_store.refs[key];
         if (err?.name === "AbortError" || err?.code === "abort") {
           ollamaUiLogger.log("pull_aborted", { model: fullName });
@@ -128,6 +135,7 @@ export const useOllamaLibrary = () => {
     pull_store.refs[key]?.abort();
     delete pull_store.refs[key];
     pull_store.delete(key);
+    progressStop(`ollama_pull_${key}`);
   }, []);
 
   const retrySearch = useCallback(() => {

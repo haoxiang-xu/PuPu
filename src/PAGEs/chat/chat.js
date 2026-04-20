@@ -21,6 +21,10 @@ import {
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
+import {
+  start as progressStart,
+  stop as progressStop,
+} from "../../SERVICEs/progress_bus";
 import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
@@ -374,6 +378,8 @@ const ChatInterface = () => {
     : UNCHAIN_STATUS_POLL_INTERVAL_STARTING_MS;
 
   const refreshModelCatalog = useCallback(async () => {
+    const progressId = `model_catalog_refresh_${Date.now()}`;
+    progressStart(progressId, "model_catalog_refresh");
     try {
       const normalized = await api.unchain.getModelCatalog();
       setModelCatalog(normalized);
@@ -396,6 +402,8 @@ const ChatInterface = () => {
       }
     } catch (_error) {
       // ignore transient catalog fetch failures
+    } finally {
+      progressStop(progressId);
     }
   }, [
     activeChatIdRef,

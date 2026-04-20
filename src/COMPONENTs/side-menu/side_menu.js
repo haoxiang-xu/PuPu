@@ -38,6 +38,7 @@ import {
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import SuspenseFallback from "../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
 
 /* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const SettingsModal = lazy(() =>
@@ -719,7 +720,7 @@ const SideMenu = () => {
       />
 
       {/* Lazy modals: loaded on first open, kept mounted for exit animation */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<SuspenseFallback minHeight={0} />}>
         {lazyMountedRef.current.settings && (
           <SettingsModal
             open={settingsOpen}

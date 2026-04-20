@@ -4,6 +4,7 @@ import {
   loadAttachmentPayload,
   saveAttachmentPayload,
 } from "../../../SERVICEs/attachment_storage";
+import { toast } from "../../../SERVICEs/toast";
 import {
   createAttachmentPrompt,
   getFileExtension,
@@ -513,7 +514,12 @@ export const useChatAttachments = ({
         previous.filter((attachment) => attachment?.id !== normalizedAttachmentId),
       );
       removeAttachmentPayload(chatId, normalizedAttachmentId);
-      deleteAttachmentPayload(normalizedAttachmentId).catch(() => {});
+      deleteAttachmentPayload(normalizedAttachmentId).catch((err) => {
+        toast.error(
+          `Attachment storage cleanup failed: ${err?.message || "unknown error"}`,
+          { dedupeKey: "attachment_delete_failed" },
+        );
+      });
     },
     [chatId, removeAttachmentPayload, setDraftAttachments],
   );
