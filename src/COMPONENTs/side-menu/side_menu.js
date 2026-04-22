@@ -720,7 +720,7 @@ const SideMenu = () => {
       />
 
       {/* Lazy modals: loaded on first open, kept mounted for exit animation */}
-      <Suspense fallback={<SuspenseFallback minHeight={0} />}>
+      <Suspense fallback={<SuspenseFallback fullscreen />}>
         {lazyMountedRef.current.settings && (
           <SettingsModal
             open={settingsOpen}
