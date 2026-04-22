@@ -14,6 +14,10 @@ import Explorer from "../../BUILTIN_COMPONENTs/explorer/explorer";
 import { createUnchainApi } from "../../SERVICEs/api.unchain";
 /* { Services } -------------------------------------------------------------------------------------------------------------- */
 
+/* { Hooks } ----------------------------------------------------------------------------------------------------------------- */
+import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+/* { Hooks } ----------------------------------------------------------------------------------------------------------------- */
+
 /* { Input components } ------------------------------------------------------------------------------------------------------- */
 import { Select } from "../../BUILTIN_COMPONENTs/select/select";
 import { Slider } from "../../BUILTIN_COMPONENTs/input/slider";
@@ -234,6 +238,7 @@ function VarianceBar({ variance, isDark, x_pc = 0, y_pc = 1 }) {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 function SelectedCard({ point, isDark, fontFamily, color }) {
+  const { t } = useTranslation();
   const meta_color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
 
   /* Extract clean user + assistant turns from the stored text */
@@ -272,7 +277,7 @@ function SelectedCard({ point, isDark, fontFamily, color }) {
       >
         {lines.length === 0 ? (
           <div style={{ color: meta_color }}>
-            No conversation text stored for this memory chunk.
+            {t("memory_inspect.no_conversation_text")}
           </div>
         ) : (
           lines.map((line, i) => {
@@ -325,6 +330,7 @@ const MemoryInspectModal = ({
   mode = "session",
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
+  const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";
   const color = theme?.color || (isDark ? "#fff" : "#111");
   const fontFamily = theme?.font?.fontFamily || "Jost";
@@ -416,7 +422,7 @@ const MemoryInspectModal = ({
         .catch((err) => {
           if (cancelled) return;
           if (!silent) {
-            setErrorMsg(err?.message || "Failed to load memory projection");
+            setErrorMsg(err?.message || "");
             setStatus("error");
           }
         });
@@ -527,7 +533,7 @@ const MemoryInspectModal = ({
               WebkitUserSelect: "none",
             }}
           >
-            Loading…
+            {t("memory_inspect.loading")}
           </div>
         )}
 
@@ -546,8 +552,9 @@ const MemoryInspectModal = ({
               WebkitUserSelect: "none",
             }}
           >
-            No memory vectors found
-            {mode === "long_term" ? "" : " for this chat"}.
+            {mode === "long_term"
+              ? t("memory_inspect.no_vectors")
+              : t("memory_inspect.no_vectors_chat")}
           </div>
         )}
 
@@ -568,7 +575,7 @@ const MemoryInspectModal = ({
               textAlign: "center",
             }}
           >
-            No memory vectors found.
+            {t("memory_inspect.no_vectors")}
           </div>
         )}
 
@@ -589,7 +596,7 @@ const MemoryInspectModal = ({
               textAlign: "center",
             }}
           >
-            {errorMsg}
+            {errorMsg || t("memory_inspect.load_failed")}
           </div>
         )}
 
@@ -661,7 +668,9 @@ const MemoryInspectModal = ({
               : "0 1px 6px rgba(255,255,255,0.6)",
           }}
         >
-          {mode === "long_term" ? "Long-Term Memory" : "Memory"}
+          {mode === "long_term"
+            ? t("memory_inspect.title_long_term")
+            : t("memory_inspect.title")}
         </div>
         {chatTitle && (
           <div
@@ -680,7 +689,7 @@ const MemoryInspectModal = ({
         {mode === "long_term" && profiles.length > 0 && (
           <div style={{ marginTop: 10, pointerEvents: "auto" }}>
             <Button
-              label="Profiles"
+              label={t("memory_inspect.profiles")}
               onClick={() => {
                 setShowProfile((prev) => {
                   if (!prev) setSelectedPoint(null);
@@ -757,7 +766,7 @@ const MemoryInspectModal = ({
               flexShrink: 0,
             }}
           >
-            vs
+            {t("memory_inspect.vs")}
           </span>
           <Select
             options={pc_options}
@@ -795,7 +804,7 @@ const MemoryInspectModal = ({
               flexShrink: 0,
             }}
           >
-            Jitter
+            {t("memory_inspect.jitter")}
           </span>
           <Slider
             value={jitter}
@@ -877,7 +886,9 @@ const MemoryInspectModal = ({
             WebkitUserSelect: "none",
           }}
         >
-          {hasProfileOpen ? "Profile" : "Chunk Detail"}
+          {hasProfileOpen
+            ? t("memory_inspect.profile")
+            : t("memory_inspect.chunk_detail")}
         </div>
 
         {/* Detail content */}
@@ -923,7 +934,7 @@ const MemoryInspectModal = ({
                     userSelect: "none",
                   }}
                 >
-                  Empty profile document.
+                  {t("memory_inspect.empty_profile")}
                 </div>
               );
             })()
