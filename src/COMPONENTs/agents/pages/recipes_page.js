@@ -5,13 +5,16 @@ import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import RecipeInspector from "./recipes_page/recipe_inspector";
 
-export default function RecipesPage({ isDark }) {
+export default function RecipesPage({
+  isDark,
+  selectedNodeId,
+  onSelectNode,
+}) {
   const [recipes, setRecipes] = useState([]);
   const [activeName, setActiveName] = useState(null);
   const [activeRecipe, setActiveRecipe] = useState(null);
-  const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [dirty, setDirty] = useState(false);
-  const [listCollapsed, setListCollapsed] = useState(false);
+  const [listCollapsed, setListCollapsed] = useState(true);
 
   useEffect(() => {
     (async () => {
@@ -29,9 +32,10 @@ export default function RecipesPage({ isDark }) {
     (async () => {
       const r = await api.unchain.getRecipe(activeName);
       setActiveRecipe(r);
-      setSelectedNodeId("agent");
+      onSelectNode(null);
       setDirty(false);
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeName]);
 
   const handleRecipeChange = (next) => {
@@ -85,7 +89,7 @@ export default function RecipesPage({ isDark }) {
         <RecipeCanvas
           recipe={activeRecipe}
           selectedNodeId={selectedNodeId}
-          onSelectNode={setSelectedNodeId}
+          onSelectNode={onSelectNode}
           onRecipeChange={handleRecipeChange}
           onSave={handleSave}
           dirty={dirty}

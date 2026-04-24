@@ -17,13 +17,11 @@ import DemoPage from "./PAGEs/demo/demo";
 
 /* { Global hosts } ------------------------------------------------------------------------------------------------------------- */
 import ToastHost from "./BUILTIN_COMPONENTs/toast/toast_host";
-import TopProgressBar from "./BUILTIN_COMPONENTs/top_progress_bar/top_progress_bar";
 /* { Global hosts } ------------------------------------------------------------------------------------------------------------- */
 
 const App = () => {
   return (
     <ConfigContainer>
-      <TopProgressBar />
       <ToastHost />
       <Router>
         <Routes>

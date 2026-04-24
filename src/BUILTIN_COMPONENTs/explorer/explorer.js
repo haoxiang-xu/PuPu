@@ -861,22 +861,37 @@ const ExplorerRow = ({
       )}
 
       {/* ── label ────────────────────────────────────── */}
-      <span
-        ref={labelRef}
-        style={{
-          position: "relative",
-          zIndex: 1,
-          flex: 1,
-          minWidth: 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          opacity: showFull ? 0 : 1,
-          transition: "opacity 0.15s ease",
-        }}
-      >
-        {node.label}
-      </span>
+      {node.custom_label ? (
+        <span
+          ref={labelRef}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+          }}
+        >
+          {node.custom_label}
+        </span>
+      ) : (
+        <span
+          ref={labelRef}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            flex: 1,
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            opacity: showFull ? 0 : 1,
+            transition: "opacity 0.15s ease",
+          }}
+        >
+          {node.label}
+        </span>
+      )}
 
       {/* ── postfix text ─────────────────────────────── */}
       {node.postfix && (

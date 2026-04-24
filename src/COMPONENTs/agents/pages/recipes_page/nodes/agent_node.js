@@ -1,46 +1,54 @@
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+
 export default function AgentNode({ node, isDark, selected }) {
   const accent = "#4a5bd8";
+  const borderColor = selected
+    ? accent
+    : isDark
+      ? "rgba(255,255,255,0.14)"
+      : "rgba(0,0,0,0.1)";
+  const textColor = isDark ? "#ddd" : "#222";
+  const iconColor = selected ? accent : isDark ? "#bbb" : "#666";
+
   return (
     <div
       style={{
-        minWidth: 200,
+        minWidth: 180,
         padding: "10px 12px",
-        border: `${selected ? "1.5" : "1"}px solid ${
-          selected ? accent : isDark ? "rgba(255,255,255,0.2)" : "#d6d6db"
-        }`,
-        borderRadius: 10,
-        background: isDark ? "#242428" : "#fff",
-        boxShadow: selected
-          ? `0 0 0 3px rgba(74,91,216,0.15)`
-          : "0 2px 6px rgba(0,0,0,0.06)",
+        border: `1px solid ${borderColor}`,
+        borderRadius: 8,
+        background: isDark ? "#1e1e22" : "#fff",
         fontSize: 12,
       }}
     >
       <div
         style={{
-          fontSize: 10,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          color: accent,
-          marginBottom: 4,
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
         }}
       >
-        Agent
-      </div>
-      <div
-        style={{
-          fontWeight: 600,
-          fontSize: 13,
-          color: isDark ? "#fff" : "#222",
-        }}
-      >
-        {node.label || "(unnamed)"}
+        <Icon
+          src="bot"
+          style={{ width: 14, height: 14 }}
+          color={iconColor}
+        />
+        <div
+          style={{
+            fontWeight: 500,
+            fontSize: 13,
+            color: textColor,
+          }}
+        >
+          {node.label || "(unnamed)"}
+        </div>
       </div>
       {node.model && (
         <div
           style={{
-            color: isDark ? "#aaa" : "#666",
+            color: isDark ? "#888" : "#888",
             marginTop: 4,
+            marginLeft: 22,
             fontSize: 11,
           }}
         >

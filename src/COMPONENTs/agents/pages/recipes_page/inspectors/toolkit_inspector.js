@@ -1,148 +1,227 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../../../SERVICEs/api";
+import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
-export default function ToolkitInspector({
-  recipe,
-  toolkitId,
-  onRecipeChange,
-  isDark,
-}) {
-  const [allTools, setAllTools] = useState([]);
+export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
+  const [catalog, setCatalog] = useState([]);
+  const [expanded, setExpanded] = useState({});
 
   useEffect(() => {
     (async () => {
       try {
         const { toolkits } = await api.unchain.getToolkitCatalog();
-        const match = (toolkits || []).find((tk) => tk.id === toolkitId);
-        setAllTools(match ? match.tools || [] : []);
-      } catch (exc) {
-        setAllTools([]);
+        setCatalog(toolkits || []);
+      } catch (_exc) {
+        setCatalog([]);
       }
     })();
-  }, [toolkitId]);
+  }, []);
 
-  const current = recipe.toolkits.find((tk) => tk.id === toolkitId);
-  if (!current) return <div>(toolkit not in recipe)</div>;
+  const toolkitsById = useMemo(() => {
+    const map = {};
+    recipe.toolkits.forEach((tk) => {
+      map[tk.id] = tk;
+    });
+    return map;
+  }, [recipe.toolkits]);
 
-  const allOn = current.enabled_tools === null;
-  const enabledSet = new Set(current.enabled_tools || []);
-  const isEnabled = (toolName) => allOn || enabledSet.has(toolName);
+  const switchStyle = {
+    width: 28,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: isDark ? "rgba(255,255,255,0.18)" : "rgba(0,0,0,0.18)",
+    backgroundColor_on: "#4a5bd8",
+    color: "#fff",
+    transition: "all 0.2s ease",
+  };
 
-  const setEnabled = (toolName, on) => {
-    let nextList;
-    if (allOn) {
-      nextList = allTools
-        .map((t) => t.name)
-        .filter((n) => n !== toolName || on);
+  const updateToolkits = (nextList) => {
+    onRecipeChange({ ...recipe, toolkits: nextList });
+  };
+
+  const isToolkitAllOn = (toolkitId) => {
+    const entry = toolkitsById[toolkitId];
+    return entry && entry.enabled_tools === null;
+  };
+
+  const isToolOn = (toolkitId, toolName, allTools) => {
+    const entry = toolkitsById[toolkitId];
+    if (!entry) return false;
+    if (entry.enabled_tools === null) return true;
+    return entry.enabled_tools.includes(toolName);
+  };
+
+  const setToolkitAllOn = (toolkitId, on) => {
+    const has = toolkitsById[toolkitId];
+    if (on) {
+      if (has) {
+        updateToolkits(
+          recipe.toolkits.map((tk) =>
+            tk.id === toolkitId ? { ...tk, enabled_tools: null } : tk,
+          ),
+        );
+      } else {
+        updateToolkits([
+          ...recipe.toolkits,
+          { id: toolkitId, enabled_tools: null },
+        ]);
+      }
     } else {
-      const s = new Set(current.enabled_tools);
+      updateToolkits(recipe.toolkits.filter((tk) => tk.id !== toolkitId));
+    }
+  };
+
+  const setToolOn = (toolkitId, toolName, on, allTools) => {
+    const entry = toolkitsById[toolkitId];
+    if (!entry) {
+      if (on) {
+        updateToolkits([
+          ...recipe.toolkits,
+          { id: toolkitId, enabled_tools: [toolName] },
+        ]);
+      }
+      return;
+    }
+    let list;
+    if (entry.enabled_tools === null) {
+      list = allTools.map((t) => t.name);
+      if (!on) list = list.filter((n) => n !== toolName);
+    } else {
+      const s = new Set(entry.enabled_tools);
       if (on) s.add(toolName);
       else s.delete(toolName);
-      nextList = Array.from(s);
+      list = Array.from(s);
     }
-    onRecipeChange({
-      ...recipe,
-      toolkits: recipe.toolkits.map((tk) =>
-        tk.id === toolkitId ? { ...tk, enabled_tools: nextList } : tk,
-      ),
-    });
-  };
-
-  const resetToAll = () => {
-    onRecipeChange({
-      ...recipe,
-      toolkits: recipe.toolkits.map((tk) =>
-        tk.id === toolkitId ? { ...tk, enabled_tools: null } : tk,
-      ),
-    });
-  };
-
-  const removeToolkit = () => {
-    if (!window.confirm(`Remove toolkit "${toolkitId}" from this recipe?`))
+    if (list.length === 0) {
+      updateToolkits(recipe.toolkits.filter((tk) => tk.id !== toolkitId));
       return;
-    onRecipeChange({
-      ...recipe,
-      toolkits: recipe.toolkits.filter((tk) => tk.id !== toolkitId),
-    });
+    }
+    updateToolkits(
+      recipe.toolkits.map((tk) =>
+        tk.id === toolkitId ? { ...tk, enabled_tools: list } : tk,
+      ),
+    );
   };
+
+  const toggleExpanded = (id) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const textColor = isDark ? "#ddd" : "#333";
+  const mutedColor = "#888";
+  const borderColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
 
   return (
-    <div style={{ fontSize: 12 }}>
+    <div style={{ fontSize: 12, color: textColor }}>
       <div
         style={{
           fontSize: 14,
           fontWeight: 600,
           color: isDark ? "#fff" : "#222",
+          marginBottom: 2,
         }}
       >
-        {toolkitId}
+        Tool Pool
       </div>
-      <div
-        style={{
-          fontSize: 11,
-          color: isDark ? "#888" : "#888",
-          marginTop: 2,
-        }}
-      >
-        Toolkit
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        <button
-          onClick={resetToAll}
-          style={{
-            padding: "3px 8px",
-            fontSize: 11,
-            border: `1px solid ${
-              isDark ? "rgba(255,255,255,0.15)" : "#d6d6db"
-            }`,
-            background: "transparent",
-            color: isDark ? "#ddd" : "#333",
-            borderRadius: 4,
-            cursor: "pointer",
-          }}
-        >
-          Enable all
-        </button>
-        <button
-          onClick={removeToolkit}
-          style={{
-            padding: "3px 8px",
-            fontSize: 11,
-            border: `1px solid #c44`,
-            background: "transparent",
-            color: "#c44",
-            borderRadius: 4,
-            cursor: "pointer",
-          }}
-        >
-          Remove from recipe
-        </button>
+      <div style={{ fontSize: 11, color: mutedColor, marginBottom: 14 }}>
+        {catalog.length} toolkits · {recipe.toolkits.length} enabled
       </div>
 
-      <div style={{ marginTop: 14 }}>
-        {allTools.map((tool) => (
-          <label
-            key={tool.name}
+      {catalog.length === 0 && (
+        <div style={{ color: mutedColor, fontSize: 11 }}>
+          No toolkits available.
+        </div>
+      )}
+
+      {catalog.map((tk) => {
+        const allTools = tk.tools || [];
+        const isOpen = !!expanded[tk.id];
+        const allOn = isToolkitAllOn(tk.id);
+        const entry = toolkitsById[tk.id];
+        const enabledCount = !entry
+          ? 0
+          : entry.enabled_tools === null
+            ? allTools.length
+            : entry.enabled_tools.length;
+
+        return (
+          <div
+            key={tk.id}
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "5px 0",
-              borderBottom: `1px dashed ${
-                isDark ? "rgba(255,255,255,0.06)" : "#f0f0f2"
-              }`,
-              color: isDark ? "#ddd" : "#333",
+              borderBottom: `1px solid ${borderColor}`,
+              paddingBottom: 4,
+              marginBottom: 4,
             }}
           >
-            <span>{tool.name}</span>
-            <input
-              type="checkbox"
-              checked={isEnabled(tool.name)}
-              onChange={(e) => setEnabled(tool.name, e.target.checked)}
-            />
-          </label>
-        ))}
-      </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 0",
+              }}
+            >
+              <div
+                onClick={() => toggleExpanded(tk.id)}
+                style={{
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  flex: 1,
+                  gap: 6,
+                  minWidth: 0,
+                }}
+              >
+                <Icon
+                  src={isOpen ? "arrow_down" : "arrow_right"}
+                  style={{ width: 10, height: 10, flexShrink: 0, opacity: 0.6 }}
+                />
+                <span style={{ fontWeight: 500, fontSize: 13 }}>{tk.id}</span>
+                <span style={{ fontSize: 11, color: mutedColor }}>
+                  {enabledCount}/{allTools.length}
+                </span>
+              </div>
+              <Switch
+                on={allOn}
+                set_on={(next) => setToolkitAllOn(tk.id, next)}
+                style={switchStyle}
+              />
+            </div>
+            {isOpen && (
+              <div style={{ paddingLeft: 18, paddingBottom: 4 }}>
+                {allTools.length === 0 && (
+                  <div style={{ fontSize: 11, color: mutedColor, padding: "4px 0" }}>
+                    No tools.
+                  </div>
+                )}
+                {allTools.map((tool) => (
+                  <div
+                    key={tool.name}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "4px 0",
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0, fontSize: 12 }}>
+                      {tool.name}
+                    </div>
+                    <Switch
+                      on={isToolOn(tk.id, tool.name, allTools)}
+                      set_on={(next) =>
+                        setToolOn(tk.id, tool.name, next, allTools)
+                      }
+                      style={switchStyle}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

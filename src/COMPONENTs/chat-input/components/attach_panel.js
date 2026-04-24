@@ -1,4 +1,4 @@
-import { useCallback, useContext, useRef, useState } from "react";
+import { useCallback, useContext, useMemo, useRef, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
@@ -155,6 +155,50 @@ const AttachPanel = ({
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
   const { workspaceOptions } = useChatInputWorkspaces();
 
+  const combinedModelOptions = useMemo(() => {
+    const agentEntries = (recipeOptions || [])
+      .filter((r) => r && r.value && r.value !== "Default")
+      .map((r) => ({
+        value: `agent:${r.value}`,
+        label: r.label || r.value,
+        trigger_label: r.label || r.value,
+      }));
+    if (agentEntries.length === 0) return modelOptions || [];
+    return [
+      ...(modelOptions || []),
+      {
+        group: "Agents",
+        icon: "bot",
+        collapsed: false,
+        options: agentEntries,
+      },
+    ];
+  }, [modelOptions, recipeOptions]);
+
+  const composedSelectValue =
+    selectedRecipeName && selectedRecipeName !== "Default"
+      ? `agent:${selectedRecipeName}`
+      : selectedModelId || null;
+
+  const handleSelectValueChange = useCallback(
+    (next) => {
+      if (typeof next === "string" && next.startsWith("agent:")) {
+        const name = next.slice("agent:".length);
+        if (onSelectRecipe) onSelectRecipe(name);
+        return;
+      }
+      if (
+        onSelectRecipe &&
+        selectedRecipeName &&
+        selectedRecipeName !== "Default"
+      ) {
+        onSelectRecipe("Default");
+      }
+      if (onSelectModel) onSelectModel(next);
+    },
+    [onSelectModel, onSelectRecipe, selectedRecipeName],
+  );
+
   const handleModelSelectorOpenChange = useCallback((next) => {
     setOpenSelector(next ? "model" : null);
     if (next) {
@@ -275,13 +319,13 @@ const AttachPanel = ({
       >
         {/* ── Model selector ── */}
         {showModelSelector &&
-          modelOptions &&
-          modelOptions.length > 0 &&
+          combinedModelOptions &&
+          combinedModelOptions.length > 0 &&
           selectWrap(
             <Select
-              options={modelOptions}
-              value={selectedModelId || null}
-              set_value={onSelectModel}
+              options={combinedModelOptions}
+              value={composedSelectValue}
+              set_value={handleSelectValueChange}
               placeholder="Select model..."
               filterable={true}
               filter_mode="panel"
@@ -448,44 +492,6 @@ const AttachPanel = ({
               </div>
             ) : null}
 
-            {/* ── Agent recipe selector ── */}
-            {onSelectRecipe && recipeOptions.length > 0 ? (
-              <div style={{ position: "relative" }}>
-                <Select
-                  options={recipeOptions}
-                  value={selectedRecipeName || "Default"}
-                  set_value={(v) => onSelectRecipe(v)}
-                  filterable={true}
-                  filter_mode="panel"
-                  search_placeholder="Search agents..."
-                  open={openSelector === "agents"}
-                  on_open_change={(next) =>
-                    setOpenSelector(next ? "agents" : null)
-                  }
-                  dropdown_style={{
-                    maxWidth: 260,
-                    minWidth: 180,
-                    maxHeight: 260,
-                  }}
-                  custom_trigger={
-                    <div style={{ position: "relative" }}>
-                      <Button
-                        prefix_icon="bot"
-                        title="Select agent"
-                        style={{
-                          color:
-                            selectedRecipeName && selectedRecipeName !== "Default"
-                              ? "rgba(10,186,181,1)"
-                              : color,
-                          fontSize: 14,
-                          borderRadius: floating ? 22 : 16,
-                        }}
-                      />
-                    </div>
-                  }
-                />
-              </div>
-            ) : null}
           </div>
         )}
 

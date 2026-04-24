@@ -1,4 +1,6 @@
 import { useState } from "react";
+import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import SubagentPicker from "../subagent_picker";
 
 export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
@@ -19,6 +21,8 @@ export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
     setPickerOpen(false);
   };
 
+  const borderColor = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
+
   return (
     <div style={{ fontSize: 12 }}>
       <div
@@ -30,13 +34,7 @@ export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
       >
         Subagent Pool
       </div>
-      <div
-        style={{
-          fontSize: 11,
-          color: isDark ? "#888" : "#888",
-          marginTop: 2,
-        }}
-      >
+      <div style={{ fontSize: 11, color: "#888", marginTop: 2 }}>
         {recipe.subagent_pool.length} subagents
       </div>
 
@@ -49,25 +47,17 @@ export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
               justifyContent: "space-between",
               alignItems: "center",
               padding: "6px 0",
-              borderBottom: `1px dashed ${
-                isDark ? "rgba(255,255,255,0.06)" : "#f0f0f2"
-              }`,
+              borderBottom: `1px solid ${borderColor}`,
             }}
           >
             <span style={{ color: isDark ? "#ddd" : "#333" }}>
               {entry.kind === "ref" ? entry.template_name : entry.name}
             </span>
-            <span
-              style={{
-                display: "flex",
-                gap: 8,
-                alignItems: "center",
-              }}
-            >
+            <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
               <span
                 style={{
                   fontSize: 10,
-                  color: isDark ? "#888" : "#888",
+                  color: "#888",
                   padding: "1px 6px",
                   border: `1px solid ${
                     isDark ? "rgba(255,255,255,0.15)" : "#d6d6db"
@@ -77,37 +67,35 @@ export default function PoolInspector({ recipe, onRecipeChange, isDark }) {
               >
                 {entry.kind}
               </span>
-              <button
+              <Button
+                prefix_icon="delete"
                 onClick={() => removeAt(idx)}
                 style={{
-                  border: "none",
-                  background: "transparent",
-                  cursor: "pointer",
-                  color: "#c44",
+                  paddingVertical: 3,
+                  paddingHorizontal: 4,
+                  borderRadius: 4,
+                  opacity: 0.5,
+                  content: { icon: { width: 12, height: 12 } },
                 }}
-              >
-                ✕
-              </button>
+              />
             </span>
           </div>
         ))}
       </div>
 
-      <button
+      <Button
+        prefix_icon="add"
+        label="Add subagent"
         onClick={() => setPickerOpen(true)}
         style={{
           marginTop: 12,
-          padding: "4px 10px",
-          border: `1px solid #4a5bd8`,
-          background: "transparent",
-          color: "#4a5bd8",
-          borderRadius: 4,
+          paddingVertical: 5,
+          paddingHorizontal: 10,
+          borderRadius: 6,
           fontSize: 12,
-          cursor: "pointer",
+          iconSize: 12,
         }}
-      >
-        + Add subagent
-      </button>
+      />
 
       {pickerOpen && (
         <SubagentPicker

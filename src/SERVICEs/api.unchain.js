@@ -836,6 +836,51 @@ export const createUnchainApi = () => {
       );
     },
 
+    renameRecipe: async (oldName, newName) => {
+      const getMethod = assertBridgeMethod("unchainAPI", "getRecipe");
+      const saveMethod = assertBridgeMethod("unchainAPI", "saveRecipe");
+      const deleteMethod = assertBridgeMethod("unchainAPI", "deleteRecipe");
+      const recipe = await withTimeout(
+        () => getMethod(oldName),
+        15000,
+        "recipe_get_timeout",
+        "Recipe get request timed out",
+      );
+      if (!recipe) throw new Error(`recipe_not_found:${oldName}`);
+      await withTimeout(
+        () => saveMethod({ ...recipe, name: newName }),
+        20000,
+        "recipe_save_timeout",
+        "Recipe save request timed out",
+      );
+      await withTimeout(
+        () => deleteMethod(oldName),
+        30000,
+        "recipe_delete_timeout",
+        "Recipe delete request timed out",
+      );
+      return { old_name: oldName, new_name: newName };
+    },
+
+    duplicateRecipe: async (srcName, nextName) => {
+      const getMethod = assertBridgeMethod("unchainAPI", "getRecipe");
+      const saveMethod = assertBridgeMethod("unchainAPI", "saveRecipe");
+      const recipe = await withTimeout(
+        () => getMethod(srcName),
+        15000,
+        "recipe_get_timeout",
+        "Recipe get request timed out",
+      );
+      if (!recipe) throw new Error(`recipe_not_found:${srcName}`);
+      await withTimeout(
+        () => saveMethod({ ...recipe, name: nextName }),
+        20000,
+        "recipe_save_timeout",
+        "Recipe save request timed out",
+      );
+      return nextName;
+    },
+
     listSubagentRefs: async () => {
       const method = assertBridgeMethod("unchainAPI", "listSubagentRefs");
       const response = await withTimeout(

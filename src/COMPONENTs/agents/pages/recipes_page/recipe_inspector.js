@@ -35,12 +35,10 @@ export default function RecipeInspector({
         isDark={isDark}
       />
     );
-  } else if (selectedNodeId.startsWith("tk:")) {
-    const toolkitId = selectedNodeId.slice(3);
+  } else if (selectedNodeId === "toolpool") {
     content = (
       <ToolkitInspector
         recipe={recipe}
-        toolkitId={toolkitId}
         onRecipeChange={onRecipeChange}
         isDark={isDark}
       />

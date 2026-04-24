@@ -68,6 +68,7 @@ const DEFAULT_THEME = {
 
 function FlowEditor({
   style,
+  theme: theme_override,
   nodes = [],
   edges = [],
   on_nodes_change,
@@ -83,10 +84,14 @@ function FlowEditor({
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
 
-  /* ── Theme (merge defaults + user theme) ────────────────── */
+  /* ── Theme (merge defaults + config + per-instance override) ── */
   const theme = useMemo(
-    () => ({ ...DEFAULT_THEME, ...(config_theme?.flow_editor || {}) }),
-    [config_theme],
+    () => ({
+      ...DEFAULT_THEME,
+      ...(config_theme?.flow_editor || {}),
+      ...(theme_override || {}),
+    }),
+    [config_theme, theme_override],
   );
 
   /* ── React state ────────────────────────────────────────── */

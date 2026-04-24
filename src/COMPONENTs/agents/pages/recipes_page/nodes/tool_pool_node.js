@@ -1,7 +1,7 @@
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
-export default function SubagentPoolNode({ node, isDark, selected }) {
-  const accent = "#4a5bd8";
+export default function ToolPoolNode({ node, isDark, selected }) {
+  const accent = "#6b8f3a";
   const borderColor = selected
     ? accent
     : isDark
@@ -9,7 +9,9 @@ export default function SubagentPoolNode({ node, isDark, selected }) {
       : "rgba(0,0,0,0.1)";
   const textColor = isDark ? "#ddd" : "#222";
   const iconColor = selected ? accent : isDark ? "#bbb" : "#666";
-  const mutedColor = isDark ? "#888" : "#888";
+  const mutedColor = "#888";
+
+  const chips = node.chips || [];
 
   return (
     <div
@@ -22,29 +24,13 @@ export default function SubagentPoolNode({ node, isDark, selected }) {
         fontSize: 12,
       }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-        }}
-      >
-        <Icon
-          src="bot"
-          style={{ width: 14, height: 14 }}
-          color={iconColor}
-        />
-        <div
-          style={{
-            fontWeight: 500,
-            fontSize: 13,
-            color: textColor,
-          }}
-        >
-          {node.count} subagents
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Icon src="tool" style={{ width: 14, height: 14 }} color={iconColor} />
+        <div style={{ fontWeight: 500, fontSize: 13, color: textColor }}>
+          {node.count || 0} tools
         </div>
       </div>
-      {node.chips && node.chips.length > 0 && (
+      {chips.length > 0 && (
         <div
           style={{
             marginTop: 6,
@@ -54,20 +40,14 @@ export default function SubagentPoolNode({ node, isDark, selected }) {
             gap: 4,
           }}
         >
-          {node.chips.slice(0, 3).map((c) => (
-            <span
-              key={c}
-              style={{
-                fontSize: 10,
-                color: mutedColor,
-              }}
-            >
+          {chips.slice(0, 3).map((c) => (
+            <span key={c} style={{ fontSize: 10, color: mutedColor }}>
               {c}
             </span>
           ))}
-          {node.chips.length > 3 && (
+          {chips.length > 3 && (
             <span style={{ fontSize: 10, color: mutedColor }}>
-              +{node.chips.length - 3}
+              +{chips.length - 3}
             </span>
           )}
         </div>
