@@ -167,6 +167,7 @@ const ChatInterface = () => {
     reason: "",
   });
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
+  const [recipeOptions, setRecipeOptions] = useState([]);
   const [configuredProviders, setConfiguredProviders] = useState(() => {
     const stored = readModelProviders();
     return { hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key };
@@ -289,6 +290,7 @@ const ChatInterface = () => {
     agentOrchestration: session.agentOrchestration,
     selectedToolkits: session.selectedToolkits,
     selectedWorkspaceIds: session.selectedWorkspaceIds,
+    selectedRecipeName: session.selectedRecipeName,
     chatKind: session.activeChatKind,
     characterId: session.activeCharacterId,
     threadIdRef: session.threadIdRef,
@@ -447,6 +449,22 @@ const ChatInterface = () => {
     };
 
     refreshPersistedCharacterAvatars();
+
+    const refreshRecipeOptions = async () => {
+      try {
+        const { recipes } = await api.unchain.listRecipes();
+        if (cancelled) return;
+        const options = (recipes || []).map((r) => ({
+          label: r.name,
+          value: r.name,
+        }));
+        setRecipeOptions(options);
+      } catch (_exc) {
+        // ignore; recipes are optional
+      }
+    };
+    refreshRecipeOptions();
+
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
       const stored = readModelProviders();
@@ -566,11 +584,15 @@ const ChatInterface = () => {
       onToolkitsChange: session.setSelectedToolkits,
       selectedWorkspaceIds: session.selectedWorkspaceIds,
       onWorkspaceIdsChange: session.setSelectedWorkspaceIds,
+      selectedRecipeName: session.selectedRecipeName,
+      onSelectRecipe: session.setSelectedRecipeName,
+      recipeOptions,
     }),
     [
       session.inputValue, session.setInputValue, session.selectedModelId,
       session.isCharacterChat, session.selectedToolkits, session.setSelectedToolkits,
       session.selectedWorkspaceIds, session.setSelectedWorkspaceIds,
+      session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.isStreaming,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,

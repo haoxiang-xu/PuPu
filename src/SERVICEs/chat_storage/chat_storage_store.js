@@ -1486,6 +1486,10 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
     patch,
     "selectedWorkspaceIds",
   );
+  const hasRecipe = Object.prototype.hasOwnProperty.call(
+    patch,
+    "selectedRecipeName",
+  );
 
   const nextAgent = hasAgent
     ? locked
@@ -1502,6 +1506,14 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
       ? []
       : sanitizeSelectedWorkspaceIds(patch.selectedWorkspaceIds)
     : null;
+  const nextRecipe = hasRecipe
+    ? locked
+      ? "Default"
+      : typeof patch.selectedRecipeName === "string" &&
+          patch.selectedRecipeName.trim()
+        ? patch.selectedRecipeName.trim()
+        : "Default"
+    : null;
 
   const agentSame =
     !hasAgent || agentOrchestrationEq(existing.agentOrchestration, nextAgent);
@@ -1510,8 +1522,11 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
   const workspacesSame =
     !hasWorkspaces ||
     arraysShallowEq(existing.selectedWorkspaceIds, nextWorkspaces);
+  const recipeSame =
+    !hasRecipe ||
+    (existing.selectedRecipeName || "Default") === nextRecipe;
 
-  if (agentSame && toolkitsSame && workspacesSame) {
+  if (agentSame && toolkitsSame && workspacesSame && recipeSame) {
     return getChatsStore();
   }
 
@@ -1522,6 +1537,7 @@ export const setChatSessionBundle = (chatId, patch = {}, options = {}) => {
       if (hasAgent) out.agentOrchestration = nextAgent;
       if (hasToolkits) out.selectedToolkits = nextToolkits;
       if (hasWorkspaces) out.selectedWorkspaceIds = nextWorkspaces;
+      if (hasRecipe) out.selectedRecipeName = nextRecipe;
       return out;
     },
     { ...options, type: "chat_update_session_bundle" },

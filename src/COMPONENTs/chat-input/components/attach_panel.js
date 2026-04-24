@@ -144,6 +144,9 @@ const AttachPanel = ({
   showWorkspaceSelector = true,
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
+  selectedRecipeName = "Default",
+  onSelectRecipe,
+  recipeOptions = [],
 }) => {
   const { theme } = useContext(ConfigContext);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
@@ -344,7 +347,8 @@ const AttachPanel = ({
             )}
 
             {/* ── Tools selector (icon button + badge trigger) ── */}
-            {showToolSelector ? (
+            {showToolSelector &&
+            (!selectedRecipeName || selectedRecipeName === "Default") ? (
               <div style={{ position: "relative" }}>
                 <Select
                   multi
@@ -438,6 +442,45 @@ const AttachPanel = ({
                         }}
                       />
                       <Badge count={selectedWorkspaceIds.length} />
+                    </div>
+                  }
+                />
+              </div>
+            ) : null}
+
+            {/* ── Agent recipe selector ── */}
+            {onSelectRecipe && recipeOptions.length > 0 ? (
+              <div style={{ position: "relative" }}>
+                <Select
+                  options={recipeOptions}
+                  value={selectedRecipeName || "Default"}
+                  set_value={(v) => onSelectRecipe(v)}
+                  filterable={true}
+                  filter_mode="panel"
+                  search_placeholder="Search agents..."
+                  open={openSelector === "agents"}
+                  on_open_change={(next) =>
+                    setOpenSelector(next ? "agents" : null)
+                  }
+                  dropdown_style={{
+                    maxWidth: 260,
+                    minWidth: 180,
+                    maxHeight: 260,
+                  }}
+                  custom_trigger={
+                    <div style={{ position: "relative" }}>
+                      <Button
+                        prefix_icon="bot"
+                        title="Select agent"
+                        style={{
+                          color:
+                            selectedRecipeName && selectedRecipeName !== "Default"
+                              ? "rgba(10,186,181,1)"
+                              : color,
+                          fontSize: 14,
+                          borderRadius: floating ? 22 : 16,
+                        }}
+                      />
                     </div>
                   }
                 />

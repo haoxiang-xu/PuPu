@@ -60,6 +60,15 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.SAVE_CHARACTER, payload),
   deleteCharacter: (characterId) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_CHARACTER, { characterId }),
+  listRecipes: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_RECIPES),
+  getRecipe: (recipeName) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_RECIPE, { recipeName }),
+  saveRecipe: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.SAVE_RECIPE, payload),
+  deleteRecipe: (recipeName) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_RECIPE, { recipeName }),
+  listSubagentRefs: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS),
   previewCharacterDecision: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION, payload),
   buildCharacterAgentConfig: (payload = {}) =>

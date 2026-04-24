@@ -326,6 +326,54 @@ def _dedupe_by_precedence(
     return winners
 
 
+def _compute_effective_tools(
+    allowed_tools: tuple[str, ...] | None,
+    main_tool_names: set[str],
+) -> tuple[str, ...] | None:
+    """Intersect a subagent's declared allowed_tools with the main agent's toolset.
+
+    Returns None if the subagent allows all (``allowed_tools is None``), otherwise
+    the ordered intersection. Returns empty tuple if the declared list has no
+    overlap with ``main_tool_names`` — caller should skip such a subagent.
+    """
+    if allowed_tools is None:
+        return None
+    declared = tuple(dict.fromkeys(allowed_tools))
+    return tuple(t for t in declared if t in main_tool_names)
+
+
+def _build_child_agent(
+    *,
+    UnchainAgent: Any,
+    ToolsModule: Any,
+    PoliciesModule: Any,
+    toolkits: tuple[Any, ...],
+    provider: str,
+    model: str,
+    api_key: str | None,
+    max_iterations: int,
+    name: str,
+    instructions: str,
+) -> Any:
+    """Construct the inner Agent instance wrapped inside a SubagentTemplate.
+
+    Mirrors the inline body in ``load_templates`` so that
+    ``unchain_adapter._materialize_recipe_subagents`` can reuse it.
+    """
+    child_modules: list[Any] = []
+    if toolkits:
+        child_modules.append(ToolsModule(tools=tuple(toolkits)))
+    child_modules.append(PoliciesModule(max_iterations=max(2, max_iterations // 3)))
+    return UnchainAgent(
+        name=name,
+        instructions=instructions,
+        provider=provider,
+        model=model,
+        api_key=api_key,
+        modules=tuple(child_modules),
+    )
+
+
 def _collect_main_tool_names(toolkits: tuple[Any, ...]) -> set[str]:
     names: set[str] = set()
     for toolkit in toolkits:

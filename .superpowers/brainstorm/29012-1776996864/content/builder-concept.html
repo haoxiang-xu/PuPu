@@ -1,0 +1,302 @@
+<h2>Agent Builder — Hub-and-Spoke 概念</h2>
+<p class="subtitle">当前编辑 <strong>Coder</strong> preset。中间是 Agent 节点，左右挂 Toolkit / Subagent Pool。边无方向、无执行顺序，只表示"attach"。点任一节点 → 右侧 Inspector 编辑细节。</p>
+
+<style>
+  .builder-frame {
+    display: grid;
+    grid-template-columns: 180px 1fr 280px;
+    gap: 12px;
+    background: var(--surface-1, #f7f7f8);
+    border: 1px solid var(--border, #e5e5e7);
+    border-radius: 8px;
+    padding: 10px;
+    min-height: 560px;
+  }
+  .preset-list {
+    border-right: 1px solid var(--border, #e5e5e7);
+    padding-right: 12px;
+  }
+  .preset-list h4 {
+    margin: 0 0 10px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted, #888);
+  }
+  .preset-list .item {
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    margin-bottom: 2px;
+    color: var(--text, #222);
+  }
+  .preset-list .item.active {
+    background: var(--accent-soft, #eef1ff);
+    color: var(--accent, #4a5bd8);
+    font-weight: 600;
+  }
+  .preset-list .new-btn {
+    margin-top: 10px;
+    font-size: 12px;
+    color: var(--text-muted, #888);
+    border: 1px dashed var(--border, #d0d0d5);
+    padding: 6px 10px;
+    border-radius: 6px;
+    text-align: center;
+  }
+
+  .canvas {
+    position: relative;
+    background:
+      radial-gradient(circle at 1px 1px, #d9d9dd 1px, transparent 0);
+    background-size: 20px 20px;
+    background-color: var(--surface-0, #fafafb);
+    border-radius: 6px;
+    overflow: hidden;
+    min-height: 540px;
+  }
+  .canvas svg {
+    position: absolute; inset: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+  }
+  .node {
+    position: absolute;
+    background: #fff;
+    border: 1.5px solid #d6d6db;
+    border-radius: 10px;
+    padding: 10px 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    min-width: 150px;
+    font-size: 12px;
+  }
+  .node .tag {
+    display: inline-block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .node .title {
+    font-weight: 600;
+    font-size: 13px;
+    color: #222;
+  }
+  .node .meta {
+    color: #666;
+    margin-top: 4px;
+  }
+  .node.selected {
+    border-color: #4a5bd8;
+    box-shadow: 0 0 0 3px rgba(74,91,216,0.15), 0 2px 6px rgba(0,0,0,0.08);
+  }
+
+  .node-agent {
+    top: 220px; left: 50%;
+    transform: translateX(-50%);
+    background: #fff;
+    border-color: #4a5bd8;
+    min-width: 200px;
+  }
+  .node-agent .tag { color: #4a5bd8; }
+  .node-agent .format-toggle {
+    display: inline-flex; gap: 0;
+    margin-top: 8px;
+    border: 1px solid #e5e5e7;
+    border-radius: 5px;
+    overflow: hidden;
+    font-size: 11px;
+  }
+  .node-agent .format-toggle span {
+    padding: 3px 8px;
+    color: #888;
+  }
+  .node-agent .format-toggle span.active {
+    background: #4a5bd8; color: white;
+  }
+
+  .node-tk { top: 70px; left: 80px; }
+  .node-tk2 { top: 340px; left: 80px; }
+  .node-pool { top: 210px; right: 80px; }
+  .node-pool .chip {
+    display: inline-block;
+    background: #eef1ff;
+    color: #4a5bd8;
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    margin: 3px 2px 0 0;
+  }
+
+  .inspector {
+    border-left: 1px solid var(--border, #e5e5e7);
+    padding-left: 12px;
+    font-size: 12px;
+  }
+  .inspector h4 {
+    margin: 0 0 2px 0;
+    font-size: 13px;
+    color: #222;
+  }
+  .inspector .sub {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 12px;
+  }
+  .inspector .section { margin-bottom: 14px; }
+  .inspector .section-label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #888;
+    margin-bottom: 6px;
+  }
+  .inspector .tool-row {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px dashed #f0f0f2;
+    color: #333;
+  }
+  .inspector .tool-row .cb {
+    width: 13px; height: 13px;
+    border: 1.5px solid #4a5bd8;
+    background: #4a5bd8;
+    border-radius: 3px;
+    display: inline-block;
+    position: relative;
+  }
+  .inspector .tool-row .cb::after {
+    content: "✓";
+    color: white;
+    font-size: 9px;
+    position: absolute;
+    top: -2px; left: 2px;
+  }
+  .inspector .tool-row.off .cb {
+    background: #fff;
+    border-color: #bbb;
+  }
+  .inspector .tool-row.off .cb::after { content: ""; }
+  .inspector .tool-row.off { color: #aaa; }
+</style>
+
+<div class="builder-frame">
+  <div class="preset-list">
+    <h4>Agent Presets</h4>
+    <div class="item active">Coder</div>
+    <div class="item">Researcher</div>
+    <div class="item">PM Buddy</div>
+    <div class="item">Explore</div>
+    <div class="new-btn">+ New Preset</div>
+  </div>
+
+  <div class="canvas">
+    <svg>
+      <!-- bezier connections -->
+      <defs>
+        <marker id="dot" viewBox="0 0 6 6" refX="3" refY="3" markerWidth="6" markerHeight="6">
+          <circle cx="3" cy="3" r="2.5" fill="#4a5bd8"/>
+        </marker>
+      </defs>
+      <path d="M 230 100 C 320 150, 320 220, 400 250" stroke="#b4b6d1" stroke-width="2" fill="none" marker-start="url(#dot)" marker-end="url(#dot)"/>
+      <path d="M 230 370 C 320 350, 320 290, 400 275" stroke="#b4b6d1" stroke-width="2" fill="none" marker-start="url(#dot)" marker-end="url(#dot)"/>
+      <path d="M 560 260 C 640 260, 640 260, 720 240" stroke="#b4b6d1" stroke-width="2" fill="none" marker-start="url(#dot)" marker-end="url(#dot)"/>
+    </svg>
+
+    <div class="node node-tk">
+      <div class="tag">Toolkit</div>
+      <div class="title">Core</div>
+      <div class="meta">3/4 tools enabled</div>
+    </div>
+
+    <div class="node node-tk2">
+      <div class="tag">Toolkit</div>
+      <div class="title">Workspace</div>
+      <div class="meta">5/6 tools enabled</div>
+    </div>
+
+    <div class="node node-agent selected">
+      <div class="tag">Agent (preset root)</div>
+      <div class="title">Coder</div>
+      <div class="meta">claude-sonnet-4-6</div>
+      <div class="format-toggle">
+        <span class="active">Soul</span>
+        <span>Skeleton</span>
+      </div>
+    </div>
+
+    <div class="node node-pool">
+      <div class="tag">Subagent Pool</div>
+      <div class="title">3 subagents</div>
+      <div style="margin-top:6px">
+        <span class="chip">Explore</span>
+        <span class="chip">CodeReview</span>
+        <span class="chip">+ inline</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="inspector">
+    <h4>Coder</h4>
+    <div class="sub">Agent node · Soul 格式</div>
+
+    <div class="section">
+      <div class="section-label">Prompt (soul body)</div>
+      <div style="font-family: ui-monospace, monospace; font-size: 11px; color: #555; background: #f5f5f7; padding: 6px; border-radius: 4px; line-height: 1.4;">
+        You are a senior full-stack<br>
+        developer. Prefer minimal<br>
+        surface changes. Use tools<br>
+        over speculation…
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Model</div>
+      <div style="color:#333">anthropic:claude-sonnet-4-6</div>
+    </div>
+
+    <div class="section">
+      <div class="section-label">Inherited tools (click to toggle)</div>
+      <div class="tool-row"><span>read</span><span class="cb"></span></div>
+      <div class="tool-row"><span>grep</span><span class="cb"></span></div>
+      <div class="tool-row"><span>write_file</span><span class="cb"></span></div>
+      <div class="tool-row off"><span>shell</span><span class="cb"></span></div>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top:18px;font-size:12px;color:#888">
+  ▸ 中间是 <strong>Agent 节点</strong>（当前选中，所以 Inspector 显示它的 Prompt/Model/Tools）<br>
+  ▸ 左边两个 <strong>Toolkit</strong> 节点，显示"几个 tool 已启用"<br>
+  ▸ 右边 <strong>Subagent Pool</strong> 节点，里面是 chips：选的 soul/skeleton 文件 + 内联新写的<br>
+  ▸ 点 Toolkit 节点 → Inspector 换成 tool 勾选列表<br>
+  ▸ 点 Subagent Pool 里某个 subagent → Inspector 换成该 subagent 的 disable list（在继承基础上去掉哪些）
+</p>
+
+<h3 style="margin-top:24px">这个概念 OK 吗？</h3>
+<div class="options">
+  <div class="option" data-choice="yes" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>OK，就这个方向</h3>
+      <p>Hub-and-spoke + inspector，我们往这方向细化</p>
+    </div>
+  </div>
+  <div class="option" data-choice="tweak" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>方向对，但有想改的地方</h3>
+      <p>（在 terminal 里说哪里不对）</p>
+    </div>
+  </div>
+  <div class="option" data-choice="switch" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>换成 B（纯 form）或 C（混合）</h3>
+      <p>看了觉得图不如 form 直接</p>
+    </div>
+  </div>
+</div>

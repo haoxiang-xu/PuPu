@@ -47,6 +47,9 @@ export const useChatSessionState = ({
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState(
     () => initialChat.selectedWorkspaceIds || [],
   );
+  const [selectedRecipeName, setSelectedRecipeName] = useState(
+    () => initialChat.selectedRecipeName || "Default",
+  );
   const [activeChatKind, setActiveChatKind] = useState(
     initialChat.kind === "character" ? "character" : "default",
   );
@@ -204,6 +207,7 @@ export const useChatSessionState = ({
       );
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
       setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
+      setSelectedRecipeName(nextActiveChat.selectedRecipeName || "Default");
       setActiveChatKind(
         nextActiveChat.kind === "character" ? "character" : "default",
       );
@@ -338,6 +342,7 @@ export const useChatSessionState = ({
         selectedToolkits,
         agentOrchestration,
         selectedWorkspaceIds,
+        selectedRecipeName,
       },
       { source: "chat-page" },
     );
@@ -346,6 +351,7 @@ export const useChatSessionState = ({
     selectedToolkits,
     agentOrchestration,
     selectedWorkspaceIds,
+    selectedRecipeName,
   ]);
 
   useEffect(() => {
@@ -387,6 +393,8 @@ export const useChatSessionState = ({
     setAgentOrchestration,
     selectedToolkits,
     setSelectedToolkits,
+    selectedRecipeName,
+    setSelectedRecipeName,
     selectedWorkspaceIds,
     setSelectedWorkspaceIds,
     systemPromptOverridesRef,

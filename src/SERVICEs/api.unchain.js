@@ -790,6 +790,68 @@ export const createUnchainApi = () => {
       );
     },
 
+    listRecipes: async () => {
+      const method = assertBridgeMethod("unchainAPI", "listRecipes");
+      const response = await withTimeout(
+        () => method(),
+        15000,
+        "recipe_list_timeout",
+        "Recipe list request timed out",
+      );
+      return {
+        recipes: Array.isArray(response?.recipes) ? response.recipes : [],
+        count: Number.isFinite(Number(response?.count))
+          ? Number(response.count)
+          : 0,
+      };
+    },
+
+    getRecipe: async (recipeName) => {
+      const method = assertBridgeMethod("unchainAPI", "getRecipe");
+      return withTimeout(
+        () => method(recipeName),
+        15000,
+        "recipe_get_timeout",
+        "Recipe get request timed out",
+      );
+    },
+
+    saveRecipe: async (payload = {}) => {
+      const method = assertBridgeMethod("unchainAPI", "saveRecipe");
+      return withTimeout(
+        () => method(isObject(payload) ? payload : {}),
+        20000,
+        "recipe_save_timeout",
+        "Recipe save request timed out",
+      );
+    },
+
+    deleteRecipe: async (recipeName) => {
+      const method = assertBridgeMethod("unchainAPI", "deleteRecipe");
+      return withTimeout(
+        () => method(recipeName),
+        30000,
+        "recipe_delete_timeout",
+        "Recipe delete request timed out",
+      );
+    },
+
+    listSubagentRefs: async () => {
+      const method = assertBridgeMethod("unchainAPI", "listSubagentRefs");
+      const response = await withTimeout(
+        () => method(),
+        15000,
+        "subagent_refs_timeout",
+        "Subagent refs request timed out",
+      );
+      return {
+        refs: Array.isArray(response?.refs) ? response.refs : [],
+        count: Number.isFinite(Number(response?.count))
+          ? Number(response.count)
+          : 0,
+      };
+    },
+
     previewCharacterDecision: async (payload = {}) => {
       const method = assertBridgeMethod("unchainAPI", "previewCharacterDecision");
       return withTimeout(

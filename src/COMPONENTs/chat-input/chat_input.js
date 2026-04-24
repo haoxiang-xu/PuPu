@@ -36,6 +36,9 @@ const ChatInput = ({
   showWorkspaceSelector = true,
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
+  selectedRecipeName = "Default",
+  onSelectRecipe,
+  recipeOptions = [],
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
@@ -176,6 +179,9 @@ const ChatInput = ({
                   showWorkspaceSelector={showWorkspaceSelector}
                   selectedWorkspaceIds={selectedWorkspaceIds}
                   onWorkspaceIdsChange={onWorkspaceIdsChange}
+                  selectedRecipeName={selectedRecipeName}
+                  onSelectRecipe={onSelectRecipe}
+                  recipeOptions={recipeOptions}
                 />
               ) : null
             }

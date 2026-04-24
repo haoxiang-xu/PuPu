@@ -42,6 +42,11 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_CHARACTER,
   CHANNELS.UNCHAIN.SAVE_CHARACTER,
   CHANNELS.UNCHAIN.DELETE_CHARACTER,
+  CHANNELS.UNCHAIN.LIST_RECIPES,
+  CHANNELS.UNCHAIN.GET_RECIPE,
+  CHANNELS.UNCHAIN.SAVE_RECIPE,
+  CHANNELS.UNCHAIN.DELETE_RECIPE,
+  CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS,
   CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,
   CHANNELS.UNCHAIN.BUILD_CHARACTER_AGENT_CONFIG,
   CHANNELS.UNCHAIN.EXPORT_CHARACTER,
@@ -248,6 +253,25 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.DELETE_CHARACTER,
     async (_event, payload = {}) =>
       unchainService.deleteMisoCharacter(payload.characterId),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_RECIPES, async () =>
+    unchainService.listMisoRecipes(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.GET_RECIPE,
+    async (_event, payload = {}) =>
+      unchainService.getMisoRecipe(payload.recipeName),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.SAVE_RECIPE, async (_event, payload = {}) =>
+    unchainService.saveMisoRecipe(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_RECIPE,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoRecipe(payload.recipeName),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS, async () =>
+    unchainService.listMisoSubagentRefs(),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,

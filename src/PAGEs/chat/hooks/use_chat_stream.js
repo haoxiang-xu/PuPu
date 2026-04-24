@@ -80,6 +80,7 @@ export const useChatStream = ({
   agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
+  selectedRecipeName,
   chatKind = "default",
   characterId = "",
   threadIdRef,
@@ -1442,6 +1443,11 @@ export const useChatStream = ({
               ...(effectiveWorkspaceIds.length > 0 && {
                 selectedWorkspaceIds: effectiveWorkspaceIds,
               }),
+              ...(!isCharacterChat &&
+                selectedRecipeName &&
+                selectedRecipeName !== "Default" && {
+                  recipe_name: selectedRecipeName,
+                }),
               ...(!isCharacterChat && {
                 agent_orchestration: effectiveAgentOrchestration,
               }),
@@ -2484,6 +2490,7 @@ export const useChatStream = ({
       resolveAttachmentPayloads,
       selectedToolkits,
       selectedWorkspaceIds,
+      selectedRecipeName,
       setDraftAttachments,
       setInputValue,
       setMessages,

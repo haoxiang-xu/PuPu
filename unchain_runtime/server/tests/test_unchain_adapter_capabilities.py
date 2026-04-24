@@ -2209,5 +2209,340 @@ requires_confirmation = true
         self.assertEqual(metadata_payload["toolkitIcon"], {})
 
 
+class ApplyRecipeToolkitFilterTests(unittest.TestCase):
+    def _mk_tool(self, name):
+        tool = type("T", (), {})()
+        tool.name = name
+        return tool
+
+    def _mk_toolkit(self, tid, tool_names):
+        tk = type("TK", (), {})()
+        tk.id = tid
+        tk.name = tid
+        tk.tools = {n: self._mk_tool(n) for n in tool_names}
+        return tk
+
+    def test_filter_keeps_listed_toolkits_only(self):
+        from unchain_adapter import _apply_recipe_toolkit_filter
+        from recipe import ToolkitRef
+        all_tks = [self._mk_toolkit("core", ["read", "grep"]),
+                   self._mk_toolkit("workspace", ["write"])]
+        refs = (ToolkitRef(id="core", enabled_tools=None),)
+        filtered = _apply_recipe_toolkit_filter(all_tks, refs)
+        self.assertEqual([t.id for t in filtered], ["core"])
+
+    def test_filter_respects_enabled_tools_whitelist(self):
+        from unchain_adapter import _apply_recipe_toolkit_filter
+        from recipe import ToolkitRef
+        all_tks = [self._mk_toolkit("core", ["read", "grep", "write"])]
+        refs = (ToolkitRef(id="core", enabled_tools=("read", "grep")),)
+        filtered = _apply_recipe_toolkit_filter(all_tks, refs)
+        self.assertEqual(set(filtered[0].tools.keys()), {"read", "grep"})
+
+    def test_filter_warns_on_missing_toolkit(self):
+        from unchain_adapter import _apply_recipe_toolkit_filter
+        from recipe import ToolkitRef
+        all_tks = [self._mk_toolkit("core", ["read"])]
+        refs = (ToolkitRef(id="ghost", enabled_tools=None),)
+        filtered = _apply_recipe_toolkit_filter(all_tks, refs)
+        self.assertEqual(filtered, [])
+
+    def test_null_enabled_tools_keeps_all(self):
+        from unchain_adapter import _apply_recipe_toolkit_filter
+        from recipe import ToolkitRef
+        all_tks = [self._mk_toolkit("core", ["read", "grep"])]
+        refs = (ToolkitRef(id="core", enabled_tools=None),)
+        filtered = _apply_recipe_toolkit_filter(all_tks, refs)
+        self.assertEqual(set(filtered[0].tools.keys()), {"read", "grep"})
+
+
+class MaterializeRecipeSubagentsTests(unittest.TestCase):
+    def _fake_modules(self):
+        UnchainAgent = type("UA", (), {"__init__": lambda s, **kw: setattr(s, "kw", kw) or None})
+        ToolsModule = type("TM", (), {"__init__": lambda s, **kw: setattr(s, "kw", kw) or None})
+        PoliciesModule = type("PM", (), {"__init__": lambda s, **kw: setattr(s, "kw", kw) or None})
+        SubagentTemplate = type("ST", (), {"__init__": lambda s, **kw: setattr(s, "kw", kw) or None})
+        return UnchainAgent, ToolsModule, PoliciesModule, SubagentTemplate
+
+    def _fake_toolkit(self, tid, names):
+        FakeTool = type("FT", (), {"__init__": lambda s, n: setattr(s, "name", n) or None})
+        tk = type("TK", (), {})()
+        tk.id = tid
+        tk.name = tid
+        tk.tools = {n: FakeTool(n) for n in names}
+        return tk
+
+    def test_ref_kind_loads_template_and_applies_disabled_tools(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, SubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from subagent_seeds import ensure_seeds_written
+                ensure_seeds_written(Path(tmp) / ".pupu" / "subagents")
+
+                recipe = Recipe(
+                    name="T", description="", model=None, max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="x"),
+                    toolkits=(),
+                    subagent_pool=(
+                        SubagentRef(kind="ref", template_name="Explore", disabled_tools=("shell",)),
+                    ),
+                )
+                toolkits = [self._fake_toolkit("core", ["read", "grep", "shell"])]
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe, toolkits=toolkits,
+                    provider="anthropic", model="claude-sonnet-4-6", api_key="k",
+                    max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                )
+                self.assertEqual(len(templates), 1)
+                allowed = templates[0].kw.get("allowed_tools") or ()
+                self.assertNotIn("shell", allowed)
+                self.assertIn("read", allowed)
+
+    def test_missing_ref_logs_warning_and_skips(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, SubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                recipe = Recipe(
+                    name="T", description="", model=None, max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="x"),
+                    toolkits=(),
+                    subagent_pool=(
+                        SubagentRef(kind="ref", template_name="Ghost", disabled_tools=()),
+                    ),
+                )
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe, toolkits=[],
+                    provider="anthropic", model="m", api_key="k", max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                )
+                self.assertEqual(templates, ())
+
+
+class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
+    def _common_kwargs(self, tmpdir):
+        class _FakeAgent:
+            def __init__(self, **kw):
+                self.kw = kw
+
+        class _FakeToolsModule:
+            def __init__(self, **kw):
+                self.kw = kw
+
+        class _FakeMemoryModule:
+            def __init__(self, **kw):
+                self.kw = kw
+
+        class _FakePoliciesModule:
+            def __init__(self, **kw):
+                self.kw = kw
+
+        class _FakeST:
+            def __init__(self, **kw):
+                self.kw = kw
+
+        class _FakeSM:
+            def __init__(self, **kw):
+                self.kw = kw
+
+        class _FakeSP:
+            def __init__(self, **kw):
+                self.kw = kw
+
+        class _FakeTool:
+            def __init__(self, n):
+                self.name = n
+
+        class _FakeTK:
+            def __init__(self, tid, names):
+                self.id = tid
+                self.name = tid
+                self.tools = {n: _FakeTool(n) for n in names}
+
+        toolkits = [
+            _FakeTK("core", ["read", "grep"]),
+            _FakeTK("workspace", ["write", "edit"]),
+        ]
+        return dict(
+            UnchainAgent=_FakeAgent,
+            ToolsModule=_FakeToolsModule,
+            MemoryModule=_FakeMemoryModule,
+            PoliciesModule=_FakePoliciesModule,
+            SubagentModule=_FakeSM,
+            SubagentTemplate=_FakeST,
+            SubagentPolicy=_FakeSP,
+            provider="anthropic",
+            model="claude-sonnet-4-6",
+            api_key="k",
+            user_modules=None,
+            max_iterations=10,
+            toolkits=toolkits,
+            memory_manager=None,
+            options=None,
+        )
+
+    def test_recipe_none_uses_all_toolkits(self):
+        from unchain_adapter import _build_developer_agent
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                kw = self._common_kwargs(tmp)
+                agent = _build_developer_agent(**kw, recipe=None)
+                modules = agent.kw.get("modules", ())
+                tool_modules = [m for m in modules if hasattr(m, "kw") and "tools" in m.kw]
+                self.assertEqual(len(tool_modules), 1)
+                tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
+                self.assertEqual(tool_ids, {"core", "workspace"})
+
+    def test_recipe_filters_toolkits(self):
+        from unchain_adapter import _build_developer_agent
+        from recipe import Recipe, RecipeAgent, ToolkitRef
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                kw = self._common_kwargs(tmp)
+                recipe = Recipe(
+                    name="Coder",
+                    description="",
+                    model=None,
+                    max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="body"),
+                    toolkits=(ToolkitRef(id="core", enabled_tools=None),),
+                    subagent_pool=(),
+                )
+                agent = _build_developer_agent(**kw, recipe=recipe)
+                modules = agent.kw.get("modules", ())
+                tool_modules = [m for m in modules if hasattr(m, "kw") and "tools" in m.kw]
+                tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
+                self.assertEqual(tool_ids, {"core"})
+
+    def test_recipe_soul_prompt_used_as_instructions(self):
+        from unchain_adapter import _build_developer_agent
+        from recipe import Recipe, RecipeAgent
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                kw = self._common_kwargs(tmp)
+                recipe = Recipe(
+                    name="X",
+                    description="",
+                    model=None,
+                    max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="CUSTOM SOUL BODY"),
+                    toolkits=(),
+                    subagent_pool=(),
+                )
+                agent = _build_developer_agent(**kw, recipe=recipe)
+                self.assertIn("CUSTOM SOUL BODY", agent.kw.get("instructions", ""))
+
+    def test_recipe_sentinel_uses_builtin_prompt(self):
+        from unchain_adapter import _build_developer_agent
+        from recipe import Recipe, RecipeAgent, BUILTIN_DEVELOPER_PROMPT_SENTINEL
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                kw = self._common_kwargs(tmp)
+                recipe = Recipe(
+                    name="Default",
+                    description="",
+                    model=None,
+                    max_iterations=None,
+                    agent=RecipeAgent(
+                        prompt_format="skeleton",
+                        prompt=BUILTIN_DEVELOPER_PROMPT_SENTINEL,
+                    ),
+                    toolkits=(),
+                    subagent_pool=(),
+                )
+                agent = _build_developer_agent(**kw, recipe=recipe)
+                instr = agent.kw.get("instructions", "")
+                self.assertNotIn(BUILTIN_DEVELOPER_PROMPT_SENTINEL, instr)
+                self.assertGreater(len(instr), 200)
+
+
+class CreateAgentRecipeWiringTests(unittest.TestCase):
+    def test_create_agent_uses_default_recipe_when_name_unspecified(self):
+        import unchain_adapter as ua
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_seeds import ensure_recipe_seeds_written
+                ensure_recipe_seeds_written(Path(tmp) / ".pupu" / "agent_recipes")
+                captured = {}
+
+                def _spy(**kw):
+                    captured.update(kw)
+                    return None
+
+                with mock.patch.object(ua, "_build_developer_agent", _spy):
+                    try:
+                        ua._create_agent({}, session_id="s")
+                    except Exception:
+                        pass
+                self.assertIsNotNone(captured.get("recipe"))
+                self.assertEqual(captured["recipe"].name, "Default")
+
+    def test_create_agent_loads_named_recipe(self):
+        import unchain_adapter as ua
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_loader import save_recipe
+                save_recipe({
+                    "name": "Coder",
+                    "description": "",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "x"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                captured = {}
+
+                def _spy(**kw):
+                    captured.update(kw)
+                    return None
+
+                with mock.patch.object(ua, "_build_developer_agent", _spy):
+                    try:
+                        ua._create_agent({"recipe_name": "Coder"}, session_id="s")
+                    except Exception:
+                        pass
+                self.assertIsNotNone(captured.get("recipe"))
+                self.assertEqual(captured["recipe"].name, "Coder")
+
+    def test_options_model_overrides_recipe_model(self):
+        import os
+        import unchain_adapter as ua
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)), \
+                 mock.patch.dict(os.environ, {"UNCHAIN_API_KEY": "dummy"}, clear=False):
+                from recipe_loader import save_recipe
+                save_recipe({
+                    "name": "R",
+                    "description": "",
+                    "model": "anthropic:claude-sonnet-4-6",
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "x"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                captured = {}
+
+                def _spy(**kw):
+                    captured.update(kw)
+                    return None
+
+                with mock.patch.object(ua, "_build_developer_agent", _spy):
+                    try:
+                        ua._create_agent(
+                            {"recipe_name": "R", "modelId": "openai:gpt-4o"},
+                            session_id="s",
+                        )
+                    except Exception:
+                        pass
+                self.assertIn("gpt-4o", captured.get("model", ""))
+
+
 if __name__ == "__main__":
     unittest.main()

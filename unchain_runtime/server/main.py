@@ -45,6 +45,16 @@ def main() -> int:
             "[subagent_seeds] seed-write failed: %s", exc
         )
 
+    try:
+        from recipe_seeds import ensure_recipe_seeds_written
+        from pathlib import Path
+        ensure_recipe_seeds_written(Path.home() / ".pupu" / "agent_recipes")
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "[recipe_seeds] seed-write failed: %s", exc
+        )
+
     app = create_app()
     server = ThreadedFlaskServer(app, host=host, port=port)
 

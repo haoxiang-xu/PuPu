@@ -3043,6 +3043,181 @@ def _resolve_workspace_subagent_dir_for_loader(
         return None
 
 
+def _materialize_recipe_subagents(
+    *,
+    recipe,
+    toolkits: list,
+    provider: str,
+    model: str,
+    api_key: str | None,
+    max_iterations: int,
+    UnchainAgent,
+    ToolsModule,
+    PoliciesModule,
+    SubagentTemplate,
+) -> tuple:
+    """Build SubagentTemplate instances from a Recipe's subagent_pool.
+
+    - ``ref`` entries: load the named template from ``~/.pupu/subagents`` and
+      apply ``disabled_tools`` to narrow ``allowed_tools``.
+    - ``inline`` entries: validate the embedded template via the same parser
+      path (parse_skeleton / parse_soul), then apply ``disabled_tools``.
+    - Missing refs and parse failures are logged and skipped.
+    """
+    from pathlib import Path as _Path
+    import json as _json
+    import tempfile as _tempfile
+
+    try:
+        from subagent_loader import (
+            _build_child_agent,
+            _collect_main_tool_names,
+            _compute_effective_tools,
+            parse_skeleton,
+            parse_soul,
+        )
+    except ImportError:
+        _subagent_logger.warning("[recipe] subagent_loader unavailable; recipe subagents disabled")
+        return ()
+
+    sa_dir = _Path.home() / ".pupu" / "subagents"
+    main_tool_names = _collect_main_tool_names(tuple(toolkits))
+
+    built: list = []
+    for entry in recipe.subagent_pool:
+        parsed = None
+        if entry.kind == "ref":
+            for ext in (".skeleton", ".soul"):
+                candidate = sa_dir / f"{entry.template_name}{ext}"
+                if candidate.exists():
+                    try:
+                        parsed = parse_skeleton(candidate) if ext == ".skeleton" else parse_soul(candidate)
+                    except Exception as exc:
+                        _subagent_logger.warning(
+                            "[recipe] subagent %s parse failed: %s", candidate, exc
+                        )
+                        parsed = None
+                    break
+            if parsed is None:
+                _subagent_logger.warning(
+                    "[recipe] subagent ref %s not found in %s; skipping",
+                    entry.template_name, sa_dir,
+                )
+                continue
+        else:
+            try:
+                with _tempfile.TemporaryDirectory() as td:
+                    ext = ".skeleton" if entry.prompt_format == "skeleton" else ".soul"
+                    tmp_path = _Path(td) / f"{entry.name}{ext}"
+                    if ext == ".skeleton":
+                        tmp_path.write_text(_json.dumps(entry.template), encoding="utf-8")
+                        parsed = parse_skeleton(tmp_path)
+                    else:
+                        tmp_path.write_text(str(entry.template.get("prompt", "")), encoding="utf-8")
+                        parsed = parse_soul(tmp_path)
+            except Exception as exc:
+                _subagent_logger.warning("[recipe] inline subagent %s invalid: %s", entry.name, exc)
+                continue
+
+        effective = _compute_effective_tools(parsed.allowed_tools, main_tool_names)
+        if effective is not None:
+            if entry.disabled_tools:
+                effective = tuple(t for t in effective if t not in set(entry.disabled_tools))
+            if not effective:
+                _subagent_logger.warning(
+                    "[recipe] subagent %s has no effective tools after filters; skipping",
+                    parsed.name,
+                )
+                continue
+
+        child_agent = _build_child_agent(
+            UnchainAgent=UnchainAgent,
+            ToolsModule=ToolsModule,
+            PoliciesModule=PoliciesModule,
+            toolkits=tuple(toolkits),
+            provider=provider,
+            model=parsed.model or model,
+            api_key=api_key,
+            max_iterations=max_iterations,
+            name=parsed.name,
+            instructions=parsed.instructions,
+        )
+        built.append(
+            SubagentTemplate(
+                name=parsed.name,
+                description=parsed.description,
+                agent=child_agent,
+                allowed_modes=parsed.allowed_modes,
+                output_mode=parsed.output_mode,
+                memory_policy=parsed.memory_policy,
+                parallel_safe=parsed.parallel_safe,
+                allowed_tools=effective,
+                model=parsed.model,
+            )
+        )
+    return tuple(built)
+
+
+def _apply_recipe_toolkit_filter(toolkits: list, refs: tuple) -> list:
+    """Filter PuPu toolkits to the set referenced by a Recipe.
+
+    - Drops toolkits not listed in `refs`.
+    - For each kept toolkit, narrows its `tools` dict to `enabled_tools`
+      when that list is non-null.
+    - Missing/unloaded toolkits are skipped with a warning.
+    """
+    import copy as _copy
+    by_id = {getattr(tk, "id", getattr(tk, "name", None)): tk for tk in toolkits}
+    result: list = []
+    for ref in refs:
+        tk = by_id.get(ref.id)
+        if tk is None:
+            _subagent_logger.warning(
+                "[recipe] toolkit %s referenced by recipe is not loaded; skipping",
+                ref.id,
+            )
+            continue
+        if ref.enabled_tools is None:
+            result.append(tk)
+            continue
+        narrowed = _copy.copy(tk)
+        allowed = set(ref.enabled_tools)
+        narrowed.tools = {
+            name: tool for name, tool in tk.tools.items() if name in allowed
+        }
+        result.append(narrowed)
+    return result
+
+
+def _resolve_recipe_prompt(recipe) -> str:
+    """Convert Recipe.agent.prompt into developer instructions.
+
+    - Sentinel "{{USE_BUILTIN_DEVELOPER_PROMPT}}" → fall back to built-in sections.
+    - prompt_format="soul": use prompt string verbatim as instructions.
+    - prompt_format="skeleton": JSON-decode and extract .instructions field.
+    - {{SUBAGENT_LIST}} replacement happens in the caller.
+    """
+    from recipe import BUILTIN_DEVELOPER_PROMPT_SENTINEL
+    raw = recipe.agent.prompt or ""
+    if raw.strip() == BUILTIN_DEVELOPER_PROMPT_SENTINEL:
+        return _build_modular_prompt(
+            builtin_modules=_BUILTIN_MODULES,
+            agent_modules=_DEVELOPER_PROMPT_SECTIONS,
+            user_modules={},
+        )
+    if recipe.agent.prompt_format == "skeleton":
+        import json as _json
+        try:
+            parsed = _json.loads(raw)
+            return str(parsed.get("instructions", ""))
+        except ValueError:
+            _subagent_logger.warning(
+                "[recipe] skeleton prompt is not valid JSON; using raw string"
+            )
+            return raw
+    return raw
+
+
 def _build_developer_agent(
     *,
     UnchainAgent,
@@ -3063,7 +3238,11 @@ def _build_developer_agent(
     planning_turn: bool = False,
     enable_subagents: bool = True,
     options: Dict[str, object] | None = None,
+    recipe=None,
 ):
+    if recipe is not None:
+        toolkits = _apply_recipe_toolkit_filter(toolkits, recipe.toolkits)
+
     modules: list = []
     if toolkits:
         modules.append(ToolsModule(tools=tuple(toolkits)))
@@ -3103,28 +3282,49 @@ def _build_developer_agent(
         and SubagentTemplate is not None
         and SubagentPolicy is not None
     ):
-        try:
-            from subagent_loader import load_templates
+        if recipe is not None:
+            try:
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe,
+                    toolkits=tuple(toolkits),
+                    provider=provider,
+                    model=model,
+                    api_key=api_key or None,
+                    max_iterations=max_iterations,
+                    UnchainAgent=UnchainAgent,
+                    ToolsModule=ToolsModule,
+                    PoliciesModule=PoliciesModule,
+                    SubagentTemplate=SubagentTemplate,
+                )
+            except Exception as exc:
+                _subagent_logger.warning(
+                    "[recipe] subagent materialization failed; continuing without subagents: %s",
+                    exc,
+                )
+                templates = ()
+        else:
+            try:
+                from subagent_loader import load_templates
 
-            workspace_dir = _resolve_workspace_subagent_dir_for_loader(options)
-            templates = load_templates(
-                toolkits=tuple(toolkits),
-                provider=provider,
-                model=model,
-                api_key=api_key or None,
-                max_iterations=max_iterations,
-                user_dir=Path.home() / ".pupu" / "subagents",
-                workspace_dir=workspace_dir,
-                UnchainAgent=UnchainAgent,
-                ToolsModule=ToolsModule,
-                PoliciesModule=PoliciesModule,
-                SubagentTemplate=SubagentTemplate,
-            )
-        except Exception as exc:
-            _subagent_logger.warning(
-                "[subagent] loader failed; continuing without subagents: %s", exc
-            )
-            templates = ()
+                workspace_dir = _resolve_workspace_subagent_dir_for_loader(options)
+                templates = load_templates(
+                    toolkits=tuple(toolkits),
+                    provider=provider,
+                    model=model,
+                    api_key=api_key or None,
+                    max_iterations=max_iterations,
+                    user_dir=Path.home() / ".pupu" / "subagents",
+                    workspace_dir=workspace_dir,
+                    UnchainAgent=UnchainAgent,
+                    ToolsModule=ToolsModule,
+                    PoliciesModule=PoliciesModule,
+                    SubagentTemplate=SubagentTemplate,
+                )
+            except Exception as exc:
+                _subagent_logger.warning(
+                    "[subagent] loader failed; continuing without subagents: %s", exc
+                )
+                templates = ()
 
         if templates:
             modules.append(
@@ -3143,11 +3343,14 @@ def _build_developer_agent(
                 )
             )
 
-    instructions = _build_modular_prompt(
-        builtin_modules=_BUILTIN_MODULES,
-        agent_modules=_DEVELOPER_PROMPT_SECTIONS,
-        user_modules=user_modules or {},
-    )
+    if recipe is not None:
+        instructions = _resolve_recipe_prompt(recipe)
+    else:
+        instructions = _build_modular_prompt(
+            builtin_modules=_BUILTIN_MODULES,
+            agent_modules=_DEVELOPER_PROMPT_SECTIONS,
+            user_modules=user_modules or {},
+        )
     subagent_list_md = (
         "\n".join(f"- {tpl.name}: {tpl.description}" for tpl in templates)
         or "(no subagents registered)"
@@ -3174,9 +3377,37 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
     if UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
 
+    options = options or {}
+
+    try:
+        from recipe_loader import load_recipe
+        recipe_name = str(options.get("recipe_name") or "Default")
+        recipe = load_recipe(recipe_name)
+        if recipe is None and recipe_name != "Default":
+            _subagent_logger.warning(
+                "[recipe] recipe %r not found; falling back to Default", recipe_name,
+            )
+            recipe = load_recipe("Default")
+    except Exception as exc:
+        _subagent_logger.warning("[recipe] load failed: %s", exc)
+        recipe = None
+
     selected_config = get_runtime_config(options)
+    if (not options.get("modelId")) and recipe is not None and recipe.model:
+        selected_config = dict(selected_config)
+        if ":" in recipe.model:
+            prov, mdl = recipe.model.split(":", 1)
+            selected_config["provider"] = prov
+            selected_config["model"] = mdl
+
     display_model = _format_model_id(selected_config["provider"], selected_config["model"])
     max_iterations = _resolve_agent_max_iterations(options)
+    if (
+        recipe is not None
+        and recipe.max_iterations is not None
+        and not options.get("max_iterations")
+    ):
+        max_iterations = recipe.max_iterations
     api_key = _resolve_agent_api_key(options, selected_config["provider"])
     memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
     toolkits = _build_requested_toolkits(options)
@@ -3199,6 +3430,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         toolkits=toolkits,
         memory_manager=memory_manager,
         options=options,
+        recipe=recipe,
     )
     agent._orchestration_role = "developer"
     agent._orchestration_mode = _AGENT_ORCHESTRATION_DEFAULT

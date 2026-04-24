@@ -5,6 +5,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import SegmentedControl from "../toolkit/components/segmented_control";
 import CharactersPage from "./pages/characters_page";
+import RecipesPage from "./pages/recipes_page";
 
 const SECTIONS = [
   { key: "agents", icon: "bot", label: "Agents" },
@@ -149,6 +150,8 @@ export const AgentsModal = ({ open, onClose }) => {
         >
           {selectedSection === "characters" ? (
             <CharactersPage isDark={isDark} onOpenChat={onClose} />
+          ) : selectedSection === "agents" ? (
+            <RecipesPage isDark={isDark} />
           ) : (
             <ComingSoonPlaceholder
               icon={activeSection?.icon || "bot"}
