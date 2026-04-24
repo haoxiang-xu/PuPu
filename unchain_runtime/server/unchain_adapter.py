@@ -1,6 +1,7 @@
 import inspect
 import json
 import importlib
+import logging
 import os
 import base64
 import pkgutil
@@ -14,6 +15,8 @@ import time
 import uuid as _uuid
 from pathlib import Path
 from typing import Any, Dict, Iterable, List
+
+_subagent_logger = logging.getLogger(__name__ + ".subagent")
 
 try:
     import httpx as _httpx
@@ -69,6 +72,8 @@ except ImportError:
     _LlmSummaryOptimizer = None  # type: ignore
     _LlmSummaryOptimizerConfig = None  # type: ignore
     _ContextUsageOptimizer = None  # type: ignore
+    _SlidingWindowOptimizer = None  # type: ignore
+    _SlidingWindowOptimizerConfig = None  # type: ignore
     _ToolHistoryCompactionOptimizer = None  # type: ignore
     _ToolPairSafetyOptimizer = None  # type: ignore
 
@@ -167,8 +172,6 @@ from prompts import (
     BUILTIN_RULES as _SYSTEM_PROMPT_V2_BUILTIN_RULES,
     SUMMARY_SYSTEM_PROMPT as _SUMMARY_SYSTEM_PROMPT,
     DEVELOPER_PROMPT_SECTIONS as _DEVELOPER_PROMPT_SECTIONS,
-    ANALYZER_PROMPT_SECTIONS as _ANALYZER_PROMPT_SECTIONS,
-    EXECUTOR_PROMPT_SECTIONS as _EXECUTOR_PROMPT_SECTIONS,
 )
 
 # Legacy aliases kept for backward compat
@@ -3022,8 +3025,22 @@ _ANALYZER_READ_ONLY_TOOLS = (
     "file_exists", "pin_file_context", "unpin_file_context",
 )
 
-_SUBAGENT_ANALYZER_TEMPLATE_NAME = "analyzer"
-_SUBAGENT_EXECUTOR_TEMPLATE_NAME = "executor"
+def _resolve_workspace_subagent_dir_for_loader(
+    options: Dict[str, object] | None,
+) -> Path | None:
+    """Return <primary_workspace_root>/.pupu/subagents as a Path, or None.
+
+    Uses the first entry in workspace_roots / workspaceRoot. Users with
+    multi-root workspaces can symlink additional .pupu/subagents/ dirs under
+    the primary root if they want workspace-scoped overrides."""
+    roots = _extract_workspace_roots_from_options(options)
+    if not roots:
+        return None
+    primary = roots[0]
+    try:
+        return Path(primary) / ".pupu" / "subagents"
+    except Exception:
+        return None
 
 
 def _build_developer_agent(
@@ -3045,6 +3062,7 @@ def _build_developer_agent(
     memory_manager: Any,
     planning_turn: bool = False,
     enable_subagents: bool = True,
+    options: Dict[str, object] | None = None,
 ):
     modules: list = []
     if toolkits:
@@ -3078,84 +3096,63 @@ def _build_developer_agent(
             optimizer_harnesses.append(_ToolPairSafetyOptimizer())
         modules.append(OptimizersModule(harnesses=tuple(optimizer_harnesses)))
 
+    templates: tuple = ()
     if (
         enable_subagents
         and SubagentModule is not None
         and SubagentTemplate is not None
         and SubagentPolicy is not None
     ):
-        # Build lightweight standalone agents for subagent templates.
-        # These do NOT inherit the developer's full system prompt, optimizer
-        # pipeline, or subagent module — keeping their context small and cheap.
-        _subagent_base_modules = []
-        if toolkits:
-            _subagent_base_modules.append(ToolsModule(tools=tuple(toolkits)))
-        _subagent_base_modules.append(PoliciesModule(max_iterations=max(2, max_iterations // 3)))
+        try:
+            from subagent_loader import load_templates
 
-        analyzer_agent = UnchainAgent(
-            name="analyzer",
-            instructions=_compose_agent_prompt(_ANALYZER_PROMPT_SECTIONS),
-            provider=provider,
-            model=model,
-            api_key=api_key or None,
-            modules=tuple(_subagent_base_modules),
-        )
-        executor_agent = UnchainAgent(
-            name="executor",
-            instructions=_compose_agent_prompt(_EXECUTOR_PROMPT_SECTIONS),
-            provider=provider,
-            model=model,
-            api_key=api_key or None,
-            modules=tuple(_subagent_base_modules),
-        )
-
-        modules.append(
-            SubagentModule(
-                templates=(
-                    SubagentTemplate(
-                        name=_SUBAGENT_ANALYZER_TEMPLATE_NAME,
-                        description=(
-                            "Read-only code analysis specialist. Use for inspecting files, "
-                            "searching code, and understanding architecture without making changes."
-                        ),
-                        agent=analyzer_agent,
-                        allowed_modes=("delegate", "worker"),
-                        output_mode="last_message",
-                        memory_policy="ephemeral",
-                        parallel_safe=True,
-                        allowed_tools=_ANALYZER_READ_ONLY_TOOLS,
-                    ),
-                    SubagentTemplate(
-                        name=_SUBAGENT_EXECUTOR_TEMPLATE_NAME,
-                        description=(
-                            "Terminal command executor. Use for running tests, builds, "
-                            "linters, or other shell commands in parallel."
-                        ),
-                        agent=executor_agent,
-                        allowed_modes=("delegate", "worker"),
-                        output_mode="last_message",
-                        memory_policy="ephemeral",
-                        parallel_safe=True,
-                        allowed_tools=("terminal_exec",),
-                    ),
-                ),
-                policy=SubagentPolicy(
-                    max_depth=2,
-                    max_children_per_parent=10,
-                    max_total_subagents=50,
-                    max_parallel_workers=4,
-                    worker_timeout_seconds=60.0,
-                    allow_dynamic_workers=False,
-                    allow_dynamic_delegate=False,
-                ),
+            workspace_dir = _resolve_workspace_subagent_dir_for_loader(options)
+            templates = load_templates(
+                toolkits=tuple(toolkits),
+                provider=provider,
+                model=model,
+                api_key=api_key or None,
+                max_iterations=max_iterations,
+                user_dir=Path.home() / ".pupu" / "subagents",
+                workspace_dir=workspace_dir,
+                UnchainAgent=UnchainAgent,
+                ToolsModule=ToolsModule,
+                PoliciesModule=PoliciesModule,
+                SubagentTemplate=SubagentTemplate,
             )
-        )
+        except Exception as exc:
+            _subagent_logger.warning(
+                "[subagent] loader failed; continuing without subagents: %s", exc
+            )
+            templates = ()
+
+        if templates:
+            modules.append(
+                SubagentModule(
+                    templates=templates,
+                    policy=SubagentPolicy(
+                        max_depth=6,
+                        max_children_per_parent=10,
+                        max_total_subagents=50,
+                        max_parallel_workers=4,
+                        worker_timeout_seconds=60.0,
+                        allow_dynamic_workers=False,
+                        allow_dynamic_delegate=False,
+                        handoff_requires_template=True,
+                    ),
+                )
+            )
 
     instructions = _build_modular_prompt(
         builtin_modules=_BUILTIN_MODULES,
         agent_modules=_DEVELOPER_PROMPT_SECTIONS,
         user_modules=user_modules or {},
     )
+    subagent_list_md = (
+        "\n".join(f"- {tpl.name}: {tpl.description}" for tpl in templates)
+        or "(no subagents registered)"
+    )
+    instructions = instructions.replace("{{SUBAGENT_LIST}}", subagent_list_md)
     return UnchainAgent(
         name=_DEVELOPER_AGENT_NAME,
         instructions=instructions,
@@ -3201,6 +3198,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         max_iterations=max_iterations,
         toolkits=toolkits,
         memory_manager=memory_manager,
+        options=options,
     )
     agent._orchestration_role = "developer"
     agent._orchestration_mode = _AGENT_ORCHESTRATION_DEFAULT

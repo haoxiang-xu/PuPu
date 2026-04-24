@@ -1029,14 +1029,23 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertEqual(agent._max_iterations, unchain_adapter._DEFAULT_MAX_ITERATIONS)
 
+    def _seed_explore_subagent(self, home_path: Path) -> None:
+        from subagent_seeds import ensure_seeds_written
+
+        ensure_seeds_written(home_path / ".pupu" / "subagents")
+
     def test_create_agent_builds_developer_directly_with_selected_model(self) -> None:
-        agent = unchain_adapter._create_agent(
-            {
-                "modelId": "openai:gpt-5",
-                "openai_api_key": "test-key",
-                "toolkits": ["core"],
-            }
-        )
+        with tempfile.TemporaryDirectory() as home:
+            home_path = Path(home)
+            self._seed_explore_subagent(home_path)
+            with mock.patch("pathlib.Path.home", return_value=home_path):
+                agent = unchain_adapter._create_agent(
+                    {
+                        "modelId": "openai:gpt-5",
+                        "openai_api_key": "test-key",
+                        "toolkits": ["core"],
+                    }
+                )
 
         self.assertEqual(agent.name, "pupu_developer")
         self.assertEqual(agent.model, "gpt-5")
@@ -1049,14 +1058,18 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertIn("SubagentModule", module_names)
 
     def test_create_agent_routes_waiting_approval_mode_directly_to_developer(self) -> None:
-        agent = unchain_adapter._create_agent(
-            {
-                "modelId": "openai:gpt-5",
-                "openai_api_key": "test-key",
-                "toolkits": ["core"],
-                "agent_orchestration": {"mode": "developer_waiting_approval"},
-            }
-        )
+        with tempfile.TemporaryDirectory() as home:
+            home_path = Path(home)
+            self._seed_explore_subagent(home_path)
+            with mock.patch("pathlib.Path.home", return_value=home_path):
+                agent = unchain_adapter._create_agent(
+                    {
+                        "modelId": "openai:gpt-5",
+                        "openai_api_key": "test-key",
+                        "toolkits": ["core"],
+                        "agent_orchestration": {"mode": "developer_waiting_approval"},
+                    }
+                )
 
         self.assertEqual(agent.name, "pupu_developer")
         self.assertEqual(agent.model, "gpt-5")
