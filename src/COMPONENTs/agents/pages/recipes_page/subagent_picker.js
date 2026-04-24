@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import Modal from "../../../../BUILTIN_COMPONENTs/modal/modal";
-import api from "../../../../SERVICEs/api.unchain";
+import { api } from "../../../../SERVICEs/api";
 
 export default function SubagentPicker({ onPick, onClose, isDark }) {
   const [tab, setTab] = useState("import");
@@ -11,7 +11,7 @@ export default function SubagentPicker({ onPick, onClose, isDark }) {
 
   useEffect(() => {
     (async () => {
-      const { refs: list } = await api.listSubagentRefs();
+      const { refs: list } = await api.unchain.listSubagentRefs();
       setRefs(list);
     })();
   }, []);

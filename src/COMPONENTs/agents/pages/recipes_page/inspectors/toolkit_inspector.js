@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import api from "../../../../../SERVICEs/api.unchain";
+import { api } from "../../../../../SERVICEs/api";
 
 export default function ToolkitInspector({
   recipe,
@@ -12,7 +12,7 @@ export default function ToolkitInspector({
   useEffect(() => {
     (async () => {
       try {
-        const { toolkits } = await api.getToolkitCatalog();
+        const { toolkits } = await api.unchain.getToolkitCatalog();
         const match = (toolkits || []).find((tk) => tk.id === toolkitId);
         setAllTools(match ? match.tools || [] : []);
       } catch (exc) {

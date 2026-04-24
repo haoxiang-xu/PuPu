@@ -133,33 +133,41 @@ export const AgentsModal = ({ open, onClose }) => {
 
       {/* ── Content area ── */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        <div
-          className="scrollable"
-          style={{
-            position: "absolute",
-            inset: 0,
-            overflowY: "auto",
-            padding: selectedSection === "characters" ? 0 : "4px 0 16px",
-            display: "flex",
-            flexDirection: "column",
-            ...(selectedSection !== "characters" && {
+        {selectedSection === "characters" ? (
+          <div
+            className="scrollable"
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflowY: "auto",
+              padding: 0,
+            }}
+          >
+            <CharactersPage isDark={isDark} onOpenChat={onClose} />
+          </div>
+        ) : selectedSection === "agents" ? (
+          <RecipesPage isDark={isDark} />
+        ) : (
+          <div
+            className="scrollable"
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflowY: "auto",
+              padding: "4px 0 16px",
+              display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-            }),
-          }}
-        >
-          {selectedSection === "characters" ? (
-            <CharactersPage isDark={isDark} onOpenChat={onClose} />
-          ) : selectedSection === "agents" ? (
-            <RecipesPage isDark={isDark} />
-          ) : (
+            }}
+          >
             <ComingSoonPlaceholder
               icon={activeSection?.icon || "bot"}
               isDark={isDark}
               theme={theme}
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </Modal>
   );

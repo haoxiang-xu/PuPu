@@ -8,36 +8,22 @@ export default function RecipeInspector({
   onRecipeChange,
   isDark,
 }) {
-  const borderLeft = `1px solid ${
-    isDark ? "rgba(255,255,255,0.08)" : "#e5e5e7"
-  }`;
+  const emptyStyle = {
+    flex: 1,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    fontSize: 12,
+    color: isDark ? "#888" : "#888",
+    userSelect: "none",
+    WebkitUserSelect: "none",
+  };
   if (!recipe) {
-    return (
-      <div
-        style={{
-          borderLeft,
-          paddingLeft: 12,
-          fontSize: 12,
-          color: isDark ? "#888" : "#888",
-        }}
-      >
-        Select a recipe
-      </div>
-    );
+    return <div style={emptyStyle}>Select a recipe</div>;
   }
   if (!selectedNodeId) {
-    return (
-      <div
-        style={{
-          borderLeft,
-          paddingLeft: 12,
-          fontSize: 12,
-          color: isDark ? "#888" : "#888",
-        }}
-      >
-        Click a node
-      </div>
-    );
+    return <div style={emptyStyle}>Click a node</div>;
   }
 
   let content = null;
@@ -70,11 +56,12 @@ export default function RecipeInspector({
   }
   return (
     <div
+      className="scrollable"
       style={{
-        borderLeft,
-        paddingLeft: 12,
+        flex: 1,
+        minHeight: 0,
         overflowY: "auto",
-        minWidth: 0,
+        padding: "14px 16px",
       }}
     >
       {content}

@@ -1,15 +1,15 @@
-import { useContext, useState } from "react";
-import { ConfigContext } from "../../../../CONTAINERs/config/context";
-import api from "../../../../SERVICEs/api.unchain";
+import { useState } from "react";
+import { api } from "../../../../SERVICEs/api";
+import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 
 export default function RecipeList({
   recipes,
   activeName,
   onSelect,
   onListChange,
+  onCollapse,
   isDark,
 }) {
-  const { theme } = useContext(ConfigContext);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
 
@@ -36,8 +36,8 @@ export default function RecipeList({
       toolkits: [],
       subagent_pool: [],
     };
-    await api.saveRecipe(payload);
-    const { recipes: updated } = await api.listRecipes();
+    await api.unchain.saveRecipe(payload);
+    const { recipes: updated } = await api.unchain.listRecipes();
     onListChange(updated);
     onSelect(name);
     setCreating(false);
@@ -48,8 +48,8 @@ export default function RecipeList({
     ev.stopPropagation();
     if (name === "Default") return;
     if (!window.confirm(`Delete recipe "${name}"?`)) return;
-    await api.deleteRecipe(name);
-    const { recipes: updated } = await api.listRecipes();
+    await api.unchain.deleteRecipe(name);
+    const { recipes: updated } = await api.unchain.listRecipes();
     onListChange(updated);
     if (activeName === name) {
       onSelect(updated[0]?.name || null);
@@ -58,11 +58,11 @@ export default function RecipeList({
 
   const handleDuplicate = async (name, ev) => {
     ev.stopPropagation();
-    const full = await api.getRecipe(name);
+    const full = await api.unchain.getRecipe(name);
     const base = `${name} Copy`;
     full.name = base;
-    await api.saveRecipe(full);
-    const { recipes: updated } = await api.listRecipes();
+    await api.unchain.saveRecipe(full);
+    const { recipes: updated } = await api.unchain.listRecipes();
     onListChange(updated);
     onSelect(base);
   };
@@ -70,24 +70,67 @@ export default function RecipeList({
   return (
     <div
       style={{
-        borderRight: `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "#e5e5e7"}`,
-        paddingRight: 8,
         display: "flex",
         flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+        padding: "10px 8px",
         gap: 2,
       }}
     >
       <div
         style={{
-          fontSize: 10,
-          textTransform: "uppercase",
-          letterSpacing: "0.08em",
-          color: mutedColor,
-          margin: "4px 4px 8px",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          margin: "2px 6px 8px 2px",
         }}
       >
-        Agents
+        {onCollapse && (
+          <Button
+            prefix_icon="side_menu_close"
+            onClick={onCollapse}
+            style={{
+              paddingVertical: 4,
+              paddingHorizontal: 4,
+              borderRadius: 4,
+              opacity: 0.5,
+              content: {
+                prefixIconWrap: {
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  lineHeight: 0,
+                },
+                icon: { width: 14, height: 14 },
+              },
+            }}
+          />
+        )}
+        <div
+          style={{
+            fontSize: 10,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            color: mutedColor,
+            userSelect: "none",
+            WebkitUserSelect: "none",
+          }}
+        >
+          Agents
+        </div>
       </div>
+      <div
+        className="scrollable"
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+        }}
+      >
       {recipes.map((r) => (
         <div
           key={r.name}
@@ -138,6 +181,7 @@ export default function RecipeList({
           )}
         </div>
       ))}
+      </div>
       {creating ? (
         <div style={{ padding: "6px 4px" }}>
           <input
