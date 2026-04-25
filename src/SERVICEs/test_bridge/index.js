@@ -77,6 +77,32 @@ export const setCatalogCounts = (counts) => {
   Object.assign(catalogCounts, counts || {});
 };
 
+const refreshCatalogCounts = async (unchainAPI) => {
+  if (!unchainAPI) return;
+  const safe = async (fn, key) => {
+    try {
+      const raw = await fn();
+      if (Array.isArray(raw)) return raw.length;
+      if (Array.isArray(raw?.[key])) return raw[key].length;
+      if (raw?.providers && typeof raw.providers === "object") {
+        return Object.values(raw.providers).reduce(
+          (n, arr) => n + (Array.isArray(arr) ? arr.length : 0),
+          0,
+        );
+      }
+      return 0;
+    } catch (_) {
+      return 0;
+    }
+  };
+  const [m, t, c] = await Promise.all([
+    safe(() => unchainAPI.getModelCatalog(), "models"),
+    safe(() => unchainAPI.getToolkitCatalog(), "toolkits"),
+    safe(() => unchainAPI.listCharacters(), "characters"),
+  ]);
+  setCatalogCounts({ models: m, toolkits: t, characters: c });
+};
+
 export const installTestBridge = () => {
   if (installed) return;
   if (typeof window === "undefined" || !window.__pupuTestBridge) return;
@@ -99,6 +125,12 @@ export const installTestBridge = () => {
     getIsStreaming: () => isStreamingFlag,
   });
   bridge.markReady();
+
+  // Populate catalog counts asynchronously; refresh every 30s so additions/deletions are reflected.
+  void refreshCatalogCounts(window.unchainAPI);
+  setInterval(() => {
+    void refreshCatalogCounts(window.unchainAPI);
+  }, 30000);
 };
 
 installTestBridge();
