@@ -1,6 +1,7 @@
 import { useContext, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import TraceChainRunner from "./runners/trace_chain_runner";
 import CodeDiffInteractRunner from "./runners/code_diff_runner";
@@ -19,6 +20,7 @@ const COMPONENTS = [
    UITestingModal
    ═══════════════════════════════════════════════════════════════════════ */
 const UITestingModal = ({ open, onClose }) => {
+  useModalLifecycle("ui-testing-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 

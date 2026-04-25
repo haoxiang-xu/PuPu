@@ -2503,6 +2503,69 @@ export const useChatStream = ({
     ],
   );
 
+  const sendForTest = useCallback(
+    ({ text = "", attachments = [] } = {}) => {
+      const chatId = activeChatIdRef.current;
+      if (!chatId) {
+        return Promise.reject(
+          Object.assign(new Error("no active chat"), {
+            code: "no_active_chat",
+          }),
+        );
+      }
+      const baseLen = (messagesRef.current || []).length;
+      const startedAt = Date.now();
+      void runTurnRequest({
+        mode: "send",
+        chatId,
+        text,
+        attachments,
+        baseMessages: messagesRef.current,
+        clearComposer: true,
+        missingAttachmentPayloadMode: "block",
+      });
+      return new Promise((resolve, reject) => {
+        let timer;
+        const interval = setInterval(() => {
+          const msgs = messagesRef.current || [];
+          const last = msgs[msgs.length - 1];
+          const stillStreaming = streamingChatIdsRef.current.has(chatId);
+          if (
+            msgs.length > baseLen &&
+            !stillStreaming &&
+            last &&
+            last.role === "assistant" &&
+            last.content
+          ) {
+            clearInterval(interval);
+            clearTimeout(timer);
+            resolve({
+              message_id: last.id,
+              role: "assistant",
+              content:
+                typeof last.content === "string"
+                  ? last.content
+                  : JSON.stringify(last.content),
+              tool_calls: last.tool_calls || null,
+              finish_reason: last.finish_reason || "stop",
+              latency_ms: Date.now() - startedAt,
+            });
+          }
+        }, 100);
+        timer = setTimeout(
+          () => {
+            clearInterval(interval);
+            reject(
+              Object.assign(new Error("send timeout"), { code: "ipc_timeout" }),
+            );
+          },
+          5 * 60 * 1000,
+        );
+      });
+    },
+    [activeChatIdRef, messagesRef, runTurnRequest, streamingChatIdsRef],
+  );
+
   const sendNewTurn = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
     const text = inputValueRef.current.trim();
@@ -2867,6 +2930,7 @@ export const useChatStream = ({
     pendingToolConfirmationRequests,
     resendTurn,
     sendNewTurn,
+    sendForTest,
     setStreamError,
     stopStream,
     streamError,

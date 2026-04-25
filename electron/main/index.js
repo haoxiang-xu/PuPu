@@ -22,6 +22,7 @@ const { createUnchainService } = require("./services/unchain/service");
 const { createUpdateService } = require("./services/update/service");
 const { createScreenshotService } = require("./services/screenshot/service");
 const { createChatStorageService } = require("./services/chat_storage/service");
+const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
 const fsp = require("fs/promises");
 
@@ -106,6 +107,14 @@ if (!gotSingleInstanceLock) {
     getMainWindow: windowService.getMainWindow,
   });
 
+  const testApiService = createTestApiService({
+    env: process.env,
+    ipcMain,
+    portFilePath: path.join(app.getPath("userData"), "test-api-port"),
+    getMainWindow: windowService.getMainWindow,
+    electron: require("electron"),
+  });
+
   registerIpcHandlers({
     ipcMain,
     app,
@@ -130,6 +139,9 @@ if (!gotSingleInstanceLock) {
     chatStorageService.flushSync();
   });
   app.on("before-quit", stopBackgroundServices);
+  app.on("before-quit", () => {
+    void testApiService.stop();
+  });
   app.on("will-quit", stopBackgroundServices);
 
   app.on("second-instance", () => {
@@ -163,6 +175,11 @@ if (!gotSingleInstanceLock) {
     }
 
     windowService.createMainWindow();
+
+    const mainWin = windowService.getMainWindow();
+    if (mainWin && mainWin.webContents) {
+      await testApiService.start({ webContents: mainWin.webContents });
+    }
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

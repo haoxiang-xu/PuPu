@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import SegmentedControl from "../toolkit/components/segmented_control";
@@ -70,6 +71,7 @@ const ComingSoonPlaceholder = ({ icon, isDark, theme }) => (
 
 /* ── Main modal ──────────────────────────────────────────── */
 export const AgentsModal = ({ open, onClose }) => {
+  useModalLifecycle("agents-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [selectedSection, setSelectedSection] = useState("agents");

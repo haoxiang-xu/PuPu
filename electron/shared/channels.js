@@ -78,6 +78,13 @@ const CHANNELS = Object.freeze({
     CAPTURE: "screenshot:capture",
     CHECK_AVAILABILITY: "screenshot:check-availability",
   }),
+  TEST_BRIDGE: Object.freeze({
+    INVOKE: "test-bridge:invoke",
+    RESULT: "test-bridge:result",
+    LOG: "test-bridge:log",
+    EVENT: "test-bridge:event",
+    READY: "test-bridge:ready",
+  }),
 });
 
 module.exports = {

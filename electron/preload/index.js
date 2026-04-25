@@ -70,3 +70,6 @@ contextBridge.exposeInMainWorld(
   "chatStorageAPI",
   createChatStorageBridge(ipcRenderer),
 );
+
+const { install: installTestBridge } = require("./test_bridge_preload");
+installTestBridge();

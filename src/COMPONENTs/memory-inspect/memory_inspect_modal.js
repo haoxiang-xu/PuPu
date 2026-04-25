@@ -16,6 +16,7 @@ import { createUnchainApi } from "../../SERVICEs/api.unchain";
 
 /* { Hooks } ----------------------------------------------------------------------------------------------------------------- */
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 /* { Hooks } ----------------------------------------------------------------------------------------------------------------- */
 
 /* { Input components } ------------------------------------------------------------------------------------------------------- */
@@ -329,6 +330,7 @@ const MemoryInspectModal = ({
   chatTitle,
   mode = "session",
 }) => {
+  useModalLifecycle("memory-inspect-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";

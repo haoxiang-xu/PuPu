@@ -336,6 +336,28 @@ const ChatInterface = () => {
     };
   }, [session.messages, session.activeChatIdRef, storageApi, stream.isStreaming]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.__pupuTestBridge) {
+      return undefined;
+    }
+    const off1 = window.__pupuTestBridge.register(
+      "sendMessage",
+      stream.sendForTest,
+    );
+    const off2 = window.__pupuTestBridge.register(
+      "cancelMessage",
+      async () => {
+        const wasStreaming = !!stream.isStreaming;
+        stream.stopStream();
+        return { ok: true, was_streaming: wasStreaming };
+      },
+    );
+    return () => {
+      off1 && off1();
+      off2 && off2();
+    };
+  }, [stream.sendForTest, stream.stopStream, stream.isStreaming]);
+
   const refreshUnchainStatus = useCallback(async () => {
     try {
       const status = await api.unchain.getStatus();
