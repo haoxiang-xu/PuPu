@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
 import AgentNode from "./nodes/agent_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
@@ -70,6 +70,11 @@ export default function RecipeCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe?.name]);
 
+  const recipeRef = useRef(recipe);
+  useEffect(() => {
+    recipeRef.current = recipe;
+  }, [recipe]);
+
   const nodes = useMemo(() => {
     if (!recipe?.nodes) return [];
     return recipe.nodes.map((n) => ({
@@ -82,27 +87,33 @@ export default function RecipeCanvas({
 
   const handleNodesChange = useCallback(
     (nextNodes) => {
-      if (!recipe) return;
+      const r = recipeRef.current;
+      if (!r) return;
       const nextById = new Map(nextNodes.map((n) => [n.id, n]));
       const kept_ids = new Set(nextNodes.map((n) => n.id));
-      const next_recipe_nodes = recipe.nodes
+      const next_recipe_nodes = r.nodes
         .filter((n) => kept_ids.has(n.id))
         .map((n) => {
           const live = nextById.get(n.id);
           if (!live) return n;
           return { ...n, x: live.x, y: live.y };
         });
-      onRecipeChange({ ...recipe, nodes: next_recipe_nodes });
+      const next = { ...r, nodes: next_recipe_nodes };
+      recipeRef.current = next;
+      onRecipeChange(next);
     },
-    [recipe, onRecipeChange],
+    [onRecipeChange],
   );
 
   const handleEdgesChange = useCallback(
     (nextEdges) => {
-      if (!recipe) return;
-      onRecipeChange({ ...recipe, edges: nextEdges });
+      const r = recipeRef.current;
+      if (!r) return;
+      const next = { ...r, edges: nextEdges };
+      recipeRef.current = next;
+      onRecipeChange(next);
     },
-    [recipe, onRecipeChange],
+    [onRecipeChange],
   );
 
   const handleConnect = useCallback(
