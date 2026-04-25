@@ -13,7 +13,16 @@ const fail = (msg) => {
   log("listing models...");
   const { models } = await client.GET("/catalog/models");
   if (!models?.length) fail("no models in catalog");
-  const model_id = models[0].id;
+  // Prefer known-stable models. Override with: PUPU_SMOKE_MODEL=anthropic:claude-sonnet-4-6
+  const preferred = [
+    process.env.PUPU_SMOKE_MODEL,
+    "openai:gpt-5",
+    "openai:gpt-4.1-mini",
+    "anthropic:claude-sonnet-4-6",
+    "anthropic:claude-haiku-4-5",
+  ].filter(Boolean);
+  const ids = new Set(models.map((m) => m.id));
+  const model_id = preferred.find((id) => ids.has(id)) || models[0].id;
   log("using model:", model_id);
 
   log("creating chat...");

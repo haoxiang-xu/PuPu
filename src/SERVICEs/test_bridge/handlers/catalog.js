@@ -3,8 +3,24 @@ const normalize = (raw, key) => {
   return raw || { [key]: [] };
 };
 
+const flattenModelCatalog = (raw) => {
+  if (Array.isArray(raw)) return { models: raw };
+  if (raw?.models && Array.isArray(raw.models)) return raw;
+  if (raw?.providers && typeof raw.providers === "object") {
+    const models = [];
+    for (const [provider, names] of Object.entries(raw.providers)) {
+      if (!Array.isArray(names)) continue;
+      for (const name of names) {
+        models.push({ id: `${provider}:${name}`, provider, label: name });
+      }
+    }
+    return { models, active: raw.active || null };
+  }
+  return { models: [] };
+};
+
 export const createCatalogHandlers = ({ unchainAPI, chatStorage }) => ({
-  listModels: async () => normalize(await unchainAPI.getModelCatalog(), "models"),
+  listModels: async () => flattenModelCatalog(await unchainAPI.getModelCatalog()),
   listToolkits: async () =>
     normalize(await unchainAPI.getToolkitCatalog(), "toolkits"),
   listCharacters: async () =>

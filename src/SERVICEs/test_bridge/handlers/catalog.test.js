@@ -38,6 +38,28 @@ describe("catalog handlers", () => {
     const r = await h.listModels({});
     expect(r.models).toEqual([{ id: "x" }]);
   });
+  test("listModels flattens PuPu provider-keyed catalog", async () => {
+    const d = makeDeps();
+    d.unchainAPI.getModelCatalog = async () => ({
+      providers: {
+        openai: ["gpt-5", "gpt-4.1"],
+        anthropic: ["claude-sonnet-4-6"],
+      },
+      active: { provider: "openai", model: "gpt-5" },
+    });
+    const h = createCatalogHandlers(d);
+    const r = await h.listModels({});
+    expect(r.models).toEqual([
+      { id: "openai:gpt-5", provider: "openai", label: "gpt-5" },
+      { id: "openai:gpt-4.1", provider: "openai", label: "gpt-4.1" },
+      {
+        id: "anthropic:claude-sonnet-4-6",
+        provider: "anthropic",
+        label: "claude-sonnet-4-6",
+      },
+    ]);
+    expect(r.active).toEqual({ provider: "openai", model: "gpt-5" });
+  });
   test("listToolkits", async () => {
     const h = createCatalogHandlers(makeDeps());
     const r = await h.listToolkits({});
