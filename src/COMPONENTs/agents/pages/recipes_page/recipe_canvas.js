@@ -6,6 +6,7 @@ import SubagentPoolNode from "./nodes/subagent_pool_node";
 import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_menu";
 import { buildRecipeCanvasContextMenuItems } from "./recipe_canvas_context_menu_items";
+import { api } from "../../../../SERVICEs/api";
 
 const AGENT_POS = { x: 420, y: 240 };
 const TOOLPOOL_POS = { x: 80, y: 240 };
@@ -25,33 +26,56 @@ export default function RecipeCanvas({
   dirty,
   isDark,
 }) {
-  const [positions, setPositions] = useState({});
   const [toolPoolVisible, setToolPoolVisible] = useState(false);
   const [poolVisible, setPoolVisible] = useState(false);
+  const [catalog, setCatalog] = useState([]);
+  const [resetToken, setResetToken] = useState(0);
   const [contextMenu, setContextMenu] = useState({
     visible: false,
     x: 0,
     y: 0,
   });
 
+  const positions = recipe?.layout?.nodes || {};
+
   useEffect(() => {
-    setPositions({});
     setToolPoolVisible(!!recipe && recipe.toolkits.length > 0);
     setPoolVisible(!!recipe && recipe.subagent_pool.length > 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe?.name]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { toolkits } = await api.unchain.getToolkitCatalog();
+        setCatalog(toolkits || []);
+      } catch (_exc) {
+        setCatalog([]);
+      }
+    })();
+  }, []);
 
   const toolChips = useMemo(() => {
     if (!recipe) return [];
+    const catalogById = {};
+    catalog.forEach((tk) => {
+      catalogById[tk.id] = tk;
+    });
     const chips = [];
     recipe.toolkits.forEach((tk) => {
       if (Array.isArray(tk.enabled_tools)) {
         tk.enabled_tools.forEach((name) => chips.push(name));
       } else {
-        chips.push(`${tk.id}:*`);
+        const catTk = catalogById[tk.id];
+        if (catTk && Array.isArray(catTk.tools) && catTk.tools.length > 0) {
+          catTk.tools.forEach((t) => chips.push(t.name));
+        } else {
+          chips.push(`${tk.id}:*`);
+        }
       }
     });
     return chips;
-  }, [recipe]);
+  }, [recipe, catalog]);
 
   const { nodes, edges } = useMemo(() => {
     if (!recipe) return { nodes: [], edges: [] };
@@ -198,10 +222,7 @@ export default function RecipeCanvas({
         onContextMenu={handleCanvasContextMenu}
         style={{
           position: "absolute",
-          top: 6,
-          right: 6,
-          bottom: 6,
-          left: 6,
+          inset: 0,
           overflow: "hidden",
         }}
       >
@@ -210,7 +231,7 @@ export default function RecipeCanvas({
             width: "100%",
             height: "100%",
             background: isDark ? "#1a1a1a" : "#fafafb",
-            borderRadius: 8,
+            borderRadius: 0,
           }}
           theme={{
             nodeBackground: "transparent",
@@ -225,6 +246,7 @@ export default function RecipeCanvas({
           on_nodes_change={handleNodesChange}
           on_edges_change={handleEdgesChange}
           render_node={renderNode}
+          reset_token={resetToken}
         />
       </div>
 
@@ -250,6 +272,20 @@ export default function RecipeCanvas({
             : "0 4px 24px rgba(0,0,0,0.08)",
         }}
       >
+        <Button
+          label="Center"
+          onClick={() => {
+            setPositions({});
+            setResetToken((t) => t + 1);
+          }}
+          style={{
+            fontSize: 12,
+            paddingVertical: 5,
+            paddingHorizontal: 12,
+            borderRadius: 7,
+            opacity: 0.7,
+          }}
+        />
         <Button
           label="Save"
           onClick={onSave}

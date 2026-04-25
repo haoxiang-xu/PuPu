@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
-import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import SubagentPicker from "../subagent_picker";
 
 export default function PoolInspector({ recipe, onRecipeChange, isDark }) {

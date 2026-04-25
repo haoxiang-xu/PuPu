@@ -16,7 +16,6 @@ import {
 } from "../../../../SERVICEs/agent_folder_storage";
 import { buildRecipeListContextMenuItems } from "./recipe_list_context_menu_items";
 
-const RENAME_NODE_PREFIX = "__rename__";
 const PENDING_AGENT_ID = "__new_agent__";
 
 const RenameRow = ({ isDark, prefixIcon, initialValue, onConfirm, onCancel }) => {
@@ -154,6 +153,7 @@ export default function RecipeList({
   onListChange,
   onCollapse,
   isDark,
+  headerTopPad = 0,
 }) {
   const [folderVersion, setFolderVersion] = useState(0);
   const [contextMenu, setContextMenu] = useState({
@@ -173,6 +173,7 @@ export default function RecipeList({
     [],
   );
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const folderState = useMemo(() => getFolderState(), [folderVersion]);
 
   const refreshRecipes = useCallback(async () => {
@@ -304,6 +305,10 @@ export default function RecipeList({
 
   const handleRequestDelete = useCallback(
     (node) => {
+      if (node?.kind === "recipe" && node.name === "Default") {
+        closeContextMenu();
+        return;
+      }
       setConfirmDelete({ open: true, node });
       closeContextMenu();
     },
@@ -537,7 +542,7 @@ export default function RecipeList({
           display: "flex",
           alignItems: "center",
           gap: 6,
-          margin: "2px 2px 8px 2px",
+          margin: `${2 + headerTopPad}px 2px 8px 2px`,
         }}
       >
         {onCollapse && (
@@ -549,6 +554,7 @@ export default function RecipeList({
               paddingHorizontal: 4,
               borderRadius: 4,
               opacity: 0.5,
+              WebkitAppRegion: "no-drag",
               content: {
                 prefixIconWrap: {
                   display: "flex",
@@ -582,6 +588,7 @@ export default function RecipeList({
             paddingHorizontal: 4,
             borderRadius: 4,
             opacity: 0.55,
+            WebkitAppRegion: "no-drag",
             content: {
               prefixIconWrap: {
                 display: "flex",
@@ -601,6 +608,7 @@ export default function RecipeList({
             paddingHorizontal: 4,
             borderRadius: 4,
             opacity: 0.55,
+            WebkitAppRegion: "no-drag",
             content: {
               prefixIconWrap: {
                 display: "flex",

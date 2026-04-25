@@ -1,10 +1,8 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../icon/icon";
-import { ConfigContext } from "../../CONTAINERs/config/context";
 
 export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
-  const { theme: _theme } = useContext(ConfigContext);
   const ref = useRef(null);
 
   useEffect(() => {

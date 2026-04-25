@@ -25,11 +25,18 @@ export function buildRecipeListContextMenuItems({
   }
 
   if (node.kind === "recipe") {
+    const isDefault = node.name === "Default";
     return [
       { icon: "rename", label: "Rename", onClick: () => onStartRename(node) },
       { icon: "copy", label: "Duplicate", onClick: () => onDuplicate(node.id) },
       { type: "separator" },
-      { icon: "delete", label: "Delete", danger: true, onClick: () => onDelete(node) },
+      {
+        icon: "delete",
+        label: "Delete",
+        danger: true,
+        disabled: isDefault,
+        onClick: () => onDelete(node),
+      },
     ];
   }
 

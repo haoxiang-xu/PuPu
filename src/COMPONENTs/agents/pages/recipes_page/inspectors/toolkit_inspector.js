@@ -125,7 +125,22 @@ export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
         Tool Pool
       </div>
       <div style={{ fontSize: 11, color: mutedColor, marginBottom: 14 }}>
-        {catalog.length} toolkits · {recipe.toolkits.length} enabled
+        {(() => {
+          const catalogById = {};
+          catalog.forEach((tk) => {
+            catalogById[tk.id] = tk;
+          });
+          let enabledTools = 0;
+          recipe.toolkits.forEach((tk) => {
+            const catTk = catalogById[tk.id];
+            if (Array.isArray(tk.enabled_tools)) {
+              enabledTools += tk.enabled_tools.length;
+            } else if (catTk && Array.isArray(catTk.tools)) {
+              enabledTools += catTk.tools.length;
+            }
+          });
+          return `${recipe.toolkits.length}/${catalog.length} toolkits · ${enabledTools} tools`;
+        })()}
       </div>
 
       {catalog.length === 0 && (

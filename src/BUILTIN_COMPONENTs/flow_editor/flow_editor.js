@@ -80,6 +80,7 @@ function FlowEditor({
   grid_size = 20,
   min_zoom = 0.1,
   max_zoom = 3,
+  reset_token,
   ...props
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
@@ -139,6 +140,16 @@ function FlowEditor({
   useEffect(() => {
     selected_edge_ref.current = selected_edge_id;
   }, [selected_edge_id]);
+
+  useEffect(() => {
+    if (reset_token === undefined) return;
+    const next = { x: 0, y: 0, zoom: 1 };
+    viewport_ref.current = next;
+    if (viewport_div_ref.current) {
+      viewport_div_ref.current.style.transform = `translate(0px, 0px) scale(1)`;
+    }
+    setViewport(next);
+  }, [reset_token]);
 
   /* ═══════════════════════════════════════════════════════════ */
   /*  Registration helpers                                      */
@@ -664,7 +675,6 @@ function FlowEditor({
       height: 0,
       transformOrigin: "0 0",
       transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-      willChange: "transform",
     }),
     [viewport],
   );

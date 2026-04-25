@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import { getRuntimePlatform } from "../../side-menu/side_menu_utils";
+import { windowStateBridge } from "../../../SERVICEs/bridges/window_state_bridge";
 import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import RecipeInspector from "./recipes_page/recipe_inspector";
@@ -9,7 +11,24 @@ export default function RecipesPage({
   isDark,
   selectedNodeId,
   onSelectNode,
+  fullscreen,
 }) {
+  const isDarwin = getRuntimePlatform() === "darwin";
+  const [appFullscreen, setAppFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (!windowStateBridge.isListenerAvailable()) return undefined;
+    const cleanup = windowStateBridge.onWindowStateChange(({ isMaximized }) => {
+      setAppFullscreen(Boolean(isMaximized));
+    });
+    return () => {
+      if (typeof cleanup === "function") cleanup();
+    };
+  }, []);
+
+  const trafficLightPad = fullscreen && isDarwin && !appFullscreen;
+  const headerTopPad = trafficLightPad ? 28 : 0;
+  const expandTop = trafficLightPad ? 42 : 14;
   const [recipes, setRecipes] = useState([]);
   const [activeName, setActiveName] = useState(null);
   const [activeRecipe, setActiveRecipe] = useState(null);
@@ -115,6 +134,7 @@ export default function RecipesPage({
             onListChange={setRecipes}
             onCollapse={() => setListCollapsed(true)}
             isDark={isDark}
+            headerTopPad={headerTopPad}
           />
         </div>
       )}
@@ -126,13 +146,14 @@ export default function RecipesPage({
           onClick={() => setListCollapsed(false)}
           style={{
             position: "absolute",
-            top: 14,
+            top: expandTop,
             left: 14,
             zIndex: 4,
             paddingVertical: 6,
             paddingHorizontal: 6,
             borderRadius: 6,
             opacity: 0.55,
+            WebkitAppRegion: "no-drag",
             content: {
               prefixIconWrap: {
                 display: "flex",

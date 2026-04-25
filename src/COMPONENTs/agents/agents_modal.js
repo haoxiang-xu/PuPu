@@ -114,9 +114,7 @@ export const AgentsModal = ({ open, onClose }) => {
       }}
     >
       <Button
-        prefix_icon={
-          fullscreen ? "windows_restore_button" : "windows_maximize_button"
-        }
+        prefix_icon={fullscreen ? "fullscreen_exit" : "fullscreen"}
         onClick={() => setFullscreen((f) => !f)}
         style={{
           position: "absolute",
@@ -127,6 +125,7 @@ export const AgentsModal = ({ open, onClose }) => {
           borderRadius: 6,
           opacity: 0.45,
           zIndex: 4,
+          WebkitAppRegion: "no-drag",
           content: {
             prefixIconWrap: {
               display: "flex",
@@ -150,6 +149,7 @@ export const AgentsModal = ({ open, onClose }) => {
           borderRadius: 6,
           opacity: 0.45,
           zIndex: 4,
+          WebkitAppRegion: "no-drag",
           content: {
             prefixIconWrap: {
               display: "flex",
@@ -181,6 +181,7 @@ export const AgentsModal = ({ open, onClose }) => {
             isDark={isDark}
             selectedNodeId={selectedNodeId}
             onSelectNode={setSelectedNodeId}
+            fullscreen={fullscreen}
           />
         ) : (
           <div
@@ -212,6 +213,7 @@ export const AgentsModal = ({ open, onClose }) => {
             left: "50%",
             transform: "translateX(-50%)",
             zIndex: 5,
+            WebkitAppRegion: "no-drag",
           }}
         >
           <SegmentedControl
