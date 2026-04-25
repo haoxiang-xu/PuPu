@@ -11,7 +11,7 @@ from typing import Any, Literal
 
 _NAME_PATTERN = re.compile(r"^[A-Za-z0-9_\- ]{1,64}$")
 _VALID_PROMPT_FORMATS = ("soul", "skeleton")
-_VALID_SUBAGENT_KINDS = ("ref", "inline")
+_VALID_SUBAGENT_KINDS = ("ref", "inline", "recipe_ref")
 _VAR_REF_PATTERN = re.compile(r"\{\{#([^.}]+)\.([^#}]+)#\}\}")
 
 BUILTIN_DEVELOPER_PROMPT_SENTINEL = "{{USE_BUILTIN_DEVELOPER_PROMPT}}"
@@ -41,6 +41,13 @@ class SubagentRef:
 
 
 @dataclass(frozen=True)
+class RecipeSubagentRef:
+    kind: Literal["recipe_ref"]
+    recipe_name: str
+    disabled_tools: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class InlineSubagent:
     kind: Literal["inline"]
     name: str
@@ -57,7 +64,7 @@ class Recipe:
     max_iterations: int | None
     agent: RecipeAgent
     toolkits: tuple[ToolkitRef, ...]
-    subagent_pool: tuple[SubagentRef | InlineSubagent, ...]
+    subagent_pool: tuple[SubagentRef | RecipeSubagentRef | InlineSubagent, ...]
     merge_with_user_selected: bool = True
     nodes: tuple[dict, ...] = ()
     edges: tuple[dict, ...] = ()
@@ -283,7 +290,7 @@ def _parse_toolkit_ref(data: Any) -> ToolkitRef:
     return ToolkitRef(id=tid, enabled_tools=_as_str_tuple(enabled, f"toolkits[{tid}].enabled_tools"))
 
 
-def _parse_subagent_entry(data: Any) -> SubagentRef | InlineSubagent:
+def _parse_subagent_entry(data: Any) -> SubagentRef | RecipeSubagentRef | InlineSubagent:
     _require(isinstance(data, dict), "subagent_pool[] entry must be an object")
     kind = data.get("kind")
     _require(kind in _VALID_SUBAGENT_KINDS, f"subagent_pool[].kind must be one of {_VALID_SUBAGENT_KINDS}")
@@ -292,6 +299,11 @@ def _parse_subagent_entry(data: Any) -> SubagentRef | InlineSubagent:
         tname = data.get("template_name")
         _require(isinstance(tname, str) and tname, "ref subagent requires template_name")
         return SubagentRef(kind="ref", template_name=tname, disabled_tools=disabled)
+    if kind == "recipe_ref":
+        rname = data.get("recipe_name")
+        _require(isinstance(rname, str) and rname, "recipe_ref subagent requires recipe_name")
+        _require(is_valid_recipe_name(rname), f"recipe_ref recipe_name invalid: {rname!r}")
+        return RecipeSubagentRef(kind="recipe_ref", recipe_name=rname, disabled_tools=disabled)
     name = data.get("name")
     _require(isinstance(name, str) and name, "inline subagent requires name")
     pformat = data.get("prompt_format")

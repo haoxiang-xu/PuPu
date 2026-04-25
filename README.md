@@ -24,7 +24,7 @@ PuPu is a cross-platform desktop AI client that lets you chat with local models 
 
 If you find the project useful, ⭐⭐⭐ star the repo.
 
-![PuPu UI](./public/assets/v0.1.5-release/social_preview.png)
+![PuPu UI](./public/assets/v0.1.0-release/social_preview.png)
 
 ## Why PuPu
 

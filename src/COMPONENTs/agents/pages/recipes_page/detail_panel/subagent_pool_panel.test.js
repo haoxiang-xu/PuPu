@@ -14,7 +14,7 @@ describe("SubagentPoolPanel", () => {
       id: "sp",
       type: "subagent_pool",
       subagents: [
-        { kind: "ref", template_name: "reviewer" },
+        { kind: "recipe_ref", recipe_name: "Explore" },
         { kind: "local", name: "summarizer" },
       ],
     };
@@ -27,7 +27,8 @@ describe("SubagentPoolPanel", () => {
         />,
       ),
     );
-    expect(screen.getByText("reviewer")).toBeInTheDocument();
+    expect(screen.getByText("Explore")).toBeInTheDocument();
+    expect(screen.getByText("workflow")).toBeInTheDocument();
     expect(screen.getByText("summarizer")).toBeInTheDocument();
   });
 });

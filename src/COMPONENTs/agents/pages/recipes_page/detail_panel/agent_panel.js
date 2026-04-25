@@ -6,7 +6,7 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
 
 const MODEL_OPTIONS = [
-  { value: "", label: "(use template default)" },
+  { value: "", label: "(use recipe default)" },
   { value: "claude-opus-4-7", label: "claude-opus-4-7" },
   { value: "claude-sonnet-4-6", label: "claude-sonnet-4-6" },
   { value: "claude-haiku-4-5", label: "claude-haiku-4-5" },

@@ -155,6 +155,18 @@ _ASK_USER_QUESTION_TOOL_NAME = "ask_user_question"
 _HUMAN_INPUT_OTHER_VALUE = "__other__"
 _SYSTEM_PROMPT_V2_MAX_SECTION_CHARS = 2000
 
+
+def _is_bare_ask_user_question_tool_call(event: Dict[str, Any]) -> bool:
+    """Return true for unchain-native ask_user tool_call events that lack UI metadata."""
+    if not isinstance(event, dict):
+        return False
+    if event.get("type") != "tool_call":
+        return False
+    if event.get("tool_name") != _ASK_USER_QUESTION_TOOL_NAME:
+        return False
+    confirmation_id = str(event.get("confirmation_id") or "").strip()
+    return not confirmation_id
+
 # ── Unified Prompt Module System ─────────────────────────────────────────────
 #
 # Every agent prompt is built from Prompt Modules: ordered, typed sections that
@@ -3044,6 +3056,136 @@ def _resolve_workspace_subagent_dir_for_loader(
         return None
 
 
+def _workflow_subagent_input_text(
+    input_messages: str | list[dict[str, Any]],
+    *,
+    instructions: str = "",
+    expected_output: str = "",
+) -> str:
+    if isinstance(input_messages, str):
+        task = input_messages
+    elif isinstance(input_messages, list):
+        task = ""
+        for message in reversed(input_messages):
+            if not isinstance(message, dict) or message.get("role") != "user":
+                continue
+            content = message.get("content")
+            if isinstance(content, str):
+                task = content
+                break
+        if not task:
+            task = json.dumps(input_messages, ensure_ascii=False)
+    else:
+        task = str(input_messages or "")
+
+    parts = [task.strip()]
+    if instructions.strip():
+        parts.append(f"Instructions:\n{instructions.strip()}")
+    if expected_output.strip():
+        parts.append(f"Expected output:\n{expected_output.strip()}")
+    return "\n\n".join(part for part in parts if part)
+
+
+class _WorkflowRecipeSubagentAgent:
+    def __init__(
+        self,
+        *,
+        recipe,
+        options: Dict[str, object] | None,
+        name: str,
+        instructions: str = "",
+        expected_output: str = "",
+    ) -> None:
+        self.recipe = recipe
+        self.options = dict(options) if isinstance(options, dict) else {}
+        self.name = name
+        self.instructions = instructions
+        self.expected_output = expected_output
+
+    def fork_for_subagent(
+        self,
+        *,
+        subagent_name: str,
+        task: str = "",
+        instructions: str = "",
+        expected_output: str = "",
+        **_kwargs,
+    ):
+        return _WorkflowRecipeSubagentAgent(
+            recipe=self.recipe,
+            options=self.options,
+            name=subagent_name or self.name,
+            instructions=instructions,
+            expected_output=expected_output,
+        )
+
+    def run(
+        self,
+        input_messages,
+        *,
+        session_id: str = "",
+        memory_namespace: str = "",
+        max_iterations: int | None = None,
+        callback=None,
+        run_id: str = "",
+        **_kwargs,
+    ):
+        message = _workflow_subagent_input_text(
+            input_messages,
+            instructions=self.instructions,
+            expected_output=self.expected_output,
+        )
+        options = dict(self.options)
+        options["_recipe_subagent_run"] = True
+        if memory_namespace:
+            options["memory_namespace"] = memory_namespace
+        if max_iterations:
+            options["max_iterations"] = max_iterations
+
+        final_text = ""
+        error_message = ""
+        try:
+            for event in _stream_recipe_graph_events(
+                recipe=self.recipe,
+                message=message,
+                history=[],
+                attachments=[],
+                options=options,
+                session_id=session_id,
+                cancel_event=None,
+            ):
+                if callable(callback):
+                    callback(event)
+                if event.get("type") == "final_message":
+                    content = event.get("content")
+                    if isinstance(content, str):
+                        final_text = content
+                elif event.get("type") == "error":
+                    error_message = str(event.get("message") or "workflow subagent failed")
+                    break
+        except Exception as exc:
+            error_message = str(exc)
+
+        if error_message:
+            return SimpleNamespace(
+                status="failed",
+                messages=[
+                    {"role": "user", "content": message},
+                    {"role": "assistant", "content": error_message},
+                ],
+                human_input_request=None,
+            )
+
+        return SimpleNamespace(
+            status="completed",
+            messages=[
+                {"role": "user", "content": message},
+                {"role": "assistant", "content": final_text},
+            ],
+            human_input_request=None,
+        )
+
+
 def _materialize_recipe_subagents(
     *,
     recipe,
@@ -3056,6 +3198,7 @@ def _materialize_recipe_subagents(
     ToolsModule,
     PoliciesModule,
     SubagentTemplate,
+    options: Dict[str, object] | None = None,
 ) -> tuple:
     """Build SubagentTemplate instances from a Recipe's subagent_pool.
 
@@ -3083,10 +3226,80 @@ def _materialize_recipe_subagents(
 
     sa_dir = _Path.home() / ".pupu" / "subagents"
     main_tool_names = _collect_main_tool_names(tuple(toolkits))
+    raw_stack = (options or {}).get("_recipe_ref_stack")
+    recipe_ref_stack = (
+        tuple(str(item) for item in raw_stack if isinstance(item, str))
+        if isinstance(raw_stack, list)
+        else ()
+    )
+    current_recipe_name = str(getattr(recipe, "name", "") or "").strip()
+    current_stack = recipe_ref_stack
+    if current_recipe_name and (
+        not current_stack or current_stack[-1] != current_recipe_name
+    ):
+        current_stack = (*current_stack, current_recipe_name)
 
     built: list = []
     for entry in recipe.subagent_pool:
         parsed = None
+        if entry.kind == "recipe_ref":
+            recipe_name = str(getattr(entry, "recipe_name", "") or "").strip()
+            if not recipe_name:
+                continue
+            if recipe_name in current_stack:
+                _subagent_logger.warning(
+                    "[recipe] recipe_ref cycle detected: %s -> %s; skipping",
+                    " -> ".join(current_stack) or current_recipe_name,
+                    recipe_name,
+                )
+                continue
+            try:
+                from recipe_loader import load_recipe
+
+                child_recipe = load_recipe(recipe_name)
+            except Exception as exc:
+                _subagent_logger.warning(
+                    "[recipe] recipe_ref %s load failed: %s",
+                    recipe_name,
+                    exc,
+                )
+                continue
+            if child_recipe is None:
+                _subagent_logger.warning(
+                    "[recipe] recipe_ref %s not found; skipping",
+                    recipe_name,
+                )
+                continue
+            disabled = set(getattr(entry, "disabled_tools", ()) or ())
+            effective = None
+            if disabled and main_tool_names:
+                effective = tuple(
+                    name for name in sorted(main_tool_names) if name not in disabled
+                )
+            child_agent = _WorkflowRecipeSubagentAgent(
+                recipe=child_recipe,
+                options={
+                    **(dict(options) if isinstance(options, dict) else {}),
+                    "_recipe_ref_stack": list(current_stack),
+                    "_recipe_subagent_run": True,
+                },
+                name=recipe_name,
+            )
+            built.append(
+                SubagentTemplate(
+                    name=recipe_name,
+                    description=str(getattr(child_recipe, "description", "") or ""),
+                    agent=child_agent,
+                    allowed_modes=("delegate", "worker"),
+                    output_mode="summary",
+                    memory_policy="ephemeral",
+                    parallel_safe=False,
+                    allowed_tools=effective,
+                    model=getattr(child_recipe, "model", None),
+                )
+            )
+            continue
+
         if entry.kind == "ref":
             for ext in (".skeleton", ".soul"):
                 candidate = sa_dir / f"{entry.template_name}{ext}"
@@ -3470,7 +3683,7 @@ def _graph_toolkit_refs(node: dict) -> tuple:
 
 
 def _graph_subagent_entries(node: dict) -> tuple:
-    from recipe import InlineSubagent, SubagentRef
+    from recipe import InlineSubagent, RecipeSubagentRef, SubagentRef
 
     entries = []
     for item in node.get("subagents") or []:
@@ -3482,6 +3695,10 @@ def _graph_subagent_entries(node: dict) -> tuple:
             template_name = str(item.get("template_name") or "").strip()
             if template_name:
                 entries.append(SubagentRef(kind="ref", template_name=template_name, disabled_tools=disabled))
+        elif item.get("kind") == "recipe_ref":
+            recipe_name = str(item.get("recipe_name") or "").strip()
+            if recipe_name:
+                entries.append(RecipeSubagentRef(kind="recipe_ref", recipe_name=recipe_name, disabled_tools=disabled))
         elif item.get("kind") == "inline":
             name = str(item.get("name") or "").strip()
             template = item.get("template") if isinstance(item.get("template"), dict) else {}
@@ -3544,9 +3761,17 @@ def _resolve_graph_agent_subagents(agent_node: dict, compiled: Dict[str, Any]) -
 
 
 def _resolve_graph_agent_prompt(agent_node: dict) -> str:
-    override = agent_node.get("override") if isinstance(agent_node.get("override"), dict) else {}
+    override = (
+        agent_node.get("override")
+        if isinstance(agent_node.get("override"), dict)
+        else {}
+    )
     prompt = override.get("prompt", "")
-    prompt_format = override.get("prompt_format") if override.get("prompt_format") in {"soul", "skeleton"} else "soul"
+    prompt_format = (
+        override.get("prompt_format")
+        if override.get("prompt_format") in {"soul", "skeleton"}
+        else "soul"
+    )
     fake_recipe = SimpleNamespace(
         agent=SimpleNamespace(prompt_format=prompt_format, prompt=str(prompt or "")),
     )
@@ -3665,6 +3890,7 @@ def _build_developer_agent(
                     ToolsModule=ToolsModule,
                     PoliciesModule=PoliciesModule,
                     SubagentTemplate=SubagentTemplate,
+                    options=options,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -4101,9 +4327,16 @@ def _stream_recipe_graph_events(
             for index, agent_node in enumerate(agents):
                 is_last = index == len(agents) - 1
                 agent_id = str(agent_node.get("id") or f"agent_{index + 1}")
-                override = agent_node.get("override") if isinstance(agent_node.get("override"), dict) else {}
+                override = (
+                    agent_node.get("override")
+                    if isinstance(agent_node.get("override"), dict)
+                    else {}
+                )
                 step_config = dict(selected_config)
-                raw_model = str(override.get("model") or "").strip()
+                raw_model = str(
+                    override.get("model")
+                    or ""
+                ).strip()
                 if raw_model:
                     if ":" in raw_model:
                         provider, model = raw_model.split(":", 1)
@@ -4208,27 +4441,32 @@ def _stream_recipe_graph_events(
                         return
                     elif event_type == "run_max_iterations":
                         return
-                    elif event_type == "tool_call" and event.get("tool_name") == "ask_user_question":
+                    elif _is_bare_ask_user_question_tool_call(event):
                         return
                     iteration = event.get("iteration")
                     if isinstance(iteration, int):
                         output_holder["last_iteration"] = iteration
                     emit(event)
 
-                confirm_cb = _make_tool_confirm_callback(
-                    step_emit,
-                    cancel_event=cancel_event,
-                    toolkit_meta_by_tool_name=toolkit_meta,
-                )
-                human_input_cb = _make_human_input_callback(
-                    step_emit,
-                    cancel_event=cancel_event,
-                    toolkit_meta_by_tool_name=toolkit_meta,
-                )
-                max_iterations_cb = _make_continuation_callback(
-                    step_emit,
-                    cancel_event=cancel_event,
-                )
+                if options.get("_recipe_subagent_run"):
+                    confirm_cb = None
+                    human_input_cb = None
+                    max_iterations_cb = None
+                else:
+                    confirm_cb = _make_tool_confirm_callback(
+                        step_emit,
+                        cancel_event=cancel_event,
+                        toolkit_meta_by_tool_name=toolkit_meta,
+                    )
+                    human_input_cb = _make_human_input_callback(
+                        step_emit,
+                        cancel_event=cancel_event,
+                        toolkit_meta_by_tool_name=toolkit_meta,
+                    )
+                    max_iterations_cb = _make_continuation_callback(
+                        step_emit,
+                        cancel_event=cancel_event,
+                    )
                 step_messages = runtime_messages if index == 0 else messages_without_attachments
                 result = step_agent.run(
                     messages=step_messages,
@@ -4545,7 +4783,7 @@ def stream_chat_events(
             return
         # Suppress the bare tool_call for ask_user_question — our on_human_input
         # callback emits the proper PuPu-format tool_call with interact_config
-        if event_type == "tool_call" and event.get("tool_name") == "ask_user_question":
+        if _is_bare_ask_user_question_tool_call(event):
             return
         # Enrich tool_call events with workspace display names
         if event_type == "tool_call" and _ws_display_names:

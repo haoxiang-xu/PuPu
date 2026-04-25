@@ -285,7 +285,7 @@ export default function RecipeCanvas({
         >
           <span title={undoHint} style={{ display: "inline-flex" }}>
             <Button
-              prefix_icon="undo"
+              prefix_icon="arrow_left"
               onClick={onUndo}
               disabled={!canUndo}
               style={{
@@ -300,7 +300,7 @@ export default function RecipeCanvas({
           </span>
           <span title={redoHint} style={{ display: "inline-flex" }}>
             <Button
-              prefix_icon="redo"
+              prefix_icon="arrow_right"
               onClick={onRedo}
               disabled={!canRedo}
               style={{
@@ -313,17 +313,20 @@ export default function RecipeCanvas({
               }}
             />
           </span>
-          <Button
-            label="Center"
-            onClick={() => setResetToken((t) => t + 1)}
-            style={{
-              fontSize: 12,
-              paddingVertical: 5,
-              paddingHorizontal: 12,
-              borderRadius: 7,
-              opacity: 0.7,
-            }}
-          />
+          <span title="Center" style={{ display: "inline-flex" }}>
+            <Button
+              prefix_icon="home"
+              onClick={() => setResetToken((t) => t + 1)}
+              style={{
+                fontSize: 12,
+                paddingVertical: 5,
+                paddingHorizontal: 8,
+                borderRadius: 7,
+                opacity: 0.7,
+                content: { icon: { width: 13, height: 13 } },
+              }}
+            />
+          </span>
           <Button
             label="Save"
             onClick={onSave}

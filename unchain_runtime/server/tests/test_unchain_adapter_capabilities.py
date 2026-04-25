@@ -1628,7 +1628,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     previous_response_id=None,
                 )
 
-        with mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
+        with mock.patch.object(unchain_adapter, "_load_recipe_from_options", return_value=None), \
+             mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
             events = list(
                 unchain_adapter.stream_chat_events(
                     message="hello",
@@ -1723,7 +1724,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     previous_response_id=None,
                 )
 
-        with mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
+        with mock.patch.object(unchain_adapter, "_load_recipe_from_options", return_value=None), \
+             mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
             events = list(
                 unchain_adapter.stream_chat_events(
                     message="hello",
@@ -1816,7 +1818,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                     previous_response_id=None,
                 )
 
-        with mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
+        with mock.patch.object(unchain_adapter, "_load_recipe_from_options", return_value=None), \
+             mock.patch.object(unchain_adapter, "_create_agent", return_value=FakeAgent()):
             events = list(
                 unchain_adapter.stream_chat_events(
                     message="hello",
@@ -2330,6 +2333,101 @@ class MaterializeRecipeSubagentsTests(unittest.TestCase):
                 )
                 self.assertEqual(templates, ())
 
+    def test_recipe_ref_builds_workflow_subagent(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, RecipeSubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_loader import save_recipe
+
+                save_recipe({
+                    "name": "Explore",
+                    "description": "scout",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "look"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                recipe = Recipe(
+                    name="Default", description="", model=None, max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="x"),
+                    toolkits=(),
+                    subagent_pool=(
+                        RecipeSubagentRef(
+                            kind="recipe_ref",
+                            recipe_name="Explore",
+                            disabled_tools=(),
+                        ),
+                    ),
+                )
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe, toolkits=[],
+                    provider="anthropic", model="m", api_key="k", max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                    options={},
+                )
+                self.assertEqual(len(templates), 1)
+                self.assertEqual(templates[0].kw["name"], "Explore")
+                self.assertTrue(hasattr(templates[0].kw["agent"], "fork_for_subagent"))
+
+    def test_recipe_ref_cycle_skips(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, RecipeSubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        recipe = Recipe(
+            name="Loop", description="", model=None, max_iterations=None,
+            agent=RecipeAgent(prompt_format="soul", prompt="x"),
+            toolkits=(),
+            subagent_pool=(
+                RecipeSubagentRef(
+                    kind="recipe_ref",
+                    recipe_name="Loop",
+                    disabled_tools=(),
+                ),
+            ),
+        )
+        templates = _materialize_recipe_subagents(
+            recipe=recipe, toolkits=[],
+            provider="anthropic", model="m", api_key="k", max_iterations=5,
+            UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+            SubagentTemplate=ST,
+            options={},
+        )
+        self.assertEqual(templates, ())
+
+    def test_workflow_subagent_agent_runs_recipe_graph(self):
+        from unchain_adapter import _WorkflowRecipeSubagentAgent
+        from recipe import Recipe, RecipeAgent
+
+        recipe = Recipe(
+            name="Explore", description="", model=None, max_iterations=None,
+            agent=RecipeAgent(prompt_format="soul", prompt="x"),
+            toolkits=(),
+            subagent_pool=(),
+        )
+        agent = _WorkflowRecipeSubagentAgent(
+            recipe=recipe,
+            options={},
+            name="Explore",
+        )
+        with mock.patch.object(
+            unchain_adapter,
+            "_stream_recipe_graph_events",
+            return_value=iter([
+                {"type": "final_message", "content": "done"},
+            ]),
+        ):
+            result = agent.fork_for_subagent(
+                subagent_name="parent.explore.1",
+                task="find",
+                instructions="quick",
+            ).run("find")
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.messages[-1]["content"], "done")
+
 
 class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
     def _common_kwargs(self, tmpdir):
@@ -2517,7 +2615,6 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                 self.assertNotIn(BUILTIN_DEVELOPER_PROMPT_SENTINEL, instr)
                 self.assertNotIn("{{#start.text#}}", instr)
                 self.assertGreater(len(instr), 200)
-
 
 class CreateAgentRecipeWiringTests(unittest.TestCase):
     def test_create_agent_uses_default_recipe_when_name_unspecified(self):

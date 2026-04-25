@@ -121,6 +121,33 @@ test("missing ToolkitPool node yields empty toolkits", () => {
   expect(to_save_payload(recipe).toolkits).toEqual([]);
 });
 
+test("preserves recipe_ref subagent pool entries", () => {
+  const recipe = graphRecipe(
+    [
+      {
+        id: "sp_1",
+        type: "subagent_pool",
+        subagents: [
+          { kind: "recipe_ref", recipe_name: "Explore", disabled_tools: [] },
+        ],
+      },
+    ],
+    [
+      {
+        id: "e_agent_sp",
+        kind: "attach",
+        source_node_id: "agent_main",
+        source_port_id: "attach_top",
+        target_node_id: "sp_1",
+        target_port_id: "attach_bot",
+      },
+    ],
+  );
+  expect(to_save_payload(recipe).subagent_pool).toEqual([
+    { kind: "recipe_ref", recipe_name: "Explore", disabled_tools: [] },
+  ]);
+});
+
 test("plain agent prompt is saved as soul by default", () => {
   const out = to_save_payload(graphRecipe());
   expect(out.agent).toEqual({ prompt_format: "soul", prompt: "hi" });

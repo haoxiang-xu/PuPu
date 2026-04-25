@@ -448,7 +448,13 @@ export default function RecipeList({
     }
 
     return { data: map, root: rootIds };
-  }, [recipes, folderState, pendingAgent, onSelect, handleNodeContextMenu]);
+  }, [
+    recipes,
+    folderState,
+    pendingAgent,
+    onSelect,
+    handleNodeContextMenu,
+  ]);
 
   /* ── decorate data: rename rows + pending agent row ──────── */
   const decoratedData = useMemo(() => {

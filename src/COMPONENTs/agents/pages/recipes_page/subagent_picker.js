@@ -6,22 +6,27 @@ import Button from "../../../../BUILTIN_COMPONENTs/input/button";
 import SegmentedButton from "../../../../BUILTIN_COMPONENTs/input/segmented_button";
 import { api } from "../../../../SERVICEs/api";
 
-export default function SubagentPicker({ onPick, onClose, isDark }) {
-  const [tab, setTab] = useState("import");
-  const [refs, setRefs] = useState([]);
+export default function SubagentPicker({
+  onPick,
+  onClose,
+  isDark,
+  currentRecipeName = "",
+}) {
+  const [tab, setTab] = useState("workflow");
+  const [recipes, setRecipes] = useState([]);
   const [inlineName, setInlineName] = useState("");
   const [inlineFormat, setInlineFormat] = useState("soul");
   const [inlinePrompt, setInlinePrompt] = useState("");
 
   useEffect(() => {
     (async () => {
-      const { refs: list } = await api.unchain.listSubagentRefs();
-      setRefs(list);
+      const { recipes: list } = await api.unchain.listRecipes();
+      setRecipes(Array.isArray(list) ? list : []);
     })();
   }, []);
 
-  const pickRef = (name) => {
-    onPick({ kind: "ref", template_name: name, disabled_tools: [] });
+  const pickRecipe = (name) => {
+    onPick({ kind: "recipe_ref", recipe_name: name, disabled_tools: [] });
   };
 
   const pickInline = () => {
@@ -40,6 +45,9 @@ export default function SubagentPicker({ onPick, onClose, isDark }) {
   };
 
   const divider = `1px solid ${isDark ? "rgba(255,255,255,0.08)" : "#e5e5e7"}`;
+  const availableRecipes = recipes.filter(
+    (recipe) => recipe?.name && recipe.name !== currentRecipeName,
+  );
 
   return (
     <Modal
@@ -61,7 +69,7 @@ export default function SubagentPicker({ onPick, onClose, isDark }) {
         <div style={{ marginTop: 10 }}>
           <SegmentedButton
             options={[
-              { label: "Import from file", value: "import" },
+              { label: "Workflow", value: "workflow" },
               { label: "Author inline", value: "inline" },
             ]}
             value={tab}
@@ -74,17 +82,17 @@ export default function SubagentPicker({ onPick, onClose, isDark }) {
       <div
         style={{ flex: 1, overflowY: "auto", padding: "12px 16px", fontSize: 12 }}
       >
-        {tab === "import" && (
+        {tab === "workflow" && (
           <div>
-            {refs.length === 0 ? (
+            {availableRecipes.length === 0 ? (
               <div style={{ color: "#888" }}>
-                No subagent files in ~/.pupu/subagents/
+                No other workflows available.
               </div>
             ) : (
-              refs.map((r) => (
+              availableRecipes.map((r) => (
                 <div
                   key={r.name}
-                  onClick={() => pickRef(r.name)}
+                  onClick={() => pickRecipe(r.name)}
                   style={{
                     padding: "8px 6px",
                     borderBottom: `1px solid ${
@@ -95,7 +103,7 @@ export default function SubagentPicker({ onPick, onClose, isDark }) {
                 >
                   <div style={{ fontWeight: 600 }}>{r.name}</div>
                   <div style={{ fontSize: 11, color: "#888" }}>
-                    {r.format} · {r.description}
+                    {r.description || "Workflow"}
                   </div>
                 </div>
               ))

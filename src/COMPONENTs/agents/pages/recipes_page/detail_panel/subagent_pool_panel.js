@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useState } from "react";
+import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
+import SubagentPicker from "../subagent_picker";
 
 const SECTION_LABEL = {
   fontSize: 11,
@@ -9,6 +11,27 @@ const SECTION_LABEL = {
 };
 
 export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  function set_subagents(nextSubagents) {
+    if (typeof onChange !== "function") return;
+    onChange({
+      ...recipe,
+      nodes: recipe.nodes.map((n) =>
+        n.id === node.id ? { ...n, subagents: nextSubagents } : n,
+      ),
+    });
+  }
+
+  function add_subagent(entry) {
+    set_subagents([...(node.subagents || []), entry]);
+    setPickerOpen(false);
+  }
+
+  function remove_subagent(index) {
+    set_subagents((node.subagents || []).filter((_, i) => i !== index));
+  }
+
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -35,7 +58,13 @@ export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         <span style={SECTION_LABEL}>Subagents</span>
         {(node.subagents || []).map((s, i) => {
-          const label = s.kind === "ref" ? s.template_name : s.name;
+          const label =
+            s.kind === "recipe_ref"
+              ? s.recipe_name
+              : s.kind === "ref"
+                ? s.template_name
+                : s.name;
+          const kindLabel = s.kind === "recipe_ref" ? "workflow" : s.kind;
           return (
             <div
               key={i}
@@ -57,8 +86,19 @@ export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
               <span
                 style={{ fontSize: 10, color: "#86868b", marginLeft: "auto" }}
               >
-                {s.kind}
+                {kindLabel}
               </span>
+              <Button
+                prefix_icon="delete"
+                onClick={() => remove_subagent(i)}
+                style={{
+                  paddingVertical: 3,
+                  paddingHorizontal: 3,
+                  borderRadius: 4,
+                  opacity: 0.58,
+                  content: { icon: { width: 11, height: 11 } },
+                }}
+              />
             </div>
           );
         })}
@@ -67,7 +107,31 @@ export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
             No subagents configured.
           </span>
         )}
+        <Button
+          prefix_icon="add"
+          label="Add subagent"
+          onClick={() => setPickerOpen(true)}
+          style={{
+            alignSelf: "flex-start",
+            marginTop: 4,
+            fontSize: 11.5,
+            paddingVertical: 4,
+            paddingHorizontal: 9,
+            borderRadius: 5,
+            color: "#4a5bd8",
+            content: { icon: { width: 12, height: 12 } },
+          }}
+        />
       </div>
+
+      {pickerOpen && (
+        <SubagentPicker
+          onPick={add_subagent}
+          onClose={() => setPickerOpen(false)}
+          isDark={isDark}
+          currentRecipeName={recipe?.name || ""}
+        />
+      )}
     </>
   );
 }

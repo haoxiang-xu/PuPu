@@ -1,3 +1,4 @@
+import threading
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -105,6 +106,111 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
             )
 
         build_user_toolkits.assert_not_called()
+
+    def test_stream_recipe_graph_emits_ask_user_question_from_human_input_callback(self):
+        import unchain_adapter as ua
+
+        data = _recipe_dict()
+        data["nodes"] = [
+            data["nodes"][0],
+            data["nodes"][1],
+            data["nodes"][-1],
+        ]
+        data["edges"] = [
+            data["edges"][0],
+            {
+                "id": "e2",
+                "kind": "flow",
+                "source_node_id": "a1",
+                "source_port_id": "out",
+                "target_node_id": "end",
+                "target_port_id": "in",
+            },
+        ]
+        recipe = parse_recipe_json(data)
+
+        class AskingAgent(FakeAgent):
+            def run(self, *, callback=None, run_id=None, on_human_input=None, **_kwargs):
+                answer = {}
+                if callable(on_human_input):
+                    request = SimpleNamespace(
+                        request_id="ask-1",
+                        question="Which stack?",
+                        selection_mode="single",
+                        to_dict=lambda: {
+                            "request_id": "ask-1",
+                            "question": "Which stack?",
+                            "selection_mode": "single",
+                            "options": [{"label": "Web", "value": "web"}],
+                        },
+                    )
+                    answer = on_human_input(request)
+                content = ",".join(answer.get("selected_values", [])) or "no answer"
+                if callback:
+                    callback({
+                        "type": "final_message",
+                        "run_id": run_id,
+                        "iteration": 0,
+                        "content": content,
+                    })
+                return SimpleNamespace(messages=[{"role": "assistant", "content": content}])
+
+        def fake_build(**kwargs):
+            return AskingAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+
+        events = []
+        errors = []
+
+        def consume_events():
+            try:
+                for event in ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="Hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test"},
+                    session_id="s",
+                ):
+                    events.append(event)
+                    if (
+                        event.get("type") == "tool_call"
+                        and event.get("tool_name") == "ask_user_question"
+                    ):
+                        ua.submit_tool_confirmation(
+                            confirmation_id=event["confirmation_id"],
+                            approved=True,
+                            modified_arguments={"user_response": {"value": "web"}},
+                        )
+            except Exception as exc:
+                errors.append(exc)
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            worker = threading.Thread(target=consume_events, daemon=True)
+            worker.start()
+            worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(errors, [])
+        ask_event = next(
+            event
+            for event in events
+            if event.get("type") == "tool_call"
+            and event.get("tool_name") == "ask_user_question"
+        )
+        self.assertEqual(ask_event.get("call_id"), "ask-1")
+        self.assertIsInstance(ask_event.get("confirmation_id"), str)
+        self.assertEqual(ask_event.get("requires_confirmation"), True)
+        self.assertEqual(ask_event.get("interact_type"), "single")
+        self.assertEqual(ask_event.get("interact_config", {}).get("question"), "Which stack?")
+        self.assertTrue(
+            any(
+                event.get("type") == "final_message" and event.get("content") == "web"
+                for event in events
+            )
+        )
 
     def test_toolkit_pool_merge_switch_controls_user_toolkits(self):
         import unchain_adapter as ua

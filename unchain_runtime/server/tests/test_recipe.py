@@ -43,6 +43,23 @@ class ParseRecipeTests(unittest.TestCase):
         self.assertEqual(entry.template_name, "Explore")
         self.assertEqual(entry.disabled_tools, ("shell",))
 
+    def test_parses_recipe_subagent_ref(self):
+        data = self._minimal()
+        data["subagent_pool"] = [
+            {"kind": "recipe_ref", "recipe_name": "Explore", "disabled_tools": ["shell"]}
+        ]
+        recipe = parse_recipe_json(data)
+        entry = recipe.subagent_pool[0]
+        self.assertEqual(entry.kind, "recipe_ref")
+        self.assertEqual(entry.recipe_name, "Explore")
+        self.assertEqual(entry.disabled_tools, ("shell",))
+
+    def test_rejects_recipe_subagent_ref_without_recipe_name(self):
+        data = self._minimal()
+        data["subagent_pool"] = [{"kind": "recipe_ref"}]
+        with self.assertRaises(RecipeValidationError):
+            parse_recipe_json(data)
+
     def test_parses_inline_subagent(self):
         data = self._minimal()
         data["subagent_pool"] = [

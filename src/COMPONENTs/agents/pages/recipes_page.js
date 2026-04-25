@@ -77,6 +77,10 @@ export default function RecipesPage({
     setSaveError("");
   };
 
+  const handleSelectRecipe = (name) => {
+    setActiveName(name);
+  };
+
   useEffect(() => {
     if (!activeRecipe) return undefined;
     const onKey = (e) => {
@@ -185,7 +189,7 @@ export default function RecipesPage({
         <RecipeList
           recipes={recipes}
           activeName={activeName}
-          onSelect={setActiveName}
+          onSelect={handleSelectRecipe}
           onListChange={setRecipes}
           onCollapse={() => setListCollapsed(true)}
           isDark={isDark}
