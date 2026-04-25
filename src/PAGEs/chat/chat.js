@@ -308,6 +308,11 @@ const ChatInterface = () => {
     setAgentOrchestration: session.setAgentOrchestration,
     activeStreamsRef,
   });
+  const {
+    sendForTest: streamSendForTest,
+    stopStream: streamStopStream,
+    isStreaming: streamIsStreaming,
+  } = stream;
 
   useEffect(() => {
     const currentChatId = session.activeChatIdRef.current;
@@ -320,7 +325,7 @@ const ChatInterface = () => {
       messagePersistTimerRef.current = null;
     }
 
-    const delay = stream.isStreaming ? 250 : 0;
+    const delay = streamIsStreaming ? 250 : 0;
     messagePersistTimerRef.current = setTimeout(() => {
       messagePersistTimerRef.current = null;
       storageApi.setChatMessages(currentChatId, session.messages, {
@@ -334,7 +339,7 @@ const ChatInterface = () => {
         messagePersistTimerRef.current = null;
       }
     };
-  }, [session.messages, session.activeChatIdRef, storageApi, stream.isStreaming]);
+  }, [session.messages, session.activeChatIdRef, storageApi, streamIsStreaming]);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.__pupuTestBridge) {
@@ -342,13 +347,13 @@ const ChatInterface = () => {
     }
     const off1 = window.__pupuTestBridge.register(
       "sendMessage",
-      stream.sendForTest,
+      streamSendForTest,
     );
     const off2 = window.__pupuTestBridge.register(
       "cancelMessage",
       async () => {
-        const wasStreaming = !!stream.isStreaming;
-        stream.stopStream();
+        const wasStreaming = !!streamIsStreaming;
+        streamStopStream();
         return { ok: true, was_streaming: wasStreaming };
       },
     );
@@ -356,7 +361,7 @@ const ChatInterface = () => {
       off1 && off1();
       off2 && off2();
     };
-  }, [stream.sendForTest, stream.stopStream, stream.isStreaming]);
+  }, [streamSendForTest, streamStopStream, streamIsStreaming]);
 
   const refreshUnchainStatus = useCallback(async () => {
     try {

@@ -9,15 +9,6 @@ const SECTION_LABEL = {
 };
 
 export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
-  function update(patch) {
-    onChange({
-      ...recipe,
-      nodes: recipe.nodes.map((n) =>
-        n.id === node.id ? { ...n, ...patch } : n,
-      ),
-    });
-  }
-
   return (
     <>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

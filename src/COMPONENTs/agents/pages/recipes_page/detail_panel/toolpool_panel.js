@@ -41,7 +41,10 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
     };
   }, []);
 
-  const toolkits = Array.isArray(node.toolkits) ? node.toolkits : [];
+  const toolkits = useMemo(
+    () => (Array.isArray(node.toolkits) ? node.toolkits : []),
+    [node.toolkits],
+  );
 
   const added_set = useMemo(() => {
     const s = new Set();
