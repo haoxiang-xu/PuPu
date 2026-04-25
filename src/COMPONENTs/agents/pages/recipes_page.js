@@ -5,7 +5,8 @@ import { getRuntimePlatform } from "../../side-menu/side_menu_utils";
 import { windowStateBridge } from "../../../SERVICEs/bridges/window_state_bridge";
 import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
-import RecipeInspector from "./recipes_page/recipe_inspector";
+import DetailPanel from "./recipes_page/detail_panel/detail_panel";
+import { to_save_payload } from "./recipes_page/recipe_save_payload";
 
 export default function RecipesPage({
   isDark,
@@ -34,6 +35,7 @@ export default function RecipesPage({
   const [activeRecipe, setActiveRecipe] = useState(null);
   const [dirty, setDirty] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(true);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -60,14 +62,24 @@ export default function RecipesPage({
   const handleRecipeChange = (next) => {
     setActiveRecipe(next);
     setDirty(true);
+    setSaveError("");
   };
 
   const handleSave = async () => {
     if (!activeRecipe) return;
-    await api.unchain.saveRecipe(activeRecipe);
-    const { recipes: list } = await api.unchain.listRecipes();
-    setRecipes(list);
-    setDirty(false);
+    try {
+      setSaveError("");
+      await api.unchain.saveRecipe(to_save_payload(activeRecipe));
+      const { recipes: list } = await api.unchain.listRecipes();
+      setRecipes(list);
+      setDirty(false);
+    } catch (error) {
+      const message =
+        error && typeof error.message === "string"
+          ? error.message
+          : "Recipe graph is invalid";
+      setSaveError(message);
+    }
   };
 
   const overlayBg = isDark
@@ -117,27 +129,30 @@ export default function RecipesPage({
       </div>
 
       {/* ── Floating recipe list (left side menu) ── */}
-      {!listCollapsed && (
-        <div
-          style={{
-            ...overlayPanel,
-            top: 6,
-            left: 6,
-            bottom: 6,
-            width: 200,
-          }}
-        >
-          <RecipeList
-            recipes={recipes}
-            activeName={activeName}
-            onSelect={setActiveName}
-            onListChange={setRecipes}
-            onCollapse={() => setListCollapsed(true)}
-            isDark={isDark}
-            headerTopPad={headerTopPad}
-          />
-        </div>
-      )}
+      <div
+        style={{
+          ...overlayPanel,
+          top: 6,
+          left: 6,
+          bottom: 6,
+          width: 200,
+          opacity: listCollapsed ? 0 : 1,
+          transform: listCollapsed ? "translateX(-12px)" : "translateX(0)",
+          transition:
+            "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+          pointerEvents: listCollapsed ? "none" : "auto",
+        }}
+      >
+        <RecipeList
+          recipes={recipes}
+          activeName={activeName}
+          onSelect={setActiveName}
+          onListChange={setRecipes}
+          onCollapse={() => setListCollapsed(true)}
+          isDark={isDark}
+          headerTopPad={headerTopPad}
+        />
+      </div>
 
       {/* ── Expand button (only when list is collapsed) ── */}
       {listCollapsed && (
@@ -167,25 +182,51 @@ export default function RecipesPage({
         />
       )}
 
-      {/* ── Floating inspector (right detail panel) — only when a node is selected ── */}
-      {selectedNodeId && (
+      {saveError && (
         <div
           style={{
-            ...overlayPanel,
-            top: 6,
-            right: 6,
-            bottom: 6,
-            width: 300,
+            position: "absolute",
+            left: "50%",
+            bottom: 62,
+            transform: "translateX(-50%)",
+            zIndex: 5,
+            maxWidth: 520,
+            padding: "8px 12px",
+            borderRadius: 8,
+            background: isDark ? "rgba(90, 30, 30, 0.92)" : "#fff2f0",
+            border: isDark
+              ? "1px solid rgba(255,120,120,0.28)"
+              : "1px solid rgba(220,70,70,0.22)",
+            color: isDark ? "#ffd6d6" : "#9f1d1d",
+            fontSize: 12,
+            boxShadow: overlayShadow,
           }}
         >
-          <RecipeInspector
-            recipe={activeRecipe}
-            selectedNodeId={selectedNodeId}
-            onRecipeChange={handleRecipeChange}
-            isDark={isDark}
-          />
+          {saveError}
         </div>
       )}
+
+      {/* ── Floating inspector (right detail panel) ── */}
+      <div
+        style={{
+          ...overlayPanel,
+          top: 6,
+          right: 6,
+          bottom: 6,
+          width: 300,
+          opacity: selectedNodeId ? 1 : 0,
+          transform: selectedNodeId ? "translateX(0)" : "translateX(12px)",
+          transition:
+            "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
+          pointerEvents: selectedNodeId ? "auto" : "none",
+        }}
+      >
+        <DetailPanel
+          recipe={activeRecipe}
+          selectedNodeId={selectedNodeId}
+          onChange={handleRecipeChange}
+        />
+      </div>
     </div>
   );
 }

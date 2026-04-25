@@ -21,7 +21,7 @@ const unwrapModel = (m) => {
 const buildSummary = (chat) => ({
   id: chat.id,
   title: chat.title || "",
-  model: unwrapModel(chat.selectedModelId || chat.model),
+  model: unwrapModel(chat.model || chat.selectedModelId),
   message_count: Array.isArray(chat.messages) ? chat.messages.length : 0,
   updated_at: chat.updatedAt || chat.modifiedAt || 0,
 });
@@ -69,7 +69,7 @@ export const buildChatStorageAdapter = () => ({
     if (!chat) return null;
     const messages = chat.messages || [];
     return {
-      model: unwrapModel(chat.selectedModelId || chat.model),
+      model: unwrapModel(chat.model || chat.selectedModelId),
       toolkits: chat.selectedToolkits || chat.toolkits || [],
       character_id: chat.characterId || chat.character_id || null,
       last_message_role: messages.length
@@ -89,7 +89,7 @@ export const buildChatStorageAdapter = () => ({
     return {
       id: chat.id,
       title: chat.title || "",
-      model: unwrapModel(chat.selectedModelId || chat.model),
+      model: unwrapModel(chat.model || chat.selectedModelId),
       character_id: chat.characterId || chat.character_id || null,
       toolkits: chat.selectedToolkits || chat.toolkits || [],
       messages: chat.messages || [],

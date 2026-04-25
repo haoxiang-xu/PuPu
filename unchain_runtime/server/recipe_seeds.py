@@ -16,14 +16,13 @@ DEFAULT_RECIPE: dict = {
     "description": "PuPu 默认 agent 配置（复刻内置行为）",
     "model": None,
     "max_iterations": None,
+    "merge_with_user_selected": True,
     "agent": {
         "prompt_format": "skeleton",
         "prompt": "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
     },
     "toolkits": [
         {"id": "core", "enabled_tools": None},
-        {"id": "workspace", "enabled_tools": None},
-        {"id": "terminal", "enabled_tools": None},
     ],
     "subagent_pool": [
         {"kind": "ref", "template_name": "Explore", "disabled_tools": []},

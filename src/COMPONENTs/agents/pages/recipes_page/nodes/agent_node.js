@@ -1,77 +1,65 @@
-export default function AgentNode({ node, isDark, selected }) {
-  const surface = isDark ? "#1f2027" : "#ffffff";
-  const text = isDark ? "#f0f0f3" : "#1d1d22";
-  const text_soft = isDark ? "#a8a8b0" : "#6b6b73";
-  const shadow_rest = isDark
-    ? "0 1px 2px rgba(0,0,0,0.5), 0 4px 14px rgba(0,0,0,0.4)"
-    : "0 1px 2px rgba(15,18,38,0.05), 0 4px 14px rgba(15,18,38,0.07)";
-  const shadow_lift = isDark
-    ? "0 2px 4px rgba(0,0,0,0.6), 0 14px 36px rgba(0,0,0,0.6)"
-    : "0 2px 4px rgba(15,18,38,0.07), 0 14px 36px rgba(15,18,38,0.14)";
+import React from "react";
+import PuzzleShape from "./puzzle_shape";
 
-  const initial = (node.label || "?").trim().charAt(0).toUpperCase() || "?";
+/* Workflow agent node — left in, right out, top + bottom attach. */
+
+export default function AgentNode({ node, isDark }) {
+  const label = node.label || node.id;
+  const model = node.model || node.override?.model || "—";
 
   return (
-    <div
-      style={{
-        width: 200,
-        padding: 14,
-        background: surface,
-        borderRadius: 12,
-        boxShadow: selected ? shadow_lift : shadow_rest,
-        transform: selected ? "translateY(-3px)" : "translateY(0)",
-        transition:
-          "transform .25s cubic-bezier(.2,.8,.2,1), box-shadow .25s cubic-bezier(.2,.8,.2,1)",
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-        <div
-          style={{
-            width: 32,
-            height: 32,
-            borderRadius: 9,
-            flexShrink: 0,
-            background: "#4a5bd8",
-            color: "#fff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: 14,
-            fontWeight: 700,
-          }}
-        >
-          {initial}
-        </div>
-        <div style={{ minWidth: 0, flex: 1 }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              lineHeight: 1.15,
-              color: text,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {node.label || "(unnamed)"}
-          </div>
-          {node.model && (
+    <div style={{ width: 180 }}>
+      <PuzzleShape
+        tabs={["right", "top", "bottom"]}
+        cutouts={["left", "top", "bottom"]}
+        isDark={isDark}
+      >
+        <div style={{ padding: "14px 18px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div
               style={{
-                fontSize: 11,
-                color: text_soft,
-                marginTop: 2,
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace: "nowrap",
+                width: 28,
+                height: 28,
+                borderRadius: 9,
+                background: "linear-gradient(135deg, #6478f6, #4a5bd8)",
+                color: "#fff",
+                fontSize: 13,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              {node.model}
+              A
             </div>
-          )}
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 600,
+                  lineHeight: 1.15,
+                  color: isDark ? "#f0f0f3" : "#1d1d22",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {label}
+              </div>
+              <div
+                style={{
+                  fontSize: 10.5,
+                  color: isDark ? "#a8a8b0" : "#6b6b73",
+                  marginTop: 2,
+                }}
+              >
+                {model}
+              </div>
+            </div>
+          </div>
         </div>
-      </div>
+      </PuzzleShape>
     </div>
   );
 }

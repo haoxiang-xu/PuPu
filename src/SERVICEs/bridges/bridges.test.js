@@ -199,7 +199,7 @@ describe("bridge wrappers", () => {
 
     await expect(
       runtimeBridge.syncBuildFeatureFlagsSnapshot({
-        enable_user_access_to_agent_modal: true,
+        enable_user_access_to_agents: true,
       }),
     ).resolves.toEqual({
       ok: true,
@@ -207,7 +207,7 @@ describe("bridge wrappers", () => {
       error: "",
     });
     expect(window.unchainAPI.syncBuildFeatureFlagsSnapshot).toHaveBeenCalledWith({
-      enable_user_access_to_agent_modal: true,
+      enable_user_access_to_agents: true,
     });
   });
 

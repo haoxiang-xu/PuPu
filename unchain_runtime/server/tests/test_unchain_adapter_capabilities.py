@@ -503,9 +503,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             def add_toolkit(self, toolkit):
                 self.toolkits.append(toolkit)
 
+        import recipe_loader
+
         with mock.patch.object(
             unchain_adapter, "_UnchainAgent", FakeAgent
-        ), mock.patch.object(unchain_adapter.importlib, "import_module") as import_module_mock:
+        ), mock.patch.object(
+            unchain_adapter.importlib, "import_module"
+        ) as import_module_mock, mock.patch.object(
+            recipe_loader, "load_recipe", return_value=None
+        ):
             agent = unchain_adapter._create_agent({})
 
         self.assertEqual(agent._toolkits, [])
@@ -2399,7 +2405,7 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                 tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
                 self.assertEqual(tool_ids, {"core", "workspace"})
 
-    def test_recipe_filters_toolkits(self):
+    def test_recipe_filters_toolkits_when_merge_off(self):
         from unchain_adapter import _build_developer_agent
         from recipe import Recipe, RecipeAgent, ToolkitRef
         with tempfile.TemporaryDirectory() as tmp:
@@ -2413,12 +2419,35 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                     agent=RecipeAgent(prompt_format="soul", prompt="body"),
                     toolkits=(ToolkitRef(id="core", enabled_tools=None),),
                     subagent_pool=(),
+                    merge_with_user_selected=False,
                 )
                 agent = _build_developer_agent(**kw, recipe=recipe)
                 modules = agent.kw.get("modules", ())
                 tool_modules = [m for m in modules if hasattr(m, "kw") and "tools" in m.kw]
                 tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
                 self.assertEqual(tool_ids, {"core"})
+
+    def test_recipe_unions_with_user_when_merge_on(self):
+        from unchain_adapter import _build_developer_agent
+        from recipe import Recipe, RecipeAgent, ToolkitRef
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                kw = self._common_kwargs(tmp)
+                recipe = Recipe(
+                    name="Coder",
+                    description="",
+                    model=None,
+                    max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="body"),
+                    toolkits=(ToolkitRef(id="core", enabled_tools=None),),
+                    subagent_pool=(),
+                    merge_with_user_selected=True,
+                )
+                agent = _build_developer_agent(**kw, recipe=recipe)
+                modules = agent.kw.get("modules", ())
+                tool_modules = [m for m in modules if hasattr(m, "kw") and "tools" in m.kw]
+                tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
+                self.assertEqual(tool_ids, {"core", "workspace"})
 
     def test_recipe_soul_prompt_used_as_instructions(self):
         from unchain_adapter import _build_developer_agent
@@ -2459,6 +2488,34 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                 agent = _build_developer_agent(**kw, recipe=recipe)
                 instr = agent.kw.get("instructions", "")
                 self.assertNotIn(BUILTIN_DEVELOPER_PROMPT_SENTINEL, instr)
+                self.assertGreater(len(instr), 200)
+
+    def test_recipe_sentinel_with_start_prelude_uses_builtin_prompt(self):
+        from unchain_adapter import _build_developer_agent
+        from recipe import Recipe, RecipeAgent, BUILTIN_DEVELOPER_PROMPT_SENTINEL
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                kw = self._common_kwargs(tmp)
+                recipe = Recipe(
+                    name="Default",
+                    description="",
+                    model=None,
+                    max_iterations=None,
+                    agent=RecipeAgent(
+                        prompt_format="skeleton",
+                        prompt=(
+                            "{{#start.text#}}\n{{#start.images#}}\n"
+                            "{{#start.files#}}\n\n"
+                            f"{BUILTIN_DEVELOPER_PROMPT_SENTINEL}"
+                        ),
+                    ),
+                    toolkits=(),
+                    subagent_pool=(),
+                )
+                agent = _build_developer_agent(**kw, recipe=recipe)
+                instr = agent.kw.get("instructions", "")
+                self.assertNotIn(BUILTIN_DEVELOPER_PROMPT_SENTINEL, instr)
+                self.assertNotIn("{{#start.text#}}", instr)
                 self.assertGreater(len(instr), 200)
 
 

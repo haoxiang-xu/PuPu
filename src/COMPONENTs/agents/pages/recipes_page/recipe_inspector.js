@@ -1,6 +1,7 @@
 import AgentInspector from "./inspectors/agent_inspector";
 import ToolkitInspector from "./inspectors/toolkit_inspector";
 import PoolInspector from "./inspectors/pool_inspector";
+import { is_toolkit_pool_type } from "./recipe_graph";
 
 export default function RecipeInspector({
   recipe,
@@ -35,7 +36,7 @@ export default function RecipeInspector({
         isDark={isDark}
       />
     );
-  } else if (selectedNodeId === "toolpool") {
+  } else if (is_toolkit_pool_type(selectedNodeId)) {
     content = (
       <ToolkitInspector
         recipe={recipe}

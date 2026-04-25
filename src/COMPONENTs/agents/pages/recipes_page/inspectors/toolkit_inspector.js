@@ -122,7 +122,7 @@ export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
           marginBottom: 2,
         }}
       >
-        Tool Pool
+        ToolkitPool
       </div>
       <div style={{ fontSize: 11, color: mutedColor, marginBottom: 14 }}>
         {(() => {

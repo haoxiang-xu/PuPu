@@ -11,6 +11,12 @@ import { DEFAULT_PORTS } from "./utils";
 const PORT_SIZE = 10;
 const PORT_HALF = PORT_SIZE / 2;
 
+const DOT_COLORS = {
+  in: "#8a5cf6",
+  out: "#f6a341",
+  attach: "#5a5dd6",
+};
+
 /* ── Port sub-component with React-managed hover state ──── */
 const Port = React.memo(function Port({
   port,
@@ -25,7 +31,10 @@ const Port = React.memo(function Port({
 }) {
   const [port_hovered, set_port_hovered] = useState(false);
   const fraction = (index + 1) / (total + 1);
-  const is_bar = theme.portShape === "bar";
+  const shape = theme.portShape;
+  const is_bar = shape === "bar";
+  const is_puzzle = shape === "puzzle";
+  const kind = port.kind;
 
   const pos_style = { position: "absolute" };
   let base_transform = "";
@@ -44,6 +53,10 @@ const Port = React.memo(function Port({
       port_h = long;
     }
     offset = -1.5;
+  } else if (is_puzzle) {
+    port_w = 8;
+    port_h = 8;
+    offset = -4;
   } else {
     port_w = PORT_SIZE;
     port_h = PORT_SIZE;
@@ -77,23 +90,32 @@ const Port = React.memo(function Port({
 
   const show_port = interactive || is_connected || port_hovered;
   const highlighted = port_hovered || is_connected;
-  const bg = highlighted ? theme.portHoverColor : theme.portColor;
+  const puzzle_color = DOT_COLORS[kind] || theme.portHoverColor;
+  const bg = is_puzzle
+    ? highlighted
+      ? puzzle_color
+      : theme.portColor
+    : highlighted
+      ? theme.portHoverColor
+      : theme.portColor;
   const opacity = is_connected && !interactive && !port_hovered ? 0.65 : show_port ? 1 : 0;
 
   let transform = base_transform;
   let box_shadow = "none";
   if (port_hovered && !is_bar) {
     transform = `${base_transform} scale(1.6)`;
-    box_shadow = `0 0 8px ${theme.portHoverColor}`;
+    box_shadow = is_puzzle
+      ? `0 0 0 5px ${puzzle_color}33`
+      : `0 0 8px ${theme.portHoverColor}`;
   }
 
-  // Expand invisible hit area around the port so grabbing feels forgiving.
-  const hit_pad = 8;
+  const hit_pad = 10;
 
   return (
     <div
       data-port-id={port.id}
       data-port-side={side}
+      data-port-kind={kind || ""}
       data-node-id={node_id}
       style={{
         ...pos_style,
@@ -122,6 +144,7 @@ const Port = React.memo(function Port({
       <div
         data-port-id={port.id}
         data-port-side={side}
+        data-port-kind={kind || ""}
         data-node-id={node_id}
         style={{
           position: "absolute",

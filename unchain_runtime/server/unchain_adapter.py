@@ -14,6 +14,7 @@ import threading
 import time
 import uuid as _uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List
 
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
@@ -3159,15 +3160,18 @@ def _materialize_recipe_subagents(
 
 
 def _apply_recipe_toolkit_filter(toolkits: list, refs: tuple) -> list:
-    """Filter PuPu toolkits to the set referenced by a Recipe.
+    """Narrow a toolkit list to the set referenced by a Recipe.
 
     - Drops toolkits not listed in `refs`.
     - For each kept toolkit, narrows its `tools` dict to `enabled_tools`
       when that list is non-null.
     - Missing/unloaded toolkits are skipped with a warning.
+
+    This is the recipe-narrowing step. Higher-level merge logic lives in
+    :func:`_resolve_recipe_toolkits`.
     """
     import copy as _copy
-    by_id = {getattr(tk, "id", getattr(tk, "name", None)): tk for tk in toolkits}
+    by_id = {_resolve_toolkit_identity(tk): tk for tk in toolkits}
     result: list = []
     for ref in refs:
         tk = by_id.get(ref.id)
@@ -3189,6 +3193,102 @@ def _apply_recipe_toolkit_filter(toolkits: list, refs: tuple) -> list:
     return result
 
 
+def _resolve_toolkit_identity(toolkit_obj: Any) -> str:
+    explicit_id = str(getattr(toolkit_obj, _RUNTIME_TOOLKIT_ID_ATTR, "") or "").strip()
+    if explicit_id:
+        return explicit_id
+    direct_id = str(
+        getattr(toolkit_obj, "id", None)
+        or getattr(toolkit_obj, "name", None)
+        or ""
+    ).strip()
+    if direct_id:
+        return direct_id
+    toolkit_meta = _get_runtime_toolkit_metadata(toolkit_obj)
+    toolkit_id = str(toolkit_meta.get("toolkit_id", "") or "").strip()
+    if toolkit_id:
+        return toolkit_id
+    return ""
+
+
+def _build_toolkits_by_ids(
+    toolkit_ids: list,
+    options: Dict[str, object] | None,
+) -> list:
+    """Build toolkit instances by canonical id, fail-soft per id.
+
+    Reuses :func:`_build_selected_toolkits` by synthesising an options dict per
+    toolkit id. A RuntimeError on any single id is logged and skipped.
+    """
+    if not toolkit_ids:
+        return []
+    out: list = []
+    base_options = dict(options) if isinstance(options, dict) else {}
+    for tid in toolkit_ids:
+        synth = dict(base_options)
+        synth["toolkits"] = [tid]
+        try:
+            built = _build_selected_toolkits(synth)
+        except RuntimeError as exc:
+            _subagent_logger.warning(
+                "[recipe] cannot build toolkit %s: %s", tid, exc,
+            )
+            continue
+        out.extend(built)
+    return out
+
+
+def _resolve_recipe_toolkits(
+    user_toolkits: list,
+    recipe,
+    options: Dict[str, object] | None = None,
+) -> list:
+    """Resolve the final toolkit set for an agent run given a Recipe.
+
+    Honours ``recipe.merge_with_user_selected``:
+
+    - True (default): result is ``user_toolkits ∪ recipe-resolved``. Recipe-
+      narrowed instances replace user instances when the same toolkit appears
+      in both, so ``enabled_tools`` filtering still applies.
+    - False: result is recipe-resolved only; the user's chat-time selection is
+      ignored entirely.
+
+    Recipe refs whose toolkits are not already in ``user_toolkits`` are built
+    on demand via :func:`_build_toolkits_by_ids`. Refs that cannot be resolved
+    in either source are skipped with a warning.
+    """
+    user_by_id = {_resolve_toolkit_identity(tk): tk for tk in user_toolkits}
+    needed = [
+        ref.id
+        for ref in recipe.toolkits
+        if ref.id and ref.id not in user_by_id
+    ]
+    extras = _build_toolkits_by_ids(needed, options)
+
+    pool = list(user_toolkits) + list(extras)
+    recipe_resolved = _apply_recipe_toolkit_filter(pool, recipe.toolkits)
+
+    if not recipe.merge_with_user_selected:
+        return recipe_resolved
+
+    resolved_by_id = {_resolve_toolkit_identity(tk): tk for tk in recipe_resolved}
+    out: list = []
+    seen: set = set()
+    for tk in user_toolkits:
+        tid = _resolve_toolkit_identity(tk)
+        if tid in seen:
+            continue
+        seen.add(tid)
+        out.append(resolved_by_id.get(tid, tk))
+    for tk in recipe_resolved:
+        tid = _resolve_toolkit_identity(tk)
+        if tid in seen:
+            continue
+        seen.add(tid)
+        out.append(tk)
+    return out
+
+
 def _resolve_recipe_prompt(recipe) -> str:
     """Convert Recipe.agent.prompt into developer instructions.
 
@@ -3199,7 +3299,14 @@ def _resolve_recipe_prompt(recipe) -> str:
     """
     from recipe import BUILTIN_DEVELOPER_PROMPT_SENTINEL
     raw = recipe.agent.prompt or ""
-    if raw.strip() == BUILTIN_DEVELOPER_PROMPT_SENTINEL:
+    sentinel_candidate = re.sub(
+        r"^\s*\{\{#start\.text#\}\}\s*"
+        r"\{\{#start\.images#\}\}\s*"
+        r"\{\{#start\.files#\}\}\s*",
+        "",
+        raw,
+    ).strip()
+    if sentinel_candidate == BUILTIN_DEVELOPER_PROMPT_SENTINEL:
         return _build_modular_prompt(
             builtin_modules=_BUILTIN_MODULES,
             agent_modules=_DEVELOPER_PROMPT_SECTIONS,
@@ -3216,6 +3323,269 @@ def _resolve_recipe_prompt(recipe) -> str:
             )
             return raw
     return raw
+
+
+def _load_recipe_from_options(options: Dict[str, object] | None):
+    try:
+        from recipe_loader import load_recipe
+
+        recipe_name = str((options or {}).get("recipe_name") or "Default")
+        recipe = load_recipe(recipe_name)
+        if recipe is None and recipe_name != "Default":
+            _subagent_logger.warning(
+                "[recipe] recipe %r not found; falling back to Default", recipe_name,
+            )
+            recipe = load_recipe("Default")
+        return recipe
+    except Exception as exc:
+        _subagent_logger.warning("[recipe] load failed: %s", exc)
+        return None
+
+
+def _recipe_has_graph(recipe: Any) -> bool:
+    return bool(recipe is not None and getattr(recipe, "nodes", ()))
+
+
+def _graph_node_type(node: dict) -> str:
+    raw = str(node.get("type") or "").strip()
+    return "toolkit_pool" if raw == "toolpool" else raw
+
+
+def _graph_port_kind(port_id: object) -> str:
+    port = str(port_id or "").strip()
+    if port in {"in", "out"}:
+        return port
+    if port in {"attach_top", "attach_bot"}:
+        return "attach"
+    return ""
+
+
+def _graph_node_outputs(node: dict) -> list[dict]:
+    node_type = _graph_node_type(node)
+    raw = node.get("outputs")
+    if node_type == "start" and not raw:
+        raw = [
+            {"name": "text", "type": "string"},
+            {"name": "images", "type": "image[]"},
+            {"name": "files", "type": "file[]"},
+        ]
+    if node_type == "agent" and not raw:
+        raw = [{"name": "output", "type": "string"}]
+    return [dict(item) for item in raw or [] if isinstance(item, dict)]
+
+
+def _compile_recipe_graph_for_runtime(recipe: Any) -> Dict[str, Any]:
+    nodes = [dict(node) for node in getattr(recipe, "nodes", ()) if isinstance(node, dict)]
+    edges = [dict(edge) for edge in getattr(recipe, "edges", ()) if isinstance(edge, dict)]
+    by_id = {str(node.get("id")): {**node, "type": _graph_node_type(node)} for node in nodes}
+    starts = [node for node in by_id.values() if node.get("type") == "start"]
+    ends = [node for node in by_id.values() if node.get("type") == "end"]
+    if len(starts) != 1 or len(ends) != 1:
+        raise RuntimeError("recipe graph must have exactly one start and one end node")
+
+    outgoing: Dict[str, dict] = {}
+    attach_by_agent: Dict[str, list[dict]] = {}
+    for raw_edge in edges:
+        edge = dict(raw_edge)
+        if edge.get("kind") not in {"flow", "attach"}:
+            edge["kind"] = (
+                "attach"
+                if _graph_port_kind(edge.get("source_port_id")) == "attach"
+                or _graph_port_kind(edge.get("target_port_id")) == "attach"
+                else "flow"
+            )
+        if edge["kind"] == "flow":
+            if (
+                _graph_port_kind(edge.get("source_port_id")) == "in"
+                and _graph_port_kind(edge.get("target_port_id")) == "out"
+            ):
+                edge["source_node_id"], edge["target_node_id"] = (
+                    edge.get("target_node_id"),
+                    edge.get("source_node_id"),
+                )
+                edge["source_port_id"], edge["target_port_id"] = (
+                    edge.get("target_port_id"),
+                    edge.get("source_port_id"),
+                )
+            outgoing[str(edge.get("source_node_id"))] = edge
+            continue
+        source = by_id.get(str(edge.get("source_node_id")))
+        target = by_id.get(str(edge.get("target_node_id")))
+        if not source or not target:
+            continue
+        if source.get("type") == "agent":
+            attach_by_agent.setdefault(str(source.get("id")), []).append(target)
+        elif target.get("type") == "agent":
+            attach_by_agent.setdefault(str(target.get("id")), []).append(source)
+
+    start = starts[0]
+    end = ends[0]
+    ordered: list[dict] = [start]
+    agents: list[dict] = []
+    seen = {str(start.get("id"))}
+    current = start
+    while str(current.get("id")) != str(end.get("id")):
+        edge = outgoing.get(str(current.get("id")))
+        if not edge:
+            raise RuntimeError(f"recipe graph node {current.get('id')} is not connected to end")
+        target_id = str(edge.get("target_node_id") or "")
+        if target_id in seen:
+            raise RuntimeError("recipe graph contains a cycle")
+        target = by_id.get(target_id)
+        if not target:
+            raise RuntimeError(f"recipe graph edge {edge.get('id')} references missing node")
+        seen.add(target_id)
+        ordered.append(target)
+        if target.get("type") == "agent":
+            agents.append(target)
+        current = target
+
+    if not agents:
+        raise RuntimeError("recipe graph must have at least one agent node")
+
+    return {
+        "nodes": list(by_id.values()),
+        "edges": edges,
+        "start": start,
+        "end": end,
+        "agents": agents,
+        "attach_by_agent": attach_by_agent,
+    }
+
+
+def _graph_toolkit_refs(node: dict) -> tuple:
+    from recipe import ToolkitRef
+
+    refs = []
+    for item in node.get("toolkits") or []:
+        if not isinstance(item, dict):
+            continue
+        tid = str(item.get("id") or "").strip()
+        if not tid:
+            continue
+        enabled = item.get("enabled_tools")
+        enabled_tools = tuple(str(v) for v in enabled) if isinstance(enabled, list) else None
+        refs.append(ToolkitRef(id=tid, enabled_tools=enabled_tools))
+    return tuple(refs)
+
+
+def _graph_subagent_entries(node: dict) -> tuple:
+    from recipe import InlineSubagent, SubagentRef
+
+    entries = []
+    for item in node.get("subagents") or []:
+        if not isinstance(item, dict):
+            continue
+        disabled_raw = item.get("disabled_tools", [])
+        disabled = tuple(str(v) for v in disabled_raw) if isinstance(disabled_raw, list) else ()
+        if item.get("kind") == "ref":
+            template_name = str(item.get("template_name") or "").strip()
+            if template_name:
+                entries.append(SubagentRef(kind="ref", template_name=template_name, disabled_tools=disabled))
+        elif item.get("kind") == "inline":
+            name = str(item.get("name") or "").strip()
+            template = item.get("template") if isinstance(item.get("template"), dict) else {}
+            prompt_format = item.get("prompt_format") if item.get("prompt_format") in {"soul", "skeleton"} else "soul"
+            if name:
+                entries.append(
+                    InlineSubagent(
+                        kind="inline",
+                        name=name,
+                        prompt_format=prompt_format,
+                        template=template,
+                        disabled_tools=disabled,
+                    )
+                )
+    return tuple(entries)
+
+
+def _merge_toolkit_lists(toolkit_groups: list[list]) -> list:
+    out: list = []
+    seen: set[str] = set()
+    for group in toolkit_groups:
+        for tk in group:
+            tid = _resolve_toolkit_identity(tk)
+            if tid in seen:
+                continue
+            seen.add(tid)
+            out.append(tk)
+    return out
+
+
+def _resolve_graph_agent_toolkits(
+    agent_node: dict,
+    compiled: Dict[str, Any],
+    user_toolkits: list,
+    options: Dict[str, object] | None,
+) -> list:
+    groups: list[list] = []
+    for pool in compiled["attach_by_agent"].get(str(agent_node.get("id")), []):
+        if _graph_node_type(pool) != "toolkit_pool":
+            continue
+        refs = _graph_toolkit_refs(pool)
+        merge = pool.get("merge_with_user_selected") is True
+        fake_recipe = SimpleNamespace(toolkits=refs, merge_with_user_selected=merge)
+        groups.append(
+            _resolve_recipe_toolkits(
+                list(user_toolkits) if merge else [],
+                fake_recipe,
+                options=options,
+            )
+        )
+    return _merge_toolkit_lists(groups)
+
+
+def _resolve_graph_agent_subagents(agent_node: dict, compiled: Dict[str, Any]) -> tuple:
+    entries = []
+    for pool in compiled["attach_by_agent"].get(str(agent_node.get("id")), []):
+        if _graph_node_type(pool) == "subagent_pool":
+            entries.extend(_graph_subagent_entries(pool))
+    return tuple(entries)
+
+
+def _resolve_graph_agent_prompt(agent_node: dict) -> str:
+    override = agent_node.get("override") if isinstance(agent_node.get("override"), dict) else {}
+    prompt = override.get("prompt", "")
+    prompt_format = override.get("prompt_format") if override.get("prompt_format") in {"soul", "skeleton"} else "soul"
+    fake_recipe = SimpleNamespace(
+        agent=SimpleNamespace(prompt_format=prompt_format, prompt=str(prompt or "")),
+    )
+    return _resolve_recipe_prompt(fake_recipe)
+
+
+def _replace_workflow_variables(text: str, variables: Dict[str, Dict[str, str]]) -> str:
+    def repl(match: re.Match) -> str:
+        node_id = match.group(1)
+        field = match.group(2)
+        return str(variables.get(node_id, {}).get(field, ""))
+
+    return re.sub(r"\{\{#([^.}]+)\.([^#}]+)#\}\}", repl, text or "")
+
+
+def _attachment_metadata_json(attachments: List[Dict[str, object]] | None, kind: str) -> str:
+    selected = []
+    for item in attachments or []:
+        if not isinstance(item, dict):
+            continue
+        item_type = str(item.get("type") or "").lower()
+        if kind == "images" and item_type != "image":
+            continue
+        if kind == "files" and item_type not in {"file", "pdf"}:
+            continue
+        selected.append(copy.deepcopy(item))
+    return json.dumps(selected, ensure_ascii=False, default=str)
+
+
+def _workspace_display_names_for_toolkits(toolkits: list) -> Dict[str, str]:
+    names: Dict[str, str] = {}
+    for toolkit in toolkits:
+        for tool_name, tool_obj in getattr(toolkit, "tools", {}).items():
+            original = getattr(tool_obj, _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR, "")
+            if isinstance(original, str) and original.strip() and original != tool_name:
+                prefix = tool_name[: -len(original) - 1] if tool_name.endswith("_" + original) else ""
+                label = prefix.split("_", 2)[2] if prefix.count("_") >= 2 else prefix
+                names[tool_name] = f"{original} @{label}" if label else original
+    return names
 
 
 def _build_developer_agent(
@@ -3241,7 +3611,7 @@ def _build_developer_agent(
     recipe=None,
 ):
     if recipe is not None:
-        toolkits = _apply_recipe_toolkit_filter(toolkits, recipe.toolkits)
+        toolkits = _resolve_recipe_toolkits(toolkits, recipe, options=options)
 
     modules: list = []
     if toolkits:
@@ -3379,18 +3749,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
 
     options = options or {}
 
-    try:
-        from recipe_loader import load_recipe
-        recipe_name = str(options.get("recipe_name") or "Default")
-        recipe = load_recipe(recipe_name)
-        if recipe is None and recipe_name != "Default":
-            _subagent_logger.warning(
-                "[recipe] recipe %r not found; falling back to Default", recipe_name,
-            )
-            recipe = load_recipe("Default")
-    except Exception as exc:
-        _subagent_logger.warning("[recipe] load failed: %s", exc)
-        recipe = None
+    recipe = _load_recipe_from_options(options)
 
     selected_config = get_runtime_config(options)
     if (not options.get("modelId")) and recipe is not None and recipe.model:
@@ -3599,6 +3958,388 @@ def _make_human_input_callback(
     return on_human_input
 
 
+def _stream_recipe_graph_events(
+    *,
+    recipe: Any,
+    message: str,
+    history: List[Dict[str, object]],
+    attachments: List[Dict[str, object]] | None,
+    options: Dict[str, object],
+    session_id: str = "",
+    cancel_event: threading.Event | None = None,
+) -> Iterable[Dict[str, Any]]:
+    if _UnchainAgent is None:
+        raise RuntimeError("unchain agent is unavailable — check unchain installation")
+
+    compiled = _compile_recipe_graph_for_runtime(recipe)
+    selected_config = get_runtime_config(options)
+    if (not options.get("modelId")) and getattr(recipe, "model", None):
+        recipe_model = str(recipe.model)
+        if ":" in recipe_model:
+            provider, model = recipe_model.split(":", 1)
+            selected_config = {**selected_config, "provider": provider, "model": model}
+    display_model = _format_model_id(selected_config["provider"], selected_config["model"])
+    max_iterations = _resolve_agent_max_iterations(options)
+    if (
+        getattr(recipe, "max_iterations", None) is not None
+        and not options.get("max_iterations")
+    ):
+        max_iterations = int(recipe.max_iterations)
+
+    memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
+    if memory_runtime["requested"] and not memory_runtime["available"]:
+        fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
+        yield {
+            "type": "memory_prepare",
+            "run_id": "",
+            "iteration": 0,
+            "timestamp": time.time(),
+            "session_id": session_id,
+            "applied": False,
+            "fallback_reason": fallback_reason,
+        }
+        if not history:
+            yield {
+                "type": "error",
+                "run_id": "",
+                "iteration": 0,
+                "timestamp": time.time(),
+                "code": _MEMORY_UNAVAILABLE_CODE,
+                "message": "Memory is enabled but unavailable for this request",
+                "fallback_reason": fallback_reason,
+            }
+            return
+
+    wants_user_toolkits = any(
+        _graph_node_type(pool) == "toolkit_pool" and pool.get("merge_with_user_selected") is True
+        for pools in compiled["attach_by_agent"].values()
+        for pool in pools
+    )
+    try:
+        user_toolkits = _build_requested_toolkits(options) if wants_user_toolkits else []
+    except RuntimeError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+    workflow_run_id = str(_uuid.uuid4())
+    event_queue: "queue.Queue[object]" = queue.Queue()
+    done_marker = object()
+    output_holder: Dict[str, object] = {
+        "error": None,
+        "error_traceback": "",
+        "seen_final_message": False,
+        "last_iteration": 0,
+        "bundle": None,
+        "final_text": "",
+    }
+
+    base_messages = _normalize_messages(history, message, attachments)
+    messages_without_attachments = _normalize_messages(history, message, [])
+
+    if isinstance(cancel_event, threading.Event):
+        def watch_stream_cancel() -> None:
+            cancel_event.wait()
+            cancel_tool_confirmations(cancel_event)
+
+        threading.Thread(
+            target=watch_stream_cancel,
+            name="unchain-workflow-confirm-cancel",
+            daemon=True,
+        ).start()
+
+    def emit(event: Dict[str, Any]) -> None:
+        event_queue.put(event)
+
+    def run_workflow() -> None:
+        try:
+            memory_namespace = str(options.get("memory_namespace") or "").strip()
+            runtime_messages = base_messages
+            if memory_manager is not None:
+                try:
+                    raw_max_ctx = get_max_context_window_tokens(
+                        selected_config["provider"],
+                        selected_config["model"],
+                    )
+                    runtime_messages = memory_manager.prepare_messages(
+                        session_id=session_id,
+                        incoming=base_messages,
+                        max_context_window_tokens=int(raw_max_ctx * 0.40),
+                        model=selected_config["model"],
+                        memory_namespace=memory_namespace or None,
+                        provider=selected_config["provider"],
+                        supports_tools=True,
+                    )
+                    prepare_info = getattr(memory_manager, "last_prepare_info", {}) or {}
+                    emit({
+                        "type": "memory_prepare",
+                        "run_id": workflow_run_id,
+                        "iteration": 0,
+                        "timestamp": time.time(),
+                        "applied": True,
+                        **copy.deepcopy(prepare_info),
+                    })
+                except Exception as exc:
+                    emit({
+                        "type": "memory_prepare",
+                        "run_id": workflow_run_id,
+                        "iteration": 0,
+                        "timestamp": time.time(),
+                        "applied": False,
+                        "fallback_reason": f"memory_prepare_failed: {exc}",
+                    })
+
+            variables: Dict[str, Dict[str, str]] = {
+                str(compiled["start"].get("id")): {
+                    "text": str(message or ""),
+                    "images": _attachment_metadata_json(attachments, "images"),
+                    "files": _attachment_metadata_json(attachments, "files"),
+                }
+            }
+
+            agents = list(compiled["agents"])
+            last_result = None
+            last_agent = None
+            for index, agent_node in enumerate(agents):
+                is_last = index == len(agents) - 1
+                agent_id = str(agent_node.get("id") or f"agent_{index + 1}")
+                override = agent_node.get("override") if isinstance(agent_node.get("override"), dict) else {}
+                step_config = dict(selected_config)
+                raw_model = str(override.get("model") or "").strip()
+                if raw_model:
+                    if ":" in raw_model:
+                        provider, model = raw_model.split(":", 1)
+                        step_config.update({"provider": provider, "model": model})
+                    else:
+                        step_config["model"] = raw_model
+                step_api_key = _resolve_agent_api_key(options, step_config["provider"])
+                step_toolkits = _resolve_graph_agent_toolkits(
+                    agent_node,
+                    compiled,
+                    user_toolkits,
+                    options,
+                )
+                step_subagents = _resolve_graph_agent_subagents(agent_node, compiled)
+                instructions = _replace_workflow_variables(
+                    _resolve_graph_agent_prompt(agent_node),
+                    variables,
+                )
+                step_recipe = SimpleNamespace(
+                    agent=SimpleNamespace(prompt_format="soul", prompt=instructions),
+                    toolkits=(),
+                    subagent_pool=step_subagents,
+                    merge_with_user_selected=True,
+                )
+                step_agent = _build_developer_agent(
+                    UnchainAgent=_UnchainAgent,
+                    ToolsModule=_ToolsModule,
+                    MemoryModule=_MemoryModule,
+                    PoliciesModule=_PoliciesModule,
+                    SubagentModule=_SubagentModule,
+                    SubagentTemplate=_SubagentTemplate,
+                    SubagentPolicy=_SubagentPolicy,
+                    provider=step_config["provider"],
+                    model=step_config["model"],
+                    api_key=step_api_key,
+                    user_modules=_extract_user_prompt_modules(options),
+                    max_iterations=max_iterations,
+                    toolkits=step_toolkits,
+                    memory_manager=None,
+                    options=options,
+                    recipe=step_recipe,
+                )
+                step_agent._toolkits = step_toolkits
+                step_agent._display_model = _format_model_id(
+                    step_config["provider"],
+                    step_config["model"],
+                )
+                step_agent._max_iterations = max_iterations
+                raw_max_ctx = get_max_context_window_tokens(
+                    step_config["provider"],
+                    step_config["model"],
+                )
+                step_agent._max_context_window_tokens = int(raw_max_ctx * 0.40)
+
+                toolkit_meta = _build_toolkit_tool_index(step_toolkits)
+                workspace_names = _workspace_display_names_for_toolkits(step_toolkits)
+                step_final_holder = {"text": ""}
+
+                def step_emit(event: Dict[str, Any], *, _is_last=is_last, _agent_id=agent_id, _index=index) -> None:
+                    if not isinstance(event, dict):
+                        return
+                    event = _enrich_tool_event_with_toolkit_metadata(event, toolkit_meta)
+                    if event.get("type") == "tool_call" and event.get("tool_name") in workspace_names:
+                        event["tool_display_name"] = workspace_names[event.get("tool_name")]
+                    if event.get("type") == "tool_result" and event.get("tool_name") in workspace_names:
+                        event["tool_display_name"] = workspace_names[event.get("tool_name")]
+                    event["run_id"] = workflow_run_id
+                    event["workflow_node_id"] = _agent_id
+                    event["workflow_step_index"] = _index
+                    event["workflow_step_count"] = len(agents)
+                    event_type = event.get("type")
+                    if event_type == "final_message":
+                        content = event.get("content")
+                        if isinstance(content, str):
+                            step_final_holder["text"] = content
+                        if not _is_last:
+                            emit({
+                                "type": "workflow_step_final",
+                                "run_id": workflow_run_id,
+                                "iteration": event.get("iteration", 0),
+                                "timestamp": time.time(),
+                                "workflow_node_id": _agent_id,
+                                "workflow_step_index": _index,
+                                "content": content or "",
+                            })
+                            return
+                        output_holder["seen_final_message"] = True
+                    elif event_type == "token_delta" and not _is_last:
+                        delta = event.get("delta")
+                        if isinstance(delta, str) and delta:
+                            emit({
+                                "type": "workflow_step_delta",
+                                "run_id": workflow_run_id,
+                                "iteration": event.get("iteration", 0),
+                                "timestamp": time.time(),
+                                "workflow_node_id": _agent_id,
+                                "workflow_step_index": _index,
+                                "delta": delta,
+                            })
+                        return
+                    elif event_type == "human_input_requested":
+                        return
+                    elif event_type == "run_max_iterations":
+                        return
+                    elif event_type == "tool_call" and event.get("tool_name") == "ask_user_question":
+                        return
+                    iteration = event.get("iteration")
+                    if isinstance(iteration, int):
+                        output_holder["last_iteration"] = iteration
+                    emit(event)
+
+                confirm_cb = _make_tool_confirm_callback(
+                    step_emit,
+                    cancel_event=cancel_event,
+                    toolkit_meta_by_tool_name=toolkit_meta,
+                )
+                human_input_cb = _make_human_input_callback(
+                    step_emit,
+                    cancel_event=cancel_event,
+                    toolkit_meta_by_tool_name=toolkit_meta,
+                )
+                max_iterations_cb = _make_continuation_callback(
+                    step_emit,
+                    cancel_event=cancel_event,
+                )
+                step_messages = runtime_messages if index == 0 else messages_without_attachments
+                result = step_agent.run(
+                    messages=step_messages,
+                    payload=_build_payload(step_config["provider"], options),
+                    callback=step_emit,
+                    max_iterations=max_iterations,
+                    max_context_window_tokens=step_agent._max_context_window_tokens or None,
+                    on_tool_confirm=confirm_cb,
+                    on_human_input=human_input_cb,
+                    on_max_iterations=max_iterations_cb,
+                    run_id=workflow_run_id,
+                    **({"session_id": session_id} if session_id else {}),
+                )
+                last_result = result
+                last_agent = step_agent
+                final_text = step_final_holder["text"] or _extract_last_assistant_text(getattr(result, "messages", []) or [])
+                variables[agent_id] = {"output": final_text}
+                output_holder["final_text"] = final_text
+
+            final_text = str(output_holder.get("final_text") or "")
+            if memory_manager is not None and final_text:
+                try:
+                    commit_messages = [
+                        *base_messages,
+                        {"role": "assistant", "content": final_text},
+                    ]
+                    memory_manager.commit_messages(
+                        session_id=session_id,
+                        full_conversation=commit_messages,
+                        memory_namespace=memory_namespace or None,
+                        model=selected_config["model"],
+                    )
+                    commit_info = getattr(memory_manager, "last_commit_info", {}) or {}
+                    emit({
+                        "type": "memory_commit",
+                        "run_id": workflow_run_id,
+                        "iteration": int(output_holder.get("last_iteration") or 0),
+                        "timestamp": time.time(),
+                        "applied": True,
+                        **copy.deepcopy(commit_info),
+                    })
+                except Exception as exc:
+                    emit({
+                        "type": "memory_commit",
+                        "run_id": workflow_run_id,
+                        "iteration": int(output_holder.get("last_iteration") or 0),
+                        "timestamp": time.time(),
+                        "applied": False,
+                        "fallback_reason": f"memory_commit_failed: {exc}",
+                    })
+
+            if last_result is not None and last_agent is not None:
+                bundle = _build_bundle_from_result(
+                    last_result,
+                    last_agent,
+                    model=str(getattr(last_agent, "_display_model", "") or display_model),
+                    active_agent="developer",
+                    orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
+                )
+                if bundle:
+                    output_holder["bundle"] = bundle
+        except Exception as run_error:
+            import traceback as _tb
+
+            output_holder["error_traceback"] = _tb.format_exc()
+            output_holder["error"] = run_error
+        finally:
+            event_queue.put(done_marker)
+
+    threading.Thread(
+        target=run_workflow,
+        name="unchain-workflow-runner-events",
+        daemon=True,
+    ).start()
+
+    while True:
+        item = event_queue.get()
+        if item is done_marker:
+            break
+        if isinstance(item, dict):
+            yield item
+
+    error = output_holder.get("error")
+    if error is not None:
+        tb = output_holder.get("error_traceback", "")
+        if tb:
+            print(f"[unchain workflow error]\n{tb}", file=sys.stderr, flush=True)
+        raise RuntimeError(str(error))
+
+    if not output_holder.get("seen_final_message"):
+        final_text = str(output_holder.get("final_text") or "")
+        if final_text:
+            yield {
+                "type": "final_message",
+                "run_id": workflow_run_id,
+                "iteration": int(output_holder.get("last_iteration") or 0),
+                "timestamp": time.time(),
+                "content": final_text,
+            }
+
+    bundle = output_holder.get("bundle")
+    if isinstance(bundle, dict) and bundle:
+        yield {
+            "type": "stream_summary",
+            "run_id": workflow_run_id,
+            "iteration": int(output_holder.get("last_iteration") or 0),
+            "timestamp": time.time(),
+            "bundle": bundle,
+        }
+
+
 def stream_chat(
     *,
     message: str,
@@ -3607,6 +4348,33 @@ def stream_chat(
     options: Dict[str, object],
     session_id: str = "",
 ) -> Iterable[str]:
+    recipe = _load_recipe_from_options(options)
+    if _recipe_has_graph(recipe):
+        final_text = ""
+        streamed = False
+        for event in _stream_recipe_graph_events(
+            recipe=recipe,
+            message=message,
+            history=history,
+            attachments=attachments,
+            options=options,
+            session_id=session_id,
+            cancel_event=None,
+        ):
+            event_type = event.get("type")
+            if event_type == "token_delta":
+                delta = event.get("delta")
+                if isinstance(delta, str) and delta:
+                    streamed = True
+                    yield delta
+            elif event_type == "final_message":
+                content = event.get("content")
+                if isinstance(content, str):
+                    final_text = content
+        if final_text and not streamed:
+            yield final_text
+        return
+
     agent = _create_agent(options, session_id=session_id)
     memory_runtime = _memory_runtime_from_agent(agent)
     if (
@@ -3697,6 +4465,19 @@ def stream_chat_events(
     session_id: str = "",
     cancel_event: threading.Event | None = None,
 ) -> Iterable[Dict[str, Any]]:
+    recipe = _load_recipe_from_options(options)
+    if _recipe_has_graph(recipe):
+        yield from _stream_recipe_graph_events(
+            recipe=recipe,
+            message=message,
+            history=history,
+            attachments=attachments,
+            options=options,
+            session_id=session_id,
+            cancel_event=cancel_event,
+        )
+        return
+
     agent = _create_agent(options, session_id=session_id)
     messages = _normalize_messages(history, message, attachments)
     payload = _build_payload(agent.provider, options)

@@ -257,8 +257,10 @@ const SideMenu = () => {
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
   const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
-  const isAgentModalEnabled =
-    featureFlags.enable_user_access_to_agent_modal === true;
+  const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
+  const isCharactersEnabled =
+    featureFlags.enable_user_access_to_characters === true;
+  const isAgentModalEnabled = isAgentsEnabled || isCharactersEnabled;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -736,6 +738,8 @@ const SideMenu = () => {
           <AgentsModal
             open={isAgentModalEnabled && agentsOpen}
             onClose={() => setAgentsOpen(false)}
+            isAgentsEnabled={isAgentsEnabled}
+            isCharactersEnabled={isCharactersEnabled}
           />
         )}
 

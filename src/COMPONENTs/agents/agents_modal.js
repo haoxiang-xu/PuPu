@@ -70,21 +70,27 @@ const ComingSoonPlaceholder = ({ icon, isDark, theme }) => (
 );
 
 /* ── Main modal ──────────────────────────────────────────── */
-export const AgentsModal = ({ open, onClose }) => {
+export const AgentsModal = ({
+  open,
+  onClose,
+  isAgentsEnabled = true,
+  isCharactersEnabled = true,
+}) => {
   useModalLifecycle("agents-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
-  const [selectedSection, setSelectedSection] = useState("agents");
+  const defaultSection = isAgentsEnabled ? "agents" : "characters";
+  const [selectedSection, setSelectedSection] = useState(defaultSection);
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
     if (!open) {
-      setSelectedSection("agents");
+      setSelectedSection(defaultSection);
       setSelectedNodeId(null);
       setFullscreen(false);
     }
-  }, [open]);
+  }, [open, defaultSection]);
 
   const activeSection = SECTIONS.find((s) => s.key === selectedSection);
   const panelBg = isDark ? "#141414" : "#ffffff";
@@ -166,7 +172,7 @@ export const AgentsModal = ({ open, onClose }) => {
 
       {/* ── Content area (full-bleed) ── */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        {selectedSection === "characters" ? (
+        {selectedSection === "characters" && isCharactersEnabled ? (
           <div
             className="scrollable"
             style={{
@@ -178,7 +184,7 @@ export const AgentsModal = ({ open, onClose }) => {
           >
             <CharactersPage isDark={isDark} onOpenChat={onClose} />
           </div>
-        ) : selectedSection === "agents" ? (
+        ) : selectedSection === "agents" && isAgentsEnabled ? (
           <RecipesPage
             isDark={isDark}
             selectedNodeId={selectedNodeId}

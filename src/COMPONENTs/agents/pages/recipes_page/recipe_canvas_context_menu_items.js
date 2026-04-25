@@ -1,27 +1,15 @@
 export function buildRecipeCanvasContextMenuItems({
-  recipe,
-  hasToolPool,
-  hasSubagentPool,
+  onAddAgent,
   onAddToolPool,
   onAddSubagentPool,
 }) {
-  if (!recipe) return [];
   return [
+    { id: "add_agent", label: "+ Add Blank Agent", onClick: onAddAgent },
+    { id: "add_toolkit_pool", label: "+ Add ToolkitPool", onClick: onAddToolPool },
     {
-      icon: "tool",
-      label: "Add Tool Pool",
-      disabled: hasToolPool,
-      onClick: () => {
-        if (!hasToolPool) onAddToolPool();
-      },
-    },
-    {
-      icon: "bot",
-      label: "Add Subagent Pool",
-      disabled: hasSubagentPool,
-      onClick: () => {
-        if (!hasSubagentPool) onAddSubagentPool();
-      },
+      id: "add_subagent_pool",
+      label: "+ Add SubagentPool",
+      onClick: onAddSubagentPool,
     },
   ];
 }
