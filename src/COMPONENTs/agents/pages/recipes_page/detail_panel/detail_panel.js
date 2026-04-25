@@ -7,7 +7,12 @@ import ToolPoolPanel from "./toolpool_panel";
 import SubagentPoolPanel from "./subagent_pool_panel";
 import { is_toolkit_pool_type } from "../recipe_graph";
 
-export default function DetailPanel({ recipe, selectedNodeId, onChange }) {
+export default function DetailPanel({
+  recipe,
+  selectedNodeId,
+  onChange,
+  onChangeSilent,
+}) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
   const node = recipe?.nodes?.find((n) => n.id === selectedNodeId);
@@ -38,7 +43,7 @@ export default function DetailPanel({ recipe, selectedNodeId, onChange }) {
     );
   }
 
-  const props = { recipe, node, onChange, isDark };
+  const props = { recipe, node, onChange, onChangeSilent, isDark };
 
   return (
     <div style={wrapper_style}>

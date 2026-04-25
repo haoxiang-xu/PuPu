@@ -7,6 +7,7 @@ import RecipeList from "./recipes_page/recipe_list";
 import RecipeCanvas from "./recipes_page/recipe_canvas";
 import DetailPanel from "./recipes_page/detail_panel/detail_panel";
 import { to_save_payload } from "./recipes_page/recipe_save_payload";
+import useRecipeHistory from "./recipes_page/use_recipe_history";
 
 export default function RecipesPage({
   isDark,
@@ -32,7 +33,15 @@ export default function RecipesPage({
   const expandTop = trafficLightPad ? 42 : 14;
   const [recipes, setRecipes] = useState([]);
   const [activeName, setActiveName] = useState(null);
-  const [activeRecipe, setActiveRecipe] = useState(null);
+  const {
+    recipe: activeRecipe,
+    setRecipe: setActiveRecipe,
+    setRecipeSilent: setActiveRecipeSilent,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useRecipeHistory(activeName);
   const [dirty, setDirty] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(true);
   const [saveError, setSaveError] = useState("");
@@ -46,13 +55,10 @@ export default function RecipesPage({
   }, []);
 
   useEffect(() => {
-    if (!activeName) {
-      setActiveRecipe(null);
-      return;
-    }
+    if (!activeName) return;
     (async () => {
       const r = await api.unchain.getRecipe(activeName);
-      setActiveRecipe(r);
+      setActiveRecipeSilent(r);
       onSelectNode(null);
       setDirty(false);
     })();
@@ -64,6 +70,34 @@ export default function RecipesPage({
     setDirty(true);
     setSaveError("");
   };
+
+  const handleRecipeChangeSilent = (next) => {
+    setActiveRecipeSilent(next);
+    setDirty(true);
+    setSaveError("");
+  };
+
+  useEffect(() => {
+    if (!activeRecipe) return undefined;
+    const onKey = (e) => {
+      const tag = document.activeElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const meta = e.metaKey || e.ctrlKey;
+      if (!meta) return;
+      if (e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        undo();
+      } else if (e.key === "z" && e.shiftKey) {
+        e.preventDefault();
+        redo();
+      } else if (e.ctrlKey && e.key === "y") {
+        e.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeRecipe, undo, redo]);
 
   const handleSave = async () => {
     if (!activeRecipe) return;
@@ -122,9 +156,14 @@ export default function RecipesPage({
           selectedNodeId={selectedNodeId}
           onSelectNode={onSelectNode}
           onRecipeChange={handleRecipeChange}
+          onRecipeChangeSilent={handleRecipeChangeSilent}
           onSave={handleSave}
           dirty={dirty}
           isDark={isDark}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
         />
       </div>
 
@@ -225,6 +264,7 @@ export default function RecipesPage({
           recipe={activeRecipe}
           selectedNodeId={selectedNodeId}
           onChange={handleRecipeChange}
+          onChangeSilent={handleRecipeChangeSilent}
         />
       </div>
     </div>

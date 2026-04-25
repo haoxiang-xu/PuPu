@@ -29,7 +29,7 @@ const SECTION_LABEL = {
   letterSpacing: 0.4,
 };
 
-export default function AgentPanel({ node, recipe, onChange, isDark }) {
+export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isDark }) {
   const scope = compute_variable_scope(node.id, recipe.nodes, recipe.edges);
 
   function set_node(patch) {
@@ -43,6 +43,19 @@ export default function AgentPanel({ node, recipe, onChange, isDark }) {
 
   function set_override(patch) {
     set_node({ override: { ...(node.override || {}), ...patch } });
+  }
+
+  function set_node_silent(patch) {
+    onChangeSilent({
+      ...recipe,
+      nodes: recipe.nodes.map((n) =>
+        n.id === node.id ? { ...n, ...patch } : n,
+      ),
+    });
+  }
+
+  function set_override_silent(patch) {
+    set_node_silent({ override: { ...(node.override || {}), ...patch } });
   }
 
   function update_outputs(next) {
@@ -113,7 +126,7 @@ export default function AgentPanel({ node, recipe, onChange, isDark }) {
               cursor: "pointer",
             }}
             onClick={() => {
-              set_override({
+              set_override_silent({
                 prompt: `${prompt}{{#${v.node_id}.${v.field}#}}`,
               });
             }}
@@ -145,7 +158,7 @@ export default function AgentPanel({ node, recipe, onChange, isDark }) {
         <span style={SECTION_LABEL}>Prompt</span>
         <ChipEditor
           value={prompt}
-          onChange={(v) => set_override({ prompt: v })}
+          onChange={(v) => set_override_silent({ prompt: v })}
           scope={scope}
         />
       </div>

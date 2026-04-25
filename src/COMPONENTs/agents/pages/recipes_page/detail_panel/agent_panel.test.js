@@ -48,7 +48,7 @@ describe("AgentPanel", () => {
   });
 
   test("clicking an input variable appends it to the prompt", () => {
-    const onChange = jest.fn();
+    const onChangeSilent = jest.fn();
     const recipe = {
       nodes: [
         {
@@ -79,13 +79,14 @@ describe("AgentPanel", () => {
         <AgentPanel
           node={recipe.nodes[1]}
           recipe={recipe}
-          onChange={onChange}
+          onChange={() => {}}
+          onChangeSilent={onChangeSilent}
         />,
       ),
     );
     fireEvent.click(screen.getByText("start.text"));
-    expect(onChange).toHaveBeenCalled();
-    const call = onChange.mock.calls[0][0];
+    expect(onChangeSilent).toHaveBeenCalled();
+    const call = onChangeSilent.mock.calls[0][0];
     expect(call.nodes[1].override.prompt).toBe("Hi {{#start.text#}}");
   });
 

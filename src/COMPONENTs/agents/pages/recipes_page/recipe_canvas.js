@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FlowEditor } from "../../../../BUILTIN_COMPONENTs/flow_editor";
+import { getRuntimePlatform } from "../../../side-menu/side_menu_utils";
 import AgentNode from "./nodes/agent_node";
 import ToolPoolNode from "./nodes/tool_pool_node";
 import SubagentPoolNode from "./nodes/subagent_pool_node";
@@ -52,9 +53,14 @@ export default function RecipeCanvas({
   selectedNodeId,
   onSelectNode,
   onRecipeChange,
+  onRecipeChangeSilent,
   onSave,
   dirty,
   isDark,
+  onUndo,
+  onRedo,
+  canUndo,
+  canRedo,
 }) {
   const [resetToken, setResetToken] = useState(0);
   const [contextMenu, setContextMenu] = useState({
@@ -65,7 +71,7 @@ export default function RecipeCanvas({
 
   useEffect(() => {
     if (recipe && is_legacy_recipe(recipe)) {
-      onRecipeChange(migrate_recipe(recipe));
+      onRecipeChangeSilent(migrate_recipe(recipe));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe?.name]);
@@ -204,6 +210,10 @@ export default function RecipeCanvas({
     return null;
   };
 
+  const isMac = getRuntimePlatform() === "darwin";
+  const undoHint = isMac ? "Undo (⌘Z)" : "Undo (Ctrl+Z)";
+  const redoHint = isMac ? "Redo (⌘⇧Z)" : "Redo (Ctrl+Y)";
+
   const overlayBg = isDark
     ? "rgba(20, 20, 20, 0.72)"
     : "rgba(255, 255, 255, 0.78)";
@@ -273,6 +283,36 @@ export default function RecipeCanvas({
               : "0 4px 24px rgba(0,0,0,0.08)",
           }}
         >
+          <span title={undoHint} style={{ display: "inline-flex" }}>
+            <Button
+              prefix_icon="undo"
+              onClick={onUndo}
+              disabled={!canUndo}
+              style={{
+                fontSize: 12,
+                paddingVertical: 5,
+                paddingHorizontal: 8,
+                borderRadius: 7,
+                opacity: canUndo ? 0.85 : 0.35,
+                content: { icon: { width: 13, height: 13 } },
+              }}
+            />
+          </span>
+          <span title={redoHint} style={{ display: "inline-flex" }}>
+            <Button
+              prefix_icon="redo"
+              onClick={onRedo}
+              disabled={!canRedo}
+              style={{
+                fontSize: 12,
+                paddingVertical: 5,
+                paddingHorizontal: 8,
+                borderRadius: 7,
+                opacity: canRedo ? 0.85 : 0.35,
+                content: { icon: { width: 13, height: 13 } },
+              }}
+            />
+          </span>
           <Button
             label="Center"
             onClick={() => setResetToken((t) => t + 1)}

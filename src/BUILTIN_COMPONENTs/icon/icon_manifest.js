@@ -1281,6 +1281,25 @@ const LogoSVGs = {
   windows: Windows,
 };
 
+const Undo = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M5.82843 6.99955H21V8.99955H5.82843L9.19239 12.3635L7.7782 13.7777L2 7.99955L7.7782 2.22168L9.19239 3.63589L5.82843 6.99955Z M3 19V13H5V19H21V21H5C3.89543 21 3 20.1046 3 19Z"></path>
+  </svg>
+);
+const Redo = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M18.1716 6.99955H3V8.99955H18.1716L14.8076 12.3635L16.2218 13.7777L22 7.99955L16.2218 2.22168L14.8076 3.63589L18.1716 6.99955Z M21 19V13H19V19H3V21H19C20.1046 21 21 20.1046 21 19Z"></path>
+  </svg>
+);
+
 const UISVGs = {
   add: Add,
   arrow_down: ArrowDown,
@@ -1358,6 +1377,7 @@ const UISVGs = {
   poker_hearts: PokerHearts,
   poker_spades: PokerSpades,
   question_mark: QuestionMark,
+  redo: Redo,
   refresh: Refresh,
   rename: Rename,
   satisfied: Satisfied,
@@ -1383,6 +1403,7 @@ const UISVGs = {
   terminal: Terminal,
   text: Text,
   tool: Tool,
+  undo: Undo,
   upload_file: UploadFile,
   cloud_upload: CloudUpload,
   user: User,

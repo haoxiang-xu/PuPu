@@ -1,7 +1,13 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
+import React, {
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../../../CONTAINERs/config/context";
-import VariablePicker from "./variable_picker";
-import { parse_chip_string, serialize_chip_nodes } from "./chip_editor_parse";
+import TextField from "../../../../BUILTIN_COMPONENTs/input/textfield";
+import Select from "../../../../BUILTIN_COMPONENTs/select/select";
+import { parse_chip_string } from "./chip_editor_parse";
 
 const SOURCE_DOT_COLOR = {
   start: "#4cbe8b",
@@ -9,171 +15,364 @@ const SOURCE_DOT_COLOR = {
   end: "#e06a9a",
 };
 
-function render_chip(node, onRemove) {
+const KNOWN_SYSTEM_PROMPTS = {
+  USE_BUILTIN_DEVELOPER_PROMPT: {
+    label: "Built-in developer prompt",
+    description: "Applies the built-in developer prompt at runtime",
+  },
+  SUBAGENT_LIST: {
+    label: "Subagent list",
+    description: "Expands to the available subagent list at runtime",
+  },
+};
+
+function get_chip_meta(node, scope) {
+  if (node.kind === "system_prompt") {
+    const known = KNOWN_SYSTEM_PROMPTS[node.name];
+    if (known) {
+      return {
+        label: known.label,
+        title: `${known.description}: {{${node.name}}}`,
+      };
+    }
+    return {
+      unknown: true,
+      title: `Unknown system prompt: {{${node.name}}}`,
+    };
+  }
+
+  if (node.kind === "var") {
+    const key = `${node.node_id}.${node.field}`;
+    const exists = (scope || []).some(
+      (entry) => `${entry.node_id}.${entry.field}` === key,
+    );
+    if (!exists) {
+      return {
+        unknown: true,
+        title: `Unknown variable: {{#${key}#}}`,
+      };
+    }
+  }
+
+  return {};
+}
+
+function get_chip_diagnostics(nodes, scope) {
+  return nodes
+    .map((node) => {
+      const meta = get_chip_meta(node, scope);
+      if (!meta.unknown) return null;
+      if (node.kind === "system_prompt") {
+        return `Unknown system prompt {{${node.name}}}. Check spelling or remove it.`;
+      }
+      if (node.kind === "var") {
+        return `Unknown variable {{#${node.node_id}.${node.field}#}}. Connect the source node or check spelling.`;
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function render_chip(node, meta = {}, onActivate) {
+  const isSystemPrompt = node.kind === "system_prompt";
+  const isUnknown = !!meta.unknown;
+  const label = isSystemPrompt
+    ? meta.label || node.name
+    : `${node.node_id}.${node.field}`;
+  const dataAttrs = isSystemPrompt
+    ? { "data-system-prompt-chip": node.name }
+    : { "data-var-chip": `${node.node_id}.${node.field}` };
+  const color = isUnknown ? "#c2410c" : isSystemPrompt ? "#0f766e" : "#4f46e5";
+  const background = isUnknown
+    ? "rgba(234,88,12,0.12)"
+    : isSystemPrompt
+      ? "rgba(20,184,166,0.12)"
+      : "rgba(99,102,241,0.12)";
+  const border = isUnknown
+    ? "1px solid rgba(234,88,12,0.28)"
+    : isSystemPrompt
+      ? "1px solid rgba(20,184,166,0.28)"
+      : "1px solid rgba(99,102,241,0.25)";
+  const dotColor = isUnknown
+    ? "#ea580c"
+    : isSystemPrompt
+      ? "#14b8a6"
+      : SOURCE_DOT_COLOR[node.node_id] || SOURCE_DOT_COLOR.start;
+
   return (
-    <span
-      contentEditable={false}
-      data-var-chip={`${node.node_id}.${node.field}`}
+    <button
+      type="button"
+      {...dataAttrs}
+      data-chip-invalid={isUnknown ? "true" : undefined}
+      onClick={(e) => {
+        e.stopPropagation();
+        onActivate();
+      }}
+      title={meta.title || "Edit raw token"}
       style={{
         display: "inline-flex",
         alignItems: "center",
         gap: 4,
-        background: "rgba(99,102,241,0.12)",
-        color: "#4f46e5",
+        background,
+        color,
         borderRadius: 5,
         padding: "1px 6px 1px 4px",
         fontFamily: "ui-monospace, Menlo, monospace",
         fontSize: 11,
         fontWeight: 600,
         margin: "0 1px",
-        cursor: "pointer",
-        border: "1px solid rgba(99,102,241,0.25)",
+        cursor: "text",
+        border,
         userSelect: "none",
       }}
-      onClick={onRemove}
-      title="Click to remove"
     >
       <span
         style={{
           width: 5,
           height: 5,
           borderRadius: "50%",
-          background: SOURCE_DOT_COLOR.start,
+          background: dotColor,
         }}
       />
-      {node.node_id}.{node.field}
-    </span>
+      {label}
+    </button>
   );
+}
+
+function build_variable_options(scope) {
+  const groups = new Map();
+  for (const entry of scope || []) {
+    if (!entry || !entry.node_id || !entry.field) continue;
+    if (!groups.has(entry.node_id)) groups.set(entry.node_id, []);
+    const label = `${entry.node_id}.${entry.field}`;
+    groups.get(entry.node_id).push({
+      value: `{{#${entry.node_id}.${entry.field}#}}`,
+      label,
+      search: label,
+      description: entry.type || "",
+    });
+  }
+  return [...groups.entries()].map(([node_id, options]) => ({
+    group: `From ${node_id}`,
+    options,
+  }));
+}
+
+function node_raw_text(node) {
+  if (node.kind === "var") return `{{#${node.node_id}.${node.field}#}}`;
+  if (node.kind === "system_prompt") return `{{${node.name}}}`;
+  return node.value || "";
 }
 
 export default function ChipEditor({ value, onChange, scope, placeholder }) {
   const cfg = useContext(ConfigContext);
   const isDark = cfg?.onThemeMode === "dark_mode";
-  const [pickerOpen, setPickerOpen] = useState(false);
-  const [nodes, setNodes] = useState(() => parse_chip_string(value || ""));
-  const last_prop_value = useRef(value);
+  const [editing, setEditing] = useState(false);
+  const rootRef = useRef(null);
+  const textareaRef = useRef(null);
+  const lastSelectionRef = useRef({ start: 0, end: 0 });
+  const rawValue = typeof value === "string" ? value : "";
+  const nodes = useMemo(() => parse_chip_string(rawValue), [rawValue]);
+  const diagnostics = get_chip_diagnostics(nodes, scope);
+  const variableOptions = useMemo(() => build_variable_options(scope), [scope]);
 
-  useEffect(() => {
-    const serialized = serialize_chip_nodes(nodes);
-    if (value !== serialized && value !== last_prop_value.current) {
-      last_prop_value.current = value;
-      setNodes(parse_chip_string(value || ""));
-    }
-  }, [value, nodes]);
-
-  function emit(next) {
-    setNodes(next);
-    const s = serialize_chip_nodes(next);
-    last_prop_value.current = s;
-    onChange(s);
+  function focus_editor(position) {
+    setEditing(true);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      if (Number.isFinite(position)) {
+        textarea.setSelectionRange(position, position);
+        lastSelectionRef.current = { start: position, end: position };
+      }
+    });
   }
 
-  function insert_var(v) {
-    emit([...nodes, { kind: "var", node_id: v.node_id, field: v.field }]);
-    setPickerOpen(false);
+  function remember_selection() {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    lastSelectionRef.current = {
+      start: textarea.selectionStart,
+      end: textarea.selectionEnd,
+    };
   }
 
-  function remove_at(idx) {
-    emit(nodes.filter((_, i) => i !== idx));
+  function remember_selection_soon() {
+    requestAnimationFrame(remember_selection);
   }
 
-  function update_text(idx, text) {
-    emit(
-      nodes.map((n, i) =>
-        i === idx && n.kind === "text" ? { ...n, value: text } : n,
-      ),
-    );
+  function handle_editor_blur() {
+    remember_selection();
+    setTimeout(() => {
+      if (!rootRef.current?.contains(document.activeElement)) {
+        setEditing(false);
+      }
+    }, 0);
   }
+
+  function insert_token(token) {
+    if (!token) return;
+    const raw = rawValue;
+    const fallback = { start: raw.length, end: raw.length };
+    const active = document.activeElement === textareaRef.current;
+    const range =
+      active && textareaRef.current
+        ? {
+            start: textareaRef.current.selectionStart,
+            end: textareaRef.current.selectionEnd,
+          }
+        : lastSelectionRef.current || fallback;
+    const start = Math.max(0, Math.min(raw.length, range.start));
+    const end = Math.max(start, Math.min(raw.length, range.end));
+    const next = `${raw.slice(0, start)}${token}${raw.slice(end)}`;
+    const nextPosition = start + token.length;
+    onChange(next);
+    focus_editor(nextPosition);
+  }
+
+  const fieldBorder =
+    diagnostics.length > 0
+      ? isDark
+        ? "1px solid rgba(251,146,60,0.34)"
+        : "1px solid rgba(234,88,12,0.28)"
+      : isDark
+        ? "1px solid rgba(255,255,255,0.08)"
+        : "1px solid rgba(0,0,0,0.08)";
+  let previewOffset = 0;
 
   return (
-    <div style={{ position: "relative" }}>
-      <div
-        style={{
-          border: `1px solid ${
-            isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-          }`,
-          borderRadius: 8,
-          background: isDark ? "#141416" : "#fafafa",
-          padding: "10px 12px",
-          minHeight: 80,
-          fontSize: 12,
-          lineHeight: 1.7,
-          fontFamily: "ui-monospace, Menlo, monospace",
-          color: "inherit",
-        }}
-      >
-        {nodes.length === 0 && (
-          <span style={{ color: "#86868b" }}>
-            {placeholder || "Type here… use {{ to insert a variable"}
-          </span>
-        )}
-        {nodes.map((n, i) => {
-          if (n.kind === "var") {
+    <div ref={rootRef} style={{ position: "relative" }}>
+      {editing ? (
+        <TextField
+          value={rawValue}
+          set_value={(next, event) => {
+            onChange(next);
+            if (event?.target) {
+              lastSelectionRef.current = {
+                start: event.target.selectionStart,
+                end: event.target.selectionEnd,
+              };
+            }
+          }}
+          textarea_ref={textareaRef}
+          min_rows={4}
+          max_display_rows={12}
+          placeholder={placeholder || "Type raw prompt..."}
+          on_focus={remember_selection_soon}
+          on_blur={handle_editor_blur}
+          on_key_down={remember_selection_soon}
+          style={{
+            width: "100%",
+            fontSize: 12,
+            lineHeight: 1.7,
+            fontFamily: "ui-monospace, Menlo, monospace",
+            padding: 10,
+            borderRadius: 8,
+          }}
+        />
+      ) : (
+        <div
+          onClick={() => focus_editor()}
+          aria-label="Prompt preview"
+          style={{
+            border: fieldBorder,
+            borderRadius: 8,
+            background: isDark ? "#141416" : "#fafafa",
+            padding: "10px 12px",
+            minHeight: 92,
+            fontSize: 12,
+            lineHeight: 1.7,
+            fontFamily: "ui-monospace, Menlo, monospace",
+            color: "inherit",
+            cursor: "text",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {nodes.length === 0 && (
+            <span style={{ color: "#86868b" }}>
+              {placeholder || "Type raw prompt..."}
+            </span>
+          )}
+          {nodes.map((node, i) => {
+            const tokenText = node_raw_text(node);
+            const tokenEnd = previewOffset + tokenText.length;
+            previewOffset = tokenEnd;
+            if (node.kind === "text") {
+              return (
+                <React.Fragment key={`t-${i}`}>{node.value}</React.Fragment>
+              );
+            }
             return (
-              <React.Fragment key={`v-${i}`}>
-                {render_chip(n, () => remove_at(i))}
+              <React.Fragment key={`${node.kind}-${i}`}>
+                {render_chip(node, get_chip_meta(node, scope), () =>
+                  focus_editor(tokenEnd),
+                )}
               </React.Fragment>
             );
-          }
-          return (
-            <input
-              key={`t-${i}`}
-              value={n.value}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v.endsWith("{{")) {
-                  update_text(i, v.slice(0, -2));
-                  setPickerOpen(true);
-                } else {
-                  update_text(i, v);
-                }
-              }}
-              style={{
-                border: "none",
-                background: "transparent",
-                font: "inherit",
-                color: "inherit",
-                outline: "none",
-                minWidth: 8,
-                width: `${Math.max(1, n.value.length + 1)}ch`,
-              }}
-            />
-          );
-        })}
-      </div>
+          })}
+        </div>
+      )}
+      {diagnostics.length > 0 && (
+        <div
+          role="alert"
+          style={{
+            marginTop: 6,
+            padding: "6px 8px",
+            borderRadius: 6,
+            background: isDark ? "rgba(234,88,12,0.12)" : "#fff7ed",
+            border: isDark
+              ? "1px solid rgba(251,146,60,0.22)"
+              : "1px solid rgba(251,146,60,0.28)",
+            color: isDark ? "#fdba74" : "#9a3412",
+            fontSize: 10.5,
+            lineHeight: 1.45,
+          }}
+        >
+          {diagnostics.map((message) => (
+            <div key={message}>{message}</div>
+          ))}
+        </div>
+      )}
       <div
         style={{
           display: "flex",
           justifyContent: "space-between",
+          alignItems: "center",
+          gap: 8,
           marginTop: 6,
         }}
       >
         <span style={{ fontSize: 10.5, color: "#86868b" }}>
-          Type <code>{"{{"}</code> to insert a variable
+          Click a tag to edit the raw token.
         </span>
-        <button
-          type="button"
-          onClick={() => setPickerOpen((v) => !v)}
+        <Select
+          options={variableOptions}
+          value=""
+          set_value={insert_token}
+          placeholder="+ Variable"
+          search_placeholder="Search variables..."
+          filterable={true}
           style={{
-            background: "transparent",
-            border: "none",
-            color: "#6366f1",
             fontSize: 11,
-            cursor: "pointer",
-            padding: 0,
+            paddingVertical: 3,
+            paddingHorizontal: 7,
+            borderRadius: 5,
+            color: "#6366f1",
           }}
-        >
-          + Insert variable
-        </button>
-      </div>
-      {pickerOpen && (
-        <VariablePicker
-          scope={scope || []}
-          position={{ x: 0, y: "100%" }}
-          onPick={insert_var}
-          onClose={() => setPickerOpen(false)}
+          dropdown_style={{
+            width: 280,
+            maxWidth: 280,
+            maxHeight: 300,
+          }}
+          option_style={{
+            fontFamily: "ui-monospace, Menlo, monospace",
+            fontSize: 11.5,
+          }}
+          disabled={variableOptions.length === 0}
         />
-      )}
+      </div>
     </div>
   );
 }

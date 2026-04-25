@@ -25,6 +25,18 @@ describe("parse_chip_string", () => {
       { kind: "var", node_id: "b", field: "o" },
     ]);
   });
+  test("system prompt token", () => {
+    expect(parse_chip_string("{{USE_BUILTIN_DEVELOPER_PROMPT}}")).toEqual([
+      { kind: "system_prompt", name: "USE_BUILTIN_DEVELOPER_PROMPT" },
+    ]);
+  });
+  test("unknown system prompt token", () => {
+    expect(parse_chip_string("before {{NO_SUCH_PROMPT}} after")).toEqual([
+      { kind: "text", value: "before " },
+      { kind: "system_prompt", name: "NO_SUCH_PROMPT" },
+      { kind: "text", value: " after" },
+    ]);
+  });
   test("empty string returns empty array", () => {
     expect(parse_chip_string("")).toEqual([]);
   });
@@ -38,5 +50,12 @@ describe("serialize_chip_nodes", () => {
       { kind: "text", value: " b" },
     ];
     expect(serialize_chip_nodes(nodes)).toBe("a {{#start.text#}} b");
+  });
+  test("round-trips system prompt token", () => {
+    expect(
+      serialize_chip_nodes([
+        { kind: "system_prompt", name: "USE_BUILTIN_DEVELOPER_PROMPT" },
+      ]),
+    ).toBe("{{USE_BUILTIN_DEVELOPER_PROMPT}}");
   });
 });
