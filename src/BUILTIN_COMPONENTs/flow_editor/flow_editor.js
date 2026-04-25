@@ -775,6 +775,7 @@ function FlowEditor({
                     ? theme.edgeWidth + 1
                     : theme.edgeWidth
                 }
+                strokeDasharray={ep.style === "dashed" ? "5 4" : undefined}
                 strokeLinecap="round"
                 style={{
                   pointerEvents: "none",

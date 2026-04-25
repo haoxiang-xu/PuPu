@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { DEFAULT_PORTS } from "./utils";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -10,6 +10,129 @@ import { DEFAULT_PORTS } from "./utils";
 
 const PORT_SIZE = 10;
 const PORT_HALF = PORT_SIZE / 2;
+
+/* ── Port sub-component with React-managed hover state ──── */
+const Port = React.memo(function Port({
+  port,
+  side,
+  index,
+  total,
+  theme,
+  node_id,
+  is_connected,
+  interactive,
+  on_port_mouse_down,
+}) {
+  const [port_hovered, set_port_hovered] = useState(false);
+  const fraction = (index + 1) / (total + 1);
+  const is_bar = theme.portShape === "bar";
+
+  const pos_style = { position: "absolute" };
+  let base_transform = "";
+
+  let port_w;
+  let port_h;
+  let offset;
+  if (is_bar) {
+    const long = is_connected ? 22 : 16;
+    const short = 3;
+    if (side === "top" || side === "bottom") {
+      port_w = long;
+      port_h = short;
+    } else {
+      port_w = short;
+      port_h = long;
+    }
+    offset = -1.5;
+  } else {
+    port_w = PORT_SIZE;
+    port_h = PORT_SIZE;
+    offset = -PORT_HALF;
+  }
+
+  switch (side) {
+    case "top":
+      pos_style.left = `${fraction * 100}%`;
+      pos_style.top = offset;
+      base_transform = "translateX(-50%)";
+      break;
+    case "bottom":
+      pos_style.left = `${fraction * 100}%`;
+      pos_style.bottom = offset;
+      base_transform = "translateX(-50%)";
+      break;
+    case "left":
+      pos_style.top = `${fraction * 100}%`;
+      pos_style.left = offset;
+      base_transform = "translateY(-50%)";
+      break;
+    case "right":
+      pos_style.top = `${fraction * 100}%`;
+      pos_style.right = offset;
+      base_transform = "translateY(-50%)";
+      break;
+    default:
+      break;
+  }
+
+  const show_port = interactive || is_connected || port_hovered;
+  const highlighted = port_hovered || is_connected;
+  const bg = highlighted ? theme.portHoverColor : theme.portColor;
+  const opacity = is_connected && !interactive && !port_hovered ? 0.65 : show_port ? 1 : 0;
+
+  let transform = base_transform;
+  let box_shadow = "none";
+  if (port_hovered && !is_bar) {
+    transform = `${base_transform} scale(1.6)`;
+    box_shadow = `0 0 8px ${theme.portHoverColor}`;
+  }
+
+  // Expand invisible hit area around the port so grabbing feels forgiving.
+  const hit_pad = 8;
+
+  return (
+    <div
+      data-port-id={port.id}
+      data-port-side={side}
+      data-node-id={node_id}
+      style={{
+        ...pos_style,
+        width: port_w,
+        height: port_h,
+        borderRadius: is_bar ? 999 : "50%",
+        backgroundColor: bg,
+        transform,
+        boxShadow: box_shadow,
+        cursor: "crosshair",
+        zIndex: 10,
+        opacity,
+        pointerEvents: show_port ? "auto" : "none",
+        transition:
+          "transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, opacity 0.18s ease, width 0.15s ease, height 0.15s ease",
+      }}
+      onMouseDown={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        on_port_mouse_down(node_id, port.id, side, e);
+      }}
+      onMouseEnter={() => set_port_hovered(true)}
+      onMouseLeave={() => set_port_hovered(false)}
+    >
+      {/* Invisible hit expander — forwards port identity for elementFromPoint hit-testing */}
+      <div
+        data-port-id={port.id}
+        data-port-side={side}
+        data-node-id={node_id}
+        style={{
+          position: "absolute",
+          inset: -hit_pad,
+          pointerEvents: show_port ? "auto" : "none",
+          background: "transparent",
+        }}
+      />
+    </div>
+  );
+});
 
 const FlowEditorNode = React.memo(function FlowEditorNode({
   node,
@@ -54,90 +177,7 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
     ports_by_side[p.side].push(p);
   });
 
-  /* ── Port hover handlers ─────────────────────────────────── */
-  const handle_port_enter = useCallback(
-    (e, base_transform) => {
-      const el = e.currentTarget;
-      el.style.backgroundColor = theme.portHoverColor;
-      el.style.boxShadow = `0 0 8px ${theme.portHoverColor}`;
-      el.style.transform = (base_transform || "") + " scale(1.6)";
-    },
-    [theme.portHoverColor],
-  );
-
-  const handle_port_leave = useCallback(
-    (e, base_transform) => {
-      const el = e.currentTarget;
-      el.style.backgroundColor = theme.portColor;
-      el.style.boxShadow = "none";
-      el.style.transform = base_transform || "";
-    },
-    [theme.portColor],
-  );
-
-  /* ── Render a single port circle ─────────────────────────── */
-  const render_port = (port, side, index, total) => {
-    const fraction = (index + 1) / (total + 1);
-    const pos_style = { position: "absolute" };
-    let base_transform = "";
-
-    switch (side) {
-      case "top":
-        pos_style.left = `${fraction * 100}%`;
-        pos_style.top = -PORT_HALF;
-        base_transform = "translateX(-50%)";
-        break;
-      case "bottom":
-        pos_style.left = `${fraction * 100}%`;
-        pos_style.bottom = -PORT_HALF;
-        base_transform = "translateX(-50%)";
-        break;
-      case "left":
-        pos_style.top = `${fraction * 100}%`;
-        pos_style.left = -PORT_HALF;
-        base_transform = "translateY(-50%)";
-        break;
-      case "right":
-        pos_style.top = `${fraction * 100}%`;
-        pos_style.right = -PORT_HALF;
-        base_transform = "translateY(-50%)";
-        break;
-      default:
-        break;
-    }
-
-    const show_port = hovered || is_connecting || selected;
-
-    return (
-      <div
-        key={port.id}
-        data-port-id={port.id}
-        data-port-side={side}
-        data-node-id={node.id}
-        style={{
-          ...pos_style,
-          width: PORT_SIZE,
-          height: PORT_SIZE,
-          borderRadius: "50%",
-          backgroundColor: theme.portColor,
-          transform: base_transform,
-          cursor: "crosshair",
-          zIndex: 10,
-          opacity: show_port ? 1 : 0,
-          pointerEvents: show_port ? "auto" : "none",
-          transition:
-            "transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease, opacity 0.18s ease",
-        }}
-        onMouseDown={(e) => {
-          e.stopPropagation();
-          e.preventDefault();
-          on_port_mouse_down(node.id, port.id, side, e);
-        }}
-        onMouseEnter={(e) => handle_port_enter(e, base_transform)}
-        onMouseLeave={(e) => handle_port_leave(e, base_transform)}
-      />
-    );
-  };
+  const interactive = hovered || is_connecting || selected;
 
   /* ── Node wrapper style ──────────────────────────────────── */
   const node_style = {
@@ -177,9 +217,22 @@ const FlowEditorNode = React.memo(function FlowEditorNode({
     >
       {/* ── Ports ── */}
       {Object.entries(ports_by_side).map(([side, side_ports]) =>
-        side_ports.map((port, idx) =>
-          render_port(port, side, idx, side_ports.length),
-        ),
+        side_ports.map((port, idx) => (
+          <Port
+            key={port.id}
+            port={port}
+            side={side}
+            index={idx}
+            total={side_ports.length}
+            theme={theme}
+            node_id={node.id}
+            is_connected={
+              !!(connected_port_ids && connected_port_ids.has(port.id))
+            }
+            interactive={interactive}
+            on_port_mouse_down={on_port_mouse_down}
+          />
+        )),
       )}
 
       {/* ── User content ── */}

@@ -8,13 +8,15 @@ import ContextMenu from "../../../../BUILTIN_COMPONENTs/context_menu/context_men
 import { buildRecipeCanvasContextMenuItems } from "./recipe_canvas_context_menu_items";
 import { api } from "../../../../SERVICEs/api";
 
-const AGENT_POS = { x: 420, y: 240 };
-const TOOLPOOL_POS = { x: 80, y: 240 };
-const POOL_POS = { x: 760, y: 240 };
+const AGENT_POS = { x: 380, y: 260 };
+const TOOLPOOL_POS = { x: 384, y: 60 };
+const POOL_POS = { x: 384, y: 460 };
 
-const LR_PORTS = [
-  { id: "left", side: "left" },
+const FOUR_PORTS = [
+  { id: "top", side: "top" },
   { id: "right", side: "right" },
+  { id: "bottom", side: "bottom" },
+  { id: "left", side: "left" },
 ];
 
 export default function RecipeCanvas({
@@ -28,6 +30,18 @@ export default function RecipeCanvas({
 }) {
   const [toolPoolVisible, setToolPoolVisible] = useState(false);
   const [poolVisible, setPoolVisible] = useState(false);
+  const [toolPoolEdge, setToolPoolEdge] = useState(true);
+  const [poolEdge, setPoolEdge] = useState(true);
+  // Track which ports the user actually connected to, so re-rendering
+  // the derived edge doesn't snap back to hardcoded bottom/top.
+  const [toolPoolPorts, setToolPoolPorts] = useState({
+    source: "bottom",
+    target: "top",
+  });
+  const [poolPorts, setPoolPorts] = useState({
+    source: "bottom",
+    target: "top",
+  });
   const [catalog, setCatalog] = useState([]);
   const [resetToken, setResetToken] = useState(0);
   const [contextMenu, setContextMenu] = useState({
@@ -36,11 +50,18 @@ export default function RecipeCanvas({
     y: 0,
   });
 
-  const positions = recipe?.layout?.nodes || {};
+  const positions = useMemo(
+    () => recipe?.layout?.nodes || {},
+    [recipe?.layout?.nodes],
+  );
 
   useEffect(() => {
     setToolPoolVisible(!!recipe && recipe.toolkits.length > 0);
     setPoolVisible(!!recipe && recipe.subagent_pool.length > 0);
+    setToolPoolEdge(true);
+    setPoolEdge(true);
+    setToolPoolPorts({ source: "bottom", target: "top" });
+    setPoolPorts({ source: "bottom", target: "top" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recipe?.name]);
 
@@ -91,7 +112,8 @@ export default function RecipeCanvas({
     nodeArr.push({
       id: "agent",
       type: "agent",
-      ports: LR_PORTS,
+      kind: "workflow",
+      ports: FOUR_PORTS,
       x: agentXY.x,
       y: agentXY.y,
       label: recipe.name,
@@ -103,19 +125,23 @@ export default function RecipeCanvas({
       nodeArr.push({
         id: "toolpool",
         type: "toolpool",
-        ports: LR_PORTS,
+        kind: "plugin",
+        ports: FOUR_PORTS,
         x: tpXY.x,
         y: tpXY.y,
         count: toolChips.length,
         chips: toolChips,
       });
-      edgeArr.push({
-        id: "e:agent:toolpool",
-        source_node_id: "toolpool",
-        source_port_id: "right",
-        target_node_id: "agent",
-        target_port_id: "left",
-      });
+      if (toolPoolEdge) {
+        edgeArr.push({
+          id: "e:agent:toolpool",
+          source_node_id: "toolpool",
+          source_port_id: toolPoolPorts.source,
+          target_node_id: "agent",
+          target_port_id: toolPoolPorts.target,
+          style: "dashed",
+        });
+      }
     }
 
     if (poolVisible) {
@@ -123,7 +149,8 @@ export default function RecipeCanvas({
       nodeArr.push({
         id: "pool",
         type: "pool",
-        ports: LR_PORTS,
+        kind: "plugin",
+        ports: FOUR_PORTS,
         x: poolXY.x,
         y: poolXY.y,
         count: recipe.subagent_pool.length,
@@ -131,47 +158,86 @@ export default function RecipeCanvas({
           e.kind === "ref" ? e.template_name : e.name,
         ),
       });
-      edgeArr.push({
-        id: "e:agent:pool",
-        source_node_id: "agent",
-        source_port_id: "right",
-        target_node_id: "pool",
-        target_port_id: "left",
-      });
+      if (poolEdge) {
+        edgeArr.push({
+          id: "e:agent:pool",
+          source_node_id: "agent",
+          source_port_id: poolPorts.source,
+          target_node_id: "pool",
+          target_port_id: poolPorts.target,
+          style: "dashed",
+        });
+      }
     }
 
     return { nodes: nodeArr, edges: edgeArr };
-  }, [recipe, positions, toolPoolVisible, poolVisible, toolChips]);
+  }, [
+    recipe,
+    positions,
+    toolPoolVisible,
+    poolVisible,
+    toolPoolEdge,
+    poolEdge,
+    toolPoolPorts,
+    poolPorts,
+    toolChips,
+  ]);
 
-  const handleNodesChange = (nextNodes) => {
-    setPositions((prev) => {
-      const next = { ...prev };
-      nextNodes.forEach((n) => {
-        next[n.id] = { x: n.x, y: n.y };
-      });
-      return next;
-    });
-  };
-
-  const handleEdgesChange = useCallback(
-    (nextEdges) => {
+  const handleNodesChange = useCallback(
+    (nextNodes) => {
       if (!recipe) return;
-      const kept = new Set(nextEdges.map((e) => e.id));
-      if (!kept.has("e:agent:toolpool") && toolPoolVisible) {
-        setToolPoolVisible(false);
-        onRecipeChange({ ...recipe, toolkits: [] });
-      }
-      if (!kept.has("e:agent:pool") && poolVisible) {
-        setPoolVisible(false);
-        onRecipeChange({ ...recipe, subagent_pool: [] });
-      }
+      const nextIds = new Set(nextNodes.map((n) => n.id));
+      if (toolPoolVisible && !nextIds.has("toolpool")) setToolPoolVisible(false);
+      if (poolVisible && !nextIds.has("pool")) setPoolVisible(false);
+      const nextPositions = { ...positions };
+      nextNodes.forEach((n) => {
+        nextPositions[n.id] = { x: n.x, y: n.y };
+      });
+      onRecipeChange({
+        ...recipe,
+        layout: { ...(recipe.layout || {}), nodes: nextPositions },
+      });
     },
-    [recipe, toolPoolVisible, poolVisible, onRecipeChange],
+    [recipe, positions, toolPoolVisible, poolVisible, onRecipeChange],
   );
 
-  const handleConnect = () => {
-    /* Edges are derived; reject manual connect. */
-  };
+  const handleEdgesChange = useCallback((nextEdges) => {
+    const kept = new Set(nextEdges.map((e) => e.id));
+    if (!kept.has("e:agent:toolpool")) setToolPoolEdge(false);
+    if (!kept.has("e:agent:pool")) setPoolEdge(false);
+  }, []);
+
+  // Manual reconnect: drag from agent ↔ toolpool / agent ↔ pool restores the edge.
+  // Capture the user's chosen ports, normalised to the canonical direction
+  // used when deriving the edge in useMemo (toolpool→agent, agent→pool).
+  const handleConnect = useCallback((edge) => {
+    const {
+      source_node_id: sn,
+      source_port_id: sp,
+      target_node_id: tn,
+      target_port_id: tp,
+    } = edge;
+    const pair = new Set([sn, tn]);
+
+    if (pair.has("agent") && pair.has("toolpool")) {
+      // canonical: source=toolpool, target=agent
+      if (sn === "toolpool") {
+        setToolPoolPorts({ source: sp, target: tp });
+      } else {
+        setToolPoolPorts({ source: tp, target: sp });
+      }
+      setToolPoolEdge(true);
+    }
+    if (pair.has("agent") && pair.has("pool")) {
+      // canonical: source=agent, target=pool
+      if (sn === "agent") {
+        setPoolPorts({ source: sp, target: tp });
+      } else {
+        setPoolPorts({ source: tp, target: sp });
+      }
+      setPoolEdge(true);
+    }
+  }, []);
 
   const renderNode = (node) => {
     const selected = node.id === selectedNodeId;
@@ -202,8 +268,14 @@ export default function RecipeCanvas({
         recipe,
         hasToolPool: toolPoolVisible,
         hasSubagentPool: poolVisible,
-        onAddToolPool: () => setToolPoolVisible(true),
-        onAddSubagentPool: () => setPoolVisible(true),
+        onAddToolPool: () => {
+          setToolPoolVisible(true);
+          setToolPoolEdge(true);
+        },
+        onAddSubagentPool: () => {
+          setPoolVisible(true);
+          setPoolEdge(true);
+        },
       }),
     [recipe, toolPoolVisible, poolVisible],
   );
@@ -238,6 +310,16 @@ export default function RecipeCanvas({
             nodeShadow: "none",
             nodeShadowHover: "none",
             nodeSelectedBorder: "transparent",
+            portShape: "bar",
+            portColor: isDark
+              ? "rgba(255,255,255,0.32)"
+              : "rgba(0,0,0,0.22)",
+            portHoverColor: "#4a5bd8",
+            edgeColor: isDark
+              ? "rgba(255,255,255,0.18)"
+              : "rgba(0,0,0,0.14)",
+            edgeActiveColor: "#4a5bd8",
+            edgeWidth: 1.6,
           }}
           nodes={nodes}
           edges={edges}
@@ -275,8 +357,13 @@ export default function RecipeCanvas({
         <Button
           label="Center"
           onClick={() => {
-            setPositions({});
             setResetToken((t) => t + 1);
+            if (recipe) {
+              onRecipeChange({
+                ...recipe,
+                layout: { ...(recipe.layout || {}), nodes: {} },
+              });
+            }
           }}
           style={{
             fontSize: 12,
