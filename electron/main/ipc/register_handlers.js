@@ -65,6 +65,7 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.WINDOW_STATE.HANDLE_ACTION,
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
+  CHANNELS.UNCHAIN.STREAM_START_V3,
   CHANNELS.UNCHAIN.STREAM_CANCEL,
   ...CHAT_STORAGE_ON_CHANNELS,
 ]);
@@ -319,6 +320,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V2, (event, payload) => {
     unchainService.handleStreamStartV2(event, payload);
+  });
+
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V3, (event, payload) => {
+    unchainService.handleStreamStartV3(event, payload);
   });
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_CANCEL, (event, payload) => {

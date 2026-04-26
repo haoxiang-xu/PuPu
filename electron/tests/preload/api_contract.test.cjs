@@ -31,13 +31,16 @@ describe("preload API contract", () => {
   test("exposes expected window APIs", () => {
     expect(Object.keys(exposed).sort()).toEqual(
       [
+        "__pupuTestBridge",
         "appInfoAPI",
         "appUpdateAPI",
+        "chatStorageAPI",
         "unchainAPI",
         "ollamaAPI",
         "ollamaLibraryAPI",
         "osInfo",
         "runtime",
+        "screenshotAPI",
         "themeAPI",
         "windowStateAPI",
       ].sort(),
@@ -78,6 +81,7 @@ describe("preload API contract", () => {
       "replaceSessionMemory",
       "startStream",
       "startStreamV2",
+      "startStreamV3",
       "cancelStream",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");
@@ -177,7 +181,7 @@ describe("preload API contract", () => {
       runtimeLogListener({}, { level: "stdout", text: "   " });
 
       expect(logSpy).toHaveBeenCalledWith("[unchain] hello from unchain");
-      expect(errorSpy).toHaveBeenCalledWith("["unchain:error] oops from unchain");
+      expect(errorSpy).toHaveBeenCalledWith("[unchain:error] oops from unchain");
       expect(logSpy).toHaveBeenCalledTimes(1);
       expect(errorSpy).toHaveBeenCalledTimes(1);
     } finally {

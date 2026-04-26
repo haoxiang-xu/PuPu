@@ -82,7 +82,7 @@ const createMisoStreamClient = (ipcRenderer) => {
         if (frameType === "stream_started") {
           if (typeof handlers.onMeta === "function") {
             handlers.onMeta({
-              thread_id: payload.thread_id,
+              thread_id: payload.thread_id || data.thread_id,
               model: payload.model,
               ...payload,
             });
@@ -117,6 +117,57 @@ const createMisoStreamClient = (ipcRenderer) => {
           return;
         }
 
+        return;
+      }
+
+      if (eventName === "error") {
+        if (typeof handlers.onError === "function") {
+          handlers.onError({
+            code: data.code || "unknown",
+            message: data.message || "Unknown stream error",
+          });
+        }
+        cleanupMisoStreamListener(requestId);
+        return;
+      }
+
+      if (eventName === "done") {
+        if (data.cancelled) {
+          if (typeof handlers.onError === "function") {
+            handlers.onError({
+              code: "cancelled",
+              message: "Stream was cancelled",
+            });
+          }
+        } else if (typeof handlers.onDone === "function") {
+          handlers.onDone(data);
+        }
+        cleanupMisoStreamListener(requestId);
+      }
+    };
+
+    ipcRenderer.on(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
+
+    const cleanup = () => {
+      ipcRenderer.removeListener(CHANNELS.UNCHAIN.STREAM_EVENT, listener);
+    };
+
+    activeMisoStreamCleanups.set(requestId, cleanup);
+  };
+
+  const registerMisoStreamV3Listener = (requestId, handlers = {}) => {
+    const listener = (_event, envelope = {}) => {
+      if (envelope.requestId !== requestId) {
+        return;
+      }
+
+      const eventName = envelope.event;
+      const data = envelope.data || {};
+
+      if (eventName === "runtime_event") {
+        if (typeof handlers.onRuntimeEvent === "function") {
+          handlers.onRuntimeEvent(data);
+        }
         return;
       }
 
@@ -199,10 +250,29 @@ const createMisoStreamClient = (ipcRenderer) => {
     };
   };
 
+  const startStreamV3 = (payload, handlers = {}) => {
+    const requestId = createRequestId();
+    registerMisoStreamV3Listener(requestId, handlers);
+
+    ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_START_V3, {
+      requestId,
+      payload,
+    });
+
+    return {
+      requestId,
+      cancel: () => {
+        ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
+        cleanupMisoStreamListener(requestId);
+      },
+    };
+  };
+
   return {
     startStream,
     cancelStream,
     startStreamV2,
+    startStreamV3,
     __debug: {
       getActiveListenerCount: () => activeMisoStreamCleanups.size,
       cleanupMisoStreamListener,

@@ -7,6 +7,11 @@ from flask import Response, jsonify, request, stream_with_context
 
 from route_blueprint import api_blueprint
 
+try:
+    from unchain.events import RuntimeEventBridge
+except ImportError:  # pragma: no cover - runtime source path should be configured by unchain_adapter
+    RuntimeEventBridge = None  # type: ignore
+
 _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
@@ -507,6 +512,123 @@ def chat_stream_v2() -> Response:
                     iteration=last_iteration,
                     timestamp_ms=error_ts,
                 ),
+            )
+        finally:
+            cancel_pending_confirmations()
+
+    return Response(
+        stream_with_context(stream_events()),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@api_blueprint.post("/chat/stream/v3")
+def chat_stream_v3() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+    if RuntimeEventBridge is None:
+        return root._json_error(
+            "runtime_events_unavailable",
+            "RuntimeEventBridge is unavailable",
+            500,
+        )
+
+    payload = request.get_json(silent=True) or {}
+    message = str(payload.get("message", "")).strip()
+    attachments = _sanitize_attachments(payload.get("attachments"))
+    if not message and not attachments:
+        return root._json_error(
+            "invalid_request",
+            "message or attachments is required",
+            400,
+        )
+
+    incoming_thread_id = payload.get("threadId") or payload.get("thread_id")
+    thread_id = str(incoming_thread_id).strip() if incoming_thread_id else ""
+    if not thread_id:
+        thread_id = f"thread-{int(time.time() * 1000)}"
+
+    history = _sanitize_history(payload.get("history"))
+    options = payload.get("options", {}) if isinstance(payload.get("options"), dict) else {}
+    trace_level = _sanitize_trace_level(
+        payload.get("trace_level")
+        or options.get("trace_level")
+        or "minimal"
+    )
+
+    def stream_events() -> Iterable[str]:
+        started_at = int(time.time() * 1000)
+        confirmation_cancel_event = threading.Event()
+        bridge = RuntimeEventBridge(
+            session_id=thread_id,
+            root_agent_id="developer",
+            trace_level=trace_level,
+        )
+
+        def cancel_pending_confirmations() -> None:
+            confirmation_cancel_event.set()
+            root.cancel_tool_confirmations(confirmation_cancel_event)
+
+        try:
+            session_event = bridge.emit_session_started(
+                {
+                    "model": root.get_model_name(options),
+                    "started_at": started_at,
+                    "trace_level": trace_level,
+                    "thread_id": thread_id,
+                }
+            )
+            yield _sse_event("runtime_event", session_event.to_dict())
+
+            for raw_event in root.stream_chat_events(
+                message=message,
+                history=history,
+                attachments=attachments,
+                options=options,
+                session_id=thread_id,
+                cancel_event=confirmation_cancel_event,
+            ):
+                if not isinstance(raw_event, dict):
+                    continue
+                if raw_event.get("type") == "stream_summary":
+                    continue
+                for runtime_event in bridge.normalize(raw_event):
+                    yield _sse_event("runtime_event", runtime_event.to_dict())
+
+            yield _sse_event(
+                "done",
+                {
+                    "finished_at": int(time.time() * 1000),
+                    "diagnostics": bridge.diagnostics(),
+                },
+            )
+        except GeneratorExit:  # pragma: no cover
+            cancel_pending_confirmations()
+            return
+        except Exception as stream_error:
+            cancel_pending_confirmations()
+            code, normalized_message = _normalize_stream_error(stream_error)
+            failure_event = bridge.emit_transport_failure(
+                normalized_message,
+                code=code,
+            )
+            yield _sse_event("runtime_event", failure_event.to_dict())
+            yield _sse_event(
+                "done",
+                {
+                    "finished_at": int(time.time() * 1000),
+                    "error": {
+                        "code": code,
+                        "message": normalized_message,
+                    },
+                    "diagnostics": bridge.diagnostics(),
+                },
             )
         finally:
             cancel_pending_confirmations()

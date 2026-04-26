@@ -9,6 +9,8 @@ import {
   settleStreamingAssistantMessages,
 } from "../utils/chat_turn_utils";
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
+import { createRuntimeEventTraceAdapter } from "../runtime_events/runtime_event_trace_adapter";
+import { isRuntimeEventStreamV3Enabled } from "../runtime_events/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
   scheduleBackgroundPersist,
@@ -1412,6 +1414,57 @@ export const useChatStream = ({
         }
       };
 
+      const startChatStream = (payload, handlers = {}) => {
+        const shouldUseRuntimeEventsV3 =
+          isRuntimeEventStreamV3Enabled() &&
+          typeof api.unchain.isRuntimeEventStreamV3Available === "function" &&
+          api.unchain.isRuntimeEventStreamV3Available();
+        if (!shouldUseRuntimeEventsV3) {
+          return api.unchain.startStreamV2(payload, handlers);
+        }
+
+        const runtimeEventTraceAdapter = createRuntimeEventTraceAdapter();
+        let runtimeEventStreamFailed = false;
+
+        return api.unchain.startStreamV3(payload, {
+          onRuntimeEvent: (runtimeEvent) => {
+            const effects = runtimeEventTraceAdapter.ingest(runtimeEvent);
+            const hasErrorEffect = effects.some((effect) => effect.type === "error");
+            effects.forEach((effect) => {
+              if (
+                effect.type === "frame" &&
+                !(hasErrorEffect && effect.frame?.type === "error")
+              ) {
+                handlers.onFrame?.(effect.frame);
+                return;
+              }
+              if (effect.type === "meta") {
+                handlers.onMeta?.(effect.meta);
+                return;
+              }
+              if (effect.type === "token") {
+                handlers.onToken?.(effect.delta);
+                return;
+              }
+              if (effect.type === "error") {
+                runtimeEventStreamFailed = true;
+                handlers.onError?.(effect.error);
+              }
+            });
+          },
+          onDone: (done) => {
+            if (runtimeEventStreamFailed) {
+              return;
+            }
+            handlers.onDone?.(runtimeEventTraceAdapter.complete(done));
+          },
+          onError: (error) => {
+            runtimeEventStreamFailed = true;
+            handlers.onError?.(error);
+          },
+        });
+      };
+
       let streamHandle = null;
       try {
         const systemPromptOverridesObject =
@@ -1421,7 +1474,7 @@ export const useChatStream = ({
             ? systemPromptOverrides
             : {};
 
-        streamHandle = api.unchain.startStreamV2(
+        streamHandle = startChatStream(
           {
             threadId: effectiveThreadId,
             message: promptText,

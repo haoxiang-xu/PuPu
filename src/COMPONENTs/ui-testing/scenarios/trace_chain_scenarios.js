@@ -1,3 +1,5 @@
+import { createRuntimeEventTraceAdapter } from "../../../PAGEs/chat/runtime_events/runtime_event_trace_adapter";
+
 /* ── frame helper ─────────────────────────────────────────────────────── */
 const f = ({ seq, type, payload = {}, ts = seq * 800 }) => ({
   seq,
@@ -5,6 +7,40 @@ const f = ({ seq, type, payload = {}, ts = seq * 800 }) => ({
   type,
   payload,
 });
+
+const runtimeEvent = ({
+  id,
+  type,
+  runId = "run-v3-root",
+  agentId = "developer",
+  turnId = "run-v3-root:turn-1",
+  links = {},
+  payload = {},
+  timestamp = "2026-04-25T12:00:00.000Z",
+}) => ({
+  schema_version: "v3",
+  event_id: id,
+  type,
+  timestamp,
+  session_id: "thread-v3-preview",
+  run_id: runId,
+  agent_id: agentId,
+  turn_id: turnId,
+  links,
+  visibility: "user",
+  payload,
+  metadata: {},
+});
+
+const framesFromRuntimeEvents = (events) => {
+  const adapter = createRuntimeEventTraceAdapter();
+  return events.flatMap((eventItem) =>
+    adapter
+      .ingest(eventItem)
+      .filter((effect) => effect.type === "frame")
+      .map((effect) => effect.frame),
+  );
+};
 
 /* ═══════════════════════════════════════════════════════════════════════
    Scenario 1 — Basic Flow
@@ -782,11 +818,82 @@ const CODE_DIFF_SCENARIO = {
   waitForConfirmation: "confirm-1",
 };
 
+const RUNTIME_EVENTS_V3_SCENARIO = {
+  name: "Runtime Events v3",
+  description: "Typed runtime events adapted into the existing TraceChain view",
+  frames: framesFromRuntimeEvents([
+    runtimeEvent({
+      id: "evt-v3-session",
+      type: "session.started",
+      runId: "",
+      turnId: null,
+      payload: {
+        thread_id: "thread-v3-preview",
+        model: "openai:gpt-5",
+        trace_level: "minimal",
+      },
+    }),
+    runtimeEvent({
+      id: "evt-v3-run",
+      type: "run.started",
+      payload: { provider: "openai", model: "gpt-5" },
+    }),
+    runtimeEvent({
+      id: "evt-v3-reasoning",
+      type: "model.delta",
+      payload: {
+        kind: "reasoning",
+        delta: "I need to inspect a file before answering.",
+      },
+    }),
+    runtimeEvent({
+      id: "evt-v3-tool-start",
+      type: "tool.started",
+      links: { tool_call_id: "call-v3-1" },
+      payload: {
+        call_id: "call-v3-1",
+        tool_name: "read_file",
+        tool_display_name: "read_file",
+        arguments: { path: "src/agent.py" },
+      },
+    }),
+    runtimeEvent({
+      id: "evt-v3-tool-complete",
+      type: "tool.completed",
+      links: { tool_call_id: "call-v3-1" },
+      payload: {
+        call_id: "call-v3-1",
+        tool_name: "read_file",
+        status: "success",
+        result: { content: "class Agent:\n    pass" },
+      },
+    }),
+    runtimeEvent({
+      id: "evt-v3-final",
+      type: "model.completed",
+      payload: {
+        status: "completed",
+        final_text:
+          "The file currently defines a minimal `Agent` class with no runtime behavior.",
+      },
+    }),
+    runtimeEvent({
+      id: "evt-v3-complete",
+      type: "run.completed",
+      payload: {
+        status: "completed",
+        usage: { consumed_tokens: 42, model: "openai:gpt-5" },
+      },
+    }),
+  ]),
+};
+
 /* ═══════════════════════════════════════════════════════════════════════
    Export all scenarios
    ═══════════════════════════════════════════════════════════════════════ */
 const TRACE_CHAIN_SCENARIOS = [
   BASIC_FLOW,
+  RUNTIME_EVENTS_V3_SCENARIO,
   TOOL_CONFIRMATION,
   SELECTION_SINGLE,
   SELECTION_MULTI,
