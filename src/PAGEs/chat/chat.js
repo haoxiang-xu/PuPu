@@ -204,6 +204,8 @@ const ChatInterface = () => {
   const activeChatIdRef = session.activeChatIdRef;
   const modelIdRef = session.modelIdRef;
   const setSelectedModelId = session.setSelectedModelId;
+  const setSelectedToolkits = session.setSelectedToolkits;
+  const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
   const hasSelectedModel = useMemo(() => {
     if (session.isCharacterChat) {
       return true;
@@ -257,12 +259,38 @@ const ChatInterface = () => {
   const supportsPdfAttachments = activeInputModalities.has("pdf");
   const modelSupportsAttachments =
     supportsImageAttachments || supportsPdfAttachments;
+  const modelSupportsTools = activeModelCapabilities?.supports_tools !== false;
   const attachmentsEnabled = hasSelectedModel && modelSupportsAttachments;
   const attachmentsDisabledReason = !hasSelectedModel
     ? "Select a model to enable attachments."
     : modelSupportsAttachments
       ? ""
       : "Current model does not support image or file inputs.";
+
+  const effectiveSelectedToolkits = useMemo(
+    () => (modelSupportsTools ? session.selectedToolkits : []),
+    [modelSupportsTools, session.selectedToolkits],
+  );
+  const effectiveSelectedWorkspaceIds = useMemo(
+    () => (modelSupportsTools ? session.selectedWorkspaceIds : []),
+    [modelSupportsTools, session.selectedWorkspaceIds],
+  );
+  const handleToolkitsChange = useCallback(
+    (nextToolkits) => {
+      if (modelSupportsTools) {
+        setSelectedToolkits(nextToolkits);
+      }
+    },
+    [modelSupportsTools, setSelectedToolkits],
+  );
+  const handleWorkspaceIdsChange = useCallback(
+    (nextWorkspaceIds) => {
+      if (modelSupportsTools) {
+        setSelectedWorkspaceIds(nextWorkspaceIds);
+      }
+    },
+    [modelSupportsTools, setSelectedWorkspaceIds],
+  );
 
   const attachments = useChatAttachments({
     chatId: session.activeChatId,
@@ -288,8 +316,8 @@ const ChatInterface = () => {
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
     agentOrchestration: session.agentOrchestration,
-    selectedToolkits: session.selectedToolkits,
-    selectedWorkspaceIds: session.selectedWorkspaceIds,
+    selectedToolkits: effectiveSelectedToolkits,
+    selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
     selectedRecipeName: session.selectedRecipeName,
     chatKind: session.activeChatKind,
     characterId: session.activeCharacterId,
@@ -605,26 +633,27 @@ const ChatInterface = () => {
       onSelectModel,
       modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
       showModelSelector: !session.isCharacterChat,
-      showToolSelector: !session.isCharacterChat,
-      showWorkspaceSelector: !session.isCharacterChat,
-      selectedToolkits: session.selectedToolkits,
-      onToolkitsChange: session.setSelectedToolkits,
-      selectedWorkspaceIds: session.selectedWorkspaceIds,
-      onWorkspaceIdsChange: session.setSelectedWorkspaceIds,
+      showToolSelector: !session.isCharacterChat && modelSupportsTools,
+      showWorkspaceSelector: !session.isCharacterChat && modelSupportsTools,
+      selectedToolkits: effectiveSelectedToolkits,
+      onToolkitsChange: handleToolkitsChange,
+      selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
+      onWorkspaceIdsChange: handleWorkspaceIdsChange,
       selectedRecipeName: session.selectedRecipeName,
       onSelectRecipe: session.setSelectedRecipeName,
       recipeOptions,
     }),
     [
       session.inputValue, session.setInputValue, session.selectedModelId,
-      session.isCharacterChat, session.selectedToolkits, session.setSelectedToolkits,
-      session.selectedWorkspaceIds, session.setSelectedWorkspaceIds,
+      session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
+      effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.isStreaming,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+      modelSupportsTools,
       t,
     ],
   );

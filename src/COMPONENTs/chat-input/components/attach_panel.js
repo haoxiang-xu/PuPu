@@ -1,4 +1,11 @@
-import { useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
@@ -7,6 +14,10 @@ import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../../SERVICEs/feature_flags";
 
 const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
@@ -151,11 +162,35 @@ const AttachPanel = ({
   const { theme } = useContext(ConfigContext);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const lastModelSelectorRefreshAt = useRef(0);
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
   const { workspaceOptions } = useChatInputWorkspaces();
+  const isAgentsFeatureEnabled =
+    featureFlags.enable_user_access_to_agents === true;
+  const hasActiveAgentRecipe =
+    isAgentsFeatureEnabled &&
+    Boolean(selectedRecipeName && selectedRecipeName !== "Default");
+
+  useEffect(() => {
+    setFeatureFlags(readFeatureFlags());
+    return subscribeFeatureFlags(setFeatureFlags);
+  }, []);
+
+  useEffect(() => {
+    if (
+      !isAgentsFeatureEnabled &&
+      selectedRecipeName &&
+      selectedRecipeName !== "Default" &&
+      onSelectRecipe
+    ) {
+      onSelectRecipe("Default");
+    }
+  }, [isAgentsFeatureEnabled, onSelectRecipe, selectedRecipeName]);
 
   const combinedModelOptions = useMemo(() => {
+    if (!isAgentsFeatureEnabled) return modelOptions || [];
+
     const agentEntries = (recipeOptions || [])
       .filter((r) => r && r.value && r.value !== "Default")
       .map((r) => ({
@@ -173,30 +208,31 @@ const AttachPanel = ({
         options: agentEntries,
       },
     ];
-  }, [modelOptions, recipeOptions]);
+  }, [isAgentsFeatureEnabled, modelOptions, recipeOptions]);
 
-  const composedSelectValue =
-    selectedRecipeName && selectedRecipeName !== "Default"
-      ? `agent:${selectedRecipeName}`
-      : selectedModelId || null;
+  const composedSelectValue = hasActiveAgentRecipe
+    ? `agent:${selectedRecipeName}`
+    : selectedModelId || null;
 
   const handleSelectValueChange = useCallback(
     (next) => {
       if (typeof next === "string" && next.startsWith("agent:")) {
+        if (!isAgentsFeatureEnabled) return;
         const name = next.slice("agent:".length);
         if (onSelectRecipe) onSelectRecipe(name);
         return;
       }
-      if (
-        onSelectRecipe &&
-        selectedRecipeName &&
-        selectedRecipeName !== "Default"
-      ) {
+      if (onSelectRecipe && hasActiveAgentRecipe) {
         onSelectRecipe("Default");
       }
       if (onSelectModel) onSelectModel(next);
     },
-    [onSelectModel, onSelectRecipe, selectedRecipeName],
+    [
+      hasActiveAgentRecipe,
+      isAgentsFeatureEnabled,
+      onSelectModel,
+      onSelectRecipe,
+    ],
   );
 
   const handleModelSelectorOpenChange = useCallback((next) => {
@@ -391,8 +427,7 @@ const AttachPanel = ({
             )}
 
             {/* ── Tools selector (icon button + badge trigger) ── */}
-            {showToolSelector &&
-            (!selectedRecipeName || selectedRecipeName === "Default") ? (
+            {showToolSelector && !hasActiveAgentRecipe ? (
               <div style={{ position: "relative" }}>
                 <Select
                   multi

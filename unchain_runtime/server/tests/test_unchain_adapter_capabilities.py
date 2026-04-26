@@ -142,6 +142,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             },
             "deepseek-r1:14b": {
                 "provider": "ollama",
+                "supports_tools": False,
                 "input_modalities": "text",
                 "input_source_types": {"image": ["url"]},
             },
@@ -176,6 +177,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             {
                 "input_modalities": ["text"],
                 "input_source_types": {},
+                "supports_tools": False,
             },
         )
         self.assertEqual(

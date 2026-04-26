@@ -909,10 +909,13 @@ def _normalize_model_capabilities(raw_capabilities: Dict[str, object]) -> Dict[s
         raw_capabilities.get("input_source_types"),
         input_modalities,
     )
-    return {
+    normalized: Dict[str, object] = {
         "input_modalities": input_modalities,
         "input_source_types": input_source_types,
     }
+    if raw_capabilities.get("supports_tools") is False:
+        normalized["supports_tools"] = False
+    return normalized
 
 
 def _is_embedding_model(raw_capabilities: Dict[str, object]) -> bool:

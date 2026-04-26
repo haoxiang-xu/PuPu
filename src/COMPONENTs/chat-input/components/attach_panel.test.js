@@ -1,5 +1,5 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import AttachPanel from "./attach_panel";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
@@ -17,19 +17,39 @@ jest.mock("../hooks/use_chat_input_workspaces", () => ({
 jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
   __esModule: true,
   Select: ({
+    options = [],
     open = false,
     on_open_change = () => {},
     placeholder,
     search_placeholder,
-  }) => (
-    <button
-      data-testid={`select-${search_placeholder || placeholder || "default"}`}
-      data-open={open ? "true" : "false"}
-      onClick={() => on_open_change(!open)}
-    >
-      {search_placeholder || placeholder || "select"}
-    </button>
-  ),
+  }) => {
+    const renderOptionLabels = (items = []) =>
+      items.flatMap((item) => {
+        if (!item) return [];
+        if (item.group) {
+          return [
+            <span key={`group-${item.group}`}>{item.group}</span>,
+            ...renderOptionLabels(item.options),
+          ];
+        }
+        return [
+          <span key={`option-${item.value || item.label}`}>
+            {item.label || item.value}
+          </span>,
+        ];
+      });
+
+    return (
+      <button
+        data-testid={`select-${search_placeholder || placeholder || "default"}`}
+        data-open={open ? "true" : "false"}
+        onClick={() => on_open_change(!open)}
+      >
+        {search_placeholder || placeholder || "select"}
+        {renderOptionLabels(options)}
+      </button>
+    );
+  },
 }));
 
 jest.mock("./attachment_chip_list", () => ({
@@ -51,6 +71,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
 
 describe("AttachPanel toolkit selector refresh", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     useChatInputToolkits.mockReset();
     useChatInputWorkspaces.mockReset();
     useChatInputWorkspaces.mockReturnValue({ workspaceOptions: [] });
@@ -133,5 +154,115 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.queryByTestId("select-Select model...")).not.toBeInTheDocument();
     expect(screen.queryByTestId("select-Search toolkits...")).not.toBeInTheDocument();
     expect(screen.queryByTestId("select-Search workspaces...")).not.toBeInTheDocument();
+  });
+
+  test("hides agent recipe options when the agents feature flag is disabled", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "gpt-5.5", label: "GPT-5.5" }]}
+        recipeOptions={[
+          { value: "Default", label: "Default" },
+          { value: "Research Agent", label: "Research Agent" },
+        ]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
+    expect(screen.queryByText("Agents")).not.toBeInTheDocument();
+    expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
+  });
+
+  test("resets active agent recipe state when the agents feature flag is disabled", async () => {
+    const onSelectRecipe = jest.fn();
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "gpt-5.5", label: "GPT-5.5" }]}
+        recipeOptions={[
+          { value: "Default", label: "Default" },
+          { value: "Research Agent", label: "Research Agent" },
+        ]}
+        selectedRecipeName="Research Agent"
+        onSelectRecipe={onSelectRecipe}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
+    expect(screen.queryByText("Agents")).not.toBeInTheDocument();
+    expect(screen.getByTestId("select-Search toolkits...")).toBeInTheDocument();
+    await waitFor(() => {
+      expect(onSelectRecipe).toHaveBeenCalledWith("Default");
+    });
+  });
+
+  test("shows agent recipe options when the agents feature flag is enabled", () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_user_access_to_agents: true,
+        },
+      }),
+    );
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "gpt-5.5", label: "GPT-5.5" }]}
+        recipeOptions={[
+          { value: "Default", label: "Default" },
+          { value: "Research Agent", label: "Research Agent" },
+        ]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
+    expect(screen.getByText("Agents")).toBeInTheDocument();
+    expect(screen.getByText("Research Agent")).toBeInTheDocument();
   });
 });

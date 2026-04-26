@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
-import { getChatsStore, openCharacterChat, setChatModel } from "../../SERVICEs/chat_storage";
+import {
+  getChatsStore,
+  openCharacterChat,
+  setChatModel,
+  setChatSelectedToolkits,
+} from "../../SERVICEs/chat_storage";
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 
 let lastChatMessagesProps = null;
@@ -255,6 +260,49 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("hides and omits toolkits when selected model does not support tools", async () => {
+    const seeded = getChatsStore();
+    setChatSelectedToolkits(seeded.activeChatId, ["core"], { source: "test" });
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: "ollama:deepseek-r1:14b",
+      providers: {
+        openai: [],
+        ollama: ["deepseek-r1:14b"],
+        anthropic: [],
+      },
+      model_capabilities: {
+        "ollama:deepseek-r1:14b": {
+          input_modalities: ["text"],
+          input_source_types: {},
+          supports_tools: false,
+        },
+      },
+    });
+
+    renderChat();
+
+    await waitFor(() => {
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+      expect(lastChatInputProps?.showToolSelector).toBe(false);
+      expect(lastChatInputProps?.showWorkspaceSelector).toBe(false);
+      expect(lastChatInputProps?.selectedToolkits).toEqual([]);
+      expect(lastChatInputProps?.selectedWorkspaceIds).toEqual([]);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello without tools" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.modelId).toBe("ollama:deepseek-r1:14b");
+    expect(payload.options.toolkits).toBeUndefined();
+    expect(payload.options.selectedWorkspaceIds).toBeUndefined();
   });
 
   test("character chats hide model/tools/workspace selectors and inject character config into stream", async () => {
