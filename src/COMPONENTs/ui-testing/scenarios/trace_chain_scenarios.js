@@ -1,5 +1,3 @@
-import { createRuntimeEventTraceAdapter } from "../../../PAGEs/chat/runtime_events/runtime_event_trace_adapter";
-
 /* ── frame helper ─────────────────────────────────────────────────────── */
 const f = ({ seq, type, payload = {}, ts = seq * 800 }) => ({
   seq,
@@ -31,16 +29,6 @@ const runtimeEvent = ({
   payload,
   metadata: {},
 });
-
-const framesFromRuntimeEvents = (events) => {
-  const adapter = createRuntimeEventTraceAdapter();
-  return events.flatMap((eventItem) =>
-    adapter
-      .ingest(eventItem)
-      .filter((effect) => effect.type === "frame")
-      .map((effect) => effect.frame),
-  );
-};
 
 /* ═══════════════════════════════════════════════════════════════════════
    Scenario 1 — Basic Flow
@@ -821,7 +809,7 @@ const CODE_DIFF_SCENARIO = {
 const RUNTIME_EVENTS_V3_SCENARIO = {
   name: "Runtime Events v3",
   description: "Typed runtime events adapted into the existing TraceChain view",
-  frames: framesFromRuntimeEvents([
+  events: [
     runtimeEvent({
       id: "evt-v3-session",
       type: "session.started",
@@ -885,7 +873,7 @@ const RUNTIME_EVENTS_V3_SCENARIO = {
         usage: { consumed_tokens: 42, model: "openai:gpt-5" },
       },
     }),
-  ]),
+  ],
 };
 
 /* ═══════════════════════════════════════════════════════════════════════

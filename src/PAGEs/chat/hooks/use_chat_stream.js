@@ -9,8 +9,10 @@ import {
   settleStreamingAssistantMessages,
 } from "../utils/chat_turn_utils";
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
-import { createRuntimeEventTraceAdapter } from "../runtime_events/runtime_event_trace_adapter";
-import { isRuntimeEventStreamV3Enabled } from "../runtime_events/runtime_event_stream_gate";
+import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
+import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tree";
+import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
+import { isRuntimeEventStreamV3Enabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
   scheduleBackgroundPersist,
@@ -196,14 +198,31 @@ export const useChatStream = ({
         const traceFrames = Array.isArray(message?.traceFrames)
           ? message.traceFrames
           : [];
-        const frame = traceFrames.find(
+        const rootFrame = traceFrames.find(
           (candidate) =>
             candidate?.type === "tool_call" &&
             typeof candidate.payload?.call_id === "string" &&
             candidate.payload.call_id.trim() === normalizedCallId,
         );
-        if (frame) {
-          return frame;
+        if (rootFrame) {
+          return rootFrame;
+        }
+
+        const subagentFrames =
+          message?.subagentFrames && typeof message.subagentFrames === "object"
+            ? message.subagentFrames
+            : {};
+        for (const frames of Object.values(subagentFrames)) {
+          if (!Array.isArray(frames)) continue;
+          const subagentFrame = frames.find(
+            (candidate) =>
+              candidate?.type === "tool_call" &&
+              typeof candidate.payload?.call_id === "string" &&
+              candidate.payload.call_id.trim() === normalizedCallId,
+          );
+          if (subagentFrame) {
+            return subagentFrame;
+          }
         }
       }
 
@@ -505,32 +524,28 @@ export const useChatStream = ({
       const patchTime = Date.now();
       let changed = false;
 
-      const nextStreamMessages = streamMessages.map((message) => {
-        const traceFrames = Array.isArray(message?.traceFrames)
-          ? message.traceFrames
-          : [];
-        const requestFrame = traceFrames.find(
+      const appendDecisionFrame = (frames) => {
+        const list = Array.isArray(frames) ? frames : [];
+        const requestFrame = list.find(
           (frame) =>
             frame?.type === "tool_call" &&
             (frame?.payload?.confirmation_id === normalizedConfirmationId ||
               frame?.payload?.call_id === callId),
         );
         if (!requestFrame) {
-          return message;
+          return { frames: list, changed: false };
         }
 
-        const alreadyRecorded = traceFrames.some(
+        const alreadyRecorded = list.some(
           (frame) =>
             frame?.type === decisionFrameType &&
             frame?.payload?.call_id === callId,
         );
         if (alreadyRecorded) {
-          return message;
+          return { frames: list, changed: false };
         }
 
-        changed = true;
-
-        const maxSeq = traceFrames.reduce((highest, frame) => {
+        const maxSeq = list.reduce((highest, frame) => {
           const seq = Number(frame?.seq);
           return Number.isFinite(seq) && seq > highest ? seq : highest;
         }, 0);
@@ -544,15 +559,14 @@ export const useChatStream = ({
             : "";
 
         return {
-          ...message,
-          updatedAt: patchTime,
-          traceFrames: [
-            ...traceFrames,
+          frames: [
+            ...list,
             {
               seq: maxSeq + 0.1,
               ts: patchTime,
               type: decisionFrameType,
               stage: "client",
+              ...(requestFrame.run_id ? { run_id: requestFrame.run_id } : {}),
               payload: {
                 tool_name: toolName,
                 ...(toolDisplayName
@@ -567,6 +581,49 @@ export const useChatStream = ({
               },
             },
           ],
+          changed: true,
+        };
+      };
+
+      const nextStreamMessages = streamMessages.map((message) => {
+        const traceFrames = Array.isArray(message?.traceFrames)
+          ? message.traceFrames
+          : [];
+        const rootResult = appendDecisionFrame(traceFrames);
+        if (rootResult.changed) {
+          changed = true;
+          return {
+            ...message,
+            updatedAt: patchTime,
+            traceFrames: rootResult.frames,
+          };
+        }
+
+        const subagentFrames =
+          message?.subagentFrames && typeof message.subagentFrames === "object"
+            ? message.subagentFrames
+            : {};
+        let nextSubagentFrames = null;
+        for (const [runId, frames] of Object.entries(subagentFrames)) {
+          const branchResult = appendDecisionFrame(frames);
+          if (!branchResult.changed) {
+            continue;
+          }
+          nextSubagentFrames = {
+            ...subagentFrames,
+            [runId]: branchResult.frames,
+          };
+          break;
+        }
+
+        if (!nextSubagentFrames) {
+          return message;
+        }
+        changed = true;
+        return {
+          ...message,
+          updatedAt: patchTime,
+          subagentFrames: nextSubagentFrames,
         };
       });
 
@@ -1423,12 +1480,57 @@ export const useChatStream = ({
           return api.unchain.startStreamV2(payload, handlers);
         }
 
-        const runtimeEventTraceAdapter = createRuntimeEventTraceAdapter();
+        const runtimeEventStore = createRuntimeEventStore();
+        let runtimeEventActivityTree = reduceActivityTree(
+          null,
+          runtimeEventStore.getSnapshot(),
+        );
+        const processedRuntimeEventEffectKeys = new Set();
         let runtimeEventStreamFailed = false;
+        const runtimeEventEffectKey = (effect) => {
+          const eventId =
+            typeof effect?.eventId === "string" && effect.eventId.trim()
+              ? effect.eventId.trim()
+              : typeof effect?.frame?.payload?.runtime_event_id === "string"
+                ? effect.frame.payload.runtime_event_id.trim()
+                : "";
+          if (!eventId) {
+            return "";
+          }
+          const frameType =
+            typeof effect?.frame?.type === "string" ? effect.frame.type : "";
+          const delta =
+            effect?.type === "token" && typeof effect.delta === "string"
+              ? effect.delta
+              : "";
+          const errorCode =
+            effect?.type === "error" && typeof effect.error?.code === "string"
+              ? effect.error.code
+              : "";
+          return [eventId, effect?.type || "", frameType, delta, errorCode].join(
+            "::",
+          );
+        };
+        const flushRuntimeEventEffects = () => {
+          runtimeEventActivityTree = reduceActivityTree(
+            runtimeEventActivityTree,
+            runtimeEventStore.getSnapshot(),
+          );
+          const nextEffects = runtimeEventActivityTree.effects.filter((effect) => {
+            const effectKey = runtimeEventEffectKey(effect);
+            if (!effectKey || processedRuntimeEventEffectKeys.has(effectKey)) {
+              return false;
+            }
+            processedRuntimeEventEffectKeys.add(effectKey);
+            return true;
+          });
+          return nextEffects;
+        };
 
         return api.unchain.startStreamV3(payload, {
           onRuntimeEvent: (runtimeEvent) => {
-            const effects = runtimeEventTraceAdapter.ingest(runtimeEvent);
+            runtimeEventStore.append(runtimeEvent);
+            const effects = flushRuntimeEventEffects();
             const hasErrorEffect = effects.some((effect) => effect.type === "error");
             effects.forEach((effect) => {
               if (
@@ -1456,7 +1558,14 @@ export const useChatStream = ({
             if (runtimeEventStreamFailed) {
               return;
             }
-            handlers.onDone?.(runtimeEventTraceAdapter.complete(done));
+            const traceProps = adaptActivityTreeToTraceChain(
+              runtimeEventActivityTree,
+            );
+            const donePayload =
+              traceProps.bundle && !(done?.bundle && typeof done.bundle === "object")
+                ? { ...(done || {}), bundle: traceProps.bundle }
+                : done;
+            handlers.onDone?.(donePayload);
           },
           onError: (error) => {
             runtimeEventStreamFailed = true;
@@ -1731,6 +1840,170 @@ export const useChatStream = ({
               }
 
               const frameRunId = frame.run_id || frame.payload?.run_id || "";
+              const processChildToolInteractionSideEffects = () => {
+                if (frame.type === "tool_call") {
+                  const callId =
+                    typeof frame.payload?.call_id === "string"
+                      ? frame.payload.call_id
+                      : "";
+                  const confirmationId =
+                    typeof frame.payload?.confirmation_id === "string"
+                      ? frame.payload.confirmation_id
+                      : "";
+                  const requiresConfirmation =
+                    frame.payload?.requires_confirmation === true ||
+                    Boolean(confirmationId);
+                  const toolName =
+                    typeof frame.payload?.tool_name === "string"
+                      ? frame.payload.tool_name
+                      : "";
+
+                  if (toolName === HUMAN_INPUT_TOOL_NAME) {
+                    const interactConfig =
+                      frame.payload?.interact_config &&
+                      typeof frame.payload.interact_config === "object"
+                        ? frame.payload.interact_config
+                        : {};
+                    const requestArguments =
+                      frame.payload?.arguments &&
+                      typeof frame.payload.arguments === "object"
+                        ? frame.payload.arguments
+                        : {};
+                    unchainLogger.log("ask_user_question_prompt", {
+                      callId,
+                      confirmationId,
+                      interactRequestId:
+                        typeof interactConfig.request_id === "string"
+                          ? interactConfig.request_id
+                          : "",
+                      argumentRequestId:
+                        typeof requestArguments.request_id === "string"
+                          ? requestArguments.request_id
+                          : "",
+                      question:
+                        typeof interactConfig.question === "string"
+                          ? interactConfig.question
+                          : typeof requestArguments.question === "string"
+                            ? requestArguments.question
+                            : "",
+                      selectionMode:
+                        typeof interactConfig.selection_mode === "string"
+                          ? interactConfig.selection_mode
+                          : typeof requestArguments.selection_mode === "string"
+                            ? requestArguments.selection_mode
+                            : "",
+                      optionValues: Array.isArray(interactConfig.options)
+                        ? interactConfig.options
+                            .map((option) =>
+                              typeof option?.value === "string"
+                                ? option.value
+                                : "",
+                            )
+                            .filter(Boolean)
+                        : Array.isArray(requestArguments.options)
+                          ? requestArguments.options
+                              .map((option) =>
+                                typeof option?.value === "string"
+                                  ? option.value
+                                  : "",
+                              )
+                              .filter(Boolean)
+                          : [],
+                    });
+                  }
+
+                  if (callId && confirmationId && requiresConfirmation) {
+                    confirmationIdByCallIdRef.current.set(callId, confirmationId);
+                    confirmationCallIdByIdRef.current.set(confirmationId, callId);
+                    updatePendingToolConfirmationRequests((previous) =>
+                      previous[confirmationId]
+                        ? previous
+                        : {
+                            ...previous,
+                            [confirmationId]: {
+                              confirmationId,
+                              callId,
+                              toolName,
+                              toolDisplayName:
+                                typeof frame.payload?.tool_display_name ===
+                                "string"
+                                  ? frame.payload.tool_display_name
+                                  : "",
+                              arguments:
+                                frame.payload?.arguments &&
+                                typeof frame.payload.arguments === "object"
+                                  ? frame.payload.arguments
+                                  : {},
+                              description:
+                                typeof frame.payload?.description === "string"
+                                  ? frame.payload.description
+                                  : "",
+                              interactType:
+                                typeof frame.payload?.interact_type === "string" &&
+                                frame.payload.interact_type
+                                  ? frame.payload.interact_type
+                                  : "confirmation",
+                              interactConfig:
+                                frame.payload?.interact_config &&
+                                typeof frame.payload.interact_config === "object"
+                                  ? frame.payload.interact_config
+                                  : {},
+                              requestedAt: patchTime,
+                            },
+                          },
+                    );
+                    if (
+                      confirmationFollowupSignalByIdRef.current.get(
+                        confirmationId,
+                      ) !== true
+                    ) {
+                      confirmationFollowupSignalByIdRef.current.set(
+                        confirmationId,
+                        false,
+                      );
+                    }
+                    updateToolConfirmationUiState((previous) =>
+                      previous[confirmationId]
+                        ? previous
+                        : {
+                            ...previous,
+                            [confirmationId]: {
+                              status: "idle",
+                              error: "",
+                              resolved: false,
+                            },
+                          },
+                    );
+                  }
+                } else if (
+                  frame.type === "tool_confirmed" ||
+                  frame.type === "tool_denied"
+                ) {
+                  const callId =
+                    typeof frame.payload?.call_id === "string"
+                      ? frame.payload.call_id
+                      : "";
+                  clearResolvedToolConfirmationByCallId(callId);
+                } else if (frame.type === "tool_result") {
+                  const callId =
+                    typeof frame.payload?.call_id === "string"
+                      ? frame.payload.call_id
+                      : "";
+                  const toolName =
+                    typeof frame.payload?.tool_name === "string"
+                      ? frame.payload.tool_name
+                      : typeof frame.payload?.result?.tool === "string"
+                        ? frame.payload.result.tool
+                        : "";
+                  if (toolName === HUMAN_INPUT_TOOL_NAME) {
+                    unchainLogger.log("ask_user_question_result", {
+                      callId,
+                      result: frame.payload?.result,
+                    });
+                  }
+                  markConfirmationFollowupSignalByCallId(callId);
+                }
+              };
 
               /* ── Route subagent frames to their sub-timeline ── */
               /* Known subagent: run_id already registered via lifecycle events */
@@ -1763,6 +2036,7 @@ export const useChatStream = ({
                 if (!subagentFramesByRunIdRef.current.has(frameRunId)) {
                   subagentFramesByRunIdRef.current.set(frameRunId, []);
                 }
+                processChildToolInteractionSideEffects();
                 subagentFramesByRunIdRef.current.get(frameRunId).push(frame);
 
                 if (

@@ -1045,6 +1045,11 @@ describe("ChatInterface stop flow", () => {
           (frame) => frame?.payload?.call_id === "ask-child-1",
         ),
       ).toBeUndefined();
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.[
+          "confirm-child-1"
+        ]?.status,
+      ).toBe("idle");
     });
   });
 
@@ -1131,7 +1136,12 @@ describe("ChatInterface stop flow", () => {
   });
 
   test("uses runtime event stream v3 when the gated bridge is enabled", async () => {
-    window.localStorage.setItem("pupu.runtime_events_v3", "true");
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: { enable_runtime_events_v3: true },
+      }),
+    );
     renderChat();
     await waitForReady();
 

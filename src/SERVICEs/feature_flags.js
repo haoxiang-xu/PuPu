@@ -33,6 +33,11 @@ export const FEATURE_FLAG_DEFINITIONS = {
       "Show the Update page in Settings and allow access to in-app update controls.",
     defaultValue: true,
   },
+  enable_runtime_events_v3: {
+    description:
+      "Route chat streams through the typed RuntimeEvent v3 store and activity tree adapter.",
+    defaultValue: false,
+  },
 };
 
 const listeners = new Set();
