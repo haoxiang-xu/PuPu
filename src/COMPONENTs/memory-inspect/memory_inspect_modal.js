@@ -734,8 +734,8 @@ const MemoryInspectModal = ({
             display: "flex",
             alignItems: "center",
             gap: 8,
-            padding: "6px 6px 6px 16px",
-            borderRadius: 10,
+            padding: "6px 6px 6px 10px",
+            borderRadius: 12,
             backgroundColor: overlay_bg,
             border: overlay_border,
             backdropFilter: overlay_backdrop,
@@ -756,6 +756,7 @@ const MemoryInspectModal = ({
               fontSize: 12,
               paddingVertical: 4,
               paddingHorizontal: 10,
+              borderRadius: 7,
             }}
           />
           <span
@@ -780,6 +781,7 @@ const MemoryInspectModal = ({
               fontSize: 12,
               paddingVertical: 4,
               paddingHorizontal: 10,
+              borderRadius: 7,
             }}
           />
 
@@ -835,7 +837,7 @@ const MemoryInspectModal = ({
                 style={{
                   paddingVertical: 0,
                   paddingHorizontal: 0,
-                  borderRadius: 6,
+                  borderRadius: 7,
                   opacity: 0.5,
                   content: {
                     icon: { width: 14, height: 14 },

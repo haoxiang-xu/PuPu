@@ -209,9 +209,9 @@ const TraceChainRunner = () => {
           display: "flex",
           alignItems: "center",
           gap: 8,
-          padding: "6px 16px",
+          padding: "6px 10px 6px 6px",
           maxWidth: "calc(100% - 264px)",
-          borderRadius: 10,
+          borderRadius: 12,
           background: overlay_bg,
           border: overlay_border,
           backdropFilter: overlay_backdrop,
@@ -230,7 +230,7 @@ const TraceChainRunner = () => {
             style={{
               fontSize: 12,
               height: 18,
-              borderRadius: 5,
+              borderRadius: 7,
             }}
           />
         </div>
@@ -253,7 +253,7 @@ const TraceChainRunner = () => {
             fontSize: 11,
             paddingVertical: 4,
             paddingHorizontal: 10,
-            borderRadius: 5,
+            borderRadius: 7,
           }}
         />
 
@@ -266,7 +266,7 @@ const TraceChainRunner = () => {
             fontSize: 11,
             paddingVertical: 4,
             paddingHorizontal: 10,
-            borderRadius: 5,
+            borderRadius: 7,
           }}
         />
 
@@ -304,7 +304,7 @@ const TraceChainRunner = () => {
         />
 
         {/* progress */}
-        <span style={{ ...mono, paddingRight: 6 }}>
+        <span style={mono}>
           {displayedCount}/{totalCount}
           {waitingForConfirmation ? " input" : ""}
         </span>

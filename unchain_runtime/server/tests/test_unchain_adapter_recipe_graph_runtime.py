@@ -170,6 +170,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                     attachments=[],
                     options={"modelId": "ollama:test"},
                     session_id="s",
+                    run_id_override="child-run-ask",
                 ):
                     events.append(event)
                     if (
@@ -200,6 +201,7 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
             if event.get("type") == "tool_call"
             and event.get("tool_name") == "ask_user_question"
         )
+        self.assertEqual(ask_event.get("run_id"), "child-run-ask")
         self.assertEqual(ask_event.get("call_id"), "ask-1")
         self.assertIsInstance(ask_event.get("confirmation_id"), str)
         self.assertEqual(ask_event.get("requires_confirmation"), True)
@@ -211,6 +213,117 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
                 for event in events
             )
         )
+
+    def test_stream_recipe_graph_preserves_child_run_id_from_callback(self):
+        import unchain_adapter as ua
+
+        data = _recipe_dict()
+        data["nodes"] = [
+            data["nodes"][0],
+            data["nodes"][1],
+            data["nodes"][-1],
+        ]
+        data["edges"] = [
+            data["edges"][0],
+            {
+                "id": "e2",
+                "kind": "flow",
+                "source_node_id": "a1",
+                "source_port_id": "out",
+                "target_node_id": "end",
+                "target_port_id": "in",
+            },
+        ]
+        recipe = parse_recipe_json(data)
+
+        class ChildEventAgent(FakeAgent):
+            def run(self, *, callback=None, run_id=None, **_kwargs):
+                if callback:
+                    callback({
+                        "type": "tool_call",
+                        "run_id": "child-run-ask",
+                        "iteration": 0,
+                        "tool_name": "ask_user_question",
+                        "call_id": "ask-child",
+                        "confirmation_id": "confirm-child",
+                        "requires_confirmation": True,
+                        "interact_type": "single",
+                        "interact_config": {"question": "Child needs input?"},
+                    })
+                    callback({
+                        "type": "final_message",
+                        "run_id": run_id,
+                        "iteration": 0,
+                        "content": "parent final",
+                    })
+                return SimpleNamespace(messages=[{"role": "assistant", "content": "parent final"}])
+
+        def fake_build(**kwargs):
+            return ChildEventAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            events = list(
+                ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="Hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test"},
+                    session_id="s",
+                    run_id_override="parent-run",
+                )
+            )
+
+        ask_event = next(
+            event
+            for event in events
+            if event.get("type") == "tool_call"
+            and event.get("tool_name") == "ask_user_question"
+        )
+        self.assertEqual(ask_event.get("run_id"), "child-run-ask")
+        self.assertNotIn("workflow_node_id", ask_event)
+        self.assertNotIn("workflow_step_index", ask_event)
+        self.assertTrue(
+            any(
+                event.get("type") == "final_message"
+                and event.get("run_id") == "parent-run"
+                and event.get("content") == "parent final"
+                for event in events
+            )
+        )
+
+    def test_workflow_recipe_subagent_forwards_run_id_to_child_graph(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        agent = ua._WorkflowRecipeSubagentAgent(
+            recipe=recipe,
+            options={"modelId": "ollama:test"},
+            name="Explore",
+        )
+
+        with mock.patch.object(
+            ua,
+            "_stream_recipe_graph_events",
+            return_value=iter([
+                {
+                    "type": "final_message",
+                    "run_id": "child-run-ask",
+                    "content": "done",
+                }
+            ]),
+        ) as stream_graph:
+            result = agent.run(
+                [{"role": "user", "content": "Inspect the frontend"}],
+                run_id="child-run-ask",
+            )
+
+        self.assertEqual(result.status, "completed")
+        self.assertEqual(result.messages[-1]["content"], "done")
+        self.assertEqual(stream_graph.call_args.kwargs["run_id_override"], "child-run-ask")
 
     def test_toolkit_pool_merge_switch_controls_user_toolkits(self):
         import unchain_adapter as ua

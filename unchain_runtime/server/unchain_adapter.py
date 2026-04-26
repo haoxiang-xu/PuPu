@@ -3153,6 +3153,7 @@ class _WorkflowRecipeSubagentAgent:
                 options=options,
                 session_id=session_id,
                 cancel_event=None,
+                run_id_override=run_id,
             ):
                 if callable(callback):
                     callback(event)
@@ -4193,6 +4194,7 @@ def _stream_recipe_graph_events(
     options: Dict[str, object],
     session_id: str = "",
     cancel_event: threading.Event | None = None,
+    run_id_override: str = "",
 ) -> Iterable[Dict[str, Any]]:
     if _UnchainAgent is None:
         raise RuntimeError("unchain agent is unavailable — check unchain installation")
@@ -4246,7 +4248,7 @@ def _stream_recipe_graph_events(
     except RuntimeError as exc:
         raise RuntimeError(str(exc)) from exc
 
-    workflow_run_id = str(_uuid.uuid4())
+    workflow_run_id = str(run_id_override or _uuid.uuid4())
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
     output_holder: Dict[str, object] = {
@@ -4403,12 +4405,18 @@ def _stream_recipe_graph_events(
                         event["tool_display_name"] = workspace_names[event.get("tool_name")]
                     if event.get("type") == "tool_result" and event.get("tool_name") in workspace_names:
                         event["tool_display_name"] = workspace_names[event.get("tool_name")]
-                    event["run_id"] = workflow_run_id
-                    event["workflow_node_id"] = _agent_id
-                    event["workflow_step_index"] = _index
-                    event["workflow_step_count"] = len(agents)
+                    event_run_id = event.get("run_id")
+                    event_is_current_step = not isinstance(event_run_id, str) or not event_run_id
+                    if event_is_current_step:
+                        event["run_id"] = workflow_run_id
+                    else:
+                        event_is_current_step = event_run_id == workflow_run_id
+                    if event_is_current_step:
+                        event.setdefault("workflow_node_id", _agent_id)
+                        event.setdefault("workflow_step_index", _index)
+                        event.setdefault("workflow_step_count", len(agents))
                     event_type = event.get("type")
-                    if event_type == "final_message":
+                    if event_is_current_step and event_type == "final_message":
                         content = event.get("content")
                         if isinstance(content, str):
                             step_final_holder["text"] = content
@@ -4424,7 +4432,7 @@ def _stream_recipe_graph_events(
                             })
                             return
                         output_holder["seen_final_message"] = True
-                    elif event_type == "token_delta" and not _is_last:
+                    elif event_is_current_step and event_type == "token_delta" and not _is_last:
                         delta = event.get("delta")
                         if isinstance(delta, str) and delta:
                             emit({
@@ -4448,17 +4456,16 @@ def _stream_recipe_graph_events(
                         output_holder["last_iteration"] = iteration
                     emit(event)
 
+                human_input_cb = _make_human_input_callback(
+                    step_emit,
+                    cancel_event=cancel_event,
+                    toolkit_meta_by_tool_name=toolkit_meta,
+                )
                 if options.get("_recipe_subagent_run"):
                     confirm_cb = None
-                    human_input_cb = None
                     max_iterations_cb = None
                 else:
                     confirm_cb = _make_tool_confirm_callback(
-                        step_emit,
-                        cancel_event=cancel_event,
-                        toolkit_meta_by_tool_name=toolkit_meta,
-                    )
-                    human_input_cb = _make_human_input_callback(
                         step_emit,
                         cancel_event=cancel_event,
                         toolkit_meta_by_tool_name=toolkit_meta,

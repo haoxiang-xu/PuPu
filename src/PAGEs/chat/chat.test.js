@@ -913,6 +913,85 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("routes child ask_user_question frames to subagent timelines", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Delegate and ask from child" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "run_started",
+        run_id: "parent-run",
+        payload: {
+          run_id: "parent-run",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "subagent_started",
+        payload: {
+          child_run_id: "child-run-1",
+          subagent_id: "developer.explore.1",
+          mode: "delegate",
+          template: "Explore",
+          parent_id: "developer",
+          lineage: ["developer", "developer.explore.1"],
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 120,
+        type: "tool_call",
+        run_id: "child-run-1",
+        payload: {
+          call_id: "ask-child-1",
+          confirmation_id: "confirm-child-1",
+          requires_confirmation: true,
+          tool_name: "ask_user_question",
+          interact_type: "single",
+          interact_config: {
+            question: "Child needs input?",
+            options: [{ label: "Frontend", value: "frontend" }],
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.subagentFrames?.["child-run-1"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool_call",
+            run_id: "child-run-1",
+            payload: expect.objectContaining({
+              tool_name: "ask_user_question",
+              confirmation_id: "confirm-child-1",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        assistantMessage?.traceFrames?.find(
+          (frame) => frame?.payload?.call_id === "ask-child-1",
+        ),
+      ).toBeUndefined();
+    });
+  });
+
   test("keeps child final messages out of the main trace when lifecycle metadata arrives later", async () => {
     renderChat();
     await waitForReady();
