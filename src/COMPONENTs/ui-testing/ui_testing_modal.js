@@ -1,23 +1,30 @@
 import { useContext, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import TraceChainRunner from "./runners/trace_chain_runner";
+import CodeDiffInteractRunner from "./runners/code_diff_runner";
 
 /* ── test component registry ── */
 const COMPONENTS = [
   { key: "trace_chain", label: "TraceChain", runner: TraceChainRunner },
+  {
+    key: "code_diff_interact",
+    label: "CodeDiffInteract",
+    runner: CodeDiffInteractRunner,
+  },
 ];
 
 /* ═══════════════════════════════════════════════════════════════════════
    UITestingModal
    ═══════════════════════════════════════════════════════════════════════ */
 const UITestingModal = ({ open, onClose }) => {
+  useModalLifecycle("ui-testing-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
 
   const [selectedKey, setSelectedKey] = useState(COMPONENTS[0].key);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
   const selected =
     COMPONENTS.find((c) => c.key === selectedKey) || COMPONENTS[0];
   const RunnerComponent = selected.runner;
@@ -78,9 +85,6 @@ const UITestingModal = ({ open, onClose }) => {
 
       {/* ── full-bleed content (TraceChain runner) ── */}
       <div
-        onClick={() => {
-          if (sidebarOpen) setSidebarOpen(false);
-        }}
         style={{
           position: "absolute",
           inset: 0,
@@ -90,7 +94,7 @@ const UITestingModal = ({ open, onClose }) => {
         <RunnerComponent />
       </div>
 
-      {/* ── left slide-in panel (glassmorphism) ── */}
+      {/* ── left panel (glassmorphism) — always visible ── */}
       <div
         style={{
           position: "absolute",
@@ -108,41 +112,17 @@ const UITestingModal = ({ open, onClose }) => {
           overflow: "hidden",
           display: "flex",
           flexDirection: "column",
-          opacity: sidebarOpen ? 1 : 0,
-          transform: sidebarOpen ? "translateX(0)" : "translateX(-12px)",
-          transition:
-            "opacity 0.25s cubic-bezier(0.32,1,0.32,1), transform 0.25s cubic-bezier(0.32,1,0.32,1)",
-          pointerEvents: sidebarOpen ? "auto" : "none",
         }}
       >
-        {/* header with close button at top-left (same position as open toggle) */}
+        {/* header */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: 8,
-            padding: "10px 14px 8px 10px",
+            padding: "14px 14px 8px 14px",
           }}
         >
-          <Button
-            prefix_icon="side_menu_close"
-            onClick={() => setSidebarOpen(false)}
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 6,
-              borderRadius: 6,
-              opacity: 0.45,
-              content: {
-                prefixIconWrap: {
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  lineHeight: 0,
-                },
-                icon: { width: 14, height: 14 },
-              },
-            }}
-          />
           <span
             style={{
               fontSize: 14,
@@ -214,32 +194,6 @@ const UITestingModal = ({ open, onClose }) => {
         </div>
       </div>
 
-      {/* ── sidebar toggle (top-left, same position as sidebar close) ── */}
-      {!sidebarOpen && (
-        <Button
-          prefix_icon="side_menu_left"
-          onClick={() => setSidebarOpen(true)}
-          style={{
-            position: "absolute",
-            top: 12,
-            left: 12,
-            paddingVertical: 6,
-            paddingHorizontal: 6,
-            borderRadius: 6,
-            opacity: 0.45,
-            zIndex: 4,
-            content: {
-              prefixIconWrap: {
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                lineHeight: 0,
-              },
-              icon: { width: 14, height: 14 },
-            },
-          }}
-        />
-      )}
     </Modal>
   );
 };

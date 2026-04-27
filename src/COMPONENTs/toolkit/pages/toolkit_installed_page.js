@@ -7,12 +7,13 @@ import {
 } from "../../../SERVICEs/default_toolkit_store";
 import { BASE_TOOLKIT_IDENTIFIERS } from "../constants";
 import ToolkitRow from "../components/toolkit_row";
-import LoadingDots from "../components/loading_dots";
+import SuspenseFallback from "../../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
 import PlaceholderBlock from "../components/placeholder_block";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 
 const isBaseById = (toolkitId) => {
   if (!toolkitId) return false;
@@ -28,45 +29,39 @@ const isBaseById = (toolkitId) => {
 const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
   const [toolkits, setToolkits] = useState([]);
-  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
 
-  const loadCatalog = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
+  const { run: loadCatalog, pending, error: loadError } = useAsyncAction(
+    useCallback(async () => {
       const payload = await api.unchain.listToolModalCatalog();
       const list = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
-
       const visible = list.filter(
         (tk) =>
           tk.source !== "plugin" &&
           !tk.hidden &&
           !isBaseById(tk.toolkitId),
       );
-
       const validIds = visible.map((tk) => tk.toolkitId);
       removeInvalidToolkitIds("global", validIds);
-
       const enabledIds = new Set(getDefaultToolkitSelection("global"));
-      const merged = visible.map((tk) => ({
+      return visible.map((tk) => ({
         ...tk,
         defaultEnabled: enabledIds.has(tk.toolkitId),
       }));
+    }, []),
+    { label: "toolkit_catalog_load", pendingDelayMs: 0, onError: () => {} },
+  );
 
-      setToolkits(merged);
-    } catch (err) {
-      setError(err?.message || t("toolkit.load_catalog_failed"));
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+  const error = loadError ? (loadError.message || t("toolkit.load_catalog_failed")) : null;
+  const loading = pending || !initialLoadDone;
 
   useEffect(() => {
-    loadCatalog();
+    loadCatalog().then((result) => {
+      if (result !== undefined) setToolkits(result);
+      setInitialLoadDone(true);
+    });
   }, [loadCatalog]);
 
   const handleToggleEnabled = useCallback((toolkitId, enabled) => {
@@ -104,7 +99,7 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
 
   const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
 
-  if (loading) return <LoadingDots isDark={isDark} />;
+  if (loading) return <SuspenseFallback minHeight={160} />;
 
   if (error) {
     return (

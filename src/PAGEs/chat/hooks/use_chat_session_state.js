@@ -3,15 +3,17 @@ import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
   setChatMessages,
-  setChatAgentOrchestration,
   setChatModel,
-  setChatSelectedToolkits,
-  setChatSelectedWorkspaceIds,
+  setChatSessionBundle,
   setChatThreadId,
   subscribeChatsStore,
   updateChatDraft,
 } from "../../../SERVICEs/chat_storage";
 import { settleStreamingAssistantMessages } from "../utils/chat_turn_utils";
+import {
+  cancelBackgroundPersist,
+  flushAllBackgroundPersist,
+} from "./background_stream_persister";
 
 const DRAFT_PERSIST_DELAY_MS = 250;
 
@@ -19,7 +21,7 @@ export const useChatSessionState = ({
   bootstrapped: bootstrappedProp,
   draftAttachments,
   setDraftAttachments,
-  activeStreamMessagesRef,
+  activeStreamsRef,
   setStreamError,
 }) => {
   const [bootstrappedFallback] = useState(() => bootstrapChatsStore());
@@ -44,6 +46,9 @@ export const useChatSessionState = ({
   );
   const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState(
     () => initialChat.selectedWorkspaceIds || [],
+  );
+  const [selectedRecipeName, setSelectedRecipeName] = useState(
+    () => initialChat.selectedRecipeName || "Default",
   );
   const [activeChatKind, setActiveChatKind] = useState(
     initialChat.kind === "character" ? "character" : "default",
@@ -166,23 +171,35 @@ export const useChatSessionState = ({
       }
       activeChatIdRef.current = nextActiveId;
 
+      const leavingStreamState = activeStreamsRef.current.get(currentActiveId);
       if (
         currentActiveStillExists &&
-        activeStreamMessagesRef.current?.chatId === currentActiveId &&
-        Array.isArray(activeStreamMessagesRef.current?.messages)
+        leavingStreamState &&
+        Array.isArray(leavingStreamState.messages)
       ) {
         setChatMessages(
           currentActiveId,
-          activeStreamMessagesRef.current.messages,
+          leavingStreamState.messages,
           {
             source: "chat-page",
           },
         );
+        // We just wrote fresh state; drop any pending throttled write.
+        cancelBackgroundPersist(currentActiveId);
       }
 
       setActiveChatId(nextActiveId);
       setStreamError("");
-      setMessages(nextActiveChat.messages || []);
+      // Entering chat becomes foreground — subsequent tokens hit setMessages
+      // directly; drop any pending background-persist for this chat so its
+      // stale scheduled write doesn't overwrite fresher storage later.
+      cancelBackgroundPersist(nextActiveId);
+      const enteringStreamState = activeStreamsRef.current.get(nextActiveId);
+      const restoredMessages =
+        enteringStreamState && Array.isArray(enteringStreamState.messages)
+          ? enteringStreamState.messages
+          : nextActiveChat.messages || [];
+      setMessages(restoredMessages);
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setAgentOrchestration(
@@ -190,6 +207,7 @@ export const useChatSessionState = ({
       );
       setSelectedToolkits(nextActiveChat.selectedToolkits || []);
       setSelectedWorkspaceIds(nextActiveChat.selectedWorkspaceIds || []);
+      setSelectedRecipeName(nextActiveChat.selectedRecipeName || "Default");
       setActiveChatKind(
         nextActiveChat.kind === "character" ? "character" : "default",
       );
@@ -224,11 +242,22 @@ export const useChatSessionState = ({
       unsubscribe();
     };
   }, [
-    activeStreamMessagesRef,
+    activeStreamsRef,
     flushDraftToStore,
     setDraftAttachments,
     setStreamError,
   ]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+    const onBeforeUnload = () => {
+      flushAllBackgroundPersist();
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+    };
+  }, []);
 
   useEffect(() => {
     const chatsById = bootstrapped?.store?.chatsById || {};
@@ -307,38 +336,23 @@ export const useChatSessionState = ({
       return;
     }
 
-    setChatSelectedToolkits(currentChatId, selectedToolkits, {
-      source: "chat-page",
-    });
-  }, [activeChatKind, selectedToolkits]);
-
-  useEffect(() => {
-    const currentChatId = activeChatIdRef.current;
-    if (!currentChatId) {
-      return;
-    }
-    if (activeChatKind === "character") {
-      return;
-    }
-
-    setChatAgentOrchestration(currentChatId, agentOrchestration, {
-      source: "chat-page",
-    });
-  }, [activeChatKind, agentOrchestration]);
-
-  useEffect(() => {
-    const currentChatId = activeChatIdRef.current;
-    if (!currentChatId) {
-      return;
-    }
-    if (activeChatKind === "character") {
-      return;
-    }
-
-    setChatSelectedWorkspaceIds(currentChatId, selectedWorkspaceIds, {
-      source: "chat-page",
-    });
-  }, [activeChatKind, selectedWorkspaceIds]);
+    setChatSessionBundle(
+      currentChatId,
+      {
+        selectedToolkits,
+        agentOrchestration,
+        selectedWorkspaceIds,
+        selectedRecipeName,
+      },
+      { source: "chat-page" },
+    );
+  }, [
+    activeChatKind,
+    selectedToolkits,
+    agentOrchestration,
+    selectedWorkspaceIds,
+    selectedRecipeName,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -379,6 +393,8 @@ export const useChatSessionState = ({
     setAgentOrchestration,
     selectedToolkits,
     setSelectedToolkits,
+    selectedRecipeName,
+    setSelectedRecipeName,
     selectedWorkspaceIds,
     setSelectedWorkspaceIds,
     systemPromptOverridesRef,

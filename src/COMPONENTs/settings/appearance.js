@@ -135,7 +135,7 @@ export const AppearanceSettings = () => {
       : "rgba(0,0,0,0.05)",
   };
   const selectOptionStyle = { height: 28, padding: "4px 8px", fontSize: 13 };
-  const selectDropdownStyle = { padding: 4 };
+  const selectDropdownStyle = { padding: 4, maxHeight: 220, minWidth: 180 };
 
   return (
     <div>
@@ -186,7 +186,7 @@ export const AppearanceSettings = () => {
             ]}
             value={locale}
             set_value={setLocale}
-            filterable={false}
+            filterable={true}
             style={selectStyle}
             option_style={selectOptionStyle}
             dropdown_style={selectDropdownStyle}

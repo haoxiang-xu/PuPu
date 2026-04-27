@@ -850,7 +850,7 @@ export const TokenUsageSettings = () => {
             options={modelOptions}
             value={model}
             set_value={setModel}
-            filterable={modelOptions.length > 6}
+            filterable={true}
             search_placeholder={t("token_usage.search_models")}
             style={{
               ...COMPACT_STYLE,
@@ -858,7 +858,7 @@ export const TokenUsageSettings = () => {
               minWidth: 0,
             }}
             option_style={OPT_STYLE}
-            dropdown_style={{ ...DD_STYLE, padding: 6 }}
+            dropdown_style={{ ...DD_STYLE, padding: 6, maxHeight: 280 }}
           />
           <Select
             options={granularityOptions}

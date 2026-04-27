@@ -173,14 +173,19 @@ const FloatingTextField = ({
   const contentRestLeft =
     contentSectionH > 0 ? contentRestTop - contentSectionH / 2 : padding;
 
+  /* `padding` in `style` is meant for the textarea's inner padding (already applied
+   * via the resolved `padding` token below). Strip it from the outer-wrapper spread
+   * so it doesn't double-up as an outer indent that pushes the visible field inward. */
+  const { padding: _outer_padding_ignored, ...outer_style } = style || {};
+
   return (
     <div
       style={{
         position: "relative",
-        width: style?.width || "100%",
+        width: outer_style?.width || "100%",
         opacity: disabled ? 0.5 : 1,
         cursor: disabled ? "not-allowed" : "text",
-        ...style,
+        ...outer_style,
       }}
       onClick={() => {
         if (disabled) return;

@@ -1,10 +1,12 @@
 import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import SegmentedControl from "../toolkit/components/segmented_control";
 import CharactersPage from "./pages/characters_page";
+import RecipesPage from "./pages/recipes_page";
 
 const SECTIONS = [
   { key: "agents", icon: "bot", label: "Agents" },
@@ -68,22 +70,44 @@ const ComingSoonPlaceholder = ({ icon, isDark, theme }) => (
 );
 
 /* ── Main modal ──────────────────────────────────────────── */
-export const AgentsModal = ({ open, onClose }) => {
+export const AgentsModal = ({
+  open,
+  onClose,
+  isAgentsEnabled = true,
+  isCharactersEnabled = true,
+}) => {
+  useModalLifecycle("agents-modal", open);
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
-  const [selectedSection, setSelectedSection] = useState("agents");
+  const defaultSection = isAgentsEnabled ? "agents" : "characters";
+  const [selectedSection, setSelectedSection] = useState(defaultSection);
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [fullscreen, setFullscreen] = useState(false);
 
   useEffect(() => {
-    if (!open) setSelectedSection("agents");
-  }, [open]);
+    if (!open) {
+      setSelectedSection(defaultSection);
+      setSelectedNodeId(null);
+      setFullscreen(false);
+    }
+  }, [open, defaultSection]);
 
   const activeSection = SECTIONS.find((s) => s.key === selectedSection);
   const panelBg = isDark ? "#141414" : "#ffffff";
 
+  const handleClose = () => {
+    if (selectedSection === "agents" && selectedNodeId) {
+      setSelectedNodeId(null);
+      return;
+    }
+    onClose();
+  };
+
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={handleClose}
+      fullscreen={fullscreen}
       style={{
         width: 920,
         maxWidth: "92vw",
@@ -98,8 +122,32 @@ export const AgentsModal = ({ open, onClose }) => {
       }}
     >
       <Button
+        prefix_icon={fullscreen ? "fullscreen_exit" : "fullscreen"}
+        onClick={() => setFullscreen((f) => !f)}
+        style={{
+          position: "absolute",
+          top: 12,
+          right: 44,
+          paddingVertical: 6,
+          paddingHorizontal: 6,
+          borderRadius: 6,
+          opacity: 0.45,
+          zIndex: 4,
+          WebkitAppRegion: "no-drag",
+          content: {
+            prefixIconWrap: {
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              lineHeight: 0,
+            },
+            icon: { width: 14, height: 14 },
+          },
+        }}
+      />
+      <Button
         prefix_icon="close"
-        onClick={onClose}
+        onClick={handleClose}
         style={{
           position: "absolute",
           top: 12,
@@ -109,6 +157,7 @@ export const AgentsModal = ({ open, onClose }) => {
           borderRadius: 6,
           opacity: 0.45,
           zIndex: 4,
+          WebkitAppRegion: "no-drag",
           content: {
             prefixIconWrap: {
               display: "flex",
@@ -121,41 +170,66 @@ export const AgentsModal = ({ open, onClose }) => {
         }}
       />
 
-      <div style={{ padding: "12px 16px 8px 16px", flexShrink: 0 }}>
-        <SegmentedControl
-          sections={SECTIONS}
-          selected={selectedSection}
-          onChange={setSelectedSection}
-          isDark={isDark}
-        />
-      </div>
-
-      {/* ── Content area ── */}
+      {/* ── Content area (full-bleed) ── */}
       <div style={{ flex: 1, position: "relative", overflow: "hidden" }}>
-        <div
-          className="scrollable"
-          style={{
-            position: "absolute",
-            inset: 0,
-            overflowY: "auto",
-            padding: selectedSection === "characters" ? 0 : "4px 0 16px",
-            display: "flex",
-            flexDirection: "column",
-            ...(selectedSection !== "characters" && {
+        {selectedSection === "characters" && isCharactersEnabled ? (
+          <div
+            className="scrollable"
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflowY: "auto",
+              padding: "56px 0 0",
+            }}
+          >
+            <CharactersPage isDark={isDark} onOpenChat={onClose} />
+          </div>
+        ) : selectedSection === "agents" && isAgentsEnabled ? (
+          <RecipesPage
+            isDark={isDark}
+            selectedNodeId={selectedNodeId}
+            onSelectNode={setSelectedNodeId}
+            fullscreen={fullscreen}
+          />
+        ) : (
+          <div
+            className="scrollable"
+            style={{
+              position: "absolute",
+              inset: 0,
+              overflowY: "auto",
+              padding: "56px 0 16px",
+              display: "flex",
+              flexDirection: "column",
               alignItems: "center",
               justifyContent: "center",
-            }),
-          }}
-        >
-          {selectedSection === "characters" ? (
-            <CharactersPage isDark={isDark} onOpenChat={onClose} />
-          ) : (
+            }}
+          >
             <ComingSoonPlaceholder
               icon={activeSection?.icon || "bot"}
               isDark={isDark}
               theme={theme}
             />
-          )}
+          </div>
+        )}
+
+        {/* ── Floating tab switcher — top-center ── */}
+        <div
+          style={{
+            position: "absolute",
+            top: 10,
+            left: "50%",
+            transform: "translateX(-50%)",
+            zIndex: 5,
+            WebkitAppRegion: "no-drag",
+          }}
+        >
+          <SegmentedControl
+            sections={SECTIONS}
+            selected={selectedSection}
+            onChange={setSelectedSection}
+            isDark={isDark}
+          />
         </div>
       </div>
     </Modal>

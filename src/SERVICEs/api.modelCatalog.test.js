@@ -150,4 +150,32 @@ describe("normalizeModelCatalog", () => {
       },
     });
   });
+
+  test("preserves explicit no-tools model capability", () => {
+    const normalized = normalizeModelCatalog({
+      active: {
+        provider: "ollama",
+        model: "deepseek-r1:14b",
+      },
+      providers: EMPTY_MODEL_CATALOG.providers,
+      model_capabilities: {
+        "ollama:deepseek-r1:14b": {
+          input_modalities: ["text"],
+          input_source_types: {},
+          supports_tools: false,
+        },
+      },
+    });
+
+    expect(normalized.modelCapabilities["ollama:deepseek-r1:14b"]).toEqual({
+      input_modalities: ["text"],
+      input_source_types: {},
+      supports_tools: false,
+    });
+    expect(normalized.activeCapabilities).toEqual({
+      input_modalities: ["text"],
+      input_source_types: {},
+      supports_tools: false,
+    });
+  });
 });

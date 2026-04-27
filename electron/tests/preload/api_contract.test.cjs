@@ -112,13 +112,13 @@ describe("preload API contract", () => {
     );
 
     exposed.unchainAPI.syncBuildFeatureFlagsSnapshot({
-      enable_user_access_to_agent_modal: true,
+      enable_user_access_to_agents: true,
     });
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
       {
         featureFlags: {
-          enable_user_access_to_agent_modal: true,
+          enable_user_access_to_agents: true,
         },
       },
     );

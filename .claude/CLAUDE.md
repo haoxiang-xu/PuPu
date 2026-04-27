@@ -117,6 +117,7 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 | API Reference | `docs/api-reference/` — Flask endpoints, IPC channels, window APIs, facades |
 | Features | `docs/features/` — characters, toolkits, workspaces, agent orchestration |
 | Conventions | `docs/conventions/` — naming, styling, build, testing, pitfalls |
+| Test API (dev only) | `docs/api-reference/test-api.md` — local HTTP endpoint for Claude Code QA |
 
 **Read these before making architectural changes.** They are the source of truth for patterns and conventions.
 

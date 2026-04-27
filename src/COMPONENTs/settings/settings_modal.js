@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { AppearanceSettings } from "./appearance";
 import { ModelProvidersSettings } from "./model_providers";
@@ -54,6 +55,7 @@ const DEV_SETTINGS_PAGE = {
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 export const SettingsModal = ({ open, onClose }) => {
+  useModalLifecycle("settings-modal", open);
   const { onThemeMode, theme } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";

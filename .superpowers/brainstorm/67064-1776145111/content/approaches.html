@@ -1,0 +1,129 @@
+<h2>3 种实现方案对比</h2>
+<p class="subtitle">点击卡片选择,或在终端里告诉我你的想法</p>
+
+<div class="cards" data-multiselect>
+  <div class="card" data-choice="approach-1" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:24px;background:linear-gradient(135deg,rgba(122,162,247,0.12),rgba(122,162,247,0.04))">
+      <div style="font-size:32px;font-weight:700;opacity:0.35">01</div>
+      <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.55;margin-top:6px">CONSERVATIVE</div>
+      <h3 style="margin-top:14px;font-size:16px">Character-Store Clone</h3>
+      <p style="opacity:0.7;font-size:12px;margin-top:6px;line-height:1.55">复用 character 系统的同形结构,新增一套并行的 agent_store / service / registry / seeding / routes。</p>
+    </div>
+    <div class="card-body" style="font-size:11.5px;line-height:1.6">
+      <div class="pros-cons" style="margin-top:0">
+        <div class="pros">
+          <h4 style="font-size:10.5px">✓</h4>
+          <ul style="padding-left:14px;margin:4px 0">
+            <li>最小风险</li>
+            <li>同形代码好维护</li>
+            <li>可以先写测试再动</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4 style="font-size:10.5px">✗</h4>
+          <ul style="padding-left:14px;margin:4px 0">
+            <li>内置 dev/analyzer/executor 仍是硬编码路径</li>
+            <li>两条构建路径(硬编码 + JSON)</li>
+            <li>未来还得再统一一次</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="approach-2" onclick="toggleSelect(this)" style="outline:2px solid rgba(122,162,247,0.6)">
+    <div class="card-image" style="padding:24px;background:linear-gradient(135deg,rgba(158,206,106,0.14),rgba(158,206,106,0.04))">
+      <div style="font-size:32px;font-weight:700;opacity:0.35">02</div>
+      <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.55;margin-top:6px">RECOMMENDED</div>
+      <h3 style="margin-top:14px;font-size:16px">Unified Registry</h3>
+      <p style="opacity:0.7;font-size:12px;margin-top:6px;line-height:1.55">抽一个统一的 agent_registry,内置 agent 也改成 spec 驱动,_build_agent_from_spec 成为唯一构建路径。</p>
+    </div>
+    <div class="card-body" style="font-size:11.5px;line-height:1.6">
+      <div class="pros-cons" style="margin-top:0">
+        <div class="pros">
+          <h4 style="font-size:10.5px">✓</h4>
+          <ul style="padding-left:14px;margin:4px 0">
+            <li>所有 agent 走同一条构建路径</li>
+            <li>"高扩展性"真正落地</li>
+            <li>未来加 agent 零代码增量</li>
+            <li>内置 prompt 仍在 .py 文件</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4 style="font-size:10.5px">✗</h4>
+          <ul style="padding-left:14px;margin:4px 0">
+            <li>_build_developer_agent 要重构一次</li>
+            <li>_ANALYZER_READ_ONLY_TOOLS 等常量下沉到 spec</li>
+            <li>需要完整的 spec 单元测试</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" data-choice="approach-3" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:24px;background:linear-gradient(135deg,rgba(224,175,104,0.12),rgba(224,175,104,0.04))">
+      <div style="font-size:32px;font-weight:700;opacity:0.35">03</div>
+      <div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;opacity:0.55;margin-top:6px">FAST MVP</div>
+      <h3 style="margin-top:14px;font-size:16px">Incremental Minimal</h3>
+      <p style="opacity:0.7;font-size:12px;margin-top:6px;line-height:1.55">只做用户自建 JSON CRUD;内置 agent 继续走原硬编码路径,短期不统一。两条路径并存一段时间。</p>
+    </div>
+    <div class="card-body" style="font-size:11.5px;line-height:1.6">
+      <div class="pros-cons" style="margin-top:0">
+        <div class="pros">
+          <h4 style="font-size:10.5px">✓</h4>
+          <ul style="padding-left:14px;margin:4px 0">
+            <li>改动面最小</li>
+            <li>最快给终端用户看到结果</li>
+            <li>风险可控</li>
+          </ul>
+        </div>
+        <div class="cons">
+          <h4 style="font-size:10.5px">✗</h4>
+          <ul style="padding-left:14px;margin:4px 0">
+            <li>"高扩展性"打折扣</li>
+            <li>欠一笔技术债</li>
+            <li>用户自建 agent 无法 delegate 到内置</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:26px">
+  <h3>关键差异:内置 agent 的构建路径</h3>
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Approach 2 · Unified(推荐)</div>
+      <div class="mockup-body" style="font-family:Menlo,monospace;font-size:11.5px;line-height:1.7;padding:16px;white-space:pre">
+<span style="opacity:0.5">// 所有 agent 走同一条路径</span>
+registry.register(
+  AgentSpec.from_python(DEVELOPER))
+registry.register(
+  AgentSpec.from_python(ANALYZER))
+registry.register(
+  AgentSpec.from_python(EXECUTOR))
+registry.load_user_specs(store)
+
+<span style="opacity:0.5">// 运行时:</span>
+spec = registry.get(primary_agent_id)
+agent = build_agent_from_spec(
+  spec, modules, toolkits, memory)
+      </div>
+    </div>
+    <div class="mockup">
+      <div class="mockup-header">Approach 3 · Minimal</div>
+      <div class="mockup-body" style="font-family:Menlo,monospace;font-size:11.5px;line-height:1.7;padding:16px;white-space:pre">
+<span style="opacity:0.5">// 两条路径共存</span>
+if primary_agent_id in BUILTIN:
+  agent = _build_developer_agent(...)
+  <span style="opacity:0.5">// 老代码完全不动</span>
+else:
+  spec = user_store.get(primary_agent_id)
+  agent = build_agent_from_spec(spec)
+  <span style="opacity:0.5">// 新代码只走自建</span>
+      </div>
+    </div>
+  </div>
+</div>

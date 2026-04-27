@@ -413,6 +413,24 @@ const FolderOpen = (props) => (
     <path d="M3.08697 9H20.9134C21.4657 9 21.9134 9.44772 21.9134 10C21.9134 10.0277 21.9122 10.0554 21.9099 10.083L21.0766 20.083C21.0334 20.6013 20.6001 21 20.08 21H3.9203C3.40021 21 2.96695 20.6013 2.92376 20.083L2.09042 10.083C2.04456 9.53267 2.45355 9.04932 3.00392 9.00345C3.03155 9.00115 3.05925 9 3.08697 9ZM4.84044 19H19.1599L19.8266 11H4.17377L4.84044 19ZM13.4144 5H20.0002C20.5525 5 21.0002 5.44772 21.0002 6V7H3.00017V4C3.00017 3.44772 3.44789 3 4.00017 3H11.4144L13.4144 5Z"></path>
   </svg>
 );
+const Fullscreen = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M16 3H22V9H20V5H16V3ZM2 3H8V5H4V9H2V3ZM20 19V15H22V21H16V19H20ZM4 19H8V21H2V15H4V19Z"></path>
+  </svg>
+);
+const FullscreenExit = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M18 7H22V9H16V3H18V7ZM8 9H2V7H6V3H8V9ZM18 17V21H16V15H22V17H18ZM8 15V21H6V17H2V15H8Z"></path>
+  </svg>
+);
 const Gemini = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -531,8 +549,8 @@ const LinkedInBox = (props) => (
   </svg>
 );
 const Linux = (props) => (
-  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-    <rect fill="none" />
+  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+    <rect fill="currentColor" />
     <path d="M14.62,8.35c-.42.28-1.75,1-1.95,1.19a.82.82,0,0,1-1.14,0c-.2-.16-1.53-.92-1.95-1.19s-.45-.7.08-.92a6.16,6.16,0,0,1,4.91,0c.49.21.51.6,0,.9m7.22,7.28A19.09,19.09,0,0,0,18,10a4.31,4.31,0,0,1-1.06-1.88c-.1-.33-.17-.67-.24-1A11.32,11.32,0,0,0,16,4.47,4.06,4.06,0,0,0,12.16,2,4.2,4.2,0,0,0,8.21,4.4a5.9,5.9,0,0,0-.46,1.34c-.17.76-.32,1.55-.5,2.32a3.38,3.38,0,0,1-1,1.71,19.53,19.53,0,0,0-3.88,5.35A6.09,6.09,0,0,0,2,16c-.19.66.29,1.12,1,1,.44-.09.88-.18,1.3-.31s.57,0,.67.35a6.73,6.73,0,0,0,4.24,4.5c4.12,1.56,8.93-.66,10-4.58.07-.27.17-.37.47-.27.46.14.93.24,1.4.35a.72.72,0,0,0,.92-.64,1.44,1.44,0,0,0-.16-.73" />
   </svg>
 );
@@ -1170,8 +1188,9 @@ const Play = (props) => (
     xmlns="http://www.w3.org/2000/svg"
     viewBox="0 0 24 24"
     fill="currentColor"
+    {...props}
   >
-    <path d="M19.376 12.4158L8.77735 19.4816C8.54759 19.6348 8.23715 19.5727 8.08397 19.3429C8.02922 19.2608 8 19.1643 8 19.0656V4.93408C8 4.65794 8.22386 4.43408 8.5 4.43408C8.5987 4.43408 8.69513 4.4633 8.77735 4.51806L19.376 11.5765C19.6057 11.7297 19.6678 12.0401 19.5146 12.2699C19.478 12.3267 19.4328 12.3744 19.376 12.4158Z"></path>
+    <path d="M16.3944 12.0001L10 7.7371V16.263L16.3944 12.0001ZM19.376 12.4161L8.77735 19.4818C8.54759 19.635 8.23715 19.5729 8.08397 19.3432C8.02922 19.261 8 19.1645 8 19.0658V4.93433C8 4.65818 8.22386 4.43433 8.5 4.43433C8.59871 4.43433 8.69522 4.46355 8.77735 4.5183L19.376 11.584C19.6057 11.7372 19.6678 12.0477 19.5146 12.2774C19.478 12.3323 19.4309 12.3795 19.376 12.4161Z"></path>
   </svg>
 );
 const UploadFile = (props) => (
@@ -1262,6 +1281,25 @@ const LogoSVGs = {
   windows: Windows,
 };
 
+const Undo = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M5.82843 6.99955H21V8.99955H5.82843L9.19239 12.3635L7.7782 13.7777L2 7.99955L7.7782 2.22168L9.19239 3.63589L5.82843 6.99955Z M3 19V13H5V19H21V21H5C3.89543 21 3 20.1046 3 19Z"></path>
+  </svg>
+);
+const Redo = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M18.1716 6.99955H3V8.99955H18.1716L14.8076 12.3635L16.2218 13.7777L22 7.99955L16.2218 2.22168L14.8076 3.63589L18.1716 6.99955Z M21 19V13H19V19H3V21H19C20.1046 21 21 20.1046 21 19Z"></path>
+  </svg>
+);
+
 const UISVGs = {
   add: Add,
   arrow_down: ArrowDown,
@@ -1305,6 +1343,8 @@ const UISVGs = {
   folder_keyhole: FolderKeyhole,
   folder_new: FolderNew,
   folder_open: FolderOpen,
+  fullscreen: Fullscreen,
+  fullscreen_exit: FullscreenExit,
   global: Global,
   globe: Globe,
   hammer: Hammer,
@@ -1337,6 +1377,7 @@ const UISVGs = {
   poker_hearts: PokerHearts,
   poker_spades: PokerSpades,
   question_mark: QuestionMark,
+  redo: Redo,
   refresh: Refresh,
   rename: Rename,
   satisfied: Satisfied,
@@ -1362,6 +1403,7 @@ const UISVGs = {
   terminal: Terminal,
   text: Text,
   tool: Tool,
+  undo: Undo,
   upload_file: UploadFile,
   cloud_upload: CloudUpload,
   user: User,

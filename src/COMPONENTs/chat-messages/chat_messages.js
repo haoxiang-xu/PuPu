@@ -25,6 +25,7 @@ const ChatMessages = ({
   initialVisibleCount = 12,
   loadBatchSize = 6,
   topLoadThreshold = 80,
+  bootVisibleCount = 3,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -49,6 +50,7 @@ const ChatMessages = ({
     initial_visible_count: initialVisibleCount,
     load_batch_size: loadBatchSize,
     top_load_threshold: topLoadThreshold,
+    boot_visible_count: bootVisibleCount,
   });
 
   return (

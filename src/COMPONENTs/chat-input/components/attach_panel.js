@@ -1,4 +1,11 @@
-import { useCallback, useContext, useRef, useState } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
@@ -7,6 +14,10 @@ import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
 import { emitModelCatalogRefresh } from "../../../SERVICEs/model_catalog_refresh";
+import {
+  readFeatureFlags,
+  subscribeFeatureFlags,
+} from "../../../SERVICEs/feature_flags";
 
 const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
@@ -125,6 +136,7 @@ const AttachPanel = ({
   focusShadow,
   onAttachFile,
   onAttachLink,
+  onAttachScreenshot,
   modelOptions,
   showModelSelector = true,
   selectedModelId,
@@ -143,13 +155,85 @@ const AttachPanel = ({
   showWorkspaceSelector = true,
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
+  selectedRecipeName = "Default",
+  onSelectRecipe,
+  recipeOptions = [],
 }) => {
   const { theme } = useContext(ConfigContext);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+  const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const lastModelSelectorRefreshAt = useRef(0);
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
   const { workspaceOptions } = useChatInputWorkspaces();
+  const isAgentsFeatureEnabled =
+    featureFlags.enable_user_access_to_agents === true;
+  const hasActiveAgentRecipe =
+    isAgentsFeatureEnabled &&
+    Boolean(selectedRecipeName && selectedRecipeName !== "Default");
+
+  useEffect(() => {
+    setFeatureFlags(readFeatureFlags());
+    return subscribeFeatureFlags(setFeatureFlags);
+  }, []);
+
+  useEffect(() => {
+    if (
+      !isAgentsFeatureEnabled &&
+      selectedRecipeName &&
+      selectedRecipeName !== "Default" &&
+      onSelectRecipe
+    ) {
+      onSelectRecipe("Default");
+    }
+  }, [isAgentsFeatureEnabled, onSelectRecipe, selectedRecipeName]);
+
+  const combinedModelOptions = useMemo(() => {
+    if (!isAgentsFeatureEnabled) return modelOptions || [];
+
+    const agentEntries = (recipeOptions || [])
+      .filter((r) => r && r.value && r.value !== "Default")
+      .map((r) => ({
+        value: `agent:${r.value}`,
+        label: r.label || r.value,
+        trigger_label: r.label || r.value,
+      }));
+    if (agentEntries.length === 0) return modelOptions || [];
+    return [
+      ...(modelOptions || []),
+      {
+        group: "Agents",
+        icon: "bot",
+        collapsed: false,
+        options: agentEntries,
+      },
+    ];
+  }, [isAgentsFeatureEnabled, modelOptions, recipeOptions]);
+
+  const composedSelectValue = hasActiveAgentRecipe
+    ? `agent:${selectedRecipeName}`
+    : selectedModelId || null;
+
+  const handleSelectValueChange = useCallback(
+    (next) => {
+      if (typeof next === "string" && next.startsWith("agent:")) {
+        if (!isAgentsFeatureEnabled) return;
+        const name = next.slice("agent:".length);
+        if (onSelectRecipe) onSelectRecipe(name);
+        return;
+      }
+      if (onSelectRecipe && hasActiveAgentRecipe) {
+        onSelectRecipe("Default");
+      }
+      if (onSelectModel) onSelectModel(next);
+    },
+    [
+      hasActiveAgentRecipe,
+      isAgentsFeatureEnabled,
+      onSelectModel,
+      onSelectRecipe,
+    ],
+  );
 
   const handleModelSelectorOpenChange = useCallback((next) => {
     setOpenSelector(next ? "model" : null);
@@ -271,13 +355,13 @@ const AttachPanel = ({
       >
         {/* ── Model selector ── */}
         {showModelSelector &&
-          modelOptions &&
-          modelOptions.length > 0 &&
+          combinedModelOptions &&
+          combinedModelOptions.length > 0 &&
           selectWrap(
             <Select
-              options={modelOptions}
-              value={selectedModelId || null}
-              set_value={onSelectModel}
+              options={combinedModelOptions}
+              value={composedSelectValue}
+              set_value={handleSelectValueChange}
               placeholder="Select model..."
               filterable={true}
               filter_mode="panel"
@@ -319,8 +403,31 @@ const AttachPanel = ({
               />
             </div>
 
+            {/* ── Screenshot button ── */}
+            {onAttachScreenshot && (
+              <div
+                title={
+                  attachmentsEnabled
+                    ? "Take a screenshot"
+                    : attachmentsDisabledReason ||
+                      "Current model does not support image inputs"
+                }
+              >
+                <Button
+                  prefix_icon="screenshot"
+                  onClick={onAttachScreenshot}
+                  disabled={!attachmentsEnabled}
+                  style={{
+                    color,
+                    fontSize: 14,
+                    borderRadius: floating ? 22 : 16,
+                  }}
+                />
+              </div>
+            )}
+
             {/* ── Tools selector (icon button + badge trigger) ── */}
-            {showToolSelector ? (
+            {showToolSelector && !hasActiveAgentRecipe ? (
               <div style={{ position: "relative" }}>
                 <Select
                   multi
@@ -419,6 +526,7 @@ const AttachPanel = ({
                 />
               </div>
             ) : null}
+
           </div>
         )}
 

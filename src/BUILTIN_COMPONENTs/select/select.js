@@ -280,6 +280,7 @@ const SinkingSelect = ({
           flexDirection: "column",
           gap: 4,
           overflowY: "auto",
+          overscrollBehavior: "contain",
           maxHeight: dropdownMaxHeight,
           padding: 2,
         }}
@@ -623,6 +624,7 @@ const FloatingSelect = ({
           flexDirection: "column",
           gap: 4,
           overflowY: "auto",
+          overscrollBehavior: "contain",
           maxHeight: dropdownMaxHeight,
           padding: 2,
         }}
@@ -973,6 +975,7 @@ const Select = ({
           flexDirection: "column",
           gap: 4,
           overflowY: "auto",
+          overscrollBehavior: "contain",
           maxHeight: dropdownMaxHeight,
           padding: 2,
         }}

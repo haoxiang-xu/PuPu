@@ -1,7 +1,12 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
-import { getChatsStore, openCharacterChat, setChatModel } from "../../SERVICEs/chat_storage";
+import {
+  getChatsStore,
+  openCharacterChat,
+  setChatModel,
+  setChatSelectedToolkits,
+} from "../../SERVICEs/chat_storage";
 import { readTokenUsageRecords } from "../../COMPONENTs/settings/token_usage/storage";
 
 let lastChatMessagesProps = null;
@@ -255,6 +260,49 @@ describe("ChatInterface stop flow", () => {
     fireEvent.click(screen.getByTestId("send-button"));
 
     expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+  });
+
+  test("hides and omits toolkits when selected model does not support tools", async () => {
+    const seeded = getChatsStore();
+    setChatSelectedToolkits(seeded.activeChatId, ["core"], { source: "test" });
+    window.unchainAPI.getModelCatalog.mockResolvedValue({
+      activeModel: "ollama:deepseek-r1:14b",
+      providers: {
+        openai: [],
+        ollama: ["deepseek-r1:14b"],
+        anthropic: [],
+      },
+      model_capabilities: {
+        "ollama:deepseek-r1:14b": {
+          input_modalities: ["text"],
+          input_source_types: {},
+          supports_tools: false,
+        },
+      },
+    });
+
+    renderChat();
+
+    await waitFor(() => {
+      expect(window.unchainAPI.getModelCatalog).toHaveBeenCalled();
+      expect(lastChatInputProps?.showToolSelector).toBe(false);
+      expect(lastChatInputProps?.showWorkspaceSelector).toBe(false);
+      expect(lastChatInputProps?.selectedToolkits).toEqual([]);
+      expect(lastChatInputProps?.selectedWorkspaceIds).toEqual([]);
+    });
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello without tools" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+    });
+    const [payload] = window.unchainAPI.startStreamV2.mock.calls[0];
+    expect(payload.options.modelId).toBe("ollama:deepseek-r1:14b");
+    expect(payload.options.toolkits).toBeUndefined();
+    expect(payload.options.selectedWorkspaceIds).toBeUndefined();
   });
 
   test("character chats hide model/tools/workspace selectors and inject character config into stream", async () => {
@@ -908,6 +956,85 @@ describe("ChatInterface stop flow", () => {
       expect(
         assistantMessage?.traceFrames?.find(
           (frame) => frame?.payload?.call_id === "child-call-1",
+        ),
+      ).toBeUndefined();
+    });
+  });
+
+  test("routes child ask_user_question frames to subagent timelines", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Delegate and ask from child" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "run_started",
+        run_id: "parent-run",
+        payload: {
+          run_id: "parent-run",
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 2,
+        ts: 110,
+        type: "subagent_started",
+        payload: {
+          child_run_id: "child-run-1",
+          subagent_id: "developer.explore.1",
+          mode: "delegate",
+          template: "Explore",
+          parent_id: "developer",
+          lineage: ["developer", "developer.explore.1"],
+        },
+      });
+      streamHandlers.onFrame({
+        seq: 3,
+        ts: 120,
+        type: "tool_call",
+        run_id: "child-run-1",
+        payload: {
+          call_id: "ask-child-1",
+          confirmation_id: "confirm-child-1",
+          requires_confirmation: true,
+          tool_name: "ask_user_question",
+          interact_type: "single",
+          interact_config: {
+            question: "Child needs input?",
+            options: [{ label: "Frontend", value: "frontend" }],
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps?.messages?.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.subagentFrames?.["child-run-1"]).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: "tool_call",
+            run_id: "child-run-1",
+            payload: expect.objectContaining({
+              tool_name: "ask_user_question",
+              confirmation_id: "confirm-child-1",
+            }),
+          }),
+        ]),
+      );
+      expect(
+        assistantMessage?.traceFrames?.find(
+          (frame) => frame?.payload?.call_id === "ask-child-1",
         ),
       ).toBeUndefined();
     });

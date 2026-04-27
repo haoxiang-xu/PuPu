@@ -35,6 +35,26 @@ def main() -> int:
     port = _read_port()
     expected_parent_pid = _read_parent_pid()
 
+    try:
+        from subagent_seeds import ensure_seeds_written
+        from pathlib import Path
+        ensure_seeds_written(Path.home() / ".pupu" / "subagents")
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "[subagent_seeds] seed-write failed: %s", exc
+        )
+
+    try:
+        from recipe_seeds import ensure_recipe_seeds_written
+        from pathlib import Path
+        ensure_recipe_seeds_written(Path.home() / ".pupu" / "agent_recipes")
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            "[recipe_seeds] seed-write failed: %s", exc
+        )
+
     app = create_app()
     server = ThreadedFlaskServer(app, host=host, port=port)
 

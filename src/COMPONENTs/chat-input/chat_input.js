@@ -19,6 +19,7 @@ const ChatInput = ({
   showAttachments = true,
   onAttachFile,
   onAttachLink,
+  onAttachScreenshot,
   modelCatalog,
   selectedModelId,
   onSelectModel,
@@ -35,6 +36,9 @@ const ChatInput = ({
   showWorkspaceSelector = true,
   selectedWorkspaceIds = [],
   onWorkspaceIdsChange,
+  selectedRecipeName = "Default",
+  onSelectRecipe,
+  recipeOptions = [],
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
@@ -156,6 +160,7 @@ const ChatInput = ({
                   focusShadow={panelFocusShadow}
                   onAttachFile={onAttachFile}
                   onAttachLink={onAttachLink}
+                  onAttachScreenshot={onAttachScreenshot}
                   modelOptions={modelOptions}
                   showModelSelector={showModelSelector}
                   selectedModelId={selectedModelId}
@@ -174,6 +179,9 @@ const ChatInput = ({
                   showWorkspaceSelector={showWorkspaceSelector}
                   selectedWorkspaceIds={selectedWorkspaceIds}
                   onWorkspaceIdsChange={onWorkspaceIdsChange}
+                  selectedRecipeName={selectedRecipeName}
+                  onSelectRecipe={onSelectRecipe}
+                  recipeOptions={recipeOptions}
                 />
               ) : null
             }

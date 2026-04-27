@@ -1,0 +1,68 @@
+<h2>Agent 定义 · Schema 提案 (MVP)</h2>
+<p class="subtitle">这是我建议的最简字段集合。先看提案,再告诉我你想砍掉、合并或新增什么。</p>
+
+<div class="section">
+  <p class="label">CORE · 核心字段(必有)</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,Monaco,monospace;font-size:12.5px;line-height:1.7;padding:18px;white-space:pre">
+<span style="opacity:0.5">{</span>
+  <b>"id"</b>: <span style="color:#7aa2f7">"pupu_developer"</span>,              <span style="opacity:0.45">// slug,全局唯一</span>
+  <b>"name"</b>: <span style="color:#7aa2f7">"PuPu Developer"</span>,            <span style="opacity:0.45">// 展示名</span>
+  <b>"description"</b>: <span style="color:#7aa2f7">"全栈编码专家"</span>,       <span style="opacity:0.45">// 一行简介</span>
+  <b>"avatar"</b>: <span style="color:#7aa2f7">"/path/to/avatar.png"</span>,    <span style="opacity:0.45">// 可选</span>
+  <b>"is_builtin"</b>: <span style="color:#e0af68">true</span>,                     <span style="opacity:0.45">// 内置只读 / 用户可改</span>
+  <b>"source"</b>: <span style="color:#7aa2f7">"python"</span>                   <span style="opacity:0.45">// "python" | "user_json"</span>
+<span style="opacity:0.5">}</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">PROMPT · 提示词(沿用现有 11 段结构)</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,Monaco,monospace;font-size:12.5px;line-height:1.7;padding:18px;white-space:pre">
+  <b>"prompt_sections"</b>: {
+    <span style="color:#9ece6a">"identity"</span>: <span style="color:#7aa2f7">"You are a professional software developer..."</span>,
+    <span style="color:#9ece6a">"capability"</span>: <span style="color:#7aa2f7">"You have access to..."</span>,
+    <span style="color:#9ece6a">"workflow"</span>: <span style="color:#7aa2f7">"- Read code first\n- Plan then execute..."</span>,
+    <span style="color:#9ece6a">"delegation"</span>: <span style="color:#7aa2f7">"Delegate to analyzer/executor when..."</span>,
+    <span style="color:#9ece6a">"constraints"</span>: <span style="color:#7aa2f7">"Never fabricate outputs..."</span>,
+    <span style="color:#9ece6a">"fallback"</span>: <span style="color:#7aa2f7">"For non-dev chat, answer directly."</span>
+    <span style="opacity:0.45">// 其它 personality/rules/style/output_format/context 按需</span>
+  }
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">CAPABILITY · 能力绑定</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,Monaco,monospace;font-size:12.5px;line-height:1.7;padding:18px;white-space:pre">
+  <b>"allowed_toolkits"</b>: [<span style="color:#7aa2f7">"workspace"</span>, <span style="color:#7aa2f7">"terminal"</span>, <span style="color:#7aa2f7">"code"</span>],
+                                       <span style="opacity:0.45">// 白名单;[] = 无工具;["*"] = 全部</span>
+  <b>"allowed_delegates"</b>: [<span style="color:#7aa2f7">"*"</span>],        <span style="opacity:0.45">// 默认互通;可 ["analyzer","executor"]</span>
+  <b>"max_iterations"</b>: <span style="color:#e0af68">null</span>,               <span style="opacity:0.45">// null = 用全局默认</span>
+  <b>"default_model"</b>: <span style="color:#e0af68">null</span>                 <span style="opacity:0.45">// null = 用用户当前选的模型</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <p class="label">META · 元数据</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,Monaco,monospace;font-size:12.5px;line-height:1.7;padding:18px;white-space:pre">
+  <b>"created_at"</b>: <span style="color:#7aa2f7">"2026-04-13T10:20:00Z"</span>,
+  <b>"updated_at"</b>: <span style="color:#7aa2f7">"2026-04-13T10:20:00Z"</span>,
+  <b>"tags"</b>: [<span style="color:#7aa2f7">"coding"</span>, <span style="color:#7aa2f7">"builtin"</span>]   <span style="opacity:0.45">// 用于 UI 筛选</span>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <h3>3 个决策点(在终端回答)</h3>
+  <ol style="line-height:1.8">
+    <li><b>11 段 prompt 全量,还是只用 6 段?</b>(identity/capability/workflow/delegation/constraints/fallback)</li>
+    <li><b>allowed_toolkits 是"硬约束"还是"UI 筛选上限"?</b>硬约束 = 用户不能再在 chat 里改;UI 筛选 = 只决定 toolkit 选择器里能看到什么。</li>
+    <li><b>allowed_delegates 默认是 <code>["*"]</code> 还是显式白名单?</b></li>
+  </ol>
+</div>

@@ -112,7 +112,7 @@ describe("runtime service chrome terminal control", () => {
     expect(
       service.syncBuildFeatureFlagsSnapshot({
         featureFlags: {
-          enable_user_access_to_agent_modal: true,
+          enable_user_access_to_agents: true,
         },
       }),
     ).toEqual({
@@ -127,7 +127,7 @@ describe("runtime service chrome terminal control", () => {
     );
     expect(fs.writeFileSync).toHaveBeenCalledWith(
       path.join(appPath, ".local", "build_feature_flags.snapshot.json"),
-      '{\n  "enable_user_access_to_agent_modal": true\n}\n',
+      '{\n  "enable_user_access_to_agents": true\n}\n',
       "utf-8",
     );
   });

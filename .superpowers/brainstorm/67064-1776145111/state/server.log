@@ -1,0 +1,10 @@
+{"type":"server-started","port":60978,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:60978","screen_dir":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content","state_dir":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/state"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/welcome.html"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/agent-schema-v1.html"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/approaches.html"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/design-s1-overview.html"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/design-s2-spec.html"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/design-s3-backend.html"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/design-s4-frontend.html"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/67064-1776145111/content/design-s4-frontend-v2.html"}
+{"type":"server-stopped","reason":"idle timeout"}

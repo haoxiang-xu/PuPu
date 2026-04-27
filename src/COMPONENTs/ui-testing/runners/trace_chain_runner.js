@@ -154,6 +154,8 @@ const TraceChainRunner = () => {
       {/* ── scrollable content (scrollbar flush right, content padded) ── */}
       <div
         className="scrollable"
+        data-sb-edge="16"
+        data-sb-wall="2"
         style={{
           position: "absolute",
           inset: 0,
@@ -162,8 +164,8 @@ const TraceChainRunner = () => {
           overflowX: "hidden",
         }}
       >
-        <div style={{ padding: "64px 128px 0px" }}>
-          {frames.length > 0 ? (
+        {frames.length > 0 ? (
+          <div style={{ padding: "64px 32px 120px 232px" }}>
             <TraceChain
               frames={frames}
               status={status}
@@ -173,38 +175,43 @@ const TraceChainRunner = () => {
               subagentMetaByRunId={scenario.subagentMetaByRunId}
               bubbleOwnsFinalMessage={false}
             />
-          ) : (
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: 400,
-                ...mono,
-                fontSize: 13,
-                color: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)",
-              }}
-            >
-              Press Play to start
-            </div>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 232,
+              right: 32,
+              bottom: 70,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              ...mono,
+              fontSize: 13,
+              color: isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)",
+              pointerEvents: "none",
+            }}
+          >
+            Press Play to start
+          </div>
+        )}
       </div>
 
-      {/* ── bottom control bar (glassmorphism, centered) ── */}
+      {/* ── bottom control bar (glassmorphism, centered within content area) ── */}
       <div
         style={{
           position: "absolute",
           bottom: 16,
-          left: "50%",
+          left: "calc(50% + 100px)",
           transform: "translateX(-50%)",
           zIndex: 3,
           display: "flex",
           alignItems: "center",
           gap: 8,
-          padding: "6px 16px",
-          maxWidth: "calc(100% - 40px)",
-          borderRadius: 10,
+          padding: "6px 10px 6px 6px",
+          maxWidth: "calc(100% - 264px)",
+          borderRadius: 12,
           background: overlay_bg,
           border: overlay_border,
           backdropFilter: overlay_backdrop,
@@ -223,7 +230,7 @@ const TraceChainRunner = () => {
             style={{
               fontSize: 12,
               height: 18,
-              borderRadius: 5,
+              borderRadius: 7,
             }}
           />
         </div>
@@ -246,7 +253,7 @@ const TraceChainRunner = () => {
             fontSize: 11,
             paddingVertical: 4,
             paddingHorizontal: 10,
-            borderRadius: 5,
+            borderRadius: 7,
           }}
         />
 
@@ -259,7 +266,7 @@ const TraceChainRunner = () => {
             fontSize: 11,
             paddingVertical: 4,
             paddingHorizontal: 10,
-            borderRadius: 5,
+            borderRadius: 7,
           }}
         />
 
@@ -297,7 +304,7 @@ const TraceChainRunner = () => {
         />
 
         {/* progress */}
-        <span style={{ ...mono, paddingRight: 6 }}>
+        <span style={mono}>
           {displayedCount}/{totalCount}
           {waitingForConfirmation ? " input" : ""}
         </span>

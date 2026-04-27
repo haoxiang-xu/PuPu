@@ -5,7 +5,8 @@ import ToolkitIcon, {
   isFileToolkitIcon,
 } from "./toolkit_icon";
 import { SOURCE_CONFIG } from "../constants";
-import LoadingDots from "./loading_dots";
+import SuspenseFallback from "../../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
+import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 import PlaceholderBlock from "./placeholder_block";
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { SettingsSection, SettingsRow } from "../../settings/appearance";
@@ -256,10 +257,20 @@ const ToolkitDetailPanel = ({
 }) => {
   const { theme } = useContext(ConfigContext);
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
-  const [error, setError] = useState(null);
+  const [initialLoadDone, setInitialLoadDone] = useState(false);
   const scrollRef = useRef(null);
+
+  const { run: loadDetail, pending, error: loadError } = useAsyncAction(
+    useCallback(async (args) => {
+      const { id, name } = args || {};
+      return await api.unchain.getToolkitDetail(id, name);
+    }, []),
+    { label: "toolkit_detail_load", pendingDelayMs: 0, onError: () => {} },
+  );
+
+  const loading = pending || !initialLoadDone;
+  const error = loadError ? (loadError.message || t("toolkit.load_detail_failed")) : null;
 
   const toolList = useMemo(() => (Array.isArray(tools) ? tools : []), [tools]);
 
@@ -294,28 +305,13 @@ const ToolkitDetailPanel = ({
   }, [toolkitId, toolList]);
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    api.unchain
-      .getToolkitDetail(toolkitId, toolName)
-      .then((payload) => {
-        if (cancelled) return;
-        setDetail(payload);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err?.message || t("toolkit.load_detail_failed"));
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [toolkitId, toolName, t]);
+    setDetail(null);
+    setInitialLoadDone(false);
+    loadDetail({ id: toolkitId, name: toolName }).then((payload) => {
+      if (payload !== undefined) setDetail(payload);
+      setInitialLoadDone(true);
+    });
+  }, [toolkitId, toolName, loadDetail]);
 
   // Auto-scroll to tool heading if toolName is provided
   useEffect(() => {
@@ -492,7 +488,7 @@ const ToolkitDetailPanel = ({
         }}
       >
         <div style={{ paddingRight: 24 }}>
-          {loading && <LoadingDots isDark={isDark} />}
+          {loading && <SuspenseFallback minHeight={120} />}
 
           {error && (
             <PlaceholderBlock

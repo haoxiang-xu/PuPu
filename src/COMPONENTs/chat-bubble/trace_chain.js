@@ -581,12 +581,14 @@ const TraceChain = ({
         onToolConfirmationDecision({
           confirmationId,
           approved: responseData?.approved ?? false,
+          scope: responseData?.scope === "session" ? "session" : "once",
         });
       } else {
         onToolConfirmationDecision({
           confirmationId,
           approved: true,
           userResponse: responseData,
+          scope: "once",
         });
       }
     },
@@ -1149,6 +1151,8 @@ const TraceChain = ({
                   hideTrack
                   subagentFrames={effectiveSubagentFrames}
                   subagentMetaByRunId={effectiveSubagentMetaByRunId}
+                  onToolConfirmationDecision={onToolConfirmationDecision}
+                  toolConfirmationUiStateById={toolConfirmationUiStateById}
                   _depth={_depth + 1}
                 />
               ) : hasWFrames ? (

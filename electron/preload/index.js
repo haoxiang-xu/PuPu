@@ -10,6 +10,10 @@ const {
 const { createMisoBridge } = require("./bridges/unchain_bridge");
 const { createThemeBridge } = require("./bridges/theme_bridge");
 const { createWindowStateBridge } = require("./bridges/window_state_bridge");
+const { createScreenshotBridge } = require("./bridges/screenshot_bridge");
+const {
+  createChatStorageBridge,
+} = require("./bridges/chat_storage_bridge");
 
 const runtimeInfo = {
   isElectron: true,
@@ -58,3 +62,14 @@ contextBridge.exposeInMainWorld(
   "windowStateAPI",
   createWindowStateBridge(ipcRenderer),
 );
+contextBridge.exposeInMainWorld(
+  "screenshotAPI",
+  createScreenshotBridge(ipcRenderer),
+);
+contextBridge.exposeInMainWorld(
+  "chatStorageAPI",
+  createChatStorageBridge(ipcRenderer),
+);
+
+const { install: installTestBridge } = require("./test_bridge_preload");
+installTestBridge();

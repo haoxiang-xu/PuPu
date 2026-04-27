@@ -20,7 +20,11 @@ const { createRuntimeService } = require("./services/runtime/service");
 const { createOllamaService } = require("./services/ollama/service");
 const { createUnchainService } = require("./services/unchain/service");
 const { createUpdateService } = require("./services/update/service");
+const { createScreenshotService } = require("./services/screenshot/service");
+const { createChatStorageService } = require("./services/chat_storage/service");
+const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
+const fsp = require("fs/promises");
 
 let autoUpdater = null;
 try {
@@ -58,6 +62,13 @@ if (!gotSingleInstanceLock) {
     getMainWindow: windowService.getMainWindow,
   });
 
+  const chatStorageService = createChatStorageService({
+    app,
+    fs,
+    fsp,
+    path,
+  });
+
   const ollamaService = createOllamaService({
     app,
     shell,
@@ -88,6 +99,22 @@ if (!gotSingleInstanceLock) {
     autoUpdater,
   });
 
+  const screenshotService = createScreenshotService({
+    fs,
+    path,
+    os: require("os"),
+    child_process: require("child_process"),
+    getMainWindow: windowService.getMainWindow,
+  });
+
+  const testApiService = createTestApiService({
+    env: process.env,
+    ipcMain,
+    portFilePath: path.join(app.getPath("userData"), "test-api-port"),
+    getMainWindow: windowService.getMainWindow,
+    electron: require("electron"),
+  });
+
   registerIpcHandlers({
     ipcMain,
     app,
@@ -97,6 +124,8 @@ if (!gotSingleInstanceLock) {
       ollamaService,
       unchainService,
       runtimeService,
+      screenshotService,
+      chatStorageService,
     },
   });
 
@@ -106,7 +135,13 @@ if (!gotSingleInstanceLock) {
     unchainService.stopMiso();
   };
 
+  app.on("before-quit", () => {
+    chatStorageService.flushSync();
+  });
   app.on("before-quit", stopBackgroundServices);
+  app.on("before-quit", () => {
+    void testApiService.stop();
+  });
   app.on("will-quit", stopBackgroundServices);
 
   app.on("second-instance", () => {
@@ -118,7 +153,9 @@ if (!gotSingleInstanceLock) {
     windowService.createMainWindow();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    await chatStorageService.init();
+
     updateService.applyUnsupportedRuntimeMessage();
 
     ollamaService.startOllama();
@@ -138,6 +175,11 @@ if (!gotSingleInstanceLock) {
     }
 
     windowService.createMainWindow();
+
+    const mainWin = windowService.getMainWindow();
+    if (mainWin && mainWin.webContents) {
+      await testApiService.start({ webContents: mainWin.webContents });
+    }
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {
