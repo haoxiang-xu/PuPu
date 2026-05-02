@@ -73,6 +73,23 @@ def _sanitize_trace_value(value: object, trace_level: str, depth: int = 0):
     return value
 
 
+def _is_invalid_api_key_error(exc: Exception) -> bool:
+    if "Authentication" in type(exc).__name__:
+        return True
+    lower = str(exc).lower()
+    return any(
+        p in lower
+        for p in (
+            "invalid api key",
+            "incorrect api key",
+            "invalid_api_key",
+            "incorrect_api_key",
+            "authentication_error",
+            "invalid x-api-key",
+        )
+    )
+
+
 def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
     message = str(stream_error)
     code = "stream_failed"
@@ -84,6 +101,9 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
                 tail = normalized.split(":", 1)[1].strip()
                 if tail:
                     message = tail
+        elif _is_invalid_api_key_error(stream_error):
+            code = "invalid_api_key"
+            message = "API key is invalid or has been revoked. Please update your API key in Settings."
     return code, message
 
 
