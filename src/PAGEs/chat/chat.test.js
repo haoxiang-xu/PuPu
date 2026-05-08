@@ -116,12 +116,6 @@ describe("ChatInterface stop flow", () => {
           cancel: cancelSpy,
         };
       }),
-      startStreamV3: jest.fn((_payload, handlers = {}) => {
-        streamV3Handlers = handlers;
-        return {
-          cancel: cancelSpy,
-        };
-      }),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
       buildCharacterAgentConfig: jest.fn(async () => ({
         session_id: "character_nico__dm__main",
@@ -1135,13 +1129,14 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("uses runtime event stream v3 when the gated bridge is enabled", async () => {
-    window.localStorage.setItem(
-      "settings",
-      JSON.stringify({
-        feature_flags: { enable_runtime_events_v3: true },
-      }),
-    );
+  test("uses runtime event stream v3 when the bridge is available", async () => {
+    window.unchainAPI.startStreamV3 = jest.fn((_payload, handlers = {}) => {
+      streamV3Handlers = handlers;
+      return {
+        cancel: cancelSpy,
+      };
+    });
+
     renderChat();
     await waitForReady();
 

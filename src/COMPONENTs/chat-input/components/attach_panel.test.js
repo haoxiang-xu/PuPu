@@ -23,6 +23,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     placeholder,
     search_placeholder,
     dropdown_position = "bottom",
+    custom_trigger,
   }) => {
     const renderOptionLabels = (items = []) =>
       items.flatMap((item) => {
@@ -41,7 +42,9 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       });
 
     return (
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         data-testid={`select-${search_placeholder || placeholder || "default"}`}
         data-open={open ? "true" : "false"}
         data-dropdown-position={dropdown_position}
@@ -49,7 +52,8 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       >
         {search_placeholder || placeholder || "select"}
         {renderOptionLabels(options)}
-      </button>
+        {custom_trigger}
+      </div>
     );
   },
 }));
@@ -66,8 +70,15 @@ jest.mock("../../workspace/workspace_modal", () => ({
 
 jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
   __esModule: true,
-  default: ({ onClick = () => {} }) => (
-    <button onClick={onClick}>mock-button</button>
+  default: ({ onClick = () => {}, prefix_icon, style = {}, title }) => (
+    <button
+      data-testid={`button-${prefix_icon || "default"}`}
+      data-icon-size={style.iconSize ?? ""}
+      title={title}
+      onClick={onClick}
+    >
+      mock-button
+    </button>
   ),
 }));
 
@@ -166,6 +177,34 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.getByTestId("select-Search workspaces...")).toHaveAttribute(
       "data-dropdown-position",
       "top",
+    );
+  });
+
+  test("renders the tool selector trigger with a larger icon", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("button-tool")).toHaveAttribute(
+      "data-icon-size",
+      "18",
     );
   });
 

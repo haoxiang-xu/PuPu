@@ -8,14 +8,14 @@ export function buildRecipeListContextMenuItems({
 }) {
   if (!node) {
     return [
-      { icon: "chat_new", label: "New Agent", onClick: () => onNewAgent(null) },
+      { icon: "add", label: "New Agent", onClick: () => onNewAgent(null) },
       { icon: "folder_new", label: "New Folder", onClick: () => onNewFolder(null) },
     ];
   }
 
   if (node.kind === "folder") {
     return [
-      { icon: "chat_new", label: "New Agent", onClick: () => onNewAgent(node.id) },
+      { icon: "add", label: "New Agent", onClick: () => onNewAgent(node.id) },
       { icon: "folder_new", label: "New Folder", onClick: () => onNewFolder(node.id) },
       { type: "separator" },
       { icon: "rename", label: "Rename", onClick: () => onStartRename(node) },

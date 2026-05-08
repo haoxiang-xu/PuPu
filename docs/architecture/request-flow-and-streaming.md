@@ -89,8 +89,8 @@ PuPu currently has two active stream protocols:
 | V2 | `/chat/stream/v2` | `startStreamV2` | `event: frame` TraceFrame payloads | direct `onFrame` handling in `use_chat_stream.js` |
 | V3 | `/chat/stream/v3` | `startStreamV3` | `event: runtime_event` typed runtime events | `RuntimeEventStore -> ActivityTree -> TraceChain adapter` |
 
-The chat hook chooses V3 only when `enable_runtime_events_v3` is enabled and the
-bridge exposes `startStreamV3`. Otherwise it falls back to V2.
+The chat hook chooses V3 by default when the bridge exposes `startStreamV3`.
+Otherwise it falls back to V2.
 
 See [Runtime Events V3](runtime-events-v3.md) for the service-layer state model.
 

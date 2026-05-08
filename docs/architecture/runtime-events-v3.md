@@ -6,16 +6,15 @@
 
 ## Status
 
-Runtime Events V3 is the preferred frontend stream path when
-`enable_runtime_events_v3` is enabled and the Electron bridge exposes
-`startStreamV3`.
+Runtime Events V3 is the default frontend stream path when the Electron bridge
+exposes `startStreamV3`.
 
 V3 does **not** replace the TraceChain visual component. It replaces the
 page-local frame adapter with a service-layer event store, reducer, and adapter
 that can be reused by future permission, sandbox, channel, team, and plan
 features.
 
-V2 remains available as the fallback/default-compatible path.
+V2 remains available as the fallback path when the bridge does not expose V3.
 
 ---
 
@@ -58,7 +57,7 @@ The browser UI still receives legacy TraceChain props:
 | `src/SERVICEs/runtime_events/event_store.js` | Validates v3 events, dedupes by `event_id`, sorts by sequence if present, and records diagnostics |
 | `src/SERVICEs/runtime_events/activity_tree.js` | Reduces event snapshots into run/tool/input/model state and TraceFrame effects |
 | `src/SERVICEs/runtime_events/trace_chain_adapter.js` | Converts ActivityTree state into the existing TraceChain props |
-| `src/SERVICEs/runtime_events/runtime_event_stream_gate.js` | Enables V3 through `enable_runtime_events_v3` plus the local dev override |
+| `src/SERVICEs/runtime_events/runtime_event_stream_gate.js` | Keeps the renderer V3 path default-on while bridge availability controls fallback |
 
 Public interfaces:
 
@@ -138,15 +137,13 @@ synthetic selected/confirmed frame is written back to that same subagent branch.
 
 ---
 
-## Feature Gate
+## Stream Selection
 
-Runtime Events V3 is enabled when either:
+Runtime Events V3 is enabled by default in the renderer. `use_chat_stream.js`
+uses V3 when the Electron bridge exposes `startStreamV3`; if that bridge method
+is unavailable, it falls back to V2.
 
-- `isFeatureFlagEnabled("enable_runtime_events_v3")` returns true, or
-- `localStorage["pupu.runtime_events_v3"]` is one of `1`, `true`, `yes`, `on`.
-
-The localStorage key is a development override. The feature flag definition
-lives in `src/SERVICEs/feature_flags.js`.
+The retired settings and localStorage gates are ignored.
 
 ---
 

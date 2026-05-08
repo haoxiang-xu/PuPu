@@ -1,4 +1,6 @@
 const STORAGE_KEY = "agent_folder_tree_v1";
+const ROOT_ORDER_KEY = "__root__";
+const FOLDER_NODE_PREFIX = "folder:";
 
 function loadRaw() {
   try {
@@ -130,4 +132,73 @@ export function forgetRecipe(recipeName) {
     saveRaw(state);
   }
   return state;
+}
+
+function folderIdFromExplorerNodeId(nodeId) {
+  return typeof nodeId === "string" && nodeId.startsWith(FOLDER_NODE_PREFIX)
+    ? nodeId.slice(FOLDER_NODE_PREFIX.length)
+    : null;
+}
+
+function isRecipeNode(node) {
+  return node?.kind === "recipe" || node?.type === "file";
+}
+
+export function applyAgentExplorerReorder({ data, root } = {}) {
+  const state = getFolderState();
+  const previousFolders = state.folders || {};
+  const folders = {};
+  const recipeFolder = {};
+  const itemOrder = {};
+  const folderOrder = [];
+
+  Object.entries(previousFolders).forEach(([folderId, folder]) => {
+    folders[folderId] = { ...folder, childFolderIds: [] };
+  });
+
+  const visit = (nodeIds, parentFolderId = null) => {
+    const orderKey = parentFolderId || ROOT_ORDER_KEY;
+    itemOrder[orderKey] = [];
+
+    (Array.isArray(nodeIds) ? nodeIds : []).forEach((nodeId) => {
+      const node = data?.[nodeId];
+      if (!node) return;
+
+      const folderId = folderIdFromExplorerNodeId(nodeId);
+      if (folderId && previousFolders[folderId]) {
+        folders[folderId] = {
+          ...previousFolders[folderId],
+          parentId: parentFolderId,
+          childFolderIds: [],
+        };
+        itemOrder[orderKey].push(`${FOLDER_NODE_PREFIX}${folderId}`);
+        if (parentFolderId && folders[parentFolderId]) {
+          folders[parentFolderId].childFolderIds.push(folderId);
+        } else {
+          folderOrder.push(folderId);
+        }
+        visit(node.children || [], folderId);
+        return;
+      }
+
+      if (!isRecipeNode(node)) return;
+      const recipeName =
+        typeof node.name === "string" && node.name ? node.name : nodeId;
+      if (!recipeName || recipeName.startsWith(FOLDER_NODE_PREFIX)) return;
+      itemOrder[orderKey].push(recipeName);
+      if (parentFolderId) {
+        recipeFolder[recipeName] = parentFolderId;
+      }
+    });
+  };
+
+  visit(root, null);
+
+  return setFolderState({
+    ...state,
+    folders,
+    recipeFolder,
+    folderOrder,
+    itemOrder,
+  });
 }

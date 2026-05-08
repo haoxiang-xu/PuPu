@@ -21,6 +21,7 @@ import {
 const MODEL_SELECTOR_REFRESH_THROTTLE_MS = 1500;
 
 const PILL_HEIGHT = 32;
+const TOOL_SELECTOR_TRIGGER_ICON_SIZE = 18;
 
 const isTextEntryTarget = (target) =>
   Boolean(
@@ -430,6 +431,7 @@ const AttachPanel = ({
                               ? "rgba(10,186,181,1)"
                               : color,
                           fontSize: 14,
+                          iconSize: TOOL_SELECTOR_TRIGGER_ICON_SIZE,
                           borderRadius: floating ? 22 : 16,
                         }}
                       />

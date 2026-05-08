@@ -11,12 +11,15 @@ import {
   renameFolder,
   deleteFolder,
   assignRecipeToFolder,
+  applyAgentExplorerReorder,
   renameRecipeKey,
   forgetRecipe,
 } from "../../../../SERVICEs/agent_folder_storage";
 import { buildRecipeListContextMenuItems } from "./recipe_list_context_menu_items";
 
 const PENDING_AGENT_ID = "__new_agent__";
+const ROOT_ORDER_KEY = "__root__";
+const FOLDER_NODE_PREFIX = "folder:";
 
 const RenameRow = ({ isDark, prefixIcon, initialValue, onConfirm, onCancel }) => {
   const inputRef = useRef(null);
@@ -358,6 +361,14 @@ export default function RecipeList({
     setContextMenu({ visible: true, x: event.clientX, y: event.clientY, node: null });
   }, []);
 
+  const handleReorder = useCallback(
+    (newData, newRoot) => {
+      applyAgentExplorerReorder({ data: newData, root: newRoot });
+      refreshFolders();
+    },
+    [refreshFolders],
+  );
+
   /* ── build explorer data ─────────────────────────────────── */
   const { data, root } = useMemo(() => {
     const map = {};
@@ -378,6 +389,43 @@ export default function RecipeList({
       }
     });
 
+    const orderChildren = (parentId, folderIds, recipeNames) => {
+      const savedOrder = folderState.itemOrder?.[parentId || ROOT_ORDER_KEY];
+      const folderSet = new Set(folderIds.map((fid) => `${FOLDER_NODE_PREFIX}${fid}`));
+      const recipeSet = new Set(recipeNames);
+      const usedFolders = new Set();
+      const usedRecipes = new Set();
+      const ordered = [];
+
+      if (Array.isArray(savedOrder)) {
+        savedOrder.forEach((id) => {
+          if (folderSet.has(id)) {
+            const folderId = id.slice(FOLDER_NODE_PREFIX.length);
+            ordered.push({ type: "folder", id: folderId });
+            usedFolders.add(folderId);
+            return;
+          }
+          if (recipeSet.has(id)) {
+            ordered.push({ type: "recipe", id });
+            usedRecipes.add(id);
+          }
+        });
+      }
+
+      folderIds.forEach((folderId) => {
+        if (!usedFolders.has(folderId)) {
+          ordered.push({ type: "folder", id: folderId });
+        }
+      });
+      recipeNames.forEach((name) => {
+        if (!usedRecipes.has(name)) {
+          ordered.push({ type: "recipe", id: name });
+        }
+      });
+
+      return ordered;
+    };
+
     const buildRecipeNode = (name) => ({
       id: name,
       kind: "recipe",
@@ -392,18 +440,18 @@ export default function RecipeList({
     const buildFolderNode = (fid) => {
       const folder = folders[fid];
       const childFolderIds = folder.childFolderIds || [];
-      const children = [
-        ...childFolderIds
-          .filter((cid) => folders[cid])
-          .map((cid) => {
-            map[`folder:${cid}`] = buildFolderNode(cid);
-            return `folder:${cid}`;
-          }),
-        ...(recipesByFolder[fid] || []).map((name) => {
-          map[name] = buildRecipeNode(name);
-          return name;
-        }),
-      ];
+      const children = orderChildren(
+        fid,
+        childFolderIds.filter((cid) => folders[cid]),
+        recipesByFolder[fid] || [],
+      ).map((child) => {
+        if (child.type === "folder") {
+          map[`${FOLDER_NODE_PREFIX}${child.id}`] = buildFolderNode(child.id);
+          return `${FOLDER_NODE_PREFIX}${child.id}`;
+        }
+        map[child.id] = buildRecipeNode(child.id);
+        return child.id;
+      });
       if (pendingAgent && pendingAgent.parentId === fid) {
         map[PENDING_AGENT_ID] = buildPendingAgentNode();
         children.push(PENDING_AGENT_ID);
@@ -432,15 +480,18 @@ export default function RecipeList({
     });
 
     const rootIds = [];
-    folderOrder
-      .filter((fid) => folders[fid])
-      .forEach((fid) => {
-        map[`folder:${fid}`] = buildFolderNode(fid);
-        rootIds.push(`folder:${fid}`);
-      });
-    (recipesByFolder.__root__ || []).forEach((name) => {
-      map[name] = buildRecipeNode(name);
-      rootIds.push(name);
+    orderChildren(
+      null,
+      folderOrder.filter((fid) => folders[fid]),
+      recipesByFolder.__root__ || [],
+    ).forEach((child) => {
+      if (child.type === "folder") {
+        map[`${FOLDER_NODE_PREFIX}${child.id}`] = buildFolderNode(child.id);
+        rootIds.push(`${FOLDER_NODE_PREFIX}${child.id}`);
+        return;
+      }
+      map[child.id] = buildRecipeNode(child.id);
+      rootIds.push(child.id);
     });
     if (pendingAgent && !pendingAgent.parentId) {
       map[PENDING_AGENT_ID] = buildPendingAgentNode();
@@ -607,7 +658,7 @@ export default function RecipeList({
           }}
         />
         <Button
-          prefix_icon="chat_new"
+          prefix_icon="add"
           onClick={() => handleNewAgent(null)}
           style={{
             paddingVertical: 4,
@@ -641,6 +692,8 @@ export default function RecipeList({
           context_menu_node_id={
             contextMenu.visible ? contextMenu.node?.id : undefined
           }
+          draggable
+          on_reorder={handleReorder}
           style={{ width: "100%", fontSize: 13 }}
         />
       </div>

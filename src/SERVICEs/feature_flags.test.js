@@ -38,12 +38,10 @@ describe("feature_flags service", () => {
       enable_user_access_to_agents: false,
       enable_user_access_to_characters: false,
       enable_app_update_settings: true,
-      enable_runtime_events_v3: false,
     });
     expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
     expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
     expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(true);
-    expect(isFeatureFlagEnabled("enable_runtime_events_v3")).toBe(false);
   });
 
   test("uses build feature flags as a production gate", () => {
@@ -53,7 +51,6 @@ describe("feature_flags service", () => {
         feature_flags: {
           enable_user_access_to_agents: false,
           enable_user_access_to_characters: false,
-          enable_runtime_events_v3: true,
         },
       }),
     );
@@ -64,7 +61,6 @@ describe("feature_flags service", () => {
         enable_user_access_to_agents: true,
         enable_user_access_to_characters: true,
         enable_app_update_settings: false,
-        enable_runtime_events_v3: true,
       }),
     });
 
@@ -72,7 +68,6 @@ describe("feature_flags service", () => {
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
       enable_app_update_settings: false,
-      enable_runtime_events_v3: true,
     });
   });
 
@@ -93,13 +88,11 @@ describe("feature_flags service", () => {
         enable_user_access_to_agents: true,
         enable_user_access_to_characters: true,
         enable_app_update_settings: false,
-        enable_runtime_events_v3: true,
       }),
     ).toEqual({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
       enable_app_update_settings: false,
-      enable_runtime_events_v3: true,
     });
 
     expect(JSON.parse(window.localStorage.getItem("settings") || "{}")).toEqual({
@@ -110,7 +103,6 @@ describe("feature_flags service", () => {
         enable_user_access_to_agents: true,
         enable_user_access_to_characters: true,
         enable_app_update_settings: false,
-        enable_runtime_events_v3: true,
       },
     });
   });
@@ -124,14 +116,12 @@ describe("feature_flags service", () => {
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
       enable_app_update_settings: false,
-      enable_runtime_events_v3: true,
     });
 
     expect(listener).toHaveBeenCalledWith({
       enable_user_access_to_agents: true,
       enable_user_access_to_characters: true,
       enable_app_update_settings: false,
-      enable_runtime_events_v3: true,
     });
 
     unsubscribe();
@@ -139,7 +129,6 @@ describe("feature_flags service", () => {
     writeFeatureFlags({
       enable_user_access_to_agents: false,
       enable_user_access_to_characters: false,
-      enable_runtime_events_v3: false,
     });
 
     expect(listener).toHaveBeenCalledTimes(1);
