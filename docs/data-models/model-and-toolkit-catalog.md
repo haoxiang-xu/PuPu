@@ -111,15 +111,15 @@ Returned by `api.unchain.getToolkitCatalog()`:
   "workspace_toolkit:delete_file",
   "workspace_toolkit:move_file",
   "terminal_toolkit:terminal_exec",
-  "code_toolkit:write",
-  "code_toolkit:edit",
+  "core:write",
+  "core:edit",
 }
 ```
 
 ### Toolkit Discovery
 
 The backend discovers toolkits via:
-1. Built-in toolkits (`workspace_toolkit`, `terminal_toolkit`, `code_toolkit`, `ask-user-toolkit`, `external_api_toolkit`)
+1. Built-in toolkits (`workspace_toolkit`, `terminal_toolkit`, `core`, `external_api`)
 2. `toolkit.toml` files in workspace directories
 3. MCP-based toolkits (removed)
 
