@@ -335,6 +335,7 @@ const AttachPanel = ({
               on_group_toggle={onGroupToggle}
               open={openSelector === "model"}
               on_open_change={handleModelSelectorOpenChange}
+              dropdown_position="top"
               style={{ ...pillStyle, maxWidth: 180 }}
               dropdown_style={{
                 maxWidth: 260,
@@ -403,6 +404,7 @@ const AttachPanel = ({
                   search_placeholder="Search toolkits..."
                   open={openSelector === "tools"}
                   on_open_change={handleToolsOpenChange}
+                  dropdown_position="top"
                   dropdown_style={{
                     maxWidth: 300,
                     minWidth: 220,
@@ -453,6 +455,7 @@ const AttachPanel = ({
                   on_open_change={(next) =>
                     setOpenSelector(next ? "workspace" : null)
                   }
+                  dropdown_position="top"
                   dropdown_style={{
                     maxWidth: 300,
                     minWidth: 220,

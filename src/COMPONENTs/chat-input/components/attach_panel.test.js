@@ -22,6 +22,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     on_open_change = () => {},
     placeholder,
     search_placeholder,
+    dropdown_position = "bottom",
   }) => {
     const renderOptionLabels = (items = []) =>
       items.flatMap((item) => {
@@ -43,6 +44,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       <button
         data-testid={`select-${search_placeholder || placeholder || "default"}`}
         data-open={open ? "true" : "false"}
+        data-dropdown-position={dropdown_position}
         onClick={() => on_open_change(!open)}
       >
         {search_placeholder || placeholder || "select"}
@@ -123,6 +125,47 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
       "data-open",
       "true",
+    );
+  });
+
+  test("opens attach panel selector menus above the input controls", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useChatInputWorkspaces.mockReturnValue({
+      workspaceOptions: [{ value: "ws-1", label: "Project" }],
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "openai:gpt-5", label: "GPT-5" }]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("select-Search models...")).toHaveAttribute(
+      "data-dropdown-position",
+      "top",
+    );
+    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+      "data-dropdown-position",
+      "top",
+    );
+    expect(screen.getByTestId("select-Search workspaces...")).toHaveAttribute(
+      "data-dropdown-position",
+      "top",
     );
   });
 

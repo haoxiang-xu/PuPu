@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { SettingsModal } from "./settings_modal";
 
 jest.mock("../../BUILTIN_COMPONENTs/modal/modal", () => ({
@@ -62,7 +62,9 @@ jest.mock("./dev/storage", () => ({
 const renderSettingsModal = () =>
   render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
-      <SettingsModal open onClose={jest.fn()} />
+      <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+        <SettingsModal open onClose={jest.fn()} />
+      </LocaleContext.Provider>
     </ConfigContext.Provider>,
   );
 
@@ -71,13 +73,13 @@ describe("SettingsModal", () => {
     window.localStorage.clear();
   });
 
-  test("shows the Update page by default", () => {
+  test("shows the Update page by default", async () => {
     renderSettingsModal();
 
-    expect(screen.getByText("Update")).toBeInTheDocument();
+    expect(await screen.findByText("Update")).toBeInTheDocument();
   });
 
-  test("hides the Update page when the app update feature flag is disabled", () => {
+  test("hides the Update page when the app update feature flag is disabled", async () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
@@ -89,6 +91,7 @@ describe("SettingsModal", () => {
 
     renderSettingsModal();
 
+    await screen.findByText("Appearance Content");
     expect(screen.queryByText("Update")).not.toBeInTheDocument();
   });
 });
