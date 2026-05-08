@@ -2,7 +2,6 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -157,7 +156,6 @@ const AttachPanel = ({
   onWorkspaceIdsChange,
   selectedRecipeName = "Default",
   onSelectRecipe,
-  recipeOptions = [],
 }) => {
   const { theme } = useContext(ConfigContext);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
@@ -188,51 +186,17 @@ const AttachPanel = ({
     }
   }, [isAgentsFeatureEnabled, onSelectRecipe, selectedRecipeName]);
 
-  const combinedModelOptions = useMemo(() => {
-    if (!isAgentsFeatureEnabled) return modelOptions || [];
-
-    const agentEntries = (recipeOptions || [])
-      .filter((r) => r && r.value && r.value !== "Default")
-      .map((r) => ({
-        value: `agent:${r.value}`,
-        label: r.label || r.value,
-        trigger_label: r.label || r.value,
-      }));
-    if (agentEntries.length === 0) return modelOptions || [];
-    return [
-      ...(modelOptions || []),
-      {
-        group: "Agents",
-        icon: "bot",
-        collapsed: false,
-        options: agentEntries,
-      },
-    ];
-  }, [isAgentsFeatureEnabled, modelOptions, recipeOptions]);
-
-  const composedSelectValue = hasActiveAgentRecipe
-    ? `agent:${selectedRecipeName}`
-    : selectedModelId || null;
+  const modelSelectOptions = modelOptions || [];
+  const modelSelectValue = selectedModelId || null;
 
   const handleSelectValueChange = useCallback(
     (next) => {
-      if (typeof next === "string" && next.startsWith("agent:")) {
-        if (!isAgentsFeatureEnabled) return;
-        const name = next.slice("agent:".length);
-        if (onSelectRecipe) onSelectRecipe(name);
-        return;
-      }
       if (onSelectRecipe && hasActiveAgentRecipe) {
         onSelectRecipe("Default");
       }
       if (onSelectModel) onSelectModel(next);
     },
-    [
-      hasActiveAgentRecipe,
-      isAgentsFeatureEnabled,
-      onSelectModel,
-      onSelectRecipe,
-    ],
+    [hasActiveAgentRecipe, onSelectModel, onSelectRecipe],
   );
 
   const handleModelSelectorOpenChange = useCallback((next) => {
@@ -355,12 +319,12 @@ const AttachPanel = ({
       >
         {/* ── Model selector ── */}
         {showModelSelector &&
-          combinedModelOptions &&
-          combinedModelOptions.length > 0 &&
+          modelSelectOptions &&
+          modelSelectOptions.length > 0 &&
           selectWrap(
             <Select
-              options={combinedModelOptions}
-              value={composedSelectValue}
+              options={modelSelectOptions}
+              value={modelSelectValue}
               set_value={handleSelectValueChange}
               placeholder="Select model..."
               filterable={true}

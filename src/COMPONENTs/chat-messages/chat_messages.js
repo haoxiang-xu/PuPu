@@ -68,7 +68,7 @@ const ChatMessages = ({
         style={{
           height: "100%",
           overflowY: "auto",
-          padding: messages.length === 0 ? "0" : "20px 0 8px",
+          padding: messages.length === 0 ? "0" : "28px 0 64px",
           position: "relative",
           boxSizing: "border-box",
           scrollBehavior: "auto",

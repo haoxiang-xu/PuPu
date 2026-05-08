@@ -226,7 +226,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     });
   });
 
-  test("shows agent recipe options when the agents feature flag is enabled", () => {
+  test("never shows agent recipe options in the model selector", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
@@ -262,7 +262,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     );
 
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
-    expect(screen.getByText("Agents")).toBeInTheDocument();
-    expect(screen.getByText("Research Agent")).toBeInTheDocument();
+    expect(screen.queryByText("Agents")).not.toBeInTheDocument();
+    expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
   });
 });
