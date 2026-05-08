@@ -26,7 +26,7 @@ export const AppUpdateSettings = () => {
   const isDark = onThemeMode === "dark_mode";
   const updateBridgeAvailable = api.appUpdate.isBridgeAvailable();
   const [actionPending, setActionPending] = useState(false);
-  const [autoUpdte, setAutoUpdte] = useState(false);
+  const [autoUpdte, setAutoUpdte] = useState(true);
   const [updateState, setUpdateState] = useState({
     stage: "idle",
     currentVersion: "",
@@ -71,6 +71,9 @@ export const AppUpdateSettings = () => {
   useEffect(() => {
     let isUnmounted = false;
     refreshState();
+    api.appUpdate.getAutoUpdate().then((enabled) => {
+      if (!isUnmounted) setAutoUpdte(enabled);
+    });
 
     if (!updateBridgeAvailable) {
       return () => {
@@ -203,7 +206,10 @@ export const AppUpdateSettings = () => {
         >
           <SemiSwitch
             on={autoUpdte}
-            set_on={setAutoUpdte}
+            set_on={(val) => {
+              setAutoUpdte(val);
+              api.appUpdate.setAutoUpdate(val).catch(() => {});
+            }}
             style={{ width: 56, height: 28 }}
           />
         </SettingsRow>
