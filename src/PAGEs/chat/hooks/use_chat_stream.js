@@ -10,6 +10,18 @@ import {
 } from "../utils/chat_turn_utils";
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
+import {
+  scheduleBackgroundPersist,
+  flushBackgroundPersist,
+  cancelBackgroundPersist,
+} from "./background_stream_persister";
+import { createStreamFlushScheduler } from "./stream_flush_scheduler";
+import {
+  start as progressStart,
+  stop as progressStop,
+} from "../../../SERVICEs/progress_bus";
+
+const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
 const STREAM_TRACE_LEVEL = "minimal";
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
@@ -68,6 +80,7 @@ export const useChatStream = ({
   agentOrchestration,
   selectedToolkits,
   selectedWorkspaceIds,
+  selectedRecipeName,
   chatKind = "default",
   characterId = "",
   threadIdRef,
@@ -83,7 +96,7 @@ export const useChatStream = ({
   modelIdRef,
   setSelectedModelId,
   setAgentOrchestration,
-  activeStreamMessagesRef,
+  activeStreamsRef,
 }) => {
   const {
     buildHistoryForModel,
@@ -91,7 +104,17 @@ export const useChatStream = ({
     hydrateAttachmentPayloads,
     resolveAttachmentPayloads,
   } = attachmentApi;
-  const [streamingChatId, setStreamingChatId] = useState(null);
+  const [streamingChatIds, setStreamingChatIds] = useState(() => new Set());
+
+  useEffect(() => {
+    if (streamingChatIds.size > 0) {
+      progressStart(CHAT_STREAM_PROGRESS_ID, "chat_stream");
+    } else {
+      progressStop(CHAT_STREAM_PROGRESS_ID);
+    }
+    return () => progressStop(CHAT_STREAM_PROGRESS_ID);
+  }, [streamingChatIds]);
+
   const [internalStreamError, setInternalStreamError] = useState("");
   const streamError =
     controlledStreamError !== undefined
@@ -123,8 +146,8 @@ export const useChatStream = ({
   const selectedModelIdRef = useRef(selectedModelId);
   selectedModelIdRef.current = selectedModelId;
 
-  const streamHandleRef = useRef(null);
-  const streamingChatIdRef = useRef(null);
+  const streamHandlesRef = useRef(new Map());
+  const streamingChatIdsRef = useRef(new Set());
   const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
   const confirmationIdByCallIdRef = useRef(new Map());
   const confirmationCallIdByIdRef = useRef(new Map());
@@ -161,7 +184,8 @@ export const useChatStream = ({
         return null;
       }
 
-      const streamState = activeStreamMessagesRef.current;
+      const currentChatId = activeChatIdRef.current;
+      const streamState = activeStreamsRef.current.get(currentChatId);
       const streamMessages = Array.isArray(streamState?.messages)
         ? streamState.messages
         : [];
@@ -183,7 +207,7 @@ export const useChatStream = ({
 
       return null;
     },
-    [activeStreamMessagesRef],
+    [activeChatIdRef, activeStreamsRef],
   );
 
   useEffect(() => {
@@ -196,10 +220,9 @@ export const useChatStream = ({
     sessionAutoApproveRef.current.clear();
   }, [chatId]);
 
-  const isStreaming = streamingChatId === chatId;
-  const hasBackgroundStream = Boolean(
-    streamingChatId && streamingChatId !== chatId,
-  );
+  const isStreaming = streamingChatIds.has(chatId);
+  const hasBackgroundStream =
+    streamingChatIds.size > 0 && !streamingChatIds.has(chatId);
 
   const clearActiveTokenFlushController = useCallback((mode = "dispose") => {
     const controller = activeTokenFlushControllerRef.current;
@@ -404,18 +427,21 @@ export const useChatStream = ({
   ]);
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
-    clearActiveTokenFlushController("dispose");
-    if (
-      streamHandleRef.current &&
-      typeof streamHandleRef.current.cancel === "function"
-    ) {
-      streamHandleRef.current.cancel();
-    }
     const currentChatId = activeChatIdRef.current;
-    streamHandleRef.current = null;
-    streamingChatIdRef.current = null;
-    activeStreamMessagesRef.current = null;
-    setStreamingChatId(null);
+    clearActiveTokenFlushController("dispose");
+    const handle = streamHandlesRef.current.get(currentChatId);
+    if (handle && typeof handle.cancel === "function") {
+      handle.cancel();
+    }
+    cancelBackgroundPersist(currentChatId);
+    streamHandlesRef.current.delete(currentChatId);
+    streamingChatIdsRef.current.delete(currentChatId);
+    activeStreamsRef.current.delete(currentChatId);
+    setStreamingChatIds((prev) => {
+      const next = new Set(prev);
+      next.delete(currentChatId);
+      return next;
+    });
     confirmationIdByCallIdRef.current.clear();
     confirmationCallIdByIdRef.current.clear();
     confirmationFollowupSignalByIdRef.current.clear();
@@ -443,7 +469,7 @@ export const useChatStream = ({
     return nextMessages;
   }, [
     activeChatIdRef,
-    activeStreamMessagesRef,
+    activeStreamsRef,
     clearActiveTokenFlushController,
     messagesRef,
     setMessages,
@@ -464,8 +490,8 @@ export const useChatStream = ({
 
       const callId =
         confirmationCallIdByIdRef.current.get(normalizedConfirmationId) || "";
-      const streamState = activeStreamMessagesRef.current;
-      const targetChatId = streamState?.chatId;
+      const targetChatId = activeChatIdRef.current;
+      const streamState = activeStreamsRef.current.get(targetChatId);
       const streamMessages = Array.isArray(streamState?.messages)
         ? streamState.messages
         : [];
@@ -546,14 +572,15 @@ export const useChatStream = ({
         return false;
       }
 
-      activeStreamMessagesRef.current = {
-        chatId: targetChatId,
+      activeStreamsRef.current.set(targetChatId, {
         messages: nextStreamMessages,
-      };
+      });
 
       if (activeChatIdRef.current === targetChatId) {
         setMessages(nextStreamMessages);
       } else {
+        // Tool confirmation is infrequent + user-visible — bypass the throttle.
+        cancelBackgroundPersist(targetChatId);
         storageApi.setChatMessages(targetChatId, nextStreamMessages, {
           source: "chat-page",
         });
@@ -561,7 +588,7 @@ export const useChatStream = ({
 
       return true;
     },
-    [activeChatIdRef, activeStreamMessagesRef, setMessages, storageApi],
+    [activeChatIdRef, activeStreamsRef, setMessages, storageApi],
   );
 
   const handleToolConfirmationDecision = useCallback(
@@ -932,12 +959,65 @@ export const useChatStream = ({
       );
       let forceMemoryEnabled = false;
 
+      /* Optimistic UI: push user message + assistant placeholder BEFORE any await.
+         For character chats, buildCharacterRunConfig() below can be a slow IPC round-trip;
+         we don't want Send to feel frozen during that wait. Rollback on failure. */
+      const optimisticAssistantPlaceholder = {
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        createdAt: timestamp,
+        updatedAt: timestamp,
+        status: "streaming",
+        traceFrames: [],
+        subagentFrames: {},
+        subagentMetaByRunId: {},
+        meta: {
+          model: effectiveModelId,
+        },
+      };
+      const optimisticMessages = [
+        ...normalizedBaseMessages,
+        userMessage,
+        optimisticAssistantPlaceholder,
+      ];
+      const previousInputValue = inputValue;
+      const previousDraftAttachments = draftAttachments;
+
+      setMessages(optimisticMessages);
+      if (clearComposer) {
+        setInputValue("");
+        setDraftAttachments([]);
+      }
+      setStreamError("");
+      setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
+      streamingChatIdsRef.current.add(targetChatId);
+      activeStreamsRef.current.set(targetChatId, {
+        messages: optimisticMessages,
+      });
+
+      const rollbackOptimistic = () => {
+        setMessages(normalizedBaseMessages);
+        streamingChatIdsRef.current.delete(targetChatId);
+        setStreamingChatIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetChatId);
+          return next;
+        });
+        activeStreamsRef.current.delete(targetChatId);
+        if (clearComposer) {
+          setInputValue(previousInputValue);
+          setDraftAttachments(previousDraftAttachments);
+        }
+      };
+
       let resolvedCharacterConfig = characterAgentConfig;
       if (isCharacterChat) {
         if (!resolvedCharacterConfig) {
           try {
             resolvedCharacterConfig = await buildCharacterRunConfig();
           } catch (error) {
+            rollbackOptimistic();
             setStreamError(
               error?.message || "Failed to prepare this character chat.",
             );
@@ -946,6 +1026,7 @@ export const useChatStream = ({
         }
 
         if (!resolvedCharacterConfig?.session_id) {
+          rollbackOptimistic();
           setStreamError("Failed to prepare this character chat.");
           return false;
         }
@@ -1013,28 +1094,18 @@ export const useChatStream = ({
             setDraftAttachments([]);
           }
           setStreamError("");
-          streamHandleRef.current = null;
-          streamingChatIdRef.current = null;
-          activeStreamMessagesRef.current = null;
-          setStreamingChatId(null);
+          cancelBackgroundPersist(targetChatId);
+          streamHandlesRef.current.delete(targetChatId);
+          streamingChatIdsRef.current.delete(targetChatId);
+          activeStreamsRef.current.delete(targetChatId);
+          setStreamingChatIds((prev) => {
+            const next = new Set(prev);
+            next.delete(targetChatId);
+            return next;
+          });
           return true;
         }
       }
-
-      const assistantPlaceholder = {
-        id: assistantMessageId,
-        role: "assistant",
-        content: "",
-        createdAt: timestamp,
-        updatedAt: timestamp,
-        status: "streaming",
-        traceFrames: [],
-        subagentFrames: {},
-        subagentMetaByRunId: {},
-        meta: {
-          model: effectiveModelId,
-        },
-      };
 
       const memoryEnabled =
         forceHistoryFallback === true
@@ -1047,41 +1118,32 @@ export const useChatStream = ({
           ? []
           : buildHistoryForModel(normalizedBaseMessages, targetChatId);
 
-      const nextMessages = [
-        ...normalizedBaseMessages,
-        userMessage,
-        assistantPlaceholder,
-      ];
+      /* Optimistic push already happened before the character block.
+         `nextMessages` is the same value; keep the binding so downstream code
+         (streamMessages initial value, etc.) stays unchanged. */
+      const nextMessages = optimisticMessages;
 
-      setMessages(nextMessages);
-      if (clearComposer) {
-        setInputValue("");
-        setDraftAttachments([]);
-      }
-      setStreamError("");
-      setStreamingChatId(targetChatId);
-      streamingChatIdRef.current = targetChatId;
-      activeStreamMessagesRef.current = {
-        chatId: targetChatId,
-        messages: nextMessages,
-      };
+      const activeFlushScheduler = createStreamFlushScheduler({
+        onFlush: (nextStreamMessages) => {
+          if (activeChatIdRef.current === targetChatId) {
+            setMessages(nextStreamMessages);
+          }
+        },
+      });
 
       let streamMessages = nextMessages;
       const syncStreamMessages = (nextStreamMessages) => {
         streamMessages = nextStreamMessages;
-        activeStreamMessagesRef.current = {
-          chatId: targetChatId,
+        activeStreamsRef.current.set(targetChatId, {
           messages: nextStreamMessages,
-        };
+        });
 
         if (activeChatIdRef.current === targetChatId) {
-          setMessages(nextStreamMessages);
+          activeFlushScheduler.commit(nextStreamMessages);
           return;
         }
 
-        storageApi.setChatMessages(targetChatId, nextStreamMessages, {
-          source: "chat-page",
-        });
+        scheduleBackgroundPersist(targetChatId, nextStreamMessages);
       };
 
       const serializeSubagentFramesByRunId = () =>
@@ -1381,6 +1443,11 @@ export const useChatStream = ({
               ...(effectiveWorkspaceIds.length > 0 && {
                 selectedWorkspaceIds: effectiveWorkspaceIds,
               }),
+              ...(!isCharacterChat &&
+                selectedRecipeName &&
+                selectedRecipeName !== "Default" && {
+                  recipe_name: selectedRecipeName,
+                }),
               ...(!isCharacterChat && {
                 agent_orchestration: effectiveAgentOrchestration,
               }),
@@ -1404,8 +1471,8 @@ export const useChatStream = ({
           {
             onFrame: (frame) => {
               /* Sync closure with external updates (e.g. appendSyntheticToolConfirmationDecision
-                 writes to activeStreamMessagesRef but cannot update the closure variable). */
-              const _refMsgs = activeStreamMessagesRef.current?.messages;
+                 writes to activeStreamsRef but cannot update the closure variable). */
+              const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
                 streamMessages = _refMsgs;
               }
@@ -2116,7 +2183,7 @@ export const useChatStream = ({
             },
             onDone: (done) => {
               /* Sync closure with external updates before building final messages. */
-              const _refMsgs = activeStreamMessagesRef.current?.messages;
+              const _refMsgs = activeStreamsRef.current.get(targetChatId)?.messages;
               if (Array.isArray(_refMsgs) && _refMsgs.length > 0) {
                 streamMessages = _refMsgs;
               }
@@ -2202,11 +2269,19 @@ export const useChatStream = ({
                 });
               }
 
-              streamHandleRef.current = null;
-              streamingChatIdRef.current = null;
-              activeStreamMessagesRef.current = null;
-              setStreamingChatId(null);
+              if (activeChatIdRef.current !== targetChatId) {
+                flushBackgroundPersist(targetChatId);
+              }
+              streamHandlesRef.current.delete(targetChatId);
+              streamingChatIdsRef.current.delete(targetChatId);
+              activeStreamsRef.current.delete(targetChatId);
+              setStreamingChatIds((prev) => {
+                const next = new Set(prev);
+                next.delete(targetChatId);
+                return next;
+              });
               clearAllPendingToolConfirmations();
+              activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
               if (activeChatIdRef.current !== targetChatId) {
@@ -2219,9 +2294,10 @@ export const useChatStream = ({
               thinkTagParser.flush();
               flushBufferedTokenDelta();
               if (
-                streamHandleRef.current === null &&
-                streamingChatIdRef.current === null
+                !streamHandlesRef.current.has(targetChatId) &&
+                !streamingChatIdsRef.current.has(targetChatId)
               ) {
+                activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
                 return;
@@ -2239,11 +2315,17 @@ export const useChatStream = ({
                     "Memory is unavailable for this request. Retrying with recent history.",
                   );
                 }
-                streamHandleRef.current = null;
-                streamingChatIdRef.current = null;
-                activeStreamMessagesRef.current = null;
-                setStreamingChatId(null);
+                cancelBackgroundPersist(targetChatId);
+                streamHandlesRef.current.delete(targetChatId);
+                streamingChatIdsRef.current.delete(targetChatId);
+                activeStreamsRef.current.delete(targetChatId);
+                setStreamingChatIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(targetChatId);
+                  return next;
+                });
                 clearAllPendingToolConfirmations();
+                activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
 
@@ -2280,10 +2362,15 @@ export const useChatStream = ({
               if (activeChatIdRef.current === targetChatId && !traceHasContent) {
                 setStreamError(errorMessage);
               }
-              streamHandleRef.current = null;
-              streamingChatIdRef.current = null;
-              setStreamingChatId(null);
+              streamHandlesRef.current.delete(targetChatId);
+              streamingChatIdsRef.current.delete(targetChatId);
+              setStreamingChatIds((prev) => {
+                const next = new Set(prev);
+                next.delete(targetChatId);
+                return next;
+              });
               clearAllPendingToolConfirmations();
+              activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
 
@@ -2324,19 +2411,28 @@ export const useChatStream = ({
                 };
               });
               syncStreamMessages(nextStreamMessages);
-              activeStreamMessagesRef.current = null;
+              if (activeChatIdRef.current !== targetChatId) {
+                flushBackgroundPersist(targetChatId);
+              }
+              activeStreamsRef.current.delete(targetChatId);
             },
           },
         );
       } catch (error) {
+        activeFlushScheduler.flushSync();
         disposeBufferedTokenFlush();
         releaseTokenFlushController();
         const errorMessage = error?.message || "Failed to start stream";
         setStreamError(errorMessage);
-        streamHandleRef.current = null;
-        streamingChatIdRef.current = null;
-        activeStreamMessagesRef.current = null;
-        setStreamingChatId(null);
+        cancelBackgroundPersist(targetChatId);
+        streamHandlesRef.current.delete(targetChatId);
+        streamingChatIdsRef.current.delete(targetChatId);
+        activeStreamsRef.current.delete(targetChatId);
+        setStreamingChatIds((prev) => {
+          const next = new Set(prev);
+          next.delete(targetChatId);
+          return next;
+        });
 
         setMessages(
           nextMessages.map((message) =>
@@ -2353,7 +2449,7 @@ export const useChatStream = ({
         return false;
       }
 
-      streamHandleRef.current = streamHandle;
+      streamHandlesRef.current.set(targetChatId, streamHandle);
 
       if (streamHandle?.requestId) {
         const nextStreamMessages = streamMessages.map((message) =>
@@ -2375,7 +2471,7 @@ export const useChatStream = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       activeChatIdRef,
-      activeStreamMessagesRef,
+      activeStreamsRef,
       appendSyntheticToolConfirmationDecision,
       buildCharacterRunConfig,
       buildHistoryForModel,
@@ -2394,6 +2490,7 @@ export const useChatStream = ({
       resolveAttachmentPayloads,
       selectedToolkits,
       selectedWorkspaceIds,
+      selectedRecipeName,
       setDraftAttachments,
       setInputValue,
       setMessages,
@@ -2404,6 +2501,69 @@ export const useChatStream = ({
       systemPromptOverrides,
       updateToolConfirmationUiState,
     ],
+  );
+
+  const sendForTest = useCallback(
+    ({ text = "", attachments = [] } = {}) => {
+      const chatId = activeChatIdRef.current;
+      if (!chatId) {
+        return Promise.reject(
+          Object.assign(new Error("no active chat"), {
+            code: "no_active_chat",
+          }),
+        );
+      }
+      const baseLen = (messagesRef.current || []).length;
+      const startedAt = Date.now();
+      void runTurnRequest({
+        mode: "send",
+        chatId,
+        text,
+        attachments,
+        baseMessages: messagesRef.current,
+        clearComposer: true,
+        missingAttachmentPayloadMode: "block",
+      });
+      return new Promise((resolve, reject) => {
+        let timer;
+        const interval = setInterval(() => {
+          const msgs = messagesRef.current || [];
+          const last = msgs[msgs.length - 1];
+          const stillStreaming = streamingChatIdsRef.current.has(chatId);
+          if (
+            msgs.length > baseLen &&
+            !stillStreaming &&
+            last &&
+            last.role === "assistant" &&
+            last.content
+          ) {
+            clearInterval(interval);
+            clearTimeout(timer);
+            resolve({
+              message_id: last.id,
+              role: "assistant",
+              content:
+                typeof last.content === "string"
+                  ? last.content
+                  : JSON.stringify(last.content),
+              tool_calls: last.tool_calls || null,
+              finish_reason: last.finish_reason || "stop",
+              latency_ms: Date.now() - startedAt,
+            });
+          }
+        }, 100);
+        timer = setTimeout(
+          () => {
+            clearInterval(interval);
+            reject(
+              Object.assign(new Error("send timeout"), { code: "ipc_timeout" }),
+            );
+          },
+          5 * 60 * 1000,
+        );
+      });
+    },
+    [activeChatIdRef, messagesRef, runTurnRequest, streamingChatIdsRef],
   );
 
   const sendNewTurn = useCallback(() => {
@@ -2419,15 +2579,11 @@ export const useChatStream = ({
       isCharacterChat ||
       (normalizedSelectedModelId &&
         normalizedSelectedModelId !== "unchain-unset");
-    const hasActiveStream = Boolean(
-      streamingChatIdRef.current && streamHandleRef.current,
+    const thisChatsStreamActive = Boolean(
+      streamingChatIdsRef.current.has(currentChatId) &&
+        streamHandlesRef.current.has(currentChatId),
     );
-    if (!currentChatId || (!text && !hasAttachments) || hasActiveStream) {
-      if (hasActiveStream && streamingChatIdRef.current !== currentChatId) {
-        setStreamError(
-          "Another chat is still generating. Switch back to stop it or wait.",
-        );
-      }
+    if (!currentChatId || (!text && !hasAttachments) || thisChatsStreamActive) {
       return;
     }
 
@@ -2482,21 +2638,17 @@ export const useChatStream = ({
         typeof targetMessage?.content === "string"
           ? targetMessage.content.trim()
           : "";
-      const hasActiveStream = Boolean(
-        streamingChatIdRef.current && streamHandleRef.current,
+      const thisChatsStreamActive = Boolean(
+        streamingChatIdsRef.current.has(currentChatId) &&
+          streamHandlesRef.current.has(currentChatId),
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        hasActiveStream
+        thisChatsStreamActive
       ) {
-        if (hasActiveStream && streamingChatIdRef.current !== currentChatId) {
-          setStreamError(
-            "Another chat is still generating. Switch back to stop it or wait.",
-          );
-        }
         return;
       }
 
@@ -2576,21 +2728,17 @@ export const useChatStream = ({
           ? messagesRef.current[messageIndex]
           : null;
       const text = typeof nextContent === "string" ? nextContent.trim() : "";
-      const hasActiveStream = Boolean(
-        streamingChatIdRef.current && streamHandleRef.current,
+      const thisChatsStreamActive = Boolean(
+        streamingChatIdsRef.current.has(currentChatId) &&
+          streamHandlesRef.current.has(currentChatId),
       );
       if (
         !currentChatId ||
         messageIndex < 0 ||
         targetMessage?.role !== "user" ||
         !text ||
-        hasActiveStream
+        thisChatsStreamActive
       ) {
-        if (hasActiveStream && streamingChatIdRef.current !== currentChatId) {
-          setStreamError(
-            "Another chat is still generating. Switch back to stop it or wait.",
-          );
-        }
         return;
       }
 
@@ -2686,8 +2834,8 @@ export const useChatStream = ({
 
       if (
         deletingStreamingAssistant &&
-        streamHandleRef.current &&
-        streamingChatIdRef.current === currentChatId
+        streamHandlesRef.current.has(currentChatId) &&
+        streamingChatIdsRef.current.has(currentChatId)
       ) {
         workingMessages = cancelCurrentStreamAndSettleMessages();
       }
@@ -2740,18 +2888,20 @@ export const useChatStream = ({
       confirmationFollowupSignalByIdRef.current;
     const confirmationResolveTimerById =
       confirmationResolveTimerByIdRef.current;
+    const streamHandles = streamHandlesRef.current;
+    const streamingChatIds = streamingChatIdsRef.current;
+    const activeStreams = activeStreamsRef.current;
 
     return () => {
       clearActiveTokenFlushController("dispose");
-      if (
-        streamHandleRef.current &&
-        typeof streamHandleRef.current.cancel === "function"
-      ) {
-        streamHandleRef.current.cancel();
+      for (const handle of streamHandles.values()) {
+        if (handle && typeof handle.cancel === "function") {
+          handle.cancel();
+        }
       }
-      streamHandleRef.current = null;
-      streamingChatIdRef.current = null;
-      activeStreamMessagesRef.current = null;
+      streamHandles.clear();
+      streamingChatIds.clear();
+      activeStreams.clear();
       clearAttachmentPayloads();
       confirmationIdByCallId.clear();
       confirmationCallIdById.clear();
@@ -2764,7 +2914,7 @@ export const useChatStream = ({
       pendingContinuationRequestRef.current = null;
     };
   }, [
-    activeStreamMessagesRef,
+    activeStreamsRef,
     clearActiveTokenFlushController,
     clearAttachmentPayloads,
   ]);
@@ -2780,6 +2930,7 @@ export const useChatStream = ({
     pendingToolConfirmationRequests,
     resendTurn,
     sendNewTurn,
+    sendForTest,
     setStreamError,
     stopStream,
     streamError,

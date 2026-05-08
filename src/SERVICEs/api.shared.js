@@ -210,10 +210,14 @@ const normalizeModelInputCapabilities = (capabilities) => {
     capabilityPayload.input_source_types,
     inputModalities,
   );
-  return {
+  const normalized = {
     input_modalities: inputModalities,
     input_source_types: inputSourceTypes,
   };
+  if (capabilityPayload.supports_tools === false) {
+    normalized.supports_tools = false;
+  }
+  return normalized;
 };
 
 const normalizeModelCatalog = (payload) => {

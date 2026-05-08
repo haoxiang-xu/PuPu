@@ -4,8 +4,10 @@ import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import WorkspaceEditor from "./workspace_editor";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 
 export const WorkspaceModal = ({ open, onClose }) => {
+  useModalLifecycle("workspace-modal", open);
   const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const { t } = useTranslation();

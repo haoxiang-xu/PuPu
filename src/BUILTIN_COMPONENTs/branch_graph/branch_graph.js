@@ -185,9 +185,11 @@ const BranchNode = ({
           <div
             style={{
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-start",
               gap: compact ? 4 : 6,
               lineHeight: `${TITLE_LINE_H}px`,
+              minWidth: 0,
+              maxWidth: "100%",
             }}
           >
             {typeof title === "string" ? (
@@ -208,7 +210,12 @@ const BranchNode = ({
             )}
             {span != null && (
               <>
-                <span style={{ flex: 1 }} />
+                <span
+                  style={{
+                    flex: "1 1 12px",
+                    minWidth: compact ? 4 : 8,
+                  }}
+                />
                 <span
                   style={{
                     fontSize: compact ? "10px" : "11px",
@@ -217,8 +224,16 @@ const BranchNode = ({
                       : "rgba(0,0,0,0.45)",
                     userSelect: "none",
                     WebkitUserSelect: "none",
-                    flexShrink: 0,
+                    flex: "0 1 auto",
+                    minWidth: 0,
+                    maxWidth: "100%",
                     fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    lineHeight: compact ? "14px" : "15px",
+                    paddingTop: compact ? 2 : 1,
+                    textAlign: "right",
+                    whiteSpace: "normal",
+                    overflowWrap: "anywhere",
+                    wordBreak: "break-word",
                   }}
                 >
                   {span}

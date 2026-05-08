@@ -1,5 +1,10 @@
 const path = require("path");
 const { CHANNELS } = require("../../shared/channels");
+const {
+  registerChatStorageHandlers,
+  CHAT_STORAGE_SYNC_CHANNELS,
+  CHAT_STORAGE_ON_CHANNELS,
+} = require("../services/chat_storage/register_handlers");
 
 const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.APP.GET_VERSION,
@@ -39,6 +44,11 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_CHARACTER,
   CHANNELS.UNCHAIN.SAVE_CHARACTER,
   CHANNELS.UNCHAIN.DELETE_CHARACTER,
+  CHANNELS.UNCHAIN.LIST_RECIPES,
+  CHANNELS.UNCHAIN.GET_RECIPE,
+  CHANNELS.UNCHAIN.SAVE_RECIPE,
+  CHANNELS.UNCHAIN.DELETE_RECIPE,
+  CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS,
   CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,
   CHANNELS.UNCHAIN.BUILD_CHARACTER_AGENT_CONFIG,
   CHANNELS.UNCHAIN.EXPORT_CHARACTER,
@@ -47,6 +57,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.SHOW_OPEN_DIALOG,
   CHANNELS.UNCHAIN.WRITE_FILE,
   CHANNELS.UNCHAIN.READ_FILE,
+  CHANNELS.SCREENSHOT.CAPTURE,
+  CHANNELS.SCREENSHOT.CHECK_AVAILABILITY,
 ]);
 
 const IPC_ON_CHANNELS = Object.freeze([
@@ -56,7 +68,10 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
   CHANNELS.UNCHAIN.STREAM_CANCEL,
+  ...CHAT_STORAGE_ON_CHANNELS,
 ]);
+
+const IPC_ON_SYNC_CHANNELS = Object.freeze([...CHAT_STORAGE_SYNC_CHANNELS]);
 
 const MAIN_EVENT_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_EVENT,
@@ -73,7 +88,11 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     ollamaService,
     unchainService,
     runtimeService,
+    screenshotService,
+    chatStorageService,
   } = services;
+
+  registerChatStorageHandlers({ ipcMain, chatStorageService });
 
   ipcMain.on(CHANNELS.THEME.SET_BACKGROUND_COLOR, (_event, color) => {
     windowService.handleThemeSetBackgroundColor(color);
@@ -243,6 +262,25 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     async (_event, payload = {}) =>
       unchainService.deleteMisoCharacter(payload.characterId),
   );
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_RECIPES, async () =>
+    unchainService.listMisoRecipes(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.GET_RECIPE,
+    async (_event, payload = {}) =>
+      unchainService.getMisoRecipe(payload.recipeName),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.SAVE_RECIPE, async (_event, payload = {}) =>
+    unchainService.saveMisoRecipe(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_RECIPE,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoRecipe(payload.recipeName),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_SUBAGENT_REFS, async () =>
+    unchainService.listMisoSubagentRefs(),
+  );
   ipcMain.handle(
     CHANNELS.UNCHAIN.PREVIEW_CHARACTER_DECISION,
     async (_event, payload = {}) =>
@@ -276,6 +314,13 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     runtimeService.readFile(payload),
   );
 
+  ipcMain.handle(CHANNELS.SCREENSHOT.CAPTURE, () =>
+    screenshotService.capture(),
+  );
+  ipcMain.handle(CHANNELS.SCREENSHOT.CHECK_AVAILABILITY, () =>
+    screenshotService.checkAvailability(),
+  );
+
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_START, (event, payload) => {
     unchainService.handleStreamStart(event, payload);
   });
@@ -293,5 +338,6 @@ module.exports = {
   registerIpcHandlers,
   IPC_HANDLE_CHANNELS,
   IPC_ON_CHANNELS,
+  IPC_ON_SYNC_CHANNELS,
   MAIN_EVENT_CHANNELS,
 };

@@ -859,6 +859,119 @@ const createUnchainService = ({
     );
   };
 
+  const listMisoRecipes = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}/agent_recipes`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso recipe list request failed",
+      { recipes: [], count: 0 },
+      "Invalid Miso recipe list response",
+    );
+  };
+
+  const getMisoRecipe = async (recipeName) => {
+    ensureMisoReady();
+
+    const cleanName = typeof recipeName === "string" ? recipeName.trim() : "";
+    if (!cleanName) {
+      throw new Error("recipeName is required");
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}/agent_recipes/${encodeURIComponent(cleanName)}`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    if (response.status === 404) return null;
+
+    return readJsonResponse(
+      response,
+      "Miso recipe get request failed",
+      {},
+      "Invalid Miso recipe get response",
+    );
+  };
+
+  const saveMisoRecipe = async (payload = {}) => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}/agent_recipes`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify(
+          payload && typeof payload === "object" ? payload : {},
+        ),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso recipe save request failed",
+      {},
+      "Invalid Miso recipe save response",
+    );
+  };
+
+  const deleteMisoRecipe = async (recipeName) => {
+    ensureMisoReady();
+
+    const cleanName = typeof recipeName === "string" ? recipeName.trim() : "";
+    if (!cleanName) {
+      throw new Error("recipeName is required");
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}/agent_recipes/${encodeURIComponent(cleanName)}`,
+      {
+        method: "DELETE",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso recipe delete request failed",
+      {},
+      "Invalid Miso recipe delete response",
+    );
+  };
+
+  const listMisoSubagentRefs = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}/agent_recipes/subagent_refs`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso subagent refs request failed",
+      { refs: [], count: 0 },
+      "Invalid Miso subagent refs response",
+    );
+  };
+
   const previewMisoCharacterDecision = async (payload = {}) => {
     ensureMisoReady();
 
@@ -1704,6 +1817,11 @@ const createUnchainService = ({
     getMisoCharacter,
     saveMisoCharacter,
     deleteMisoCharacter,
+    listMisoRecipes,
+    getMisoRecipe,
+    saveMisoRecipe,
+    deleteMisoRecipe,
+    listMisoSubagentRefs,
     previewMisoCharacterDecision,
     buildMisoCharacterAgentConfig,
     exportMisoCharacter,

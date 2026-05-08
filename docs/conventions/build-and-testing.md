@@ -171,7 +171,8 @@ writeFeatureFlags(patch)     // → updated flags
 subscribeFeatureFlags(fn)    // → unsubscribe
 
 // Current flags
-enable_user_access_to_agent_modal: false  // Agent modal in sidebar
+enable_user_access_to_agents: false      // Agents tab in the agents modal
+enable_user_access_to_characters: false  // Characters tab in the agents modal
 ```
 
 In production builds, flags can be overridden via `REACT_APP_BUILD_FEATURE_FLAGS` env var.

@@ -17,7 +17,7 @@ describe("useChatSessionState deleted active chat handling", () => {
   });
 
   test("does not flush stale draft or stream messages back into a deleted active chat", async () => {
-    const activeStreamMessagesRef = { current: null };
+    const activeStreamsRef = { current: new Map() };
     const setDraftAttachments = jest.fn();
     const setStreamError = jest.fn();
 
@@ -25,17 +25,16 @@ describe("useChatSessionState deleted active chat handling", () => {
       useChatSessionState({
         draftAttachments: [],
         setDraftAttachments,
-        activeStreamMessagesRef,
+        activeStreamsRef,
         setStreamError,
       }),
     );
 
     const oldChatId = result.current.activeChatIdRef.current;
     const oldNodeId = findNodeIdByChatId(getChatsStore().tree, oldChatId);
-    activeStreamMessagesRef.current = {
-      chatId: oldChatId,
+    activeStreamsRef.current.set(oldChatId, {
       messages: [{ role: "user", content: "stale stream message" }],
-    };
+    });
 
     act(() => {
       result.current.setInputValue("stale draft text");

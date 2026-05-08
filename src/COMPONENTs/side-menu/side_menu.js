@@ -38,6 +38,7 @@ import {
   subscribeFeatureFlags,
 } from "../../SERVICEs/feature_flags";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import SuspenseFallback from "../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
 
 /* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
 const SettingsModal = lazy(() =>
@@ -256,8 +257,10 @@ const SideMenu = () => {
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
   const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
-  const isAgentModalEnabled =
-    featureFlags.enable_user_access_to_agent_modal === true;
+  const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
+  const isCharactersEnabled =
+    featureFlags.enable_user_access_to_characters === true;
+  const isAgentModalEnabled = isAgentsEnabled || isCharactersEnabled;
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -719,7 +722,7 @@ const SideMenu = () => {
       />
 
       {/* Lazy modals: loaded on first open, kept mounted for exit animation */}
-      <Suspense fallback={null}>
+      <Suspense fallback={<SuspenseFallback fullscreen />}>
         {lazyMountedRef.current.settings && (
           <SettingsModal
             open={settingsOpen}
@@ -735,6 +738,8 @@ const SideMenu = () => {
           <AgentsModal
             open={isAgentModalEnabled && agentsOpen}
             onClose={() => setAgentsOpen(false)}
+            isAgentsEnabled={isAgentsEnabled}
+            isCharactersEnabled={isCharactersEnabled}
           />
         )}
 

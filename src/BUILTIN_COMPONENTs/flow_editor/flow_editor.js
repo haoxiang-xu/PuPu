@@ -13,6 +13,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 
 /* { Internal components } --------------------------------------------------------------------------------------------------- */
 import { FlowEditorNode } from "./node";
+import PuzzleDefs from "./puzzle_defs";
 /* { Internal components } --------------------------------------------------------------------------------------------------- */
 
 /* { Utilities } ------------------------------------------------------------------------------------------------------------- */
@@ -68,6 +69,7 @@ const DEFAULT_THEME = {
 
 function FlowEditor({
   style,
+  theme: theme_override,
   nodes = [],
   edges = [],
   on_nodes_change,
@@ -76,17 +78,23 @@ function FlowEditor({
   on_edge_add_node,
   on_select,
   render_node,
+  validate_connection,
   grid_size = 20,
   min_zoom = 0.1,
   max_zoom = 3,
+  reset_token,
   ...props
 }) {
   const { theme: config_theme } = useContext(ConfigContext);
 
-  /* ── Theme (merge defaults + user theme) ────────────────── */
+  /* ── Theme (merge defaults + config + per-instance override) ── */
   const theme = useMemo(
-    () => ({ ...DEFAULT_THEME, ...(config_theme?.flow_editor || {}) }),
-    [config_theme],
+    () => ({
+      ...DEFAULT_THEME,
+      ...(config_theme?.flow_editor || {}),
+      ...(theme_override || {}),
+    }),
+    [config_theme, theme_override],
   );
 
   /* ── React state ────────────────────────────────────────── */
@@ -94,6 +102,7 @@ function FlowEditor({
   const [selected_node_ids, setSelectedNodeIds] = useState([]);
   const [selected_edge_id, setSelectedEdgeId] = useState(null);
   const [is_connecting, setIsConnecting] = useState(false);
+  const [is_reconnecting, setIsReconnecting] = useState(false);
   const [dims_version, set_dims_version] = useState(0);
   const [snap_guides, setSnapGuides] = useState([]);
   const [hovered_edge_id, setHoveredEdgeId] = useState(null);
@@ -115,6 +124,7 @@ function FlowEditor({
   const drag_ref = useRef(null);
   const pan_ref = useRef(null);
   const connecting_ref = useRef(null);
+  const reconnecting_ref = useRef(null);
   const space_ref = useRef(false);
   const zoom_raf_ref = useRef(null);
 
@@ -134,6 +144,16 @@ function FlowEditor({
   useEffect(() => {
     selected_edge_ref.current = selected_edge_id;
   }, [selected_edge_id]);
+
+  useEffect(() => {
+    if (reset_token === undefined) return;
+    const next = { x: 0, y: 0, zoom: 1 };
+    viewport_ref.current = next;
+    if (viewport_div_ref.current) {
+      viewport_div_ref.current.style.transform = `translate(0px, 0px) scale(1)`;
+    }
+    setViewport(next);
+  }, [reset_token]);
 
   /* ═══════════════════════════════════════════════════════════ */
   /*  Registration helpers                                      */
@@ -492,6 +512,33 @@ function FlowEditor({
           }),
         );
       }
+
+      /* ── Reconnect drawing ── */
+      if (reconnecting_ref.current && temp_edge_ref.current) {
+        const rc = reconnecting_ref.current;
+        const fixed_node = nodes_ref.current.find(
+          (n) => n.id === rc.fixed_node_id,
+        );
+        if (!fixed_node) return;
+        const fixed_pos = get_port_position(
+          fixed_node,
+          rc.fixed_port_id,
+          node_dimensions_ref.current,
+        );
+        if (!fixed_pos) return;
+        const rect = canvas_ref.current.getBoundingClientRect();
+        const vp = viewport_ref.current;
+        const mx = (e.clientX - rect.left - vp.x) / vp.zoom;
+        const my = (e.clientY - rect.top - vp.y) / vp.zoom;
+        temp_edge_ref.current.setAttribute(
+          "d",
+          calculate_bezier_path(fixed_pos, {
+            x: mx,
+            y: my,
+            side: opposite_side(fixed_pos.side),
+          }),
+        );
+      }
     };
 
     const handle_up = (e) => {
@@ -539,15 +586,89 @@ function FlowEditor({
           node_id &&
           !(conn.source_node_id === node_id && conn.source_port_id === port_id)
         ) {
-          on_connect?.({
-            source_node_id: conn.source_node_id,
-            source_port_id: conn.source_port_id,
-            target_node_id: node_id,
-            target_port_id: port_id,
-          });
+          const src_node = nodes_ref.current.find(
+            (n) => n.id === conn.source_node_id,
+          );
+          const tgt_node = nodes_ref.current.find((n) => n.id === node_id);
+          let ok = true;
+          if (validate_connection && src_node && tgt_node) {
+            const result = validate_connection({
+              source: { node: src_node, port: conn.source_port_id },
+              target: { node: tgt_node, port: port_id },
+            });
+            ok = result === true;
+          }
+          if (ok) {
+            on_connect?.({
+              source_node_id: conn.source_node_id,
+              source_port_id: conn.source_port_id,
+              target_node_id: node_id,
+              target_port_id: port_id,
+            });
+          }
         }
         connecting_ref.current = null;
         setIsConnecting(false);
+      }
+
+      /* ── Reconnect end ── */
+      if (reconnecting_ref.current) {
+        const rc = reconnecting_ref.current;
+        const target = document.elementFromPoint(e.clientX, e.clientY);
+        const new_port_id = target?.dataset?.portId;
+        const new_node_id = target?.dataset?.nodeId;
+        const edge = edges_ref.current.find((x) => x.id === rc.edge_id);
+        reconnecting_ref.current = null;
+        setIsReconnecting(false);
+        if (!edge) return;
+        let updated = null;
+        if (new_port_id && new_node_id) {
+          if (rc.grabbed === "source") {
+            updated = {
+              ...edge,
+              source_node_id: new_node_id,
+              source_port_id: new_port_id,
+            };
+          } else {
+            updated = {
+              ...edge,
+              target_node_id: new_node_id,
+              target_port_id: new_port_id,
+            };
+          }
+        }
+        let ok = false;
+        if (updated && validate_connection) {
+          const src_node = nodes_ref.current.find(
+            (n) => n.id === updated.source_node_id,
+          );
+          const tgt_node = nodes_ref.current.find(
+            (n) => n.id === updated.target_node_id,
+          );
+          if (src_node && tgt_node) {
+            const res = validate_connection({
+              source: { node: src_node, port: updated.source_port_id },
+              target: { node: tgt_node, port: updated.target_port_id },
+              exclude_edge_id: rc.edge_id,
+            });
+            ok = res === true;
+          }
+        } else if (updated && !validate_connection) {
+          ok = true;
+        }
+        if (ok) {
+          on_edges_change?.(
+            edges_ref.current.map((e2) =>
+              e2.id === rc.edge_id ? updated : e2,
+            ),
+          );
+        } else {
+          on_edges_change?.(
+            edges_ref.current.filter((e2) => e2.id !== rc.edge_id),
+          );
+          if (selected_edge_ref.current === rc.edge_id) setSelectedEdgeId(null);
+        }
+        return;
       }
     };
 
@@ -560,10 +681,12 @@ function FlowEditor({
   }, [
     grid_size,
     on_nodes_change,
+    on_edges_change,
     on_connect,
     on_select,
     update_edges_for_node,
     compute_snap,
+    validate_connection,
   ]);
 
   /* ═══════════════════════════════════════════════════════════ */
@@ -591,14 +714,19 @@ function FlowEditor({
         }
         if (selected_ref.current.length > 0) {
           const ids = selected_ref.current;
+          const deletable_ids = ids.filter((id) => {
+            const n = nodes_ref.current.find((x) => x.id === id);
+            return !n || n.deletable !== false;
+          });
+          if (deletable_ids.length === 0) return;
           on_nodes_change?.(
-            nodes_ref.current.filter((n) => !ids.includes(n.id)),
+            nodes_ref.current.filter((n) => !deletable_ids.includes(n.id)),
           );
           on_edges_change?.(
             edges_ref.current.filter(
               (edge) =>
-                !ids.includes(edge.source_node_id) &&
-                !ids.includes(edge.target_node_id),
+                !deletable_ids.includes(edge.source_node_id) &&
+                !deletable_ids.includes(edge.target_node_id),
             ),
           );
           setSelectedNodeIds([]);
@@ -659,7 +787,6 @@ function FlowEditor({
       height: 0,
       transformOrigin: "0 0",
       transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
-      willChange: "transform",
     }),
     [viewport],
   );
@@ -683,7 +810,7 @@ function FlowEditor({
       if (!sp || !tp) return { ...edge, d: "", midpoint: null };
       const d = calculate_bezier_path(sp, tp);
       const midpoint = get_bezier_midpoint(sp, tp);
-      return { ...edge, d, midpoint };
+      return { ...edge, d, midpoint, source_pos: sp, target_pos: tp };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edges, nodes, dims_version]);
@@ -709,6 +836,7 @@ function FlowEditor({
       onContextMenu={(e) => e.preventDefault()}
       {...props}
     >
+      <PuzzleDefs />
       <div ref={viewport_div_ref} style={viewport_transform_style}>
         {/* ── SVG edge layer ── */}
         <svg
@@ -760,6 +888,7 @@ function FlowEditor({
                     ? theme.edgeWidth + 1
                     : theme.edgeWidth
                 }
+                strokeDasharray={ep.style === "dashed" ? "5 4" : undefined}
                 strokeLinecap="round"
                 style={{
                   pointerEvents: "none",
@@ -816,6 +945,114 @@ function FlowEditor({
                   />
                 </g>
               )}
+              {/* × button at midpoint — delete edge */}
+              {ep.midpoint && on_edges_change && (
+                <g
+                  data-edge-delete-btn={ep.id}
+                  style={{
+                    cursor: "pointer",
+                    opacity:
+                      hovered_edge_id === ep.id || selected_edge_id === ep.id
+                        ? 1
+                        : 0,
+                    filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.15))",
+                    transition: "opacity 0.18s ease",
+                    pointerEvents:
+                      hovered_edge_id === ep.id || selected_edge_id === ep.id
+                        ? "auto"
+                        : "none",
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    on_edges_change(
+                      edges_ref.current.filter((edge) => edge.id !== ep.id),
+                    );
+                    if (selected_edge_id === ep.id) setSelectedEdgeId(null);
+                  }}
+                >
+                  <circle
+                    cx={ep.midpoint.x}
+                    cy={ep.midpoint.y}
+                    r={9}
+                    fill={
+                      selected_edge_id === ep.id
+                        ? theme.edgeActiveColor
+                        : theme.edgeAddBtnBg || "#ffffff"
+                    }
+                    stroke={
+                      selected_edge_id === ep.id
+                        ? theme.edgeActiveColor
+                        : "rgba(0,0,0,0.12)"
+                    }
+                    strokeWidth={1}
+                  />
+                  <line
+                    x1={ep.midpoint.x - 3.5}
+                    y1={ep.midpoint.y - 3.5}
+                    x2={ep.midpoint.x + 3.5}
+                    y2={ep.midpoint.y + 3.5}
+                    stroke={
+                      selected_edge_id === ep.id ? "#ffffff" : "rgba(0,0,0,0.55)"
+                    }
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                  />
+                  <line
+                    x1={ep.midpoint.x + 3.5}
+                    y1={ep.midpoint.y - 3.5}
+                    x2={ep.midpoint.x - 3.5}
+                    y2={ep.midpoint.y + 3.5}
+                    stroke={
+                      selected_edge_id === ep.id ? "#ffffff" : "rgba(0,0,0,0.55)"
+                    }
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                  />
+                </g>
+              )}
+              {/* Endpoint reconnect handles */}
+              {ep.source_pos &&
+                (hovered_edge_id === ep.id || selected_edge_id === ep.id) && (
+                  <circle
+                    cx={ep.source_pos.x}
+                    cy={ep.source_pos.y}
+                    r={8}
+                    fill="transparent"
+                    style={{ cursor: "grab", pointerEvents: "auto" }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      reconnecting_ref.current = {
+                        edge_id: ep.id,
+                        grabbed: "source",
+                        fixed_node_id: ep.target_node_id,
+                        fixed_port_id: ep.target_port_id,
+                      };
+                      setIsReconnecting(true);
+                    }}
+                  />
+                )}
+              {ep.target_pos &&
+                (hovered_edge_id === ep.id || selected_edge_id === ep.id) && (
+                  <circle
+                    cx={ep.target_pos.x}
+                    cy={ep.target_pos.y}
+                    r={8}
+                    fill="transparent"
+                    style={{ cursor: "grab", pointerEvents: "auto" }}
+                    onMouseDown={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                      reconnecting_ref.current = {
+                        edge_id: ep.id,
+                        grabbed: "target",
+                        fixed_node_id: ep.source_node_id,
+                        fixed_port_id: ep.source_port_id,
+                      };
+                      setIsReconnecting(true);
+                    }}
+                  />
+                )}
             </g>
           ))}
 
@@ -849,7 +1086,7 @@ function FlowEditor({
           )}
 
           {/* Temporary connection line */}
-          {is_connecting && (
+          {(is_connecting || is_reconnecting) && (
             <path
               ref={temp_edge_ref}
               d=""

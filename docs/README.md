@@ -6,6 +6,10 @@ Project documentation lives in this folder. Start with the **Developer Guide** f
 
 - **[DEV_GUIDE.md](./DEV_GUIDE.md)** — Main entry point: project overview, architecture, quick start, and documentation map
 
+## Release Notes
+
+- [v0.1.5 Release Notes Draft](./release-notes/v0.1.5.md) — Draft copy for the next GitHub Release notes
+
 ### Architecture
 
 - [Request Flow & Streaming](./architecture/request-flow-and-streaming.md) — End-to-end chat streaming, SSE protocol, V2 frame types

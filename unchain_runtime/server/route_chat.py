@@ -436,6 +436,7 @@ def chat_stream_v2() -> Response:
                 _UNSANITIZED_EVENT_TYPES = (
                     "final_message", "token_delta", "request_messages",
                     "tool_call", "tool_result", "continuation_request",
+                    "workflow_step_final", "workflow_step_delta",
                     "subagent_spawned", "subagent_started", "subagent_completed",
                     "subagent_failed", "subagent_handoff", "subagent_batch_started",
                     "subagent_batch_joined", "subagent_clarification_requested",

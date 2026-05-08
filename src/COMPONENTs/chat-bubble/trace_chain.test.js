@@ -292,11 +292,12 @@ describe("TraceChain final_message draft timeline", () => {
       },
     });
 
-    const allowButton = screen.getByRole("button", { name: "Allow" });
+    const allowButton = screen.getByRole("button", { name: "Allow once" });
     fireEvent.click(allowButton);
     expect(onToolConfirmationDecision).toHaveBeenCalledWith({
       confirmationId: "confirm-1",
       approved: true,
+      scope: "once",
     });
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
   });
@@ -360,6 +361,7 @@ describe("TraceChain final_message draft timeline", () => {
         value: "__other__",
         other_text: "Custom engine",
       },
+      scope: "once",
     });
   });
 
@@ -701,6 +703,90 @@ describe("TraceChain final_message draft timeline", () => {
 
     // Branches auto-expand — child content visible immediately
     expect(screen.getByText("Child delegate final output")).toBeInTheDocument();
+  });
+
+  test("forwards selector requests from delegate child timelines", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          arguments: {
+            target: "analyzer",
+            task: "Ask the user which surface to inspect",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          result: {
+            agent_name: "developer.analyzer.1",
+            template_name: "analyzer",
+            status: "running",
+          },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision,
+      toolConfirmationUiStateById: {
+        "confirm-child": { status: "idle", error: "" },
+      },
+      subagentFrames: {
+        "child-run-alpha": [
+          frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+          frame({
+            seq: 2,
+            type: "tool_call",
+            payload: {
+              call_id: "ask-child",
+              confirmation_id: "confirm-child",
+              requires_confirmation: true,
+              tool_name: "ask_user_question",
+              interact_type: "single",
+              interact_config: {
+                question: "Child needs input?",
+                options: [{ label: "Frontend", value: "frontend" }],
+              },
+            },
+            ts: 20,
+          }),
+        ],
+      },
+      subagentMetaByRunId: {
+        "child-run-alpha": {
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          batchId: "",
+          parentId: "developer",
+          lineage: ["developer", "developer.analyzer.1"],
+          status: "running",
+        },
+      },
+    });
+
+    expect(screen.getByText("Child needs input?")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Frontend"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-child",
+      approved: true,
+      userResponse: { value: "frontend" },
+      scope: "once",
+    });
   });
 
   test("renders worker batch children as separate collapsed timelines in batch order", () => {

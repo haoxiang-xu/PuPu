@@ -205,6 +205,8 @@ const CodeDiffInteractRunner = () => {
   return (
     <div
       className="scrollable"
+      data-sb-edge="16"
+      data-sb-wall="2"
       style={{
         position: "absolute",
         inset: 0,

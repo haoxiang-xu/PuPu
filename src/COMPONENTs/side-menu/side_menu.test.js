@@ -32,18 +32,33 @@ describe("SideMenu", () => {
     window.localStorage.clear();
   });
 
-  test("hides the Agents entry when the agent modal feature flag is disabled", () => {
+  test("hides the Agents entry when both feature flags are disabled", () => {
     renderSideMenu();
 
     expect(screen.queryByText("Agents")).not.toBeInTheDocument();
   });
 
-  test("shows the Agents entry when the agent modal feature flag is enabled", () => {
+  test("shows the Agents entry when only the agents flag is enabled", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
         feature_flags: {
-          enable_user_access_to_agent_modal: true,
+          enable_user_access_to_agents: true,
+        },
+      }),
+    );
+
+    renderSideMenu();
+
+    expect(screen.getByText("Agents")).toBeInTheDocument();
+  });
+
+  test("shows the Agents entry when only the characters flag is enabled", () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_user_access_to_characters: true,
         },
       }),
     );

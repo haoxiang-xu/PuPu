@@ -16,7 +16,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 
 const ANIM_DURATION = 260; // ms — matches CSS transition
 
-const Modal = ({ open, onClose, style, overlayStyle, children }) => {
+const Modal = ({ open, onClose, style, overlayStyle, fullscreen, children }) => {
   const { theme } = useContext(ConfigContext);
   const mt = theme?.modal || {};
 
@@ -95,6 +95,19 @@ const Modal = ({ open, onClose, style, overlayStyle, children }) => {
           fontFamily: theme?.font?.fontFamily || "inherit",
           color: theme?.color || "#222",
           ...style,
+          ...(fullscreen
+            ? {
+                position: "fixed",
+                inset: 0,
+                width: "100vw",
+                height: "100vh",
+                maxWidth: "100vw",
+                maxHeight: "100vh",
+                minWidth: 0,
+                borderRadius: 0,
+                margin: 0,
+              }
+            : null),
         }}
       >
         {children}

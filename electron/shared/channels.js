@@ -2,6 +2,10 @@ const CHANNELS = Object.freeze({
   APP: Object.freeze({
     GET_VERSION: "app:get-version",
   }),
+  CHAT_STORAGE: Object.freeze({
+    BOOTSTRAP_READ: "chat-storage:bootstrap-read",
+    WRITE: "chat-storage:write",
+  }),
   UPDATE: Object.freeze({
     GET_STATE: "update:get-state",
     CHECK_AND_DOWNLOAD: "update:check-and-download",
@@ -45,6 +49,11 @@ const CHANNELS = Object.freeze({
     GET_CHARACTER: "unchain:get-character",
     SAVE_CHARACTER: "unchain:save-character",
     DELETE_CHARACTER: "unchain:delete-character",
+    LIST_RECIPES: "unchain:list-recipes",
+    GET_RECIPE: "unchain:get-recipe",
+    SAVE_RECIPE: "unchain:save-recipe",
+    DELETE_RECIPE: "unchain:delete-recipe",
+    LIST_SUBAGENT_REFS: "unchain:list-subagent-refs",
     PREVIEW_CHARACTER_DECISION: "unchain:preview-character-decision",
     BUILD_CHARACTER_AGENT_CONFIG: "unchain:build-character-agent-config",
     EXPORT_CHARACTER: "unchain:export-character",
@@ -67,6 +76,17 @@ const CHANNELS = Object.freeze({
   WINDOW_STATE: Object.freeze({
     HANDLE_ACTION: "window-state-event-handler",
     LISTENER_EVENT: "window-state-event-listener",
+  }),
+  SCREENSHOT: Object.freeze({
+    CAPTURE: "screenshot:capture",
+    CHECK_AVAILABILITY: "screenshot:check-availability",
+  }),
+  TEST_BRIDGE: Object.freeze({
+    INVOKE: "test-bridge:invoke",
+    RESULT: "test-bridge:result",
+    LOG: "test-bridge:log",
+    EVENT: "test-bridge:event",
+    READY: "test-bridge:ready",
   }),
 });
 

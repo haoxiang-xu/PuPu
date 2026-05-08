@@ -1,0 +1,5 @@
+{"type":"server-started","port":57478,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:57478","screen_dir":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/29012-1776996864/content","state_dir":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/29012-1776996864/state"}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/29012-1776996864/content/builder-concept.html"}
+{"source":"user-event","type":"click","text":"A\n    \n      OK，就这个方向\n      Hub-and-spoke + inspector，我们往这方向细化","choice":"yes","id":null,"timestamp":1776997011349}
+{"type":"screen-added","file":"/Users/red/Desktop/GITRepo/PuPu/.superpowers/brainstorm/29012-1776996864/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal_lifecycle";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import { SECTIONS } from "./constants";
@@ -9,6 +10,7 @@ import ToolkitsPage from "./pages/toolkits_page";
 import ComingSoonPage from "./pages/coming_soon_page";
 
 export const ToolkitModal = ({ open, onClose }) => {
+  useModalLifecycle("toolkit-modal", open);
   const { onThemeMode } = useContext(ConfigContext);
   const { t } = useTranslation();
   const isDark = onThemeMode === "dark_mode";

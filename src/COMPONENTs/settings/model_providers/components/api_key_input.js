@@ -6,6 +6,7 @@ import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_tr
 import ConfirmDeleteApiKeyModal from "./confirm_delete_api_key_modal";
 import { readModelProviders, writeModelProviders } from "../storage";
 import { emitModelCatalogRefresh } from "../../../../SERVICEs/model_catalog_refresh";
+import { toast } from "../../../../SERVICEs/toast";
 
 const APIKeyInput = ({ storage_key, label, placeholder }) => {
   const { t } = useTranslation();
@@ -31,7 +32,12 @@ const APIKeyInput = ({ storage_key, label, placeholder }) => {
     setValue(trimmed);
     setSaved(!!trimmed);
     setJustSaved(true);
-  }, [value, storage_key]);
+    if (trimmed) {
+      toast.success(`${label} saved`, {
+        dedupeKey: `api_key_save_${storage_key}`,
+      });
+    }
+  }, [value, storage_key, label]);
 
   const handleChange = useCallback((v) => {
     setValue(v);

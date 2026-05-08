@@ -1,0 +1,120 @@
+<h2>Section 5 / 5 · 测试策略与实施顺序</h2>
+<p class="subtitle">按 PR 切片的渐进路径,每步都有明确的回归保护</p>
+
+<div class="section">
+  <p class="label">① 测试层次 · 三层金字塔</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.7;padding:20px;white-space:pre">
+┌──────────────────────────────────────────────────────────────────┐
+│  E2E (smoke)                    2–3 条                           │
+│    · 默认走 pupu_developer,回归 subagent delegate              │
+│    · 切到 pupu_analyzer,确认只读 toolkit 生效                   │
+│    · 用户自建 agent(minimal fixture)可跑通 chat              │
+├──────────────────────────────────────────────────────────────────┤
+│  Integration                    ~15 条                           │
+│    · route_agents.py  · list/get/create/update/delete           │
+│    · _build_agent_from_spec · 内置 + 用户 spec 两条路径         │
+│    · payload.primary_agent_id 注入 · fallback 到 developer      │
+│    · registry boot · seed builtin + load user store             │
+├──────────────────────────────────────────────────────────────────┤
+│  Unit                           大量                             │
+│    · agent_spec.validate() · id 规则/prompt 段/toolkit 格式      │
+│    · agent_spec.to_dict/from_dict 往返                           │
+│    · agent_store · 文件读写 + 损坏 JSON 容错                    │
+│    · agent_registry · 冲突 (builtin vs user) / resolve_toolkits  │
+│    · agent_registry · resolve_delegates 白名单解析               │
+│    · chat_storage_sanitize · primaryAgentId 默认值/无效 ID       │
+│    · api.agents.js · mock bridge + 快照缓存                      │
+└──────────────────────────────────────────────────────────────────┘
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <p class="label">② 实施顺序 · 7 个可独立 merge 的 PR</p>
+  <div class="mockup">
+    <div class="mockup-body" style="padding:18px 20px;font-size:12.5px;line-height:1.75">
+<div style="display:grid;grid-template-columns:32px 1fr;gap:8px 14px">
+
+<div style="color:#7aa2f7;font-weight:bold">P1</div>
+<div><b>agent_spec 基座</b><br/>
+<span style="opacity:0.7">新增 <code>agent_spec.py</code> + <code>test_agent_spec.py</code>。纯 dataclass,不接任何现有代码。单独可 merge。</span><br/>
+<span style="color:#9ece6a">✓ 回归面: 无</span></div>
+
+<div style="color:#7aa2f7;font-weight:bold">P2</div>
+<div><b>内置 spec 暴露</b><br/>
+<span style="opacity:0.7">改 <code>prompts/agents/developer.py · analyzer.py · executor.py</code>,加 3 个 SPEC 常量 + <code>BUILTIN_SPECS</code> tuple。原 <code>*_PROMPT_SECTIONS</code> 不动。</span><br/>
+<span style="color:#9ece6a">✓ 回归面: 只读导出,运行时无行为变化</span></div>
+
+<div style="color:#7aa2f7;font-weight:bold">P3</div>
+<div><b>registry + store + service 骨架</b><br/>
+<span style="opacity:0.7"><code>agent_registry.py · agent_store.py · agent_service.py</code> + 测试。app.py 启动时 boot。仍没人消费它。</span><br/>
+<span style="color:#9ece6a">✓ 回归面: boot 多一步, adapter 还未改造</span></div>
+
+<div style="color:#e0af68">P4</div>
+<div><b>adapter 重构(<span style="color:#f7768e">风险最高</span>)</b><br/>
+<span style="opacity:0.7"><code>_build_developer_agent → _build_agent_from_spec</code>。<code>_create_agent</code> 从 registry 取 spec。<br/>
+<b>行为不变</b>: 没传 primary_agent_id 时走 pupu_developer,subagent templates 从 registry 派生应与硬编码路径等价。</span><br/>
+<span style="color:#e0af68">⚠ 回归面: 现有 adapter 单测 + chat E2E 必须全绿</span></div>
+
+<div style="color:#7aa2f7;font-weight:bold">P5</div>
+<div><b>route_agents 只读端点</b><br/>
+<span style="opacity:0.7"><code>GET /agents</code> + <code>GET /agents/:id</code>。list + detail,全是 registry 快照。</span><br/>
+<span style="color:#9ece6a">✓ 回归面: 新 blueprint 独立</span></div>
+
+<div style="color:#7aa2f7;font-weight:bold">P6</div>
+<div><b>前端 bridge + config boot load</b><br/>
+<span style="opacity:0.7">electron main/preload agents_bridge、<code>SERVICEs/api.agents.js</code>、<code>ConfigContainer</code> 启动时拉快照。不接 UI。</span><br/>
+<span style="color:#9ece6a">✓ 回归面: 启动多一次 HTTP,失败静默回退空集</span></div>
+
+<div style="color:#7aa2f7;font-weight:bold">P7</div>
+<div><b>primary_agent_selector + 注入</b><br/>
+<span style="opacity:0.7"><code>chat.js toolbar</code> 加入选择器、<code>chat_storage</code> 加 <code>primaryAgentId</code> 字段、<code>api.unchain.injectPrimaryAgentIntoPayload</code>。</span><br/>
+<span style="color:#9ece6a">✓ 回归面: session sanitize + 现有 chat flow</span></div>
+
+</div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <p class="label">③ 回归保护点 · 必须通过的既有测试</p>
+  <div class="mockup">
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:12px;line-height:1.7;padding:20px;white-space:pre">
+每个 PR 合并前:
+
+  unchain_runtime/server/tests/
+    test_unchain_adapter_*.py          ← P4 必须全绿
+    test_routes_chat.py                ← P4 必须全绿
+    test_memory_factory.py             ← 不受影响,抽检
+
+  src/
+    SERVICEs/chat_storage/*.test.js    ← P7 必须全绿
+    SERVICEs/api.unchain.test.js       ← P7 必须全绿
+    PAGEs/chat/hooks/*.test.js         ← P7 必须全绿
+
+  electron/
+    tests/ipc/*.test.cjs               ← P6 + P7 抽检 bridge 注册
+
+手动冒烟(每个 PR 后):
+  · 启动 app → 发一条消息 → 确认不报错
+  · P7 后: 切换 primary agent → 发消息 → 观察日志 agent id 正确
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <h3>关键决策(锁定)</h3>
+  <ul style="line-height:1.85">
+    <li><b>按 PR 切片而不是一次性合并</b> — P4 是唯一的"危险步骤",其它 6 步都是纯新增或只读</li>
+    <li><b>P3 提交时 registry 已经可用但没人消费</b> — 方便单独验证 boot 顺序与 store 加载,不会影响 chat</li>
+    <li><b>P4 不改默认行为</b> — 没传 primary_agent_id 时回退到 pupu_developer,现有 session 零感知</li>
+    <li><b>前端 P6/P7 分开</b> — P6 只做数据通路(配了就能在 devtools 里看到 agents 列表),P7 才接 UI</li>
+    <li><b>E2E smoke 放在 P7 之后补</b> — 之前的 PR 用单测 + 现有 E2E 兜底</li>
+  </ul>
+</div>
+
+<div class="section" style="margin-top:18px">
+  <h3>本节完成后的出口</h3>
+  <p style="line-height:1.8">5 个 section 全部锁定 → 写 <code>docs/superpowers/specs/2026-04-14-agent-pool-design.md</code> → spec 自审 → 用户 review → 转 writing-plans 生成实施计划。</p>
+</div>

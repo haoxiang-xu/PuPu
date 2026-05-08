@@ -8,7 +8,10 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
  * container. They never become part of the scrollable content, so they
  * stay pinned to the visual edges at all times.
  *
- * Per-element config via data-sb-edge="N" (edge inset in px).
+ * Per-element config:
+ *   data-sb-edge="N" — track margin at both ends (top/bottom for V, left/right for H).
+ *   data-sb-wall="N" — distance from the outer wall (right for V, bottom for H).
+ *                      Defaults to the element's edge if not set.
  */
 const Scrollable = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -52,6 +55,11 @@ const Scrollable = () => {
       return attr != null ? Number(attr) : DEFAULT_EDGE;
     }
 
+    function getWall(el, edge) {
+      const attr = el.getAttribute("data-sb-wall");
+      return attr != null ? Number(attr) : edge;
+    }
+
     function makeThumb() {
       const el = document.createElement("div");
       Object.assign(el.style, {
@@ -81,6 +89,7 @@ const Scrollable = () => {
       if (pcs.position === "static") parent.style.position = "relative";
 
       const edge = getEdge(container);
+      const wall = getWall(container, edge);
 
       /* Create overlay — a non-scrolling sibling that sits on top */
       const overlay = document.createElement("div");
@@ -143,7 +152,7 @@ const Scrollable = () => {
           Object.assign(vThumb.style, {
             display: "",
             top: oy + edge + pct * (trackH - thumbH) + "px",
-            left: ox + cw - edge - vThick + "px",
+            left: ox + cw - wall - vThick + "px",
             height: thumbH + "px",
             width: vThick + "px",
           });
@@ -160,7 +169,7 @@ const Scrollable = () => {
           const pct = maxScroll > 0 ? sl / maxScroll : 0;
           Object.assign(hThumb.style, {
             display: "",
-            top: oy + ch - edge - hThick + "px",
+            top: oy + ch - wall - hThick + "px",
             left: ox + edge + pct * (trackW - thumbW) + "px",
             width: thumbW + "px",
             height: hThick + "px",

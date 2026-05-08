@@ -15,9 +15,19 @@ import ChatInterface from "./PAGEs/chat/chat";
 import DemoPage from "./PAGEs/demo/demo";
 /* { Demos ( remove during production ) } -------------------------------------------------------------------------------------- */
 
+/* { Global hosts } ------------------------------------------------------------------------------------------------------------- */
+import ToastHost from "./BUILTIN_COMPONENTs/toast/toast_host";
+/* { Global hosts } ------------------------------------------------------------------------------------------------------------- */
+
+/* { Test bridge (dev only — dynamic import keeps prod main bundle clean) } */
+if (process.env.NODE_ENV !== "production") {
+  import("./SERVICEs/test_bridge");
+}
+
 const App = () => {
   return (
     <ConfigContainer>
+      <ToastHost />
       <Router>
         <Routes>
           {/* { Main Routes } -------------------------------------------------------------------------------------------- */}

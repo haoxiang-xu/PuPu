@@ -31,16 +31,16 @@ describe("feature_flags service", () => {
     }
   });
 
-  test("reads the agent modal flag as disabled by default in development", () => {
+  test("reads the agent and character flags as disabled by default in development", () => {
     const { readFeatureFlags, isFeatureFlagEnabled } = loadFeatureFlagsModule();
 
     expect(readFeatureFlags()).toEqual({
-      enable_user_access_to_agent_modal: false,
+      enable_user_access_to_agents: false,
+      enable_user_access_to_characters: false,
       enable_app_update_settings: true,
     });
-    expect(isFeatureFlagEnabled("enable_user_access_to_agent_modal")).toBe(
-      false,
-    );
+    expect(isFeatureFlagEnabled("enable_user_access_to_agents")).toBe(false);
+    expect(isFeatureFlagEnabled("enable_user_access_to_characters")).toBe(false);
     expect(isFeatureFlagEnabled("enable_app_update_settings")).toBe(true);
   });
 
@@ -49,7 +49,8 @@ describe("feature_flags service", () => {
       "settings",
       JSON.stringify({
         feature_flags: {
-          enable_user_access_to_agent_modal: false,
+          enable_user_access_to_agents: false,
+          enable_user_access_to_characters: false,
         },
       }),
     );
@@ -57,13 +58,15 @@ describe("feature_flags service", () => {
     const { readFeatureFlags } = loadFeatureFlagsModule({
       nodeEnv: "production",
       buildFeatureFlagsEnv: JSON.stringify({
-        enable_user_access_to_agent_modal: true,
+        enable_user_access_to_agents: true,
+        enable_user_access_to_characters: true,
         enable_app_update_settings: false,
       }),
     });
 
     expect(readFeatureFlags()).toEqual({
-      enable_user_access_to_agent_modal: true,
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: true,
       enable_app_update_settings: false,
     });
   });
@@ -82,11 +85,13 @@ describe("feature_flags service", () => {
 
     expect(
       writeFeatureFlags({
-        enable_user_access_to_agent_modal: true,
+        enable_user_access_to_agents: true,
+        enable_user_access_to_characters: true,
         enable_app_update_settings: false,
       }),
     ).toEqual({
-      enable_user_access_to_agent_modal: true,
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: true,
       enable_app_update_settings: false,
     });
 
@@ -95,7 +100,8 @@ describe("feature_flags service", () => {
         theme: "dark_mode",
       },
       feature_flags: {
-        enable_user_access_to_agent_modal: true,
+        enable_user_access_to_agents: true,
+        enable_user_access_to_characters: true,
         enable_app_update_settings: false,
       },
     });
@@ -107,19 +113,22 @@ describe("feature_flags service", () => {
     const unsubscribe = subscribeFeatureFlags(listener);
 
     writeFeatureFlags({
-      enable_user_access_to_agent_modal: true,
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: true,
       enable_app_update_settings: false,
     });
 
     expect(listener).toHaveBeenCalledWith({
-      enable_user_access_to_agent_modal: true,
+      enable_user_access_to_agents: true,
+      enable_user_access_to_characters: true,
       enable_app_update_settings: false,
     });
 
     unsubscribe();
 
     writeFeatureFlags({
-      enable_user_access_to_agent_modal: false,
+      enable_user_access_to_agents: false,
+      enable_user_access_to_characters: false,
     });
 
     expect(listener).toHaveBeenCalledTimes(1);

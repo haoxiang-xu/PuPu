@@ -132,20 +132,24 @@ Sub-agent frames are rendered as nested chains within the main trace.
 
 ---
 
-## Feature Flag
+## Feature Flags
 
-Agent orchestration UI is behind a feature flag:
+Agent orchestration UI is gated by two independent flags — one for the Agents tab, one for the Characters tab:
 
 ```javascript
 FEATURE_FLAG_DEFINITIONS = {
-  enable_user_access_to_agent_modal: {
-    description: "Show the Agents entry in the side menu...",
+  enable_user_access_to_agents: {
+    description: "Show the Agents tab inside the Agents modal.",
+    defaultValue: false,
+  },
+  enable_user_access_to_characters: {
+    description: "Show the Characters tab inside the Agents modal.",
     defaultValue: false,
   },
 }
 ```
 
-When enabled, the Agents modal appears in the sidebar.
+The side-menu entry appears whenever **either** flag is enabled. When only one is enabled, the modal opens to that tab and the other tab shows a "Coming soon" placeholder. When both are disabled, the entry is hidden entirely.
 
 ---
 

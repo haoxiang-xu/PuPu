@@ -1151,6 +1151,8 @@ const TraceChain = ({
                   hideTrack
                   subagentFrames={effectiveSubagentFrames}
                   subagentMetaByRunId={effectiveSubagentMetaByRunId}
+                  onToolConfirmationDecision={onToolConfirmationDecision}
+                  toolConfirmationUiStateById={toolConfirmationUiStateById}
                   _depth={_depth + 1}
                 />
               ) : hasWFrames ? (

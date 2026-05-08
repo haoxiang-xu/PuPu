@@ -1,0 +1,97 @@
+<h2>Section 1 / 5 · 架构总览</h2>
+<p class="subtitle">Unified Agent Registry 的顶层结构</p>
+
+<div class="section">
+  <div class="mockup">
+    <div class="mockup-header">Agent Pool · Module Map</div>
+    <div class="mockup-body" style="font-family:Menlo,monospace;font-size:11.5px;line-height:1.65;padding:20px;white-space:pre">
+┌─────────────────────────────────────────────────────────────────────┐
+│                     FRONTEND (React)                                │
+│                                                                     │
+│   Agents Modal · <b>agents tab</b>                                        │
+│   ┌──────────────┬──────────────────────────────┐                  │
+│   │  Agent List  │   Agent Detail / Edit Form   │                  │
+│   │  (builtin +  │   name · avatar · prompts    │                  │
+│   │   user)      │   allowed_toolkits           │                  │
+│   │              │   allowed_delegates          │                  │
+│   └──────────────┴──────────────────────────────┘                  │
+│          │                       ▲                                  │
+│          │ window.<b>agentsAPI</b>.listAgents / createAgent /            │
+│          │                       updateAgent / deleteAgent          │
+│          ▼                                                          │
+│   Chat UI · primary_agent_id selector (可选,缺省走 developer)     │
+└─────────────────────────────────────────────────────────────────────┘
+                              │ IPC
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                 ELECTRON MAIN · agents_bridge                       │
+│        HTTP → Flask /agents  (list/create/update/delete)           │
+└─────────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FLASK SIDECAR · unchain_runtime                  │
+│                                                                     │
+│   route_agents.py  (CRUD + import/export endpoints)                │
+│           │                                                         │
+│           ▼                                                         │
+│   ┌────────────────────────┐      ┌────────────────────────┐       │
+│   │  agent_service.py      │ ◄────┤  agent_store.py        │       │
+│   │  (orchestration)       │      │  (JSON persistence,    │       │
+│   │                        │      │   user-created only)   │       │
+│   └──────────┬─────────────┘      └────────────────────────┘       │
+│              │ registers                                            │
+│              ▼                                                      │
+│   ┌──────────────────────────────────────────────────────┐         │
+│   │              <b>agent_registry.py</b>  (in-memory)          │         │
+│   │   ┌──────────────────────────────────────────────┐  │         │
+│   │   │  pupu_developer  (builtin, from python)      │  │         │
+│   │   │  pupu_analyzer   (builtin, from python)      │  │         │
+│   │   │  pupu_executor   (builtin, from python)      │  │         │
+│   │   │  my_translator   (user json, from store)     │  │         │
+│   │   │  my_researcher   (user json, from store)     │  │         │
+│   │   │  ...                                          │  │         │
+│   │   └──────────────────────────────────────────────┘  │         │
+│   └──────────┬───────────────────────────────────────────┘         │
+│              │ registry.get(id)                                     │
+│              ▼                                                      │
+│   ┌──────────────────────────────────────────────────────┐         │
+│   │   unchain_adapter.py                                 │         │
+│   │   <b>_build_agent_from_spec(spec, modules, ...)</b>         │         │
+│   │      · 接受 AgentSpec                                │         │
+│   │      · 组装 ToolsModule/MemoryModule/Policies/...    │         │
+│   │      · 返回 _UnchainAgent                            │         │
+│   │                                                      │         │
+│   │   stream_chat_events()                               │         │
+│   │      primary_spec = registry.get(payload.primary_id) │         │
+│   │      agent = _build_agent_from_spec(primary_spec)    │         │
+│   │      subagent templates 也来自 registry.get(...)     │         │
+│   └──────────────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────────────────┘
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>核心决策摘要(锁定)</h3>
+  <ul style="line-height:1.85">
+    <li><b>Scope</b> — 统一池;所有 agent 天然平等,不区分 primary/sub 角色</li>
+    <li><b>来源</b> — 混合:内置走 <code>prompts/agents/*.py</code>,用户自建走 JSON store</li>
+    <li><b>Character 关系</b> — 完全独立,character_store 不动,新增 agent_store 平行存在</li>
+    <li><b>运行时选择</b> — 用户可在 chat 里选 primary,缺省走 <code>pupu_developer</code></li>
+    <li><b>Prompt</b> — 6 段(identity / capability / workflow / delegation / constraints / fallback)</li>
+    <li><b>Toolkit</b> — 硬约束(agent 的 allowed_toolkits 覆盖会话级选择)</li>
+    <li><b>Delegate</b> — 默认 <code>["*"]</code>(互通),由 <code>max_depth=2</code> 防失控</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>关键不变量</h3>
+  <ul style="line-height:1.85">
+    <li>内置 agent 的权威源依然是 <code>prompts/agents/*.py</code>,JSON store 只存用户自建</li>
+    <li>Registry 在 Flask 启动时初始化一次,内置 agent 永久注册,用户 agent 从 store 懒加载</li>
+    <li>Registry 是后端的单一事实源,前端通过 <code>/agents</code> API 获取快照,不做本地缓存式合并</li>
+    <li>内置 agent 在 registry 里标 <code>is_builtin=true</code>,前端 UI 只读</li>
+    <li>运行时没有"硬编码 developer 路径" —— 所有 agent 走 <code>_build_agent_from_spec</code></li>
+  </ul>
+</div>

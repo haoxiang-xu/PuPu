@@ -21,6 +21,10 @@ import {
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
 import { subscribeModelCatalogRefresh } from "../../SERVICEs/model_catalog_refresh";
+import {
+  start as progressStart,
+  stop as progressStop,
+} from "../../SERVICEs/progress_bus";
 import { readModelProviders } from "../../COMPONENTs/settings/model_providers/storage";
 import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
@@ -163,12 +167,13 @@ const ChatInterface = () => {
     reason: "",
   });
   const [modelCatalog, setModelCatalog] = useState(() => EMPTY_MODEL_CATALOG);
+  const [recipeOptions, setRecipeOptions] = useState([]);
   const [configuredProviders, setConfiguredProviders] = useState(() => {
     const stored = readModelProviders();
     return { hasOpenAI: !!stored.openai_api_key, hasAnthropic: !!stored.anthropic_api_key };
   });
 
-  const activeStreamMessagesRef = useRef(null);
+  const activeStreamsRef = useRef(new Map());
   const messagePersistTimerRef = useRef(null);
   const commitUnchainStatus = useCallback((nextStatus) => {
     setUnchainStatus((currentStatus) =>
@@ -193,12 +198,14 @@ const ChatInterface = () => {
     bootstrapped,
     draftAttachments,
     setDraftAttachments,
-    activeStreamMessagesRef,
+    activeStreamsRef,
     setStreamError,
   });
   const activeChatIdRef = session.activeChatIdRef;
   const modelIdRef = session.modelIdRef;
   const setSelectedModelId = session.setSelectedModelId;
+  const setSelectedToolkits = session.setSelectedToolkits;
+  const setSelectedWorkspaceIds = session.setSelectedWorkspaceIds;
   const hasSelectedModel = useMemo(() => {
     if (session.isCharacterChat) {
       return true;
@@ -252,12 +259,38 @@ const ChatInterface = () => {
   const supportsPdfAttachments = activeInputModalities.has("pdf");
   const modelSupportsAttachments =
     supportsImageAttachments || supportsPdfAttachments;
+  const modelSupportsTools = activeModelCapabilities?.supports_tools !== false;
   const attachmentsEnabled = hasSelectedModel && modelSupportsAttachments;
   const attachmentsDisabledReason = !hasSelectedModel
     ? "Select a model to enable attachments."
     : modelSupportsAttachments
       ? ""
       : "Current model does not support image or file inputs.";
+
+  const effectiveSelectedToolkits = useMemo(
+    () => (modelSupportsTools ? session.selectedToolkits : []),
+    [modelSupportsTools, session.selectedToolkits],
+  );
+  const effectiveSelectedWorkspaceIds = useMemo(
+    () => (modelSupportsTools ? session.selectedWorkspaceIds : []),
+    [modelSupportsTools, session.selectedWorkspaceIds],
+  );
+  const handleToolkitsChange = useCallback(
+    (nextToolkits) => {
+      if (modelSupportsTools) {
+        setSelectedToolkits(nextToolkits);
+      }
+    },
+    [modelSupportsTools, setSelectedToolkits],
+  );
+  const handleWorkspaceIdsChange = useCallback(
+    (nextWorkspaceIds) => {
+      if (modelSupportsTools) {
+        setSelectedWorkspaceIds(nextWorkspaceIds);
+      }
+    },
+    [modelSupportsTools, setSelectedWorkspaceIds],
+  );
 
   const attachments = useChatAttachments({
     chatId: session.activeChatId,
@@ -283,8 +316,9 @@ const ChatInterface = () => {
     setDraftAttachments,
     selectedModelId: session.selectedModelId,
     agentOrchestration: session.agentOrchestration,
-    selectedToolkits: session.selectedToolkits,
-    selectedWorkspaceIds: session.selectedWorkspaceIds,
+    selectedToolkits: effectiveSelectedToolkits,
+    selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
+    selectedRecipeName: session.selectedRecipeName,
     chatKind: session.activeChatKind,
     characterId: session.activeCharacterId,
     threadIdRef: session.threadIdRef,
@@ -300,8 +334,13 @@ const ChatInterface = () => {
     modelIdRef: session.modelIdRef,
     setSelectedModelId: session.setSelectedModelId,
     setAgentOrchestration: session.setAgentOrchestration,
-    activeStreamMessagesRef,
+    activeStreamsRef,
   });
+  const {
+    sendForTest: streamSendForTest,
+    stopStream: streamStopStream,
+    isStreaming: streamIsStreaming,
+  } = stream;
 
   useEffect(() => {
     const currentChatId = session.activeChatIdRef.current;
@@ -314,7 +353,7 @@ const ChatInterface = () => {
       messagePersistTimerRef.current = null;
     }
 
-    const delay = stream.isStreaming ? 250 : 0;
+    const delay = streamIsStreaming ? 250 : 0;
     messagePersistTimerRef.current = setTimeout(() => {
       messagePersistTimerRef.current = null;
       storageApi.setChatMessages(currentChatId, session.messages, {
@@ -328,7 +367,29 @@ const ChatInterface = () => {
         messagePersistTimerRef.current = null;
       }
     };
-  }, [session.messages, session.activeChatIdRef, storageApi, stream.isStreaming]);
+  }, [session.messages, session.activeChatIdRef, storageApi, streamIsStreaming]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.__pupuTestBridge) {
+      return undefined;
+    }
+    const off1 = window.__pupuTestBridge.register(
+      "sendMessage",
+      streamSendForTest,
+    );
+    const off2 = window.__pupuTestBridge.register(
+      "cancelMessage",
+      async () => {
+        const wasStreaming = !!streamIsStreaming;
+        streamStopStream();
+        return { ok: true, was_streaming: wasStreaming };
+      },
+    );
+    return () => {
+      off1 && off1();
+      off2 && off2();
+    };
+  }, [streamSendForTest, streamStopStream, streamIsStreaming]);
 
   const refreshUnchainStatus = useCallback(async () => {
     try {
@@ -374,6 +435,8 @@ const ChatInterface = () => {
     : UNCHAIN_STATUS_POLL_INTERVAL_STARTING_MS;
 
   const refreshModelCatalog = useCallback(async () => {
+    const progressId = `model_catalog_refresh_${Date.now()}`;
+    progressStart(progressId, "model_catalog_refresh");
     try {
       const normalized = await api.unchain.getModelCatalog();
       setModelCatalog(normalized);
@@ -396,6 +459,8 @@ const ChatInterface = () => {
       }
     } catch (_error) {
       // ignore transient catalog fetch failures
+    } finally {
+      progressStop(progressId);
     }
   }, [
     activeChatIdRef,
@@ -439,6 +504,22 @@ const ChatInterface = () => {
     };
 
     refreshPersistedCharacterAvatars();
+
+    const refreshRecipeOptions = async () => {
+      try {
+        const { recipes } = await api.unchain.listRecipes();
+        if (cancelled) return;
+        const options = (recipes || []).map((r) => ({
+          label: r.name,
+          value: r.name,
+        }));
+        setRecipeOptions(options);
+      } catch (_exc) {
+        // ignore; recipes are optional
+      }
+    };
+    refreshRecipeOptions();
+
     const unsubscribeModelCatalogRefresh = subscribeModelCatalogRefresh(() => {
       refreshModelCatalog();
       const stored = readModelProviders();
@@ -463,9 +544,6 @@ const ChatInterface = () => {
     if (stream.streamError) {
       return `Unchain error: ${stream.streamError}`;
     }
-    if (stream.hasBackgroundStream) {
-      return "Another chat is streaming a response...";
-    }
     if (stream.isStreaming) {
       return "Unchain is streaming a response...";
     }
@@ -485,14 +563,12 @@ const ChatInterface = () => {
     hasSelectedModel,
     attachmentsDisabledReason,
     unchainStatus,
-    stream.hasBackgroundStream,
     stream.isStreaming,
     stream.streamError,
   ]);
 
   const isSendDisabled =
     (!unchainStatus.ready && !stream.isStreaming) ||
-    stream.hasBackgroundStream ||
     !hasSelectedModel;
 
   const [characterAvailability, setCharacterAvailability] = useState("");
@@ -546,6 +622,7 @@ const ChatInterface = () => {
       disclaimer: effectiveDisclaimer,
       showAttachments: true,
       onAttachFile: attachments.handleAttachFile,
+      onAttachScreenshot: attachments.handleScreenshot,
       onDropFiles: attachments.processFiles,
       attachments: draftAttachments,
       onRemoveAttachment: attachments.removeDraftAttachment,
@@ -556,22 +633,27 @@ const ChatInterface = () => {
       onSelectModel,
       modelSelectDisabled: stream.isStreaming || session.isCharacterChat,
       showModelSelector: !session.isCharacterChat,
-      showToolSelector: !session.isCharacterChat,
-      showWorkspaceSelector: !session.isCharacterChat,
-      selectedToolkits: session.selectedToolkits,
-      onToolkitsChange: session.setSelectedToolkits,
-      selectedWorkspaceIds: session.selectedWorkspaceIds,
-      onWorkspaceIdsChange: session.setSelectedWorkspaceIds,
+      showToolSelector: !session.isCharacterChat && modelSupportsTools,
+      showWorkspaceSelector: !session.isCharacterChat && modelSupportsTools,
+      selectedToolkits: effectiveSelectedToolkits,
+      onToolkitsChange: handleToolkitsChange,
+      selectedWorkspaceIds: effectiveSelectedWorkspaceIds,
+      onWorkspaceIdsChange: handleWorkspaceIdsChange,
+      selectedRecipeName: session.selectedRecipeName,
+      onSelectRecipe: session.setSelectedRecipeName,
+      recipeOptions,
     }),
     [
       session.inputValue, session.setInputValue, session.selectedModelId,
-      session.isCharacterChat, session.selectedToolkits, session.setSelectedToolkits,
-      session.selectedWorkspaceIds, session.setSelectedWorkspaceIds,
+      session.isCharacterChat, effectiveSelectedToolkits, handleToolkitsChange,
+      effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
+      session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.isStreaming,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
-      effectiveDisclaimer, attachments.handleAttachFile, attachments.processFiles,
-      draftAttachments, attachments.removeDraftAttachment,
+      effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
+      attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
       attachmentsEnabled, attachmentsDisabledReason, modelCatalog, onSelectModel,
+      modelSupportsTools,
       t,
     ],
   );
@@ -789,7 +871,23 @@ const ChatInterface = () => {
             loadBatchSize={6}
             topLoadThreshold={80}
           />
-          <ChatInput {...sharedChatInputProps} />
+          <div style={{ position: "relative", flexShrink: 0 }}>
+            <div
+              aria-hidden
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: -32,
+                height: 32,
+                pointerEvents: "none",
+                background: isDark
+                  ? "linear-gradient(to bottom, rgba(18,18,18,0), rgba(18,18,18,1))"
+                  : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1))",
+              }}
+            />
+            <ChatInput {...sharedChatInputProps} />
+          </div>
         </>
       )}
     </div>

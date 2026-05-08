@@ -150,3 +150,32 @@ describe("chat bubble continuation prompts", () => {
     });
   });
 });
+
+describe("ChatBubble lazy trace chain", () => {
+  test("assistant bubble with tool_call frames renders lazy placeholder first", () => {
+    const originalIdle = window.requestIdleCallback;
+    window.requestIdleCallback = () => 1;
+    try {
+      const traceFrames = [
+        { seq: 1, type: "tool_call", payload: { tool_name: "fs_read" } },
+      ];
+      const { container } = renderWithConfig(
+        <ChatBubble
+          message={{
+            id: "assistant-lazy",
+            role: "assistant",
+            content: "done",
+            status: "done",
+            traceFrames,
+          }}
+          traceFrames={traceFrames}
+        />,
+      );
+      expect(
+        container.querySelector('[data-testid="lazy-trace-placeholder"]'),
+      ).not.toBeNull();
+    } finally {
+      window.requestIdleCallback = originalIdle;
+    }
+  });
+});
