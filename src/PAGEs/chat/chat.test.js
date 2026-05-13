@@ -686,7 +686,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("auto-approves only toolkit-scoped tool matches", async () => {
+  test("auto-approves matching tools without exposing pending confirmation UI", async () => {
     window.localStorage.setItem(
       "toolkit_auto_approve",
       JSON.stringify({
@@ -694,6 +694,13 @@ describe("ChatInterface stop flow", () => {
         toolkits: ["code_toolkit"],
         tools: ["code_toolkit:write"],
       }),
+    );
+    let resolveConfirmation;
+    const confirmationPromise = new Promise((resolve) => {
+      resolveConfirmation = resolve;
+    });
+    window.unchainAPI.respondToolConfirmation.mockImplementationOnce(
+      () => confirmationPromise,
     );
 
     renderChat();
@@ -728,6 +735,24 @@ describe("ChatInterface stop flow", () => {
         approved: true,
         reason: "",
       });
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-1"],
+      ).toEqual(
+        expect.objectContaining({
+          status: "submitted",
+          error: "",
+          resolved: true,
+          decision: "approved",
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-1"],
+      ).toBeUndefined();
+    });
+
+    await act(async () => {
+      resolveConfirmation({ status: "ok" });
+      await confirmationPromise;
     });
 
     streamHandlers.onFrame({
@@ -746,6 +771,80 @@ describe("ChatInterface stop flow", () => {
 
     await waitFor(() => {
       expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-2"],
+      ).toEqual(
+        expect.objectContaining({
+          confirmationId: "confirm-2",
+          callId: "call-2",
+          toolName: "write",
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-2"]?.status,
+      ).toBe("idle");
+    });
+  });
+
+  test("auto-approve submission failure restores manual confirmation state", async () => {
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["code_toolkit"],
+        tools: ["code_toolkit:write"],
+      }),
+    );
+    window.unchainAPI.respondToolConfirmation.mockRejectedValueOnce(
+      new Error("network down"),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run the write tool" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    streamHandlers.onFrame({
+      seq: 1,
+      ts: 100,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        confirmation_id: "confirm-1",
+        requires_confirmation: true,
+        toolkit_id: "code_toolkit",
+        tool_name: "write",
+        arguments: { path: "/tmp/demo.txt" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-1"],
+      ).toEqual(
+        expect.objectContaining({
+          status: "error",
+          error: "network down",
+          resolved: false,
+          decision: "",
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-1"],
+      ).toEqual(
+        expect.objectContaining({
+          confirmationId: "confirm-1",
+          callId: "call-1",
+          toolName: "write",
+        }),
+      );
     });
   });
 

@@ -39,6 +39,41 @@ const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
 });
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
 
+const buildToolConfirmationRequest = ({
+  frame,
+  confirmationId,
+  callId,
+  toolName,
+  requestedAt,
+}) => ({
+  confirmationId,
+  callId,
+  toolName,
+  toolDisplayName:
+    typeof frame.payload?.tool_display_name === "string"
+      ? frame.payload.tool_display_name
+      : "",
+  arguments:
+    frame.payload?.arguments && typeof frame.payload.arguments === "object"
+      ? frame.payload.arguments
+      : {},
+  description:
+    typeof frame.payload?.description === "string"
+      ? frame.payload.description
+      : "",
+  interactType:
+    typeof frame.payload?.interact_type === "string" &&
+    frame.payload.interact_type
+      ? frame.payload.interact_type
+      : "confirmation",
+  interactConfig:
+    frame.payload?.interact_config &&
+    typeof frame.payload.interact_config === "object"
+      ? frame.payload.interact_config
+      : {},
+  requestedAt,
+});
+
 const normalizeAgentOrchestration = (value) => {
   if (
     value &&
@@ -831,6 +866,128 @@ export const useChatStream = ({
       }
     },
     [],
+  );
+
+  const isToolCallAutoApprovable = useCallback((frame) => {
+    const toolName =
+      typeof frame?.payload?.tool_name === "string"
+        ? frame.payload.tool_name
+        : "";
+    const toolkitId =
+      typeof frame?.payload?.toolkit_id === "string"
+        ? frame.payload.toolkit_id
+        : "";
+    const itype =
+      typeof frame?.payload?.interact_type === "string"
+        ? frame.payload.interact_type
+        : "";
+    const isSessionAllowed = sessionAutoApproveRef.current.has(
+      `${toolkitId}:${toolName}`,
+    );
+    return (
+      toolName !== HUMAN_INPUT_TOOL_NAME &&
+      (!itype || itype === "confirmation") &&
+      (isToolAutoApproved(toolkitId, toolName) || isSessionAllowed)
+    );
+  }, []);
+
+  const restoreManualToolConfirmationRequest = useCallback(
+    ({ confirmationId, request, error }) => {
+      const errorMessage =
+        (typeof error?.message === "string" && error.message) ||
+        "Failed to submit confirmation";
+
+      updatePendingToolConfirmationRequests((previous) =>
+        previous[confirmationId]
+          ? previous
+          : {
+              ...previous,
+              [confirmationId]: request,
+            },
+      );
+      updateToolConfirmationUiState((previous) => ({
+        ...previous,
+        [confirmationId]: {
+          ...(previous[confirmationId] || {}),
+          status: "error",
+          error: errorMessage,
+          resolved: false,
+          decision: "",
+        },
+      }));
+    },
+    [updatePendingToolConfirmationRequests, updateToolConfirmationUiState],
+  );
+
+  const submitAutoApprovedToolConfirmation = useCallback(
+    ({ confirmationId, request }) => {
+      updatePendingToolConfirmationRequests((previous) => {
+        if (!previous[confirmationId]) {
+          return previous;
+        }
+        const next = { ...previous };
+        delete next[confirmationId];
+        return next;
+      });
+      updateToolConfirmationUiState((previous) => ({
+        ...previous,
+        [confirmationId]: {
+          ...(previous[confirmationId] || {}),
+          status: "submitted",
+          error: "",
+          resolved: true,
+          decision: "approved",
+        },
+      }));
+
+      const autoPayload = {
+        confirmation_id: confirmationId,
+        approved: true,
+        reason: "",
+      };
+
+      try {
+        Promise.resolve(api.unchain.respondToolConfirmation(autoPayload))
+          .then(() => {
+            if (
+              confirmationFollowupSignalByIdRef.current.get(confirmationId) !==
+              true
+            ) {
+              confirmationFollowupSignalByIdRef.current.set(
+                confirmationId,
+                false,
+              );
+            }
+            clearConfirmationResolutionTimer(confirmationId);
+            appendSyntheticToolConfirmationDecision({
+              confirmationId,
+              approved: true,
+            });
+          })
+          .catch((error) => {
+            clearConfirmationResolutionTimer(confirmationId);
+            restoreManualToolConfirmationRequest({
+              confirmationId,
+              request,
+              error,
+            });
+          });
+      } catch (error) {
+        clearConfirmationResolutionTimer(confirmationId);
+        restoreManualToolConfirmationRequest({
+          confirmationId,
+          request,
+          error,
+        });
+      }
+    },
+    [
+      appendSyntheticToolConfirmationDecision,
+      clearConfirmationResolutionTimer,
+      restoreManualToolConfirmationRequest,
+      updatePendingToolConfirmationRequests,
+      updateToolConfirmationUiState,
+    ],
   );
 
   const replaceSessionMemoryForMessages = useCallback(
@@ -1915,43 +2072,6 @@ export const useChatStream = ({
                   if (callId && confirmationId && requiresConfirmation) {
                     confirmationIdByCallIdRef.current.set(callId, confirmationId);
                     confirmationCallIdByIdRef.current.set(confirmationId, callId);
-                    updatePendingToolConfirmationRequests((previous) =>
-                      previous[confirmationId]
-                        ? previous
-                        : {
-                            ...previous,
-                            [confirmationId]: {
-                              confirmationId,
-                              callId,
-                              toolName,
-                              toolDisplayName:
-                                typeof frame.payload?.tool_display_name ===
-                                "string"
-                                  ? frame.payload.tool_display_name
-                                  : "",
-                              arguments:
-                                frame.payload?.arguments &&
-                                typeof frame.payload.arguments === "object"
-                                  ? frame.payload.arguments
-                                  : {},
-                              description:
-                                typeof frame.payload?.description === "string"
-                                  ? frame.payload.description
-                                  : "",
-                              interactType:
-                                typeof frame.payload?.interact_type === "string" &&
-                                frame.payload.interact_type
-                                  ? frame.payload.interact_type
-                                  : "confirmation",
-                              interactConfig:
-                                frame.payload?.interact_config &&
-                                typeof frame.payload.interact_config === "object"
-                                  ? frame.payload.interact_config
-                                  : {},
-                              requestedAt: patchTime,
-                            },
-                          },
-                    );
                     if (
                       confirmationFollowupSignalByIdRef.current.get(
                         confirmationId,
@@ -1962,18 +2082,40 @@ export const useChatStream = ({
                         false,
                       );
                     }
-                    updateToolConfirmationUiState((previous) =>
-                      previous[confirmationId]
-                        ? previous
-                        : {
-                            ...previous,
-                            [confirmationId]: {
-                              status: "idle",
-                              error: "",
-                              resolved: false,
+                    const confirmationRequest = buildToolConfirmationRequest({
+                      frame,
+                      confirmationId,
+                      callId,
+                      toolName,
+                      requestedAt: patchTime,
+                    });
+                    if (isToolCallAutoApprovable(frame)) {
+                      submitAutoApprovedToolConfirmation({
+                        confirmationId,
+                        request: confirmationRequest,
+                      });
+                    } else {
+                      updatePendingToolConfirmationRequests((previous) =>
+                        previous[confirmationId]
+                          ? previous
+                          : {
+                              ...previous,
+                              [confirmationId]: confirmationRequest,
                             },
-                          },
-                    );
+                      );
+                      updateToolConfirmationUiState((previous) =>
+                        previous[confirmationId]
+                          ? previous
+                          : {
+                              ...previous,
+                              [confirmationId]: {
+                                status: "idle",
+                                error: "",
+                                resolved: false,
+                              },
+                            },
+                      );
+                    }
                   }
                 } else if (
                   frame.type === "tool_confirmed" ||
@@ -2143,10 +2285,6 @@ export const useChatStream = ({
                   typeof frame.payload?.tool_name === "string"
                     ? frame.payload.tool_name
                     : "";
-                const toolkitId =
-                  typeof frame.payload?.toolkit_id === "string"
-                    ? frame.payload.toolkit_id
-                    : "";
                 if (toolName === HUMAN_INPUT_TOOL_NAME) {
                   const interactConfig =
                     frame.payload?.interact_config &&
@@ -2203,43 +2341,6 @@ export const useChatStream = ({
                 if (callId && confirmationId && requiresConfirmation) {
                   confirmationIdByCallIdRef.current.set(callId, confirmationId);
                   confirmationCallIdByIdRef.current.set(confirmationId, callId);
-                  updatePendingToolConfirmationRequests((previous) =>
-                    previous[confirmationId]
-                      ? previous
-                      : {
-                          ...previous,
-                          [confirmationId]: {
-                            confirmationId,
-                            callId,
-                            toolName,
-                            toolDisplayName:
-                              typeof frame.payload?.tool_display_name ===
-                              "string"
-                                ? frame.payload.tool_display_name
-                                : "",
-                            arguments:
-                              frame.payload?.arguments &&
-                              typeof frame.payload.arguments === "object"
-                                ? frame.payload.arguments
-                                : {},
-                            description:
-                              typeof frame.payload?.description === "string"
-                                ? frame.payload.description
-                                : "",
-                            interactType:
-                              typeof frame.payload?.interact_type === "string" &&
-                              frame.payload.interact_type
-                                ? frame.payload.interact_type
-                                : "confirmation",
-                            interactConfig:
-                              frame.payload?.interact_config &&
-                              typeof frame.payload.interact_config === "object"
-                                ? frame.payload.interact_config
-                                : {},
-                            requestedAt: patchTime,
-                          },
-                        },
-                  );
                   if (
                     confirmationFollowupSignalByIdRef.current.get(
                       confirmationId,
@@ -2250,69 +2351,39 @@ export const useChatStream = ({
                       false,
                     );
                   }
-                  updateToolConfirmationUiState((previous) =>
-                    previous[confirmationId]
-                      ? previous
-                      : {
-                          ...previous,
-                          [confirmationId]: {
-                            status: "idle",
-                            error: "",
-                            resolved: false,
+                  const confirmationRequest = buildToolConfirmationRequest({
+                    frame,
+                    confirmationId,
+                    callId,
+                    toolName,
+                    requestedAt: patchTime,
+                  });
+                  if (isToolCallAutoApprovable(frame)) {
+                    submitAutoApprovedToolConfirmation({
+                      confirmationId,
+                      request: confirmationRequest,
+                    });
+                  } else {
+                    updatePendingToolConfirmationRequests((previous) =>
+                      previous[confirmationId]
+                        ? previous
+                        : {
+                            ...previous,
+                            [confirmationId]: confirmationRequest,
                           },
-                        },
-                  );
-
-                  /* ── Auto-approve: only for "confirmation" type, never for user-input types ── */
-                  const itype =
-                    typeof frame.payload?.interact_type === "string"
-                      ? frame.payload.interact_type
-                      : "";
-                  const isSessionAllowed = sessionAutoApproveRef.current.has(
-                    `${toolkitId}:${toolName}`,
-                  );
-                  const isAutoApprovable =
-                    toolName !== HUMAN_INPUT_TOOL_NAME &&
-                    (!itype || itype === "confirmation") &&
-                    (isToolAutoApproved(toolkitId, toolName) || isSessionAllowed);
-                  if (isAutoApprovable) {
-                    const autoPayload = {
-                      confirmation_id: confirmationId,
-                      approved: true,
-                      reason: "",
-                    };
-                    api.unchain
-                      .respondToolConfirmation(autoPayload)
-                      .then(() => {
-                        if (
-                          confirmationFollowupSignalByIdRef.current.get(
-                            confirmationId,
-                          ) !== true
-                        ) {
-                          confirmationFollowupSignalByIdRef.current.set(
-                            confirmationId,
-                            false,
-                          );
-                        }
-                        clearConfirmationResolutionTimer(confirmationId);
-                        appendSyntheticToolConfirmationDecision({
-                          confirmationId,
-                          approved: true,
-                        });
-                        updateToolConfirmationUiState((prev) => ({
-                          ...prev,
-                          [confirmationId]: {
-                            ...(prev[confirmationId] || {}),
-                            status: "submitted",
-                            error: "",
-                            resolved: true,
-                            decision: "approved",
+                    );
+                    updateToolConfirmationUiState((previous) =>
+                      previous[confirmationId]
+                        ? previous
+                        : {
+                            ...previous,
+                            [confirmationId]: {
+                              status: "idle",
+                              error: "",
+                              resolved: false,
+                            },
                           },
-                        }));
-                      })
-                      .catch(() => {
-                        /* silent — user can still manually approve */
-                      });
+                    );
                   }
                 }
               } else if (
@@ -2810,6 +2881,7 @@ export const useChatStream = ({
       hydrateAttachmentPayloads,
       agentOrchestration,
       isCharacterChat,
+      isToolCallAutoApprovable,
       markAllPendingConfirmationFollowupSignals,
       markConfirmationFollowupSignalByCallId,
       modelIdRef,
@@ -2825,7 +2897,9 @@ export const useChatStream = ({
       setSelectedModelId,
       setStreamError,
       storageApi,
+      submitAutoApprovedToolConfirmation,
       systemPromptOverrides,
+      updatePendingToolConfirmationRequests,
       updateToolConfirmationUiState,
     ],
   );
