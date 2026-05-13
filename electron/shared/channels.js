@@ -42,6 +42,8 @@ const CHANNELS = Object.freeze({
     GET_LONG_TERM_MEMORY_PROJECTION: "unchain:get-long-term-memory-projection",
     REPLACE_SESSION_MEMORY: "unchain:replace-session-memory",
     GET_SESSION_MEMORY_EXPORT: "unchain:get-session-memory-export",
+    LIST_CHAT_PLANS: "unchain:list-chat-plans",
+    GET_CHAT_PLAN: "unchain:get-chat-plan",
     LIST_SEED_CHARACTERS: "unchain:list-seed-characters",
     LIST_CHARACTERS: "unchain:list-characters",
     GET_CHARACTER: "unchain:get-character",

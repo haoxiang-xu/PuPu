@@ -26,6 +26,8 @@ import {
   sanitizeLabel,
   sanitizeMessages,
   sanitizeModel,
+  sanitizePlanDoc,
+  sanitizePlanDocs,
   sanitizeSelectedToolkits,
   sanitizeSelectedWorkspaceIds,
   sanitizeSystemPromptOverrides,
@@ -1342,6 +1344,39 @@ export const setChatMessages = (chatId, messages, options = {}) => {
   );
   scheduleStoreGC();
   return next;
+};
+
+export const setChatPlanDocs = (chatId, planDocs, options = {}) => {
+  return updateChatSessionById(
+    chatId,
+    (chat) => ({
+      ...chat,
+      planDocs: sanitizePlanDocs(planDocs),
+      updatedAt: now(),
+    }),
+    { ...options, type: "chat_update_plan_docs" },
+  );
+};
+
+export const upsertChatPlanDoc = (chatId, planDoc, options = {}) => {
+  const cleaned = sanitizePlanDoc(planDoc);
+  if (!cleaned) return getChatsStore();
+  return updateChatSessionById(
+    chatId,
+    (chat) => {
+      const existingDocs = sanitizePlanDocs(chat.planDocs);
+      const nextDocs = existingDocs.filter(
+        (item) => item.plan_id !== cleaned.plan_id,
+      );
+      nextDocs.push(cleaned);
+      return {
+        ...chat,
+        planDocs: nextDocs,
+        updatedAt: now(),
+      };
+    },
+    { ...options, type: "chat_update_plan_docs" },
+  );
 };
 
 export const setChatGeneratedUnread = (

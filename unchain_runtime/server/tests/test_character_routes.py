@@ -563,6 +563,57 @@ class CharacterRouteTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["messages"], [{"role": "user", "content": "hello"}])
 
+    def test_chat_plan_routes_render_plans_from_session_json(self) -> None:
+        data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
+        session_id = "plan:chat/id"
+        plan = {
+            "plan_id": "plan_1",
+            "title": "Standalone plan",
+            "goal": "Render outside the chat transcript.",
+            "summary": "Keep plan docs out of messages.",
+            "steps": [{"step": "Persist plan", "status": "completed"}],
+            "status": "draft",
+            "revision": 2,
+            "created_at": "2026-05-13T00:00:00Z",
+            "updated_at": "2026-05-13T00:01:00Z",
+        }
+        memory_factory._atomic_write_json(
+            memory_factory._session_store_path(data_dir, session_id),
+            {
+                "messages": [{"role": "user", "content": "hello"}],
+                "plans": {
+                    "active_plan_id": "plan_1",
+                    "items": {"plan_1": plan},
+                },
+            },
+        )
+
+        list_response = self.client.get(
+            f"/chat/plans?threadId={session_id}",
+        )
+        self.assertEqual(list_response.status_code, 200)
+        list_payload = list_response.get_json()
+        self.assertEqual(list_payload["active_plan_id"], "plan_1")
+        self.assertEqual(list_payload["count"], 1)
+        self.assertEqual(list_payload["plans"][0]["artifact"]["type"], "plan_doc")
+        self.assertIn("- [x] Persist plan", list_payload["plans"][0]["markdown"])
+
+        read_response = self.client.get(
+            f"/chat/plans/plan_1?threadId={session_id}",
+        )
+        self.assertEqual(read_response.status_code, 200)
+        read_payload = read_response.get_json()
+        self.assertEqual(read_payload["plan"]["title"], "Standalone plan")
+        self.assertIn("## Goal", read_payload["markdown"])
+
+        export_response = self.client.get(
+            f"/memory/session/export?session_id={session_id}",
+        )
+        self.assertEqual(export_response.get_json(), {
+            "session_id": session_id,
+            "messages": [{"role": "user", "content": "hello"}],
+        })
+
 
 if __name__ == "__main__":
     unittest.main()

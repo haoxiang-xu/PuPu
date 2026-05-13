@@ -17,6 +17,7 @@ import {
   setChatGeneratedUnread,
   setChatMessages,
   setChatModel,
+  upsertChatPlanDoc,
   setChatThreadId,
 } from "../../SERVICEs/chat_storage";
 import { api, EMPTY_MODEL_CATALOG, FrontendApiError } from "../../SERVICEs/api";
@@ -189,6 +190,7 @@ const ChatInterface = () => {
       setChatGeneratedUnread,
       setChatMessages,
       setChatModel,
+      upsertChatPlanDoc,
       setChatThreadId,
     }),
     [],
@@ -852,6 +854,7 @@ const ChatInterface = () => {
           <ChatMessages
             chatId={session.activeChatId}
             messages={session.messages}
+            planDocs={session.planDocs}
             isStreaming={stream.isStreaming}
             isCharacterChat={session.isCharacterChat}
             characterName={session.activeCharacterName}

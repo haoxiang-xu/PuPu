@@ -731,6 +731,43 @@ export const createUnchainApi = () => {
       );
     },
 
+    listChatPlans: async (threadId) => {
+      if (!hasBridgeMethod("unchainAPI", "listChatPlans")) {
+        return {
+          thread_id: threadId || "",
+          active_plan_id: "",
+          plans: [],
+          count: 0,
+        };
+      }
+      const method = assertBridgeMethod("unchainAPI", "listChatPlans");
+      const response = await withTimeout(
+        () => method(threadId),
+        10000,
+        "chat_plan_list_timeout",
+        "Chat plan list request timed out",
+      );
+      return isObject(response)
+        ? response
+        : {
+            thread_id: threadId || "",
+            active_plan_id: "",
+            plans: [],
+            count: 0,
+          };
+    },
+
+    getChatPlan: async (threadId, planId) => {
+      const method = assertBridgeMethod("unchainAPI", "getChatPlan");
+      const response = await withTimeout(
+        () => method(threadId, planId),
+        10000,
+        "chat_plan_read_timeout",
+        "Chat plan read request timed out",
+      );
+      return isObject(response) ? response : {};
+    },
+
     listSeedCharacters: async () => {
       const method = assertBridgeMethod("unchainAPI", "listSeedCharacters");
       const response = await withTimeout(

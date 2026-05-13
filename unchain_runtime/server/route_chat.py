@@ -15,6 +15,12 @@ except ImportError:  # pragma: no cover - runtime source path should be configur
 _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
+_PLAN_STEP_MARKERS = {
+    "pending": "[ ]",
+    "in_progress": "[~]",
+    "completed": "[x]",
+}
+_PLAN_STATUSES = {"draft", "finalized"}
 
 
 def _root():
@@ -105,6 +111,165 @@ def _normalize_stream_error(stream_error: Exception) -> tuple[str, str]:
             code = "invalid_api_key"
             message = "API key is invalid or has been revoked. Please update your API key in Settings."
     return code, message
+
+
+def _coerce_plan_text(value: object) -> str:
+    return value.strip() if isinstance(value, str) else ""
+
+
+def _coerce_plan_text_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        return [stripped] if stripped else []
+    if not isinstance(value, list):
+        return []
+    result: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item.strip():
+            result.append(item.strip())
+    return result
+
+
+def _coerce_plan_steps(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    result: list[dict[str, str]] = []
+    for item in value:
+        if isinstance(item, str):
+            step = item.strip()
+            status = "pending"
+        elif isinstance(item, dict):
+            step = str(item.get("step") or item.get("title") or "").strip()
+            status = str(item.get("status") or "pending").strip()
+        else:
+            continue
+        if not step:
+            continue
+        if status not in _PLAN_STEP_MARKERS:
+            status = "pending"
+        result.append({"step": step, "status": status})
+    return result
+
+
+def _sanitize_plan_state(raw: object, *, fallback_plan_id: str = "") -> dict[str, object] | None:
+    if not isinstance(raw, dict):
+        return None
+    plan_id = _coerce_plan_text(raw.get("plan_id")) or fallback_plan_id.strip()
+    title = _coerce_plan_text(raw.get("title"))
+    goal = _coerce_plan_text(raw.get("goal"))
+    if not plan_id or not title or not goal:
+        return None
+    status = _coerce_plan_text(raw.get("status")) or "draft"
+    if status not in _PLAN_STATUSES:
+        status = "draft"
+    try:
+        revision = max(1, int(raw.get("revision") or 1))
+    except Exception:
+        revision = 1
+    return {
+        "plan_id": plan_id,
+        "title": title,
+        "goal": goal,
+        "constraints": _coerce_plan_text_list(raw.get("constraints")),
+        "summary": _coerce_plan_text(raw.get("summary")),
+        "steps": _coerce_plan_steps(raw.get("steps")),
+        "key_changes": _coerce_plan_text_list(raw.get("key_changes")),
+        "public_interfaces": _coerce_plan_text_list(raw.get("public_interfaces")),
+        "test_cases": _coerce_plan_text_list(raw.get("test_cases")),
+        "assumptions": _coerce_plan_text_list(raw.get("assumptions")),
+        "references": _coerce_plan_text_list(raw.get("references")),
+        "open_questions": _coerce_plan_text_list(raw.get("open_questions")),
+        "status": status,
+        "revision": revision,
+        "created_at": _coerce_plan_text(raw.get("created_at")),
+        "updated_at": _coerce_plan_text(raw.get("updated_at")),
+    }
+
+
+def _append_plan_list_section(lines: list[str], title: str, values: list[str]) -> None:
+    if not values:
+        return
+    lines.extend(["", f"## {title}"])
+    lines.extend(f"- {item}" for item in values)
+
+
+def _render_plan_markdown(plan: dict[str, object]) -> str:
+    lines = [
+        f"# {plan['title']}",
+        "",
+        "## Summary",
+        str(plan.get("summary") or plan.get("goal") or ""),
+        "",
+        "## Goal",
+        str(plan.get("goal") or ""),
+    ]
+    _append_plan_list_section(lines, "Constraints", plan["constraints"])  # type: ignore[arg-type]
+    steps = plan.get("steps")
+    if isinstance(steps, list) and steps:
+        lines.extend(["", "## Steps"])
+        for step in steps:
+            if not isinstance(step, dict):
+                continue
+            status = str(step.get("status") or "pending")
+            marker = _PLAN_STEP_MARKERS.get(status, "[ ]")
+            lines.append(f"- {marker} {step.get('step')}")
+    _append_plan_list_section(lines, "Key Changes", plan["key_changes"])  # type: ignore[arg-type]
+    _append_plan_list_section(lines, "Public Interfaces", plan["public_interfaces"])  # type: ignore[arg-type]
+    _append_plan_list_section(lines, "Test Cases", plan["test_cases"])  # type: ignore[arg-type]
+    _append_plan_list_section(lines, "Assumptions", plan["assumptions"])  # type: ignore[arg-type]
+    _append_plan_list_section(lines, "References", plan["references"])  # type: ignore[arg-type]
+    _append_plan_list_section(lines, "Open Questions", plan["open_questions"])  # type: ignore[arg-type]
+    return "\n".join(lines).rstrip()
+
+
+def _plan_artifact(plan: dict[str, object]) -> dict[str, object]:
+    return {
+        "type": "plan_doc",
+        "plan_id": plan["plan_id"],
+        "revision": plan["revision"],
+        "status": plan["status"],
+        "title": plan["title"],
+    }
+
+
+def _plan_doc(plan: dict[str, object]) -> dict[str, object]:
+    artifact = _plan_artifact(plan)
+    return {
+        "plan_id": plan["plan_id"],
+        "status": plan["status"],
+        "revision": plan["revision"],
+        "plan": plan,
+        "markdown": _render_plan_markdown(plan),
+        "artifact": artifact,
+        "artifacts": [artifact],
+    }
+
+
+def _load_session_plan_docs(thread_id: str) -> tuple[str, list[dict[str, object]]]:
+    import memory_factory
+
+    data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
+    if not data_dir:
+        return "", []
+    state = memory_factory._load_session_state(data_dir, thread_id)
+    plans_state = state.get("plans")
+    if not isinstance(plans_state, dict):
+        return "", []
+    items = plans_state.get("items")
+    if not isinstance(items, dict):
+        return "", []
+    docs: list[dict[str, object]] = []
+    for raw_plan_id, raw_plan in items.items():
+        plan = _sanitize_plan_state(
+            raw_plan,
+            fallback_plan_id=str(raw_plan_id or ""),
+        )
+        if plan is not None:
+            docs.append(_plan_doc(plan))
+    active_plan_id = _coerce_plan_text(plans_state.get("active_plan_id"))
+    if active_plan_id not in {str(doc.get("plan_id") or "") for doc in docs}:
+        active_plan_id = ""
+    return active_plan_id, docs
 
 
 def _build_trace_frame(
@@ -252,6 +417,57 @@ def _sanitize_attachments(payload_attachments: object) -> List[Dict[str, object]
         if sanitized:
             attachments.append(sanitized)
     return attachments
+
+
+@api_blueprint.get("/chat/plans")
+def list_chat_plans() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    thread_id = str(
+        request.args.get("threadId") or request.args.get("thread_id") or ""
+    ).strip()
+    if not thread_id:
+        return root._json_error("invalid_request", "threadId is required", 400)
+
+    active_plan_id, docs = _load_session_plan_docs(thread_id)
+    return jsonify(
+        {
+            "thread_id": thread_id,
+            "active_plan_id": active_plan_id,
+            "plans": docs,
+            "count": len(docs),
+        }
+    )
+
+
+@api_blueprint.get("/chat/plans/<plan_id>")
+def read_chat_plan(plan_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    thread_id = str(
+        request.args.get("threadId") or request.args.get("thread_id") or ""
+    ).strip()
+    clean_plan_id = str(plan_id or "").strip()
+    if not thread_id:
+        return root._json_error("invalid_request", "threadId is required", 400)
+    if not clean_plan_id:
+        return root._json_error("invalid_request", "plan_id is required", 400)
+
+    active_plan_id, docs = _load_session_plan_docs(thread_id)
+    for doc in docs:
+        if doc.get("plan_id") == clean_plan_id:
+            return jsonify(
+                {
+                    "thread_id": thread_id,
+                    "active_plan_id": active_plan_id,
+                    **doc,
+                }
+            )
+    return root._json_error("not_found", f"unknown plan_id: {clean_plan_id}", 404)
 
 
 @api_blueprint.post("/chat/tool/confirmation")

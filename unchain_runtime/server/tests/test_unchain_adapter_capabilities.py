@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import threading
@@ -48,6 +49,35 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(providers["anthropic"], ["claude-opus-4-6"])
         self.assertEqual(providers["ollama"], ["deepseek-r1:14b"])
         self.assertNotIn("text-embedding-3-small", providers["openai"])
+
+    def test_build_selected_plan_toolkit_passes_session_store(self) -> None:
+        captured = {}
+
+        class PlanToolkit:
+            def __init__(self, *, session_store=None, session_id=""):
+                captured["session_store"] = session_store
+                captured["session_id"] = session_id
+                self.tools = {}
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            with mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+                 mock.patch.object(
+                     unchain_adapter.importlib,
+                     "import_module",
+                     return_value=SimpleNamespace(PlanToolkit=PlanToolkit),
+                 ):
+                built = unchain_adapter._build_selected_toolkits(
+                    {"toolkits": ["plan"]},
+                    session_id="chat-1",
+                )
+
+        self.assertEqual(len(built), 1)
+        self.assertIsNotNone(captured["session_store"])
+        self.assertEqual(captured["session_id"], "chat-1")
+        self.assertEqual(
+            getattr(built[0], unchain_adapter._RUNTIME_TOOLKIT_ID_ATTR),
+            "plan",
+        )
 
     def test_get_capability_catalog_filters_dynamic_ollama_embedding_models(self) -> None:
         payload = {

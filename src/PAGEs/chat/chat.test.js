@@ -1314,6 +1314,75 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("stores plan doc artifacts outside assistant message content", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Create a plan" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "tool_result",
+        payload: {
+          tool_name: "plan_update",
+          call_id: "call-plan",
+          result: {
+            artifact: {
+              type: "plan_doc",
+              plan_id: "plan_1",
+              revision: 2,
+              status: "draft",
+              title: "Standalone plan",
+            },
+            markdown: "# Standalone plan",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps.messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect(lastChatMessagesProps?.planDocs).toEqual([
+        {
+          plan_id: "plan_1",
+          message_id: assistantMessage.id,
+          title: "Standalone plan",
+          status: "draft",
+          revision: 2,
+          markdown: "# Standalone plan",
+          artifact: {
+            type: "plan_doc",
+            plan_id: "plan_1",
+            revision: 2,
+            status: "draft",
+            title: "Standalone plan",
+          },
+        },
+      ]);
+    });
+
+    const assistantMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "assistant",
+    );
+    expect(assistantMessage.content).toBe("");
+    expect(lastChatMessagesProps.messages).toHaveLength(2);
+    expect(getChatsStore().chatsById[lastChatMessagesProps.chatId].planDocs).toEqual(
+      lastChatMessagesProps.planDocs,
+    );
+  });
+
   test("batches token updates per animation frame and flushes pending tokens on done", async () => {
     const originalRaf = window.requestAnimationFrame;
     const originalCancelRaf = window.cancelAnimationFrame;

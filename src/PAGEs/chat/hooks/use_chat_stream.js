@@ -29,6 +29,7 @@ const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
 const STREAM_TRACE_LEVEL = "minimal";
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
+const PLAN_DOC_ARTIFACT_TYPE = "plan_doc";
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -38,6 +39,68 @@ const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   done: "end",
 });
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
+
+const extractPlanDocFromToolResultFrame = (frame) => {
+  if (frame?.type !== "tool_result") {
+    return null;
+  }
+  const result =
+    frame.payload?.result && typeof frame.payload.result === "object"
+      ? frame.payload.result
+      : {};
+  const primaryArtifact =
+    result.artifact && typeof result.artifact === "object"
+      ? result.artifact
+      : null;
+  const artifact =
+    primaryArtifact?.type === PLAN_DOC_ARTIFACT_TYPE
+      ? primaryArtifact
+      : Array.isArray(result.artifacts)
+        ? result.artifacts.find(
+            (item) => item?.type === PLAN_DOC_ARTIFACT_TYPE,
+          )
+        : null;
+  if (!artifact || artifact.type !== PLAN_DOC_ARTIFACT_TYPE) {
+    return null;
+  }
+  const planId =
+    typeof artifact.plan_id === "string" && artifact.plan_id.trim()
+      ? artifact.plan_id.trim()
+      : "";
+  if (!planId) {
+    return null;
+  }
+  return {
+    plan_id: planId,
+    title:
+      typeof artifact.title === "string" && artifact.title.trim()
+        ? artifact.title.trim()
+        : planId,
+    status:
+      typeof artifact.status === "string" && artifact.status.trim()
+        ? artifact.status.trim()
+        : "draft",
+    revision: Number.isFinite(Number(artifact.revision))
+      ? Number(artifact.revision)
+      : 1,
+    markdown: typeof result.markdown === "string" ? result.markdown : "",
+    artifact: {
+      type: PLAN_DOC_ARTIFACT_TYPE,
+      plan_id: planId,
+      revision: Number.isFinite(Number(artifact.revision))
+        ? Number(artifact.revision)
+        : 1,
+      status:
+        typeof artifact.status === "string" && artifact.status.trim()
+          ? artifact.status.trim()
+          : "draft",
+      title:
+        typeof artifact.title === "string" && artifact.title.trim()
+          ? artifact.title.trim()
+          : planId,
+    },
+  };
+};
 
 const buildToolConfirmationRequest = ({
   frame,
@@ -2131,6 +2194,19 @@ export const useChatStream = ({
                     typeof frame.payload?.call_id === "string"
                       ? frame.payload.call_id
                       : "";
+                  const planDoc = extractPlanDocFromToolResultFrame(frame);
+                  if (
+                    planDoc &&
+                    typeof storageApi.upsertChatPlanDoc === "function"
+                  ) {
+                    storageApi.upsertChatPlanDoc(
+                      targetChatId,
+                      { ...planDoc, message_id: assistantMessageId },
+                      {
+                        source: "chat-page",
+                      },
+                    );
+                  }
                   const toolName =
                     typeof frame.payload?.tool_name === "string"
                       ? frame.payload.tool_name
@@ -2400,6 +2476,19 @@ export const useChatStream = ({
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
                     : "";
+                const planDoc = extractPlanDocFromToolResultFrame(frame);
+                if (
+                  planDoc &&
+                  typeof storageApi.upsertChatPlanDoc === "function"
+                ) {
+                  storageApi.upsertChatPlanDoc(
+                    targetChatId,
+                    { ...planDoc, message_id: assistantMessageId },
+                    {
+                      source: "chat-page",
+                    },
+                  );
+                }
                 const toolName =
                   typeof frame.payload?.tool_name === "string"
                     ? frame.payload.tool_name
