@@ -1,0 +1,272 @@
+<h2>整体 design 形状</h2>
+<p class="subtitle">下面是 panel 关闭 / 打开两种状态的并排 mockup。每个圆圈是个标号，下面的清单解释。看完整体如果 OK，下一步我们逐个调细节。</p>
+
+<style>
+  .chat-shell {
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface-2, #fafafa);
+    display: flex;
+    flex-direction: column;
+    height: 360px;
+    font-size: 11px;
+  }
+  .chat-header {
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border, #ddd);
+    background: var(--surface, #fff);
+    justify-content: space-between;
+    box-sizing: border-box;
+  }
+  .ch-title {
+    font-weight: 600;
+  }
+  .ch-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .chat-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  .messages-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .msg-list {
+    flex: 1;
+    padding: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bubble {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    padding: 6px 8px;
+    max-width: 80%;
+  }
+  .bubble.user { align-self: flex-end; background: var(--accent-bg, #eef); }
+  .input-bar {
+    height: 36px;
+    margin: 8px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    background: var(--surface, #fff);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: var(--muted, #999);
+  }
+  .panel {
+    width: 38%;
+    border-left: 1px solid var(--border, #ddd);
+    background: var(--surface, #fff);
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-header {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--border, #ddd);
+    box-sizing: border-box;
+  }
+  .panel-title {
+    font-weight: 600;
+    font-size: 11px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+    flex: 1;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 6px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 9px;
+    font-size: 9px;
+    color: var(--muted-strong, #666);
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .panel-body {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 10px;
+    line-height: 1.6;
+    color: var(--muted-strong, #555);
+    overflow: hidden;
+  }
+  .icon-btn {
+    width: 24px;
+    height: 24px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    background: transparent;
+    position: relative;
+  }
+  .icon-btn.active { border-color: var(--accent-strong, #4a8); }
+  .status-dot {
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #d9a23a; /* draft yellow */
+    border: 1.5px solid var(--surface, #fff);
+  }
+  .status-dot.finalized { background: #4a8d5e; }
+  .marker {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 50%;
+    text-align: center;
+    line-height: 14px;
+    font-size: 9px;
+    background: var(--accent-bg, #eef);
+    margin-left: 4px;
+    vertical-align: middle;
+  }
+  .legend {
+    margin-top: 16px;
+    padding: 12px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.7;
+  }
+  .legend ol {
+    padding-left: 0;
+    list-style: none;
+    margin: 0;
+  }
+  .legend li {
+    margin-bottom: 4px;
+  }
+  .selector {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 4px;
+    padding: 2px 4px;
+    font-size: 9px;
+    color: var(--muted-strong, #666);
+  }
+</style>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">关闭状态（默认）</div>
+    <div class="mockup-body">
+      <div class="chat-shell">
+        <div class="chat-header">
+          <span class="ch-title">Chat title</span>
+          <div class="ch-actions">
+            <span class="icon-btn">⋯</span>
+            <span class="icon-btn" title="Artifacts">
+              ▤
+              <span class="status-dot"></span>
+              <span class="marker">1</span>
+            </span>
+          </div>
+        </div>
+        <div class="chat-body">
+          <div class="messages-col">
+            <div class="msg-list">
+              <div class="bubble">Assistant: 我来 plan 一下这个 feature...</div>
+              <div class="bubble user">User msg</div>
+              <div class="bubble">Assistant: plan 已经写好</div>
+              <div class="bubble user">User: 改下 phase 2</div>
+              <div class="bubble">Assistant: plan 已更新</div>
+            </div>
+            <div class="input-bar">Message input</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup">
+    <div class="mockup-header">打开状态（点 icon 后）</div>
+    <div class="mockup-body">
+      <div class="chat-shell">
+        <div class="chat-header">
+          <span class="ch-title">Chat title</span>
+          <div class="ch-actions">
+            <span class="icon-btn">⋯</span>
+            <span class="icon-btn active" title="Artifacts">
+              ▤
+              <span class="status-dot"></span>
+            </span>
+          </div>
+        </div>
+        <div class="chat-body">
+          <div class="messages-col" style="flex: 0 0 62%">
+            <div class="msg-list">
+              <div class="bubble">Assistant: 我来 plan...</div>
+              <div class="bubble user">User msg</div>
+              <div class="bubble">Assistant: plan 已经写好</div>
+            </div>
+            <div class="input-bar">Message input</div>
+          </div>
+          <div class="panel">
+            <div class="panel-header">
+              <span class="pill">plan</span>
+              <span class="panel-title">Feature X redesign plan<span class="marker">2</span></span>
+              <span class="pill">draft · r2<span class="marker">3</span></span>
+              <span class="icon-btn" title="close">×<span class="marker">4</span></span>
+            </div>
+            <div class="panel-body">
+              # Phase 1<br>
+              - Step 1.1<br>
+              - Step 1.2<br>
+              <br>
+              # Phase 2<br>
+              - Step 2.1<br>
+              - Step 2.2<br>
+              <br>
+              # Phase 3<br>
+              - Step 3.1
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="legend">
+  <ol>
+    <li><b>① Icon + 状态点 + count</b> — Artifacts 入口图标在 chat header 右上角；右上角小点表示「有 draft」（黄）/「全 finalized」（绿）；旁边小数字表示 artifact 总数（&gt;1 时显示）。没 artifact 时 icon 灰掉或隐藏。</li>
+    <li><b>② Type pill + title</b> — 最左 pill 表示 artifact type（<code>plan</code> / <code>text</code> / <code>file</code>...）；title 是 artifact title。多个 artifact 时右侧追加 prev/next 切换器。</li>
+    <li><b>③ Status + revision pill</b> — plan 有 status（<code>draft · r2</code>）；workspace 没 status 就显示 <code>r1</code>。</li>
+    <li><b>④ Close</b> — 关闭 panel。</li>
+  </ol>
+  <p style="margin: 8px 0 0; color: var(--muted, #999); font-size: 11px">符合「极简 styling」原则：有 border 就不加 background；pill 用 border + 灰字；status 通过小色点而不是大色块。</p>
+</div>
+
+<p class="subtitle" style="margin-top:20px">整体形状 OK 吗？还是哪里要改？（icon 选什么字符、状态点表达方式、pill 样式、panel header 布局都可以单独迭代）</p>

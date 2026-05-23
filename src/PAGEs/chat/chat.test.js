@@ -1,5 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
+import {
+  LocaleContext,
+  NavigationContext,
+  ThemeContext,
+} from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
 import {
   getChatsStore,
@@ -136,17 +140,20 @@ describe("ChatInterface stop flow", () => {
 
   const renderChat = () =>
     render(
-      <ConfigContext.Provider
+      <ThemeContext.Provider
         value={{
           theme: {},
-          onFragment: "main",
           onThemeMode: "light_mode",
         }}
       >
-        <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
-          <ChatInterface />
-        </LocaleContext.Provider>
-      </ConfigContext.Provider>,
+        <NavigationContext.Provider
+          value={{ onFragment: "main", setOnFragment: jest.fn() }}
+        >
+          <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+            <ChatInterface />
+          </LocaleContext.Provider>
+        </NavigationContext.Provider>
+      </ThemeContext.Provider>,
     );
 
   const waitForReady = async () => {

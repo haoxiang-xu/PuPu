@@ -1,0 +1,168 @@
+<h2>Plan 面板的边界放哪？</h2>
+<p class="subtitle">你已经定了「右上角 icon + 右侧压缩布局」的方向。下面两种 panel 边界各有 trade-off — 选一个再继续。</p>
+
+<style>
+  .chat-shell {
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface-2, #fafafa);
+    display: flex;
+    flex-direction: column;
+    height: 340px;
+    font-size: 11px;
+  }
+  .chat-header {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border, #ddd);
+    background: var(--surface, #fff);
+    font-weight: 600;
+    justify-content: space-between;
+  }
+  .chat-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+  .messages-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .msg-list {
+    flex: 1;
+    padding: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .bubble {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    padding: 6px 8px;
+    max-width: 80%;
+  }
+  .bubble.user { align-self: flex-end; background: var(--accent-bg, #eef); }
+  .input-bar {
+    height: 36px;
+    margin: 8px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 6px;
+    background: var(--surface, #fff);
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    color: var(--muted, #999);
+  }
+  .panel {
+    width: 38%;
+    border-left: 1px solid var(--border, #ddd);
+    background: var(--surface, #fff);
+    display: flex;
+    flex-direction: column;
+  }
+  .panel-header {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--border, #ddd);
+    font-weight: 600;
+  }
+  .panel-body {
+    flex: 1;
+    padding: 8px 10px;
+    font-size: 10px;
+    line-height: 1.5;
+    color: var(--muted-strong, #555);
+  }
+  .icon-btn {
+    width: 22px; height: 22px;
+    border: 1px solid var(--border, #ddd);
+    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    background: var(--surface, #fff);
+  }
+  .icon-btn.active { background: var(--accent-bg, #eef); }
+</style>
+
+<div class="cards">
+  <div class="card" data-choice="full-height" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="chat-shell">
+        <div class="chat-header" style="display:flex">
+          <span>Chat title</span>
+          <!-- icon NOT here in this variant -->
+        </div>
+        <div class="chat-body">
+          <div class="messages-col" style="flex: 0 0 62%">
+            <div class="msg-list">
+              <div class="bubble">Assistant reply...</div>
+              <div class="bubble user">User msg</div>
+              <div class="bubble">Assistant reply...</div>
+            </div>
+            <div class="input-bar">Message input</div>
+          </div>
+          <div class="panel" style="width:38%">
+            <div class="panel-header">
+              <span>Plan title · r2</span>
+              <span class="icon-btn active">×</span>
+            </div>
+            <div class="panel-body">
+              # Phase 1<br>- step 1<br>- step 2<br><br># Phase 2<br>- step 3
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A · Below-header panel</h3>
+      <p>Chat header 保持全宽，icon 在 header 右上角。Panel 只压缩 messages + input 区域。Header 永远能看到。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="below-header" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="chat-shell">
+        <div style="display:flex; flex:1; min-height:0">
+          <div class="messages-col" style="flex: 0 0 62%; border-right:1px solid var(--border,#ddd)">
+            <div class="chat-header">
+              <span>Chat title</span>
+            </div>
+            <div class="msg-list">
+              <div class="bubble">Assistant reply...</div>
+              <div class="bubble user">User msg</div>
+              <div class="bubble">Assistant reply...</div>
+            </div>
+            <div class="input-bar">Message input</div>
+          </div>
+          <div class="panel" style="width:38%; border-left:none">
+            <div class="panel-header">
+              <span>Plan title · r2</span>
+              <span class="icon-btn active">×</span>
+            </div>
+            <div class="panel-body">
+              # Phase 1<br>- step 1<br>- step 2<br><br># Phase 2<br>- step 3
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B · Full-height side panel</h3>
+      <p>Panel 占整个 chat 高度（包括 header 那一行），chat header 跟 panel header 并排。更像 IDE 的 right sidebar。Icon toggle 放在哪还要再想。</p>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px">两个都开着 panel 给你直观对比。点一个偏好，或在终端说说你的想法。</p>

@@ -596,7 +596,7 @@ class CharacterRouteTests(unittest.TestCase):
         self.assertEqual(list_payload["active_plan_id"], "plan_1")
         self.assertEqual(list_payload["count"], 1)
         self.assertEqual(list_payload["plans"][0]["artifact"]["type"], "plan_doc")
-        self.assertIn("- [x] Persist plan", list_payload["plans"][0]["markdown"])
+        self.assertIn("- [completed] Persist plan", list_payload["plans"][0]["markdown"])
 
         read_response = self.client.get(
             f"/chat/plans/plan_1?threadId={session_id}",

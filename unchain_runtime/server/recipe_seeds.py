@@ -247,15 +247,56 @@ def _write_recipe(path: Path, payload: dict) -> None:
 def _is_legacy_default_seed(data: object) -> bool:
     if not isinstance(data, dict) or data.get("name") != "Default":
         return False
-    if "nodes" in data:
-        return False
     agent = data.get("agent")
     if not isinstance(agent, dict):
         return False
     if agent.get("prompt") != BUILTIN_DEVELOPER_PROMPT_SENTINEL:
         return False
+    if "nodes" in data:
+        return _is_legacy_workflow_default_seed(data)
     pool = data.get("subagent_pool")
     return pool == [{"kind": "ref", "template_name": "Explore", "disabled_tools": []}]
+
+
+def _is_core_only_toolkit_refs(toolkits: object) -> bool:
+    if not isinstance(toolkits, list) or len(toolkits) != 1:
+        return False
+    entry = toolkits[0]
+    return isinstance(entry, dict) and entry.get("id") == "core"
+
+
+def _is_legacy_explore_ref_pool(pool: object) -> bool:
+    return pool == [{"kind": "ref", "template_name": "Explore", "disabled_tools": []}]
+
+
+def _is_legacy_workflow_default_seed(data: dict) -> bool:
+    if data.get("description") != DEFAULT_RECIPE["description"]:
+        return False
+    if data.get("merge_with_user_selected") is not False:
+        return False
+    if not _is_core_only_toolkit_refs(data.get("toolkits")):
+        return False
+    if not _is_legacy_explore_ref_pool(data.get("subagent_pool")):
+        return False
+
+    nodes = data.get("nodes")
+    if not isinstance(nodes, list):
+        return False
+
+    has_core_toolkit_pool = any(
+        isinstance(node, dict)
+        and node.get("type") == "toolkit_pool"
+        and node.get("merge_with_user_selected") in (None, False)
+        and _is_core_only_toolkit_refs(node.get("toolkits"))
+        for node in nodes
+    )
+    has_explore_subagent_pool = any(
+        isinstance(node, dict)
+        and node.get("type") == "subagent_pool"
+        and _is_legacy_explore_ref_pool(node.get("subagents"))
+        for node in nodes
+    )
+    return has_core_toolkit_pool and has_explore_subagent_pool
 
 
 def ensure_recipe_seeds_written(target_dir: Path) -> None:

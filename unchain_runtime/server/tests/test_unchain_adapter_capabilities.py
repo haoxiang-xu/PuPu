@@ -54,12 +54,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         captured = {}
 
         class PlanToolkit:
-            def __init__(self, *, session_store=None, session_id=""):
+            def __init__(self, *, workspace_root=None, session_store=None, session_id=""):
+                captured["workspace_root"] = workspace_root
                 captured["session_store"] = session_store
                 captured["session_id"] = session_id
                 self.tools = {}
 
         with tempfile.TemporaryDirectory() as data_dir:
+            workspace_root = str(Path(data_dir) / "workspace")
+            Path(workspace_root).mkdir()
             with mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
                  mock.patch.object(
                      unchain_adapter.importlib,
@@ -67,11 +70,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                      return_value=SimpleNamespace(PlanToolkit=PlanToolkit),
                  ):
                 built = unchain_adapter._build_selected_toolkits(
-                    {"toolkits": ["plan"]},
+                    {"toolkits": ["plan"], "workspaceRoot": workspace_root},
                     session_id="chat-1",
                 )
 
         self.assertEqual(len(built), 1)
+        self.assertEqual(captured["workspace_root"], str(Path(workspace_root).resolve()))
         self.assertIsNotNone(captured["session_store"])
         self.assertEqual(captured["session_id"], "chat-1")
         self.assertEqual(

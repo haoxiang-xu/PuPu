@@ -16,9 +16,9 @@ _ATTACHMENT_MODALITY_ALIAS_MAP = {
     "file": "pdf",
 }
 _PLAN_STEP_MARKERS = {
-    "pending": "[ ]",
-    "in_progress": "[~]",
-    "completed": "[x]",
+    "pending": "[pending]",
+    "in_progress": "[in_progress]",
+    "completed": "[completed]",
 }
 _PLAN_STATUSES = {"draft", "finalized"}
 
@@ -211,7 +211,7 @@ def _render_plan_markdown(plan: dict[str, object]) -> str:
             if not isinstance(step, dict):
                 continue
             status = str(step.get("status") or "pending")
-            marker = _PLAN_STEP_MARKERS.get(status, "[ ]")
+            marker = _PLAN_STEP_MARKERS.get(status, "[pending]")
             lines.append(f"- {marker} {step.get('step')}")
     _append_plan_list_section(lines, "Key Changes", plan["key_changes"])  # type: ignore[arg-type]
     _append_plan_list_section(lines, "Public Interfaces", plan["public_interfaces"])  # type: ignore[arg-type]

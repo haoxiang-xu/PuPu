@@ -2833,7 +2833,7 @@ def _build_selected_toolkits(
 
     resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
     workspace_root = resolved_roots[0] if resolved_roots else None
-    plan_session_store = _build_plan_session_store(session_id)
+    session_state_store = _build_plan_session_store(session_id)
     result: list = []
 
     for toolkit_name in toolkit_names:
@@ -2847,11 +2847,18 @@ def _build_selected_toolkits(
         if not callable(toolkit_factory):
             raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
 
+        toolkit_workspace_root = workspace_root
+        toolkit_session_store = None
+        toolkit_session_id = ""
+        if normalized_toolkit_name == "PlanToolkit":
+            toolkit_session_store = session_state_store
+            toolkit_session_id = session_id
+
         toolkit_instance = _build_generic_toolkit(
             toolkit_factory,
-            workspace_root=workspace_root,
-            session_store=plan_session_store if normalized_toolkit_name == "PlanToolkit" else None,
-            session_id=session_id if normalized_toolkit_name == "PlanToolkit" else "",
+            workspace_root=toolkit_workspace_root,
+            session_store=toolkit_session_store,
+            session_id=toolkit_session_id,
         )
         toolkit_class = (
             toolkit_factory
