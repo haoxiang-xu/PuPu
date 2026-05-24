@@ -24,6 +24,13 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 |---------|---------|---------|
 | `app:get-version` | invoke/handle | Returns app version string |
 
+### CHAT_STORAGE (2 channels)
+
+| Channel | Pattern | Handler |
+|---------|---------|---------|
+| `chat-storage:bootstrap-read` | invoke/handle | Reads chat storage during startup |
+| `chat-storage:write` | invoke/handle | Persists chat storage updates |
+
 ### UPDATE (4 channels)
 
 | Channel | Pattern | Handler |
@@ -44,7 +51,7 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `ollama:install-progress` | main→renderer | Broadcasts install progress |
 | `ollama:library-search` | invoke/handle | Searches ollama.com model library |
 
-### UNCHAIN (44 channels)
+### UNCHAIN (45 channels)
 
 **Status & Config (7):**
 
@@ -111,6 +118,16 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `unchain:export-character` | invoke/handle |
 | `unchain:import-character` | invoke/handle |
 
+**Recipes & Sub-Agent References (5):**
+
+| Channel | Pattern |
+|---------|---------|
+| `unchain:list-recipes` | invoke/handle |
+| `unchain:get-recipe` | invoke/handle |
+| `unchain:save-recipe` | invoke/handle |
+| `unchain:delete-recipe` | invoke/handle |
+| `unchain:list-subagent-refs` | invoke/handle |
+
 **File I/O (4):**
 
 | Channel | Pattern |
@@ -120,12 +137,13 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `unchain:write-file` | invoke/handle |
 | `unchain:read-file` | invoke/handle |
 
-**Streaming (4):**
+**Streaming (5):**
 
 | Channel | Pattern |
 |---------|---------|
 | `unchain:stream:start` | renderer→main (send) |
 | `unchain:stream:start-v2` | renderer→main (send) |
+| `unchain:stream:start-v3` | renderer→main (send) |
 | `unchain:stream:cancel` | renderer→main (send) |
 | `unchain:stream:event` | main→renderer (event) |
 
@@ -149,18 +167,38 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `window-state-event-handler` | renderer→main (send) |
 | `window-state-event-listener` | main→renderer (event) |
 
+### SCREENSHOT (2 channels)
+
+| Channel | Pattern |
+|---------|---------|
+| `screenshot:capture` | invoke/handle |
+| `screenshot:check-availability` | invoke/handle |
+
+### TEST_BRIDGE (5 channels)
+
+| Channel | Pattern |
+|---------|---------|
+| `test-bridge:invoke` | renderer→main (send) |
+| `test-bridge:result` | main→renderer (event) |
+| `test-bridge:log` | main→renderer (event) |
+| `test-bridge:event` | main→renderer (event) |
+| `test-bridge:ready` | renderer→main (send) |
+
 ---
 
-## Total: 59 channels
+## Total: 69 channels
 
 | Group | Count |
 |-------|-------|
 | APP | 1 |
+| CHAT_STORAGE | 2 |
 | UPDATE | 4 |
 | OLLAMA | 6 |
-| UNCHAIN | 44 |
+| UNCHAIN | 45 |
 | THEME | 2 |
 | WINDOW STATE | 2 |
+| SCREENSHOT | 2 |
+| TEST_BRIDGE | 5 |
 
 ---
 

@@ -52,6 +52,10 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY, payload),
   getSessionMemoryExport: (sessionId) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_SESSION_MEMORY_EXPORT, { sessionId }),
+  listChatPlans: (threadId) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_CHAT_PLANS, { threadId }),
+  getChatPlan: (threadId, planId) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_CHAT_PLAN, { threadId, planId }),
   listSeedCharacters: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_SEED_CHARACTERS),
   listCharacters: () => ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_CHARACTERS),
   getCharacter: (characterId) =>
@@ -91,6 +95,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   startStream: streamClient.startStream,
   cancelStream: streamClient.cancelStream,
   startStreamV2: streamClient.startStreamV2,
+  startStreamV3: streamClient.startStreamV3,
 });
 
 module.exports = {

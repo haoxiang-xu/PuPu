@@ -39,20 +39,12 @@ import {
 } from "../../SERVICEs/feature_flags";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import SuspenseFallback from "../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
+import { AgentsModal } from "../agents/agents_modal";
+import { SettingsModal } from "../settings/settings_modal";
+import { ToolkitModal } from "../toolkit/toolkit_modal";
+import { WorkspaceModal } from "../workspace/workspace_modal";
 
 /* eslint-disable import/first -- dynamic import() inside lazy() is not a static import */
-const SettingsModal = lazy(() =>
-  import("../settings/settings_modal").then((m) => ({ default: m.SettingsModal })),
-);
-const ToolkitModal = lazy(() =>
-  import("../toolkit/toolkit_modal").then((m) => ({ default: m.ToolkitModal })),
-);
-const AgentsModal = lazy(() =>
-  import("../agents/agents_modal").then((m) => ({ default: m.AgentsModal })),
-);
-const WorkspaceModal = lazy(() =>
-  import("../workspace/workspace_modal").then((m) => ({ default: m.WorkspaceModal })),
-);
 const MemoryInspectModal = lazy(() =>
   import("../memory-inspect/memory_inspect_modal").then((m) => ({
     default: m.MemoryInspectModal,

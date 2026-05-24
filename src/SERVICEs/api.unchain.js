@@ -509,6 +509,9 @@ export const createUnchainApi = () => {
       hasBridgeMethod("unchainAPI", "startStream") &&
       hasBridgeMethod("unchainAPI", "startStreamV2"),
 
+    isRuntimeEventStreamV3Available: () =>
+      hasBridgeMethod("unchainAPI", "startStreamV3"),
+
     getStatus: async () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "getStatus");
@@ -726,6 +729,46 @@ export const createUnchainApi = () => {
         "session_memory_export_timeout",
         "Session memory export request timed out",
       );
+    },
+
+    listChatPlans: async (threadId) => {
+      if (!hasBridgeMethod("unchainAPI", "listChatPlans")) {
+        return {
+          thread_id: threadId || "",
+          active_plan_id: "",
+          plans: [],
+          count: 0,
+        };
+      }
+      const method = assertBridgeMethod("unchainAPI", "listChatPlans");
+      const response = await withTimeout(
+        () => method(threadId),
+        10000,
+        "chat_plan_list_timeout",
+        "Chat plan list request timed out",
+      );
+      return isObject(response)
+        ? response
+        : {
+            thread_id: threadId || "",
+            active_plan_id: "",
+            plans: [],
+            count: 0,
+          };
+    },
+
+    getChatPlan: async (threadId, planId) => {
+      if (!hasBridgeMethod("unchainAPI", "getChatPlan")) {
+        return {};
+      }
+      const method = assertBridgeMethod("unchainAPI", "getChatPlan");
+      const response = await withTimeout(
+        () => method(threadId, planId),
+        10000,
+        "chat_plan_read_timeout",
+        "Chat plan read request timed out",
+      );
+      return isObject(response) ? response : {};
     },
 
     listSeedCharacters: async () => {
@@ -1029,6 +1072,30 @@ export const createUnchainApi = () => {
           error,
           "unchain_stream_v2_start_failed",
           "Failed to start Unchain v2 stream",
+        );
+      }
+    },
+
+    startStreamV3: (payload, handlers = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "startStreamV3");
+        const normalizedPayload = normalizeUnchainV2Payload(payload);
+        const streamHandle = method(normalizedPayload, handlers);
+        if (
+          !isObject(streamHandle) ||
+          typeof streamHandle.cancel !== "function"
+        ) {
+          throw new FrontendApiError(
+            "invalid_stream_handle",
+            "Unchain bridge returned an invalid stream handle",
+          );
+        }
+        return streamHandle;
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_stream_v3_start_failed",
+          "Failed to start Unchain v3 stream",
         );
       }
     },

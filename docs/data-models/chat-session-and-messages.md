@@ -87,9 +87,9 @@ Multiple aliases map to canonical `toolkitId` values:
 |-------|----------|
 | `workspace`, `workspace_toolkit`, `WorkspaceToolkit` | `workspace_toolkit` |
 | `terminal`, `terminal_toolkit`, `TerminalToolkit` | `terminal_toolkit` |
-| `code`, `code_toolkit`, `CodeToolkit` | `code_toolkit` |
-| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api_toolkit` |
-| `ask_user`, `ask_user_toolkit`, `AskUserToolkit` | `ask-user-toolkit` |
+| `code`, `code_toolkit`, `CodeToolkit` | `core` |
+| `ask_user`, `ask_user_toolkit`, `ask-user-toolkit`, `AskUserToolkit` | `core` |
+| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api` |
 
 Removed IDs (silently stripped): `mcp`, `mcptoolkit`.
 
@@ -195,8 +195,8 @@ When `kind === "character"`:
 {
   seq: number,             // sequence number
   ts: number,              // ms timestamp
-  type: string,            // max 64 chars (e.g. "tool_call_start")
-  stage: string,           // max 64 chars (e.g. "tool", "stream", "memory")
+  type: string,            // max 64 chars (e.g. "tool_call")
+  stage: string,           // max 64 chars (e.g. "tool", "stream", "memory", "runtime_event")
   iteration?: number,
 
   payload?: {
@@ -218,15 +218,27 @@ When `kind === "character"`:
 
 | Type | Stage | Meaning |
 |------|-------|---------|
-| `tool_call_start` | tool | Tool invocation begins |
-| `tool_call_end` | tool | Tool invocation ends with result |
-| `tool_confirmation_request` | tool | Awaiting user confirmation |
+| `stream_started` | lifecycle | Stream or run initialized |
+| `run_started` | lifecycle | Agent run initialized |
+| `iteration_started` | lifecycle | Agent loop iteration started |
+| `request_messages` | model | Model request/messages were prepared |
+| `response_received` | model | Model response received |
+| `tool_call` | tool | Tool invocation, continuation request, confirmation request, or Ask User request |
+| `tool_result` | tool | Tool result or resolved Ask User response |
+| `tool_confirmed` | tool/input | User approved a pending confirmation |
+| `tool_denied` | tool/input | User denied a pending confirmation |
 | `reasoning` | stream | Model reasoning content |
 | `observation` | stream | Agent observation |
+| `final_message` | stream | Final assistant response text |
+| `done` | lifecycle | Stream completed normally |
+| `error` | lifecycle | Stream or run failed |
 | `memory_save` | memory | Memory write |
 | `memory_recall` | memory | Memory retrieval |
-| `model_start` | model | Model inference begins |
-| `model_end` | model | Model inference ends |
+| `subagent_started` | subagent | Child run started |
+| `subagent_completed` | subagent | Child run completed |
+| `subagent_failed` | subagent | Child run failed |
+
+V3 RuntimeEvents are reduced into the same TraceFrame shape before rendering. Adapted frames use `stage: "runtime_event"` and include `payload.runtime_event_id` so the chat hook can avoid replaying duplicate effects.
 
 ---
 
@@ -244,7 +256,7 @@ When `kind === "character"`:
 }
 ```
 
-Subagent frames are stored separately from main trace frames, organized by `runId`.
+Subagent frames are stored separately from main trace frames, organized by `runId`. Child-run tool calls, tool results, reasoning, final messages, and Ask User interactions all stay in `subagentFrames[runId]` so TraceChain can render them on the nested branch.
 
 ---
 

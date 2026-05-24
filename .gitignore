@@ -71,6 +71,7 @@ dmypy.json
 # pyinstaller / frozen builds
 *.spec
 .gitnexus
+.superpowers/
 
 # worktrees
 .worktrees/

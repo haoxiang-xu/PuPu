@@ -35,7 +35,7 @@ ipcRenderer.on(CHANNELS.UNCHAIN.RUNTIME_LOG, (_event, payload = {}) => {
   }
 
   if (level === "stderr") {
-    console.error(`["unchain:error] ${text}`);
+    console.error(`[unchain:error] ${text}`);
     return;
   }
 

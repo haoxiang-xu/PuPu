@@ -9,6 +9,7 @@ const UNCHAIN_HEALTH_RETRY_MS = 250;
 const UNCHAIN_RESTART_DELAY_MS = 1500;
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
+const UNCHAIN_STREAM_V3_ENDPOINT = "/chat/stream/v3";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
@@ -20,6 +21,7 @@ const UNCHAIN_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
 const UNCHAIN_REPLACE_SESSION_MEMORY_ENDPOINT = "/memory/session/replace";
 const UNCHAIN_SESSION_MEMORY_EXPORT_ENDPOINT = "/memory/session/export";
+const UNCHAIN_CHAT_PLANS_ENDPOINT = "/chat/plans";
 const UNCHAIN_CHARACTERS_ENDPOINT = "/characters";
 const UNCHAIN_CHARACTER_PREVIEW_ENDPOINT = "/characters/preview";
 const UNCHAIN_CHARACTER_BUILD_ENDPOINT = "/characters/build";
@@ -725,6 +727,58 @@ const createUnchainService = ({
       "Miso session memory export request failed",
       {},
       "Invalid Miso session memory export response",
+    );
+  };
+
+  const listMisoChatPlans = async (threadId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof threadId === "string" ? threadId.trim() : "";
+    if (!cleanId) {
+      throw new Error("threadId is required");
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHAT_PLANS_ENDPOINT}?threadId=${encodeURIComponent(cleanId)}`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso chat plan list request failed",
+      {},
+      "Invalid Miso chat plan list response",
+    );
+  };
+
+  const getMisoChatPlan = async (threadId, planId) => {
+    ensureMisoReady();
+
+    const cleanThreadId = typeof threadId === "string" ? threadId.trim() : "";
+    const cleanPlanId = typeof planId === "string" ? planId.trim() : "";
+    if (!cleanThreadId) {
+      throw new Error("threadId is required");
+    }
+    if (!cleanPlanId) {
+      throw new Error("planId is required");
+    }
+
+    const response = await fetch(
+      `http://${UNCHAIN_HOST}:${unchainPort}${UNCHAIN_CHAT_PLANS_ENDPOINT}/${encodeURIComponent(cleanPlanId)}?threadId=${encodeURIComponent(cleanThreadId)}`,
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso chat plan request failed",
+      {},
+      "Invalid Miso chat plan response",
     );
   };
 
@@ -1764,6 +1818,9 @@ const createUnchainService = ({
   const startMisoStreamV2 = (args) =>
     startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V2_ENDPOINT });
 
+  const startMisoStreamV3 = (args) =>
+    startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V3_ENDPOINT });
+
   const cancelMisoStream = (requestId) => {
     const streamState = unchainActiveStreams.get(requestId);
     if (!streamState) {
@@ -1793,6 +1850,16 @@ const createUnchainService = ({
     });
   };
 
+  const handleStreamStartV3 = (event, payload) => {
+    const requestId = payload?.requestId;
+    const requestPayload = payload?.payload || {};
+    void startMisoStreamV3({
+      requestId,
+      payload: requestPayload,
+      sender: event.sender,
+    });
+  };
+
   const handleStreamCancel = (_event, payload) => {
     const requestId = payload?.requestId;
     if (typeof requestId === "string") {
@@ -1812,6 +1879,8 @@ const createUnchainService = ({
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,
     getMisoSessionMemoryExport,
+    listMisoChatPlans,
+    getMisoChatPlan,
     listMisoSeedCharacters,
     listMisoCharacters,
     getMisoCharacter,
@@ -1829,6 +1898,7 @@ const createUnchainService = ({
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,
+    handleStreamStartV3,
     handleStreamCancel,
   };
 };

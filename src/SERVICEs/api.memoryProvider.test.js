@@ -11,6 +11,7 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     window.localStorage.clear();
     window.unchainAPI = {
       startStreamV2: jest.fn(() => ({ cancel: jest.fn() })),
+      startStreamV3: jest.fn(() => ({ cancel: jest.fn() })),
       replaceSessionMemory: jest.fn(async () => ({ applied: true })),
     };
   });
@@ -43,6 +44,38 @@ describe("api.unchain.startStreamV2 memory/provider options", () => {
     expect(payload.options.anthropic_api_key).toBe("anthropic-key-123");
     expect(payload.options.apiKey).toBeUndefined();
     expect(payload.options.api_key).toBeUndefined();
+  });
+
+  test("normalizes startStreamV3 payload with the same memory/provider options", () => {
+    writeSettings({
+      memory: {
+        enabled: true,
+        long_term_enabled: true,
+        long_term_extract_every_n_turns: 4,
+        embedding_provider: "openai",
+        openai_embedding_model: "text-embedding-3-small",
+        last_n_turns: 7,
+        vector_top_k: 3,
+        vector_min_score: 0.5,
+      },
+      model_providers: {
+        openai_api_key: "openai-key-123",
+      },
+    });
+
+    api.unchain.startStreamV3({
+      message: "hello",
+      options: {
+        modelId: "openai:gpt-5",
+      },
+    });
+
+    const [payload] = window.unchainAPI.startStreamV3.mock.calls[0];
+    expect(payload.options.openaiApiKey).toBe("openai-key-123");
+    expect(payload.options.openai_api_key).toBe("openai-key-123");
+    expect(payload.options.memory_enabled).toBe(true);
+    expect(payload.options.memory_embedding_provider).toBe("openai");
+    expect(payload.options.memory_vector_top_k).toBe(3);
   });
 
   test("respects explicit memory_enabled=false even when memory setting is enabled", () => {

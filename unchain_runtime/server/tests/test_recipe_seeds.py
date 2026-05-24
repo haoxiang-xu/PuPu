@@ -85,6 +85,58 @@ class EnsureRecipeSeedsTests(unittest.TestCase):
             data = json.loads(default_path.read_text(encoding="utf-8"))
             self.assertEqual(data["subagent_pool"][0]["kind"], "recipe_ref")
 
+    def test_migrates_legacy_workflow_default_seed(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target_dir = Path(tmp) / ".pupu" / "agent_recipes"
+            target_dir.mkdir(parents=True)
+            default_path = target_dir / "Default.recipe"
+            default_path.write_text(
+                json.dumps({
+                    "name": "Default",
+                    "description": "PuPu 默认 agent 配置（复刻内置行为）",
+                    "model": None,
+                    "max_iterations": None,
+                    "merge_with_user_selected": False,
+                    "agent": {
+                        "prompt_format": "skeleton",
+                        "prompt": "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
+                    },
+                    "toolkits": [{"id": "core"}],
+                    "subagent_pool": [
+                        {"kind": "ref", "template_name": "Explore", "disabled_tools": []}
+                    ],
+                    "nodes": [
+                        {"id": "start", "type": "start"},
+                        {"id": "agent_main", "type": "agent"},
+                        {
+                            "id": "tp_1",
+                            "type": "toolkit_pool",
+                            "toolkits": [{"id": "core", "config": {}}],
+                        },
+                        {
+                            "id": "sp_1",
+                            "type": "subagent_pool",
+                            "subagents": [
+                                {
+                                    "kind": "ref",
+                                    "template_name": "Explore",
+                                    "disabled_tools": [],
+                                }
+                            ],
+                        },
+                    ],
+                }),
+                encoding="utf-8",
+            )
+            ensure_recipe_seeds_written(target_dir)
+            data = json.loads(default_path.read_text(encoding="utf-8"))
+            self.assertTrue(data["merge_with_user_selected"])
+            toolkit_pool = next(
+                node for node in data["nodes"] if node["type"] == "toolkit_pool"
+            )
+            self.assertTrue(toolkit_pool["merge_with_user_selected"])
+            self.assertEqual(data["subagent_pool"][0]["kind"], "recipe_ref")
+
 
 if __name__ == "__main__":
     unittest.main()
