@@ -81,8 +81,18 @@ const numericOrderValue = (event) => {
     event?.metadata?.sequence,
     event?.metadata?.seq,
   ];
-  const value = candidates.find((candidate) => Number.isFinite(Number(candidate)));
-  return value === undefined ? null : Number(value);
+  for (const candidate of candidates) {
+    if (typeof candidate === "number" && Number.isFinite(candidate)) {
+      return candidate;
+    }
+    if (typeof candidate === "string" && candidate.trim()) {
+      const value = Number(candidate);
+      if (Number.isFinite(value)) {
+        return value;
+      }
+    }
+  }
+  return null;
 };
 
 const sortOrderedEventIds = (state) => {
@@ -113,20 +123,19 @@ const sortOrderedEventIds = (state) => {
   });
 };
 
-export const appendRuntimeEventToStoreState = (state, event) => {
-  const next = snapshotState(state || createInitialRuntimeEventStoreState());
+const appendRuntimeEventToSnapshot = (next, event) => {
   const normalized = normalizeRuntimeEvent(event);
   if (!normalized) {
     next.diagnostics.droppedEvents.push({
       reason: "invalid_runtime_event",
       event: clone(event),
     });
-    return next;
+    return false;
   }
 
   if (!RUNTIME_EVENT_TYPES.has(normalized.type)) {
     next.diagnostics.unknownEvents.push(clone(normalized));
-    return next;
+    return false;
   }
 
   if (next.eventsById[normalized.event_id]) {
@@ -134,12 +143,19 @@ export const appendRuntimeEventToStoreState = (state, event) => {
       event_id: normalized.event_id,
       type: normalized.type,
     });
-    return next;
+    return false;
   }
 
   next.eventsById[normalized.event_id] = clone(normalized);
   next.orderedEventIds.push(normalized.event_id);
-  sortOrderedEventIds(next);
+  return true;
+};
+
+export const appendRuntimeEventToStoreState = (state, event) => {
+  const next = snapshotState(state || createInitialRuntimeEventStoreState());
+  if (appendRuntimeEventToSnapshot(next, event)) {
+    sortOrderedEventIds(next);
+  }
   return next;
 };
 
@@ -153,9 +169,14 @@ export const createRuntimeEventStore = () => {
     },
     appendMany(events = []) {
       const source = Array.isArray(events) ? events : [];
-      source.forEach((event) => {
-        state = appendRuntimeEventToStoreState(state, event);
-      });
+      const next = snapshotState(state);
+      const didAppend = source.reduce((appended, event) => {
+        return appendRuntimeEventToSnapshot(next, event) || appended;
+      }, false);
+      if (didAppend) {
+        sortOrderedEventIds(next);
+      }
+      state = next;
       return snapshotState(state);
     },
     clear() {

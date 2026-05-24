@@ -44,4 +44,10 @@ describe("api.unchain plan docs", () => {
     );
     expect(payload.markdown).toBe("# Plan");
   });
+
+  test("returns an empty plan doc when the bridge cannot read plans", async () => {
+    delete window.unchainAPI.getChatPlan;
+
+    await expect(api.unchain.getChatPlan("chat-1", "plan_1")).resolves.toEqual({});
+  });
 });

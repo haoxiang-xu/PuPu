@@ -102,6 +102,45 @@ describe("runtime event store", () => {
     ]);
   });
 
+  test("ignores null, boolean, and blank sequence values when ordering events", () => {
+    const store = createRuntimeEventStore();
+    store.appendMany([
+      event({ id: "evt-null-seq", metadata: { seq: null } }),
+      event({ id: "evt-false-seq", metadata: { sequence: false } }),
+      event({ id: "evt-blank-seq", metadata: { seq: "   " } }),
+      event({ id: "evt-valid-seq", metadata: { seq: "1" } }),
+      event({ id: "evt-unsequenced" }),
+    ]);
+
+    expect(store.getSnapshot().orderedEventIds).toEqual([
+      "evt-valid-seq",
+      "evt-null-seq",
+      "evt-false-seq",
+      "evt-blank-seq",
+      "evt-unsequenced",
+    ]);
+  });
+
+  test("sorts once after appending many runtime events", () => {
+    const sortSpy = jest.spyOn(Array.prototype, "sort");
+    const store = createRuntimeEventStore();
+
+    store.appendMany([
+      event({ id: "evt-seq-3", metadata: { seq: 3 } }),
+      event({ id: "evt-seq-1", metadata: { seq: 1 } }),
+      event({ id: "evt-seq-2", metadata: { seq: 2 } }),
+    ]);
+    const sortCallCount = sortSpy.mock.calls.length;
+    sortSpy.mockRestore();
+
+    expect(sortCallCount).toBe(1);
+    expect(store.getSnapshot().orderedEventIds).toEqual([
+      "evt-seq-1",
+      "evt-seq-2",
+      "evt-seq-3",
+    ]);
+  });
+
   test("recognizes structurally valid runtime events", () => {
     expect(isRuntimeEvent(event({ id: "evt-ok" }))).toBe(true);
     expect(isRuntimeEvent({ event_id: "evt-no-schema", type: "run.started" })).toBe(

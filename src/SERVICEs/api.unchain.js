@@ -758,6 +758,9 @@ export const createUnchainApi = () => {
     },
 
     getChatPlan: async (threadId, planId) => {
+      if (!hasBridgeMethod("unchainAPI", "getChatPlan")) {
+        return {};
+      }
       const method = assertBridgeMethod("unchainAPI", "getChatPlan");
       const response = await withTimeout(
         () => method(threadId, planId),
