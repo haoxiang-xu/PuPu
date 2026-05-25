@@ -27,27 +27,10 @@ describe("api.unchain plan docs", () => {
     window.unchainAPI = originalUnchainApi;
   });
 
-  test("lists plan docs through the bridge", async () => {
-    const payload = await api.unchain.listChatPlans("chat-1");
-
-    expect(window.unchainAPI.listChatPlans).toHaveBeenCalledWith("chat-1");
-    expect(payload.count).toBe(1);
-    expect(payload.plans[0].plan_id).toBe("plan_1");
-  });
-
-  test("reads a single plan doc through the bridge", async () => {
-    const payload = await api.unchain.getChatPlan("chat-1", "plan_1");
-
-    expect(window.unchainAPI.getChatPlan).toHaveBeenCalledWith(
-      "chat-1",
-      "plan_1",
-    );
-    expect(payload.markdown).toBe("# Plan");
-  });
-
-  test("returns an empty plan doc when the bridge cannot read plans", async () => {
-    delete window.unchainAPI.getChatPlan;
-
-    await expect(api.unchain.getChatPlan("chat-1", "plan_1")).resolves.toEqual({});
+  test("does not expose chat plan document facade methods", () => {
+    expect(api.unchain.listChatPlans).toBeUndefined();
+    expect(api.unchain.getChatPlan).toBeUndefined();
+    expect(window.unchainAPI.listChatPlans).not.toHaveBeenCalled();
+    expect(window.unchainAPI.getChatPlan).not.toHaveBeenCalled();
   });
 });

@@ -1,49 +1,61 @@
-import {
-  createChatInSelectedContext,
-  getChatsStore,
-  upsertChatPlanDoc,
-} from "./chat_storage_store";
+import { sanitizeChatSession } from "./chat_storage_sanitize";
 
 describe("chat storage plan docs", () => {
-  test("upserts plan docs outside messages", () => {
-    const { chatId } = createChatInSelectedContext(
-      { title: "Plans" },
-      { source: "test" },
-    );
-
-    upsertChatPlanDoc(
-      chatId,
-      {
-        plan_id: "plan_1",
-        markdown: "# Plan",
-        artifact: {
-          type: "plan_doc",
+  test("drops legacy plan docs and scrubs legacy plan tool payloads", () => {
+    const chat = sanitizeChatSession({
+      id: "chat-plan-docs",
+      title: "Plans",
+      planDocs: [
+        {
           plan_id: "plan_1",
-          revision: 1,
-          status: "draft",
-          title: "Plan",
+          markdown: "# Plan",
+          artifact: { type: "plan_doc", plan_id: "plan_1" },
         },
-      },
-      { source: "test" },
-    );
+      ],
+      messages: [
+        {
+          id: "assistant-1",
+          role: "assistant",
+          content: "",
+          traceFrames: [
+            {
+              type: "tool_result",
+              payload: {
+                tool_name: "plan_update",
+                result: {
+                  ok: true,
+                  plan_id: "plan_1",
+                  status: "draft",
+                  revision: 2,
+                  workspace_file: {
+                    path: "/tmp/workspace/plans/plan_1.md",
+                    relative_path: "plans/plan_1.md",
+                  },
+                  plan: { title: "Legacy structured state" },
+                  markdown: "# Legacy markdown",
+                  artifact: { type: "plan_doc", plan_id: "plan_1" },
+                  artifacts: [{ type: "plan_doc", plan_id: "plan_1" }],
+                  proposed_plan: "<proposed_plan># Plan</proposed_plan>",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
 
-    const chat = getChatsStore().chatsById[chatId];
-    expect(chat.messages).toEqual([]);
-    expect(chat.planDocs).toEqual([
-      {
-        plan_id: "plan_1",
-        title: "Plan",
-        status: "draft",
-        revision: 1,
-        markdown: "# Plan",
-        artifact: {
-          type: "plan_doc",
-          plan_id: "plan_1",
-          revision: 1,
-          status: "draft",
-          title: "Plan",
-        },
+    expect(chat).not.toHaveProperty("planDocs");
+
+    const result = chat.messages[0].traceFrames[0].payload.result;
+    expect(result).toEqual({
+      ok: true,
+      plan_id: "plan_1",
+      status: "draft",
+      revision: 2,
+      workspace_file: {
+        path: "/tmp/workspace/plans/plan_1.md",
+        relative_path: "plans/plan_1.md",
       },
-    ]);
+    });
   });
 });

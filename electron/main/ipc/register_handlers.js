@@ -39,8 +39,6 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_LONG_TERM_MEMORY_PROJECTION,
   CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
   CHANNELS.UNCHAIN.GET_SESSION_MEMORY_EXPORT,
-  CHANNELS.UNCHAIN.LIST_CHAT_PLANS,
-  CHANNELS.UNCHAIN.GET_CHAT_PLAN,
   CHANNELS.UNCHAIN.LIST_SEED_CHARACTERS,
   CHANNELS.UNCHAIN.LIST_CHARACTERS,
   CHANNELS.UNCHAIN.GET_CHARACTER,
@@ -247,16 +245,6 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.GET_SESSION_MEMORY_EXPORT,
     async (_event, payload = {}) =>
       unchainService.getMisoSessionMemoryExport(payload.sessionId),
-  );
-  ipcMain.handle(
-    CHANNELS.UNCHAIN.LIST_CHAT_PLANS,
-    async (_event, payload = {}) =>
-      unchainService.listMisoChatPlans(payload.threadId),
-  );
-  ipcMain.handle(
-    CHANNELS.UNCHAIN.GET_CHAT_PLAN,
-    async (_event, payload = {}) =>
-      unchainService.getMisoChatPlan(payload.threadId, payload.planId),
   );
   ipcMain.handle(CHANNELS.UNCHAIN.LIST_SEED_CHARACTERS, async () =>
     unchainService.listMisoSeedCharacters(),

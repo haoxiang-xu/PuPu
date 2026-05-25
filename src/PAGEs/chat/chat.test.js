@@ -1321,7 +1321,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("stores plan doc artifacts outside assistant message content", async () => {
+  test("does not store or expose legacy plan doc artifacts", async () => {
     renderChat();
     await waitForReady();
 
@@ -1344,6 +1344,15 @@ describe("ChatInterface stop flow", () => {
           tool_name: "plan_update",
           call_id: "call-plan",
           result: {
+            ok: true,
+            plan_id: "plan_1",
+            status: "draft",
+            revision: 2,
+            workspace_file: {
+              path: "/tmp/workspace/plans/plan_1.md",
+              relative_path: "plans/plan_1.md",
+            },
+            plan: { title: "Standalone plan" },
             artifact: {
               type: "plan_doc",
               plan_id: "plan_1",
@@ -1351,7 +1360,9 @@ describe("ChatInterface stop flow", () => {
               status: "draft",
               title: "Standalone plan",
             },
+            artifacts: [{ type: "plan_doc", plan_id: "plan_1" }],
             markdown: "# Standalone plan",
+            proposed_plan: "<proposed_plan># Standalone plan</proposed_plan>",
           },
         },
       });
@@ -1361,23 +1372,7 @@ describe("ChatInterface stop flow", () => {
       const assistantMessage = lastChatMessagesProps.messages.find(
         (message) => message.role === "assistant",
       );
-      expect(lastChatMessagesProps?.planDocs).toEqual([
-        {
-          plan_id: "plan_1",
-          message_id: assistantMessage.id,
-          title: "Standalone plan",
-          status: "draft",
-          revision: 2,
-          markdown: "# Standalone plan",
-          artifact: {
-            type: "plan_doc",
-            plan_id: "plan_1",
-            revision: 2,
-            status: "draft",
-            title: "Standalone plan",
-          },
-        },
-      ]);
+      expect(assistantMessage?.traceFrames).toHaveLength(1);
     });
 
     const assistantMessage = lastChatMessagesProps.messages.find(
@@ -1385,9 +1380,22 @@ describe("ChatInterface stop flow", () => {
     );
     expect(assistantMessage.content).toBe("");
     expect(lastChatMessagesProps.messages).toHaveLength(2);
-    expect(getChatsStore().chatsById[lastChatMessagesProps.chatId].planDocs).toEqual(
-      lastChatMessagesProps.planDocs,
-    );
+    expect(lastChatMessagesProps).not.toHaveProperty("planDocs");
+    expect(
+      getChatsStore().chatsById[lastChatMessagesProps.chatId],
+    ).not.toHaveProperty("planDocs");
+
+    const result = assistantMessage.traceFrames[0].payload.result;
+    expect(result).toEqual({
+      ok: true,
+      plan_id: "plan_1",
+      status: "draft",
+      revision: 2,
+      workspace_file: {
+        path: "/tmp/workspace/plans/plan_1.md",
+        relative_path: "plans/plan_1.md",
+      },
+    });
   });
 
   test("batches token updates per animation frame and flushes pending tokens on done", async () => {

@@ -29,7 +29,6 @@ const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
 const STREAM_TRACE_LEVEL = "minimal";
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
-const PLAN_DOC_ARTIFACT_TYPE = "plan_doc";
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
   run_started: "start",
@@ -39,65 +38,54 @@ const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   done: "end",
 });
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
+const LEGACY_PLAN_RESULT_KEYS = [
+  "plan",
+  "markdown",
+  "artifact",
+  "artifacts",
+  "proposed_plan",
+];
 
-const extractPlanDocFromToolResultFrame = (frame) => {
-  if (frame?.type !== "tool_result") {
-    return null;
+const isObject = (value) =>
+  value !== null && typeof value === "object" && !Array.isArray(value);
+
+const isPlanDocArtifact = (artifact) =>
+  isObject(artifact) && artifact.type === "plan_doc";
+
+const shouldScrubLegacyPlanToolResult = (payload) => {
+  if (!isObject(payload) || !isObject(payload.result)) {
+    return false;
   }
-  const result =
-    frame.payload?.result && typeof frame.payload.result === "object"
-      ? frame.payload.result
-      : {};
-  const primaryArtifact =
-    result.artifact && typeof result.artifact === "object"
-      ? result.artifact
-      : null;
-  const artifact =
-    primaryArtifact?.type === PLAN_DOC_ARTIFACT_TYPE
-      ? primaryArtifact
-      : Array.isArray(result.artifacts)
-        ? result.artifacts.find(
-            (item) => item?.type === PLAN_DOC_ARTIFACT_TYPE,
-          )
-        : null;
-  if (!artifact || artifact.type !== PLAN_DOC_ARTIFACT_TYPE) {
-    return null;
-  }
-  const planId =
-    typeof artifact.plan_id === "string" && artifact.plan_id.trim()
-      ? artifact.plan_id.trim()
+  const toolName =
+    typeof payload.tool_name === "string"
+      ? payload.tool_name.trim().toLowerCase()
       : "";
-  if (!planId) {
-    return null;
+  const result = payload.result;
+  return (
+    toolName.startsWith("plan_") ||
+    isPlanDocArtifact(result.artifact) ||
+    (Array.isArray(result.artifacts) &&
+      result.artifacts.some((artifact) => isPlanDocArtifact(artifact))) ||
+    Object.prototype.hasOwnProperty.call(result, "proposed_plan")
+  );
+};
+
+const scrubLegacyPlanToolResultFrame = (frame) => {
+  if (
+    frame?.type !== "tool_result" ||
+    !shouldScrubLegacyPlanToolResult(frame.payload)
+  ) {
+    return frame;
+  }
+  const result = { ...frame.payload.result };
+  for (const key of LEGACY_PLAN_RESULT_KEYS) {
+    delete result[key];
   }
   return {
-    plan_id: planId,
-    title:
-      typeof artifact.title === "string" && artifact.title.trim()
-        ? artifact.title.trim()
-        : planId,
-    status:
-      typeof artifact.status === "string" && artifact.status.trim()
-        ? artifact.status.trim()
-        : "draft",
-    revision: Number.isFinite(Number(artifact.revision))
-      ? Number(artifact.revision)
-      : 1,
-    markdown: typeof result.markdown === "string" ? result.markdown : "",
-    artifact: {
-      type: PLAN_DOC_ARTIFACT_TYPE,
-      plan_id: planId,
-      revision: Number.isFinite(Number(artifact.revision))
-        ? Number(artifact.revision)
-        : 1,
-      status:
-        typeof artifact.status === "string" && artifact.status.trim()
-          ? artifact.status.trim()
-          : "draft",
-      title:
-        typeof artifact.title === "string" && artifact.title.trim()
-          ? artifact.title.trim()
-          : planId,
+    ...frame,
+    payload: {
+      ...frame.payload,
+      result,
     },
   };
 };
@@ -1860,6 +1848,7 @@ export const useChatStream = ({
               }
 
               if (!frame) return;
+              frame = scrubLegacyPlanToolResultFrame(frame);
               if (frame.type === "token_delta") {
                 lastTokenRunIdRef.current =
                   frame.run_id || frame.payload?.run_id || "";
@@ -2194,19 +2183,6 @@ export const useChatStream = ({
                     typeof frame.payload?.call_id === "string"
                       ? frame.payload.call_id
                       : "";
-                  const planDoc = extractPlanDocFromToolResultFrame(frame);
-                  if (
-                    planDoc &&
-                    typeof storageApi.upsertChatPlanDoc === "function"
-                  ) {
-                    storageApi.upsertChatPlanDoc(
-                      targetChatId,
-                      { ...planDoc, message_id: assistantMessageId },
-                      {
-                        source: "chat-page",
-                      },
-                    );
-                  }
                   const toolName =
                     typeof frame.payload?.tool_name === "string"
                       ? frame.payload.tool_name
@@ -2476,19 +2452,6 @@ export const useChatStream = ({
                   typeof frame.payload?.call_id === "string"
                     ? frame.payload.call_id
                     : "";
-                const planDoc = extractPlanDocFromToolResultFrame(frame);
-                if (
-                  planDoc &&
-                  typeof storageApi.upsertChatPlanDoc === "function"
-                ) {
-                  storageApi.upsertChatPlanDoc(
-                    targetChatId,
-                    { ...planDoc, message_id: assistantMessageId },
-                    {
-                      source: "chat-page",
-                    },
-                  );
-                }
                 const toolName =
                   typeof frame.payload?.tool_name === "string"
                     ? frame.payload.tool_name

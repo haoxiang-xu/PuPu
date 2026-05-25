@@ -30,7 +30,6 @@ export const useChatSessionState = ({
 
   const [activeChatId, setActiveChatId] = useState(initialChat.id);
   const [messages, setMessages] = useState(() => initialChat.messages || []);
-  const [planDocs, setPlanDocs] = useState(() => initialChat.planDocs || []);
   const [inputValue, setInputValue] = useState(
     () => initialChat.draft?.text || "",
   );
@@ -121,10 +120,7 @@ export const useChatSessionState = ({
 
   useEffect(() => {
     const unsubscribe = subscribeChatsStore((nextStore, event = {}) => {
-      if (
-        event.source === "chat-page" &&
-        event.type !== "chat_update_plan_docs"
-      ) {
+      if (event.source === "chat-page") {
         return;
       }
 
@@ -156,11 +152,6 @@ export const useChatSessionState = ({
 
         if (event.type === "chat_update_messages") {
           setMessages(nextActiveChat.messages || []);
-          return;
-        }
-
-        if (event.type === "chat_update_plan_docs") {
-          setPlanDocs(nextActiveChat.planDocs || []);
           return;
         }
 
@@ -209,7 +200,6 @@ export const useChatSessionState = ({
           ? enteringStreamState.messages
           : nextActiveChat.messages || [];
       setMessages(restoredMessages);
-      setPlanDocs(nextActiveChat.planDocs || []);
       setInputValue(nextActiveChat.draft?.text || "");
       setDraftAttachments(nextActiveChat.draft?.attachments || []);
       setAgentOrchestration(
@@ -395,8 +385,6 @@ export const useChatSessionState = ({
     setInputValue,
     messages,
     setMessages,
-    planDocs,
-    setPlanDocs,
     messagesRef,
     modelIdRef,
     selectedModelId,

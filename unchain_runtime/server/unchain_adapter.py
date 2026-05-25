@@ -2573,22 +2573,6 @@ def _build_generic_toolkit(
     raise last_type_error or RuntimeError("Failed to create toolkit")
 
 
-def _build_plan_session_store(session_id: str) -> Any | None:
-    clean_session_id = str(session_id or "").strip()
-    if not clean_session_id:
-        return None
-    try:
-        from memory_factory import _data_dir, _normalize_data_dir, _sessions_dir
-        from unchain.memory.qdrant import JsonFileSessionStore
-
-        data_dir = _normalize_data_dir(_data_dir())
-        if not data_dir:
-            return None
-        return JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
-    except Exception:
-        return None
-
-
 def _try_build_workspace_toolkit_for_roots(
     toolkit_factory: Any,
     *,
@@ -2833,7 +2817,6 @@ def _build_selected_toolkits(
 
     resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
     workspace_root = resolved_roots[0] if resolved_roots else None
-    session_state_store = _build_plan_session_store(session_id)
     result: list = []
 
     for toolkit_name in toolkit_names:
@@ -2847,18 +2830,9 @@ def _build_selected_toolkits(
         if not callable(toolkit_factory):
             raise RuntimeError(f"Requested toolkit is unavailable: {toolkit_name}")
 
-        toolkit_workspace_root = workspace_root
-        toolkit_session_store = None
-        toolkit_session_id = ""
-        if normalized_toolkit_name == "PlanToolkit":
-            toolkit_session_store = session_state_store
-            toolkit_session_id = session_id
-
         toolkit_instance = _build_generic_toolkit(
             toolkit_factory,
-            workspace_root=toolkit_workspace_root,
-            session_store=toolkit_session_store,
-            session_id=toolkit_session_id,
+            workspace_root=workspace_root,
         )
         toolkit_class = (
             toolkit_factory

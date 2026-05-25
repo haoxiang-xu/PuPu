@@ -374,6 +374,44 @@ export const isCharacterChatSession = (chat) =>
   sanitizeChatKind(chat?.kind) === CHARACTER_CHAT_KIND &&
   Boolean(sanitizeCharacterId(chat?.characterId));
 
+const LEGACY_PLAN_RESULT_KEYS = [
+  "plan",
+  "markdown",
+  "artifact",
+  "artifacts",
+  "proposed_plan",
+];
+
+const isPlanDocArtifact = (artifact) =>
+  isObject(artifact) && artifact.type === "plan_doc";
+
+const isLegacyPlanToolResultPayload = (payload) => {
+  if (!isObject(payload) || !isObject(payload.result)) {
+    return false;
+  }
+  const toolName =
+    typeof payload.tool_name === "string"
+      ? payload.tool_name.trim().toLowerCase()
+      : "";
+  const result = payload.result;
+  return (
+    toolName.startsWith("plan_") ||
+    isPlanDocArtifact(result.artifact) ||
+    (Array.isArray(result.artifacts) &&
+      result.artifacts.some((artifact) => isPlanDocArtifact(artifact))) ||
+    Object.prototype.hasOwnProperty.call(result, "proposed_plan")
+  );
+};
+
+const scrubLegacyPlanToolResultPayload = (payload) => {
+  if (!isLegacyPlanToolResultPayload(payload)) {
+    return;
+  }
+  for (const key of LEGACY_PLAN_RESULT_KEYS) {
+    delete payload.result[key];
+  }
+};
+
 const sanitizeTraceFrame = (frame) => {
   if (!isObject(frame)) return null;
   const cleanedFrame = {
@@ -409,6 +447,7 @@ const sanitizeTraceFrame = (frame) => {
       if (typeof payload.delta === "string") {
         payload.delta = trimText(payload.delta, 2000);
       }
+      scrubLegacyPlanToolResultPayload(payload);
       cleanedFrame.payload = payload;
     }
   }
@@ -603,56 +642,6 @@ export const sanitizeMessages = (messages) => {
   return out;
 };
 
-export const sanitizePlanDoc = (doc) => {
-  if (!isObject(doc)) return null;
-  const artifact = isObject(doc.artifact) ? doc.artifact : {};
-  const planId = trimText(
-    doc.plan_id || doc.planId || artifact.plan_id || artifact.planId || "",
-    120,
-  );
-  if (!planId) return null;
-  const messageId = trimText(
-    doc.message_id ||
-      doc.messageId ||
-      artifact.message_id ||
-      artifact.messageId ||
-      "",
-    200,
-  );
-  const title = trimText(doc.title || artifact.title || planId, 200);
-  const rawStatus = trimText(doc.status || artifact.status || "draft", 40);
-  const status = rawStatus === "finalized" ? "finalized" : "draft";
-  const revisionValue = Number(doc.revision ?? artifact.revision ?? 1);
-  const revision = Number.isFinite(revisionValue)
-    ? Math.max(1, revisionValue)
-    : 1;
-  return {
-    plan_id: planId,
-    ...(messageId ? { message_id: messageId } : {}),
-    title,
-    status,
-    revision,
-    markdown: trimText(doc.markdown || "", 100000),
-    artifact: {
-      type: "plan_doc",
-      plan_id: planId,
-      revision,
-      status,
-      title,
-    },
-  };
-};
-
-export const sanitizePlanDocs = (planDocs) => {
-  if (!Array.isArray(planDocs)) return [];
-  const byId = new Map();
-  for (const item of planDocs) {
-    const cleaned = sanitizePlanDoc(item);
-    if (cleaned) byId.set(cleaned.plan_id, cleaned);
-  }
-  return Array.from(byId.values());
-};
-
 export const computeLastMessageAt = (messages, fallback = null) => {
   if (!Array.isArray(messages) || messages.length === 0) {
     return Number.isFinite(Number(fallback)) ? Number(fallback) : null;
@@ -681,7 +670,6 @@ export const computeChatStats = (chat) => ({
     systemPromptOverrides: chat.systemPromptOverrides,
     draft: chat.draft,
     messages: chat.messages,
-    planDocs: chat.planDocs,
   }),
 });
 
@@ -747,7 +735,6 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     ),
     draft,
     messages,
-    planDocs: sanitizePlanDocs(chat?.planDocs),
     isTransientNewChat: chat?.isTransientNewChat === true,
     hasUnreadGeneratedReply: chat?.hasUnreadGeneratedReply === true,
     stats: {
@@ -811,7 +798,6 @@ export const createChatSession = (overrides = {}) => {
         updatedAt: seed,
       },
       messages: [],
-      planDocs: overrides.planDocs,
       isTransientNewChat: overrides.isTransientNewChat === true,
     },
     overrides.id,

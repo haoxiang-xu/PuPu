@@ -50,7 +50,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(providers["ollama"], ["deepseek-r1:14b"])
         self.assertNotIn("text-embedding-3-small", providers["openai"])
 
-    def test_build_selected_plan_toolkit_passes_session_store(self) -> None:
+    def test_build_selected_plan_toolkit_passes_workspace_root_only(self) -> None:
         captured = {}
 
         class PlanToolkit:
@@ -76,8 +76,8 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertEqual(len(built), 1)
         self.assertEqual(captured["workspace_root"], str(Path(workspace_root).resolve()))
-        self.assertIsNotNone(captured["session_store"])
-        self.assertEqual(captured["session_id"], "chat-1")
+        self.assertIsNone(captured["session_store"])
+        self.assertEqual(captured["session_id"], "")
         self.assertEqual(
             getattr(built[0], unchain_adapter._RUNTIME_TOOLKIT_ID_ATTR),
             "plan",

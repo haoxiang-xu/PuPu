@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import ChatMessages from "./chat_messages";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 
@@ -25,7 +25,7 @@ const renderChatMessages = (props = {}) =>
     </ConfigContext.Provider>,
   );
 
-test("renders plan docs as compact chips and opens a read-only panel", () => {
+test("ignores legacy plan docs passed by old storage", () => {
   renderChatMessages({
     messages: [
       {
@@ -50,17 +50,7 @@ test("renders plan docs as compact chips and opens a read-only panel", () => {
     ],
   });
 
-  const chip = screen.getByTitle("Standalone plan");
-  expect(chip.closest("[data-message-id]")).toHaveAttribute(
-    "data-message-id",
-    "assistant-1",
-  );
-
-  fireEvent.click(chip);
-
-  expect(
-    screen.getByRole("dialog", { name: "Standalone plan" }),
-  ).toBeInTheDocument();
-  expect(screen.getAllByText("Standalone plan").length).toBeGreaterThan(0);
-  expect(screen.getByText("Step one")).toBeInTheDocument();
+  expect(screen.queryByTitle("Standalone plan")).not.toBeInTheDocument();
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(screen.queryByText("Step one")).not.toBeInTheDocument();
 });
