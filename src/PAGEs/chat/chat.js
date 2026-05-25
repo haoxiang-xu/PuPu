@@ -6,7 +6,10 @@ import {
   useRef,
   useState,
 } from "react";
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import {
+  NavigationContext,
+  ThemeContext,
+} from "../../CONTAINERs/config/context";
 import ChatMessages from "../../COMPONENTs/chat-messages/chat_messages";
 import ChatInput from "../../COMPONENTs/chat-input/chat_input";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -30,6 +33,7 @@ import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
+import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -152,7 +156,8 @@ const HeroHeadline = ({ isDark }) => {
 
 const ChatInterface = () => {
   const { t } = useTranslation();
-  const { theme, onFragment, onThemeMode } = useContext(ConfigContext);
+  const { theme, onThemeMode } = useContext(ThemeContext) || {};
+  const { onFragment } = useContext(NavigationContext) || {};
 
   const [bootstrapped] = useState(() => bootstrapChatsStore());
   const initialChat = bootstrapped.activeChat;
@@ -607,6 +612,20 @@ const ChatInterface = () => {
 
   const isEmpty = session.messages.length === 0;
   const isDark = onThemeMode === "dark_mode";
+  const {
+    containerRef: smoothResizeContainerRef,
+    frameStyle: smoothResizeFrameStyle,
+    refreshFrame: refreshSmoothResizeFrame,
+  } = useSmoothResizeFrame();
+
+  useEffect(() => {
+    refreshSmoothResizeFrame();
+    const timer = setTimeout(() => {
+      refreshSmoothResizeFrame();
+    }, 340);
+
+    return () => clearTimeout(timer);
+  }, [onFragment, refreshSmoothResizeFrame]);
 
   const sharedChatInputProps = useMemo(
     () => ({
@@ -661,6 +680,7 @@ const ChatInterface = () => {
   return (
     <div
       data-chat-id={session.activeChatId}
+      ref={smoothResizeContainerRef}
       style={{
         position: "absolute",
         top: 0,
@@ -682,41 +702,49 @@ const ChatInterface = () => {
         style={{ display: "none" }}
         onChange={attachments.handleFileInputChange}
       />
-      {isEmpty ? (
-        <div
-          key={session.activeChatId}
-          style={{
-            flex: 1,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "0 0 80px",
-          }}
-        >
+      <div
+        data-testid="chat-smooth-resize-frame"
+        style={{
+          ...smoothResizeFrameStyle,
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {isEmpty ? (
+          <div
+            key={session.activeChatId}
+            style={{
+              flex: 1,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "0 0 80px",
+            }}
+          >
             <div
               style={{
                 display: "flex",
                 flexDirection: "column",
-              alignItems: "center",
-              width: "100%",
-              maxWidth: 780,
-              padding: "0 24px",
-              boxSizing: "border-box",
+                alignItems: "center",
+                width: "100%",
+                maxWidth: 780,
+                padding: "0 24px",
+                boxSizing: "border-box",
                 gap: 0,
               }}
             >
-            <HeroHeadline isDark={isDark} />
+              <HeroHeadline isDark={isDark} />
 
-            <div
-              style={{
-                animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
-                animationDelay: "100ms",
-                width: "100%",
-                marginBottom: 14,
-              }}
-            >
-              <ChatInput {...sharedChatInputProps} />
-            </div>
+              <div
+                style={{
+                  animation: "heroRise 0.5s cubic-bezier(0.22,1,0.36,1) both",
+                  animationDelay: "100ms",
+                  width: "100%",
+                  marginBottom: 14,
+                }}
+              >
+                <ChatInput {...sharedChatInputProps} />
+              </div>
 
             {(() => {
               const providers = modelCatalog?.providers || {};
@@ -890,6 +918,7 @@ const ChatInterface = () => {
           </div>
         </>
       )}
+      </div>
     </div>
   );
 };

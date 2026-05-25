@@ -203,14 +203,14 @@ Five services are initialized in `electron/main/index.js`:
 ```
 app.whenReady()
   → ollamaService.startOllama()
-  → unchainService.startMiso()       # Spawns Python, port 5879-5895
+  → unchainService.startMiso()       # Legacy method name; starts the Unchain Flask sidecar on port 5879-5895
   → registerIpcHandlers(services)
   → windowService.createMainWindow()
   → updateService (if supported)
 
 app.before-quit / will-quit
   → ollamaService.stopOllama()
-  → unchainService.stopMiso()
+  → unchainService.stopMiso()        # Legacy method name; stops the Unchain Flask sidecar
 ```
 
 ---

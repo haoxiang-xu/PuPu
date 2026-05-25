@@ -563,6 +563,38 @@ class CharacterRouteTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["messages"], [{"role": "user", "content": "hello"}])
 
+    def test_chat_plan_routes_are_not_exposed(self) -> None:
+        data_dir = memory_factory._normalize_data_dir(memory_factory._data_dir())
+        session_id = "plan:chat/id"
+        memory_factory._atomic_write_json(
+            memory_factory._session_store_path(data_dir, session_id),
+            {
+                "messages": [{"role": "user", "content": "hello"}],
+                "plans": {
+                    "active_plan_id": "plan_1",
+                    "items": {"plan_1": {"plan_id": "plan_1"}},
+                },
+            },
+        )
+
+        list_response = self.client.get(
+            f"/chat/plans?threadId={session_id}",
+        )
+        self.assertEqual(list_response.status_code, 404)
+
+        read_response = self.client.get(
+            f"/chat/plans/plan_1?threadId={session_id}",
+        )
+        self.assertEqual(read_response.status_code, 404)
+
+        export_response = self.client.get(
+            f"/memory/session/export?session_id={session_id}",
+        )
+        self.assertEqual(export_response.get_json(), {
+            "session_id": session_id,
+            "messages": [{"role": "user", "content": "hello"}],
+        })
+
 
 if __name__ == "__main__":
     unittest.main()

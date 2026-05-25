@@ -19,6 +19,7 @@ const SinkingSelect = ({
   search_placeholder = "Search...",
   style,
   dropdown_style,
+  dropdown_position = "bottom",
   option_style,
   disabled = false,
   show_trigger_icon = true,
@@ -313,7 +314,7 @@ const SinkingSelect = ({
   return (
     <Tooltip
       trigger={["click"]}
-      position="bottom"
+      position={dropdown_position}
       offset={8}
       align="start"
       show_arrow={false}
@@ -344,6 +345,7 @@ const FloatingSelect = ({
   label,
   style,
   dropdown_style,
+  dropdown_position = "bottom",
   option_style,
   disabled = false,
   show_trigger_icon = true,
@@ -657,7 +659,7 @@ const FloatingSelect = ({
   return (
     <Tooltip
       trigger={["click"]}
-      position="bottom"
+      position={dropdown_position}
       offset={8}
       align="start"
       show_arrow={false}
@@ -691,6 +693,7 @@ const Select = ({
   custom_trigger,
   style,
   dropdown_style,
+  dropdown_position = "bottom",
   option_style,
   dropdown_footer,
   disabled = false,
@@ -1023,7 +1026,7 @@ const Select = ({
   return (
     <Tooltip
       trigger={["click"]}
-      position="bottom"
+      position={dropdown_position}
       offset={8}
       align="start"
       show_arrow={false}

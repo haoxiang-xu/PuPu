@@ -4,6 +4,9 @@ const createAppUpdateBridge = (ipcRenderer) => ({
   checkAndDownload: () => ipcRenderer.invoke(CHANNELS.UPDATE.CHECK_AND_DOWNLOAD),
   installNow: () => ipcRenderer.invoke(CHANNELS.UPDATE.INSTALL_NOW),
   getState: () => ipcRenderer.invoke(CHANNELS.UPDATE.GET_STATE),
+  getAutoUpdate: () => ipcRenderer.invoke(CHANNELS.UPDATE.GET_AUTO_UPDATE),
+  setAutoUpdate: (enabled) =>
+    ipcRenderer.invoke(CHANNELS.UPDATE.SET_AUTO_UPDATE, { enabled }),
   onStateChange: (callback) => {
     if (typeof callback !== "function") {
       return () => {};

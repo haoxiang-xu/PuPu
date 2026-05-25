@@ -6,7 +6,7 @@
 
 ## Overview
 
-The Electron preload script exposes 9 global objects on `window`. React code accesses these through bridge wrappers in `src/SERVICEs/bridges/`.
+The Electron preload script exposes production bridge objects on `window`. React code accesses these through bridge wrappers in `src/SERVICEs/bridges/`. In non-production test runs, it also exposes `window.__pupuTestBridge`.
 
 ---
 
@@ -94,7 +94,7 @@ The largest API surface. Organized by domain:
 
 | Method | Returns |
 |--------|---------|
-| `getStatus()` | `Promise<MisoStatus>` |
+| `getStatus()` | `Promise<UnchainStatus>` |
 | `getModelCatalog()` | `Promise<ModelCatalog>` |
 | `getToolkitCatalog()` | `Promise<ToolkitCatalog>` |
 | `listToolModalCatalog()` | `Promise<ToolkitCatalog>` |
@@ -107,7 +107,8 @@ The largest API surface. Organized by domain:
 | Method | Returns |
 |--------|---------|
 | `startStream(payload, handlers)` | `{ requestId, cancel }` (V1 legacy) |
-| `startStreamV2(payload, handlers)` | `{ requestId, cancel }` (V2 current) |
+| `startStreamV2(payload, handlers)` | `{ requestId, cancel }` (V2 frame protocol) |
+| `startStreamV3(payload, handlers)` | `{ requestId, cancel }` (V3 RuntimeEvent protocol) |
 | `cancelStream(requestId)` | `void` |
 
 ### Tool Confirmation
@@ -166,6 +167,43 @@ The largest API surface. Organized by domain:
 | `showOpenDialog(options)` | `Promise<{ filePaths, canceled }>` |
 | `writeFile(filePath, content)` | `Promise<void>` |
 | `readFile(filePath)` | `Promise<string>` |
+
+---
+
+## window.screenshotAPI
+
+Source: `electron/preload/bridges/screenshot_bridge.js`
+
+| Method | Returns |
+|--------|---------|
+| `capture()` | `Promise<ScreenshotResult>` |
+| `checkAvailability()` | `Promise<{ available }>` |
+
+---
+
+## window.chatStorageAPI
+
+Source: `electron/preload/bridges/chat_storage_bridge.js`
+
+| Method | Returns |
+|--------|---------|
+| `bootstrap()` | `ChatStorageSnapshot | null` |
+| `write(payload)` | `void` |
+
+---
+
+## window.__pupuTestBridge
+
+Source: `electron/preload/test_bridge_preload.js`
+
+Available only outside production unless `PUPU_TEST_API_DISABLE=1`.
+
+| Method | Returns |
+|--------|---------|
+| `register(command, handler)` | `() => void` — unregister function |
+| `pushLog(entry)` | `void` |
+| `pushEvent(event)` | `void` |
+| `markReady()` | `void` |
 
 ---
 

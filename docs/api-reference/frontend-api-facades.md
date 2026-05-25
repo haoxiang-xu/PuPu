@@ -28,7 +28,7 @@ unchainApi.isBridgeAvailable()  // → boolean
 
 | Method | Timeout | Description |
 |--------|---------|-------------|
-| `getStatus()` | 5s | Miso sidecar status |
+| `getStatus()` | 5s | Unchain sidecar status |
 | `getModelCatalog()` | 5s | All providers + capabilities |
 | `getToolkitCatalog()` | 5s | Toolkit list |
 | `listToolModalCatalog()` | 5s | Toolkit list for modal |
@@ -42,14 +42,16 @@ unchainApi.isBridgeAvailable()  // → boolean
 |--------|-------------|
 | `startStream(payload, handlers)` | V1 legacy stream |
 | `startStreamV2(payload, handlers)` | V2 frame-based stream |
+| `isRuntimeEventStreamV3Available()` | Returns true when the bridge exposes V3 streaming |
+| `startStreamV3(payload, handlers)` | V3 RuntimeEvent stream |
 | `cancelStream(requestId)` | Cancel active stream |
 | `respondToolConfirmation(payload)` | Submit tool confirmation |
 
-`startStreamV2` applies `normalizeMisoV2Payload(payload)` before sending, which chains:
-1. `injectProviderApiKeyIntoPayload`
-2. `injectMemoryIntoPayload`
-3. `injectWorkspaceRootIntoPayload`
-4. `injectSystemPromptV2IntoPayload`
+`startStreamV2` and `startStreamV3` both apply `normalizeUnchainV2Payload(payload)` before sending, which chains:
+1. `injectWorkspaceRootIntoPayload`
+2. `injectSystemPromptV2IntoPayload`
+3. `injectMemoryIntoPayload`
+4. `injectProviderApiKeyIntoPayload`
 
 ### Characters
 
@@ -169,7 +171,7 @@ assertBridgeMethod(bridgeName, methodName) // → bound method | throws
 
 | File | Role |
 |------|------|
-| `src/SERVICEs/api.unchain.js` | Unchain/Miso API facade |
+| `src/SERVICEs/api.unchain.js` | Unchain API facade |
 | `src/SERVICEs/api.ollama.js` | Ollama API facade |
 | `src/SERVICEs/api.system.js` | System API facade |
 | `src/SERVICEs/api.shared.js` | Shared utilities, error class |

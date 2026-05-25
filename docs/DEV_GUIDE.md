@@ -1,7 +1,7 @@
 # PuPu Developer Guide
 
 > Unified developer reference for the PuPu desktop AI client.
-> Last verified against codebase: 2026-04-02
+> Last verified against codebase: 2026-05-08
 
 ---
 
@@ -71,7 +71,7 @@ PuPu/
 │   │   ├── explorer/             # File explorer UI
 │   │   └── ...                   # spinner, tag, select, switch, etc.
 │   ├── SERVICEs/                 # API facades, storage, bridges
-│   │   ├── api.unchain.js        # Unchain/Miso API facade
+│   │   ├── api.unchain.js        # Unchain API facade
 │   │   ├── api.ollama.js         # Ollama API facade
 │   │   ├── api.shared.js         # Shared utilities, error class
 │   │   ├── api.system.js         # System info APIs
@@ -103,7 +103,8 @@ PuPu/
 │   │   ├── memory_*.py           # Memory subsystem (4 files)
 │   │   ├── character_*.py        # Character subsystem (7 files)
 │   │   └── route_*.py            # Route modules (6 files)
-│   ├── miso/                     # Compiled Miso binaries
+│   ├── build/                    # Build-time backend artifacts
+│   ├── dist/                     # Packaged backend artifacts
 │   └── scripts/                  # Build scripts per platform
 ├── scripts/                      # Build & dev scripts
 ├── assets/                       # Static assets
@@ -152,7 +153,8 @@ npm run build:electron:linux       # Linux
 | Document | Covers |
 |----------|--------|
 | **[Architecture](architecture/)** | |
-| [Request Flow & Streaming](architecture/request-flow-and-streaming.md) | End-to-end chat streaming, SSE protocol, V2 frame types |
+| [Request Flow & Streaming](architecture/request-flow-and-streaming.md) | End-to-end chat streaming, V2/V3 stream paths |
+| [Runtime Events V3](architecture/runtime-events-v3.md) | Typed runtime event store, ActivityTree reducer, TraceChain adapter |
 | [IPC Boundary](architecture/ipc-boundary.md) | Electron IPC patterns, bridge layers, channel registry |
 | [System Prompt V2](architecture/system-prompt-v2.md) | 3-layer prompt override architecture |
 | [Memory System](architecture/memory-system.md) | Embedding resolution, Qdrant integration, session vs long-term memory |
@@ -171,7 +173,7 @@ npm run build:electron:linux       # Linux
 | [Character System](features/character-system.md) | Personas, schedules, avatars, seeding, import/export |
 | [Toolkit & Tool Catalog](features/toolkit-and-tool-catalog.md) | Toolkit discovery, TOML format, tool metadata, auto-approval |
 | [Workspace System](features/workspace-system.md) | Named workspaces, per-chat selection, path resolution |
-| [Agent Orchestration](features/agent-orchestration.md) | Sub-agent events, delegation, prompt sections |
+| [Agent Orchestration](features/agent-orchestration.md) | Sub-agent delegation, child-run routing, prompt sections |
 | **[Conventions](conventions/)** | |
 | [Project Conventions](conventions/project-conventions.md) | Naming, styling, file org, component patterns, pitfalls |
 | [Build & Testing](conventions/build-and-testing.md) | Build pipeline, test commands, CI setup |
@@ -186,7 +188,7 @@ npm run build:electron:linux       # Linux
 4. **Function components only** - no class components
 5. **Bridge-isolated IPC** - React never touches `ipcRenderer`; all access through `window.*API`
 6. **localStorage persistence** - chat storage in localStorage with 4.5MB limit and LRU eviction
-7. **SSE streaming** - Flask sidecar streams events via SSE, relayed through Electron IPC
+7. **SSE streaming** - Flask sidecar streams V2 frames or V3 runtime events via SSE, relayed through Electron IPC
 8. **Unchain SDK** - agent orchestration via Unchain framework with modular prompt composition
 
 ---

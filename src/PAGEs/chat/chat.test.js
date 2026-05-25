@@ -1,5 +1,9 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
+import {
+  LocaleContext,
+  NavigationContext,
+  ThemeContext,
+} from "../../CONTAINERs/config/context";
 import ChatInterface from "./chat";
 import {
   getChatsStore,
@@ -79,6 +83,7 @@ describe("ChatInterface stop flow", () => {
   let cancelSpy;
   let consoleErrorSpy;
   let streamHandlers;
+  let streamV3Handlers;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -86,6 +91,7 @@ describe("ChatInterface stop flow", () => {
     lastChatInputProps = null;
     cancelSpy = jest.fn();
     streamHandlers = null;
+    streamV3Handlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockScopedLogger.log.mockClear();
     mockScopedLogger.warn.mockClear();
@@ -134,17 +140,20 @@ describe("ChatInterface stop flow", () => {
 
   const renderChat = () =>
     render(
-      <ConfigContext.Provider
+      <ThemeContext.Provider
         value={{
           theme: {},
-          onFragment: "main",
           onThemeMode: "light_mode",
         }}
       >
-        <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
-          <ChatInterface />
-        </LocaleContext.Provider>
-      </ConfigContext.Provider>,
+        <NavigationContext.Provider
+          value={{ onFragment: "main", setOnFragment: jest.fn() }}
+        >
+          <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+            <ChatInterface />
+          </LocaleContext.Provider>
+        </NavigationContext.Provider>
+      </ThemeContext.Provider>,
     );
 
   const waitForReady = async () => {
@@ -684,7 +693,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("auto-approves only toolkit-scoped tool matches", async () => {
+  test("auto-approves matching tools without exposing pending confirmation UI", async () => {
     window.localStorage.setItem(
       "toolkit_auto_approve",
       JSON.stringify({
@@ -692,6 +701,13 @@ describe("ChatInterface stop flow", () => {
         toolkits: ["code_toolkit"],
         tools: ["code_toolkit:write"],
       }),
+    );
+    let resolveConfirmation;
+    const confirmationPromise = new Promise((resolve) => {
+      resolveConfirmation = resolve;
+    });
+    window.unchainAPI.respondToolConfirmation.mockImplementationOnce(
+      () => confirmationPromise,
     );
 
     renderChat();
@@ -726,6 +742,24 @@ describe("ChatInterface stop flow", () => {
         approved: true,
         reason: "",
       });
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-1"],
+      ).toEqual(
+        expect.objectContaining({
+          status: "submitted",
+          error: "",
+          resolved: true,
+          decision: "approved",
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-1"],
+      ).toBeUndefined();
+    });
+
+    await act(async () => {
+      resolveConfirmation({ status: "ok" });
+      await confirmationPromise;
     });
 
     streamHandlers.onFrame({
@@ -744,6 +778,80 @@ describe("ChatInterface stop flow", () => {
 
     await waitFor(() => {
       expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-2"],
+      ).toEqual(
+        expect.objectContaining({
+          confirmationId: "confirm-2",
+          callId: "call-2",
+          toolName: "write",
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-2"]?.status,
+      ).toBe("idle");
+    });
+  });
+
+  test("auto-approve submission failure restores manual confirmation state", async () => {
+    window.localStorage.setItem(
+      "toolkit_auto_approve",
+      JSON.stringify({
+        version: 2,
+        toolkits: ["code_toolkit"],
+        tools: ["code_toolkit:write"],
+      }),
+    );
+    window.unchainAPI.respondToolConfirmation.mockRejectedValueOnce(
+      new Error("network down"),
+    );
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Run the write tool" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    streamHandlers.onFrame({
+      seq: 1,
+      ts: 100,
+      type: "tool_call",
+      payload: {
+        call_id: "call-1",
+        confirmation_id: "confirm-1",
+        requires_confirmation: true,
+        toolkit_id: "code_toolkit",
+        tool_name: "write",
+        arguments: { path: "/tmp/demo.txt" },
+      },
+    });
+
+    await waitFor(() => {
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-1"],
+      ).toEqual(
+        expect.objectContaining({
+          status: "error",
+          error: "network down",
+          resolved: false,
+          decision: "",
+        }),
+      );
+      expect(
+        lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-1"],
+      ).toEqual(
+        expect.objectContaining({
+          confirmationId: "confirm-1",
+          callId: "call-1",
+          toolName: "write",
+        }),
+      );
     });
   });
 
@@ -1037,6 +1145,11 @@ describe("ChatInterface stop flow", () => {
           (frame) => frame?.payload?.call_id === "ask-child-1",
         ),
       ).toBeUndefined();
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.[
+          "confirm-child-1"
+        ]?.status,
+      ).toBe("idle");
     });
   });
 
@@ -1119,6 +1232,169 @@ describe("ChatInterface stop flow", () => {
             frame?.type === "final_message" && frame?.run_id === "child-run-2",
         ),
       ).toBeUndefined();
+    });
+  });
+
+  test("uses runtime event stream v3 when the bridge is available", async () => {
+    window.unchainAPI.startStreamV3 = jest.fn((_payload, handlers = {}) => {
+      streamV3Handlers = handlers;
+      return {
+        cancel: cancelSpy,
+      };
+    });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello v3" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV3).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(streamV3Handlers).toBeTruthy();
+    });
+
+    const baseEvent = {
+      schema_version: "v3",
+      timestamp: "2026-04-25T12:00:00.000Z",
+      session_id: "thread-v3",
+      run_id: "run-root",
+      agent_id: "developer",
+      turn_id: "run-root:turn-1",
+      links: {},
+      visibility: "user",
+      metadata: {},
+    };
+
+    act(() => {
+      streamV3Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-session",
+        type: "session.started",
+        run_id: "",
+        turn_id: null,
+        payload: { thread_id: "thread-v3", model: "openai:gpt-5" },
+      });
+      streamV3Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-run",
+        type: "run.started",
+        payload: { provider: "openai", model: "gpt-5" },
+      });
+      streamV3Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-delta",
+        type: "model.delta",
+        payload: { kind: "text", delta: "Hello from v3" },
+      });
+      streamV3Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-final",
+        type: "model.completed",
+        payload: { status: "completed", final_text: "Hello from v3" },
+      });
+      streamV3Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-completed",
+        type: "run.completed",
+        payload: {
+          status: "completed",
+          usage: { consumed_tokens: 9, model: "openai:gpt-5" },
+        },
+      });
+      streamV3Handlers.onDone({ finished_at: 123 });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = [...(lastChatMessagesProps?.messages || [])]
+        .reverse()
+        .find((message) => message.role === "assistant");
+      expect(assistantMessage?.status).toBe("done");
+      expect(assistantMessage?.content).toBe("Hello from v3");
+      expect(assistantMessage?.traceFrames?.some((frame) => frame.type === "done")).toBe(
+        true,
+      );
+      expect(assistantMessage?.meta?.bundle?.consumed_tokens).toBe(9);
+    });
+  });
+
+  test("does not store or expose legacy plan doc artifacts", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Create a plan" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV2).toHaveBeenCalledTimes(1);
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: Date.now(),
+        type: "tool_result",
+        payload: {
+          tool_name: "plan_update",
+          call_id: "call-plan",
+          result: {
+            ok: true,
+            plan_id: "plan_1",
+            status: "draft",
+            revision: 2,
+            workspace_file: {
+              path: "/tmp/workspace/plans/plan_1.md",
+              relative_path: "plans/plan_1.md",
+            },
+            plan: { title: "Standalone plan" },
+            artifact: {
+              type: "plan_doc",
+              plan_id: "plan_1",
+              revision: 2,
+              status: "draft",
+              title: "Standalone plan",
+            },
+            artifacts: [{ type: "plan_doc", plan_id: "plan_1" }],
+            markdown: "# Standalone plan",
+            proposed_plan: "<proposed_plan># Standalone plan</proposed_plan>",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = lastChatMessagesProps.messages.find(
+        (message) => message.role === "assistant",
+      );
+      expect(assistantMessage?.traceFrames).toHaveLength(1);
+    });
+
+    const assistantMessage = lastChatMessagesProps.messages.find(
+      (message) => message.role === "assistant",
+    );
+    expect(assistantMessage.content).toBe("");
+    expect(lastChatMessagesProps.messages).toHaveLength(2);
+    expect(lastChatMessagesProps).not.toHaveProperty("planDocs");
+    expect(
+      getChatsStore().chatsById[lastChatMessagesProps.chatId],
+    ).not.toHaveProperty("planDocs");
+
+    const result = assistantMessage.traceFrames[0].payload.result;
+    expect(result).toEqual({
+      ok: true,
+      plan_id: "plan_1",
+      status: "draft",
+      revision: 2,
+      workspace_file: {
+        path: "/tmp/workspace/plans/plan_1.md",
+        relative_path: "plans/plan_1.md",
+      },
     });
   });
 

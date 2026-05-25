@@ -21,7 +21,7 @@ Toolkit Discovery (backend)
           → Sent in stream payload
             → Backend attaches tools to agent
               → Agent calls tools during streaming
-                → Confirmation required? → SSE frame → UI → response → continue
+                → Confirmation required? → SSE event → UI → response → continue
 ```
 
 ---
@@ -32,9 +32,8 @@ Toolkit Discovery (backend)
 |----|-------------|----------------------|
 | `workspace_toolkit` | File read/write in workspace folders | `write_file`, `delete_file`, `move_file` |
 | `terminal_toolkit` | Shell command execution | `terminal_exec` |
-| `code_toolkit` | Claude-style coding tools | `write`, `edit` |
-| `external_api_toolkit` | HTTP requests to external APIs | No |
-| `ask-user-toolkit` | Ask user for clarification | No |
+| `core` | Read, edit, shell, and Ask User tools | Tool metadata controls confirmation; `write` and `edit` are common confirmation-required tools |
+| `external_api` | HTTP requests to external APIs | No |
 
 ### Confirmation-Required Tools
 
@@ -44,12 +43,12 @@ Toolkit Discovery (backend)
   "workspace_toolkit:delete_file",
   "workspace_toolkit:move_file",
   "terminal_toolkit:terminal_exec",
-  "code_toolkit:write",
-  "code_toolkit:edit",
+  "core:write",
+  "core:edit",
 }
 ```
 
-These tools pause the stream and send a `tool_confirmation_request` frame. The stream resumes only after user approval.
+These tools pause the stream and emit either a V2 `tool_call` frame with `confirmation_id` or a V3 `input.requested` RuntimeEvent. The stream resumes only after user approval.
 
 ---
 
@@ -61,9 +60,9 @@ Multiple aliases map to canonical `toolkitId` values:
 |-------|-------------|
 | `workspace`, `workspace_toolkit`, `WorkspaceToolkit` | `workspace_toolkit` |
 | `terminal`, `terminal_toolkit`, `TerminalToolkit` | `terminal_toolkit` |
-| `code`, `code_toolkit`, `CodeToolkit` | `code_toolkit` |
-| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api_toolkit` |
-| `ask_user`, `ask_user_toolkit`, `AskUserToolkit` | `ask-user-toolkit` |
+| `code`, `code_toolkit`, `CodeToolkit` | `core` |
+| `ask_user`, `ask_user_toolkit`, `ask-user-toolkit`, `AskUserToolkit` | `core` |
+| `external_api`, `external_api_toolkit`, `ExternalAPIToolkit` | `external_api` |
 
 Removed IDs (silently stripped): `mcp`, `mcptoolkit`.
 
@@ -122,7 +121,7 @@ Each chat stores `selectedToolkits: string[]` (max 50 items).
 
 ## Default Toolkit Store
 
-`default_toolkit_store.js` persists the user's default toolkit selection as canonical `toolkitId` values. When a new chat is created, it inherits these defaults. If the user has never configured a global default, `code_toolkit` is seeded automatically.
+`default_toolkit_store.js` persists the user's default toolkit selection as canonical `toolkitId` values. When a new chat is created, it inherits these defaults. If the user has never configured a global default, `core` is seeded automatically.
 
 ---
 
@@ -135,7 +134,7 @@ Each chat stores `selectedToolkits: string[]` (max 50 items).
 ## Tool Confirmation Flow
 
 1. Agent calls a confirmation-required tool
-2. Backend sends `tool_confirmation_request` SSE frame with `confirmation_id`
+2. Backend sends either a V2 `tool_call` frame with `confirmation_id` or a V3 `input.requested` event
 3. Backend blocks on `threading.Event.wait()` until response
 4. Frontend renders confirmation UI (`toolConfirmationUiStateById` in `use_chat_stream.js`)
 5. User approves/denies

@@ -22,6 +22,8 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
     on_open_change = () => {},
     placeholder,
     search_placeholder,
+    dropdown_position = "bottom",
+    custom_trigger,
   }) => {
     const renderOptionLabels = (items = []) =>
       items.flatMap((item) => {
@@ -40,14 +42,18 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => ({
       });
 
     return (
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         data-testid={`select-${search_placeholder || placeholder || "default"}`}
         data-open={open ? "true" : "false"}
+        data-dropdown-position={dropdown_position}
         onClick={() => on_open_change(!open)}
       >
         {search_placeholder || placeholder || "select"}
         {renderOptionLabels(options)}
-      </button>
+        {custom_trigger}
+      </div>
     );
   },
 }));
@@ -64,8 +70,15 @@ jest.mock("../../workspace/workspace_modal", () => ({
 
 jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
   __esModule: true,
-  default: ({ onClick = () => {} }) => (
-    <button onClick={onClick}>mock-button</button>
+  default: ({ onClick = () => {}, prefix_icon, style = {}, title }) => (
+    <button
+      data-testid={`button-${prefix_icon || "default"}`}
+      data-icon-size={style.iconSize ?? ""}
+      title={title}
+      onClick={onClick}
+    >
+      mock-button
+    </button>
   ),
 }));
 
@@ -123,6 +136,75 @@ describe("AttachPanel toolkit selector refresh", () => {
     expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
       "data-open",
       "true",
+    );
+  });
+
+  test("opens attach panel selector menus above the input controls", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+    useChatInputWorkspaces.mockReturnValue({
+      workspaceOptions: [{ value: "ws-1", label: "Project" }],
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        modelOptions={[{ value: "openai:gpt-5", label: "GPT-5" }]}
+        selectedModelId="openai:gpt-5"
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("select-Search models...")).toHaveAttribute(
+      "data-dropdown-position",
+      "top",
+    );
+    expect(screen.getByTestId("select-Search toolkits...")).toHaveAttribute(
+      "data-dropdown-position",
+      "top",
+    );
+    expect(screen.getByTestId("select-Search workspaces...")).toHaveAttribute(
+      "data-dropdown-position",
+      "top",
+    );
+  });
+
+  test("renders the tool selector trigger with a larger icon", () => {
+    useChatInputToolkits.mockReturnValue({
+      toolkitOptions: [{ value: "workspace_toolkit", label: "Workspace Files" }],
+      toolkitLoading: false,
+      refreshToolkits: jest.fn(),
+    });
+
+    render(
+      <AttachPanel
+        color="#222"
+        active={false}
+        focused={false}
+        onAttachFile={() => {}}
+        isDark={false}
+        attachments={[]}
+        selectedToolkits={[]}
+        onToolkitsChange={() => {}}
+        selectedWorkspaceIds={[]}
+        onWorkspaceIdsChange={() => {}}
+      />,
+    );
+
+    expect(screen.getByTestId("button-tool")).toHaveAttribute(
+      "data-icon-size",
+      "18",
     );
   });
 
@@ -226,7 +308,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     });
   });
 
-  test("shows agent recipe options when the agents feature flag is enabled", () => {
+  test("never shows agent recipe options in the model selector", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
@@ -262,7 +344,7 @@ describe("AttachPanel toolkit selector refresh", () => {
     );
 
     expect(screen.getByText("GPT-5.5")).toBeInTheDocument();
-    expect(screen.getByText("Agents")).toBeInTheDocument();
-    expect(screen.getByText("Research Agent")).toBeInTheDocument();
+    expect(screen.queryByText("Agents")).not.toBeInTheDocument();
+    expect(screen.queryByText("Research Agent")).not.toBeInTheDocument();
   });
 });

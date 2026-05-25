@@ -12,7 +12,8 @@ Project documentation lives in this folder. Start with the **Developer Guide** f
 
 ### Architecture
 
-- [Request Flow & Streaming](./architecture/request-flow-and-streaming.md) — End-to-end chat streaming, SSE protocol, V2 frame types
+- [Request Flow & Streaming](./architecture/request-flow-and-streaming.md) — End-to-end chat streaming, V2/V3 stream paths
+- [Runtime Events V3](./architecture/runtime-events-v3.md) — Typed runtime event store, ActivityTree reducer, TraceChain adapter
 - [IPC Boundary](./architecture/ipc-boundary.md) — Electron IPC patterns, bridge layers, channel registry
 - [System Prompt V2](./architecture/system-prompt-v2.md) — 3-layer prompt override architecture
 - [Memory System](./architecture/memory-system.md) — Embedding resolution, Qdrant, session vs long-term memory
@@ -37,7 +38,7 @@ Project documentation lives in this folder. Start with the **Developer Guide** f
 - [Character System](./features/character-system.md) — Personas, schedules, avatars, seeding, import/export
 - [Toolkit & Tool Catalog](./features/toolkit-and-tool-catalog.md) — Discovery, TOML format, tool metadata, auto-approval
 - [Workspace System](./features/workspace-system.md) — Named workspaces, per-chat selection, path resolution
-- [Agent Orchestration](./features/agent-orchestration.md) — Sub-agent events, delegation, prompt sections
+- [Agent Orchestration](./features/agent-orchestration.md) — Sub-agent delegation, child-run routing, prompt sections
 
 ### Conventions
 

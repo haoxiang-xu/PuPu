@@ -97,6 +97,8 @@ if (!gotSingleInstanceLock) {
     app,
     webContents,
     autoUpdater,
+    fs,
+    path,
   });
 
   const screenshotService = createScreenshotService({
@@ -175,6 +177,7 @@ if (!gotSingleInstanceLock) {
     }
 
     windowService.createMainWindow();
+    updateService.scheduleStartupAutoUpdateCheck();
 
     const mainWin = windowService.getMainWindow();
     if (mainWin && mainWin.webContents) {

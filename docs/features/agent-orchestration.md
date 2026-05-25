@@ -79,36 +79,62 @@ prompt = _compose_agent_prompt(_MY_AGENT_PROMPT_SECTIONS)
 
 ## Sub-Agent Event Flow
 
-### SSE Frame Structure
+### Stream Models
 
-Sub-agent events are nested within the main stream:
+PuPu supports two stream models for sub-agent activity:
 
-```
-subagent_spawn  → New sub-agent created
-  subagent_frame → Nested frames from the sub-agent
-  subagent_frame → (can contain any frame type)
-subagent_done   → Sub-agent completed
-```
+| Protocol | Shape | Frontend path |
+|----------|-------|---------------|
+| V3 | `run.started` with `links.parent_run_id`, then typed child-run events | RuntimeEventStore -> ActivityTree -> TraceChain adapter |
+| V2 | Legacy TraceFrames with child `run_id` and lifecycle frames | Direct frame handling in `use_chat_stream.js` |
 
 ### Run ID Semantics
 
-Each sub-agent run has a unique `run_id`. All frames from that sub-agent carry this ID, allowing the frontend to organize frames by sub-agent.
+Each sub-agent run has a unique `run_id`. In V3, the child run links back to the parent through `links.parent_run_id`. In V2, child frames carry the child run id directly. The frontend keeps child-run frames separate from the main message so TraceChain can render them as nested branches.
 
-### Event Types
+### V3 Runtime Events
+
+| Event | Description |
+|-------|-------------|
+| `run.started` | Creates the sub-agent entry when `links.parent_run_id` is present |
+| `model.delta` | Streams child model text into that child run |
+| `tool.started` / `tool.completed` | Renders child tool calls and results on the child branch |
+| `input.requested` / `input.resolved` | Renders Ask User or confirmation UI on the child branch |
+| `run.completed` / `run.failed` | Updates sub-agent status and completion metadata |
+
+The V3 reducer also preserves one compatibility behavior: if an old backend emits an Ask User request with the root `run_id` while exactly one child run is active, PuPu routes that request to the active child branch.
+
+### V2 Compatibility Frames
 
 | Frame Type | Description |
 |-----------|-------------|
-| `subagent_spawn` | New sub-agent; carries `run_id`, `subagent_id`, `mode`, `template`, `batch_id`, `parent_id`, `lineage` |
-| `subagent_frame` | Nested frame; carries `run_id` + inner frame (any type) |
-| `subagent_done` | Completion; carries `run_id`, `status` |
+| `subagent_started` | New sub-agent; carries `child_run_id`, `subagent_id`, `mode`, `template`, `batch_id`, `parent_id`, `lineage` |
+| child frame with `run_id` | Appended to `subagentFrames[runId]`; can be tool, model, reasoning, final, or confirmation UI |
+| `subagent_completed` | Completion; carries `child_run_id`, `status` |
+| `subagent_failed` | Failure; carries `child_run_id`, error details |
 
 ### Frontend Processing
 
+V3 first reduces events into an ActivityTree, then adapts that tree into the legacy TraceChain props:
+
+```
+runtime_event
+  ├─ RuntimeEventStore.append(event)
+  ├─ reduceActivityTree(snapshot)
+  └─ adaptActivityTreeToTraceChain(...)
+       ├─ frames
+       ├─ subagentFrames[runId]
+       └─ subagentMetaByRunId[runId]
+```
+
+V2 keeps the direct frame path:
+
 ```
 onFrame(frame)
-  ├─ subagent_spawn → Create entry in subagentMetaByRunId
-  ├─ subagent_frame → Append to subagentFrames[runId]
-  └─ subagent_done  → Update status in subagentMetaByRunId
+  ├─ subagent_started → Create entry in subagentMetaByRunId
+  ├─ child run frame → Append to subagentFrames[runId]
+  ├─ subagent_completed → Update status in subagentMetaByRunId
+  └─ subagent_failed → Update status and error metadata
 ```
 
 Sub-agent frames are stored separately from the main message's trace frames:
@@ -159,6 +185,7 @@ The side-menu entry appears whenever **either** flag is enabled. When only one i
 |------|------|
 | `unchain_runtime/server/unchain_adapter.py` | Agent creation, prompt composition, sub-agent delegation |
 | `src/PAGEs/chat/hooks/use_chat_stream.js` | Sub-agent frame handling |
-| `src/COMPONENTs/chat-bubble/components/trace_chain.js` | Trace rendering |
+| `src/SERVICEs/runtime_events/` | V3 RuntimeEvent store, ActivityTree reducer, and TraceChain adapter |
+| `src/COMPONENTs/chat-bubble/trace_chain.js` | Trace rendering |
 | `src/COMPONENTs/agents/` | Agent orchestration UI |
 | `src/SERVICEs/feature_flags.js` | Feature flag control |

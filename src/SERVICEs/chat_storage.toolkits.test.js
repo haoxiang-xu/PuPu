@@ -64,6 +64,15 @@ describe("chat_storage selected toolkits persistence", () => {
     ]);
   });
 
+  test("sanitizeSelectedToolkits normalizes workspace ids to the real workspace toolkit", () => {
+    expect(
+      sanitizeSelectedToolkits([
+        "workspace",
+        "workspace_toolkit",
+      ]),
+    ).toEqual(["workspace_toolkit"]);
+  });
+
   test("sanitizeSelectedToolkits drops removed MCP toolkit ids", () => {
     expect(
       sanitizeSelectedToolkits([

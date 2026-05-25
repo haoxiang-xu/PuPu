@@ -374,6 +374,44 @@ export const isCharacterChatSession = (chat) =>
   sanitizeChatKind(chat?.kind) === CHARACTER_CHAT_KIND &&
   Boolean(sanitizeCharacterId(chat?.characterId));
 
+const LEGACY_PLAN_RESULT_KEYS = [
+  "plan",
+  "markdown",
+  "artifact",
+  "artifacts",
+  "proposed_plan",
+];
+
+const isPlanDocArtifact = (artifact) =>
+  isObject(artifact) && artifact.type === "plan_doc";
+
+const isLegacyPlanToolResultPayload = (payload) => {
+  if (!isObject(payload) || !isObject(payload.result)) {
+    return false;
+  }
+  const toolName =
+    typeof payload.tool_name === "string"
+      ? payload.tool_name.trim().toLowerCase()
+      : "";
+  const result = payload.result;
+  return (
+    toolName.startsWith("plan_") ||
+    isPlanDocArtifact(result.artifact) ||
+    (Array.isArray(result.artifacts) &&
+      result.artifacts.some((artifact) => isPlanDocArtifact(artifact))) ||
+    Object.prototype.hasOwnProperty.call(result, "proposed_plan")
+  );
+};
+
+const scrubLegacyPlanToolResultPayload = (payload) => {
+  if (!isLegacyPlanToolResultPayload(payload)) {
+    return;
+  }
+  for (const key of LEGACY_PLAN_RESULT_KEYS) {
+    delete payload.result[key];
+  }
+};
+
 const sanitizeTraceFrame = (frame) => {
   if (!isObject(frame)) return null;
   const cleanedFrame = {
@@ -409,6 +447,7 @@ const sanitizeTraceFrame = (frame) => {
       if (typeof payload.delta === "string") {
         payload.delta = trimText(payload.delta, 2000);
       }
+      scrubLegacyPlanToolResultPayload(payload);
       cleanedFrame.payload = payload;
     }
   }

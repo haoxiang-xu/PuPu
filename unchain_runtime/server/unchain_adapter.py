@@ -90,6 +90,7 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "TerminalToolkit": "builtin",
     "CoreToolkit": "builtin",
     "ExternalAPIToolkit": "builtin",
+    "PlanToolkit": "plan",
 }
 _TOOLKIT_EXPORT_ID_ALIASES = {
     "WorkspaceToolkit": "workspace_toolkit",
@@ -98,6 +99,7 @@ _TOOLKIT_EXPORT_ID_ALIASES = {
     "CodeToolkit": "core",
     "AskUserToolkit": "core",
     "ExternalAPIToolkit": "external_api",
+    "PlanToolkit": "plan",
 }
 _TOOLKIT_NAME_ALIASES = {
     "workspace": "WorkspaceToolkit",
@@ -126,6 +128,10 @@ _TOOLKIT_NAME_ALIASES = {
     "ask-user-toolkit": "CoreToolkit",
     "askusertoolkit": "CoreToolkit",
     "AskUserToolkit": "CoreToolkit",
+    "plan": "PlanToolkit",
+    "plan_toolkit": "PlanToolkit",
+    "plantoolkit": "PlanToolkit",
+    "PlanToolkit": "PlanToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
@@ -2532,8 +2538,26 @@ def _build_generic_toolkit(
     toolkit_factory: Any,
     *,
     workspace_root: str | None,
+    session_store: Any = None,
+    session_id: str = "",
 ) -> Any:
     build_attempts = []
+    clean_session_id = str(session_id or "").strip()
+    if session_store is not None and clean_session_id:
+        if workspace_root:
+            build_attempts.append(
+                lambda: toolkit_factory(
+                    workspace_root=workspace_root,
+                    session_store=session_store,
+                    session_id=clean_session_id,
+                )
+            )
+        build_attempts.append(
+            lambda: toolkit_factory(
+                session_store=session_store,
+                session_id=clean_session_id,
+            )
+        )
     if workspace_root:
         build_attempts.append(lambda: toolkit_factory(workspace_root=workspace_root))
         build_attempts.append(lambda: toolkit_factory(workspace_root))
@@ -2772,7 +2796,11 @@ def _build_workspace_toolkits(options: Dict[str, object] | None = None) -> list:
     return [workspace_toolkit]
 
 
-def _build_selected_toolkits(options: Dict[str, object] | None = None) -> list:
+def _build_selected_toolkits(
+    options: Dict[str, object] | None = None,
+    *,
+    session_id: str = "",
+) -> list:
     if not _should_enable_tools(options):
         return []
 
@@ -3029,9 +3057,13 @@ def _resolve_memory_runtime(
     return memory_runtime, memory_manager
 
 
-def _build_requested_toolkits(options: Dict[str, object] | None = None) -> list:
+def _build_requested_toolkits(
+    options: Dict[str, object] | None = None,
+    *,
+    session_id: str = "",
+) -> list:
     toolkits = _build_workspace_toolkits(options)
-    toolkits.extend(_build_selected_toolkits(options))
+    toolkits.extend(_build_selected_toolkits(options, session_id=session_id))
     _validate_unique_tool_names(toolkits)
     return toolkits
 
@@ -3999,7 +4031,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         max_iterations = recipe.max_iterations
     api_key = _resolve_agent_api_key(options, selected_config["provider"])
     memory_runtime, memory_manager = _resolve_memory_runtime(options, session_id=session_id)
-    toolkits = _build_requested_toolkits(options)
+    toolkits = _build_requested_toolkits(options, session_id=session_id)
     user_modules = _extract_user_prompt_modules(options)
 
     # Developer agent is the sole agent with optional delegate/worker subagents.
@@ -4247,7 +4279,11 @@ def _stream_recipe_graph_events(
         for pool in pools
     )
     try:
-        user_toolkits = _build_requested_toolkits(options) if wants_user_toolkits else []
+        user_toolkits = (
+            _build_requested_toolkits(options, session_id=session_id)
+            if wants_user_toolkits
+            else []
+        )
     except RuntimeError as exc:
         raise RuntimeError(str(exc)) from exc
 

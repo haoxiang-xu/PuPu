@@ -11,6 +11,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UPDATE.GET_STATE,
   CHANNELS.UPDATE.CHECK_AND_DOWNLOAD,
   CHANNELS.UPDATE.INSTALL_NOW,
+  CHANNELS.UPDATE.GET_AUTO_UPDATE,
+  CHANNELS.UPDATE.SET_AUTO_UPDATE,
   CHANNELS.OLLAMA.GET_STATUS,
   CHANNELS.OLLAMA.LIST_INSTALLED_MODELS,
   CHANNELS.OLLAMA.INSTALL,
@@ -65,6 +67,7 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.WINDOW_STATE.HANDLE_ACTION,
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
+  CHANNELS.UNCHAIN.STREAM_START_V3,
   CHANNELS.UNCHAIN.STREAM_CANCEL,
   ...CHAT_STORAGE_ON_CHANNELS,
 ]);
@@ -113,6 +116,12 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
   );
   ipcMain.handle(CHANNELS.UPDATE.INSTALL_NOW, async () =>
     updateService.installDownloadedAppUpdate(),
+  );
+  ipcMain.handle(CHANNELS.UPDATE.GET_AUTO_UPDATE, () =>
+    updateService.getAutoUpdateEnabled(),
+  );
+  ipcMain.handle(CHANNELS.UPDATE.SET_AUTO_UPDATE, (_event, payload = {}) =>
+    updateService.setAutoUpdateEnabled(payload.enabled),
   );
 
   ipcMain.handle(CHANNELS.OLLAMA.GET_STATUS, () => ollamaService.getStatus());
@@ -319,6 +328,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V2, (event, payload) => {
     unchainService.handleStreamStartV2(event, payload);
+  });
+
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V3, (event, payload) => {
+    unchainService.handleStreamStartV3(event, payload);
   });
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_CANCEL, (event, payload) => {

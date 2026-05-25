@@ -115,6 +115,15 @@ const Calendar = (props) => (
     <path d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 11H4V19H20V11ZM7 5H4V9H20V5H17V7H15V5H9V7H7V5Z"></path>
   </svg>
 );
+const CalendarCheck = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M9 1V3H15V1H17V3H21C21.5523 3 22 3.44772 22 4V20C22 20.5523 21.5523 21 21 21H3C2.44772 21 2 20.5523 2 20V4C2 3.44772 2.44772 3 3 3H7V1H9ZM20 8H4V19H20V8ZM15.0355 10.136L16.4497 11.5503L11.5 16.5L7.96447 12.9645L9.37868 11.5503L11.5 13.6716L15.0355 10.136Z"></path>
+  </svg>
+);
 const Chat = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -549,7 +558,11 @@ const LinkedInBox = (props) => (
   </svg>
 );
 const Linux = (props) => (
-  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor">
+  <svg
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+    fill="currentColor"
+  >
     <rect fill="currentColor" />
     <path d="M14.62,8.35c-.42.28-1.75,1-1.95,1.19a.82.82,0,0,1-1.14,0c-.2-.16-1.53-.92-1.95-1.19s-.45-.7.08-.92a6.16,6.16,0,0,1,4.91,0c.49.21.51.6,0,.9m7.22,7.28A19.09,19.09,0,0,0,18,10a4.31,4.31,0,0,1-1.06-1.88c-.1-.33-.17-.67-.24-1A11.32,11.32,0,0,0,16,4.47,4.06,4.06,0,0,0,12.16,2,4.2,4.2,0,0,0,8.21,4.4a5.9,5.9,0,0,0-.46,1.34c-.17.76-.32,1.55-.5,2.32a3.38,3.38,0,0,1-1,1.71,19.53,19.53,0,0,0-3.88,5.35A6.09,6.09,0,0,0,2,16c-.19.66.29,1.12,1,1,.44-.09.88-.18,1.3-.31s.57,0,.67.35a6.73,6.73,0,0,0,4.24,4.5c4.12,1.56,8.93-.66,10-4.58.07-.27.17-.37.47-.27.46.14.93.24,1.4.35a.72.72,0,0,0,.92-.64,1.44,1.44,0,0,0-.16-.73" />
   </svg>
@@ -819,6 +832,15 @@ const QuestionMark = (props) => (
     <path d="M12 19C12.8284 19 13.5 19.6716 13.5 20.5C13.5 21.3284 12.8284 22 12 22C11.1716 22 10.5 21.3284 10.5 20.5C10.5 19.6716 11.1716 19 12 19ZM12 2C15.3137 2 18 4.68629 18 8C18 10.1646 17.2474 11.2907 15.3259 12.9231C13.3986 14.5604 13 15.2969 13 17H11C11 14.526 11.787 13.3052 14.031 11.3989C15.5479 10.1102 16 9.43374 16 8C16 5.79086 14.2091 4 12 4C9.79086 4 8 5.79086 8 8V9H6V8C6 4.68629 8.68629 2 12 2Z"></path>
   </svg>
 );
+const Redo = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M18.1716 6.99955H3V8.99955H18.1716L14.8076 12.3635L16.2218 13.7777L22 7.99955L16.2218 2.22168L14.8076 3.63589L18.1716 6.99955Z M21 19V13H19V19H3V21H19C20.1046 21 21 20.1046 21 19Z"></path>
+  </svg>
+);
 const Rename = (props) => (
   <svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
     <path
@@ -1079,6 +1101,15 @@ const Unchain = (props) => (
     />
   </svg>
 );
+const Undo = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+  >
+    <path d="M5.82843 6.99955H21V8.99955H5.82843L9.19239 12.3635L7.7782 13.7777L2 7.99955L7.7782 2.22168L9.19239 3.63589L5.82843 6.99955Z M3 19V13H5V19H21V21H5C3.89543 21 3 20.1046 3 19Z"></path>
+  </svg>
+);
 const User = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -1281,25 +1312,6 @@ const LogoSVGs = {
   windows: Windows,
 };
 
-const Undo = (props) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-  >
-    <path d="M5.82843 6.99955H21V8.99955H5.82843L9.19239 12.3635L7.7782 13.7777L2 7.99955L7.7782 2.22168L9.19239 3.63589L5.82843 6.99955Z M3 19V13H5V19H21V21H5C3.89543 21 3 20.1046 3 19Z"></path>
-  </svg>
-);
-const Redo = (props) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 24 24"
-    fill="currentColor"
-  >
-    <path d="M18.1716 6.99955H3V8.99955H18.1716L14.8076 12.3635L16.2218 13.7777L22 7.99955L16.2218 2.22168L14.8076 3.63589L18.1716 6.99955Z M21 19V13H19V19H3V21H19C20.1046 21 21 20.1046 21 19Z"></path>
-  </svg>
-);
-
 const UISVGs = {
   add: Add,
   arrow_down: ArrowDown,
@@ -1311,6 +1323,7 @@ const UISVGs = {
   bot: Bot,
   brain: Brain,
   calendar: Calendar,
+  calendar_check: CalendarCheck,
   chat: Chat,
   chat_new: ChatNew,
   check: Check,

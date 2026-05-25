@@ -131,4 +131,49 @@ describe("unchain stream preload client", () => {
     });
     expect(client.__debug.getActiveListenerCount()).toBe(0);
   });
+
+  test("startStreamV3 forwards runtime_event events and cleans up on done", () => {
+    const ipcRenderer = createMockIpcRenderer();
+    const client = createMisoStreamClient(ipcRenderer);
+    const onRuntimeEvent = jest.fn();
+    const onDone = jest.fn();
+    const onError = jest.fn();
+
+    const handle = client.startStreamV3(
+      { message: "hi" },
+      { onRuntimeEvent, onDone, onError },
+    );
+
+    expect(ipcRenderer.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_START_V3, {
+      requestId: handle.requestId,
+      payload: { message: "hi" },
+    });
+    expect(client.__debug.getActiveListenerCount()).toBe(1);
+
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: handle.requestId,
+      event: "runtime_event",
+      data: {
+        schema_version: "v3",
+        event_id: "evt-1",
+        type: "model.delta",
+        payload: { kind: "text", delta: "hi" },
+      },
+    });
+    ipcRenderer.emit(CHANNELS.UNCHAIN.STREAM_EVENT, {
+      requestId: handle.requestId,
+      event: "done",
+      data: { ok: true },
+    });
+
+    expect(onRuntimeEvent).toHaveBeenCalledWith({
+      schema_version: "v3",
+      event_id: "evt-1",
+      type: "model.delta",
+      payload: { kind: "text", delta: "hi" },
+    });
+    expect(onDone).toHaveBeenCalledWith({ ok: true });
+    expect(onError).not.toHaveBeenCalled();
+    expect(client.__debug.getActiveListenerCount()).toBe(0);
+  });
 });

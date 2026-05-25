@@ -27,5 +27,27 @@ describe("build_toolkit_options", () => {
     expect(options[0].description).toBe("Read and write project files");
     expect(options[0].search).toContain("workspace_toolkit");
     expect(isValidElement(options[0].icon)).toBe(true);
+    expect(options[0].icon.props.style).toMatchObject({
+      width: 24,
+      height: 24,
+    });
+    expect(options[0].icon.props.children.props.size).toBe(16);
+  });
+
+  test("renders uploaded toolkit icons at the larger selector size", () => {
+    const options = build_toolkit_options([
+      {
+        toolkitId: "custom_toolkit",
+        toolkitName: "Custom Toolkit",
+        toolkitIcon: {
+          type: "file",
+          mimeType: "image/png",
+          content: "iVBORw0KGgo=",
+        },
+      },
+    ]);
+
+    expect(isValidElement(options[0].icon)).toBe(true);
+    expect(options[0].icon.props.size).toBe(22);
   });
 });

@@ -3,6 +3,10 @@ import ToolkitIcon, {
   isFileToolkitIcon,
 } from "../../toolkit/components/toolkit_icon";
 
+const TOOLKIT_SELECTOR_ICON_BOX_SIZE = 24;
+const TOOLKIT_SELECTOR_BUILTIN_ICON_SIZE = 16;
+const TOOLKIT_SELECTOR_FILE_ICON_SIZE = 22;
+
 const toDisplayName = (toolkit) => {
   const raw =
     toolkit?.toolkitName ||
@@ -50,7 +54,7 @@ const buildToolkitOptionIcon = (toolkitIcon) => {
     return (
       <ToolkitIcon
         icon={toolkitIcon}
-        size={18}
+        size={TOOLKIT_SELECTOR_FILE_ICON_SIZE}
         fallbackColor={fallbackColor}
         style={{ borderRadius: 6 }}
       />
@@ -65,8 +69,8 @@ const buildToolkitOptionIcon = (toolkitIcon) => {
     <span
       aria-hidden="true"
       style={{
-        width: 20,
-        height: 20,
+        width: TOOLKIT_SELECTOR_ICON_BOX_SIZE,
+        height: TOOLKIT_SELECTOR_ICON_BOX_SIZE,
         borderRadius: 6,
         display: "inline-flex",
         alignItems: "center",
@@ -75,7 +79,11 @@ const buildToolkitOptionIcon = (toolkitIcon) => {
         flexShrink: 0,
       }}
     >
-      <ToolkitIcon icon={toolkitIcon} size={12} fallbackColor={fallbackColor} />
+      <ToolkitIcon
+        icon={toolkitIcon}
+        size={TOOLKIT_SELECTOR_BUILTIN_ICON_SIZE}
+        fallbackColor={fallbackColor}
+      />
     </span>
   );
 };
