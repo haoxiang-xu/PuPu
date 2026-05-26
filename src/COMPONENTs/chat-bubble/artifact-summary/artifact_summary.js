@@ -58,10 +58,15 @@ const ArtifactSummary = ({ bucket, isDark, artifactKindRegistry }) => {
     : [];
   if (artifacts.length === 0) return null;
 
-  const fileDiffs = artifacts.filter((a) => a?.kind === "file_diff");
+  const fileDiffs = artifacts.filter(
+    (a) => a?.kind === "file_diff" || a?.kind === "workspace_change_set",
+  );
   const plans = artifacts.filter((a) => a?.kind === "plan");
   const genericArtifacts = artifacts.filter(
-    (a) => a?.kind !== "file_diff" && a?.kind !== "plan",
+    (a) =>
+      a?.kind !== "file_diff" &&
+      a?.kind !== "workspace_change_set" &&
+      a?.kind !== "plan",
   );
 
   return (
@@ -73,7 +78,14 @@ const ArtifactSummary = ({ bucket, isDark, artifactKindRegistry }) => {
         <FilesChangedCard
           artifacts={fileDiffs}
           isDark={isDark}
-          kindMeta={getArtifactKindMetadata(registry, "file_diff")}
+          kindMeta={
+            getArtifactKindMetadata(
+              registry,
+              fileDiffs[0]?.kind === "workspace_change_set"
+                ? "workspace_change_set"
+                : "file_diff",
+            )
+          }
         />
       )}
       {plans.map((artifact) => (

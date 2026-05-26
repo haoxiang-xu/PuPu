@@ -89,4 +89,52 @@ describe("sanitizeMessage assistant artifactSummariesByTurnId", () => {
     });
     expect(cleaned.artifactSummariesByTurnId).toBeUndefined();
   });
+
+  test("preserves completed runArtifactSummary on assistant messages", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "hi",
+      runArtifactSummary: {
+        order: 0,
+        status: "completed",
+        artifacts: [
+          {
+            artifact_id: "workspace_change_set:run-1",
+            kind: "workspace_change_set",
+            snapshot: { files: [{ path: "src/App.js", unified_diff: "" }] },
+          },
+        ],
+      },
+    });
+
+    expect(cleaned.runArtifactSummary).toEqual({
+      order: 0,
+      status: "completed",
+      artifacts: [
+        {
+          artifact_id: "workspace_change_set:run-1",
+          kind: "workspace_change_set",
+          snapshot: { files: [{ path: "src/App.js", unified_diff: "" }] },
+        },
+      ],
+    });
+  });
+
+  test("drops pending runArtifactSummary and never stores it on user messages", () => {
+    expect(
+      sanitizeMessage({
+        role: "assistant",
+        content: "hi",
+        runArtifactSummary: { ...validBucket, status: "pending" },
+      }).runArtifactSummary,
+    ).toBeUndefined();
+
+    expect(
+      sanitizeMessage({
+        role: "user",
+        content: "hi",
+        runArtifactSummary: validBucket,
+      }).runArtifactSummary,
+    ).toBeUndefined();
+  });
 });

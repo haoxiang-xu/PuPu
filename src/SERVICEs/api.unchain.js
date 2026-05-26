@@ -512,6 +512,9 @@ export const createUnchainApi = () => {
     isRuntimeEventStreamV3Available: () =>
       hasBridgeMethod("unchainAPI", "startStreamV3"),
 
+    isRuntimeEventStreamV4Available: () =>
+      hasBridgeMethod("unchainAPI", "startStreamV4"),
+
     getStatus: async () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "getStatus");
@@ -1056,6 +1059,30 @@ export const createUnchainApi = () => {
           error,
           "unchain_stream_v3_start_failed",
           "Failed to start Unchain v3 stream",
+        );
+      }
+    },
+
+    startStreamV4: (payload, handlers = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "startStreamV4");
+        const normalizedPayload = normalizeUnchainV2Payload(payload);
+        const streamHandle = method(normalizedPayload, handlers);
+        if (
+          !isObject(streamHandle) ||
+          typeof streamHandle.cancel !== "function"
+        ) {
+          throw new FrontendApiError(
+            "invalid_stream_handle",
+            "Unchain bridge returned an invalid stream handle",
+          );
+        }
+        return streamHandle;
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_stream_v4_start_failed",
+          "Failed to start Unchain v4 stream",
         );
       }
     },

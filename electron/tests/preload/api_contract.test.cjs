@@ -82,6 +82,7 @@ describe("preload API contract", () => {
       "startStream",
       "startStreamV2",
       "startStreamV3",
+      "startStreamV4",
       "cancelStream",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");

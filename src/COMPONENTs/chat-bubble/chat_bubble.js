@@ -6,7 +6,7 @@ import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
 import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
-import ArtifactSummary from "./artifact-summary/artifact_summary";
+import ArtifactSummarySections from "./artifact-summary/artifact_summary_sections";
 
 const ChatBubble = ({
   message,
@@ -189,12 +189,13 @@ const ChatBubble = ({
       )}
       {isAssistant &&
         !(isAssistant && hasVisibleTraceActivity && message.status === "streaming") &&
-        message?.artifactSummariesByTurnId &&
-        Object.entries(message.artifactSummariesByTurnId)
-          .sort(([, a], [, b]) => (a?.order || 0) - (b?.order || 0))
-          .map(([turnId, bucket]) => (
-            <ArtifactSummary key={turnId} bucket={bucket} isDark={isDark} />
-          ))}
+        (message?.runArtifactSummary || message?.artifactSummariesByTurnId) && (
+        <ArtifactSummarySections
+          runArtifactSummary={message.runArtifactSummary}
+          artifactSummariesByTurnId={message.artifactSummariesByTurnId}
+          isDark={isDark}
+        />
+      )}
 
       <MessageActionBar
         showActionBar={showActionBar}

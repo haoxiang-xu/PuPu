@@ -65,6 +65,36 @@ describe("ArtifactSummary", () => {
     expect(screen.getByText(/Files changed/)).toBeInTheDocument();
   });
 
+  test("renders workspace_change_set artifacts with the files changed card", () => {
+    render(
+      <ArtifactSummary
+        bucket={{
+          order: 0,
+          status: "completed",
+          artifacts: [
+            {
+              artifact_id: "workspace_change_set:run-1",
+              kind: "workspace_change_set",
+              snapshot: {
+                files: [
+                  {
+                    path: "src/run.js",
+                    operation: "edit",
+                    unified_diff: "@@ -1 +1 @@\n-a\n+b\n",
+                  },
+                ],
+              },
+            },
+          ],
+        }}
+        isDark={false}
+        artifactKindRegistry={defaultRegistry}
+      />,
+    );
+    expect(screen.getByText(/Workspace changes/)).toBeInTheDocument();
+    expect(screen.getByText(/1 file/)).toBeInTheDocument();
+  });
+
   test("uses registry metadata for specialized card labels", () => {
     render(
       <ArtifactSummary

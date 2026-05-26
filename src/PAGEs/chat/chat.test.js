@@ -84,6 +84,7 @@ describe("ChatInterface stop flow", () => {
   let consoleErrorSpy;
   let streamHandlers;
   let streamV3Handlers;
+  let streamV4Handlers;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -92,6 +93,7 @@ describe("ChatInterface stop flow", () => {
     cancelSpy = jest.fn();
     streamHandlers = null;
     streamV3Handlers = null;
+    streamV4Handlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockScopedLogger.log.mockClear();
     mockScopedLogger.warn.mockClear();
@@ -1399,6 +1401,132 @@ describe("ChatInterface stop flow", () => {
         true,
       );
       expect(assistantMessage?.meta?.bundle?.consumed_tokens).toBe(9);
+    });
+  });
+
+  test("prefers runtime event stream v4 and stores run-level artifact summaries", async () => {
+    window.unchainAPI.startStreamV3 = jest.fn();
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers = {}) => {
+      streamV4Handlers = handlers;
+      return {
+        cancel: cancelSpy,
+      };
+    });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello v4" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV3).not.toHaveBeenCalled();
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(streamV4Handlers).toBeTruthy();
+    });
+
+    const baseEvent = {
+      schema_version: "v4",
+      timestamp: "2026-05-26T12:00:00.000Z",
+      session_id: "thread-v4",
+      run_id: "run-root",
+      agent_id: "developer",
+      turn_id: "run-root:turn-1",
+      links: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+    };
+
+    act(() => {
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-run",
+        seq: 1,
+        type: "run.started",
+        payload: { status: "running", provider: "openai", model: "gpt-5" },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-delta",
+        seq: 2,
+        type: "step.delta",
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response",
+          kind: "text",
+          delta: "Hello from v4",
+        },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-final",
+        seq: 3,
+        type: "step.completed",
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response",
+          status: "completed",
+          final_text: "Hello from v4",
+        },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-artifact",
+        seq: 4,
+        type: "artifact.created",
+        links: {
+          artifact_id: "workspace_change_set:run-root",
+          workspace_change_set_id: "wcs-run-root",
+        },
+        surface: {
+          slot: "run_summary",
+          scope: "run",
+          group: "files",
+          default_state: "expanded",
+        },
+        payload: {
+          artifact_id: "workspace_change_set:run-root",
+          kind: "workspace_change_set",
+          title: "Workspace changes",
+          snapshot: {
+            change_set_id: "wcs-run-root",
+            files: [{ path: "src/App.js", unified_diff: "" }],
+          },
+        },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-completed",
+        seq: 5,
+        type: "run.completed",
+        payload: {
+          status: "completed",
+          usage: { consumed_tokens: 10, model: "openai:gpt-5" },
+        },
+      });
+      streamV4Handlers.onDone({ finished_at: 123 });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = [...(lastChatMessagesProps?.messages || [])]
+        .reverse()
+        .find((message) => message.role === "assistant");
+      expect(assistantMessage?.status).toBe("done");
+      expect(assistantMessage?.content).toBe("Hello from v4");
+      expect(assistantMessage?.meta?.bundle?.consumed_tokens).toBe(10);
+      expect(assistantMessage?.runArtifactSummary).toMatchObject({
+        status: "completed",
+        artifacts: [
+          {
+            artifact_id: "workspace_change_set:run-root",
+            kind: "workspace_change_set",
+          },
+        ],
+      });
     });
   });
 

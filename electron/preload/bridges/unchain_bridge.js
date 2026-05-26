@@ -92,6 +92,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   cancelStream: streamClient.cancelStream,
   startStreamV2: streamClient.startStreamV2,
   startStreamV3: streamClient.startStreamV3,
+  startStreamV4: streamClient.startStreamV4,
 });
 
 module.exports = {

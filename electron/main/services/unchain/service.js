@@ -10,6 +10,7 @@ const UNCHAIN_RESTART_DELAY_MS = 1500;
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V3_ENDPOINT = "/chat/stream/v3";
+const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
@@ -1768,6 +1769,9 @@ const createUnchainService = ({
   const startMisoStreamV3 = (args) =>
     startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V3_ENDPOINT });
 
+  const startMisoStreamV4 = (args) =>
+    startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V4_ENDPOINT });
+
   const cancelMisoStream = (requestId) => {
     const streamState = unchainActiveStreams.get(requestId);
     if (!streamState) {
@@ -1807,6 +1811,16 @@ const createUnchainService = ({
     });
   };
 
+  const handleStreamStartV4 = (event, payload) => {
+    const requestId = payload?.requestId;
+    const requestPayload = payload?.payload || {};
+    void startMisoStreamV4({
+      requestId,
+      payload: requestPayload,
+      sender: event.sender,
+    });
+  };
+
   const handleStreamCancel = (_event, payload) => {
     const requestId = payload?.requestId;
     if (typeof requestId === "string") {
@@ -1825,6 +1839,7 @@ const createUnchainService = ({
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,
+    replaceUnchainSessionMemory: replaceMisoSessionMemory,
     getMisoSessionMemoryExport,
     listMisoSeedCharacters,
     listMisoCharacters,
@@ -1844,6 +1859,7 @@ const createUnchainService = ({
     handleStreamStart,
     handleStreamStartV2,
     handleStreamStartV3,
+    handleStreamStartV4,
     handleStreamCancel,
   };
 };

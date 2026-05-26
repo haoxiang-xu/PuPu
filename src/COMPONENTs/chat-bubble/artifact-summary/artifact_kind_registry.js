@@ -23,6 +23,14 @@ export const COMPATIBILITY_ARTIFACT_KIND_DEFAULTS = Object.freeze({
     fallbackRenderer: "json",
     toolkitId: "builtin",
   }),
+  workspace_change_set: Object.freeze({
+    kind: "workspace_change_set",
+    displayName: "Workspace changes",
+    description: "Run-level net workspace changes captured by Unchain.",
+    icon: Object.freeze({ type: "builtin", name: "file_edit" }),
+    fallbackRenderer: "json",
+    toolkitId: "builtin",
+  }),
   plan: Object.freeze({
     kind: "plan",
     displayName: "Plan",

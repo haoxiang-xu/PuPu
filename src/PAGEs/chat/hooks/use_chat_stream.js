@@ -14,6 +14,10 @@ import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tr
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
 import { isRuntimeEventStreamV3Enabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
+import { createRuntimeEventStoreV4 } from "../../../SERVICEs/runtime_events_v4/event_store";
+import { reduceActivityTreeV4 } from "../../../SERVICEs/runtime_events_v4/activity_tree";
+import { adaptActivityTreeToTraceChainV4 } from "../../../SERVICEs/runtime_events_v4/trace_chain_adapter";
+import { isRuntimeEventStreamV4Enabled } from "../../../SERVICEs/runtime_events_v4/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
   scheduleBackgroundPersist,
@@ -1756,16 +1760,14 @@ export const useChatStream = ({
       };
 
       const startChatStream = (payload, handlers = {}) => {
-        const shouldUseRuntimeEventsV3 =
-          isRuntimeEventStreamV3Enabled() &&
-          typeof api.unchain.isRuntimeEventStreamV3Available === "function" &&
-          api.unchain.isRuntimeEventStreamV3Available();
-        if (!shouldUseRuntimeEventsV3) {
-          return api.unchain.startStreamV2(payload, handlers);
-        }
-
-        const runtimeEventStore = createRuntimeEventStore();
-        let runtimeEventActivityTree = reduceActivityTree(
+        const startRuntimeEventStream = ({
+          createStore,
+          reduceTree,
+          adaptTree,
+          startStream,
+        }) => {
+        const runtimeEventStore = createStore();
+        let runtimeEventActivityTree = reduceTree(
           null,
           runtimeEventStore.getSnapshot(),
         );
@@ -1793,14 +1795,16 @@ export const useChatStream = ({
               : "";
           const artifactKey =
             effect?.type === "artifact_summary"
-              ? `${effect.turnId || ""}:${effect.reason || ""}`
-              : "";
+              ? `turn:${effect.turnId || ""}:${effect.reason || ""}`
+              : effect?.type === "run_artifact_summary"
+                ? `run:${effect.reason || ""}`
+                : "";
           return [eventId, effect?.type || "", frameType, delta, errorCode, artifactKey].join(
             "::",
           );
         };
         const flushRuntimeEventEffects = () => {
-          runtimeEventActivityTree = reduceActivityTree(
+          runtimeEventActivityTree = reduceTree(
             runtimeEventActivityTree,
             runtimeEventStore.getSnapshot(),
           );
@@ -1814,8 +1818,48 @@ export const useChatStream = ({
           });
           return nextEffects;
         };
+        const cloneArtifactBucket = (bucket) => ({
+          order: bucket.order,
+          status: bucket.status,
+          artifacts: Array.isArray(bucket.artifacts)
+            ? bucket.artifacts.map((a) => ({ ...a }))
+            : [],
+        });
+        const patchArtifactSummary = (effect) => {
+          const isRunSummary = effect.type === "run_artifact_summary";
+          const bucket = isRunSummary
+            ? runtimeEventActivityTree?.runArtifactSummary
+            : runtimeEventActivityTree?.artifactSummariesByTurnId?.[effect.turnId];
+          if (!bucket || bucket.status !== "completed") return;
+          const patchTime = Date.now();
+          const nextStreamMessages = streamMessages.map((message) => {
+            if (message.id !== assistantMessageId) return message;
+            if (isRunSummary) {
+              return {
+                ...message,
+                updatedAt: patchTime,
+                runArtifactSummary: cloneArtifactBucket(bucket),
+              };
+            }
+            const prev =
+              message.artifactSummariesByTurnId &&
+              typeof message.artifactSummariesByTurnId === "object" &&
+              !Array.isArray(message.artifactSummariesByTurnId)
+                ? message.artifactSummariesByTurnId
+                : {};
+            return {
+              ...message,
+              updatedAt: patchTime,
+              artifactSummariesByTurnId: {
+                ...prev,
+                [effect.turnId]: cloneArtifactBucket(bucket),
+              },
+            };
+          });
+          syncStreamMessages(nextStreamMessages);
+        };
 
-        return api.unchain.startStreamV3(payload, {
+        return startStream(payload, {
           onRuntimeEvent: (runtimeEvent) => {
             runtimeEventStore.append(runtimeEvent);
             const effects = flushRuntimeEventEffects();
@@ -1840,31 +1884,11 @@ export const useChatStream = ({
                 runtimeEventStreamFailed = true;
                 handlers.onError?.(effect.error);
               }
-              if (effect.type === "artifact_summary") {
-                const bucket = runtimeEventActivityTree?.artifactSummariesByTurnId?.[effect.turnId];
-                if (!bucket || bucket.status !== "completed") return;
-                const patchTime = Date.now();
-                const nextStreamMessages = streamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  const prev =
-                    message.artifactSummariesByTurnId &&
-                    typeof message.artifactSummariesByTurnId === "object" &&
-                    !Array.isArray(message.artifactSummariesByTurnId)
-                      ? message.artifactSummariesByTurnId : {};
-                  return {
-                    ...message,
-                    updatedAt: patchTime,
-                    artifactSummariesByTurnId: {
-                      ...prev,
-                      [effect.turnId]: {
-                        order: bucket.order,
-                        status: bucket.status,
-                        artifacts: bucket.artifacts.map((a) => ({ ...a })),
-                      },
-                    },
-                  };
-                });
-                syncStreamMessages(nextStreamMessages);
+              if (
+                effect.type === "artifact_summary" ||
+                effect.type === "run_artifact_summary"
+              ) {
+                patchArtifactSummary(effect);
                 return;
               }
             });
@@ -1873,9 +1897,7 @@ export const useChatStream = ({
             if (runtimeEventStreamFailed) {
               return;
             }
-            const traceProps = adaptActivityTreeToTraceChain(
-              runtimeEventActivityTree,
-            );
+            const traceProps = adaptTree(runtimeEventActivityTree);
             const donePayload =
               traceProps.bundle && !(done?.bundle && typeof done.bundle === "object")
                 ? { ...(done || {}), bundle: traceProps.bundle }
@@ -1886,6 +1908,35 @@ export const useChatStream = ({
             runtimeEventStreamFailed = true;
             handlers.onError?.(error);
           },
+        });
+        };
+
+        const shouldUseRuntimeEventsV4 =
+          isRuntimeEventStreamV4Enabled() &&
+          typeof api.unchain.isRuntimeEventStreamV4Available === "function" &&
+          api.unchain.isRuntimeEventStreamV4Available();
+        if (shouldUseRuntimeEventsV4) {
+          return startRuntimeEventStream({
+            createStore: createRuntimeEventStoreV4,
+            reduceTree: reduceActivityTreeV4,
+            adaptTree: adaptActivityTreeToTraceChainV4,
+            startStream: api.unchain.startStreamV4,
+          });
+        }
+
+        const shouldUseRuntimeEventsV3 =
+          isRuntimeEventStreamV3Enabled() &&
+          typeof api.unchain.isRuntimeEventStreamV3Available === "function" &&
+          api.unchain.isRuntimeEventStreamV3Available();
+        if (!shouldUseRuntimeEventsV3) {
+          return api.unchain.startStreamV2(payload, handlers);
+        }
+
+        return startRuntimeEventStream({
+          createStore: createRuntimeEventStore,
+          reduceTree: reduceActivityTree,
+          adaptTree: adaptActivityTreeToTraceChain,
+          startStream: api.unchain.startStreamV3,
         });
       };
 
