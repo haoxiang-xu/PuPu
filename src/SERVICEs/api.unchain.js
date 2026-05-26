@@ -556,7 +556,7 @@ export const createUnchainApi = () => {
 
     getToolkitCatalog: async () => {
       if (!hasBridgeMethod("unchainAPI", "getToolkitCatalog")) {
-        return { toolkits: [], count: 0, source: "" };
+        return { toolkits: [], artifactKinds: [], count: 0, source: "" };
       }
 
       try {
@@ -567,7 +567,7 @@ export const createUnchainApi = () => {
           "unchain_toolkit_catalog_timeout",
           "Unchain toolkit catalog request timed out",
         );
-        return payload || { toolkits: [], count: 0, source: "" };
+        return payload || { toolkits: [], artifactKinds: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(
           error,
@@ -579,7 +579,7 @@ export const createUnchainApi = () => {
 
     listToolModalCatalog: async () => {
       if (!hasBridgeMethod("unchainAPI", "listToolModalCatalog")) {
-        return { toolkits: [], count: 0, source: "" };
+        return { toolkits: [], artifactKinds: [], count: 0, source: "" };
       }
 
       try {
@@ -590,7 +590,7 @@ export const createUnchainApi = () => {
           "unchain_tool_modal_catalog_timeout",
           "Unchain tool modal catalog request timed out",
         );
-        return payload || { toolkits: [], count: 0, source: "" };
+        return payload || { toolkits: [], artifactKinds: [], count: 0, source: "" };
       } catch (error) {
         throw toFrontendApiError(
           error,

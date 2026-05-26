@@ -24,6 +24,31 @@ describe("sanitizeMessage assistant artifactSummariesByTurnId", () => {
     });
   });
 
+  test("preserves unknown but structurally valid artifact descriptors", () => {
+    const unknownBucket = {
+      order: 1,
+      status: "completed",
+      artifacts: [
+        {
+          artifact_id: "benchmark:1",
+          kind: "benchmark_report",
+          title: "Benchmark",
+          snapshot: { markdown: "p95: 18ms" },
+        },
+      ],
+    };
+
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "hi",
+      artifactSummariesByTurnId: { "run-1:turn-1": unknownBucket },
+    });
+
+    expect(cleaned.artifactSummariesByTurnId).toEqual({
+      "run-1:turn-1": unknownBucket,
+    });
+  });
+
   test("drops artifacts missing required fields without dropping the bucket", () => {
     const cleaned = sanitizeMessage({
       role: "assistant",

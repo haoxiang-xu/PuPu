@@ -2,6 +2,11 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import PlanCard from "./plan_card";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span data-testid={`icon-${src}`} />,
+}));
+
 const planArtifact = (overrides = {}) => ({
   artifact_id: "plan:p1",
   kind: "plan",

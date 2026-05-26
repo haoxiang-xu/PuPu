@@ -86,8 +86,11 @@ const createFrame = (state, event, type, payload = {}) => {
   };
 };
 
-const KNOWN_ARTIFACT_KINDS = new Set(["file_diff", "plan"]);
-const warnedUnknownKinds = new Set();
+const isValidArtifactDescriptor = (artifact) =>
+  isObject(artifact) &&
+  Boolean(stringValue(artifact.artifact_id)) &&
+  Boolean(stringValue(artifact.kind)) &&
+  isObject(artifact.snapshot);
 
 const resolveTurnId = (event) => {
   const direct = stringValue(event?.turn_id);
@@ -111,6 +114,35 @@ const ensureArtifactBucket = (state, turnId) => {
     };
   }
   return state.artifactSummariesByTurnId[turnId];
+};
+
+const upsertArtifactDescriptor = (bucket, artifact) => {
+  const artifactId = stringValue(artifact?.artifact_id);
+  if (!artifactId || !Array.isArray(bucket?.artifacts)) {
+    return { changed: false, replaced: false };
+  }
+
+  const existingIdx = bucket.artifacts.findIndex(
+    (a) => a?.artifact_id === artifactId,
+  );
+  if (existingIdx < 0) {
+    bucket.artifacts.push({ ...artifact });
+    return { changed: true, replaced: false };
+  }
+
+  const existing = bucket.artifacts[existingIdx];
+  const incomingRevision = Number(artifact.revision);
+  const existingRevision = Number(existing.revision);
+  if (
+    Number.isFinite(existingRevision) &&
+    Number.isFinite(incomingRevision) &&
+    incomingRevision < existingRevision
+  ) {
+    return { changed: false, replaced: true };
+  }
+
+  bucket.artifacts[existingIdx] = { ...artifact };
+  return { changed: true, replaced: true };
 };
 
 const ensureRun = (state, event, overrides = {}) => {
@@ -500,22 +532,14 @@ const applyEvent = (state, event) => {
 
   if (eventType === "artifact.created") {
     const artifact = payloadOf(event);
-    const kind = stringValue(artifact.kind);
-    if (!KNOWN_ARTIFACT_KINDS.has(kind)) {
-      if (!warnedUnknownKinds.has(kind)) {
-        warnedUnknownKinds.add(kind);
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[activity_tree] dropping artifact.created with unknown kind "${kind}"`,
-        );
-      }
+    if (!isValidArtifactDescriptor(artifact)) {
       return;
     }
     const turnId = resolveTurnId(event);
     const bucket = ensureArtifactBucket(state, turnId);
     if (!bucket) return;
-    bucket.artifacts.push({ ...artifact });
-    if (bucket.status === "completed") {
+    const result = upsertArtifactDescriptor(bucket, artifact);
+    if (result.changed && bucket.status === "completed") {
       state.effects.push({
         type: "artifact_summary",
         eventId: stringValue(event.event_id),
@@ -528,44 +552,23 @@ const applyEvent = (state, event) => {
 
   if (eventType === "artifact.updated") {
     const artifact = payloadOf(event);
-    const kind = stringValue(artifact.kind);
-    if (!KNOWN_ARTIFACT_KINDS.has(kind)) {
-      if (!warnedUnknownKinds.has(kind)) {
-        warnedUnknownKinds.add(kind);
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[activity_tree] dropping artifact.updated with unknown kind "${kind}"`,
-        );
-      }
+    if (!isValidArtifactDescriptor(artifact)) {
       return;
     }
+    const kind = stringValue(artifact.kind);
     const turnId = resolveTurnId(event);
     const bucket = ensureArtifactBucket(state, turnId);
     if (!bucket) return;
     const artifactId = stringValue(artifact.artifact_id);
-    const existingIdx = bucket.artifacts.findIndex(
-      (a) => a.artifact_id === artifactId,
-    );
-    if (existingIdx >= 0) {
-      const existing = bucket.artifacts[existingIdx];
-      const incomingRevision = Number(artifact.revision);
-      const existingRevision = Number(existing.revision);
-      if (
-        Number.isFinite(existingRevision) &&
-        Number.isFinite(incomingRevision) &&
-        incomingRevision < existingRevision
-      ) {
-        return; // revision regression
-      }
-      if (kind === "file_diff") {
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[activity_tree] unexpected artifact.updated for file_diff ${artifactId}; replacing in place`,
-        );
-      }
-      bucket.artifacts[existingIdx] = { ...artifact };
-    } else {
-      bucket.artifacts.push({ ...artifact });
+    const result = upsertArtifactDescriptor(bucket, artifact);
+    if (!result.changed) {
+      return;
+    }
+    if (result.replaced && kind === "file_diff") {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[activity_tree] unexpected artifact.updated for file_diff ${artifactId}; replacing in place`,
+      );
     }
     if (bucket.status === "completed") {
       state.effects.push({

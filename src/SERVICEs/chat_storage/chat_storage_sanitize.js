@@ -412,8 +412,6 @@ const scrubLegacyPlanToolResultPayload = (payload) => {
   }
 };
 
-const ALLOWED_ARTIFACT_KINDS = new Set(["file_diff", "plan"]);
-
 const sanitizeArtifactDescriptor = (descriptor) => {
   if (!isObject(descriptor)) return null;
   const artifactId =
@@ -421,7 +419,7 @@ const sanitizeArtifactDescriptor = (descriptor) => {
       ? descriptor.artifact_id
       : null;
   const kind = typeof descriptor.kind === "string" ? descriptor.kind.trim() : "";
-  if (!artifactId || !ALLOWED_ARTIFACT_KINDS.has(kind)) return null;
+  if (!artifactId || !kind) return null;
   if (!isObject(descriptor.snapshot)) return null;
   return { ...descriptor };
 };

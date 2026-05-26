@@ -1,7 +1,12 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { DiffBody, countPlusMinus } from "../../diff/diff_body";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import ArtifactKindIcon from "./artifact_kind_icon";
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
+const EXPAND_TRANSITION = "transform 0.22s cubic-bezier(0.32,1,0.32,1)";
 
 const readUnifiedDiff = (file) => {
   if (!isObject(file)) return "";
@@ -73,8 +78,38 @@ const collectFiles = (artifacts) => {
   return out;
 };
 
-const FilesChangedCard = ({ artifacts, isDark }) => {
+const usePalette = (isDark) => {
+  const ctx = useContext(ConfigContext);
+  const theme = isObject(ctx) ? ctx.theme : null;
+  const primary =
+    (theme && typeof theme.color === "string" && theme.color) ||
+    (isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.85)");
+  const secondary = isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.5)";
+  const cardBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
+  const chipBg = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
+  const hoverBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
+  return { primary, secondary, cardBg, chipBg, hoverBg };
+};
+
+const DisclosureArrow = ({ open, color, size = 14 }) => (
+  <Icon
+    src="arrow_right"
+    color={color}
+    style={{
+      width: size,
+      height: size,
+      opacity: 0.4,
+      flexShrink: 0,
+      transition: EXPAND_TRANSITION,
+      transform: open ? "rotate(90deg)" : "rotate(0deg)",
+    }}
+  />
+);
+
+const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
   const [expanded, setExpanded] = useState(false);
+  const [hover, setHover] = useState(false);
+  const { primary, secondary, cardBg, hoverBg } = usePalette(isDark);
   const files = useMemo(() => collectFiles(artifacts), [artifacts]);
   const totals = useMemo(
     () =>
@@ -92,16 +127,18 @@ const FilesChangedCard = ({ artifacts, isDark }) => {
     [files],
   );
   if (files.length === 0) return null;
-  const border = isDark ? "#6e7681" : "#8c959f";
-  const secondary = isDark ? "#8c959f" : "#656d76";
+  const displayName =
+    (typeof kindMeta?.displayName === "string" && kindMeta.displayName) ||
+    "Files changed";
 
   return (
     <div
       data-testid="files-changed-card"
       style={{
-        border: `1px solid ${border}`,
-        borderRadius: 8,
-        backgroundColor: "transparent",
+        backgroundColor: cardBg,
+        borderRadius: 10,
+        color: primary,
+        overflow: "hidden",
       }}
     >
       <div
@@ -115,26 +152,47 @@ const FilesChangedCard = ({ artifacts, isDark }) => {
             setExpanded((v) => !v);
           }
         }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
         style={{
-          padding: "8px 12px",
+          padding: "12px 16px",
           cursor: "pointer",
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          fontSize: 12,
+          gap: 12,
+          fontSize: 13,
+          backgroundColor: hover ? hoverBg : "transparent",
+          transition: "background-color 0.15s ease",
         }}
       >
-        <span aria-hidden>{expanded ? "▾" : "▸"}</span>
-        <span>Files changed · {files.length}</span>
-        <span style={{ marginLeft: "auto", color: secondary }}>
+        <ArtifactKindIcon
+          icon={kindMeta?.icon || { type: "builtin", name: "file_edit" }}
+          color={primary}
+        />
+        <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <span style={{ fontWeight: 500, lineHeight: 1.2 }}>{displayName}</span>
+          <span
+            style={{
+              fontSize: 11.5,
+              color: secondary,
+              lineHeight: 1.3,
+              marginTop: 2,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {files.length} {files.length === 1 ? "file" : "files"}
+          </span>
+        </div>
+        <span style={{ marginLeft: "auto", color: secondary, fontSize: 12 }}>
           +{totals.plus} −{totals.minus}
           {partialTotals ? " shown" : ""}
         </span>
+        <DisclosureArrow open={expanded} color={primary} />
       </div>
       {expanded && (
-        <div
-          data-testid="files-changed-card-body"
-        >
+        <div data-testid="files-changed-card-body">
           {files.map((file, idx) => (
             <FileRow key={`${file.path}:${idx}`} file={file} isDark={isDark} />
           ))}
@@ -146,8 +204,8 @@ const FilesChangedCard = ({ artifacts, isDark }) => {
 
 const FileRow = ({ file, isDark }) => {
   const [expanded, setExpanded] = useState(false);
-  const secondary = isDark ? "#8c959f" : "#656d76";
-  const border = isDark ? "#6e7681" : "#8c959f";
+  const [hover, setHover] = useState(false);
+  const { primary, secondary, chipBg, hoverBg } = usePalette(isDark);
 
   const fallbackChip = file.binary
     ? "Binary file"
@@ -156,7 +214,7 @@ const FileRow = ({ file, isDark }) => {
       : null;
 
   return (
-    <div style={{ borderTop: `1px solid ${border}` }}>
+    <div style={{ color: primary }}>
       <div
         role="button"
         tabIndex={0}
@@ -167,16 +225,19 @@ const FileRow = ({ file, isDark }) => {
             setExpanded((v) => !v);
           }
         }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
         style={{
-          padding: "6px 12px",
+          padding: "8px 16px",
           display: "flex",
           alignItems: "center",
-          gap: 8,
-          fontSize: 12,
+          gap: 10,
+          fontSize: 12.5,
           cursor: "pointer",
+          backgroundColor: hover ? hoverBg : "transparent",
+          transition: "background-color 0.15s ease",
         }}
       >
-        <span aria-hidden>{expanded ? "▾" : "▸"}</span>
         <span>{file.path}</span>
         {file.operation && (
           <span
@@ -185,7 +246,7 @@ const FileRow = ({ file, isDark }) => {
               fontSize: 10,
               padding: "1px 6px",
               borderRadius: 3,
-              backgroundColor: isDark ? "#2d2d2d" : "#eaeef2",
+              backgroundColor: chipBg,
               color: secondary,
             }}
           >
@@ -199,7 +260,7 @@ const FileRow = ({ file, isDark }) => {
               padding: "1px 6px",
               borderRadius: 3,
               color: secondary,
-              backgroundColor: isDark ? "#2d2d2d" : "#eaeef2",
+              backgroundColor: chipBg,
             }}
           >
             {fallbackChip}
@@ -209,9 +270,10 @@ const FileRow = ({ file, isDark }) => {
           +{file.additions} −{file.deletions}
           {file.truncated && !file.statsFromBackend ? " shown" : ""}
         </span>
+        <DisclosureArrow open={expanded} color={primary} size={12} />
       </div>
       {expanded && !file.binary && (
-        <div style={{ padding: "0 12px 8px 12px" }}>
+        <div style={{ padding: "12px 16px 16px 16px" }}>
           {file.unifiedDiff ? (
             <DiffBody unifiedDiff={file.unifiedDiff} isDark={isDark} />
           ) : file.truncated && file.totalLines !== null && file.displayedLines !== null ? (
@@ -219,7 +281,7 @@ const FileRow = ({ file, isDark }) => {
               style={{
                 fontSize: 11.5,
                 fontStyle: "italic",
-                color: isDark ? "#8c959f" : "#656d76",
+                color: secondary,
                 padding: 8,
               }}
             >

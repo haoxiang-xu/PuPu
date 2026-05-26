@@ -290,6 +290,69 @@ describe("artifact.created", () => {
     );
     expect(artifactEffects).toEqual([]);
   });
+
+  test("keeps unknown but structurally valid artifact kinds", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "benchmark:1",
+          kind: "benchmark_report",
+          title: "Benchmark",
+          snapshot: { markdown: "p95: 18ms" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].kind).toBe("benchmark_report");
+  });
+
+  test("drops malformed artifact descriptors even for known event types", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "benchmark:1",
+          kind: "benchmark_report",
+        },
+      }),
+    ]);
+    expect(state.artifactSummariesByTurnId["run-root:turn-1"]).toBeUndefined();
+  });
+
+  test("upserts stable artifacts when artifact.created repeats the same artifact_id", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 1,
+          title: "Initial",
+          snapshot: { markdown: "# v1", status: "draft" },
+        },
+      }),
+      event({
+        id: "e2",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 2,
+          title: "Updated",
+          snapshot: { markdown: "# v2", status: "draft" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].title).toBe("Updated");
+    expect(bucket.artifacts[0].revision).toBe(2);
+  });
 });
 
 describe("artifact.updated", () => {
@@ -368,6 +431,37 @@ describe("artifact.updated", () => {
     const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
     expect(bucket.artifacts).toHaveLength(1);
     expect(bucket.artifacts[0].revision).toBe(1);
+  });
+
+  test("does not let late older artifact.created duplicate or downgrade an updated artifact", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.updated",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 2,
+          title: "Updated",
+          snapshot: { markdown: "# v2", status: "draft" },
+        },
+      }),
+      event({
+        id: "e2",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 1,
+          title: "Initial",
+          snapshot: { markdown: "# v1", status: "draft" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].title).toBe("Updated");
+    expect(bucket.artifacts[0].revision).toBe(2);
   });
 });
 

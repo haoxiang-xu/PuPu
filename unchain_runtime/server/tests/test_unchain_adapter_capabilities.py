@@ -1968,6 +1968,7 @@ class MisoAdapterToolkitIconTests(unittest.TestCase):
         color: str | None = None,
         backgroundcolor: str | None = None,
         include_icon_file: bool = False,
+        artifact_kinds_body: str = "",
     ) -> tuple[type, str, ModuleType]:
         temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(temp_dir.cleanup)
@@ -2015,6 +2016,8 @@ title = "Echo"
 description = "Echo text back."
 observe = false
 requires_confirmation = false
+
+{artifact_kinds_body}
 """.strip()
             + "\n",
             encoding="utf-8",
@@ -2154,6 +2157,8 @@ requires_confirmation = true
             },
         )
         self.assertEqual(entry["tools"][0]["icon"], entry["toolkitIcon"])
+        self.assertIn("artifactKinds", payload)
+        self.assertEqual(payload["artifactKinds"][0]["kind"], "file_diff")
 
     def test_get_toolkit_catalog_v2_exposes_core_with_confirmation_metadata(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_core_toolkit_fixture()
@@ -2184,6 +2189,84 @@ requires_confirmation = true
         self.assertFalse(entry["tools"][0]["requiresConfirmation"])
         self.assertEqual(entry["tools"][1]["name"], "write")
         self.assertTrue(entry["tools"][1]["requiresConfirmation"])
+
+    def test_get_toolkit_catalog_v2_exposes_artifact_kind_metadata(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+            color="#0f172a",
+            backgroundcolor="#bae6fd",
+            artifact_kinds_body="""
+[[artifact_kinds]]
+kind = "benchmark_report"
+display_name = "Benchmark"
+description = "Benchmark summary artifacts."
+icon = "bar_chart"
+fallback_renderer = "markdown"
+""",
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = unchain_adapter.get_toolkit_catalog_v2()
+
+        custom_kind = payload["toolkits"][0]["artifactKinds"][0]
+        self.assertEqual(custom_kind["kind"], "benchmark_report")
+        self.assertEqual(custom_kind["displayName"], "Benchmark")
+        self.assertEqual(custom_kind["fallbackRenderer"], "markdown")
+        self.assertEqual(custom_kind["icon"], {"type": "builtin", "name": "bar_chart"})
+        self.assertIn(custom_kind, payload["artifactKinds"])
+
+    def test_get_toolkit_metadata_exposes_artifact_kind_file_icon(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="terminal",
+            color="#0f172a",
+            backgroundcolor="#bae6fd",
+            include_icon_file=True,
+            artifact_kinds_body="""
+[[artifact_kinds]]
+kind = "benchmark_report"
+display_name = "Benchmark"
+description = "Benchmark summary artifacts."
+icon = "icon.svg"
+fallback_renderer = "markdown"
+""",
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            payload = unchain_adapter.get_toolkit_metadata("DemoToolkit")
+
+        self.assertEqual(payload["artifactKinds"][0]["icon"]["type"], "file")
+        self.assertEqual(payload["artifactKinds"][0]["icon"]["mimeType"], "image/svg+xml")
+        self.assertIn("<svg", payload["artifactKinds"][0]["icon"]["content"])
 
     def test_get_toolkit_metadata_returns_file_icon_payload(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(

@@ -18,6 +18,7 @@ from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List
 
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
+_artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
 
 try:
     import httpx as _httpx
@@ -94,6 +95,66 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "ExternalAPIToolkit": "builtin",
     "PlanToolkit": "plan",
 }
+_ARTIFACT_FALLBACK_RENDERERS = {"markdown", "text", "table", "kv", "log", "link", "json"}
+_BUILTIN_ARTIFACT_KINDS = (
+    {
+        "kind": "file_diff",
+        "displayName": "Files changed",
+        "description": "Immutable snapshots of file changes produced by tools.",
+        "icon": {"type": "builtin", "name": "file_edit"},
+        "fallbackRenderer": "json",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "plan",
+        "displayName": "Plan",
+        "description": "Plan snapshots produced by PlanToolkit.",
+        "icon": {"type": "builtin", "name": "check_list"},
+        "fallbackRenderer": "markdown",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "markdown",
+        "displayName": "Markdown",
+        "description": "Markdown artifact snapshots.",
+        "icon": {"type": "builtin", "name": "markdown"},
+        "fallbackRenderer": "markdown",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "table",
+        "displayName": "Table",
+        "description": "Tabular artifact snapshots.",
+        "icon": {"type": "builtin", "name": "data"},
+        "fallbackRenderer": "table",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "kv",
+        "displayName": "Metadata",
+        "description": "Key-value artifact snapshots.",
+        "icon": {"type": "builtin", "name": "information"},
+        "fallbackRenderer": "kv",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "log",
+        "displayName": "Log",
+        "description": "Log artifact snapshots.",
+        "icon": {"type": "builtin", "name": "terminal"},
+        "fallbackRenderer": "log",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "link",
+        "displayName": "Link",
+        "description": "Link artifact snapshots.",
+        "icon": {"type": "builtin", "name": "link"},
+        "fallbackRenderer": "link",
+        "toolkitId": "builtin",
+    },
+)
+_BUILTIN_ARTIFACT_KIND_NAMES = {item["kind"] for item in _BUILTIN_ARTIFACT_KINDS}
 _TOOLKIT_EXPORT_ID_ALIASES = {
     "WorkspaceToolkit": "workspace_toolkit",
     "TerminalToolkit": "terminal_toolkit",
@@ -1276,6 +1337,7 @@ def get_toolkit_catalog() -> Dict[str, object]:
     if toolkit_base is None:
         return {
             "toolkits": [],
+            "artifactKinds": _merged_artifact_kinds([]),
             "count": 0,
             "source": "",
         }
@@ -1581,6 +1643,134 @@ def _read_builtin_icon_payload(
     }
 
 
+def _read_builtin_artifact_icon_payload(
+    icon_name: object,
+    color: object = "",
+    background_color: object = "",
+) -> Dict[str, str]:
+    if not isinstance(icon_name, str) or not icon_name.strip():
+        return {}
+    payload = {
+        "type": "builtin",
+        "name": icon_name.strip(),
+    }
+    if isinstance(color, str) and color.strip():
+        payload["color"] = color.strip()
+    if isinstance(background_color, str) and background_color.strip():
+        payload["backgroundColor"] = background_color.strip()
+    return payload
+
+
+def _artifact_icon_payload(
+    toolkit_class: type,
+    icon_value: object,
+    color: object = "",
+    background_color: object = "",
+) -> Dict[str, str]:
+    if not isinstance(icon_value, str) or not icon_value.strip():
+        return {}
+    icon_name = icon_value.strip()
+    if not _looks_like_icon_asset(icon_name):
+        return _read_builtin_artifact_icon_payload(icon_name, color, background_color)
+
+    toolkit_dir = _resolve_toolkit_dir(toolkit_class)
+    if toolkit_dir is None:
+        return {}
+    icon_path = (toolkit_dir / icon_name).resolve()
+    try:
+        icon_path.relative_to(toolkit_dir.resolve())
+    except ValueError:
+        return {}
+    return _read_icon_payload(str(icon_path))
+
+
+def _artifact_kinds_for_toolkit(toolkit_class: type, toolkit_id: str) -> List[Dict[str, object]]:
+    toml_data = _read_toolkit_toml(toolkit_class)
+    artifact_kinds = toml_data.get("artifact_kinds") or []
+    if not isinstance(artifact_kinds, list):
+        return []
+
+    out: List[Dict[str, object]] = []
+    seen: set[str] = set()
+    for entry in artifact_kinds:
+        if not isinstance(entry, dict):
+            continue
+        kind = str(entry.get("kind", "") or "").strip()
+        if not kind or kind in seen:
+            continue
+        seen.add(kind)
+        if kind in _BUILTIN_ARTIFACT_KIND_NAMES:
+            _artifact_kind_logger.warning(
+                "toolkit '%s' cannot override builtin artifact kind '%s'; ignoring manifest entry",
+                toolkit_id,
+                kind,
+            )
+            continue
+        fallback_renderer = str(entry.get("fallback_renderer", "") or "").strip()
+        if fallback_renderer not in _ARTIFACT_FALLBACK_RENDERERS:
+            _artifact_kind_logger.warning(
+                "toolkit '%s' artifact kind '%s' has invalid fallback_renderer '%s'; ignoring manifest entry",
+                toolkit_id,
+                kind,
+                fallback_renderer,
+            )
+            continue
+        icon_payload = _artifact_icon_payload(
+            toolkit_class,
+            entry.get("icon"),
+            entry.get("color", ""),
+            entry.get("backgroundcolor", entry.get("background_color", "")),
+        )
+        if not icon_payload:
+            icon_payload = _read_builtin_artifact_icon_payload("information")
+        out.append({
+            "kind": kind,
+            "displayName": str(entry.get("display_name", "") or kind).strip(),
+            "description": str(entry.get("description", "") or "").strip(),
+            "icon": icon_payload,
+            "fallbackRenderer": fallback_renderer,
+            "toolkitId": toolkit_id,
+        })
+    return out
+
+
+def _merged_artifact_kinds(entries: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    custom: Dict[str, Dict[str, object]] = {}
+    for entry in entries:
+        artifact_kinds = entry.get("artifactKinds")
+        if not isinstance(artifact_kinds, list):
+            continue
+        for artifact_kind in artifact_kinds:
+            if not isinstance(artifact_kind, dict):
+                continue
+            kind = str(artifact_kind.get("kind", "") or "").strip()
+            if not kind or kind in _BUILTIN_ARTIFACT_KIND_NAMES:
+                continue
+            existing = custom.get(kind)
+            if existing is None:
+                custom[kind] = artifact_kind
+                continue
+            existing_toolkit = str(existing.get("toolkitId", "") or "")
+            incoming_toolkit = str(artifact_kind.get("toolkitId", "") or "")
+            if incoming_toolkit.casefold() < existing_toolkit.casefold():
+                winner = artifact_kind
+                loser = existing
+            else:
+                winner = existing
+                loser = artifact_kind
+            custom[kind] = winner
+            _artifact_kind_logger.warning(
+                "duplicate artifact kind '%s' from toolkit '%s' ignored; toolkit '%s' wins",
+                kind,
+                str(loser.get("toolkitId", "") or ""),
+                str(winner.get("toolkitId", "") or ""),
+            )
+    return [copy.deepcopy(item) for item in _BUILTIN_ARTIFACT_KINDS] + [
+        copy.deepcopy(item)
+        for item in sorted(custom.values(), key=lambda item: str(item.get("kind", "")).casefold())
+    ]
+
+
 def _resolve_toolkit_readme(toolkit_class: type) -> str:
     """Locate and read the README.md that lives beside a toolkit module.
 
@@ -1827,12 +2017,14 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
         tools_v2 = _enumerate_toolkit_tools_v2(candidate)
         toolkit_icon = _get_toolkit_icon_payload(candidate)
+        toolkit_id = _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, class_name)
+        artifact_kinds = _artifact_kinds_for_toolkit(candidate, toolkit_id)
         tags = toml_toolkit.get("tags", [])
         if not isinstance(tags, list):
             tags = []
 
         return {
-            "toolkitId": _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, class_name),
+            "toolkitId": toolkit_id,
             "toolkitName": toolkit_name,
             "toolkitDescription": toolkit_description,
             "toolkitIcon": toolkit_icon,
@@ -1843,6 +2035,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
             "displayOrder": int(display_order),
             "hidden": hidden,
             "tags": [str(t) for t in tags if isinstance(t, str)],
+            "artifactKinds": artifact_kinds,
         }
 
     # Re-use the same discovery logic as v1
@@ -1919,6 +2112,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
     return {
         "toolkits": entries,
+        "artifactKinds": _merged_artifact_kinds(entries),
         "count": len(entries),
         "source": "",
     }
@@ -1935,6 +2129,7 @@ def get_toolkit_metadata(
             "toolkitName": "",
             "toolkitDescription": "",
             "toolkitIcon": {},
+            "artifactKinds": [],
             "readmeMarkdown": "",
             "selectedToolName": None,
         }
@@ -1950,6 +2145,7 @@ def get_toolkit_metadata(
             "toolkitName": canonical_toolkit_id or toolkit_id,
             "toolkitDescription": "",
             "toolkitIcon": {},
+            "artifactKinds": [],
             "readmeMarkdown": "",
             "selectedToolName": tool_name,
         }
@@ -2011,11 +2207,13 @@ def get_toolkit_metadata(
             "toolkitName": canonical_toolkit_id or toolkit_id,
             "toolkitDescription": "",
             "toolkitIcon": {},
+            "artifactKinds": [],
             "readmeMarkdown": "",
             "selectedToolName": tool_name,
         }
 
     toolkit_icon = _get_toolkit_icon_payload(found_class)
+    artifact_kinds = _artifact_kinds_for_toolkit(found_class, canonical_toolkit_id)
     readme_markdown = _resolve_toolkit_readme(found_class)
 
     toml_data = _read_toolkit_toml(found_class)
@@ -2033,6 +2231,7 @@ def get_toolkit_metadata(
         "toolkitName": toolkit_name,
         "toolkitDescription": toolkit_description,
         "toolkitIcon": toolkit_icon,
+        "artifactKinds": artifact_kinds,
         "readmeMarkdown": readme_markdown,
         "selectedToolName": tool_name,
     }

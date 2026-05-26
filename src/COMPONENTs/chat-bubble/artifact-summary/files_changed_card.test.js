@@ -2,6 +2,11 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import FilesChangedCard from "./files_changed_card";
 
+jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: ({ src }) => <span data-testid={`icon-${src}`} />,
+}));
+
 const fileDiff = ({ id, path, op = "edit", additions, deletions, unifiedDiff }) => ({
   artifact_id: `file_diff:${id}`,
   kind: "file_diff",
@@ -31,7 +36,8 @@ describe("FilesChangedCard collapsed", () => {
         isDark={false}
       />,
     );
-    expect(screen.getByText(/Files changed · 2/)).toBeInTheDocument();
+    expect(screen.getByText("Files changed")).toBeInTheDocument();
+    expect(screen.getByText("2 files")).toBeInTheDocument();
     expect(screen.getByText(/\+15 −5/)).toBeInTheDocument();
   });
 
@@ -42,7 +48,8 @@ describe("FilesChangedCard collapsed", () => {
         isDark={false}
       />,
     );
-    expect(screen.getByText(/Files changed · 1/)).toBeInTheDocument();
+    expect(screen.getByText("Files changed")).toBeInTheDocument();
+    expect(screen.getByText("1 file")).toBeInTheDocument();
     expect(screen.getByText(/\+1 −1/)).toBeInTheDocument();
   });
 
@@ -76,7 +83,8 @@ describe("FilesChangedCard collapsed", () => {
       },
     };
     render(<FilesChangedCard artifacts={[singleFile]} isDark={false} />);
-    expect(screen.getByText(/Files changed · 1/)).toBeInTheDocument();
+    expect(screen.getByText("Files changed")).toBeInTheDocument();
+    expect(screen.getByText("1 file")).toBeInTheDocument();
     expect(screen.getByText(/\+1 −1/)).toBeInTheDocument();
   });
 });

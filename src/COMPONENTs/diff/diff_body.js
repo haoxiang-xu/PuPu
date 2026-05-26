@@ -80,7 +80,7 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
           overflowX: "auto",
           overflowY: "auto",
           maxHeight: 480,
-          borderRadius: 12,
+          borderRadius: 6,
         }}
       >
         {unifiedDiff || "(no changes)"}
@@ -110,7 +110,7 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
         fontSize: 12,
         lineHeight: 1.55,
         backgroundColor: isDark ? "#0d1117" : "#f6f8fa",
-        borderRadius: 12,
+        borderRadius: 6,
         overflowX: "auto",
         overflowY: "auto",
         maxHeight: 480,

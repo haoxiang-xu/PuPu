@@ -148,15 +148,18 @@ A turn shows one PlanCard per distinct `plan_id` present in that turn (typically
 
 **"Open source file" deferred to v2.** v1 does **not** ship a click-to-open affordance. PuPu has no existing renderer-safe IPC for opening arbitrary workspace paths in the host editor; spec-ing one for this single button would expand scope into Electron bridge territory unrelated to the summary feature. v1 surfaces the path as text only. If a future workspace-open IPC lands (e.g., as part of the web browser feature or a dedicated bridge), PlanCard upgrades the path text to a clickable affordance with the warning tooltip: "Opens the current file. Content may differ from the snapshot above."
 
-### 4.5 Future cards (specified for forward-compat, not implemented v1)
+### 4.5 Metadata-driven generic fallback
 
-- **MarkdownCard:** title in header, `snapshot.markdown` rendered in body, truncation footer if applicable.
-- **TableCard:** title + row count in header, `snapshot.columns / snapshot.rows` rendered as a borderless table.
-- **KvCard:** title in header, `snapshot.pairs` rendered as two-column key/value list.
-- **LogCard:** title + entry count in header, `snapshot.text` rendered in a scrollable monospace block with max-height cap.
-- **LinkCard:** title + chevron in header, click opens `source.url` or `source.path`.
+Artifact card chrome is driven by Unchain toolkit/catalog metadata, not by fields embedded in runtime artifact events:
 
-V1 ships FilesChangedCard and PlanCard only. Other artifact kinds (`markdown`, `table`, `kv`, `log`, `link`) emit normally on the Unchain side but PuPu **silently drops them in v1** — no rendering, no "Other" bucket. The reducer logs a single dev-mode console warning per unknown kind so producers don't believe their artifacts are visible. This is a deliberate scope guard; adding even a placeholder "Other" disclosure would require deciding the layout of every future card right now, which we explicitly do not want to do until each producer exists.
+- `artifact.title` remains the content title.
+- `artifactKinds[].displayName` is the kind/card label.
+- `artifactKinds[].icon` is a PuPu builtin icon id or an installed toolkit/plugin static icon payload materialized by catalog.
+- `artifactKinds[].fallbackRenderer` selects one semantic renderer: `markdown`, `text`, `table`, `kv`, `log`, `link`, or `json`.
+
+Artifact runtime events must not carry raw SVG, HTML, CSS, React renderer code, or `presentation.icon` hints. PuPu owns rendering and only reads immutable `snapshot` data plus catalog metadata.
+
+V1 keeps specialized `FilesChangedCard` and `PlanCard` for `file_diff` and `plan`. All other structurally valid artifact kinds render through `GenericArtifactCard`, using the registry metadata when available and a safe `information` icon / JSON fallback when unavailable. Future kind-specific cards can replace the generic path without changing the artifact event schema.
 
 ## 5. Component Architecture
 
@@ -165,6 +168,9 @@ V1 ships FilesChangedCard and PlanCard only. Other artifact kinds (`markdown`, `
 - `src/COMPONENTs/chat-bubble/artifact-summary/artifact_summary.js` — top-level container, takes `artifacts: Artifact[]` for one turn, dispatches to per-kind cards.
 - `src/COMPONENTs/chat-bubble/artifact-summary/files_changed_card.js`
 - `src/COMPONENTs/chat-bubble/artifact-summary/plan_card.js`
+- `src/COMPONENTs/chat-bubble/artifact-summary/generic_artifact_card.js`
+- `src/COMPONENTs/chat-bubble/artifact-summary/artifact_kind_registry.js`
+- `src/COMPONENTs/chat-bubble/artifact-summary/artifact_kind_icon.js`
 - `src/COMPONENTs/diff/diff_body.js` — extracted from `code_diff_interact.js` (see §5.3).
 
 ### 5.2 Modified files
@@ -241,7 +247,7 @@ Concretely:
 - The assistant branch of `sanitizeMessage` (currently at `chat_storage_sanitize.js:554`) preserves `artifactSummariesByTurnId` through serialization.
 - On reload, the rehydrated buckets are already `status: "completed"` (only completed buckets are persisted — pending buckets at write time were flushed by `run.completed`); ArtifactSummary mounts directly from the persisted snapshots without any Unchain round-trip.
 
-The sanitizer must defensively drop unknown artifact `kind` values and any descriptor missing required fields (`artifact_id`, `kind`, `snapshot`). This protects historical chats from future schema drift.
+The sanitizer must preserve unknown but structurally valid artifact kinds. It only drops descriptors missing required fields (`artifact_id`, `kind`, `snapshot`) or malformed buckets. This keeps persisted history compatible with future toolkit-defined artifact kinds.
 
 ### 5.7 Streaming behavior
 
@@ -268,7 +274,7 @@ Rationale: inline TraceChain already provides live feedback during the iteration
 - **Plan artifact with `revision` regression (lower revision arriving later):** ignore — higher revision wins. Defensive against out-of-order events.
 - **Binary or unparseable diff:** `DiffBody` shows the fallback chip from §4.3. Does not attempt to render bytes.
 - **Snapshot truncated to zero lines:** still render the card with collapsed header; on expand show the truncation footer only.
-- **Unknown artifact kind:** silently ignore in v1 (do not render, no "Other" bucket). Log a single dev-mode console warning per kind so producers don't silently fail. See §4.5.
+- **Unknown artifact kind:** preserve and render through `GenericArtifactCard`. If catalog metadata is unavailable, use a safe `information` icon, a humanized kind label, and JSON fallback rendering. See §4.5.
 
 ## 8. Test Plan
 
