@@ -311,7 +311,7 @@ const AttachPanel = ({
           display: "flex",
           alignItems: "center",
           gap: 6,
-          padding: "4px",
+          padding: "4px 4px 4px 6px",
           borderRadius: 22,
           backgroundColor: panelBg,
           boxShadow: floating ? focusShadow : "none",
