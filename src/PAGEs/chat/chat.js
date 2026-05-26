@@ -616,7 +616,9 @@ const ChatInterface = () => {
     containerRef: smoothResizeContainerRef,
     frameStyle: smoothResizeFrameStyle,
     refreshFrame: refreshSmoothResizeFrame,
-  } = useSmoothResizeFrame();
+  } = useSmoothResizeFrame({
+    instantResizeKey: onFragment,
+  });
 
   useEffect(() => {
     refreshSmoothResizeFrame();

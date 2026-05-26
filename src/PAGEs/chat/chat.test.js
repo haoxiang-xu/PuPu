@@ -138,7 +138,7 @@ describe("ChatInterface stop flow", () => {
     delete window.unchainAPI;
   });
 
-  const renderChat = () =>
+  const renderChatWithFragment = (onFragment = "main") =>
     render(
       <ThemeContext.Provider
         value={{
@@ -147,7 +147,7 @@ describe("ChatInterface stop flow", () => {
         }}
       >
         <NavigationContext.Provider
-          value={{ onFragment: "main", setOnFragment: jest.fn() }}
+          value={{ onFragment, setOnFragment: jest.fn() }}
         >
           <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
             <ChatInterface />
@@ -155,6 +155,8 @@ describe("ChatInterface stop flow", () => {
         </NavigationContext.Provider>
       </ThemeContext.Provider>,
     );
+
+  const renderChat = () => renderChatWithFragment("main");
 
   const waitForReady = async () => {
     await waitFor(() => {
@@ -239,6 +241,35 @@ describe("ChatInterface stop flow", () => {
       ),
     );
     expect(hasRenderPhaseWarning).toBe(false);
+  });
+
+  test("animates the chat surface offset when the side menu changes", () => {
+    const { container, rerender } = renderChatWithFragment("main");
+    const chatSurface = container.querySelector("[data-chat-id]");
+
+    expect(chatSurface).toBeTruthy();
+    expect(chatSurface.style.left).toBe("0px");
+    expect(chatSurface.style.transition).toBe("left 0.3s ease");
+
+    rerender(
+      <ThemeContext.Provider
+        value={{
+          theme: {},
+          onThemeMode: "light_mode",
+        }}
+      >
+        <NavigationContext.Provider
+          value={{ onFragment: "side_menu", setOnFragment: jest.fn() }}
+        >
+          <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+            <ChatInterface />
+          </LocaleContext.Provider>
+        </NavigationContext.Provider>
+      </ThemeContext.Provider>,
+    );
+
+    expect(chatSurface.style.left).toBe("320px");
+    expect(chatSurface.style.transition).toBe("left 0.3s ease");
   });
 
   test("disables send when no model is selected", async () => {

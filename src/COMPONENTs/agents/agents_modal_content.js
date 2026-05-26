@@ -139,6 +139,16 @@ export const AgentsModalContent = ({
           selected={selectedSection}
           onChange={onSectionChange}
           isDark={isDark}
+          trackStyle={{
+            background: isDark
+              ? "rgba(20, 20, 20, 0.55)"
+              : "rgba(255, 255, 255, 0.55)",
+            boxShadow: isDark
+              ? "inset 0 0 0 1px rgba(255,255,255,0.08)"
+              : "inset 0 0 0 1px rgba(0,0,0,0.08)",
+            backdropFilter: "blur(16px) saturate(1.4)",
+            WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+          }}
         />
       </div>
     </div>

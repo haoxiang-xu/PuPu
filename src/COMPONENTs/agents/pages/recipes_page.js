@@ -43,7 +43,7 @@ export default function RecipesPage({
     canRedo,
   } = useRecipeHistory(activeName);
   const [dirty, setDirty] = useState(false);
-  const [listCollapsed, setListCollapsed] = useState(true);
+  const [listCollapsed, setListCollapsed] = useState(false);
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
