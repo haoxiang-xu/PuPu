@@ -1069,6 +1069,56 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("logs request_messages with a compact summary instead of full transcript", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Start request log stream" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    const largeContent = "full transcript content ".repeat(100);
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "request_messages",
+        payload: {
+          system: "system prompt",
+          provider: "openai",
+          previous_response_id: "resp_1",
+          tool_names: ["read"],
+          messages: [
+            { role: "user", content: largeContent },
+            { role: "assistant", content: "ok" },
+          ],
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        mockScopedLogger.log.mock.calls.some((call) => {
+          const [eventName, payload] = call;
+          return (
+            eventName === "request_messages" &&
+            payload?.summary?.messageCount === 2 &&
+            payload?.summary?.previewMessages?.[0]?.contentPreview?.length ===
+              240 &&
+            !Object.prototype.hasOwnProperty.call(payload, "messages") &&
+            !JSON.stringify(payload).includes(largeContent)
+          );
+        }),
+      ).toBe(true);
+    });
+  });
+
   test("routes child ask_user_question frames to subagent timelines", async () => {
     renderChat();
     await waitForReady();

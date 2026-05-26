@@ -83,6 +83,23 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             "plan",
         )
 
+    def test_build_selected_plan_toolkit_includes_operating_policy_prompt(self) -> None:
+        from unchain.tools import render_tool_prompt_block
+
+        with tempfile.TemporaryDirectory() as data_dir:
+            workspace_root = str(Path(data_dir) / "workspace")
+            Path(workspace_root).mkdir()
+            built = unchain_adapter._build_selected_toolkits(
+                {"toolkits": ["plan"], "workspaceRoot": workspace_root},
+                session_id="chat-1",
+            )
+
+        self.assertEqual(len(built), 1)
+        rendered = render_tool_prompt_block(built[0])
+        self.assertIn("## PlanToolkit operating policy", rendered)
+        self.assertIn("PlanToolkit-managed draft plan artifacts", rendered)
+        self.assertIn("- plan_start:", rendered)
+
     def test_get_capability_catalog_filters_dynamic_ollama_embedding_models(self) -> None:
         payload = {
             "deepseek-r1:14b": {"provider": "ollama"},
@@ -2301,6 +2318,84 @@ class ApplyRecipeToolkitFilterTests(unittest.TestCase):
         self.assertEqual(set(filtered[0].tools.keys()), {"read", "grep"})
 
 
+class ContextOptimizerModuleConfigTests(unittest.TestCase):
+    def _module(self, config=None):
+        if unchain_adapter._OptimizersModule is None:
+            self.skipTest("unchain optimizer module unavailable")
+        return unchain_adapter._build_context_optimizer_module(config)
+
+    def _harnesses_by_name(self, module):
+        return {getattr(h, "name", ""): h for h in getattr(module, "harnesses", ())}
+
+    def test_default_optimizer_stack_matches_current_behavior(self):
+        module = self._module()
+        harnesses = self._harnesses_by_name(module)
+
+        self.assertIn("tool_history_compaction", harnesses)
+        self.assertIn("sliding_window", harnesses)
+        self.assertEqual(harnesses["sliding_window"].config.max_window_pct, 0.50)
+        self.assertIsNone(harnesses["sliding_window"].config.max_window_tokens)
+        if unchain_adapter._ContextUsageOptimizer is not None:
+            self.assertIn("context_usage", harnesses)
+        if unchain_adapter._ToolPairSafetyOptimizer is not None:
+            self.assertIn("tool_pair_safety", harnesses)
+
+    def test_off_optimizer_config_returns_none(self):
+        self.assertIsNone(
+            unchain_adapter._build_context_optimizer_module(
+                {"preset": "off", "enabled": False}
+            )
+        )
+
+    def test_aggressive_optimizer_config_uses_smaller_window_and_compaction(self):
+        module = self._module({"preset": "aggressive"})
+        harnesses = self._harnesses_by_name(module)
+
+        self.assertEqual(harnesses["sliding_window"].config.max_window_pct, 0.25)
+        self.assertEqual(harnesses["sliding_window"].config.max_window_tokens, 12000)
+        self.assertEqual(
+            harnesses["tool_history_compaction"].config.keep_completed_turns,
+            0,
+        )
+        self.assertEqual(harnesses["tool_history_compaction"].config.max_chars, 600)
+        self.assertEqual(harnesses["tool_history_compaction"].config.preview_chars, 96)
+        if unchain_adapter._ToolPairSafetyOptimizer is not None:
+            self.assertIn("tool_pair_safety", harnesses)
+
+    def test_custom_optimizer_config_clamps_invalid_values(self):
+        module = self._module(
+            {
+                "preset": "custom",
+                "sliding_window": {
+                    "enabled": True,
+                    "max_window_pct": 9,
+                    "max_window_tokens": 5,
+                },
+                "tool_history_compaction": {
+                    "enabled": True,
+                    "keep_completed_turns": -4,
+                    "max_chars": 12,
+                    "preview_chars": 999,
+                    "hash_payloads": False,
+                },
+                "context_usage": {"enabled": False},
+                "tool_pair_safety": {"enabled": False},
+            }
+        )
+        harnesses = self._harnesses_by_name(module)
+
+        self.assertEqual(set(harnesses), {"tool_history_compaction", "sliding_window"})
+        self.assertEqual(harnesses["sliding_window"].config.max_window_pct, 1.0)
+        self.assertEqual(harnesses["sliding_window"].config.max_window_tokens, 5)
+        self.assertEqual(
+            harnesses["tool_history_compaction"].config.keep_completed_turns,
+            0,
+        )
+        self.assertEqual(harnesses["tool_history_compaction"].config.max_chars, 64)
+        self.assertEqual(harnesses["tool_history_compaction"].config.preview_chars, 64)
+        self.assertFalse(harnesses["tool_history_compaction"].config.hash_payloads)
+
+
 class MaterializeRecipeSubagentsTests(unittest.TestCase):
     def _fake_modules(self):
         UnchainAgent = type("UA", (), {"__init__": lambda s, **kw: setattr(s, "kw", kw) or None})
@@ -2346,6 +2441,36 @@ class MaterializeRecipeSubagentsTests(unittest.TestCase):
                 allowed = templates[0].kw.get("allowed_tools") or ()
                 self.assertNotIn("shell", allowed)
                 self.assertIn("read", allowed)
+
+    def test_ref_kind_appends_context_optimizer_module(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, SubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        optimizer_module = object()
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from subagent_seeds import ensure_seeds_written
+                ensure_seeds_written(Path(tmp) / ".pupu" / "subagents")
+
+                recipe = Recipe(
+                    name="T", description="", model=None, max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="x"),
+                    toolkits=(),
+                    subagent_pool=(
+                        SubagentRef(kind="ref", template_name="Explore", disabled_tools=()),
+                    ),
+                )
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe, toolkits=[self._fake_toolkit("core", ["read"])],
+                    provider="anthropic", model="claude-sonnet-4-6", api_key="k",
+                    max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                    optimizer_module_factory=lambda: optimizer_module,
+                )
+
+        modules = templates[0].kw["agent"].kw["modules"]
+        self.assertIs(modules[-1], optimizer_module)
 
     def test_missing_ref_logs_warning_and_skips(self):
         from unchain_adapter import _materialize_recipe_subagents
@@ -2538,6 +2663,35 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                 self.assertEqual(len(tool_modules), 1)
                 tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
                 self.assertEqual(tool_ids, {"core", "workspace"})
+
+    def test_optimizer_config_is_used_for_parent_and_file_subagents(self):
+        import unchain_adapter as ua
+        from unchain_adapter import _build_developer_agent
+
+        optimizer_config = {"preset": "aggressive"}
+        factory_results = []
+
+        def fake_load_templates(**kwargs):
+            factory_results.append(kwargs["optimizer_module_factory"]())
+            return ()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)), \
+                 mock.patch.object(
+                     ua,
+                     "_build_context_optimizer_module",
+                     side_effect=lambda config=None: ("optimizer", config),
+                 ), \
+                 mock.patch("subagent_loader.load_templates", side_effect=fake_load_templates):
+                kw = self._common_kwargs(tmp)
+                agent = _build_developer_agent(
+                    **kw,
+                    recipe=None,
+                    optimizer_config=optimizer_config,
+                )
+
+        self.assertIn(("optimizer", optimizer_config), agent.kw.get("modules", ()))
+        self.assertEqual(factory_results, [("optimizer", optimizer_config)])
 
     def test_recipe_filters_toolkits_when_merge_off(self):
         from unchain_adapter import _build_developer_agent

@@ -354,6 +354,7 @@ def _build_child_agent(
     max_iterations: int,
     name: str,
     instructions: str,
+    optimizer_module_factory: Any | None = None,
 ) -> Any:
     """Construct the inner Agent instance wrapped inside a SubagentTemplate.
 
@@ -364,6 +365,10 @@ def _build_child_agent(
     if toolkits:
         child_modules.append(ToolsModule(tools=tuple(toolkits)))
     child_modules.append(PoliciesModule(max_iterations=max(2, max_iterations // 3)))
+    if callable(optimizer_module_factory):
+        optimizer_module = optimizer_module_factory()
+        if optimizer_module is not None:
+            child_modules.append(optimizer_module)
     return UnchainAgent(
         name=name,
         instructions=instructions,
@@ -401,6 +406,7 @@ def load_templates(
     ToolsModule: Any,
     PoliciesModule: Any,
     SubagentTemplate: Any,
+    optimizer_module_factory: Any | None = None,
 ) -> tuple[Any, ...]:
     """Scan user_dir + workspace_dir, parse files, validate, apply precedence,
     intersect allowed_tools against main agent's tools, and return a tuple of
@@ -447,6 +453,10 @@ def load_templates(
         if toolkits:
             child_modules.append(ToolsModule(tools=tuple(toolkits)))
         child_modules.append(PoliciesModule(max_iterations=max(2, max_iterations // 3)))
+        if callable(optimizer_module_factory):
+            optimizer_module = optimizer_module_factory()
+            if optimizer_module is not None:
+                child_modules.append(optimizer_module)
 
         child_agent = UnchainAgent(
             name=tpl.name,

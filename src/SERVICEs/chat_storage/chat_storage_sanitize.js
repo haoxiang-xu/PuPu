@@ -412,6 +412,45 @@ const scrubLegacyPlanToolResultPayload = (payload) => {
   }
 };
 
+const ALLOWED_ARTIFACT_KINDS = new Set(["file_diff", "plan"]);
+
+const sanitizeArtifactDescriptor = (descriptor) => {
+  if (!isObject(descriptor)) return null;
+  const artifactId =
+    typeof descriptor.artifact_id === "string" && descriptor.artifact_id.trim()
+      ? descriptor.artifact_id
+      : null;
+  const kind = typeof descriptor.kind === "string" ? descriptor.kind.trim() : "";
+  if (!artifactId || !ALLOWED_ARTIFACT_KINDS.has(kind)) return null;
+  if (!isObject(descriptor.snapshot)) return null;
+  return { ...descriptor };
+};
+
+const sanitizeArtifactBucket = (bucket) => {
+  if (!isObject(bucket)) return null;
+  if (bucket.status !== "completed") return null;
+  const artifacts = Array.isArray(bucket.artifacts)
+    ? bucket.artifacts.map(sanitizeArtifactDescriptor).filter(Boolean)
+    : [];
+  const order = Number.isFinite(Number(bucket.order)) ? Number(bucket.order) : 0;
+  return { order, status: "completed", artifacts };
+};
+
+export const sanitizeArtifactSummariesByTurnId = (value) => {
+  if (!isObject(value)) return undefined;
+  const entries = Object.entries(value)
+    .map(([turnId, bucket]) => {
+      const cleanedTurnId = typeof turnId === "string" ? turnId.trim() : "";
+      if (!cleanedTurnId) return null;
+      const cleanedBucket = sanitizeArtifactBucket(bucket);
+      if (!cleanedBucket) return null;
+      return [cleanedTurnId, cleanedBucket];
+    })
+    .filter(Boolean);
+  if (entries.length === 0) return undefined;
+  return Object.fromEntries(entries);
+};
+
 const sanitizeTraceFrame = (frame) => {
   if (!isObject(frame)) return null;
   const cleanedFrame = {
@@ -575,6 +614,13 @@ export const sanitizeMessage = (message) => {
     );
     if (cleanedSubagentMeta) {
       cleaned.subagentMetaByRunId = cleanedSubagentMeta;
+    }
+
+    const cleanedArtifactSummaries = sanitizeArtifactSummariesByTurnId(
+      message.artifactSummariesByTurnId,
+    );
+    if (cleanedArtifactSummaries) {
+      cleaned.artifactSummariesByTurnId = cleanedArtifactSummaries;
     }
   }
 

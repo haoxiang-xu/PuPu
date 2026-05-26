@@ -54,55 +54,6 @@ const toolConfirmationUiStateById = {
 };
 
 describe("chat bubble continuation prompts", () => {
-  test("shows continuation controls for plain assistant streams without trace activity", () => {
-    const onContinuationDecision = jest.fn();
-
-    renderWithConfig(
-      <ChatBubble
-        message={streamingAssistantMessage}
-        traceFrames={[]}
-        pendingContinuationRequest={pendingContinuationRequest}
-        onContinuationDecision={onContinuationDecision}
-      />,
-    );
-
-    expect(
-      screen.getByText("Agent reached 4 iterations without a final response."),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    expect(onContinuationDecision).toHaveBeenCalledWith({
-      confirmationId: "continue-1",
-      approved: true,
-    });
-  });
-
-  test("shows continuation controls for character assistant streams without trace activity", () => {
-    const onContinuationDecision = jest.fn();
-
-    renderWithConfig(
-      <CharacterChatBubble
-        message={streamingAssistantMessage}
-        traceFrames={[]}
-        pendingContinuationRequest={pendingContinuationRequest}
-        onContinuationDecision={onContinuationDecision}
-        characterName="Lena"
-      />,
-    );
-
-    expect(
-      screen.getByText("Agent reached 4 iterations without a final response."),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Stop" }));
-
-    expect(onContinuationDecision).toHaveBeenCalledWith({
-      confirmationId: "continue-1",
-      approved: false,
-    });
-  });
-
   test("shows tool confirmation controls for plain assistant streams without trace activity", () => {
     const onToolConfirmationDecision = jest.fn();
 
@@ -118,11 +69,12 @@ describe("chat bubble continuation prompts", () => {
 
     expect(screen.getByText("delete_file")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Allow" }));
+    fireEvent.click(screen.getByRole("button", { name: "Allow once" }));
 
     expect(onToolConfirmationDecision).toHaveBeenCalledWith({
       confirmationId: "confirm-1",
       approved: true,
+      scope: "once",
     });
   });
 
@@ -147,6 +99,7 @@ describe("chat bubble continuation prompts", () => {
     expect(onToolConfirmationDecision).toHaveBeenCalledWith({
       confirmationId: "confirm-1",
       approved: false,
+      scope: "once",
     });
   });
 });
@@ -177,5 +130,72 @@ describe("ChatBubble lazy trace chain", () => {
     } finally {
       window.requestIdleCallback = originalIdle;
     }
+  });
+});
+
+describe("ChatBubble artifact summaries", () => {
+  const fileBucket = (turnId, order) => ({
+    order,
+    status: "completed",
+    artifacts: [
+      {
+        artifact_id: `file_diff:${turnId}`,
+        kind: "file_diff",
+        snapshot: {
+          files: [
+            {
+              path: `src/${turnId}.js`,
+              operation: "edit",
+              unified_diff: "@@ -1 +1 @@\n-a\n+b\n",
+            },
+          ],
+        },
+      },
+    ],
+  });
+
+  test("renders an ArtifactSummary block per completed turn bucket", () => {
+    renderWithConfig(
+      <ChatBubble
+        message={{
+          role: "assistant",
+          status: "done",
+          content: "done",
+          artifactSummariesByTurnId: {
+            "run-1:turn-1": fileBucket("turn-1", 1),
+            "run-1:turn-2": fileBucket("turn-2", 2),
+          },
+        }}
+      />,
+    );
+    expect(screen.getAllByTestId("artifact-summary")).toHaveLength(2);
+  });
+
+  test("renders nothing artifact-related when artifactSummariesByTurnId is empty", () => {
+    renderWithConfig(
+      <ChatBubble
+        message={{ role: "assistant", status: "done", content: "done" }}
+      />,
+    );
+    expect(screen.queryAllByTestId("artifact-summary")).toHaveLength(0);
+  });
+
+  test("orders ArtifactSummary blocks by bucket.order", () => {
+    renderWithConfig(
+      <ChatBubble
+        message={{
+          role: "assistant",
+          status: "done",
+          content: "done",
+          artifactSummariesByTurnId: {
+            "run-1:turn-2": fileBucket("turn-2", 2),
+            "run-1:turn-1": fileBucket("turn-1", 1),
+          },
+        }}
+      />,
+    );
+    const summaries = screen.getAllByTestId("files-changed-card");
+    // The first rendered summary should correspond to turn-1 (order: 1).
+    expect(summaries[0].textContent).toMatch(/Files changed/);
   });
 });

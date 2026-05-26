@@ -13,6 +13,8 @@ export const RUNTIME_EVENT_TYPES = new Set([
   "tool.completed",
   "input.requested",
   "input.resolved",
+  "artifact.created",
+  "artifact.updated",
 ]);
 
 const isObject = (value) =>

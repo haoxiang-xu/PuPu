@@ -10,7 +10,7 @@ const wrap = (ui) => (
 
 describe("DetailPanel", () => {
   test("shows empty state when no node selected", () => {
-    render(
+    const { container } = render(
       wrap(
         <DetailPanel
           recipe={{ nodes: [], edges: [] }}
@@ -20,6 +20,11 @@ describe("DetailPanel", () => {
       ),
     );
     expect(screen.getByText(/select a node/i)).toBeInTheDocument();
+    const panel = container.querySelector('[data-testid="recipe-detail-panel"]');
+    expect(panel).toHaveClass("scrollable");
+    expect(panel).toHaveAttribute("data-sb-wall", "4");
+    expect(panel).toHaveAttribute("data-sb-edge-top", "36");
+    expect(panel).toHaveAttribute("data-sb-edge-bottom", "12");
   });
 
   test("dispatches to start panel when start node selected", () => {

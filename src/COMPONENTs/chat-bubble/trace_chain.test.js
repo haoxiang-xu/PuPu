@@ -705,6 +705,81 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByText("Child delegate final output")).toBeInTheDocument();
   });
 
+  test("lazy renders large delegate child timelines until expanded", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          arguments: {
+            target: "analyzer",
+            task: "Inspect a large trace",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          result: {
+            agent_name: "developer.analyzer.1",
+            template_name: "analyzer",
+            status: "completed",
+            output: "Large child summary",
+          },
+        },
+      }),
+    ];
+    const childFrames = [
+      frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+      ...Array.from({ length: 26 }, (_, index) =>
+        frame({
+          seq: index + 2,
+          type: "tool_call",
+          payload: {
+            call_id: `child-call-${index}`,
+            tool_name: "read",
+            arguments: { path: `file-${index}.js` },
+          },
+          ts: 20 + index,
+        }),
+      ),
+      frame({
+        seq: 30,
+        type: "final_message",
+        payload: { content: "Large child hidden content" },
+        ts: 60,
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: { "child-run-alpha": childFrames },
+      subagentMetaByRunId: {
+        "child-run-alpha": {
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          status: "completed",
+        },
+      },
+    });
+
+    expect(
+      screen.queryByText("Large child hidden content"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+
+    expect(screen.getByText("Large child hidden content")).toBeInTheDocument();
+  });
+
   test("forwards selector requests from delegate child timelines", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [
@@ -777,6 +852,8 @@ describe("TraceChain final_message draft timeline", () => {
       },
     });
 
+    expect(screen.queryByText("Child needs input?")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
     expect(screen.getByText("Child needs input?")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Frontend"));
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));

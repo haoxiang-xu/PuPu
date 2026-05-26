@@ -59,6 +59,7 @@ try:
         SlidingWindowOptimizer as _SlidingWindowOptimizer,
         SlidingWindowOptimizerConfig as _SlidingWindowOptimizerConfig,
         ToolHistoryCompactionOptimizer as _ToolHistoryCompactionOptimizer,
+        ToolHistoryCompactionOptimizerConfig as _ToolHistoryCompactionOptimizerConfig,
         ToolPairSafetyOptimizer as _ToolPairSafetyOptimizer,
     )
 except ImportError:
@@ -76,6 +77,7 @@ except ImportError:
     _SlidingWindowOptimizer = None  # type: ignore
     _SlidingWindowOptimizerConfig = None  # type: ignore
     _ToolHistoryCompactionOptimizer = None  # type: ignore
+    _ToolHistoryCompactionOptimizerConfig = None  # type: ignore
     _ToolPairSafetyOptimizer = None  # type: ignore
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
@@ -3235,6 +3237,7 @@ def _materialize_recipe_subagents(
     PoliciesModule,
     SubagentTemplate,
     options: Dict[str, object] | None = None,
+    optimizer_module_factory=None,
 ) -> tuple:
     """Build SubagentTemplate instances from a Recipe's subagent_pool.
 
@@ -3391,6 +3394,7 @@ def _materialize_recipe_subagents(
             max_iterations=max_iterations,
             name=parsed.name,
             instructions=parsed.instructions,
+            optimizer_module_factory=optimizer_module_factory,
         )
         built.append(
             SubagentTemplate(
@@ -3406,6 +3410,253 @@ def _materialize_recipe_subagents(
             )
         )
     return tuple(built)
+
+
+_DEFAULT_CONTEXT_OPTIMIZER_CONFIG = {
+    "preset": "default",
+    "sliding_window": {
+        "enabled": True,
+        "max_window_pct": 0.50,
+        "max_window_tokens": None,
+    },
+    "tool_history_compaction": {
+        "enabled": True,
+        "keep_completed_turns": 1,
+        "max_chars": 1200,
+        "preview_chars": 160,
+        "hash_payloads": True,
+    },
+    "context_usage": {"enabled": True},
+    "tool_pair_safety": {"enabled": True},
+}
+
+_AGGRESSIVE_CONTEXT_OPTIMIZER_CONFIG = {
+    "preset": "aggressive",
+    "sliding_window": {
+        "enabled": True,
+        "max_window_pct": 0.25,
+        "max_window_tokens": 12000,
+    },
+    "tool_history_compaction": {
+        "enabled": True,
+        "keep_completed_turns": 0,
+        "max_chars": 600,
+        "preview_chars": 96,
+        "hash_payloads": True,
+    },
+    "context_usage": {"enabled": True},
+    "tool_pair_safety": {"enabled": True},
+}
+
+
+def _optimizer_bool(value: Any, default: bool = True) -> bool:
+    if isinstance(value, bool):
+        return value
+    return default
+
+
+def _optimizer_float(
+    value: Any,
+    *,
+    min_value: float,
+    max_value: float,
+    default: float,
+) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not (parsed == parsed) or parsed in (float("inf"), float("-inf")):
+        return default
+    return min(max_value, max(min_value, parsed))
+
+
+def _optimizer_int(
+    value: Any,
+    *,
+    min_value: int,
+    max_value: int,
+    default: int,
+) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return min(max_value, max(min_value, parsed))
+
+
+def _optimizer_optional_int(
+    value: Any,
+    *,
+    min_value: int,
+    max_value: int,
+) -> int | None:
+    if value is None or value == "":
+        return None
+    return _optimizer_int(
+        value,
+        min_value=min_value,
+        max_value=max_value,
+        default=min_value,
+    )
+
+
+def _copy_context_optimizer_base(base: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "preset": base["preset"],
+        "sliding_window": dict(base["sliding_window"]),
+        "tool_history_compaction": dict(base["tool_history_compaction"]),
+        "context_usage": dict(base["context_usage"]),
+        "tool_pair_safety": dict(base["tool_pair_safety"]),
+    }
+
+
+def _resolve_context_optimizer_config(raw_config: Any = None) -> Dict[str, Any]:
+    raw = raw_config if isinstance(raw_config, dict) else {}
+    preset = str(raw.get("preset") or "default").strip().lower()
+    if raw.get("enabled") is False:
+        preset = "off"
+    if preset not in {"default", "aggressive", "off", "custom"}:
+        preset = "default"
+
+    if preset == "off":
+        return {"preset": "off", "enabled": False}
+
+    if preset == "aggressive":
+        return _copy_context_optimizer_base(_AGGRESSIVE_CONTEXT_OPTIMIZER_CONFIG)
+
+    base = _copy_context_optimizer_base(_DEFAULT_CONTEXT_OPTIMIZER_CONFIG)
+    if preset != "custom":
+        return base
+
+    resolved = _copy_context_optimizer_base(_DEFAULT_CONTEXT_OPTIMIZER_CONFIG)
+    resolved["preset"] = "custom"
+
+    raw_sliding = (
+        raw.get("sliding_window")
+        if isinstance(raw.get("sliding_window"), dict)
+        else {}
+    )
+    resolved["sliding_window"] = {
+        "enabled": _optimizer_bool(raw_sliding.get("enabled"), True),
+        "max_window_pct": _optimizer_float(
+            raw_sliding.get("max_window_pct"),
+            min_value=0.05,
+            max_value=1.0,
+            default=0.50,
+        ),
+        "max_window_tokens": _optimizer_optional_int(
+            raw_sliding.get("max_window_tokens"),
+            min_value=1,
+            max_value=1000000,
+        ),
+    }
+
+    raw_tools = (
+        raw.get("tool_history_compaction")
+        if isinstance(raw.get("tool_history_compaction"), dict)
+        else {}
+    )
+    max_chars = _optimizer_int(
+        raw_tools.get("max_chars"),
+        min_value=64,
+        max_value=1000000,
+        default=1200,
+    )
+    preview_chars = _optimizer_int(
+        raw_tools.get("preview_chars"),
+        min_value=32,
+        max_value=max_chars,
+        default=min(160, max_chars),
+    )
+    resolved["tool_history_compaction"] = {
+        "enabled": _optimizer_bool(raw_tools.get("enabled"), True),
+        "keep_completed_turns": _optimizer_int(
+            raw_tools.get("keep_completed_turns"),
+            min_value=0,
+            max_value=100,
+            default=1,
+        ),
+        "max_chars": max_chars,
+        "preview_chars": preview_chars,
+        "hash_payloads": _optimizer_bool(raw_tools.get("hash_payloads"), True),
+    }
+
+    raw_context_usage = (
+        raw.get("context_usage") if isinstance(raw.get("context_usage"), dict) else {}
+    )
+    raw_pair_safety = (
+        raw.get("tool_pair_safety")
+        if isinstance(raw.get("tool_pair_safety"), dict)
+        else {}
+    )
+    resolved["context_usage"] = {
+        "enabled": _optimizer_bool(raw_context_usage.get("enabled"), True)
+    }
+    resolved["tool_pair_safety"] = {
+        "enabled": _optimizer_bool(raw_pair_safety.get("enabled"), True)
+    }
+    return resolved
+
+
+def _build_context_optimizer_module(optimizer_config: Any = None):
+    OptimizersModule = _OptimizersModule
+    LlmSummaryOptimizer = _LlmSummaryOptimizer
+    ToolHistoryCompactionOptimizer = _ToolHistoryCompactionOptimizer
+    ToolHistoryCompactionOptimizerConfig = _ToolHistoryCompactionOptimizerConfig
+    SlidingWindowOptimizer = _SlidingWindowOptimizer
+    SlidingWindowOptimizerConfig = _SlidingWindowOptimizerConfig
+    resolved = _resolve_context_optimizer_config(optimizer_config)
+    if resolved.get("preset") == "off":
+        return None
+    if (
+        OptimizersModule is None
+        or SlidingWindowOptimizer is None
+        or LlmSummaryOptimizer is None
+        or ToolHistoryCompactionOptimizer is None
+        or ToolHistoryCompactionOptimizerConfig is None
+    ):
+        return None
+
+    optimizer_harnesses = []
+    tool_config = resolved.get("tool_history_compaction") or {}
+    if tool_config.get("enabled") is not False:
+        optimizer_harnesses.append(
+            ToolHistoryCompactionOptimizer(
+                ToolHistoryCompactionOptimizerConfig(
+                    enabled=True,
+                    keep_completed_turns=int(tool_config["keep_completed_turns"]),
+                    max_chars=int(tool_config["max_chars"]),
+                    preview_chars=int(tool_config["preview_chars"]),
+                    hash_payloads=bool(tool_config["hash_payloads"]),
+                )
+            )
+        )
+
+    sliding_config = resolved.get("sliding_window") or {}
+    if sliding_config.get("enabled") is not False:
+        optimizer_harnesses.append(
+            SlidingWindowOptimizer(
+                SlidingWindowOptimizerConfig(
+                    max_window_pct=float(sliding_config["max_window_pct"]),
+                    max_window_tokens=sliding_config["max_window_tokens"],
+                ),
+            )
+        )
+
+    if (
+        _ContextUsageOptimizer is not None
+        and (resolved.get("context_usage") or {}).get("enabled") is not False
+    ):
+        optimizer_harnesses.append(_ContextUsageOptimizer())
+    if (
+        _ToolPairSafetyOptimizer is not None
+        and (resolved.get("tool_pair_safety") or {}).get("enabled") is not False
+    ):
+        optimizer_harnesses.append(_ToolPairSafetyOptimizer())
+    if not optimizer_harnesses:
+        return None
+    return OptimizersModule(harnesses=tuple(optimizer_harnesses))
 
 
 def _apply_recipe_toolkit_filter(toolkits: list, refs: tuple) -> list:
@@ -3870,6 +4121,7 @@ def _build_developer_agent(
     enable_subagents: bool = True,
     options: Dict[str, object] | None = None,
     recipe=None,
+    optimizer_config: Any | None = None,
 ):
     if recipe is not None:
         toolkits = _resolve_recipe_toolkits(toolkits, recipe, options=options)
@@ -3882,29 +4134,12 @@ def _build_developer_agent(
     modules.append(PoliciesModule(max_iterations=max_iterations))
 
     # ── Context window optimizers ──
-    OptimizersModule = _OptimizersModule
-    LlmSummaryOptimizer = _LlmSummaryOptimizer
-    LlmSummaryOptimizerConfig = _LlmSummaryOptimizerConfig
-    ToolHistoryCompactionOptimizer = _ToolHistoryCompactionOptimizer
-    SlidingWindowOptimizer = _SlidingWindowOptimizer
-    SlidingWindowOptimizerConfig = _SlidingWindowOptimizerConfig
-    if (
-        OptimizersModule is not None
-        and SlidingWindowOptimizer is not None
-        and LlmSummaryOptimizer is not None
-        and ToolHistoryCompactionOptimizer is not None
-    ):
-        optimizer_harnesses = [ToolHistoryCompactionOptimizer()]
-        optimizer_harnesses.append(
-            SlidingWindowOptimizer(
-                SlidingWindowOptimizerConfig(max_window_pct=0.50),
-            )
-        )
-        if _ContextUsageOptimizer is not None:
-            optimizer_harnesses.append(_ContextUsageOptimizer())
-        if _ToolPairSafetyOptimizer is not None:
-            optimizer_harnesses.append(_ToolPairSafetyOptimizer())
-        modules.append(OptimizersModule(harnesses=tuple(optimizer_harnesses)))
+    optimizer_module = _build_context_optimizer_module(optimizer_config)
+    if optimizer_module is not None:
+        modules.append(optimizer_module)
+
+    def optimizer_module_factory():
+        return _build_context_optimizer_module(optimizer_config)
 
     templates: tuple = ()
     if (
@@ -3927,6 +4162,7 @@ def _build_developer_agent(
                     PoliciesModule=PoliciesModule,
                     SubagentTemplate=SubagentTemplate,
                     options=options,
+                    optimizer_module_factory=optimizer_module_factory,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -3951,6 +4187,7 @@ def _build_developer_agent(
                     ToolsModule=ToolsModule,
                     PoliciesModule=PoliciesModule,
                     SubagentTemplate=SubagentTemplate,
+                    optimizer_module_factory=optimizer_module_factory,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -4373,6 +4610,11 @@ def _stream_recipe_graph_events(
                     if isinstance(agent_node.get("override"), dict)
                     else {}
                 )
+                step_optimizer_config = (
+                    override.get("optimizer")
+                    if isinstance(override.get("optimizer"), dict)
+                    else None
+                )
                 step_config = dict(selected_config)
                 raw_model = str(
                     override.get("model")
@@ -4419,6 +4661,7 @@ def _stream_recipe_graph_events(
                     memory_manager=None,
                     options=options,
                     recipe=step_recipe,
+                    optimizer_config=step_optimizer_config,
                 )
                 step_agent._toolkits = step_toolkits
                 step_agent._display_model = _format_model_id(

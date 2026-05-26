@@ -12,6 +12,7 @@ import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
 import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
+import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
 import { isRuntimeEventStreamV3Enabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
@@ -28,6 +29,7 @@ import {
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
 const STREAM_TRACE_LEVEL = "minimal";
+const SUBAGENT_STATE_FLUSH_MS = 100;
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
   memory_prepare: "memory_prepare",
@@ -1413,17 +1415,28 @@ export const useChatStream = ({
         scheduleBackgroundPersist(targetChatId, nextStreamMessages);
       };
 
-      const serializeSubagentFramesByRunId = () =>
+      const dirtySubagentFrameRunIds = new Set();
+      const dirtySubagentMetaRunIds = new Set();
+      let pendingSubagentStateFlushHandle = null;
+
+      const serializeSubagentFramesByRunId = (runIds) =>
         Object.fromEntries(
-          Array.from(subagentFramesByRunIdRef.current.entries()).map(
-            ([runId, frames]) => [runId, Array.isArray(frames) ? [...frames] : []],
-          ),
+          Array.from(runIds)
+            .map((runId) => [
+              runId,
+              subagentFramesByRunIdRef.current.get(runId),
+            ])
+            .map(([runId, frames]) => [
+              runId,
+              Array.isArray(frames) ? [...frames] : [],
+            ]),
         );
 
-      const serializeSubagentMetaByRunId = () =>
+      const serializeSubagentMetaByRunId = (runIds) =>
         Object.fromEntries(
-          Array.from(subagentMetaByRunIdRef.current.entries()).map(
-            ([runId, meta]) => [
+          Array.from(runIds)
+            .map((runId) => [runId, subagentMetaByRunIdRef.current.get(runId)])
+            .map(([runId, meta]) => [
               runId,
               {
                 subagentId:
@@ -1440,8 +1453,7 @@ export const useChatStream = ({
                   : [],
                 status: typeof meta?.status === "string" ? meta.status : "",
               },
-            ],
-          ),
+            ]),
         );
 
       const isKnownSubagentRunId = (runId) =>
@@ -1508,23 +1520,87 @@ export const useChatStream = ({
         if (!subagentFramesByRunIdRef.current.has(childRunId)) {
           subagentFramesByRunIdRef.current.set(childRunId, []);
         }
+        dirtySubagentMetaRunIds.add(childRunId);
         return nextMeta;
       };
 
-      const syncAssistantSubagentState = (patchTime) => {
-        const serializedFrames = serializeSubagentFramesByRunId();
-        const serializedMeta = serializeSubagentMetaByRunId();
-        const nextStreamMessages = streamMessages.map((message) =>
-          message.id === assistantMessageId
-            ? {
-                ...message,
-                updatedAt: patchTime,
-                subagentFrames: serializedFrames,
-                subagentMetaByRunId: serializedMeta,
-              }
-            : message,
-        );
+      const clearPendingSubagentStateFlush = () => {
+        if (pendingSubagentStateFlushHandle == null) {
+          return;
+        }
+        clearTimeout(pendingSubagentStateFlushHandle);
+        pendingSubagentStateFlushHandle = null;
+      };
+
+      const flushSubagentState = (patchTime = Date.now()) => {
+        clearPendingSubagentStateFlush();
+        if (
+          dirtySubagentFrameRunIds.size === 0 &&
+          dirtySubagentMetaRunIds.size === 0
+        ) {
+          return;
+        }
+
+        const dirtyFrameRunIds = new Set(dirtySubagentFrameRunIds);
+        const dirtyMetaRunIds = new Set(dirtySubagentMetaRunIds);
+        dirtySubagentFrameRunIds.clear();
+        dirtySubagentMetaRunIds.clear();
+
+        const serializedFrames = serializeSubagentFramesByRunId(dirtyFrameRunIds);
+        const serializedMeta = serializeSubagentMetaByRunId(dirtyMetaRunIds);
+        const nextStreamMessages = streamMessages.map((message) => {
+          if (message.id !== assistantMessageId) {
+            return message;
+          }
+
+          const previousFrames =
+            message.subagentFrames &&
+            typeof message.subagentFrames === "object" &&
+            !Array.isArray(message.subagentFrames)
+              ? message.subagentFrames
+              : {};
+          const previousMeta =
+            message.subagentMetaByRunId &&
+            typeof message.subagentMetaByRunId === "object" &&
+            !Array.isArray(message.subagentMetaByRunId)
+              ? message.subagentMetaByRunId
+              : {};
+
+          return {
+            ...message,
+            updatedAt: patchTime,
+            subagentFrames:
+              dirtyFrameRunIds.size > 0
+                ? { ...previousFrames, ...serializedFrames }
+                : previousFrames,
+            subagentMetaByRunId:
+              dirtyMetaRunIds.size > 0
+                ? { ...previousMeta, ...serializedMeta }
+                : previousMeta,
+          };
+        });
         syncStreamMessages(nextStreamMessages);
+      };
+
+      const scheduleSubagentStateFlush = () => {
+        if (pendingSubagentStateFlushHandle != null) {
+          return;
+        }
+        pendingSubagentStateFlushHandle = setTimeout(() => {
+          pendingSubagentStateFlushHandle = null;
+          flushSubagentState(Date.now());
+        }, SUBAGENT_STATE_FLUSH_MS);
+      };
+
+      const syncAssistantSubagentState = (
+        patchTime,
+        { immediate = false } = {},
+      ) => {
+        if (immediate) {
+          flushSubagentState(patchTime);
+          return;
+        }
+        scheduleSubagentStateFlush();
       };
 
       let bufferedTokenDelta = "";
@@ -1715,7 +1791,11 @@ export const useChatStream = ({
             effect?.type === "error" && typeof effect.error?.code === "string"
               ? effect.error.code
               : "";
-          return [eventId, effect?.type || "", frameType, delta, errorCode].join(
+          const artifactKey =
+            effect?.type === "artifact_summary"
+              ? `${effect.turnId || ""}:${effect.reason || ""}`
+              : "";
+          return [eventId, effect?.type || "", frameType, delta, errorCode, artifactKey].join(
             "::",
           );
         };
@@ -1759,6 +1839,33 @@ export const useChatStream = ({
               if (effect.type === "error") {
                 runtimeEventStreamFailed = true;
                 handlers.onError?.(effect.error);
+              }
+              if (effect.type === "artifact_summary") {
+                const bucket = runtimeEventActivityTree?.artifactSummariesByTurnId?.[effect.turnId];
+                if (!bucket || bucket.status !== "completed") return;
+                const patchTime = Date.now();
+                const nextStreamMessages = streamMessages.map((message) => {
+                  if (message.id !== assistantMessageId) return message;
+                  const prev =
+                    message.artifactSummariesByTurnId &&
+                    typeof message.artifactSummariesByTurnId === "object" &&
+                    !Array.isArray(message.artifactSummariesByTurnId)
+                      ? message.artifactSummariesByTurnId : {};
+                  return {
+                    ...message,
+                    updatedAt: patchTime,
+                    artifactSummariesByTurnId: {
+                      ...prev,
+                      [effect.turnId]: {
+                        order: bucket.order,
+                        status: bucket.status,
+                        artifacts: bucket.artifacts.map((a) => ({ ...a })),
+                      },
+                    },
+                  };
+                });
+                syncStreamMessages(nextStreamMessages);
+                return;
               }
             });
           },
@@ -1859,19 +1966,10 @@ export const useChatStream = ({
                 const rawMessages = Array.isArray(frame.payload?.messages)
                   ? frame.payload.messages
                   : [];
-                const requestMessagesForLog = JSON.parse(
-                  JSON.stringify(rawMessages),
-                );
                 const systemPrompt =
                   typeof frame.payload?.system === "string"
                     ? frame.payload.system.trim()
                     : "";
-                if (systemPrompt) {
-                  requestMessagesForLog.unshift({
-                    role: "system",
-                    content: systemPrompt,
-                  });
-                }
                 const requestToolNamesForLog = Array.isArray(
                   frame.payload?.tool_names,
                 )
@@ -1888,7 +1986,10 @@ export const useChatStream = ({
                     ? frame.payload.previous_response_id.trim()
                     : "";
                 unchainLogger.log("request_messages", {
-                  messages: requestMessagesForLog,
+                  summary: summarizeRequestMessagesForLog(
+                    rawMessages,
+                    systemPrompt,
+                  ),
                   toolNames: requestToolNamesForLog,
                   ...(providerForLog ? { provider: providerForLog } : {}),
                   ...(previousResponseIdForLog
@@ -2042,7 +2143,13 @@ export const useChatStream = ({
                       : undefined,
                     status: lifecycleStatus,
                   });
-                  syncAssistantSubagentState(patchTime);
+                  syncAssistantSubagentState(patchTime, {
+                    immediate:
+                      frame.type === "subagent_completed" ||
+                      frame.type === "subagent_failed" ||
+                      frame.type === "subagent_clarification_requested" ||
+                      frame.type === "subagent_batch_joined",
+                  });
                 }
                 unchainLogger.log(frame.type, frame.payload);
                 return;
@@ -2232,6 +2339,7 @@ export const useChatStream = ({
                 }
                 processChildToolInteractionSideEffects();
                 subagentFramesByRunIdRef.current.get(frameRunId).push(frame);
+                dirtySubagentFrameRunIds.add(frameRunId);
 
                 if (
                   frame.type === "error" &&
@@ -2244,7 +2352,12 @@ export const useChatStream = ({
                   });
                 }
 
-                syncAssistantSubagentState(patchTime);
+                syncAssistantSubagentState(patchTime, {
+                  immediate:
+                    frame.type === "done" ||
+                    frame.type === "error" ||
+                    frame.type === "final_message",
+                });
                 return;
               }
 
@@ -2731,6 +2844,7 @@ export const useChatStream = ({
                 return next;
               });
               clearAllPendingToolConfirmations();
+              flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
@@ -2747,6 +2861,7 @@ export const useChatStream = ({
                 !streamHandlesRef.current.has(targetChatId) &&
                 !streamingChatIdsRef.current.has(targetChatId)
               ) {
+                flushSubagentState(Date.now());
                 activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
@@ -2775,6 +2890,7 @@ export const useChatStream = ({
                   return next;
                 });
                 clearAllPendingToolConfirmations();
+                flushSubagentState(Date.now());
                 activeFlushScheduler.flushSync();
                 disposeBufferedTokenFlush();
                 releaseTokenFlushController();
@@ -2820,6 +2936,7 @@ export const useChatStream = ({
                 return next;
               });
               clearAllPendingToolConfirmations();
+              flushSubagentState(Date.now());
               activeFlushScheduler.flushSync();
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
@@ -2869,6 +2986,7 @@ export const useChatStream = ({
           },
         );
       } catch (error) {
+        flushSubagentState(Date.now());
         activeFlushScheduler.flushSync();
         disposeBufferedTokenFlush();
         releaseTokenFlushController();

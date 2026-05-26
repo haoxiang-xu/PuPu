@@ -1,6 +1,7 @@
 import {
   createRuntimeEventStore,
   isRuntimeEvent,
+  RUNTIME_EVENT_TYPES,
 } from "./event_store";
 
 const event = ({
@@ -146,5 +147,12 @@ describe("runtime event store", () => {
     expect(isRuntimeEvent({ event_id: "evt-no-schema", type: "run.started" })).toBe(
       false,
     );
+  });
+});
+
+describe("artifact event types", () => {
+  test("RUNTIME_EVENT_TYPES includes artifact.created and artifact.updated", () => {
+    expect(RUNTIME_EVENT_TYPES.has("artifact.created")).toBe(true);
+    expect(RUNTIME_EVENT_TYPES.has("artifact.updated")).toBe(true);
   });
 });

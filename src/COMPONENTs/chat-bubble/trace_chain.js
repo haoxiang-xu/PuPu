@@ -352,6 +352,7 @@ const SUBAGENT_TOOLS = new Set([
   "handoff_to_subagent",
   "spawn_worker_batch",
 ]);
+const SUBAGENT_LAZY_FRAME_THRESHOLD = 25;
 
 const MAX_TRACE_DEPTH = 8;
 
@@ -612,7 +613,7 @@ const TraceChain = ({
       return next;
     });
   }, []);
-  const toggleBranchWorker = useCallback((callId, wi) => {
+  const toggleBranchWorker = useCallback((callId, wi, currentlyOpen) => {
     setBranchState((prev) => {
       const next = new Map(prev);
       const cur = next.get(callId) || {
@@ -620,7 +621,11 @@ const TraceChain = ({
         expandedWorkers: new Set(),
       };
       const nw = new Set(cur.expandedWorkers);
-      nw.has(wi) ? nw.delete(wi) : nw.add(wi);
+      if (currentlyOpen) {
+        nw.delete(wi);
+      } else {
+        nw.add(wi);
+      }
       next.set(callId, { ...cur, expandedWorkers: nw });
       return next;
     });
@@ -1063,7 +1068,6 @@ const TraceChain = ({
           };
 
           const branches = childTimelineItems.map((worker, wi) => {
-            const isWExpanded = bState ? bExpandedWorkers.has(wi) : true;
             const wLabel = getSubagentShortLabel({
               meta: worker.meta,
               fallbackAgentName: worker.agentName,
@@ -1076,6 +1080,15 @@ const TraceChain = ({
             const hasWFrames =
               Array.isArray(worker.frames) && worker.frames.length > 0;
             const canExpand = hasWFrames && _depth < MAX_TRACE_DEPTH;
+            const frameCount = hasWFrames ? worker.frames.length : 0;
+            const workerTraceStatus = getSubagentTraceStatus(worker.status);
+            const shouldLazyRender =
+              workerTraceStatus === "streaming" ||
+              _depth > 0 ||
+              frameCount > SUBAGENT_LAZY_FRAME_THRESHOLD;
+            const isWExpanded = bState
+              ? bExpandedWorkers.has(wi)
+              : !shouldLazyRender;
 
             return {
               key: worker.key,
@@ -1125,7 +1138,7 @@ const TraceChain = ({
                   {canExpand && (
                     <BranchExpandArrow
                       open={isWExpanded}
-                      onClick={() => toggleBranchWorker(bKey, wi)}
+                      onClick={() => toggleBranchWorker(bKey, wi, isWExpanded)}
                       isDark={isDark}
                     />
                   )}
@@ -1135,16 +1148,16 @@ const TraceChain = ({
                 ? truncateInlineText(worker.task, 120)
                 : undefined,
               status:
-                getSubagentTraceStatus(worker.status) === "done"
+                workerTraceStatus === "done"
                   ? "done"
-                  : getSubagentTraceStatus(worker.status) === "streaming"
+                  : workerTraceStatus === "streaming"
                     ? "active"
                     : "pending",
               point: <SubagentPoint isDark={isDark} />,
-              expandContent: canExpand ? (
+              expandContent: canExpand && isWExpanded ? (
                 <TraceChain
                   frames={worker.frames}
-                  status={getSubagentTraceStatus(worker.status)}
+                  status={workerTraceStatus}
                   showContainerHeader={false}
                   bubbleOwnsFinalMessage={false}
                   compact

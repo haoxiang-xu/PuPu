@@ -10,6 +10,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
  *
  * Per-element config:
  *   data-sb-edge="N" — track margin at both ends (top/bottom for V, left/right for H).
+ *   data-sb-edge-top/bottom/left/right="N" — optional per-side track margins.
  *   data-sb-wall="N" — distance from the outer wall (right for V, bottom for H).
  *                      Defaults to the element's edge if not set.
  */
@@ -55,6 +56,11 @@ const Scrollable = () => {
       return attr != null ? Number(attr) : DEFAULT_EDGE;
     }
 
+    function getEdgeSide(el, side, fallback) {
+      const attr = el.getAttribute(`data-sb-edge-${side}`);
+      return attr != null ? Number(attr) : fallback;
+    }
+
     function getWall(el, edge) {
       const attr = el.getAttribute("data-sb-wall");
       return attr != null ? Number(attr) : edge;
@@ -89,6 +95,10 @@ const Scrollable = () => {
       if (pcs.position === "static") parent.style.position = "relative";
 
       const edge = getEdge(container);
+      const edgeTop = getEdgeSide(container, "top", edge);
+      const edgeBottom = getEdgeSide(container, "bottom", edge);
+      const edgeLeft = getEdgeSide(container, "left", edge);
+      const edgeRight = getEdgeSide(container, "right", edge);
       const wall = getWall(container, edge);
 
       /* Create overlay — a non-scrolling sibling that sits on top */
@@ -144,14 +154,14 @@ const Scrollable = () => {
 
         /* Vertical thumb */
         if (hasV) {
-          const trackH = ch - edge * 2;
+          const trackH = ch - edgeTop - edgeBottom;
           const ratio = clientH / sh;
           const thumbH = Math.max(MIN_THUMB, ratio * trackH);
           const maxScroll = sh - clientH;
           const pct = maxScroll > 0 ? st / maxScroll : 0;
           Object.assign(vThumb.style, {
             display: "",
-            top: oy + edge + pct * (trackH - thumbH) + "px",
+            top: oy + edgeTop + pct * (trackH - thumbH) + "px",
             left: ox + cw - wall - vThick + "px",
             height: thumbH + "px",
             width: vThick + "px",
@@ -162,7 +172,7 @@ const Scrollable = () => {
 
         /* Horizontal thumb */
         if (hasH) {
-          const trackW = cw - edge * 2;
+          const trackW = cw - edgeLeft - edgeRight;
           const ratio = clientW / sw;
           const thumbW = Math.max(MIN_THUMB, ratio * trackW);
           const maxScroll = sw - clientW;
@@ -170,7 +180,7 @@ const Scrollable = () => {
           Object.assign(hThumb.style, {
             display: "",
             top: oy + ch - wall - hThick + "px",
-            left: ox + edge + pct * (trackW - thumbW) + "px",
+            left: ox + edgeLeft + pct * (trackW - thumbW) + "px",
             width: thumbW + "px",
             height: hThick + "px",
           });
@@ -288,7 +298,9 @@ const Scrollable = () => {
             axis === "v" ? container.clientHeight : container.clientWidth;
           const sSize =
             axis === "v" ? container.scrollHeight : container.scrollWidth;
-          const trackLen = cSize - edge * 2;
+          const startEdge = axis === "v" ? edgeTop : edgeLeft;
+          const endEdge = axis === "v" ? edgeBottom : edgeRight;
+          const trackLen = cSize - startEdge - endEdge;
           const thumbLen = Math.max(MIN_THUMB, (cSize / sSize) * trackLen);
           const ratio = (sSize - cSize) / (trackLen - thumbLen);
           if (axis === "v") container.scrollTop = startScroll + delta * ratio;

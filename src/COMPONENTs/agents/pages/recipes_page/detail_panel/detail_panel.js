@@ -30,6 +30,11 @@ export default function DetailPanel({
   if (!node) {
     return (
       <div
+        className="scrollable"
+        data-sb-wall="4"
+        data-sb-edge-top="36"
+        data-sb-edge-bottom="12"
+        data-testid="recipe-detail-panel"
         style={{
           ...wrapper_style,
           alignItems: "center",
@@ -46,7 +51,14 @@ export default function DetailPanel({
   const props = { recipe, node, onChange, onChangeSilent, isDark };
 
   return (
-    <div style={wrapper_style}>
+    <div
+      className="scrollable"
+      data-sb-wall="4"
+      data-sb-edge-top="36"
+      data-sb-edge-bottom="12"
+      data-testid="recipe-detail-panel"
+      style={wrapper_style}
+    >
       {node.type === "start" && <StartPanel {...props} />}
       {node.type === "end" && <EndPanel {...props} />}
       {node.type === "agent" && <AgentPanel {...props} />}

@@ -6,6 +6,7 @@ import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
 import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
+import ArtifactSummary from "./artifact-summary/artifact_summary";
 
 const resolveAvatarSrc = (avatar) => {
   const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
@@ -298,6 +299,12 @@ const CharacterChatBubble = ({
                 hasTraceFrames={hasToolActivity}
               />
             )}
+            {isAssistant && message?.artifactSummariesByTurnId &&
+              Object.entries(message.artifactSummariesByTurnId)
+                .sort(([, a], [, b]) => (a?.order || 0) - (b?.order || 0))
+                .map(([turnId, bucket]) => (
+                  <ArtifactSummary key={turnId} bucket={bucket} isDark={isDark} />
+                ))}
           </div>
 
           {timestamp && (

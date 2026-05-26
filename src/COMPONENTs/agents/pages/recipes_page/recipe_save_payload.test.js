@@ -181,3 +181,19 @@ test("normalizes start-prefixed built-in developer sentinel before saving", () =
     prompt: "{{USE_BUILTIN_DEVELOPER_PROMPT}}",
   });
 });
+
+test("preserves agent optimizer override on graph nodes without legacy projection", () => {
+  const optimizer = { preset: "aggressive" };
+  const recipe = graphRecipe();
+  recipe.nodes = recipe.nodes.map((node) =>
+    node.id === "agent_main"
+      ? { ...node, override: { ...node.override, optimizer } }
+      : node,
+  );
+
+  const out = to_save_payload(recipe);
+  const savedAgent = out.nodes.find((node) => node.id === "agent_main");
+
+  expect(savedAgent.override.optimizer).toEqual(optimizer);
+  expect(out.optimizer).toBeUndefined();
+});

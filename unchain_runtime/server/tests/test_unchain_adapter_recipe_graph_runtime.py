@@ -1,7 +1,13 @@
 import threading
+import sys
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
+
+SERVER_ROOT = Path(__file__).resolve().parents[1]
+if str(SERVER_ROOT) not in sys.path:
+    sys.path.insert(0, str(SERVER_ROOT))
 
 from recipe import parse_recipe_json
 
@@ -106,6 +112,45 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
             )
 
         build_user_toolkits.assert_not_called()
+
+    def test_stream_recipe_graph_passes_agent_optimizer_config_to_builder(self):
+        import unchain_adapter as ua
+
+        data = _recipe_dict()
+        data["nodes"][1]["override"]["optimizer"] = {"preset": "aggressive"}
+        data["nodes"][2]["override"]["optimizer"] = {
+            "preset": "off",
+            "enabled": False,
+        }
+        recipe = parse_recipe_json(data)
+        captured = []
+
+        def fake_build(**kwargs):
+            captured.append(kwargs.get("optimizer_config"))
+            return FakeAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            list(
+                ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="Hello",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test"},
+                    session_id="s",
+                )
+            )
+
+        self.assertEqual(
+            captured,
+            [
+                {"preset": "aggressive"},
+                {"preset": "off", "enabled": False},
+            ],
+        )
 
     def test_stream_recipe_graph_emits_ask_user_question_from_human_input_callback(self):
         import unchain_adapter as ua
