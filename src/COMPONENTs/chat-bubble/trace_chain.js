@@ -22,6 +22,11 @@ const DISPLAY_FRAME_TYPES = new Set([
   "error",
 ]);
 
+const CONFIRMATION_DECISION_INTERACT_TYPES = new Set([
+  "confirmation",
+  "code_diff",
+]);
+
 const formatDelta = (ms) => {
   if (!Number.isFinite(ms) || ms < 0) return "";
   if (ms < 1000) return `${Math.round(ms)}ms`;
@@ -578,7 +583,7 @@ const TraceChain = ({
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
       if (typeof onToolConfirmationDecision !== "function") return;
-      if (interactType === "confirmation") {
+      if (CONFIRMATION_DECISION_INTERACT_TYPES.has(interactType)) {
         onToolConfirmationDecision({
           confirmationId,
           approved: responseData?.approved ?? false,

@@ -136,6 +136,75 @@ describe("runtime events v4 activity tree", () => {
     });
   });
 
+  test("maps v4 ask_user_question interactions to selector frames", () => {
+    const state = reduceEvents([
+      event({
+        id: "evt-human-input",
+        type: "interaction.requested",
+        seq: 1,
+        links: {
+          interaction_id: "input-1",
+        },
+        payload: {
+          interaction_id: "input-1",
+          kind: "choice",
+          renderer: "single",
+          title: "Choose",
+          prompt: "Pick one",
+          selection_mode: "single",
+          options: [{ label: "A", value: "a" }],
+          allow_other: true,
+          target: {},
+          config: {},
+        },
+      }),
+      event({
+        id: "evt-human-submitted",
+        type: "interaction.resolved",
+        seq: 2,
+        links: {
+          interaction_id: "input-1",
+        },
+        payload: {
+          interaction_id: "input-1",
+          outcome: "submitted",
+          response: { selected_values: ["a"] },
+        },
+      }),
+    ]);
+
+    expect(state.frames.map((frame) => frame.type)).toEqual([
+      "tool_call",
+      "tool_confirmed",
+    ]);
+    expect(state.frames[0]).toMatchObject({
+      type: "tool_call",
+      payload: {
+        call_id: "input-1",
+        confirmation_id: "input-1",
+        requires_confirmation: true,
+        tool_name: "ask_user_question",
+        interact_type: "single",
+        interact_config: {
+          title: "Choose",
+          question: "Pick one",
+          selection_mode: "single",
+          options: [{ label: "A", value: "a" }],
+          allow_other: true,
+        },
+      },
+    });
+    expect(state.frames[1]).toMatchObject({
+      type: "tool_confirmed",
+      payload: {
+        call_id: "input-1",
+        confirmation_id: "input-1",
+        decision: "approved",
+        user_response: { selected_values: ["a"] },
+      },
+    });
+  });
+
   test("routes run_summary artifacts to runArtifactSummary only", () => {
     const artifact = {
       artifact_id: "workspace_change_set:run-root",
@@ -224,5 +293,72 @@ describe("runtime events v4 activity tree", () => {
         },
       ],
     });
+  });
+
+  test("promotes latest plan revisions into runArtifactSummary on run completion", () => {
+    const state = reduceEvents([
+      event({ id: "evt-run", type: "run.started", seq: 1 }),
+      event({
+        id: "evt-plan-created",
+        type: "artifact.created",
+        seq: 2,
+        turnId: "run-root:turn-1",
+        surface: {
+          slot: "iteration_summary",
+          scope: "turn",
+          group: "plan_start",
+        },
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 1,
+          title: "Initial plan",
+          snapshot: { markdown: "# v1", status: "draft" },
+        },
+      }),
+      event({ id: "evt-turn-1-done", type: "turn.completed", seq: 3 }),
+      event({
+        id: "evt-plan-updated",
+        type: "artifact.updated",
+        seq: 4,
+        turnId: "run-root:turn-2",
+        surface: {
+          slot: "iteration_summary",
+          scope: "turn",
+          group: "plan_update",
+        },
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 2,
+          title: "Updated plan",
+          snapshot: { markdown: "# v2", status: "draft" },
+        },
+      }),
+      event({ id: "evt-turn-2-done", type: "turn.completed", seq: 5 }),
+      event({ id: "evt-done", type: "run.completed", seq: 6 }),
+    ]);
+
+    expect(state.runArtifactSummary).toMatchObject({
+      order: 0,
+      status: "completed",
+      artifacts: [
+        {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 2,
+          title: "Updated plan",
+        },
+      ],
+    });
+    expect(state.effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "run_artifact_summary",
+          eventId: "evt-done",
+          reason: "flushed",
+        }),
+      ]),
+    );
   });
 });

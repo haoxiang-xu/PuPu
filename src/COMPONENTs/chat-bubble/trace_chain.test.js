@@ -302,6 +302,53 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
   });
 
+  test("forwards code diff approval as confirmation without user response", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          requires_confirmation: true,
+          tool_name: "write",
+          interact_type: "code_diff",
+          interact_config: {
+            title: "Create demo.txt",
+            operation: "create",
+            path: "/workspace/demo.txt",
+            unified_diff:
+              "--- a//workspace/demo.txt\n+++ b//workspace/demo.txt\n@@ -0,0 +1 @@\n+hello\n",
+            truncated: false,
+            total_lines: 4,
+            displayed_lines: 4,
+            fallback_description: "create demo.txt (+1 -0)",
+          },
+          arguments: { path: "/workspace/demo.txt", content: "hello" },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision,
+      toolConfirmationUiStateById: {
+        "confirm-1": { status: "idle", error: "" },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-1",
+      approved: true,
+      scope: "once",
+    });
+  });
+
   test("renders selector requests and submits other text responses", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [

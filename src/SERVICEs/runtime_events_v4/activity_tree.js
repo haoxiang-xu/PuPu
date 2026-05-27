@@ -5,6 +5,7 @@ import {
 
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
 const CONTINUATION_TOOL_NAME = "__continuation__";
+const RUN_PROMOTED_ARTIFACT_KINDS = new Set(["plan"]);
 
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -102,6 +103,7 @@ const interactionRequestedToLegacy = (event) => {
     ...(isObject(payload.config) ? clone(payload.config) : {}),
     ...(payload.title ? { title: payload.title } : {}),
     ...(payload.prompt ? { question: payload.prompt } : {}),
+    ...(payload.selection_mode ? { selection_mode: payload.selection_mode } : {}),
     ...(Array.isArray(payload.options) ? { options: clone(payload.options) } : {}),
     ...(payload.allow_other !== undefined ? { allow_other: payload.allow_other } : {}),
     ...(payload.other_label ? { other_label: payload.other_label } : {}),
@@ -288,6 +290,7 @@ const buildRunArtifactSummary = (eventStoreSnapshot = {}) => {
     : {};
   let bucket = null;
   let runSettled = false;
+  let runSettledEventId = "";
   const effects = [];
 
   const ensureBucket = () => {
@@ -306,11 +309,12 @@ const buildRunArtifactSummary = (eventStoreSnapshot = {}) => {
     const type = stringValue(event?.type);
     if (type === "run.completed" || type === "run.failed") {
       runSettled = true;
+      runSettledEventId = stringValue(event?.event_id);
       if (bucket && bucket.status !== "completed") {
         bucket.status = "completed";
         effects.push({
           type: "run_artifact_summary",
-          eventId: stringValue(event?.event_id),
+          eventId: runSettledEventId,
           reason: "flushed",
         });
       }
@@ -341,12 +345,98 @@ const buildRunArtifactSummary = (eventStoreSnapshot = {}) => {
     }
   });
 
-  return { bucket, effects };
+  return { bucket, effects, runSettled, runSettledEventId };
+};
+
+const collectRunPromotedArtifacts = (artifactSummariesByTurnId) => {
+  if (!isObject(artifactSummariesByTurnId)) {
+    return [];
+  }
+
+  const bucket = {
+    order: 0,
+    status: "completed",
+    artifacts: [],
+  };
+  Object.values(artifactSummariesByTurnId)
+    .sort((a, b) => (a?.order || 0) - (b?.order || 0))
+    .forEach((turnBucket) => {
+      if (!isObject(turnBucket) || !Array.isArray(turnBucket.artifacts)) {
+        return;
+      }
+      turnBucket.artifacts.forEach((artifact) => {
+        if (!RUN_PROMOTED_ARTIFACT_KINDS.has(stringValue(artifact?.kind))) {
+          return;
+        }
+        if (!isValidArtifactDescriptor(artifact)) {
+          return;
+        }
+        upsertArtifactDescriptor(bucket, artifact);
+      });
+    });
+
+  return bucket.artifacts;
+};
+
+const mergeRunPromotedArtifacts = ({
+  bucket,
+  effects,
+  legacyState,
+  runSettled,
+  runSettledEventId,
+}) => {
+  const promotedArtifacts = collectRunPromotedArtifacts(
+    legacyState?.artifactSummariesByTurnId,
+  );
+  if (promotedArtifacts.length === 0) {
+    return { bucket, effects };
+  }
+  if (!bucket && !runSettled) {
+    return { bucket: null, effects };
+  }
+
+  const currentBucket =
+    bucket ||
+    {
+      order: 0,
+      status: runSettled ? "completed" : "pending",
+      artifacts: [],
+    };
+
+  let changed = false;
+  promotedArtifacts.forEach((artifact) => {
+    const result = upsertArtifactDescriptor(currentBucket, artifact);
+    if (result.changed) changed = true;
+  });
+
+  const nextEffects = Array.isArray(effects) ? [...effects] : [];
+  const alreadyEmittedRunFlush = nextEffects.some(
+    (effect) =>
+      effect?.type === "run_artifact_summary" &&
+      effect?.eventId === runSettledEventId &&
+      effect?.reason === "flushed",
+  );
+  if (changed && runSettled && runSettledEventId && !alreadyEmittedRunFlush) {
+    nextEffects.push({
+      type: "run_artifact_summary",
+      eventId: runSettledEventId,
+      reason: "flushed",
+    });
+  }
+
+  return { bucket: currentBucket, effects: nextEffects };
 };
 
 export const reduceActivityTreeV4 = (_previousState, eventStoreSnapshot = {}) => {
   const legacyState = reduceActivityTree(null, legacySnapshotFromV4(eventStoreSnapshot));
-  const { bucket, effects } = buildRunArtifactSummary(eventStoreSnapshot);
+  const runSummary = buildRunArtifactSummary(eventStoreSnapshot);
+  const { bucket, effects } = mergeRunPromotedArtifacts({
+    bucket: runSummary.bucket,
+    effects: runSummary.effects,
+    legacyState,
+    runSettled: runSummary.runSettled,
+    runSettledEventId: runSummary.runSettledEventId,
+  });
   return {
     ...legacyState,
     runArtifactSummary: bucket,
