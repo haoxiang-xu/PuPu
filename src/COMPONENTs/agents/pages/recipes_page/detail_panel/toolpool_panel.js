@@ -150,7 +150,6 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
   const divider = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)";
   const row_bg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)";
   const chip_bg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.045)";
-  const chip_color = isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.7)";
   const tag_off_color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)";
 
   return (
