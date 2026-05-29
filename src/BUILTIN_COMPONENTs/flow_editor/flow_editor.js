@@ -79,6 +79,7 @@ function FlowEditor({
   on_select,
   render_node,
   validate_connection,
+  on_context_menu,
   grid_size = 20,
   min_zoom = 0.1,
   max_zoom = 3,
@@ -833,7 +834,18 @@ function FlowEditor({
       ref={canvas_ref}
       style={canvas_style}
       onMouseDown={handle_canvas_mouse_down}
-      onContextMenu={(e) => e.preventDefault()}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        if (!on_context_menu || !canvas_ref.current) return;
+        const rect = canvas_ref.current.getBoundingClientRect();
+        const vp = viewport_ref.current;
+        on_context_menu({
+          canvas_x: (e.clientX - rect.left - vp.x) / vp.zoom,
+          canvas_y: (e.clientY - rect.top - vp.y) / vp.zoom,
+          client_x: e.clientX,
+          client_y: e.clientY,
+        });
+      }}
       {...props}
     >
       <PuzzleDefs />

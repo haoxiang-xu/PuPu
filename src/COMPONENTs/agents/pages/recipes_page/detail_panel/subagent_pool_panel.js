@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import SubagentPicker from "../subagent_picker";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 const SECTION_LABEL = {
   fontSize: 11,
@@ -41,16 +42,13 @@ export default function SubagentPoolPanel({ node, recipe, onChange, isDark }) {
             height: 26,
             borderRadius: 7,
             background: "linear-gradient(135deg, #8a8cee, #5a5dd6)",
-            color: "#fff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 13,
-            fontWeight: 700,
             flexShrink: 0,
           }}
         >
-          S
+          <Icon src="shapes" color="#fff" style={{ width: 14, height: 14 }} />
         </div>
         <div style={{ fontSize: 14, fontWeight: 600 }}>Subagent Pool</div>
       </div>

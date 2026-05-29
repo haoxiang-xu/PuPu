@@ -176,16 +176,13 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
             height: 26,
             borderRadius: 7,
             background: "linear-gradient(135deg, #f6a341, #ea7547)",
-            color: "#fff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 13,
-            fontWeight: 700,
             flexShrink: 0,
           }}
         >
-          T
+          <Icon src="tool" color="#fff" style={{ width: 14, height: 14 }} />
         </div>
         <div style={{ fontSize: 14, fontWeight: 600 }}>ToolkitPool</div>
       </div>
