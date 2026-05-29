@@ -6,6 +6,29 @@ import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 import ToolkitIcon from "../../../../toolkit/components/toolkit_icon";
 
+export function is_all_on(entry) {
+  return !entry || entry.enabled_tools == null;
+}
+
+export function enabled_tool_set(entry, catalog_tool_names) {
+  if (is_all_on(entry)) return new Set(catalog_tool_names);
+  return new Set(entry.enabled_tools);
+}
+
+export function enabled_count(entry, catalog_tool_names) {
+  if (is_all_on(entry)) return catalog_tool_names.length;
+  return entry.enabled_tools.length;
+}
+
+export function next_enabled_tools(entry, catalog_tool_names, tool_name) {
+  const set = enabled_tool_set(entry, catalog_tool_names);
+  if (set.has(tool_name)) set.delete(tool_name);
+  else set.add(tool_name);
+  const ordered = catalog_tool_names.filter((name) => set.has(name));
+  if (ordered.length === catalog_tool_names.length) return undefined;
+  return ordered;
+}
+
 const SECTION_LABEL = {
   fontSize: 11,
   fontWeight: 600,
@@ -86,6 +109,24 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
     update_node({ toolkits: toolkits.filter((t) => t.id !== tk_id) });
   }
 
+  function write_enabled_tools(tk_id, value) {
+    update_node({
+      toolkits: toolkits.map((t) => {
+        if (t.id !== tk_id) return t;
+        if (value === undefined) {
+          const { enabled_tools: _drop, ...rest } = t;
+          return rest;
+        }
+        return { ...t, enabled_tools: value };
+      }),
+    });
+  }
+
+  function toggle_tool(tk_id, tool_names, tool_name) {
+    const entry = toolkits.find((t) => t.id === tk_id);
+    write_enabled_tools(tk_id, next_enabled_tools(entry, tool_names, tool_name));
+  }
+
   function toggle_pool_expanded(tk_id) {
     setPoolExpanded((p) => ({ ...p, [tk_id]: !p[tk_id] }));
   }
@@ -110,6 +151,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
   const row_bg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)";
   const chip_bg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.045)";
   const chip_color = isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.7)";
+  const tag_off_color = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.32)";
 
   return (
     <div
@@ -210,6 +252,16 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
             tools: [],
           };
           const tools = Array.isArray(tk.tools) ? tk.tools : [];
+          const tool_names = tools.map((t) => t.name);
+          const total = tool_names.length;
+          const count_label =
+            total > 0
+              ? `${enabled_count(entry, tool_names)}/${total}`
+              : Array.isArray(entry.enabled_tools)
+                ? String(entry.enabled_tools.length)
+                : "";
+          const en_set = enabled_tool_set(entry, tool_names);
+          const all_on = is_all_on(entry);
           const expanded = !!pool_expanded[entry.id];
           return (
             <div
@@ -254,8 +306,25 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                   {tk.toolkitName || entry.id}
                 </span>
                 <span style={{ fontSize: 10.5, color: muted }}>
-                  {tools.length}
+                  {count_label}
                 </span>
+                {total > 0 && (
+                  <span
+                    onClick={(e) => {
+                      if (e?.stopPropagation) e.stopPropagation();
+                      write_enabled_tools(entry.id, all_on ? [] : undefined);
+                    }}
+                    style={{
+                      fontSize: 10.5,
+                      color: accent,
+                      cursor: "pointer",
+                      userSelect: "none",
+                      padding: "0 2px",
+                    }}
+                  >
+                    {all_on ? "None" : "All"}
+                  </span>
+                )}
                 <Button
                   prefix_icon="close"
                   onClick={(e) => {
@@ -284,21 +353,27 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                       No tools.
                     </span>
                   )}
-                  {tools.map((t) => (
-                    <span
-                      key={t.name}
-                      style={{
-                        fontSize: 10.5,
-                        fontFamily: "ui-monospace, Menlo, monospace",
-                        color: chip_color,
-                        background: chip_bg,
-                        padding: "2px 7px",
-                        borderRadius: 999,
-                      }}
-                    >
-                      {t.name}
-                    </span>
-                  ))}
+                  {tools.map((t) => {
+                    const on = en_set.has(t.name);
+                    return (
+                      <span
+                        key={t.name}
+                        onClick={() => toggle_tool(entry.id, tool_names, t.name)}
+                        style={{
+                          fontSize: 10.5,
+                          fontFamily: "ui-monospace, Menlo, monospace",
+                          color: on ? "#fff" : tag_off_color,
+                          background: on ? accent : chip_bg,
+                          padding: "2px 7px",
+                          borderRadius: 999,
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        {t.name}
+                      </span>
+                    );
+                  })}
                 </div>
               )}
             </div>

@@ -1,7 +1,12 @@
 import React from "react";
 import { render, fireEvent, screen, waitFor } from "@testing-library/react";
 import { ConfigContext } from "../../../../../CONTAINERs/config/context";
-import ToolPoolPanel from "./toolpool_panel";
+import ToolPoolPanel, {
+  is_all_on,
+  enabled_tool_set,
+  enabled_count,
+  next_enabled_tools,
+} from "./toolpool_panel";
 
 const cfg = { theme: {}, onThemeMode: "light_mode" };
 const wrap = (ui) => (
@@ -62,7 +67,7 @@ describe("ToolPoolPanel — pool", () => {
     await waitFor(() => {
       expect(screen.getByText("Core")).toBeInTheDocument();
     });
-    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("2/2")).toBeInTheDocument();
   });
 
   test("clicking a pool row expands only that toolkit", async () => {
@@ -82,6 +87,82 @@ describe("ToolPoolPanel — pool", () => {
     expect(screen.getByText("read_file")).toBeInTheDocument();
     expect(screen.getByText("write_file")).toBeInTheDocument();
     expect(screen.queryByText("fetch")).not.toBeInTheDocument();
+  });
+
+  test("全开下点掉一个 tool tag → 写入 catalog 顺序白名单", async () => {
+    const { node, recipe } = makeRecipe({
+      toolkits: [{ id: "core", config: {} }],
+    });
+    const onChange = jest.fn();
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={onChange} />),
+    );
+    await waitFor(() => expect(screen.getByText("Core")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Core")); // 展开
+    fireEvent.click(screen.getByText("write_file"));
+    expect(onChange).toHaveBeenCalled();
+    const call = onChange.mock.calls[0][0];
+    expect(call.nodes[0].toolkits[0].enabled_tools).toEqual(["read_file"]);
+  });
+
+  test("白名单下点亮一个禁用 tool tag → 更新白名单", async () => {
+    const { node, recipe } = makeRecipe({
+      toolkits: [{ id: "core", config: {}, enabled_tools: ["read_file"] }],
+    });
+    const onChange = jest.fn();
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={onChange} />),
+    );
+    await waitFor(() => expect(screen.getByText("Core")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Core"));
+    fireEvent.click(screen.getByText("write_file"));
+    const call = onChange.mock.calls[0][0];
+    // 凑齐 read_file + write_file = 全集 → 删 key（全开）
+    expect("enabled_tools" in call.nodes[0].toolkits[0]).toBe(false);
+  });
+
+  test("全开时显示 None，点击 → enabled_tools:[]", async () => {
+    const { node, recipe } = makeRecipe({
+      toolkits: [{ id: "core", config: {} }],
+    });
+    const onChange = jest.fn();
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={onChange} />),
+    );
+    await waitFor(() => expect(screen.getByText("Core")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("None"));
+    const call = onChange.mock.calls[0][0];
+    expect(call.nodes[0].toolkits[0].enabled_tools).toEqual([]);
+  });
+
+  test("非全开时显示 All，点击 → 删 key(全开)", async () => {
+    const { node, recipe } = makeRecipe({
+      toolkits: [{ id: "core", config: {}, enabled_tools: ["read_file"] }],
+    });
+    const onChange = jest.fn();
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={onChange} />),
+    );
+    await waitFor(() => expect(screen.getByText("Core")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("All"));
+    const call = onChange.mock.calls[0][0];
+    expect("enabled_tools" in call.nodes[0].toolkits[0]).toBe(false);
+  });
+
+  test("点掉最后一个 tool → enabled_tools:[] 且 toolkit 保留", async () => {
+    const { node, recipe } = makeRecipe({
+      toolkits: [{ id: "core", config: {}, enabled_tools: ["read_file"] }],
+    });
+    const onChange = jest.fn();
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={onChange} />),
+    );
+    await waitFor(() => expect(screen.getByText("Core")).toBeInTheDocument());
+    fireEvent.click(screen.getByText("Core"));
+    fireEvent.click(screen.getByText("read_file"));
+    const call = onChange.mock.calls[0][0];
+    expect(call.nodes[0].toolkits[0].enabled_tools).toEqual([]);
+    expect(call.nodes[0].toolkits).toHaveLength(1);
   });
 
   test("clicking × removes the toolkit from the pool", async () => {
@@ -183,5 +264,56 @@ describe("ToolPoolPanel — Store tab", () => {
     });
     fireEvent.click(screen.getByText("Store"));
     expect(screen.getByText("Tool Store coming soon.")).toBeInTheDocument();
+  });
+});
+
+describe("toolpool_panel helpers", () => {
+  const names = ["read_file", "write_file", "list_dir"];
+
+  test("is_all_on: 缺省/null/无 entry 都算全开", () => {
+    expect(is_all_on(undefined)).toBe(true);
+    expect(is_all_on({ id: "x" })).toBe(true);
+    expect(is_all_on({ id: "x", enabled_tools: null })).toBe(true);
+    expect(is_all_on({ id: "x", enabled_tools: [] })).toBe(false);
+    expect(is_all_on({ id: "x", enabled_tools: ["read_file"] })).toBe(false);
+  });
+
+  test("enabled_tool_set: 全开返回全集，白名单返回数组集合", () => {
+    expect(enabled_tool_set({ id: "x" }, names)).toEqual(new Set(names));
+    expect(enabled_tool_set({ id: "x", enabled_tools: ["read_file"] }, names)).toEqual(
+      new Set(["read_file"]),
+    );
+    expect(enabled_tool_set({ id: "x", enabled_tools: [] }, names)).toEqual(new Set());
+  });
+
+  test("enabled_count: 全开=总数，白名单=数组长度", () => {
+    expect(enabled_count({ id: "x" }, names)).toBe(3);
+    expect(enabled_count({ id: "x", enabled_tools: ["read_file"] }, names)).toBe(1);
+    expect(enabled_count({ id: "x", enabled_tools: [] }, names)).toBe(0);
+  });
+
+  test("next_enabled_tools: 全开下关一个 → 按 catalog 顺序的白名单", () => {
+    expect(next_enabled_tools({ id: "x" }, names, "write_file")).toEqual([
+      "read_file",
+      "list_dir",
+    ]);
+  });
+
+  test("next_enabled_tools: 白名单下开一个 → 凑齐全集返回 undefined(全开)", () => {
+    expect(
+      next_enabled_tools({ id: "x", enabled_tools: ["read_file", "list_dir"] }, names, "write_file"),
+    ).toBeUndefined();
+  });
+
+  test("next_enabled_tools: 关掉最后一个 → 空数组", () => {
+    expect(
+      next_enabled_tools({ id: "x", enabled_tools: ["read_file"] }, names, "read_file"),
+    ).toEqual([]);
+  });
+
+  test("next_enabled_tools: 全关下开一个 → 单元素白名单", () => {
+    expect(next_enabled_tools({ id: "x", enabled_tools: [] }, names, "list_dir")).toEqual([
+      "list_dir",
+    ]);
   });
 });

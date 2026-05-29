@@ -69,6 +69,34 @@ test("converts node.toolkits to legacy whole-toolkit refs", () => {
   expect(out.toolkits).toEqual([{ id: "core" }, { id: "external_api" }]);
 });
 
+test("preserves enabled_tools in projection when present, drops key when absent", () => {
+  const recipe = graphRecipe(
+    [
+      {
+        id: "tp_1",
+        type: "toolkit_pool",
+        toolkits: [
+          { id: "core", config: {}, enabled_tools: ["read_file"] },
+          { id: "external_api", config: {} },
+        ],
+      },
+    ],
+    [
+      {
+        id: "e_agent_tp",
+        kind: "attach",
+        source_node_id: "agent_main",
+        source_port_id: "attach_top",
+        target_node_id: "tp_1",
+        target_port_id: "attach_bot",
+      },
+    ],
+  );
+  const out = to_save_payload(recipe);
+  expect(out.toolkits[0]).toEqual({ id: "core", enabled_tools: ["read_file"] });
+  expect("enabled_tools" in out.toolkits[1]).toBe(false);
+});
+
 test("dedupes duplicate toolkit ids", () => {
   const recipe = graphRecipe(
     [
