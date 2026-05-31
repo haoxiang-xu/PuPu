@@ -214,7 +214,16 @@ const COMPACT_RESPONSE_MARKDOWN_STYLE = Object.freeze({
 const KVPanel = ({ sections, isDark, color }) => {
   const [expanded, setExpanded] = useState({});
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+      }}
+    >
       {sections.map((section, si) => (
         <div key={si}>
           {section.heading && (
@@ -248,6 +257,8 @@ const KVPanel = ({ sections, isDark, color }) => {
                   gap: 10,
                   alignItems: "flex-start",
                   minHeight: 18,
+                  minWidth: 0,
+                  maxWidth: "100%",
                 }}
               >
                 <span
@@ -271,8 +282,12 @@ const KVPanel = ({ sections, isDark, color }) => {
                     color,
                     opacity: 0.68,
                     whiteSpace: "pre-wrap",
+                    overflowWrap: "anywhere",
                     wordBreak: "break-all",
                     lineHeight: 1.58,
+                    flex: "1 1 auto",
+                    minWidth: 0,
+                    maxWidth: "100%",
                   }}
                 >
                   {display}
@@ -1605,7 +1620,16 @@ const TraceChain = ({
   const isBodyVisible = showContainerHeader ? bodyOpen : true;
   const timelineBody = (
     <AnimatedChildren open={isBodyVisible}>
-      <div style={{ paddingLeft: 2, paddingBottom: 2 }}>
+      <div
+        style={{
+          paddingLeft: hideTrack ? 0 : 2,
+          paddingBottom: hideTrack ? 0 : 2,
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
+        }}
+      >
         <Timeline
           items={timelineItems}
           compact={compact}
@@ -1617,7 +1641,15 @@ const TraceChain = ({
   );
 
   return (
-    <div style={{ marginBottom: showContainerHeader ? 10 : 0 }}>
+    <div
+      style={{
+        marginBottom: showContainerHeader ? 10 : 0,
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+      }}
+    >
       {showContainerHeader ? (
         <div
           onClick={() => setBodyOpen((o) => !o)}

@@ -266,6 +266,44 @@ describe("TraceChain final_message draft timeline", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("right-aligns timeline delta labels to the row edge", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {}, ts: 0 }),
+      frame({
+        seq: 2,
+        type: "reasoning",
+        payload: { reasoning: "Read the project structure first." },
+        ts: 120,
+      }),
+      frame({
+        seq: 3,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "read_file",
+          arguments: { path: "src/example.js" },
+        },
+        ts: 450,
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    ["+120ms", "+330ms"].forEach((label) => {
+      const delta = screen.getByText(label);
+      expect(delta.parentElement).toHaveStyle({
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+      });
+      expect(delta).toHaveStyle({
+        marginLeft: "auto",
+        textAlign: "right",
+        flexShrink: "0",
+      });
+    });
+  });
+
   test("renders tool confirmation actions and forwards allow decision", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [
@@ -825,6 +863,99 @@ describe("TraceChain final_message draft timeline", () => {
     fireEvent.click(screen.getByRole("button", { name: "Expand" }));
 
     expect(screen.getByText("Large child hidden content")).toBeInTheDocument();
+  });
+
+  test("keeps nested subagent detail panels within the trace width", () => {
+    const longPath = `src/${"very-long-folder-name-".repeat(12)}target.js`;
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          arguments: {
+            target: "analyzer",
+            task: "Inspect a nested trace detail",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          result: {
+            agent_name: "developer.analyzer.1",
+            template_name: "analyzer",
+            status: "completed",
+            output: "Nested child summary",
+          },
+        },
+      }),
+    ];
+
+    const { container } = renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: {
+        "child-run-alpha": [
+          frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+          frame({
+            seq: 2,
+            type: "tool_call",
+            payload: {
+              call_id: "child-call-1",
+              tool_name: "read_file",
+              arguments: { path: longPath },
+            },
+            ts: 20,
+          }),
+        ],
+      },
+      subagentMetaByRunId: {
+        "child-run-alpha": {
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          status: "completed",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /detail/i }));
+
+    const traceRoot = container.firstElementChild;
+    expect(traceRoot).toHaveStyle({
+      width: "100%",
+      maxWidth: "100%",
+      minWidth: "0",
+    });
+
+    let detailCard = screen.getByText(longPath).parentElement;
+    while (detailCard && !detailCard.style.background) {
+      detailCard = detailCard.parentElement;
+    }
+    expect(detailCard).toHaveStyle({
+      width: "100%",
+      maxWidth: "100%",
+      boxSizing: "border-box",
+    });
+    expect(detailCard).not.toHaveStyle({ overflowX: "auto" });
+
+    let childTraceRoot = screen.getByText(longPath);
+    while (
+      childTraceRoot &&
+      childTraceRoot.style.marginBottom !== "0px"
+    ) {
+      childTraceRoot = childTraceRoot.parentElement;
+    }
+    expect(childTraceRoot).toBeTruthy();
+    expect(
+      childTraceRoot.querySelector('[style*="padding-left: 2px"]'),
+    ).not.toBeInTheDocument();
   });
 
   test("forwards selector requests from delegate child timelines", () => {

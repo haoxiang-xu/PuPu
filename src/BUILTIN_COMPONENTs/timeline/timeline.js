@@ -165,6 +165,8 @@ const TimelineNode = ({
         display: "flex",
         flexDirection: "row",
         alignItems: "stretch",
+        minWidth: 0,
+        maxWidth: "100%",
       }}
     >
       {/* ══ Track column ══════════════════════════════════════════════════════ */}
@@ -244,6 +246,10 @@ const TimelineNode = ({
               alignItems: "center",
               gap: compact ? 4 : 6,
               lineHeight: `${TITLE_LINE_H}px`,
+              width: "100%",
+              minWidth: 0,
+              maxWidth: "100%",
+              boxSizing: "border-box",
             }}
           >
             {title != null && (
@@ -255,7 +261,10 @@ const TimelineNode = ({
                   letterSpacing: "0.01em",
                   userSelect: "none",
                   WebkitUserSelect: "none",
-                  flexShrink: 0,
+                  flex: "0 1 auto",
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  overflowWrap: "anywhere",
                 }}
               >
                 {title}
@@ -302,7 +311,7 @@ const TimelineNode = ({
               </button>
             )}
             {/* spacer pushes span to the right */}
-            <span style={{ flex: 1 }} />
+            <span style={{ flex: "1 1 0", minWidth: 0 }} />
             {span != null && (
               <span
                 style={{
@@ -310,6 +319,8 @@ const TimelineNode = ({
                   color: tl.spanColor ?? "rgba(0,0,0,0.45)",
                   userSelect: "none",
                   WebkitUserSelect: "none",
+                  marginLeft: "auto",
+                  textAlign: "right",
                   flexShrink: 0,
                   fontFamily: "Menlo, Monaco, Consolas, monospace",
                 }}
@@ -345,16 +356,30 @@ const TimelineNode = ({
         {hasDetails && (
           <AnimatedChildren open={isExpanded}>
             {detailsBare ? (
-              <div style={{ marginTop: compact ? 4 : 5 }}>{details}</div>
+              <div
+                style={{
+                  marginTop: compact ? 4 : 5,
+                  width: "100%",
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  boxSizing: "border-box",
+                }}
+              >
+                {details}
+              </div>
             ) : (
               <div
                 style={{
                   marginTop: compact ? 4 : 5,
-                  padding: compact ? "6px 8px" : "8px 10px",
+                  width: "100%",
+                  padding: compact ? "6px 0 6px 8px" : "8px 0 8px 10px",
                   borderRadius: compact ? 6 : 8,
                   background: tl.detailsBackground ?? "rgba(0,0,0,0.025)",
                   fontSize: tl.fontSize ?? (compact ? "12px" : "13px"),
                   color: tl.spanColor ?? "rgba(0,0,0,0.45)",
+                  minWidth: 0,
+                  maxWidth: "100%",
+                  boxSizing: "border-box",
                 }}
               >
                 {details}
@@ -748,7 +773,17 @@ const Timeline = ({
   if (!items.length) return null;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", ...style }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+        ...style,
+      }}
+    >
       {items.map((item, i) => {
         const isFirst = i === 0;
         const isLast = i === items.length - 1;

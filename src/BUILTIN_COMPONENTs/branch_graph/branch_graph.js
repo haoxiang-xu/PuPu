@@ -130,7 +130,13 @@ const BranchNode = ({
 
   return (
     <div
-      style={{ display: "flex", flexDirection: "row", alignItems: "stretch" }}
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        alignItems: "stretch",
+        minWidth: 0,
+        maxWidth: "100%",
+      }}
     >
       {/* track column */}
       <div
@@ -245,7 +251,17 @@ const BranchNode = ({
 
         {expandContent != null && (
           <AnimatedChildren open={isExpanded}>
-            <div style={{ marginTop: compact ? 4 : 6 }}>{expandContent}</div>
+            <div
+              style={{
+                marginTop: compact ? 4 : 6,
+                width: "100%",
+                minWidth: 0,
+                maxWidth: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              {expandContent}
+            </div>
           </AnimatedChildren>
         )}
       </div>
@@ -304,6 +320,16 @@ const BranchGraph = ({
       style={{
         display: "flex",
         flexDirection: "column",
+        // NOTE: deliberately NO width/maxWidth here. This box uses a negative
+        // marginLeft (inset) to pull branches toward the parent track. An
+        // auto-width block compensates for the negative margin by growing its
+        // used width, so the RIGHT edge stays aligned with the parent content
+        // column (keeping +Δt labels on one vertical line across nesting).
+        // Pinning width:100% (or maxWidth:100%) defeats that compensation and
+        // shifts the whole box — including its right edge — left by `inset`px,
+        // misaligning every nested row. Verified in Chromium.
+        minWidth: 0,
+        boxSizing: "border-box",
         marginLeft: inset > 0 ? -inset : undefined,
         marginTop: compact ? 4 : 6,
       }}
