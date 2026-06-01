@@ -13,7 +13,6 @@ import {
 } from "../minimap_geometry";
 
 const EASE = "cubic-bezier(.22,.61,.36,1)";
-const END_GAP = 5; // 框到轨道上/下端的最小呼吸空间(px),避免 pill 圆角贴边
 const TOP_INSET = 38; // 整条 minimap 顶部下移,避开窗口顶部可拖拽标题栏区域(否则 to-top 按钮点不到)
 const INSET_BASE = 44; // 轨道上/下内边距:给 pill(top/bottom:14, 高 24 → 占到 38)+ 外侧 chevron 让位
 const INSET_COUNTS = 60; // 溢出时额外给计数标签让位
