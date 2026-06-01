@@ -163,7 +163,8 @@ function build(host, themeName, msgsData){
     viewport.appendChild(row); nodes.push({row,m}); }
 
   let segs=[], scale=1, contentH=0, viewH=0, trackH=0, usable=0, MH=0, overflow=false, hideT=null, hover=false;
-  const PAD=3;
+  const GAP=7;            // 框选框比视口在上下各多出的间距(上下 margin 略大于左右,首尾节点留白更足)
+  const PAD=GAP+1;        // 裁剪安全边距,保证框在两端不被 overflow:hidden 切掉
   const box=document.createElement('div'); box.className='winbox';
   box.style.border='1px solid '+C.boxIdle; box.style.opacity='0.6';
   inner.appendChild(box);
@@ -202,7 +203,7 @@ function build(host, themeName, msgsData){
     let off=0;
     if(overflow){ off=Math.min(Math.max(0, boxTop + boxH/2 - usable/2), MH-usable); }
     inner.style.transform='translateY('+(-off)+'px)';
-    box.style.top=px(PAD + boxTop); box.style.height=px(boxH);   // 精确等于视口,加 PAD 不被裁
+    box.style.top=px(PAD + boxTop - GAP); box.style.height=px(boxH + 2*GAP);  // 上下各多 GAP,四边间距一致
     // highlight = viewport range (content coords)
     const vTop=st*scale, vBtm=st*scale+viewH*scale;
     ticks.forEach(({e,s})=>{
@@ -215,7 +216,8 @@ function build(host, themeName, msgsData){
       let above=0, below=0;
       segs.forEach(s=>{ const y=s.top*scale, yend=y+s.height*scale;
         if(yend <= off+2) above++; else if(y >= off+usable-2) below++; });
-      cTop.textContent='↑ '+above; cBot.textContent='↓ '+below;
+      const cap=n=>n>99?'99+':n;
+      cTop.textContent='↑ '+cap(above); cBot.textContent='↓ '+cap(below);
       cTop.classList.toggle('show', above>0); cBot.classList.toggle('show', below>0);
     } else { cTop.classList.remove('show'); cBot.classList.remove('show'); }
     // pills

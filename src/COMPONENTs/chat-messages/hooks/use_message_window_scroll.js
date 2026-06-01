@@ -208,6 +208,31 @@ export const useMessageWindowScroll = ({
     scrollToTop("smooth");
   }, [jumpToPreviousRenderedMessage, loadOlderMessages, scrollToTop]);
 
+  const scrollToMessageIndex = useCallback(
+    (index, behavior = "auto") => {
+      const el = messagesRef.current;
+      if (!el) {
+        return;
+      }
+      const clamped = Math.max(0, Math.min(index, messages.length - 1));
+
+      if (clamped >= visibleStartRef.current) {
+        const node = messageNodeRefs.current.get(clamped);
+        if (node) {
+          el.scrollTo({ top: Math.max(0, node.offsetTop - 12), behavior });
+          updateIsAtBottom(el);
+          return;
+        }
+      }
+
+      const nextStart = Math.max(0, clamped - load_batch_size);
+      visibleStartRef.current = nextStart;
+      pendingJumpActionRef.current = { type: "toIndex", index: clamped, behavior };
+      setVisibleStartIndex(nextStart);
+    },
+    [messages.length, load_batch_size, updateIsAtBottom],
+  );
+
   useEffect(() => {
     visibleStartRef.current = visibleStartIndex;
   }, [visibleStartIndex]);
@@ -303,6 +328,25 @@ export const useMessageWindowScroll = ({
       return;
     }
 
+    if (pendingAction.type === "toIndex") {
+      const targetNode = messageNodeRefs.current.get(pendingAction.index);
+      if (targetNode) {
+        pendingJumpActionRef.current = null;
+        el.scrollTo({
+          top: Math.max(0, targetNode.offsetTop - 12),
+          behavior: pendingAction.behavior || "auto",
+        });
+        updateIsAtBottom(el);
+        return;
+      }
+      if (visibleStartRef.current > 0) {
+        loadOlderMessages();
+        return;
+      }
+      pendingJumpActionRef.current = null;
+      return;
+    }
+
     if (pendingAction.type === "previous") {
       const jumped = jumpToPreviousRenderedMessage(
         pendingAction.behavior || "smooth",
@@ -372,6 +416,7 @@ export const useMessageWindowScroll = ({
     handleBackToBottom,
     handleSkipToTop,
     handleJumpToPreviousMessage,
+    scrollToMessageIndex,
   };
 };
 

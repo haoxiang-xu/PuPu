@@ -73,3 +73,32 @@ describe("boot visible window", () => {
     expect(result.current.visibleMessages.length).toBe(12);
   });
 });
+
+describe("useMessageWindowScroll", () => {
+  it("scrollToMessageIndex expands the window when target is above it", () => {
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useMessageWindowScroll({
+        chat_id: "chat-b",
+        messages,
+        is_streaming: false,
+        initial_visible_count: 12,
+        load_batch_size: 6,
+        top_load_threshold: 80,
+        boot_visible_count: 3,
+      }),
+    );
+    // 初始窗口 start = 28;目标 index 2 在窗口外
+    act(() => {
+      result.current.messagesRef.current = {
+        scrollTo: () => {},
+        scrollHeight: 1000,
+        clientHeight: 400,
+        scrollTop: 0,
+      };
+      result.current.scrollToMessageIndex(2, "auto");
+    });
+    // 窗口应被展开到 <= 目标(max(0, 2 - load_batch_size) = 0)
+    expect(result.current.safeVisibleStart).toBeLessThanOrEqual(2);
+  });
+});

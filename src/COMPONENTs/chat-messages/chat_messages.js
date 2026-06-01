@@ -2,7 +2,8 @@ import { memo, useContext } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import MessageJumpControls from "./components/message_jump_controls";
+import MessageMinimap from "./components/message_minimap";
+import { useMessageMinimap } from "./hooks/use_message_minimap";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
 
 const ChatMessages = ({
@@ -21,28 +22,21 @@ const ChatMessages = ({
   pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
-  className = "scrollable",
   initialVisibleCount = 12,
   loadBatchSize = 6,
   topLoadThreshold = 80,
   bootVisibleCount = 3,
 }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
-  const color = theme?.color || "#222";
-  const attachPanelBg = isDark ? "rgb(30, 30, 30)" : "rgb(255, 255, 255)";
 
   const {
     messagesRef,
     messageNodeRefs,
     safeVisibleStart,
     visibleMessages,
-    isAtBottom,
-    isAtTop,
     handleScroll,
-    handleBackToBottom,
-    handleSkipToTop,
-    handleJumpToPreviousMessage,
+    scrollToMessageIndex,
   } = useMessageWindowScroll({
     chat_id: chatId,
     messages,
@@ -51,6 +45,13 @@ const ChatMessages = ({
     load_batch_size: loadBatchSize,
     top_load_threshold: topLoadThreshold,
     boot_visible_count: bootVisibleCount,
+  });
+
+  const { segments, total, measure } = useMessageMinimap({
+    chatId,
+    messages,
+    messageNodeRefs,
+    safeVisibleStart,
   });
 
   return (
@@ -63,7 +64,7 @@ const ChatMessages = ({
     >
       <div
         ref={messagesRef}
-        className={className}
+        className="chat-scroll-host"
         onScroll={handleScroll}
         style={{
           height: "100%",
@@ -163,16 +164,15 @@ const ChatMessages = ({
         </div>
       </div>
 
-      <MessageJumpControls
-        messagesCount={messages.length}
-        isAtBottom={isAtBottom}
-        isAtTop={isAtTop}
-        onSkipToTop={handleSkipToTop}
-        onJumpToPreviousMessage={handleJumpToPreviousMessage}
-        onBackToBottom={handleBackToBottom}
-        attachPanelBg={attachPanelBg}
+      <MessageMinimap
+        messagesRef={messagesRef}
+        messageNodeRefs={messageNodeRefs}
+        segments={segments}
+        total={total}
+        safeVisibleStart={safeVisibleStart}
+        measure={measure}
+        scrollToMessageIndex={scrollToMessageIndex}
         isDark={isDark}
-        color={color}
       />
     </div>
   );

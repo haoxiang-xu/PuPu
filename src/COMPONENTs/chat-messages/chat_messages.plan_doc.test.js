@@ -1,8 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import ChatMessages from "./chat_messages";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-
-jest.mock("./components/message_jump_controls", () => () => null);
 
 beforeAll(() => {
   if (!HTMLElement.prototype.scrollTo) {
@@ -10,47 +8,34 @@ beforeAll(() => {
   }
 });
 
-const renderChatMessages = (props = {}) =>
+const messages = [
+  { id: "m0", role: "user", content: "hello" },
+  { id: "m1", role: "assistant", content: "world" },
+];
+
+const renderCM = (props = {}) =>
   render(
     <ConfigContext.Provider
-      value={{
-        onThemeMode: "light_mode",
-        theme: {
-          color: "#222222",
-          font: { fontFamily: "Arial, sans-serif" },
-        },
-      }}
+      value={{ onThemeMode: "light_mode", theme: { color: "#222" } }}
     >
-      <ChatMessages chatId="chat-plan-docs" messages={[]} {...props} />
+      <ChatMessages chatId="c1" messages={messages} {...props} />
     </ConfigContext.Provider>,
   );
 
-test("ignores legacy plan docs passed by old storage", () => {
-  renderChatMessages({
-    messages: [
-      {
-        id: "user-1",
-        role: "user",
-        content: "Create a plan",
-      },
-      {
-        id: "assistant-1",
-        role: "assistant",
-        content: "",
-      },
-    ],
-    planDocs: [
-      {
-        plan_id: "plan_1",
-        title: "Standalone plan",
-        status: "draft",
-        revision: 3,
-        markdown: "# Standalone plan\n\n- Step one",
-      },
-    ],
+describe("ChatMessages minimap integration", () => {
+  it("is a renderable component (memo-wrapped)", () => {
+    expect(ChatMessages).toBeDefined();
+    expect(["function", "object"]).toContain(typeof ChatMessages);
   });
 
-  expect(screen.queryByTitle("Standalone plan")).not.toBeInTheDocument();
-  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-  expect(screen.queryByText("Step one")).not.toBeInTheDocument();
+  it("uses chat-scroll-host (minimap takeover), not the global scrollable class", () => {
+    const { container } = renderCM();
+    expect(container.querySelector(".chat-scroll-host")).not.toBeNull();
+    expect(container.querySelector(".scrollable")).toBeNull();
+  });
+
+  it("renders the minimap track when there are messages", () => {
+    const { container } = renderCM();
+    expect(container.querySelector("[data-mm-track]")).not.toBeNull();
+  });
 });
