@@ -34,6 +34,7 @@ export const BarChart = ({
   barColor,
   valueFormatter = formatTokenCount,
   emptyMessage = "No data",
+  minBarWidth = 0,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -76,6 +77,15 @@ export const BarChart = ({
   }
 
   const labelAxisWidth = 48;
+  const chartGap = data.length > 20 ? 2 : data.length > 10 ? 4 : 6;
+  const barColumnStyle =
+    minBarWidth > 0
+      ? { flex: "0 0 auto", width: minBarWidth }
+      : { flex: 1, minWidth: 0 };
+  const scrollContentMinWidth =
+    minBarWidth > 0
+      ? data.length * minBarWidth + Math.max(data.length - 1, 0) * chartGap + 8
+      : 0;
 
   return (
     <div
@@ -137,13 +147,22 @@ export const BarChart = ({
       <div
         style={{
           flex: 1,
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
+          minWidth: 0,
+          overflowX: minBarWidth > 0 ? "auto" : "visible",
+          overflowY: "visible",
         }}
       >
-        {/* Grid lines */}
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <div
+          style={{
+            minWidth: scrollContentMinWidth,
+            height: "100%",
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Grid lines */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           {gridLines.map((val, i) => {
             const pct = (val / niceMax) * 100;
             return (
@@ -170,7 +189,7 @@ export const BarChart = ({
             flex: 1,
             display: "flex",
             alignItems: "stretch",
-            gap: data.length > 20 ? 2 : data.length > 10 ? 4 : 6,
+            gap: chartGap,
             padding: "0 4px",
             position: "relative",
           }}
@@ -182,8 +201,7 @@ export const BarChart = ({
               <div
                 key={i}
                 style={{
-                  flex: 1,
-                  minWidth: 0,
+                  ...barColumnStyle,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -258,7 +276,7 @@ export const BarChart = ({
         <div
           style={{
             display: "flex",
-            gap: data.length > 20 ? 2 : data.length > 10 ? 4 : 6,
+            gap: chartGap,
             padding: "6px 4px 0",
           }}
         >
@@ -266,8 +284,7 @@ export const BarChart = ({
             <div
               key={i}
               style={{
-                flex: 1,
-                minWidth: 0,
+                ...barColumnStyle,
                 textAlign: "center",
                 fontSize: 10,
                 color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
@@ -280,6 +297,7 @@ export const BarChart = ({
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );
