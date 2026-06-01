@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, within } from "@testing-library/react";
-import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { ConfigContext, LocaleContext } from "../../../CONTAINERs/config/context";
 import { TokenUsageSettings } from "./index";
 
 let lastBarChartProps = null;
@@ -62,9 +62,11 @@ jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
 
 const renderTokenUsageSettings = () =>
   render(
-    <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
-      <TokenUsageSettings />
-    </ConfigContext.Provider>,
+    <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+      <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+        <TokenUsageSettings />
+      </ConfigContext.Provider>
+    </LocaleContext.Provider>,
   );
 
 const setTokenUsageRecords = (records) => {
@@ -115,7 +117,7 @@ describe("TokenUsageSettings", () => {
       "grid-template-columns: repeat(2, minmax(0, 1fr))",
     );
     expect(screen.getByTestId("token-usage-filters")).toHaveStyle(
-      "flex-wrap: wrap",
+      "flex-wrap: nowrap",
     );
     expect(
       within(screen.getByTestId("token-usage-stat-top-model")).getByText(
@@ -169,6 +171,30 @@ describe("TokenUsageSettings", () => {
     expect(lastBarChartProps).toBeTruthy();
     expect(lastBarChartProps.data.reduce((sum, item) => sum + item.value, 0)).toBe(
       31,
+    );
+  });
+
+  test("uses scrollable chart layouts for dense daily data", () => {
+    const now = Date.now();
+    const DAY = 86_400_000;
+    setTokenUsageRecords(
+      Array.from({ length: 31 }, (_, index) => ({
+        timestamp: now - index * DAY,
+        provider: "openai",
+        model: "gpt-5",
+        model_id: "openai:gpt-5",
+        consumed_tokens: 100 + index,
+        input_tokens: 60 + index,
+        output_tokens: 40 + index,
+      })),
+    );
+
+    renderTokenUsageSettings();
+
+    expect(lastBarChartProps).toBeTruthy();
+    expect(lastBarChartProps.minBarWidth).toBe(12);
+    expect(screen.getByTestId("token-breakdown-chart")).toHaveStyle(
+      "display: flex",
     );
   });
 });
