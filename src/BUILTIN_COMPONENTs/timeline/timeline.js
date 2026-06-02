@@ -2,6 +2,10 @@ import { useCallback, useContext, useMemo, useState } from "react";
 
 /* { Contexts } ----------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import {
+  colorWithAlpha,
+  themeHighlightColor,
+} from "../../CONTAINERs/config/theme_highlight";
 /* { Contexts } ----------------------------------------------------------------------------------------------------------- */
 
 /* { Components } --------------------------------------------------------------------------------------------------------- */
@@ -28,15 +32,18 @@ const FORK_CURVE_H = 18; // px — height of fork/merge SVG curves
 
 /* ── helpers ──────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 const resolveLineColor = (status, tl) => {
-  if (status === "done") return tl.lineDoneColor ?? "rgba(10,186,181,0.85)";
-  if (status === "active") return "rgba(10,186,181,0.38)";
+  const highlight = tl.highlightColor;
+  if (status === "done")
+    return tl.lineDoneColor ?? colorWithAlpha(highlight, 0.85);
+  if (status === "active") return colorWithAlpha(highlight, 0.38);
   return tl.lineColor ?? "rgba(0,0,0,0.12)";
 };
 
 const resolvePointColor = (status, tl) => {
-  if (status === "active") return tl.pointColor ?? "rgba(10,186,181,1)";
+  const highlight = tl.highlightColor;
+  if (status === "active") return tl.pointColor ?? highlight;
   if (status === "done")
-    return tl.pointDoneColor ?? tl.pointColor ?? "rgba(10,186,181,1)";
+    return tl.pointDoneColor ?? tl.pointColor ?? highlight;
   return tl.pointPendingColor ?? "rgba(0,0,0,0.18)";
 };
 
@@ -70,7 +77,7 @@ const DotDefault = ({ status, tl }) => (
 );
 
 const DotStart = ({ tl }) => {
-  const color = tl.pointColor ?? "rgba(10,186,181,1)";
+  const color = tl.pointColor ?? tl.highlightColor;
   return (
     <div
       style={{
@@ -137,7 +144,7 @@ const TimelineNode = ({
         <ArcSpinner
           size={LOADING_R * 2}
           stroke_width={2}
-          color={tl.pointColor ?? "rgba(10,186,181,1)"}
+          color={tl.pointColor ?? tl.highlightColor}
         />
       );
     if (point != null && typeof point !== "string") return point;
@@ -452,7 +459,7 @@ const BranchNode = ({
         <ArcSpinner
           size={LOADING_R * 2}
           stroke_width={2}
-          color={tl.pointColor ?? "rgba(10,186,181,1)"}
+          color={tl.pointColor ?? tl.highlightColor}
         />
       );
     if (point != null && typeof point !== "string") return point;
@@ -741,7 +748,13 @@ const Timeline = ({
   hideTrack = false,
 }) => {
   const { theme } = useContext(ConfigContext);
-  const tl = useMemo(() => theme?.timeline ?? {}, [theme]);
+  const tl = useMemo(
+    () => ({
+      ...(theme?.timeline ?? {}),
+      highlightColor: themeHighlightColor(theme),
+    }),
+    [theme],
+  );
 
   /* ── controlled / uncontrolled expanded state ── */
   const isControlled = expanded_indices !== undefined;

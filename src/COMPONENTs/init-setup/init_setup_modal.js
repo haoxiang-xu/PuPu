@@ -1,5 +1,9 @@
 import { useContext, useState, useEffect, useRef, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import {
+  themeHighlightColor,
+  themeHighlightRgba,
+} from "../../CONTAINERs/config/theme_highlight";
 import Modal from "../../BUILTIN_COMPONENTs/modal/modal";
 import ArcSpinner from "../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -35,9 +39,9 @@ const SetupFlow = ({
   renderContent,
   theme,
 }) => {
-  const teal = "rgba(10,186,181,1)";
-  const tealDim = "rgba(10,186,181,0.70)";
-  const lineDone = tealDim;
+  const highlight = themeHighlightColor(theme);
+  const highlightDim = themeHighlightRgba(theme, 0.7);
+  const lineDone = highlightDim;
   const linePending = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.09)";
   const dotPending = isDark ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.14)";
   const labelActive = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
@@ -69,7 +73,7 @@ const SetupFlow = ({
             : prevIsDone
               ? lineDone
               : prevIsActive
-                ? "rgba(10,186,181,0.30)"
+                ? themeHighlightRgba(theme, 0.3)
                 : linePending;
 
         const bottomLineColor = isLast
@@ -77,7 +81,7 @@ const SetupFlow = ({
           : isDone
             ? lineDone
             : isActive
-              ? "rgba(10,186,181,0.30)"
+              ? themeHighlightRgba(theme, 0.3)
               : linePending;
 
         const labelColor = isDone
@@ -129,12 +133,12 @@ const SetupFlow = ({
                   <ArcSpinner
                     size={SPIN_R * 2}
                     stroke_width={1.8}
-                    color={teal}
+                    color={highlight}
                   />
                 ) : isDone ? (
                   <Icon
                     src="check"
-                    color={teal}
+                    color={highlight}
                     style={{
                       width: dotR * 2 + 2,
                       height: dotR * 2 + 2,
@@ -146,11 +150,11 @@ const SetupFlow = ({
                       width: dotR * 2,
                       height: dotR * 2,
                       borderRadius: "50%",
-                      background: isActive ? teal : "transparent",
+                      background: isActive ? highlight : "transparent",
                       border: isActive ? "none" : `1px solid ${dotPending}`,
                       boxShadow:
                         (isStart || isEnd) && isActive
-                          ? `0 0 0 3px rgba(10,186,181,0.14)`
+                          ? `0 0 0 3px ${themeHighlightRgba(theme, 0.14)}`
                           : "none",
                       transition: "background 0.25s, box-shadow 0.25s",
                       boxSizing: "border-box",

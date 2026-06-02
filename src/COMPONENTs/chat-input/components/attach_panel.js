@@ -6,6 +6,7 @@ import {
   useState,
 } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
@@ -159,6 +160,7 @@ const AttachPanel = ({
   onSelectRecipe,
 }) => {
   const { theme } = useContext(ConfigContext);
+  const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
@@ -255,7 +257,7 @@ const AttachPanel = ({
           minWidth: 13,
           height: 13,
           borderRadius: 999,
-          background: "rgba(10,186,181,1)",
+          background: highlight,
           color: "#fff",
           fontSize: 8,
           fontWeight: 700,
@@ -428,7 +430,7 @@ const AttachPanel = ({
                         style={{
                           color:
                             selectedToolkits.length > 0
-                              ? "rgba(10,186,181,1)"
+                              ? highlight
                               : color,
                           fontSize: 14,
                           iconSize: TOOL_SELECTOR_TRIGGER_ICON_SIZE,
@@ -483,7 +485,7 @@ const AttachPanel = ({
                         style={{
                           color:
                             selectedWorkspaceIds.length > 0
-                              ? "rgba(10,186,181,1)"
+                              ? highlight
                               : color,
                           fontSize: 14,
                           borderRadius: floating ? 22 : 16,

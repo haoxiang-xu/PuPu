@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
 
 /**
  * MultiSelectInteract – renders a list of checkbox-style options.
@@ -10,8 +12,6 @@ import { useEffect, useState } from "react";
  */
 
 const OTHER_VALUE = "__other__";
-const ACCENT = "rgba(10,186,181,1)";
-
 const OPTION_BASE = {
   display: "flex",
   alignItems: "center",
@@ -35,16 +35,16 @@ const SUBMIT_BASE = {
   marginTop: 4,
 };
 
-const Checkbox = ({ checked, isDark }) => (
+const Checkbox = ({ checked, isDark, accent }) => (
   <div
     style={{
       width: 14,
       height: 14,
       borderRadius: 4,
       border: checked
-        ? `2px solid ${ACCENT}`
+        ? `2px solid ${accent}`
         : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
-      background: checked ? ACCENT : "transparent",
+      background: checked ? accent : "transparent",
       flexShrink: 0,
       display: "flex",
       alignItems: "center",
@@ -109,6 +109,8 @@ const MultiSelectInteract = ({
   isDark,
   disabled,
 }) => {
+  const { theme } = useContext(ConfigContext);
+  const accent = themeHighlightColor(theme);
   const {
     title,
     question,
@@ -237,7 +239,7 @@ const MultiSelectInteract = ({
               cursor: disabled ? "default" : "pointer",
             }}
           >
-            <Checkbox checked={isSelected} isDark={isDark} />
+            <Checkbox checked={isSelected} isDark={isDark} accent={accent} />
             <div
               style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
             >

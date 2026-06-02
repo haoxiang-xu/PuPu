@@ -37,6 +37,7 @@ import {
   readDevSettings,
 } from "../../COMPONENTs/settings/dev/storage";
 import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
+import { THEME_HIGHLIGHT_COLOR } from "./theme_highlight";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 const SETTINGS_STORAGE_KEY = "settings";
@@ -109,6 +110,22 @@ const resolveThemeDefinition = (themeName, themeMode) => {
   }
 
   return available_themes?.[themeName]?.[themeMode] || null;
+};
+
+const applyContainerThemeConfig = (base, locale) => {
+  if (!base) return base;
+
+  const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
+  return {
+    ...base,
+    highlightColor: THEME_HIGHLIGHT_COLOR,
+    font: {
+      ...base.font,
+      fontFamily: localeFont.body,
+      titleFontFamily: localeFont.title,
+      paragraphFontFamily: localeFont.paragraph,
+    },
+  };
 };
 
 const ThemeBootScreen = ({ isDark }) => {
@@ -202,7 +219,10 @@ const ConfigContainer = ({ children }) => {
     _persistedThemeMode === "sync_with_browser" || _persistedThemeMode == null,
   );
   const [theme, setTheme] = useState(() =>
-    resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
+    applyContainerThemeConfig(
+      resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
+      _persistedLocale || "en",
+    ),
   );
   const [onThemeMode, setOnThemeMode] = useState(initialThemeMode);
   const [locale, setLocale] = useState(_persistedLocale || "en");
@@ -213,16 +233,9 @@ const ConfigContainer = ({ children }) => {
   useEffect(() => {
     const base = resolveThemeDefinition(selectedTheme, onThemeMode);
     if (base) {
+      const nextTheme = applyContainerThemeConfig(base, locale);
       const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
-      setTheme({
-        ...base,
-        font: {
-          ...base.font,
-          fontFamily: localeFont.body,
-          titleFontFamily: localeFont.title,
-          paragraphFontFamily: localeFont.paragraph,
-        },
-      });
+      setTheme(nextTheme);
       if (typeof document !== "undefined") {
         document.documentElement.style.setProperty(
           "--pupu-font-family",

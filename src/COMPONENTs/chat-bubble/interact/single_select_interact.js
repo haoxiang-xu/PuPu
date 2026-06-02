@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
 
 /**
  * SingleSelectInteract – renders a list of radio-style options.
@@ -10,8 +12,6 @@ import { useEffect, useState } from "react";
  */
 
 const OTHER_VALUE = "__other__";
-const ACCENT = "rgba(10,186,181,1)";
-
 const OPTION_BASE = {
   display: "flex",
   alignItems: "center",
@@ -35,16 +35,16 @@ const SUBMIT_BASE = {
   marginTop: 4,
 };
 
-const Radio = ({ checked, isDark }) => (
+const Radio = ({ checked, isDark, accent }) => (
   <div
     style={{
       width: 14,
       height: 14,
       borderRadius: "50%",
       border: checked
-        ? `2px solid ${ACCENT}`
+        ? `2px solid ${accent}`
         : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
-      background: checked ? ACCENT : "transparent",
+      background: checked ? accent : "transparent",
       flexShrink: 0,
       display: "flex",
       alignItems: "center",
@@ -102,6 +102,8 @@ const SingleSelectInteract = ({
   isDark,
   disabled,
 }) => {
+  const { theme } = useContext(ConfigContext);
+  const accent = themeHighlightColor(theme);
   const { title, question, options, allowOther, otherLabel, otherPlaceholder } =
     normalizeSelectorConfig(config);
   const submittedResponse = uiState?.userResponse;
@@ -210,7 +212,7 @@ const SingleSelectInteract = ({
               cursor: disabled ? "default" : "pointer",
             }}
           >
-            <Radio checked={isSelected} isDark={isDark} />
+            <Radio checked={isSelected} isDark={isDark} accent={accent} />
             <div
               style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
             >

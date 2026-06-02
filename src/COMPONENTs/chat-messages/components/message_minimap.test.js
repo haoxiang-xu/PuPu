@@ -27,9 +27,9 @@ test("renders nothing when there are no segments", () => {
   expect(container.querySelector('[data-mm-track]')).toBeNull();
 });
 
-test("user tick is grey, assistant tick is blue (dark)", () => {
+test("user tick is grey, assistant tick uses theme highlight color (dark)", () => {
   const { container } = render(<MessageMinimap {...baseProps()} />);
   const ticks = container.querySelectorAll('[data-mm-tick]');
   expect(ticks[0].style.background).toContain("255, 255, 255"); // user 灰
-  expect(ticks[1].style.background).toContain("120, 170, 255"); // assistant 蓝
+  expect(ticks[1].style.background).toContain("101, 196, 102"); // highlight 色
 });
