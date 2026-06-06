@@ -36,4 +36,17 @@ describe("filter_toolkits", () => {
       "io_tools",
     ]);
   });
+
+  test("keeps installed mcp toolkits visible", () => {
+    const ids = filter_toolkits(
+      [
+        { toolkitId: "mcp.memory.memory", source: "mcp", hidden: false },
+        { toolkitId: "plugin_toolkit", source: "plugin", hidden: false },
+      ],
+      new Set(["base", "base_toolkit", "builtin_toolkit", "toolkit"]),
+    ).map((t) => t.toolkitId);
+
+    expect(ids).toContain("mcp.memory.memory");
+    expect(ids).not.toContain("plugin_toolkit");
+  });
 });

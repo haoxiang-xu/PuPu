@@ -3,6 +3,7 @@ import api from "../../../SERVICEs/api";
 import { BASE_TOOLKIT_IDS } from "../constants";
 import { filter_toolkits } from "../utils/filter_toolkits";
 import { build_toolkit_options } from "../utils/build_toolkit_options";
+import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 
 const LOADING_TOOLKITS_OPTION = Object.freeze({
   value: "__toolkits_loading__",
@@ -65,6 +66,13 @@ const useChatInputToolkits = () => {
       }
     }
   }, []);
+
+  /* Re-pull the catalog when an MCP toolkit is installed / deleted elsewhere. */
+  useEffect(() => {
+    return subscribeToolkitCatalogRefresh(() => {
+      refreshToolkits();
+    });
+  }, [refreshToolkits]);
 
   const toolkitOptions = useMemo(
     () => {

@@ -1,22 +1,28 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../../../../SERVICEs/api";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
+import { subscribeToolkitCatalogRefresh } from "../../../../../SERVICEs/toolkit_catalog_refresh";
 
 export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
   const [catalog, setCatalog] = useState([]);
   const [expanded, setExpanded] = useState({});
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const { toolkits } = await api.unchain.getToolkitCatalog();
-        setCatalog(toolkits || []);
-      } catch (_exc) {
-        setCatalog([]);
-      }
-    })();
+  const loadCatalog = useCallback(async () => {
+    try {
+      const { toolkits } = await api.unchain.getToolkitCatalog();
+      setCatalog(toolkits || []);
+    } catch (_exc) {
+      setCatalog([]);
+    }
   }, []);
+
+  useEffect(() => {
+    loadCatalog();
+    return subscribeToolkitCatalogRefresh(() => {
+      loadCatalog();
+    });
+  }, [loadCatalog]);
 
   const toolkitsById = useMemo(() => {
     const map = {};
@@ -192,7 +198,9 @@ export default function ToolkitInspector({ recipe, onRecipeChange, isDark }) {
                   src={isOpen ? "arrow_down" : "arrow_right"}
                   style={{ width: 10, height: 10, flexShrink: 0, opacity: 0.6 }}
                 />
-                <span style={{ fontWeight: 500, fontSize: 13 }}>{tk.id}</span>
+                <span style={{ fontWeight: 500, fontSize: 13 }}>
+                  {tk.toolkitName || tk.id}
+                </span>
                 <span style={{ fontSize: 11, color: mutedColor }}>
                   {enabledCount}/{allTools.length}
                 </span>

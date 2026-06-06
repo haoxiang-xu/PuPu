@@ -21,6 +21,7 @@ import StorageBar from "./components/storage_bar";
 import OllamaModelRow from "./components/ollama_model_row";
 import ConfirmClearAll from "./components/confirm_clear_all";
 import ConfirmDeleteModal from "./components/confirm_delete_modal";
+import McpToolkitsSection from "./components/mcp_toolkits_section";
 import { api } from "../../../SERVICEs/api";
 import { runtimeBridge } from "../../../SERVICEs/bridges/unchain_bridge";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -1319,6 +1320,7 @@ export const LocalStorageSettings = () => {
       <CharactersSection isDark={isDark} />
       <OllamaSection isDark={isDark} />
       <RuntimeSection isDark={isDark} />
+      <McpToolkitsSection isDark={isDark} />
     </div>
   );
 };

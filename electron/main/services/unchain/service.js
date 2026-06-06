@@ -17,6 +17,9 @@ const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
 const UNCHAIN_TOOL_MODAL_CATALOG_ENDPOINT = "/toolkits/catalog/v2";
 const UNCHAIN_TOOLKIT_DETAIL_ENDPOINT = "/toolkits";
+const UNCHAIN_MCP_TOOLKITS_ENDPOINT = "/mcp/toolkits";
+const UNCHAIN_MCP_TOOLKIT_INSTALL_ENDPOINT = "/mcp/toolkits/install";
+const UNCHAIN_MCP_TOOLKIT_RELOAD_ENDPOINT = "/mcp/toolkits/reload";
 const UNCHAIN_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
 const UNCHAIN_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
@@ -145,6 +148,7 @@ const createUnchainService = ({
 
   const UNCHAIN_REQUIRED_PYTHON_MODULES = [
     "flask",
+    "mcp",
     "qdrant_client",
     "openai",
     "anthropic",
@@ -514,23 +518,36 @@ const createUnchainService = ({
     const bodyText = await response.text();
     if (!response.ok) {
       let message = `${errorPrefix} (${response.status})`;
+      let errorCode = "";
       if (bodyText) {
         try {
           const parsed = JSON.parse(bodyText);
+          const serverCode =
+            typeof parsed?.error?.code === "string" &&
+            parsed.error.code.trim()
+              ? parsed.error.code.trim()
+              : "";
           const serverMessage =
             (typeof parsed?.error?.message === "string" &&
               parsed.error.message.trim()) ||
             (typeof parsed?.error === "string" && parsed.error.trim()) ||
             (typeof parsed?.message === "string" && parsed.message.trim()) ||
             "";
+          errorCode = serverCode;
           if (serverMessage) {
-            message = String(serverMessage);
+            message = serverCode
+              ? `${serverCode}: ${String(serverMessage)}`
+              : String(serverMessage);
           }
         } catch {
           message = bodyText.slice(0, 200);
         }
       }
-      throw new Error(message);
+      const error = new Error(message);
+      if (errorCode) {
+        error.code = errorCode;
+      }
+      throw error;
     }
 
     if (!bodyText) {
@@ -620,6 +637,141 @@ const createUnchainService = ({
       "Miso toolkit detail request failed",
       {},
       "Invalid Miso toolkit detail response",
+    );
+  };
+
+  const normalizeMcpPayload = (payload = {}) => {
+    const source = payload && typeof payload === "object" ? payload : {};
+    const workspaceRootRaw = source.workspaceRoot ?? source.workspace_root;
+    const workspaceRoot =
+      typeof workspaceRootRaw === "string" ? workspaceRootRaw.trim() : "";
+
+    return {
+      ...(workspaceRoot ? { workspaceRoot } : {}),
+    };
+  };
+
+  const listMisoMcpToolkits = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(buildMisoUrl(UNCHAIN_MCP_TOOLKITS_ENDPOINT), {
+      method: "GET",
+      headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+    });
+
+    return readJsonResponse(
+      response,
+      "Miso MCP toolkit list request failed",
+      { toolkits: [], count: 0 },
+      "Invalid Miso MCP toolkit list response",
+    );
+  };
+
+  const installMisoMcpToolkit = async (payload = {}) => {
+    ensureMisoReady();
+
+    const source = payload && typeof payload === "object" ? payload : {};
+    const entryIdRaw = source.entry_id ?? source.entryId;
+    const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_MCP_TOOLKIT_INSTALL_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify({
+          entry_id: entryId,
+          ...normalizeMcpPayload(source),
+        }),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP toolkit install request failed",
+      {},
+      "Invalid Miso MCP toolkit install response",
+    );
+  };
+
+  const deleteMisoMcpToolkit = async (toolkitId) => {
+    ensureMisoReady();
+
+    const cleanId = typeof toolkitId === "string" ? toolkitId.trim() : "";
+    if (!cleanId) {
+      throw new Error("toolkitId is required");
+    }
+
+    const response = await fetch(
+      buildMisoUrl(
+        `${UNCHAIN_MCP_TOOLKITS_ENDPOINT}/${encodeURIComponent(cleanId)}`,
+      ),
+      {
+        method: "DELETE",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP toolkit delete request failed",
+      {},
+      "Invalid Miso MCP toolkit delete response",
+    );
+  };
+
+  const reloadMisoMcpToolkits = async (payload = {}) => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_MCP_TOOLKIT_RELOAD_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify(normalizeMcpPayload(payload)),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP toolkit reload request failed",
+      { toolkits: [], count: 0 },
+      "Invalid Miso MCP toolkit reload response",
+    );
+  };
+
+  const checkMisoMcpToolkitHealth = async (toolkitId, payload = {}) => {
+    ensureMisoReady();
+
+    const cleanId = typeof toolkitId === "string" ? toolkitId.trim() : "";
+    if (!cleanId) {
+      throw new Error("toolkitId is required");
+    }
+
+    const response = await fetch(
+      buildMisoUrl(
+        `${UNCHAIN_MCP_TOOLKITS_ENDPOINT}/${encodeURIComponent(cleanId)}/health`,
+      ),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify(normalizeMcpPayload(payload)),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP toolkit health request failed",
+      {},
+      "Invalid Miso MCP toolkit health response",
     );
   };
 
@@ -1836,6 +1988,11 @@ const createUnchainService = ({
     getMisoToolkitCatalogPayload,
     getMisoToolModalCatalogPayload,
     getMisoToolkitDetailPayload,
+    listMisoMcpToolkits,
+    installMisoMcpToolkit,
+    deleteMisoMcpToolkit,
+    reloadMisoMcpToolkits,
+    checkMisoMcpToolkitHealth,
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,

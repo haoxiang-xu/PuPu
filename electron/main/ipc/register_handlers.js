@@ -23,6 +23,11 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
   CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
+  CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS,
+  CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS,
+  CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
@@ -158,6 +163,29 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
         payload.toolkitId,
         payload.toolName,
       ),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS, async () =>
+    unchainService.listMisoMcpToolkits(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+    async (_event, payload = {}) =>
+      unchainService.installMisoMcpToolkit(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoMcpToolkit(payload.toolkitId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS,
+    async (_event, payload = {}) =>
+      unchainService.reloadMisoMcpToolkits(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
+    async (_event, payload = {}) =>
+      unchainService.checkMisoMcpToolkitHealth(payload.toolkitId, payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.TOOL_CONFIRMATION,

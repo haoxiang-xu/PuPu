@@ -132,7 +132,7 @@ const ToolkitAutoApproveConfirmModal = ({
   );
 };
 
-const ToolkitDeleteConfirmModal = ({
+export const ToolkitDeleteConfirmModal = ({
   open,
   onClose,
   onConfirm,

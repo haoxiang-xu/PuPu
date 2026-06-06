@@ -62,6 +62,11 @@ describe("preload API contract", () => {
       "getStatus",
       "getModelCatalog",
       "getToolkitCatalog",
+      "listMcpToolkits",
+      "installMcpToolkit",
+      "deleteMcpToolkit",
+      "reloadMcpToolkits",
+      "checkMcpToolkitHealth",
       "respondToolConfirmation",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -132,6 +137,24 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
       { sessionId: "chat-1", messages: [] },
+    );
+
+    exposed.unchainAPI.installMcpToolkit({
+      entryId: "workspace.filesystem",
+      workspaceRoot: "/tmp/project",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+      {
+        entryId: "workspace.filesystem",
+        workspaceRoot: "/tmp/project",
+      },
+    );
+
+    exposed.unchainAPI.deleteMcpToolkit("mcp.memory.memory");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
+      { toolkitId: "mcp.memory.memory" },
     );
 
     exposed.unchainAPI.listCharacters();

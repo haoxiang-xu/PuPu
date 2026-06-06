@@ -4,6 +4,7 @@ import ToolkitIcon, {
   isFileToolkitIcon,
 } from "./toolkit_icon";
 import { SOURCE_CONFIG } from "../constants";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { SemiSwitch } from "../../../BUILTIN_COMPONENTs/input/switch";
 import Tooltip from "../../../BUILTIN_COMPONENTs/tooltip/tooltip";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
@@ -26,6 +27,7 @@ const ToolkitRow = ({
   isDark,
   isBuiltin,
   onToggleEnabled,
+  onDelete,
   onClick,
 }) => {
   const { theme } = useContext(ConfigContext);
@@ -159,33 +161,59 @@ const ToolkitRow = ({
         </div>
       </div>
 
-      {/* ── Actions (only for non-builtin) ── */}
-      {!isBuiltin && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            flexShrink: 0,
-          }}
-          onClick={(e) => e.stopPropagation()}
+      {/* ── Actions: auto-enable switch + delete, on every row so both columns
+             keep a consistent x. Delete is enabled only for mcp toolkits;
+             otherwise it renders as a disabled placeholder ── */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexShrink: 0,
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Tooltip
+          label={t("toolkit.auto_enable_card")}
+          position="top"
+          style={{ whiteSpace: "nowrap" }}
+          wrapper_style={{ flexShrink: 0 }}
         >
-          <Tooltip
-            label={t("toolkit.auto_enable_card")}
-            position="top"
-            style={{ whiteSpace: "nowrap" }}
-            wrapper_style={{ flexShrink: 0 }}
-          >
-            <SemiSwitch
-              on={enabled}
-              set_on={(val) => {
-                if (onToggleEnabled) onToggleEnabled(toolkit.toolkitId, val);
-              }}
-              style={{ width: 56, height: 28 }}
-            />
-          </Tooltip>
-        </div>
-      )}
+          <SemiSwitch
+            on={enabled}
+            set_on={(val) => {
+              if (onToggleEnabled) onToggleEnabled(toolkit.toolkitId, val);
+            }}
+            style={{ width: 56, height: 28 }}
+          />
+        </Tooltip>
+        <Button
+          prefix_icon="delete"
+          disabled={toolkit.source !== "mcp" || !onDelete}
+          onClick={() => onDelete?.(toolkit.toolkitId)}
+          style={{
+            paddingVertical: 4,
+            paddingHorizontal: 4,
+            borderRadius: 5,
+            color:
+              toolkit.source === "mcp"
+                ? "#E5484D"
+                : isDark
+                  ? "rgba(255,255,255,0.3)"
+                  : "rgba(0,0,0,0.28)",
+            hoverBackgroundColor: isDark
+              ? "rgba(229,72,77,0.14)"
+              : "rgba(229,72,77,0.10)",
+            content: { icon: { width: 14, height: 14 } },
+            state: {
+              disabled: {
+                root: { opacity: 0.3, cursor: "not-allowed" },
+                background: {},
+              },
+            },
+          }}
+        />
+      </div>
     </div>
   );
 };

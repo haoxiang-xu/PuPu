@@ -4,7 +4,14 @@ import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_trans
 import ToolkitStorePage from "./toolkit_store_page";
 import ToolkitInstalledPage from "./toolkit_installed_page";
 import ToolkitDetailPanel from "../components/toolkit_detail_panel";
+import StoreToolkitDetailPanel from "../components/store_toolkit_detail_panel";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
+import { getMcpStoreEntry } from "../../../SERVICEs/mcp_toolkit_store";
+import {
+  getInstalledMcpIds,
+  installMcpEntry,
+} from "../../../SERVICEs/mcp_install";
+import { readWorkspaceRoot } from "../../settings/runtime";
 
 const SLIDE_DURATION = 260;
 
@@ -29,8 +36,8 @@ const ToolkitsPage = ({ isDark }) => {
   const [detailVisible, setDetailVisible] = useState(false);
   const slideTimer = useRef(null);
 
-  const openDetail = useCallback((toolkitId, toolName, toolkit) => {
-    setSelectedToolkit({ toolkitId, toolName, toolkit });
+  const openDetail = useCallback((detail) => {
+    setSelectedToolkit(detail);
     setDetailMounted(true);
     requestAnimationFrame(() =>
       requestAnimationFrame(() => setDetailVisible(true)),
@@ -50,9 +57,55 @@ const ToolkitsPage = ({ isDark }) => {
 
   const handleToolClick = useCallback(
     (toolkitId, toolName, toolkit) => {
-      openDetail(toolkitId, toolName, toolkit);
+      openDetail({ kind: "installed", toolkitId, toolName, toolkit });
     },
     [openDetail],
+  );
+
+  const handleStoreEntryClick = useCallback(
+    (entryId) => {
+      const entry = getMcpStoreEntry(entryId);
+      if (!entry) return;
+      openDetail({ kind: "store", entry });
+    },
+    [openDetail],
+  );
+
+  /* ── Installed MCP set + install flow ── */
+  const [installedMcpIds, setInstalledMcpIds] = useState(() => new Set());
+  const [installingId, setInstallingId] = useState(null);
+  const [installError, setInstallError] = useState(null);
+
+  const loadInstalledMcpIds = useCallback(async () => {
+    try {
+      setInstalledMcpIds(await getInstalledMcpIds());
+    } catch {
+      /* ignore — keep previous set */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadInstalledMcpIds();
+  }, [loadInstalledMcpIds]);
+
+  const handleInstall = useCallback(
+    async (entry) => {
+      setInstallingId(entry.id);
+      setInstallError(null);
+      try {
+        await installMcpEntry(entry, { workspaceRoot: readWorkspaceRoot() });
+        await loadInstalledMcpIds();
+        installedHandlersRef.current?.reload?.();
+      } catch (e) {
+        setInstallError({
+          entryId: entry.id,
+          code: e?.code || "mcp_install_failed",
+        });
+      } finally {
+        setInstallingId(null);
+      }
+    },
+    [loadInstalledMcpIds],
   );
 
   const panelBg = isDark ? "#141414" : "#ffffff";
@@ -67,7 +120,7 @@ const ToolkitsPage = ({ isDark }) => {
         label={t(item.labelKey)}
         onClick={() => {
           setActiveTab(item.key);
-          if (detailVisible) closeDetail();
+          if (detailMounted) closeDetail();
         }}
         style={{
           fontSize: 12,
@@ -89,7 +142,16 @@ const ToolkitsPage = ({ isDark }) => {
   const renderPage = () => {
     switch (activeTab) {
       case "store":
-        return <ToolkitStorePage isDark={isDark} />;
+        return (
+          <ToolkitStorePage
+            isDark={isDark}
+            onEntryClick={handleStoreEntryClick}
+            installedIds={installedMcpIds}
+            onInstall={handleInstall}
+            installingId={installingId}
+            installError={installError}
+          />
+        );
       case "installed":
         return (
           <ToolkitInstalledPage
@@ -155,35 +217,51 @@ const ToolkitsPage = ({ isDark }) => {
               overflow: "hidden",
             }}
           >
-            <ToolkitDetailPanel
-              toolkitId={selectedToolkit.toolkitId}
-              toolName={selectedToolkit.toolName}
-              tools={selectedToolkit.toolkit?.tools}
-              isDark={isDark}
-              isBuiltin={isBuiltinToolkit(selectedToolkit.toolkit)}
-              defaultEnabled={Boolean(
-                selectedToolkit.toolkit?.defaultEnabled,
-              )}
-              onToggleEnabled={(id, val) => {
-                installedHandlersRef.current?.handleToggleEnabled?.(id, val);
-                setSelectedToolkit((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        toolkit: {
-                          ...prev.toolkit,
-                          defaultEnabled: val,
-                        },
-                      }
-                    : prev,
-                );
-              }}
-              onDelete={(id) => {
-                installedHandlersRef.current?.handleDelete?.(id);
-                closeDetail();
-              }}
-              onBack={closeDetail}
-            />
+            {selectedToolkit.kind === "store" ? (
+              <StoreToolkitDetailPanel
+                entry={selectedToolkit.entry}
+                isDark={isDark}
+                installedIds={installedMcpIds}
+                onInstall={handleInstall}
+                installing={installingId === selectedToolkit.entry?.id}
+                installError={
+                  installError?.entryId === selectedToolkit.entry?.id
+                    ? installError
+                    : null
+                }
+                onBack={closeDetail}
+              />
+            ) : (
+              <ToolkitDetailPanel
+                toolkitId={selectedToolkit.toolkitId}
+                toolName={selectedToolkit.toolName}
+                tools={selectedToolkit.toolkit?.tools}
+                isDark={isDark}
+                isBuiltin={isBuiltinToolkit(selectedToolkit.toolkit)}
+                defaultEnabled={Boolean(
+                  selectedToolkit.toolkit?.defaultEnabled,
+                )}
+                onToggleEnabled={(id, val) => {
+                  installedHandlersRef.current?.handleToggleEnabled?.(id, val);
+                  setSelectedToolkit((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          toolkit: {
+                            ...prev.toolkit,
+                            defaultEnabled: val,
+                          },
+                        }
+                      : prev,
+                  );
+                }}
+                onDelete={(id) => {
+                  installedHandlersRef.current?.handleDelete?.(id);
+                  closeDetail();
+                }}
+                onBack={closeDetail}
+              />
+            )}
           </div>
         )}
       </div>

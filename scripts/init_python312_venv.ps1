@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 
 $ROOT_DIR = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $VENV_DIR = Join-Path $ROOT_DIR ".venv"
-$REQUIREMENTS_FILE = Join-Path $ROOT_DIR "miso_runtime\server\requirements.txt"
+$REQUIREMENTS_FILE = Join-Path $ROOT_DIR "unchain_runtime\server\requirements.txt"
 
 function Test-Python312Command {
   param(

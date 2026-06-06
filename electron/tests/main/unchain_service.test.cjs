@@ -165,6 +165,183 @@ describe("unchain service session memory replacement", () => {
     );
   });
 
+  test("MCP toolkit methods proxy to unchain MCP endpoints", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValue({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            toolkits: [{ toolkitId: "mcp.memory.memory" }],
+            count: 1,
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await service.listMisoMcpToolkits();
+    await service.installMisoMcpToolkit({
+      entryId: "workspace.filesystem",
+      workspaceRoot: "/tmp/project",
+    });
+    await service.reloadMisoMcpToolkits({ workspaceRoot: "/tmp/project" });
+    await service.checkMisoMcpToolkitHealth("mcp.workspace.filesystem", {
+      workspaceRoot: "/tmp/project",
+    });
+    await service.deleteMisoMcpToolkit("mcp.workspace.filesystem");
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:5879/mcp/toolkits",
+      expect.objectContaining({
+        method: "GET",
+        headers: { "x-unchain-auth": "auth-token-123" },
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://127.0.0.1:5879/mcp/toolkits/install",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Content-Type": "application/json",
+          "x-unchain-auth": "auth-token-123",
+        }),
+        body: JSON.stringify({
+          entry_id: "workspace.filesystem",
+          workspaceRoot: "/tmp/project",
+        }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://127.0.0.1:5879/mcp/toolkits/reload",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ workspaceRoot: "/tmp/project" }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      5,
+      "http://127.0.0.1:5879/mcp/toolkits/mcp.workspace.filesystem/health",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ workspaceRoot: "/tmp/project" }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      6,
+      "http://127.0.0.1:5879/mcp/toolkits/mcp.workspace.filesystem",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: { "x-unchain-auth": "auth-token-123" },
+      }),
+    );
+  });
+
+  test("MCP toolkit proxy preserves backend error code", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 400,
+        text: async () =>
+          JSON.stringify({
+            error: {
+              code: "mcp_workspace_required",
+              message: "Workspace required",
+            },
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await expect(
+      service.installMisoMcpToolkit({ entryId: "workspace.filesystem" }),
+    ).rejects.toMatchObject({
+      code: "mcp_workspace_required",
+      message: "mcp_workspace_required: Workspace required",
+    });
+  });
+
   test("falls back to an ephemeral port when the preferred unchain range is busy", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);

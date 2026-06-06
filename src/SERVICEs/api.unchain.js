@@ -349,6 +349,31 @@ const injectMemoryIntoPayload = (payload) => {
   };
 };
 
+const parseMcpErrorCode = (error) => {
+  const explicitCode =
+    typeof error?.code === "string" ? error.code.trim() : "";
+  if (explicitCode.startsWith("mcp_")) {
+    return explicitCode;
+  }
+
+  const message =
+    typeof error?.message === "string" ? error.message.trim() : "";
+  const match = message.match(/\b(mcp_[a-z0-9_]+)\b/i);
+  return match ? match[1] : "";
+};
+
+const toMcpFrontendApiError = (error, fallbackCode, fallbackMessage) => {
+  if (error instanceof FrontendApiError) {
+    return error;
+  }
+
+  return toFrontendApiError(
+    error,
+    parseMcpErrorCode(error) || fallbackCode,
+    fallbackMessage,
+  );
+};
+
 const getStoredSystemPromptV2Config = () => {
   const runtimeSettings = readRuntimeSettings();
   const runtimePromptConfig = isObject(runtimeSettings?.system_prompt_v2)
@@ -638,6 +663,109 @@ export const createUnchainApi = () => {
           error,
           "unchain_toolkit_detail_failed",
           "Failed to query Unchain toolkit detail",
+        );
+      }
+    },
+
+    listMcpToolkits: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpToolkits")) {
+        return { toolkits: [], count: 0 };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpToolkits");
+        const payload = await withTimeout(
+          () => method(),
+          8000,
+          "mcp_toolkit_list_timeout",
+          "MCP toolkit list request timed out",
+        );
+        return payload || { toolkits: [], count: 0 };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_list_failed",
+          "Failed to query MCP toolkits",
+        );
+      }
+    },
+
+    installMcpToolkit: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "installMcpToolkit");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_install_timeout",
+          "MCP toolkit install request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_install_failed",
+          "Failed to install MCP toolkit",
+        );
+      }
+    },
+
+    deleteMcpToolkit: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteMcpToolkit");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "mcp_toolkit_delete_timeout",
+          "MCP toolkit delete request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_delete_failed",
+          "Failed to delete MCP toolkit",
+        );
+      }
+    },
+
+    reloadMcpToolkits: async (payload = {}) => {
+      if (!hasBridgeMethod("unchainAPI", "reloadMcpToolkits")) {
+        return { toolkits: [], count: 0 };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "reloadMcpToolkits");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_reload_timeout",
+          "MCP toolkit reload request timed out",
+        );
+        return response || { toolkits: [], count: 0 };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_reload_failed",
+          "Failed to reload MCP toolkits",
+        );
+      }
+    },
+
+    checkMcpToolkitHealth: async (toolkitId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "checkMcpToolkitHealth");
+        const response = await withTimeout(
+          () => method(toolkitId, isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_health_timeout",
+          "MCP toolkit health request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_health_failed",
+          "Failed to check MCP toolkit health",
         );
       }
     },

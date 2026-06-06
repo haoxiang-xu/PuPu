@@ -12,6 +12,19 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
       toolkitId,
       toolName,
     }),
+  listMcpToolkits: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS),
+  installMcpToolkit: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT, payload),
+  deleteMcpToolkit: (toolkitId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT, { toolkitId }),
+  reloadMcpToolkits: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS, payload),
+  checkMcpToolkitHealth: (toolkitId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      toolkitId,
+    }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
   setChromeTerminalOpen: (open = false) =>

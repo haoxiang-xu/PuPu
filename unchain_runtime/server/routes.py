@@ -18,6 +18,13 @@ from unchain_adapter import (
     stream_chat_events,
     submit_tool_confirmation,
 )
+from mcp_toolkits import (
+    check_mcp_toolkit_health,
+    delete_mcp_toolkit,
+    install_mcp_toolkit,
+    list_installed_mcp_toolkits,
+    reload_mcp_toolkits,
+)
 
 import route_catalog  # noqa: F401
 import route_chat  # noqa: F401
@@ -25,6 +32,7 @@ import route_projection  # noqa: F401
 import route_characters  # noqa: F401
 import route_memory  # noqa: F401
 import route_recipes  # noqa: F401
+import route_mcp  # noqa: F401
 
 __all__ = [
     "api_blueprint",
@@ -43,6 +51,11 @@ __all__ = [
     "get_toolkit_catalog",
     "get_toolkit_catalog_v2",
     "get_toolkit_metadata",
+    "check_mcp_toolkit_health",
+    "delete_mcp_toolkit",
+    "install_mcp_toolkit",
+    "list_installed_mcp_toolkits",
+    "reload_mcp_toolkits",
     "stream_chat",
     "stream_chat_events",
     "submit_tool_confirmation",

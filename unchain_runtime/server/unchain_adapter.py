@@ -17,6 +17,13 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List
 
+from mcp_toolkits import (
+    McpToolkitError,
+    build_mcp_runtime_toolkit,
+    get_installed_mcp_toolkit,
+    list_installed_mcp_toolkits,
+)
+
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
 _artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
 
@@ -1335,10 +1342,11 @@ def _enumerate_builtin_submodule_toolkits(
 def get_toolkit_catalog() -> Dict[str, object]:
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
+        entries = _installed_mcp_catalog_v1_entries()
         return {
-            "toolkits": [],
-            "artifactKinds": _merged_artifact_kinds([]),
-            "count": 0,
+            "toolkits": entries,
+            "artifactKinds": _merged_artifact_kinds(entries),
+            "count": len(entries),
             "source": "",
         }
 
@@ -1384,6 +1392,8 @@ def get_toolkit_catalog() -> Dict[str, object]:
                 "kind": kind,
                 "tools": tools,
             })
+
+    entries.extend(_installed_mcp_catalog_v1_entries())
 
     return {
         "toolkits": entries,
@@ -1980,16 +1990,71 @@ def _detect_toolkit_source(kind: str) -> str:
     return "local"
 
 
+def _installed_mcp_catalog_entries() -> List[Dict[str, object]]:
+    try:
+        entries = list_installed_mcp_toolkits()
+    except Exception as exc:
+        _subagent_logger.warning("[mcp] failed to load installed MCP catalog: %s", exc)
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _installed_mcp_catalog_v1_entries() -> List[Dict[str, object]]:
+    entries: List[Dict[str, object]] = []
+    for entry in _installed_mcp_catalog_entries():
+        toolkit_id = str(entry.get("toolkitId") or entry.get("id") or "").strip()
+        if not toolkit_id:
+            continue
+        tools: List[Dict[str, str]] = []
+        for tool in entry.get("tools") or []:
+            if not isinstance(tool, dict):
+                continue
+            name = str(tool.get("name") or "").strip()
+            if not name:
+                continue
+            description = str(
+                tool.get("description") or tool.get("title") or ""
+            ).strip()
+            tools.append({"name": name, "description": description})
+        entries.append({
+            "id": toolkit_id,
+            "name": toolkit_id,
+            "class_name": "MCPToolkit",
+            "module": "unchain.toolkits.mcp",
+            "kind": "mcp",
+            "source": "mcp",
+            "toolkitName": entry.get("toolkitName", toolkit_id),
+            "toolkitDescription": entry.get("toolkitDescription", ""),
+            "toolkitIcon": entry.get("toolkitIcon", {}),
+            "status": entry.get("status", "unknown"),
+            "tools": tools,
+        })
+    return entries
+
+
+def _append_installed_mcp_toolkits(payload: Dict[str, object]) -> Dict[str, object]:
+    entries = list(payload.get("toolkits") or [])
+    mcp_entries = _installed_mcp_catalog_entries()
+    entries.extend(mcp_entries)
+    next_payload = dict(payload)
+    next_payload["toolkits"] = entries
+    next_payload["count"] = len(entries)
+    if "artifactKinds" in next_payload:
+        next_payload["artifactKinds"] = _merged_artifact_kinds(entries)
+    return next_payload
+
+
 def get_toolkit_catalog_v2() -> Dict[str, object]:
     """Enriched toolkit catalog with icon payloads, per-tool metadata, and
     README support for the tool-modal UI."""
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
-        return {
+        return _append_installed_mcp_toolkits({
             "toolkits": [],
+            "artifactKinds": [],
             "count": 0,
             "source": "",
-        }
+        })
 
     def _build_entry(candidate: type, kind: str) -> Dict[str, object]:
         """Build a single ToolkitGroup dict, merging toolkit.toml fields."""
@@ -2110,12 +2175,12 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
     # Sort by display order from toolkit.toml
     entries.sort(key=lambda e: (e.get("displayOrder", 999), e.get("toolkitName", "")))
 
-    return {
+    return _append_installed_mcp_toolkits({
         "toolkits": entries,
         "artifactKinds": _merged_artifact_kinds(entries),
         "count": len(entries),
         "source": "",
-    }
+    })
 
 
 def get_toolkit_metadata(
@@ -2135,6 +2200,19 @@ def get_toolkit_metadata(
         }
 
     toolkit_id = toolkit_id.strip()
+    if toolkit_id.startswith("mcp."):
+        installed_mcp = get_installed_mcp_toolkit(toolkit_id)
+        if installed_mcp is not None:
+            return {
+                "toolkitId": installed_mcp.get("toolkitId", toolkit_id),
+                "toolkitName": installed_mcp.get("toolkitName", toolkit_id),
+                "toolkitDescription": installed_mcp.get("toolkitDescription", ""),
+                "toolkitIcon": installed_mcp.get("toolkitIcon", {}),
+                "artifactKinds": [],
+                "readmeMarkdown": installed_mcp.get("readmeMarkdown", ""),
+                "selectedToolName": tool_name,
+            }
+
     normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(toolkit_id, toolkit_id)
     canonical_toolkit_id = _canonical_toolkit_id_for_class_name(normalized_toolkit_id)
 
@@ -3009,6 +3087,29 @@ def _build_selected_toolkits(
     if not toolkit_names:
         return []
 
+    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
+    workspace_root = resolved_roots[0] if resolved_roots else None
+    result: list = []
+    generic_toolkit_names: list[str] = []
+
+    for toolkit_name in toolkit_names:
+        if toolkit_name.startswith("mcp."):
+            try:
+                toolkit_instance = build_mcp_runtime_toolkit(toolkit_name)
+            except McpToolkitError as exc:
+                raise RuntimeError(str(exc)) from exc
+            _set_runtime_toolkit_metadata(
+                toolkit_instance,
+                toolkit_id=toolkit_name,
+                toolkit_name=toolkit_name,
+            )
+            result.append(toolkit_instance)
+            continue
+        generic_toolkit_names.append(toolkit_name)
+
+    if not generic_toolkit_names:
+        return result
+
     try:
         toolkit_module = importlib.import_module("unchain.toolkits")
     except Exception as import_error:
@@ -3016,11 +3117,7 @@ def _build_selected_toolkits(
             f"Failed to import unchain.toolkits for toolkit attachment: {import_error}"
         ) from import_error
 
-    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
-    workspace_root = resolved_roots[0] if resolved_roots else None
-    result: list = []
-
-    for toolkit_name in toolkit_names:
+    for toolkit_name in generic_toolkit_names:
         normalized_toolkit_name = _TOOLKIT_NAME_ALIASES.get(toolkit_name, toolkit_name)
         if normalized_toolkit_name == "WorkspaceToolkit":
             continue
@@ -3267,6 +3364,22 @@ def _build_requested_toolkits(
     toolkits.extend(_build_selected_toolkits(options, session_id=session_id))
     _validate_unique_tool_names(toolkits)
     return toolkits
+
+
+def _disconnect_runtime_toolkits(toolkits: Iterable[Any]) -> None:
+    seen: set[int] = set()
+    for toolkit in toolkits or []:
+        identity = id(toolkit)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        disconnect = getattr(toolkit, "disconnect", None)
+        if not callable(disconnect):
+            continue
+        try:
+            disconnect()
+        except Exception as exc:
+            _subagent_logger.warning("[toolkit] disconnect failed: %s", exc)
 
 
 _ANALYZER_READ_ONLY_TOOLS = (
@@ -4722,6 +4835,7 @@ def _stream_recipe_graph_events(
         )
     except RuntimeError as exc:
         raise RuntimeError(str(exc)) from exc
+    runtime_toolkits_to_disconnect = list(user_toolkits)
 
     workflow_run_id = str(run_id_override or _uuid.uuid4())
     event_queue: "queue.Queue[object]" = queue.Queue()
@@ -4832,6 +4946,7 @@ def _stream_recipe_graph_events(
                     user_toolkits,
                     options,
                 )
+                runtime_toolkits_to_disconnect.extend(step_toolkits)
                 step_subagents = _resolve_graph_agent_subagents(agent_node, compiled)
                 instructions = _replace_workflow_variables(
                     _resolve_graph_agent_prompt(agent_node),
@@ -5022,6 +5137,7 @@ def _stream_recipe_graph_events(
             output_holder["error_traceback"] = _tb.format_exc()
             output_holder["error"] = run_error
         finally:
+            _disconnect_runtime_toolkits(runtime_toolkits_to_disconnect)
             event_queue.put(done_marker)
 
     threading.Thread(
@@ -5158,6 +5274,7 @@ def stream_chat(
         except Exception as run_error:  # pragma: no cover
             output_holder["error"] = run_error
         finally:
+            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
             token_queue.put(done_marker)
 
     worker = threading.Thread(target=run_agent, name="unchain-runner", daemon=True)
@@ -5359,6 +5476,7 @@ def stream_chat_events(
             output_holder["error_traceback"] = _tb.format_exc()
             output_holder["error"] = run_error
         finally:
+            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
             event_queue.put(done_marker)
 
     worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
