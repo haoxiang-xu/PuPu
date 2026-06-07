@@ -770,6 +770,157 @@ export const createUnchainApi = () => {
       }
     },
 
+    configureMcpToolkit: async (toolkitId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "configureMcpToolkit");
+        const response = await withTimeout(
+          () => method(toolkitId, isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_configure_timeout",
+          "MCP toolkit configure request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_configure_failed",
+          "Failed to configure MCP toolkit",
+        );
+      }
+    },
+
+    startMcpOAuth: async (entryId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "startMcpOAuth");
+        const response = await withTimeout(
+          () => method(entryId),
+          30000,
+          "mcp_oauth_start_timeout",
+          "MCP OAuth start request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_start_failed",
+          "Failed to start MCP OAuth",
+        );
+      }
+    },
+
+    getMcpOAuthStatus: async (entryId) => {
+      if (!hasBridgeMethod("unchainAPI", "getMcpOAuthStatus")) {
+        return {
+          entryId: typeof entryId === "string" ? entryId : "",
+          toolkitId: "",
+          authStatus: "unknown",
+        };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "getMcpOAuthStatus");
+        const response = await withTimeout(
+          () => method(entryId),
+          12000,
+          "mcp_oauth_status_timeout",
+          "MCP OAuth status request timed out",
+        );
+        return isObject(response)
+          ? response
+          : {
+              entryId: typeof entryId === "string" ? entryId : "",
+              toolkitId: "",
+              authStatus: "unknown",
+            };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_status_failed",
+          "Failed to query MCP OAuth status",
+        );
+      }
+    },
+
+    disconnectMcpOAuth: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "disconnectMcpOAuth");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "mcp_oauth_disconnect_timeout",
+          "MCP OAuth disconnect request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_disconnect_failed",
+          "Failed to disconnect MCP OAuth",
+        );
+      }
+    },
+
+    listMcpOAuthApps: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpOAuthApps")) {
+        return { apps: [], count: 0 };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpOAuthApps");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_oauth_apps_list_timeout",
+          "MCP OAuth apps list request timed out",
+        );
+        return isObject(response) ? response : { apps: [], count: 0 };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_apps_list_failed",
+          "Failed to query MCP OAuth apps",
+        );
+      }
+    },
+
+    configureMcpOAuthApp: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "configureMcpOAuthApp");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          12000,
+          "mcp_oauth_app_configure_timeout",
+          "MCP OAuth app configure request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_app_configure_failed",
+          "Failed to configure MCP OAuth app",
+        );
+      }
+    },
+
+    deleteMcpOAuthApp: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteMcpOAuthApp");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "mcp_oauth_app_delete_timeout",
+          "MCP OAuth app delete request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_app_delete_failed",
+          "Failed to delete MCP OAuth app",
+        );
+      }
+    },
+
     respondToolConfirmation: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");

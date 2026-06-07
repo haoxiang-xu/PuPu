@@ -1,13 +1,19 @@
-import { useContext } from "react";
+import { useContext, useEffect, useMemo, useState } from "react";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Code from "../../../BUILTIN_COMPONENTs/code/code";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { SOURCE_CONFIG, TRUST_CONFIG } from "../constants";
-import { entryInstallState } from "../../../SERVICEs/mcp_install";
+import {
+  entryInstallState,
+  setupKindForEntry,
+} from "../../../SERVICEs/mcp_install";
+import { resolveMcpIcon } from "../../../SERVICEs/mcp_toolkit_store";
 import ToolkitIcon, {
+  hasTransparentToolkitIconBackground,
   isBuiltinToolkitIcon,
   isFileToolkitIcon,
 } from "./toolkit_icon";
@@ -94,6 +100,7 @@ const StoreToolkitDetailPanel = ({
   onBack,
   installedIds,
   onInstall,
+  onOAuthConnect,
   installing = false,
   installError = null,
 }) => {
@@ -101,28 +108,85 @@ const StoreToolkitDetailPanel = ({
   const { t } = useTranslation();
   const fontFamily = context.theme?.font?.fontFamily || "Jost, sans-serif";
 
-  if (!entry) return null;
+  const installState = entry ? entryInstallState(entry, installedIds) : "coming_soon";
+  const setupKind = setupKindForEntry(entry);
+  const hasOAuthRecipe = Boolean(entry?.auth?.oauth);
+  const showSecondaryOAuthAction =
+    hasOAuthRecipe && installState === "installable" && Boolean(onOAuthConnect);
+  const [secretValues, setSecretValues] = useState({});
 
-  const installState = entryInstallState(entry, installedIds);
+  useEffect(() => {
+    setSecretValues({});
+  }, [entry?.id]);
+
+  const secrets = useMemo(
+    () => (Array.isArray(entry?.secrets) ? entry.secrets : []),
+    [entry?.secrets],
+  );
+  const requiredSecrets = useMemo(
+    () => secrets.filter((secret) => !secret.optional),
+    [secrets],
+  );
+  const hasRequiredSecrets = requiredSecrets.every((secret) =>
+    String(secretValues[secret.key] || "").trim(),
+  );
+  const requiresSecretInput = ["secrets", "http_secret"].includes(setupKind);
+  const missingRequiredSecrets = requiresSecretInput && !hasRequiredSecrets;
+  const missingSecretKeys = requiredSecrets
+    .filter((secret) => !String(secretValues[secret.key] || "").trim())
+    .map((secret) => secret.key)
+    .filter(Boolean);
   const actionLabel = installing
-    ? t("toolkit.store_installing")
+    ? installState === "oauth"
+      ? t("toolkit.store_waiting_for_oauth")
+      : t("toolkit.store_installing")
     : installState === "installed"
       ? t("toolkit.store_installed")
       : installState === "installable"
-        ? t("toolkit.store_install")
+        ? missingRequiredSecrets
+          ? t("toolkit.store_enter_required_secrets")
+          : t("toolkit.store_install")
         : installState === "needs_review"
           ? t("toolkit.store_needs_review_action")
-          : t("toolkit.store_coming_soon");
-  const actionEnabled = installState === "installable" && !installing;
+          : installState === "oauth"
+            ? t("toolkit.store_connect")
+            : t("toolkit.store_coming_soon");
+  const actionEnabled =
+    !installing &&
+    (installState === "oauth" ||
+      (installState === "installable" && !missingRequiredSecrets));
+  const handleInstall = () => {
+    if (!actionEnabled) return;
+    if (installState === "oauth") {
+      onOAuthConnect?.(entry);
+      return;
+    }
+    if (requiresSecretInput) {
+      const cleanedSecrets = {};
+      for (const secret of secrets) {
+        const value = String(secretValues[secret.key] || "").trim();
+        if (value) cleanedSecrets[secret.key] = value;
+      }
+      onInstall?.(entry, { secrets: cleanedSecrets });
+      return;
+    }
+    onInstall?.(entry);
+  };
+
+  if (!entry) return null;
 
   const sourceConfig = SOURCE_CONFIG[entry.source] || SOURCE_CONFIG.builtin;
   const trustConfig = TRUST_CONFIG[entry.trustLevel] || TRUST_CONFIG.verified;
-  const hasFileIcon = isFileToolkitIcon(entry.toolkitIcon);
-  const iconWrapBackground = isBuiltinToolkitIcon(entry.toolkitIcon)
-    ? entry.toolkitIcon.backgroundColor
+  const toolkitIcon = resolveMcpIcon(entry);
+  const hasFileIcon = isFileToolkitIcon(toolkitIcon);
+  const iconWrapBackground = isBuiltinToolkitIcon(toolkitIcon)
+    ? toolkitIcon.backgroundColor
     : isDark
       ? "rgba(255,255,255,0.05)"
       : "rgba(0,0,0,0.04)";
+  const detailIconSize = hasTransparentToolkitIconBackground(iconWrapBackground)
+    ? 24
+    : 28;
 
   /* Color tokens aligned with Installed toolkit_detail_panel.js */
   const textColor = isDark ? "rgba(255,255,255,0.90)" : "rgba(0,0,0,0.85)";
@@ -141,7 +205,6 @@ const StoreToolkitDetailPanel = ({
   const requirements = Array.isArray(entry.prerequisites)
     ? entry.prerequisites
     : [];
-  const secrets = Array.isArray(entry.secrets) ? entry.secrets : [];
   const policy = entry.policySummary || {};
 
   const statusChip =
@@ -157,7 +220,9 @@ const StoreToolkitDetailPanel = ({
             color: warningColor,
             bg: warningBg,
           }
-        : installState === "coming_soon"
+        : installState === "oauth"
+          ? { label: t("toolkit.store_connect"), color: tagColor, bg: tagBg }
+          : installState === "coming_soon"
           ? { label: t("toolkit.store_coming_soon"), color: tagColor, bg: tagBg }
           : {
               label: t("toolkit.store_status_available"),
@@ -215,7 +280,7 @@ const StoreToolkitDetailPanel = ({
         <div
           style={{
             display: "flex",
-            alignItems: "flex-start",
+            alignItems: "flex-end",
             justifyContent: "space-between",
             gap: 16,
           }}
@@ -223,7 +288,7 @@ const StoreToolkitDetailPanel = ({
           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
             {hasFileIcon ? (
               <ToolkitIcon
-                icon={entry.toolkitIcon}
+                icon={toolkitIcon}
                 size={48}
                 fallbackColor={sourceConfig.color}
                 style={{ borderRadius: 12 }}
@@ -242,8 +307,8 @@ const StoreToolkitDetailPanel = ({
                 }}
               >
                 <ToolkitIcon
-                  icon={entry.toolkitIcon}
-                  size={28}
+                  icon={toolkitIcon}
+                  size={detailIconSize}
                   fallbackColor={sourceConfig.color}
                 />
               </div>
@@ -305,10 +370,9 @@ const StoreToolkitDetailPanel = ({
             <Button
               label={actionLabel}
               disabled={!actionEnabled}
-              onClick={() => actionEnabled && onInstall?.(entry)}
+              onClick={handleInstall}
               style={{
                 fontSize: 12,
-                fontWeight: 600,
                 color: actionEnabled
                   ? "#fff"
                   : isDark
@@ -335,6 +399,29 @@ const StoreToolkitDetailPanel = ({
                 },
               }}
             />
+            {showSecondaryOAuthAction && (
+              <div style={{ marginTop: 6 }}>
+                <Button
+                  label={t("toolkit.store_connect_oauth")}
+                  disabled={installing}
+                  onClick={() => onOAuthConnect?.(entry)}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: isDark ? "#93c5fd" : "#2563eb",
+                    paddingVertical: 4,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    root: {
+                      background: isDark
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.045)",
+                      border: "none",
+                    },
+                  }}
+                />
+              </div>
+            )}
             {installError && (
               <div
                 style={{
@@ -348,6 +435,20 @@ const StoreToolkitDetailPanel = ({
                 {installError.code === "mcp_workspace_required"
                   ? t("toolkit.store_workspace_required")
                   : t("toolkit.store_install_error")}
+              </div>
+            )}
+            {!installError && missingRequiredSecrets && (
+              <div
+                style={{
+                  fontSize: 10.5,
+                  color: warningColor,
+                  marginTop: 5,
+                  maxWidth: 190,
+                  lineHeight: 1.4,
+                }}
+              >
+                {t("toolkit.store_secret_required")}{" "}
+                {missingSecretKeys.join(", ")}
               </div>
             )}
           </div>
@@ -368,7 +469,8 @@ const StoreToolkitDetailPanel = ({
           padding: "16px 24px 24px 0",
         }}
       >
-        {entry.status === "needs_review" && (
+        {(entry.status === "needs_review" ||
+          entry.trustLevel === "needs_review") && (
           <div
             style={{
               display: "flex",
@@ -459,7 +561,45 @@ const StoreToolkitDetailPanel = ({
               <SectionTitle color={mutedColor} fontFamily={fontFamily}>
                 {t("toolkit.store_secrets")}
               </SectionTitle>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {requiresSecretInput && installState === "installable" ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {secrets.map((secret) => (
+                    <Input
+                      key={secret.key}
+                      type="password"
+                      value={secretValues[secret.key] || ""}
+                      set_value={(value) =>
+                        setSecretValues((prev) => ({
+                          ...prev,
+                          [secret.key]: value,
+                        }))
+                      }
+                      placeholder={secret.label || secret.key}
+                      style={{
+                        width: "100%",
+                        fontSize: 12,
+                        fontFamily,
+                        borderRadius: 7,
+                        color: textColor,
+                        paddingVertical: 7,
+                        paddingHorizontal: 10,
+                      }}
+                    />
+                  ))}
+                  {!hasRequiredSecrets && (
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        lineHeight: 1.4,
+                        color: warningColor,
+                      }}
+                    >
+                      {t("toolkit.store_secret_required")}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {secrets.map((secret) => (
                   <Tag
                     key={secret.key}
@@ -472,6 +612,7 @@ const StoreToolkitDetailPanel = ({
                   />
                 ))}
               </div>
+              )}
             </section>
           )}
 

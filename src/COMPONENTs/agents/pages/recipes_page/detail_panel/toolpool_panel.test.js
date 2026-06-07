@@ -21,6 +21,34 @@ jest.mock("../../../../../SERVICEs/api", () => ({
   },
 }));
 
+jest.mock("../../../../toolkit/components/toolkit_icon", () => ({
+  __esModule: true,
+  default: ({ icon }) => (
+    <span
+      data-testid="toolkit-icon"
+      data-name={icon?.name || ""}
+      data-bg={icon?.backgroundColor || ""}
+    />
+  ),
+  ToolkitIconFrame: ({
+    icon,
+    size,
+    iconSize,
+    transparentIconSize,
+    fallbackColor,
+  }) => (
+    <span
+      data-testid="toolkit-icon-frame"
+      data-name={icon?.name || ""}
+      data-bg={icon?.backgroundColor || ""}
+      data-size={String(size)}
+      data-icon-size={String(iconSize)}
+      data-transparent-icon-size={String(transparentIconSize || "")}
+      data-fallback-color={fallbackColor}
+    />
+  ),
+}));
+
 const { api } = require("../../../../../SERVICEs/api");
 
 beforeEach(() => {
@@ -40,7 +68,12 @@ beforeEach(() => {
       {
         toolkitId: "external_api",
         toolkitName: "External API",
-        toolkitIcon: {},
+        toolkitIcon: {
+          type: "builtin",
+          name: "link",
+          color: "#ffffff",
+          backgroundColor: "#2563eb",
+        },
         toolkitDescription: "HTTP fetch",
         tools: [{ name: "fetch" }],
       },
@@ -57,6 +90,24 @@ function makeRecipe(extra = {}) {
 }
 
 describe("ToolPoolPanel — pool", () => {
+  test("bleeds the internal scrollbar into the inspector right edge", async () => {
+    const { node, recipe } = makeRecipe();
+    const { container } = render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={() => {}} />),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Core")).toBeInTheDocument();
+    });
+
+    const panel = container.querySelector(".scrollable");
+    expect(panel).toHaveAttribute("data-sb-edge", "2");
+    expect(panel).toHaveStyle({
+      marginRight: "-16px",
+      paddingRight: "18px",
+    });
+  });
+
   test("renders pool entries with toolkit name and tool count", async () => {
     const { node, recipe } = makeRecipe({
       toolkits: [{ id: "core", config: {} }],
@@ -217,6 +268,121 @@ describe("ToolPoolPanel — installed list", () => {
     expect(onChange).toHaveBeenCalled();
     const call = onChange.mock.calls[0][0];
     expect(call.nodes[0].toolkits).toEqual([{ id: "core", config: {} }]);
+  });
+
+  test("renders default mcp icon when catalog mcp toolkit omits toolkitIcon", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValueOnce({
+      toolkits: [
+        {
+          toolkitId: "mcp.custom.local",
+          toolkitName: "Local MCP",
+          source: "mcp",
+          toolkitDescription: "Local MCP server",
+          tools: [{ name: "ping" }],
+        },
+      ],
+    });
+    const { node, recipe } = makeRecipe();
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={() => {}} />),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Local MCP")).toBeInTheDocument();
+    });
+
+    const icon = screen.getByTestId("toolkit-icon-frame");
+    expect(icon).toHaveAttribute("data-name", "mcp");
+    expect(icon).toHaveAttribute("data-bg", "transparent");
+    expect(icon).toHaveAttribute("data-size", "24");
+    expect(icon).toHaveAttribute("data-transparent-icon-size", "16");
+  });
+
+  test("renders External API and GitHub with compact framed icons", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValueOnce({
+      toolkits: [
+        {
+          toolkitId: "external_api",
+          toolkitName: "External API",
+          source: "builtin",
+          toolkitIcon: {
+            type: "builtin",
+            name: "link",
+            color: "#ffffff",
+            backgroundColor: "#2563eb",
+          },
+          toolkitDescription: "HTTP fetch",
+          tools: [{ name: "fetch" }],
+        },
+        {
+          toolkitId: "mcp.dev.github-remote",
+          toolkitName: "GitHub",
+          source: "mcp",
+          toolkitIcon: {
+            type: "builtin",
+            name: "github",
+            color: "#ffffff",
+            backgroundColor: "#1f2328",
+          },
+          toolkitDescription: "GitHub MCP",
+          tools: [{ name: "search_repositories" }],
+        },
+      ],
+    });
+    const { node, recipe } = makeRecipe();
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={() => {}} />),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("GitHub")).toBeInTheDocument();
+    });
+
+    const frames = screen.getAllByTestId("toolkit-icon-frame");
+    const external = frames.find((node) => node.getAttribute("data-name") === "link");
+    const github = frames.find((node) => node.getAttribute("data-name") === "github");
+    expect(external).toHaveAttribute("data-bg", "#2563eb");
+    expect(external).toHaveAttribute("data-size", "24");
+    expect(external).toHaveAttribute("data-icon-size", "13");
+    expect(github).toHaveAttribute("data-bg", "#1f2328");
+    expect(github).toHaveAttribute("data-size", "24");
+    expect(github).toHaveAttribute("data-icon-size", "13");
+  });
+
+  test("renders selected pool toolkit with smaller compact framed icon", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValueOnce({
+      toolkits: [
+        {
+          toolkitId: "mcp.dev.github-remote",
+          toolkitName: "GitHub",
+          source: "mcp",
+          toolkitIcon: {
+            type: "builtin",
+            name: "github",
+            color: "#ffffff",
+            backgroundColor: "#1f2328",
+          },
+          toolkitDescription: "GitHub MCP",
+          tools: [{ name: "search_repositories" }],
+        },
+      ],
+    });
+    const { node, recipe } = makeRecipe({
+      toolkits: [{ id: "mcp.dev.github-remote", config: {} }],
+    });
+    render(
+      wrap(<ToolPoolPanel node={node} recipe={recipe} onChange={() => {}} />),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("GitHub")).toBeInTheDocument();
+    });
+
+    const icon = screen.getByTestId("toolkit-icon-frame");
+    expect(icon).toHaveAttribute("data-name", "github");
+    expect(icon).toHaveAttribute("data-bg", "#1f2328");
+    expect(icon).toHaveAttribute("data-size", "20");
+    expect(icon).toHaveAttribute("data-icon-size", "12");
   });
 
   test("search filters installed list by name and tool name", async () => {

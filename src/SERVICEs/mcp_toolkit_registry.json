@@ -1,0 +1,391 @@
+{
+  "version": 1,
+  "categories": ["all", "browser", "dev", "productivity", "workspace", "memory"],
+  "entries": [
+    {
+      "id": "browser.playwright",
+      "toolkitId": "mcp.browser.playwright",
+      "name": "Playwright Browser",
+      "description": "Browser automation through the official Playwright MCP server.",
+      "category": "browser",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": true,
+      "license": "Apache-2.0",
+      "sourceRepo": "https://github.com/microsoft/playwright-mcp",
+      "docsUrl": "https://github.com/microsoft/playwright-mcp",
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@playwright/mcp@latest"]
+      },
+      "setupPreview": "npx -y @playwright/mcp@latest",
+      "prerequisites": ["Node.js >= 18"],
+      "secrets": [],
+      "tools": [
+        { "name": "browser_navigate", "title": "Navigate", "requiresConfirmation": false },
+        { "name": "browser_snapshot", "title": "Snapshot", "requiresConfirmation": false },
+        { "name": "browser_click", "title": "Click", "requiresConfirmation": true },
+        { "name": "browser_type", "title": "Type", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 2
+      },
+      "readmeMarkdown": "## Playwright Browser\n\nDrives a real browser over stdio: navigation, clicks, form fill and accessibility snapshots. Maintained by Microsoft."
+    },
+    {
+      "id": "browser.browser-use-local",
+      "toolkitId": "mcp.browser.browser-use-local",
+      "name": "Browser Use",
+      "description": "Local agentic browser control via the browser-use CLI MCP server.",
+      "category": "browser",
+      "source": "mcp",
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/browser-use/browser-use",
+      "docsUrl": "https://github.com/browser-use/browser-use",
+      "mcp": {
+        "transport": "stdio",
+        "command": "uvx",
+        "args": ["--from", "browser-use[cli]", "browser-use", "--mcp"]
+      },
+      "setupPreview": "uvx --from browser-use[cli] browser-use --mcp",
+      "prerequisites": ["uv / uvx", "Python >= 3.11"],
+      "secrets": [{ "key": "OPENAI_API_KEY", "label": "OpenAI API key" }],
+      "tools": [
+        { "name": "open_tab", "title": "Open tab", "requiresConfirmation": false },
+        { "name": "go_to_url", "title": "Go to URL", "requiresConfirmation": false },
+        { "name": "click_element", "title": "Click element", "requiresConfirmation": true },
+        { "name": "input_text", "title": "Input text", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 2
+      },
+      "readmeMarkdown": "## Browser Use\n\nRuns the browser-use CLI as an MCP server for LLM-driven browsing. Requires `uv`/`uvx` and an `OPENAI_API_KEY`."
+    },
+    {
+      "id": "dev.github-remote",
+      "toolkitId": "mcp.dev.github-remote",
+      "name": "GitHub",
+      "description": "Remote GitHub MCP server for repositories, issues and pull requests.",
+      "category": "dev",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/github/github-mcp-server",
+      "docsUrl": "https://github.com/github/github-mcp-server",
+      "icon": {
+        "type": "builtin",
+        "name": "github",
+        "color": "#ffffff",
+        "backgroundColor": "#1f2328"
+      },
+      "mcp": {
+        "transport": "http",
+        "runtimeTransport": "streamable_http",
+        "url": "https://api.githubcopilot.com/mcp/",
+        "headers": [
+          {
+            "name": "Authorization",
+            "valueFromSecret": "GITHUB_MCP_PAT",
+            "prefix": "Bearer "
+          }
+        ]
+      },
+      "auth": {
+        "oauth": {
+          "type": "oauth",
+          "provider": "github",
+          "providerLabel": "GitHub",
+          "clientRegistration": "user_credentials",
+          "mcpUrl": "https://api.githubcopilot.com/mcp/",
+          "transport": "streamable_http",
+          "authorizationEndpoint": "https://github.com/login/oauth/authorize",
+          "tokenEndpoint": "https://github.com/login/oauth/access_token",
+          "scopes": ["repo", "read:org"],
+          "authUrlParams": {},
+          "tokenRequest": { "contentType": "form", "includeClientSecret": true },
+          "discovery": "www_authenticate"
+        }
+      },
+      "setupPreview": "https://api.githubcopilot.com/mcp/",
+      "prerequisites": ["GitHub account"],
+      "secrets": [{ "key": "GITHUB_MCP_PAT", "label": "GitHub Personal Access Token" }],
+      "tools": [
+        { "name": "search_repositories", "title": "Search repositories", "requiresConfirmation": false },
+        { "name": "get_file_contents", "title": "Get file contents", "requiresConfirmation": false },
+        { "name": "create_issue", "title": "Create issue", "requiresConfirmation": true },
+        { "name": "create_pull_request", "title": "Create pull request", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 2
+      },
+      "readmeMarkdown": "## GitHub (remote)\n\nThe official remote GitHub MCP server. Supports OAuth or a Personal Access Token header. Phase 1 shows the connection details only."
+    },
+    {
+      "id": "productivity.notion-remote",
+      "toolkitId": "mcp.productivity.notion-remote",
+      "name": "Notion",
+      "description": "Hosted remote MCP for Notion pages, databases and search.",
+      "category": "productivity",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": false,
+      "license": "hosted",
+      "sourceRepo": "https://developers.notion.com/docs/get-started-with-mcp",
+      "docsUrl": "https://developers.notion.com/docs/get-started-with-mcp",
+      "icon": {
+        "type": "builtin",
+        "name": "notion",
+        "color": "#ffffff",
+        "backgroundColor": "#191919"
+      },
+      "mcp": {
+        "transport": "http",
+        "runtimeTransport": "streamable_http",
+        "url": "https://mcp.notion.com/mcp",
+        "headers": []
+      },
+      "auth": {
+        "oauth": {
+          "type": "oauth",
+          "provider": "notion",
+          "providerLabel": "Notion",
+          "clientRegistration": "dynamic",
+          "mcpUrl": "https://mcp.notion.com/mcp",
+          "transport": "streamable_http",
+          "protectedResourceMetadataUrl": "https://mcp.notion.com/.well-known/oauth-protected-resource",
+          "scopes": [],
+          "authUrlParams": { "prompt": "consent" },
+          "tokenRequest": { "contentType": "form", "includeClientSecret": true },
+          "discovery": "protected_resource"
+        }
+      },
+      "setupPreview": "https://mcp.notion.com/mcp",
+      "prerequisites": ["Notion account"],
+      "secrets": [],
+      "tools": [
+        { "name": "search", "title": "Search", "requiresConfirmation": false },
+        { "name": "fetch_page", "title": "Fetch page", "requiresConfirmation": false },
+        { "name": "create_page", "title": "Create page", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "readmeMarkdown": "## Notion (hosted)\n\nNotion's hosted MCP endpoint. Connection is via OAuth in the Phase 2 setup flow; Phase 1 only previews the endpoint."
+    },
+    {
+      "id": "workspace.filesystem",
+      "toolkitId": "mcp.workspace.filesystem",
+      "name": "Filesystem",
+      "description": "Read and write files within an allowed workspace directory.",
+      "category": "workspace",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": true,
+      "license": "Apache-2.0 / MIT",
+      "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "workspace": {
+        "required": true,
+        "placeholder": "${WORKSPACE}",
+        "binding": "agent_workspace_root"
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "${WORKSPACE}"]
+      },
+      "setupPreview": "npx -y @modelcontextprotocol/server-filesystem ${WORKSPACE}",
+      "prerequisites": ["Node.js >= 18"],
+      "secrets": [],
+      "tools": [
+        { "name": "read_file", "title": "Read file", "requiresConfirmation": false },
+        { "name": "list_directory", "title": "List directory", "requiresConfirmation": false },
+        { "name": "write_file", "title": "Write file", "requiresConfirmation": true },
+        { "name": "move_file", "title": "Move file", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 2
+      },
+      "readmeMarkdown": "## Filesystem\n\nReference MCP server for scoped file access. The `${WORKSPACE}` placeholder is filled with the chosen directory during setup."
+    },
+    {
+      "id": "memory.memory",
+      "toolkitId": "mcp.memory.memory",
+      "name": "Memory",
+      "description": "Persistent knowledge-graph memory via the reference MCP server.",
+      "category": "memory",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": true,
+      "license": "Apache-2.0 / MIT",
+      "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-memory"]
+      },
+      "setupPreview": "npx -y @modelcontextprotocol/server-memory",
+      "prerequisites": ["Node.js >= 18"],
+      "secrets": [],
+      "tools": [
+        { "name": "search_nodes", "title": "Search nodes", "requiresConfirmation": false },
+        { "name": "read_graph", "title": "Read graph", "requiresConfirmation": false },
+        { "name": "create_entities", "title": "Create entities", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "smoke": {
+        "installCleanup": true
+      },
+      "readmeMarkdown": "## Memory\n\nReference knowledge-graph memory server. Stores entities and relations the agent can recall across sessions."
+    },
+    {
+      "id": "productivity.slack",
+      "toolkitId": "mcp.productivity.slack",
+      "name": "Slack",
+      "description": "Send messages and read channels via the Slack MCP server.",
+      "category": "productivity",
+      "source": "mcp",
+      "trustLevel": "needs_review",
+      "status": "available",
+      "installable": true,
+      "license": "Unverified",
+      "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers",
+      "icon": {
+        "type": "builtin",
+        "name": "slack",
+        "color": "#ffffff",
+        "backgroundColor": "#4A154B"
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-slack"]
+      },
+      "setupPreview": "npx -y @modelcontextprotocol/server-slack",
+      "prerequisites": ["Node.js >= 18"],
+      "secrets": [
+        { "key": "SLACK_BOT_TOKEN", "label": "Slack bot token" },
+        { "key": "SLACK_TEAM_ID", "label": "Slack team ID" }
+      ],
+      "tools": [
+        { "name": "list_channels", "title": "List channels", "requiresConfirmation": false },
+        { "name": "post_message", "title": "Post message", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": false,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "readmeMarkdown": "## Slack\n\nCandidate entry - recipe and license are not yet verified. Shown for review only."
+    },
+    {
+      "id": "productivity.slack-remote",
+      "toolkitId": "mcp.productivity.slack-remote",
+      "name": "Slack Remote",
+      "description": "Official hosted Slack MCP server over Streamable HTTP.",
+      "category": "productivity",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": false,
+      "license": "hosted",
+      "sourceRepo": "https://docs.slack.dev/ai/slack-mcp-server/",
+      "docsUrl": "https://docs.slack.dev/ai/slack-mcp-server/",
+      "icon": {
+        "type": "builtin",
+        "name": "slack",
+        "color": "#ffffff",
+        "backgroundColor": "#4A154B"
+      },
+      "mcp": {
+        "transport": "http",
+        "runtimeTransport": "streamable_http",
+        "url": "https://mcp.slack.com/mcp",
+        "headers": []
+      },
+      "auth": {
+        "oauth": {
+          "type": "oauth",
+          "provider": "slack",
+          "providerLabel": "Slack",
+          "clientRegistration": "user_credentials",
+          "mcpUrl": "https://mcp.slack.com/mcp",
+          "transport": "streamable_http",
+          "protectedResourceMetadataUrl": "https://mcp.slack.com/.well-known/oauth-protected-resource",
+          "authorizationServerMetadataUrl": "https://mcp.slack.com/.well-known/oauth-authorization-server",
+          "authorizationEndpoint": "https://slack.com/oauth/v2_user/authorize",
+          "tokenEndpoint": "https://slack.com/api/oauth.v2.user.access",
+          "scopes": [
+            "search:read.public",
+            "search:read.private",
+            "search:read.mpim",
+            "search:read.im",
+            "search:read.files",
+            "files:read",
+            "emoji:read",
+            "search:read.users",
+            "chat:write",
+            "channels:history",
+            "groups:history",
+            "mpim:history",
+            "im:history",
+            "channels:write",
+            "groups:write",
+            "im:write",
+            "mpim:write",
+            "reactions:write",
+            "canvases:read",
+            "canvases:write",
+            "users:read",
+            "users:read.email",
+            "channels:read",
+            "groups:read",
+            "mpim:read"
+          ],
+          "authUrlParams": {},
+          "tokenRequest": { "contentType": "form", "includeClientSecret": true },
+          "discovery": "protected_resource"
+        }
+      },
+      "setupPreview": "https://mcp.slack.com/mcp",
+      "prerequisites": ["Slack account", "Internal or directory Slack app"],
+      "secrets": [],
+      "tools": [
+        { "name": "search", "title": "Search Slack", "requiresConfirmation": false },
+        { "name": "send_message", "title": "Send message", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "readmeMarkdown": "## Slack Remote\n\nConnects to Slack's official hosted MCP endpoint. Requires a Slack app configured for OAuth."
+    }
+  ]
+}

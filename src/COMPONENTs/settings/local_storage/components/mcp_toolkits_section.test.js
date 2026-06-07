@@ -14,6 +14,45 @@ jest.mock("../../../../SERVICEs/api", () => ({
     unchain: {
       listMcpToolkits: jest.fn(),
       reloadMcpToolkits: jest.fn(() => Promise.resolve({ toolkits: [], count: 0 })),
+      checkMcpToolkitHealth: jest.fn(() =>
+        Promise.resolve({ toolkit: { toolkitId: "mcp.memory.memory" } }),
+      ),
+      configureMcpToolkit: jest.fn(() =>
+        Promise.resolve({ toolkit: { toolkitId: "mcp.productivity.slack" } }),
+      ),
+      startMcpOAuth: jest.fn(() =>
+        Promise.resolve({ toolkitId: "mcp.productivity.notion-remote" }),
+      ),
+      disconnectMcpOAuth: jest.fn(() =>
+        Promise.resolve({ ok: true, toolkitId: "mcp.productivity.notion-remote" }),
+      ),
+      listMcpOAuthApps: jest.fn(() =>
+        Promise.resolve({
+          apps: [
+            {
+              toolkitId: "mcp.dev.github-remote",
+              provider: "github",
+              providerLabel: "GitHub",
+              configured: false,
+              clientIdPreview: "",
+              scopes: ["repo"],
+            },
+          ],
+          count: 1,
+        }),
+      ),
+      configureMcpOAuthApp: jest.fn(() =>
+        Promise.resolve({
+          app: {
+            toolkitId: "mcp.dev.github-remote",
+            provider: "github",
+            configured: true,
+          },
+        }),
+      ),
+      deleteMcpOAuthApp: jest.fn(() =>
+        Promise.resolve({ ok: true, toolkitId: "mcp.dev.github-remote" }),
+      ),
     },
   },
 }));
@@ -83,6 +122,26 @@ describe("McpToolkitsSection", () => {
     api.unchain.listMcpToolkits.mockReset();
     api.unchain.listMcpToolkits.mockResolvedValue(oneToolkit);
     api.unchain.reloadMcpToolkits.mockClear();
+    api.unchain.checkMcpToolkitHealth.mockClear();
+    api.unchain.configureMcpToolkit.mockClear();
+    api.unchain.startMcpOAuth.mockClear();
+    api.unchain.disconnectMcpOAuth.mockClear();
+    api.unchain.listMcpOAuthApps.mockReset();
+    api.unchain.listMcpOAuthApps.mockResolvedValue({
+      apps: [
+        {
+          toolkitId: "mcp.dev.github-remote",
+          provider: "github",
+          providerLabel: "GitHub",
+          configured: false,
+          clientIdPreview: "",
+          scopes: ["repo"],
+        },
+      ],
+      count: 1,
+    });
+    api.unchain.configureMcpOAuthApp.mockClear();
+    api.unchain.deleteMcpOAuthApp.mockClear();
     deleteMcpEntry.mockClear();
   });
 
@@ -92,6 +151,51 @@ describe("McpToolkitsSection", () => {
     await screen.findByText("Memory");
     expect(
       screen.getByText("toolkit.store_status_available"),
+    ).toBeInTheDocument();
+  });
+
+  test("renders secret configuration status when required secrets are present or missing", async () => {
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          toolkitId: "mcp.productivity.slack",
+          toolkitName: "Slack",
+          status: "available",
+          tools: [],
+          toolCount: 0,
+          toolkitIcon: { type: "builtin", name: "slack" },
+          secretKeys: ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
+          secretStatus: [
+            { key: "SLACK_BOT_TOKEN", configured: true },
+            { key: "SLACK_TEAM_ID", configured: true },
+          ],
+        },
+        {
+          toolkitId: "mcp.browser.browser-use-local",
+          toolkitName: "Browser Use",
+          status: "error",
+          lastError: "OPENAI_API_KEY is required to run this MCP toolkit",
+          tools: [],
+          toolCount: 0,
+          toolkitIcon: { type: "builtin", name: "globe" },
+          secretKeys: ["OPENAI_API_KEY"],
+          secretStatus: [{ key: "OPENAI_API_KEY", configured: false }],
+        },
+      ],
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+
+    await screen.findByText("Slack");
+    expect(
+      screen.getByText((text) =>
+        text.includes("local_storage.mcp_secrets_configured"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((text) =>
+        text.includes("local_storage.mcp_secrets_missing"),
+      ),
     ).toBeInTheDocument();
   });
 
@@ -106,6 +210,90 @@ describe("McpToolkitsSection", () => {
     expect(api.unchain.reloadMcpToolkits).toHaveBeenCalled();
   });
 
+  test("Recheck calls health for one MCP toolkit", async () => {
+    render(<McpToolkitsSection isDark={false} />);
+    await screen.findByText("Memory");
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_recheck"));
+    });
+
+    expect(api.unchain.checkMcpToolkitHealth).toHaveBeenCalledWith(
+      "mcp.memory.memory",
+      { workspaceRoot: "" },
+    );
+  });
+
+  test("renders workspace metadata from requiresWorkspace without a toolkit id special case", async () => {
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          toolkitId: "mcp.workspace.sample",
+          toolkitName: "Workspace Sample",
+          status: "available",
+          tools: [],
+          toolCount: 0,
+          toolkitIcon: { type: "builtin", name: "folder" },
+          requiresWorkspace: true,
+          workspaceRoot: "/tmp/agent-workspace",
+        },
+      ],
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+
+    await screen.findByText("Workspace Sample");
+    expect(
+      screen.getByText((text) => text.includes("/tmp/agent-workspace")),
+    ).toBeInTheDocument();
+  });
+
+  test("Update secrets opens a setup form and configures the MCP toolkit", async () => {
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          toolkitId: "mcp.productivity.slack",
+          toolkitName: "Slack",
+          status: "available",
+          tools: [],
+          toolCount: 0,
+          toolkitIcon: { type: "builtin", name: "server" },
+          secretKeys: ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
+          secretStatus: [
+            { key: "SLACK_BOT_TOKEN", configured: true },
+            { key: "SLACK_TEAM_ID", configured: true },
+          ],
+        },
+      ],
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+    await screen.findByText("Slack");
+
+    fireEvent.click(screen.getByTestId("btn-local_storage.mcp_update_secrets"));
+    fireEvent.change(screen.getByPlaceholderText("SLACK_BOT_TOKEN"), {
+      target: { value: "xoxb-new" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("SLACK_TEAM_ID"), {
+      target: { value: "TNEW" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_save_secrets"));
+    });
+
+    expect(api.unchain.configureMcpToolkit).toHaveBeenCalledWith(
+      "mcp.productivity.slack",
+      {
+        workspaceRoot: "",
+        secrets: {
+          SLACK_BOT_TOKEN: "xoxb-new",
+          SLACK_TEAM_ID: "TNEW",
+        },
+      },
+    );
+  });
+
   test("delete confirms and calls deleteMcpEntry", async () => {
     render(<McpToolkitsSection isDark={false} />);
     await screen.findByText("Memory");
@@ -118,6 +306,47 @@ describe("McpToolkitsSection", () => {
     expect(deleteMcpEntry).toHaveBeenCalledWith("mcp.memory.memory");
   });
 
+  test("OAuth toolkit renders auth status and supports reconnect and disconnect", async () => {
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          entryId: "productivity.notion-remote",
+          toolkitId: "mcp.productivity.notion-remote",
+          toolkitName: "Notion",
+          status: "available",
+          authType: "oauth",
+          authProvider: "notion",
+          authStatus: "connected",
+          tools: [],
+          toolCount: 0,
+          toolkitIcon: { type: "builtin", name: "link" },
+        },
+      ],
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+    await screen.findByText("Notion");
+    expect(
+      screen.getByText((text) =>
+        text.includes("local_storage.mcp_auth_connected"),
+      ),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_reconnect"));
+    });
+    expect(api.unchain.startMcpOAuth).toHaveBeenCalledWith(
+      "productivity.notion-remote",
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_disconnect"));
+    });
+    expect(api.unchain.disconnectMcpOAuth).toHaveBeenCalledWith(
+      "mcp.productivity.notion-remote",
+    );
+  });
+
   test("empty state shows no installed message", async () => {
     api.unchain.listMcpToolkits.mockResolvedValue({ toolkits: [], count: 0 });
     render(<McpToolkitsSection isDark={false} />);
@@ -126,6 +355,46 @@ describe("McpToolkitsSection", () => {
       expect(
         screen.getByText("local_storage.mcp_no_installed"),
       ).toBeInTheDocument(),
+    );
+  });
+
+  test("renders OAuth apps and can configure and delete app credentials", async () => {
+    render(<McpToolkitsSection isDark={false} />);
+
+    await waitFor(() =>
+      expect(api.unchain.listMcpOAuthApps).toHaveBeenCalled(),
+    );
+    await screen.findByText("GitHub");
+    expect(screen.getByText("local_storage.mcp_oauth_apps")).toBeInTheDocument();
+    expect(
+      screen.getByText("local_storage.mcp_oauth_app_missing"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("btn-local_storage.mcp_oauth_app_update"));
+    fireEvent.change(screen.getByPlaceholderText("client_id"), {
+      target: { value: "github-client-id" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("client_secret"), {
+      target: { value: "github-client-secret" },
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_oauth_app_save"));
+    });
+
+    expect(api.unchain.configureMcpOAuthApp).toHaveBeenCalledWith({
+      toolkitId: "mcp.dev.github-remote",
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+      scopes: ["repo"],
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_oauth_app_delete"));
+    });
+
+    expect(api.unchain.deleteMcpOAuthApp).toHaveBeenCalledWith(
+      "mcp.dev.github-remote",
     );
   });
 });

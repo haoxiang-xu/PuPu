@@ -20,6 +20,14 @@ const isKnownBuiltinIcon = (name) =>
 const getBuiltinIconName = (icon) =>
   isKnownBuiltinIcon(icon?.name) ? icon.name : "tool";
 
+export const getToolkitIconBackground = (icon, isDark) => {
+  if (isBuiltinToolkitIcon(icon)) return icon.backgroundColor;
+  return isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)";
+};
+
+export const hasTransparentToolkitIconBackground = (backgroundColor) =>
+  !backgroundColor || backgroundColor === "transparent";
+
 const ToolkitIcon = ({ icon, size = 18, fallbackColor, style }) => {
   if (isBuiltinToolkitIcon(icon)) {
     return (
@@ -72,6 +80,59 @@ const ToolkitIcon = ({ icon, size = 18, fallbackColor, style }) => {
       style={{ width: size, height: size, ...style }}
       color={fallbackColor || "#94a3b8"}
     />
+  );
+};
+
+export const ToolkitIconFrame = ({
+  icon,
+  isDark = false,
+  size = 36,
+  iconSize = 18,
+  transparentIconSize,
+  borderRadius = 10,
+  fallbackColor,
+  style,
+  iconStyle,
+}) => {
+  if (isFileToolkitIcon(icon)) {
+    return (
+      <ToolkitIcon
+        icon={icon}
+        size={size}
+        fallbackColor={fallbackColor}
+        style={{ borderRadius, flexShrink: 0, ...style }}
+      />
+    );
+  }
+
+  const backgroundColor = getToolkitIconBackground(icon, isDark);
+  const effectiveIconSize =
+    hasTransparentToolkitIconBackground(backgroundColor) && transparentIconSize
+      ? transparentIconSize
+      : iconSize;
+
+  return (
+    <div
+      data-testid="toolkit-icon-frame"
+      style={{
+        width: size,
+        height: size,
+        borderRadius,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor,
+        flexShrink: 0,
+        ...style,
+      }}
+    >
+      <ToolkitIcon
+        icon={icon}
+        size={effectiveIconSize}
+        fallbackColor={fallbackColor}
+        style={iconStyle}
+      />
+    </div>
   );
 };
 

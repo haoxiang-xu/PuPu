@@ -3,6 +3,7 @@ import {
   MCP_STORE_ENTRIES,
   listMcpStoreEntries,
   getMcpStoreEntry,
+  resolveMcpIcon,
   searchMcpStoreEntries,
 } from "./mcp_toolkit_store";
 
@@ -30,8 +31,20 @@ describe("mcp_toolkit_store", () => {
       expect(MCP_STORE_CATEGORIES).toContain(entry.category);
       expect(["stdio", "http"]).toContain(entry.mcp.transport);
       expect(Array.isArray(entry.tools)).toBe(true);
-      expect(entry.toolkitIcon.type).toBe("builtin");
+      expect(resolveMcpIcon(entry).type).toBe("builtin");
     }
+  });
+
+  test("entries may omit toolkitIcon and resolve to the mcp icon without background", () => {
+    const playwright = getMcpStoreEntry("browser.playwright");
+    expect(playwright.toolkitIcon).toBeUndefined();
+    expect(resolveMcpIcon(playwright)).toEqual(
+      expect.objectContaining({
+        type: "builtin",
+        name: "mcp",
+        backgroundColor: "transparent",
+      }),
+    );
   });
 
   test("getMcpStoreEntry returns the entry or null", () => {
@@ -81,6 +94,13 @@ describe("mcp_toolkit_store", () => {
       .toBe(true);
   });
 
+  test("workspace requirements are exposed through generic registry fields", () => {
+    const filesystem = getMcpStoreEntry("workspace.filesystem");
+    expect(filesystem.requiresWorkspace).toBe(true);
+    expect(filesystem.workspaceBinding).toBe("agent_workspace_root");
+    expect(filesystem.workspacePlaceholder).toBe("${WORKSPACE}");
+  });
+
   test("github remote uses GITHUB_MCP_PAT, not GITHUB_TOKEN", () => {
     const github = getMcpStoreEntry("dev.github-remote");
     expect(github.secrets).toEqual(
@@ -92,7 +112,51 @@ describe("mcp_toolkit_store", () => {
       .toBe(false);
   });
 
-  test("slack entry is flagged needs_review", () => {
-    expect(getMcpStoreEntry("productivity.slack").status).toBe("needs_review");
+  test("github and slack entries declare all backend-required secrets", () => {
+    const github = getMcpStoreEntry("dev.github-remote");
+    expect(github.secrets).toEqual([
+      expect.objectContaining({ key: "GITHUB_MCP_PAT" }),
+    ]);
+    expect(github.secrets[0].optional).not.toBe(true);
+
+    const slack = getMcpStoreEntry("productivity.slack");
+    expect(slack.status).toBe("available");
+    expect(slack.trustLevel).toBe("needs_review");
+    expect(slack.secrets).toEqual([
+      expect.objectContaining({ key: "SLACK_BOT_TOKEN" }),
+      expect.objectContaining({ key: "SLACK_TEAM_ID" }),
+    ]);
+  });
+
+  test("oauth-capable entries declare generic oauth recipes", () => {
+    const notion = getMcpStoreEntry("productivity.notion-remote");
+    expect(notion.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "notion",
+        clientRegistration: "dynamic",
+        transport: "streamable_http",
+      }),
+    );
+
+    const github = getMcpStoreEntry("dev.github-remote");
+    expect(github.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "github",
+        clientRegistration: "user_credentials",
+      }),
+    );
+
+    const slackRemote = getMcpStoreEntry("productivity.slack-remote");
+    expect(slackRemote.toolkitId).toBe("mcp.productivity.slack-remote");
+    expect(slackRemote.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "slack",
+        clientRegistration: "user_credentials",
+        mcpUrl: "https://mcp.slack.com/mcp",
+      }),
+    );
+    expect(getMcpStoreEntry("productivity.slack").toolkitId).toBe(
+      "mcp.productivity.slack",
+    );
   });
 });

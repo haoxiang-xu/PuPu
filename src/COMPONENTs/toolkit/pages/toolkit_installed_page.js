@@ -6,6 +6,7 @@ import {
   removeInvalidToolkitIds,
 } from "../../../SERVICEs/default_toolkit_store";
 import { deleteMcpEntry } from "../../../SERVICEs/mcp_install";
+import { withMcpStoreIcon } from "../../../SERVICEs/mcp_toolkit_store";
 import { BASE_TOOLKIT_IDENTIFIERS } from "../constants";
 import ToolkitRow from "../components/toolkit_row";
 import { ToolkitDeleteConfirmModal } from "../components/toolkit_detail_panel";
@@ -48,10 +49,12 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
       const validIds = visible.map((tk) => tk.toolkitId);
       removeInvalidToolkitIds("global", validIds);
       const enabledIds = new Set(getDefaultToolkitSelection("global"));
-      return visible.map((tk) => ({
-        ...tk,
-        defaultEnabled: enabledIds.has(tk.toolkitId),
-      }));
+      return visible.map((tk) =>
+        withMcpStoreIcon({
+          ...tk,
+          defaultEnabled: enabledIds.has(tk.toolkitId),
+        }),
+      );
     }, []),
     { label: "toolkit_catalog_load", pendingDelayMs: 0, onError: () => {} },
   );
@@ -181,8 +184,8 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
           fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           fontWeight: 500,
           color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
-          marginTop: 4,
-          marginBottom: 2,
+          marginTop: 14,
+          marginBottom: 6,
         }}
       >
         {filtered.length} toolkit{filtered.length !== 1 ? "s" : ""} installed

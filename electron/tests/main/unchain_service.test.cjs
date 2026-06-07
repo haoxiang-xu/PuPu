@@ -220,12 +220,24 @@ describe("unchain service session memory replacement", () => {
     await service.startMiso();
     await service.listMisoMcpToolkits();
     await service.installMisoMcpToolkit({
-      entryId: "workspace.filesystem",
-      workspaceRoot: "/tmp/project",
+      entryId: "custom",
+      secrets: {
+        SLACK_BOT_TOKEN: "xoxb-test",
+        SLACK_TEAM_ID: "T012345",
+      },
+      customRecipe: {
+        toolkit_id: "mcp.custom.local-test",
+        toolkit_name: "Local Test",
+        mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+      },
     });
     await service.reloadMisoMcpToolkits({ workspaceRoot: "/tmp/project" });
     await service.checkMisoMcpToolkitHealth("mcp.workspace.filesystem", {
       workspaceRoot: "/tmp/project",
+    });
+    await service.configureMisoMcpToolkit("mcp.workspace.filesystem", {
+      workspaceRoot: "/tmp/project",
+      secrets: { OPENAI_API_KEY: "sk-test" },
     });
     await service.deleteMisoMcpToolkit("mcp.workspace.filesystem");
 
@@ -247,8 +259,16 @@ describe("unchain service session memory replacement", () => {
           "x-unchain-auth": "auth-token-123",
         }),
         body: JSON.stringify({
-          entry_id: "workspace.filesystem",
-          workspaceRoot: "/tmp/project",
+          entry_id: "custom",
+          secrets: {
+            SLACK_BOT_TOKEN: "xoxb-test",
+            SLACK_TEAM_ID: "T012345",
+          },
+          customRecipe: {
+            toolkit_id: "mcp.custom.local-test",
+            toolkit_name: "Local Test",
+            mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+          },
         }),
       }),
     );
@@ -270,11 +290,175 @@ describe("unchain service session memory replacement", () => {
     );
     expect(global.fetch).toHaveBeenNthCalledWith(
       6,
+      "http://127.0.0.1:5879/mcp/toolkits/mcp.workspace.filesystem/configure",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          workspaceRoot: "/tmp/project",
+          secrets: { OPENAI_API_KEY: "sk-test" },
+        }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      7,
       "http://127.0.0.1:5879/mcp/toolkits/mcp.workspace.filesystem",
       expect.objectContaining({
         method: "DELETE",
         headers: { "x-unchain-auth": "auth-token-123" },
       }),
+    );
+  });
+
+  test("MCP OAuth methods proxy to unchain and open authorization URL", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    const shell = { openExternal: jest.fn().mockResolvedValue("") };
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            entryId: "productivity.notion-remote",
+            toolkitId: "mcp.productivity.notion-remote",
+            authUrl: "https://auth.notion.test/authorize",
+            state: "state-123",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            entryId: "productivity.notion-remote",
+            toolkitId: "mcp.productivity.notion-remote",
+            authStatus: "connected",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            toolkitId: "mcp.productivity.notion-remote",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            apps: [{ toolkitId: "mcp.dev.github-remote", configured: false }],
+            count: 1,
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            app: { toolkitId: "mcp.dev.github-remote", configured: true },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            toolkitId: "mcp.dev.github-remote",
+          }),
+      });
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      shell,
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    await service.startMiso();
+    await service.startMisoMcpOAuth("productivity.notion-remote");
+    await service.getMisoMcpOAuthStatus("productivity.notion-remote");
+    await service.disconnectMisoMcpOAuth("mcp.productivity.notion-remote");
+    await service.listMisoMcpOAuthApps();
+    await service.configureMisoMcpOAuthApp({
+      toolkitId: "mcp.dev.github-remote",
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+    });
+    await service.deleteMisoMcpOAuthApp("mcp.dev.github-remote");
+
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      2,
+      "http://127.0.0.1:5879/mcp/oauth/start",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ entry_id: "productivity.notion-remote" }),
+      }),
+    );
+    expect(shell.openExternal).toHaveBeenCalledWith(
+      "https://auth.notion.test/authorize",
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      3,
+      "http://127.0.0.1:5879/mcp/oauth/status?entry_id=productivity.notion-remote",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      4,
+      "http://127.0.0.1:5879/mcp/oauth/mcp.productivity.notion-remote",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      5,
+      "http://127.0.0.1:5879/mcp/oauth/apps",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      6,
+      "http://127.0.0.1:5879/mcp/oauth/apps/configure",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          toolkitId: "mcp.dev.github-remote",
+          clientId: "github-client-id",
+          clientSecret: "github-client-secret",
+        }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      7,
+      "http://127.0.0.1:5879/mcp/oauth/apps/mcp.dev.github-remote",
+      expect.objectContaining({ method: "DELETE" }),
     );
   });
 

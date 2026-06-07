@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import ToolkitIcon from "./toolkit_icon";
+import ToolkitIcon, { ToolkitIconFrame } from "./toolkit_icon";
 
 jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
   __esModule: true,
@@ -16,7 +16,7 @@ jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
 jest.mock("../../../BUILTIN_COMPONENTs/icon/icon_manifest", () => ({
   __esModule: true,
   LogoSVGs: { logo_icon: {} },
-  UISVGs: { terminal: {}, tool: {} },
+  UISVGs: { github: {}, mcp: {}, terminal: {}, tool: {} },
 }));
 
 describe("ToolkitIcon", () => {
@@ -76,5 +76,70 @@ describe("ToolkitIcon", () => {
       "data-src",
       "tool",
     );
+  });
+
+  test("ToolkitIconFrame preserves builtin icon background and uses compact inner size", () => {
+    render(
+      <ToolkitIconFrame
+        icon={{
+          type: "builtin",
+          name: "github",
+          color: "#ffffff",
+          backgroundColor: "#1f2328",
+        }}
+        size={24}
+        iconSize={13}
+        borderRadius={7}
+        fallbackColor="#4a5bd8"
+      />,
+    );
+
+    expect(screen.getByTestId("toolkit-icon-frame")).toHaveStyle({
+      width: "24px",
+      height: "24px",
+      backgroundColor: "#1f2328",
+      borderRadius: "7px",
+    });
+    expect(screen.getByTestId("shared-icon")).toHaveAttribute(
+      "data-src",
+      "github",
+    );
+    expect(screen.getByTestId("shared-icon")).toHaveAttribute(
+      "data-color",
+      "#ffffff",
+    );
+    expect(screen.getByTestId("shared-icon")).toHaveStyle({
+      width: "13px",
+      height: "13px",
+    });
+  });
+
+  test("ToolkitIconFrame keeps transparent mcp icon unbacked and slightly larger", () => {
+    render(
+      <ToolkitIconFrame
+        icon={{
+          type: "builtin",
+          name: "mcp",
+          color: "#9aa0a6",
+          backgroundColor: "transparent",
+        }}
+        size={24}
+        iconSize={13}
+        transparentIconSize={16}
+        fallbackColor="#4a5bd8"
+      />,
+    );
+
+    expect(screen.getByTestId("toolkit-icon-frame")).toHaveStyle({
+      backgroundColor: "transparent",
+    });
+    expect(screen.getByTestId("shared-icon")).toHaveAttribute(
+      "data-src",
+      "mcp",
+    );
+    expect(screen.getByTestId("shared-icon")).toHaveStyle({
+      width: "16px",
+      height: "16px",
+    });
   });
 });

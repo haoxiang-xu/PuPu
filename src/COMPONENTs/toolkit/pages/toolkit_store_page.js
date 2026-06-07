@@ -110,10 +110,8 @@ const ToolkitStorePage = ({
       {filtered.length > 0 ? (
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-            gap: 12,
-            alignItems: "stretch",
+            display: "flex",
+            flexDirection: "column",
           }}
         >
           {filtered.map((entry) => (

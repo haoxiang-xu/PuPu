@@ -4,6 +4,7 @@ import { BASE_TOOLKIT_IDS } from "../constants";
 import { filter_toolkits } from "../utils/filter_toolkits";
 import { build_toolkit_options } from "../utils/build_toolkit_options";
 import { subscribeToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
+import { withMcpStoreIcon } from "../../../SERVICEs/mcp_toolkit_store";
 
 const LOADING_TOOLKITS_OPTION = Object.freeze({
   value: "__toolkits_loading__",
@@ -49,7 +50,9 @@ const useChatInputToolkits = () => {
         return;
       }
 
-      setToolkits(filter_toolkits(list, BASE_TOOLKIT_IDS));
+      setToolkits(
+        filter_toolkits(list, BASE_TOOLKIT_IDS).map(withMcpStoreIcon),
+      );
       hasSuccessfulLoadRef.current = true;
       setLoadFailed(false);
     } catch {

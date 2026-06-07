@@ -4,7 +4,8 @@ import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
-import ToolkitIcon from "../../../../toolkit/components/toolkit_icon";
+import { ToolkitIconFrame } from "../../../../toolkit/components/toolkit_icon";
+import { withMcpStoreIcon } from "../../../../../SERVICEs/mcp_toolkit_store";
 
 export function is_all_on(entry) {
   return !entry || entry.enabled_tools == null;
@@ -42,6 +43,9 @@ const TABS = [
   { key: "store", label: "Store", icon: "search" },
 ];
 
+const DETAIL_PANEL_RIGHT_PADDING = 16;
+const TOOLPOOL_SCROLL_PADDING = 2;
+
 export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
   const [catalog, setCatalog] = useState([]);
   const [active_tab, setActiveTab] = useState("installed");
@@ -54,7 +58,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
       try {
         const payload = await api.unchain.listToolModalCatalog();
         const tks = Array.isArray(payload?.toolkits) ? payload.toolkits : [];
-        if (!cancelled) setCatalog(tks);
+        if (!cancelled) setCatalog(tks.map(withMcpStoreIcon));
       } catch (_exc) {
         if (!cancelled) setCatalog([]);
       }
@@ -155,7 +159,7 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
   return (
     <div
       className="scrollable"
-      data-sb-edge="14"
+      data-sb-edge="2"
       style={{
         position: "relative",
         maxHeight: "100%",
@@ -163,7 +167,8 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
         paddingTop: 14,
         paddingBottom: 6,
         paddingLeft: 2,
-        paddingRight: 2,
+        paddingRight: DETAIL_PANEL_RIGHT_PADDING + TOOLPOOL_SCROLL_PADDING,
+        marginRight: -DETAIL_PANEL_RIGHT_PADDING,
         display: "flex",
         flexDirection: "column",
         gap: 12,
@@ -283,9 +288,13 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                   src={expanded ? "arrow_down" : "arrow_right"}
                   style={{ width: 9, height: 9, opacity: 0.55 }}
                 />
-                <ToolkitIcon
+                <ToolkitIconFrame
                   icon={tk.toolkitIcon}
-                  size={16}
+                  isDark={isDark}
+                  size={20}
+                  iconSize={12}
+                  transparentIconSize={14}
+                  borderRadius={5}
                   fallbackColor={accent}
                 />
                 <span
@@ -448,11 +457,14 @@ export default function ToolPoolPanel({ node, recipe, onChange, isDark }) {
                       background: row_bg,
                     }}
                   >
-                    <ToolkitIcon
+                    <ToolkitIconFrame
                       icon={tk.toolkitIcon}
-                      size={28}
+                      isDark={isDark}
+                      size={24}
+                      iconSize={13}
+                      transparentIconSize={16}
+                      borderRadius={7}
                       fallbackColor={accent}
-                      style={{ borderRadius: 8, flexShrink: 0 }}
                     />
                     <div
                       style={{

@@ -23,7 +23,13 @@ jest.mock("../../../BUILTIN_COMPONENTs/input/button", () => ({
 
 jest.mock("./toolkit_icon", () => ({
   __esModule: true,
-  default: ({ icon }) => <span data-testid="toolkit-icon">{icon?.type || "fallback"}</span>,
+  default: ({ icon, size }) => (
+    <span data-testid="toolkit-icon" data-name={icon?.name || ""} data-size={String(size)}>
+      {icon?.type || "fallback"}
+    </span>
+  ),
+  hasTransparentToolkitIconBackground: (backgroundColor) =>
+    !backgroundColor || backgroundColor === "transparent",
   isBuiltinToolkitIcon: (icon) => icon?.type === "builtin",
   isFileToolkitIcon: (icon) => icon?.type === "file",
 }));
@@ -82,5 +88,43 @@ describe("ToolkitDetailPanel", () => {
       height: "48px",
       borderRadius: "12px",
     });
+  });
+
+  test("renders default mcp detail icon smaller when it has no background", async () => {
+    api.unchain.getToolkitDetail.mockResolvedValue({
+      toolkitId: "mcp.memory.memory",
+      toolkitName: "Memory",
+      toolkitDescription: "MCP memory",
+      toolkitIcon: {},
+      readmeMarkdown: "# Memory",
+      selectedToolName: null,
+    });
+
+    render(
+      <ToolkitDetailPanel
+        toolkitId="mcp.memory.memory"
+        toolName={null}
+        isDark={false}
+        onBack={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Memory")).toBeInTheDocument();
+    });
+
+    expect(screen.getByTestId("toolkit-detail-icon-wrap")).toHaveStyle({
+      backgroundColor: "transparent",
+      width: "48px",
+      height: "48px",
+    });
+    expect(screen.getByTestId("toolkit-icon")).toHaveAttribute(
+      "data-name",
+      "mcp",
+    );
+    expect(screen.getByTestId("toolkit-icon")).toHaveAttribute(
+      "data-size",
+      "24",
+    );
   });
 });

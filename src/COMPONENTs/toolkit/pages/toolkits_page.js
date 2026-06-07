@@ -3,11 +3,13 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ToolkitStorePage from "./toolkit_store_page";
 import ToolkitInstalledPage from "./toolkit_installed_page";
+import CustomMcpPage from "./custom_mcp_page";
 import ToolkitDetailPanel from "../components/toolkit_detail_panel";
 import StoreToolkitDetailPanel from "../components/store_toolkit_detail_panel";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 import { getMcpStoreEntry } from "../../../SERVICEs/mcp_toolkit_store";
 import {
+  connectMcpOAuthEntry,
   getInstalledMcpIds,
   installMcpEntry,
 } from "../../../SERVICEs/mcp_install";
@@ -17,6 +19,7 @@ const SLIDE_DURATION = 260;
 
 const TOOLKIT_SUB_PAGES = [
   { key: "store", icon: "search", labelKey: "toolkit.store" },
+  { key: "custom", icon: "mcp", labelKey: "toolkit.custom_mcp" },
   { key: "installed", icon: "tool", labelKey: "toolkit.installed" },
 ];
 
@@ -89,17 +92,40 @@ const ToolkitsPage = ({ isDark }) => {
   }, [loadInstalledMcpIds]);
 
   const handleInstall = useCallback(
-    async (entry) => {
+    async (entry, setupOptions = {}) => {
       setInstallingId(entry.id);
       setInstallError(null);
       try {
-        await installMcpEntry(entry, { workspaceRoot: readWorkspaceRoot() });
+        await installMcpEntry(entry, {
+          workspaceRoot: readWorkspaceRoot(),
+          ...setupOptions,
+        });
         await loadInstalledMcpIds();
         installedHandlersRef.current?.reload?.();
       } catch (e) {
         setInstallError({
           entryId: entry.id,
           code: e?.code || "mcp_install_failed",
+        });
+      } finally {
+        setInstallingId(null);
+      }
+    },
+    [loadInstalledMcpIds],
+  );
+
+  const handleOAuthConnect = useCallback(
+    async (entry) => {
+      setInstallingId(entry.id);
+      setInstallError(null);
+      try {
+        await connectMcpOAuthEntry(entry);
+        await loadInstalledMcpIds();
+        installedHandlersRef.current?.reload?.();
+      } catch (e) {
+        setInstallError({
+          entryId: entry.id,
+          code: e?.code || "mcp_oauth_start_failed",
         });
       } finally {
         setInstallingId(null);
@@ -148,6 +174,7 @@ const ToolkitsPage = ({ isDark }) => {
             onEntryClick={handleStoreEntryClick}
             installedIds={installedMcpIds}
             onInstall={handleInstall}
+            onOAuthConnect={handleOAuthConnect}
             installingId={installingId}
             installError={installError}
           />
@@ -158,6 +185,17 @@ const ToolkitsPage = ({ isDark }) => {
             isDark={isDark}
             onToolClick={handleToolClick}
             onHandlersReady={handleHandlersReady}
+          />
+        );
+      case "custom":
+        return (
+          <CustomMcpPage
+            isDark={isDark}
+            onInstall={handleInstall}
+            installing={installingId === "custom"}
+            installError={
+              installError?.entryId === "custom" ? installError : null
+            }
           />
         );
       default:
@@ -223,6 +261,7 @@ const ToolkitsPage = ({ isDark }) => {
                 isDark={isDark}
                 installedIds={installedMcpIds}
                 onInstall={handleInstall}
+                onOAuthConnect={handleOAuthConnect}
                 installing={installingId === selectedToolkit.entry?.id}
                 installError={
                   installError?.entryId === selectedToolkit.entry?.id

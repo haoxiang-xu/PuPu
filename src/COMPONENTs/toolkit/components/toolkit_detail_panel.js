@@ -1,10 +1,12 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import api from "../../../SERVICEs/api";
 import ToolkitIcon, {
+  hasTransparentToolkitIconBackground,
   isBuiltinToolkitIcon,
   isFileToolkitIcon,
 } from "./toolkit_icon";
 import { SOURCE_CONFIG } from "../constants";
+import { mcpStoreIconFor } from "../../../SERVICEs/mcp_toolkit_store";
 import SuspenseFallback from "../../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
 import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 import PlaceholderBlock from "./placeholder_block";
@@ -308,7 +310,10 @@ const ToolkitDetailPanel = ({
     setDetail(null);
     setInitialLoadDone(false);
     loadDetail({ id: toolkitId, name: toolName }).then((payload) => {
-      if (payload !== undefined) setDetail(payload);
+      if (payload !== undefined) {
+        const mcpIcon = mcpStoreIconFor(toolkitId);
+        setDetail(mcpIcon ? { ...payload, toolkitIcon: mcpIcon } : payload);
+      }
       setInitialLoadDone(true);
     });
   }, [toolkitId, toolName, loadDetail]);
@@ -346,6 +351,9 @@ const ToolkitDetailPanel = ({
     : isDark
       ? "rgba(255,255,255,0.04)"
       : "rgba(0,0,0,0.03)";
+  const detailIconSize = hasTransparentToolkitIconBackground(detailIconBackground)
+    ? 24
+    : 28;
   const sc = SOURCE_CONFIG[detail?.source] || SOURCE_CONFIG.builtin;
   const toolkitLabel = detail?.toolkitName || toolkitId;
   const showHeader = !loading && !error && detail;
@@ -430,7 +438,7 @@ const ToolkitDetailPanel = ({
               >
                 <ToolkitIcon
                   icon={detail.toolkitIcon}
-                  size={28}
+                  size={detailIconSize}
                   fallbackColor="#34d399"
                 />
               </div>

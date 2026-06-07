@@ -67,6 +67,13 @@ describe("preload API contract", () => {
       "deleteMcpToolkit",
       "reloadMcpToolkits",
       "checkMcpToolkitHealth",
+      "configureMcpToolkit",
+      "startMcpOAuth",
+      "getMcpOAuthStatus",
+      "disconnectMcpOAuth",
+      "listMcpOAuthApps",
+      "configureMcpOAuthApp",
+      "deleteMcpOAuthApp",
       "respondToolConfirmation",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -140,14 +147,30 @@ describe("preload API contract", () => {
     );
 
     exposed.unchainAPI.installMcpToolkit({
-      entryId: "workspace.filesystem",
-      workspaceRoot: "/tmp/project",
+      entryId: "custom",
+      secrets: {
+        SLACK_BOT_TOKEN: "xoxb-test",
+        SLACK_TEAM_ID: "T012345",
+      },
+      customRecipe: {
+        toolkit_id: "mcp.custom.local-test",
+        toolkit_name: "Local Test",
+        mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+      },
     });
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
       {
-        entryId: "workspace.filesystem",
-        workspaceRoot: "/tmp/project",
+        entryId: "custom",
+        secrets: {
+          SLACK_BOT_TOKEN: "xoxb-test",
+          SLACK_TEAM_ID: "T012345",
+        },
+        customRecipe: {
+          toolkit_id: "mcp.custom.local-test",
+          toolkit_name: "Local Test",
+          mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+        },
       },
     );
 
@@ -155,6 +178,60 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
       { toolkitId: "mcp.memory.memory" },
+    );
+
+    exposed.unchainAPI.configureMcpToolkit("mcp.memory.memory", {
+      secrets: { OPENAI_API_KEY: "sk-test" },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
+      {
+        toolkitId: "mcp.memory.memory",
+        secrets: { OPENAI_API_KEY: "sk-test" },
+      },
+    );
+
+    exposed.unchainAPI.startMcpOAuth("productivity.notion-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.START_MCP_OAUTH,
+      { entryId: "productivity.notion-remote" },
+    );
+
+    exposed.unchainAPI.getMcpOAuthStatus("productivity.notion-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
+      { entryId: "productivity.notion-remote" },
+    );
+
+    exposed.unchainAPI.disconnectMcpOAuth("mcp.productivity.notion-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
+      { toolkitId: "mcp.productivity.notion-remote" },
+    );
+
+    exposed.unchainAPI.listMcpOAuthApps();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
+    );
+
+    exposed.unchainAPI.configureMcpOAuthApp({
+      toolkitId: "mcp.dev.github-remote",
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP,
+      {
+        toolkitId: "mcp.dev.github-remote",
+        clientId: "github-client-id",
+        clientSecret: "github-client-secret",
+      },
+    );
+
+    exposed.unchainAPI.deleteMcpOAuthApp("mcp.dev.github-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
+      { toolkitId: "mcp.dev.github-remote" },
     );
 
     exposed.unchainAPI.listCharacters();

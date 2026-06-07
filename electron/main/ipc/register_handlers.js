@@ -28,6 +28,13 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
   CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS,
   CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
+  CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.START_MCP_OAUTH,
+  CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
+  CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
+  CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
+  CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP,
+  CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
@@ -186,6 +193,40 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
     async (_event, payload = {}) =>
       unchainService.checkMisoMcpToolkitHealth(payload.toolkitId, payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
+    async (_event, payload = {}) =>
+      unchainService.configureMisoMcpToolkit(payload.toolkitId, payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.START_MCP_OAUTH,
+    async (_event, payload = {}) =>
+      unchainService.startMisoMcpOAuth(payload.entryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
+    async (_event, payload = {}) =>
+      unchainService.getMisoMcpOAuthStatus(payload.entryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
+    async (_event, payload = {}) =>
+      unchainService.disconnectMisoMcpOAuth(payload.toolkitId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
+    async () => unchainService.listMisoMcpOAuthApps(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP,
+    async (_event, payload = {}) =>
+      unchainService.configureMisoMcpOAuthApp(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoMcpOAuthApp(payload.toolkitId),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.TOOL_CONFIRMATION,

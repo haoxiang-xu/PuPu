@@ -1,3 +1,5 @@
+from html import escape
+
 from flask import Response, jsonify, request
 
 from route_blueprint import api_blueprint
@@ -37,9 +39,18 @@ def install_mcp_toolkit_route() -> Response:
     workspace_root = str(
         payload.get("workspaceRoot") or payload.get("workspace_root") or ""
     ).strip()
+    raw_secrets = payload.get("secrets")
+    secrets = raw_secrets if isinstance(raw_secrets, dict) else {}
+    raw_custom_recipe = payload.get("customRecipe") or payload.get("custom_recipe")
+    custom_recipe = raw_custom_recipe if isinstance(raw_custom_recipe, dict) else None
 
     try:
-        result = root.install_mcp_toolkit(entry_id, workspace_root=workspace_root)
+        result = root.install_mcp_toolkit(
+            entry_id,
+            workspace_root=workspace_root,
+            secrets=secrets,
+            custom_recipe=custom_recipe,
+        )
         return jsonify(result)
     except Exception as exc:
         return _mcp_error_response(root, exc)
@@ -92,5 +103,153 @@ def check_mcp_toolkit_health_route(toolkit_id: str) -> Response:
                 workspace_root=workspace_root,
             )
         )
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/toolkits/<toolkit_id>/configure")
+def configure_mcp_toolkit_route(toolkit_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    workspace_root = str(
+        payload.get("workspaceRoot") or payload.get("workspace_root") or ""
+    ).strip()
+    raw_secrets = payload.get("secrets")
+    secrets = raw_secrets if isinstance(raw_secrets, dict) else {}
+
+    try:
+        return jsonify(
+            root.configure_mcp_toolkit(
+                toolkit_id,
+                workspace_root=workspace_root,
+                secrets=secrets,
+            )
+        )
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/oauth/start")
+def start_mcp_oauth_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    entry_id = str(payload.get("entry_id") or payload.get("entryId") or "").strip()
+
+    try:
+        return jsonify(
+            root.start_mcp_oauth(
+                entry_id,
+                callback_base_url=request.host_url.rstrip("/"),
+            )
+        )
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.get("/mcp/oauth/callback")
+def mcp_oauth_callback_route() -> Response:
+    root = _root()
+    code = str(request.args.get("code") or "").strip()
+    state = str(request.args.get("state") or "").strip()
+    error = str(request.args.get("error") or "").strip()
+    error_description = str(request.args.get("error_description") or "").strip()
+
+    try:
+        if error or error_description:
+            root.handle_mcp_oauth_callback(
+                code,
+                state,
+                error=error,
+                error_description=error_description,
+            )
+        else:
+            root.handle_mcp_oauth_callback(code, state)
+        return Response(
+            "<!doctype html><title>PuPu MCP</title><h1>MCP connected</h1>"
+            "<p>You can close this browser tab and return to PuPu.</p>",
+            status=200,
+            mimetype="text/html",
+        )
+    except Exception as exc:
+        status = int(getattr(exc, "status", 400) or 400)
+        message = escape(str(exc) or "OAuth callback failed")
+        return Response(
+            "<!doctype html><title>PuPu MCP</title><h1>MCP connection failed</h1>"
+            f"<p>{message}</p>",
+            status=status,
+            mimetype="text/html",
+        )
+
+
+@api_blueprint.get("/mcp/oauth/status")
+def mcp_oauth_status_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    entry_id = str(
+        request.args.get("entry_id")
+        or request.args.get("entryId")
+        or request.args.get("toolkit_id")
+        or request.args.get("toolkitId")
+        or ""
+    ).strip()
+    try:
+        return jsonify(root.get_mcp_oauth_status(entry_id))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.get("/mcp/oauth/apps")
+def list_mcp_oauth_apps_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.list_mcp_oauth_apps())
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/oauth/apps/configure")
+def configure_mcp_oauth_app_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(root.configure_mcp_oauth_app(payload))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.delete("/mcp/oauth/apps/<toolkit_id>")
+def delete_mcp_oauth_app_route(toolkit_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.delete_mcp_oauth_app(toolkit_id))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.delete("/mcp/oauth/<toolkit_id>")
+def disconnect_mcp_oauth_route(toolkit_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.disconnect_mcp_oauth(toolkit_id))
     except Exception as exc:
         return _mcp_error_response(root, exc)

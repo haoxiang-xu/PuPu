@@ -23,6 +23,7 @@ describe("DetailPanel", () => {
     const panel = container.querySelector('[data-testid="recipe-detail-panel"]');
     expect(panel).toHaveClass("scrollable");
     expect(panel).toHaveAttribute("data-sb-wall", "4");
+    expect(panel).toHaveAttribute("data-sb-edge", "2");
     expect(panel).toHaveAttribute("data-sb-edge-top", "36");
     expect(panel).toHaveAttribute("data-sb-edge-bottom", "12");
   });
@@ -38,7 +39,7 @@ describe("DetailPanel", () => {
       ],
       edges: [],
     };
-    render(
+    const { container } = render(
       wrap(
         <DetailPanel
           recipe={recipe}
@@ -48,5 +49,7 @@ describe("DetailPanel", () => {
       ),
     );
     expect(screen.getByText("Start")).toBeInTheDocument();
+    const panel = container.querySelector('[data-testid="recipe-detail-panel"]');
+    expect(panel).toHaveAttribute("data-sb-edge", "2");
   });
 });

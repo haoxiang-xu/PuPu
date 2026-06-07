@@ -88,6 +88,7 @@ if (!gotSingleInstanceLock) {
     spawnSync,
     crypto,
     net,
+    shell,
     webContents,
     runtimeService,
     getAppIsQuitting: () => appIsQuitting,

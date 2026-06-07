@@ -25,6 +25,23 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
       ...(payload && typeof payload === "object" ? payload : {}),
       toolkitId,
     }),
+  configureMcpToolkit: (toolkitId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      toolkitId,
+    }),
+  startMcpOAuth: (entryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.START_MCP_OAUTH, { entryId }),
+  getMcpOAuthStatus: (entryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS, { entryId }),
+  disconnectMcpOAuth: (toolkitId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH, { toolkitId }),
+  listMcpOAuthApps: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS),
+  configureMcpOAuthApp: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP, payload),
+  deleteMcpOAuthApp: (toolkitId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP, { toolkitId }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
   setChromeTerminalOpen: (open = false) =>
