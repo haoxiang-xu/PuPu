@@ -15,6 +15,9 @@ def _mcp_error_response(root, exc):
     code = getattr(exc, "code", "mcp_request_failed")
     status = int(getattr(exc, "status", 500) or 500)
     message = str(exc) or "MCP request failed"
+    diagnostics = getattr(exc, "diagnostics", [])
+    if diagnostics:
+        return jsonify({"error": {"code": code, "message": message, "diagnostics": diagnostics}}), status
     return root._json_error(code, message, status)
 
 
@@ -277,5 +280,116 @@ def reload_mcp_store_metadata_route() -> Response:
     entry_id = str(payload.get("entry_id") or payload.get("entryId") or "").strip()
     try:
         return jsonify(root.reload_mcp_store_metadata(entry_id=entry_id))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.get("/mcp/store/entries")
+def list_mcp_store_entries_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.list_mcp_store_entries())
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/store/entries/<entry_id>/approve")
+def approve_mcp_store_entry_route(entry_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    registry_id = str(payload.get("registry_id") or payload.get("registryId") or "").strip()
+    acknowledged_risk = bool(
+        payload.get("acknowledgedRisk") or payload.get("acknowledged_risk")
+    )
+    try:
+        return jsonify(
+            root.approve_mcp_store_entry(
+                entry_id,
+                registry_id=registry_id,
+                acknowledged_risk=acknowledged_risk,
+            )
+        )
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.delete("/mcp/store/entries/<entry_id>/approval")
+def revoke_mcp_store_entry_approval_route(entry_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    registry_id = str(payload.get("registry_id") or payload.get("registryId") or "").strip()
+    try:
+        return jsonify(root.revoke_mcp_store_entry_approval(entry_id, registry_id=registry_id))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.get("/mcp/store/registries")
+def list_mcp_store_registries_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.list_mcp_store_registries())
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/store/registries/import")
+def import_mcp_store_registry_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(root.import_mcp_store_registry(payload))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/store/registries/validate")
+def validate_mcp_store_registry_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        return jsonify(root.validate_mcp_store_registry(payload))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/store/registries/<registry_id>/refresh")
+def refresh_mcp_store_registry_route(registry_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.refresh_mcp_store_registry(registry_id))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.delete("/mcp/store/registries/<registry_id>")
+def delete_mcp_store_registry_route(registry_id: str) -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.delete_mcp_store_registry(registry_id))
     except Exception as exc:
         return _mcp_error_response(root, exc)

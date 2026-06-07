@@ -15,15 +15,7 @@ import { STREAMING_MESSAGE_CHUNK_SIZE } from "../../../SERVICEs/streaming_messag
 
 describe("SeamlessMarkdown streaming plain-text mode", () => {
   beforeEach(() => {
-    jest.useFakeTimers();
     mockMarkdownRender.mockClear();
-  });
-
-  afterEach(() => {
-    act(() => {
-      jest.runOnlyPendingTimers();
-    });
-    jest.useRealTimers();
   });
 
   test("done: renders the full content through markdown with no plain-text tail", () => {
@@ -34,7 +26,7 @@ describe("SeamlessMarkdown streaming plain-text mode", () => {
     expect(container.textContent).toBe("# Title");
   });
 
-  test("streaming: keeps a stable root and renders markdown on a snapshot timer", () => {
+  test("streaming: keeps a stable root and does not parse an open paragraph", () => {
     const { container, rerender } = render(
       <SeamlessMarkdown content="" status="streaming" />,
     );
@@ -50,11 +42,6 @@ describe("SeamlessMarkdown streaming plain-text mode", () => {
       "Hello",
     );
 
-    act(() => {
-      jest.advanceTimersByTime(299);
-    });
-    expect(mockMarkdownRender).not.toHaveBeenCalled();
-
     act(() =>
       rerender(<SeamlessMarkdown content="Hello, world" status="streaming" />),
     );
@@ -62,26 +49,24 @@ describe("SeamlessMarkdown streaming plain-text mode", () => {
     expect(mockMarkdownRender).not.toHaveBeenCalled();
     expect(container.querySelector("[data-streaming-plain-text]").tagName).toBe("DIV");
     expect(container.textContent).toBe("Hello, world");
-
-    act(() => {
-      jest.advanceTimersByTime(1);
-    });
-    expect(mockMarkdownRender).toHaveBeenCalledTimes(1);
-    expect(mockMarkdownRender).toHaveBeenLastCalledWith("Hello, world");
+    expect(mockMarkdownRender).not.toHaveBeenCalled();
   });
 
-  test("streaming: shows appended chunks as a live tail between markdown snapshots", () => {
+  test("streaming: parses only stable blocks and keeps appended text in the live tail", () => {
     const { container, rerender } = render(
-      <SeamlessMarkdown content={"Hello\n\nWorld"} status="streaming" />,
+      <SeamlessMarkdown content={"Hello"} status="streaming" />,
     );
 
     expect(mockMarkdownRender).not.toHaveBeenCalled();
 
-    act(() => {
-      jest.advanceTimersByTime(300);
-    });
+    act(() =>
+      rerender(<SeamlessMarkdown content={"Hello\n\nWorld"} status="streaming" />),
+    );
     expect(mockMarkdownRender).toHaveBeenCalledTimes(1);
-    expect(mockMarkdownRender).toHaveBeenLastCalledWith("Hello\n\nWorld");
+    expect(mockMarkdownRender).toHaveBeenLastCalledWith("Hello\n\n");
+    expect(container.querySelector("[data-streaming-plain-text]").textContent).toBe(
+      "World",
+    );
 
     act(() =>
       rerender(
@@ -91,16 +76,11 @@ describe("SeamlessMarkdown streaming plain-text mode", () => {
         />,
       ),
     );
-    expect(mockMarkdownRender).toHaveBeenCalledTimes(1);
+    expect(mockMarkdownRender).toHaveBeenCalledTimes(2);
+    expect(mockMarkdownRender).toHaveBeenLastCalledWith("World\n\n");
     expect(
       container.querySelector("[data-streaming-plain-text]").textContent,
-    ).toBe("\n\nNext");
-
-    act(() => {
-      jest.advanceTimersByTime(300);
-    });
-    expect(mockMarkdownRender).toHaveBeenCalledTimes(2);
-    expect(mockMarkdownRender).toHaveBeenLastCalledWith("Hello\n\nWorld\n\nNext");
+    ).toBe("Next");
   });
 
   test("streaming: renders an unclosed code fence as plain text", () => {
@@ -109,7 +89,8 @@ describe("SeamlessMarkdown streaming plain-text mode", () => {
     );
 
     const live = container.querySelector("[data-streaming-plain-text]");
-    expect(live.tagName).toBe("DIV");
+    expect(live.tagName).toBe("PRE");
+    expect(live).toHaveAttribute("data-streaming-live-kind", "code");
     expect(live.textContent).toBe("```js\nconsole.log(1)");
     expect(mockMarkdownRender).not.toHaveBeenCalled();
   });
@@ -159,7 +140,7 @@ describe("SeamlessMarkdown streaming plain-text mode", () => {
     expect(container.textContent).toBe("Hello, world");
     expect(
       container.querySelectorAll("[data-streaming-plain-text-chunk]"),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(mockMarkdownRender).not.toHaveBeenCalled();
   });
 });

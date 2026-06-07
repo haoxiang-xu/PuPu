@@ -52,6 +52,7 @@ jest.mock("../../../SERVICEs/mcp_install", () => ({
       ].includes(entry.id)
     )
       return "installable";
+    if (entry.status === "available" && entry.installable) return "installable";
     return "coming_soon";
   },
   setupKindForEntry: (entry) => {
@@ -257,6 +258,163 @@ describe("StoreToolkitDetailPanel", () => {
     expect(
       screen.getByText("toolkit.store_needs_review_phase2a"),
     ).toBeInTheDocument();
+  });
+
+  test("external review entry shows approval risk summary and approve action", () => {
+    const onApproveEntry = jest.fn();
+    const externalEntry = {
+      ...entry,
+      id: "external.sample",
+      toolkitId: "mcp.external.sample",
+      source: "mcp_registry",
+      trustLevel: "external_review",
+      status: "needs_review",
+      installable: false,
+      registryId: "registry.inline.test",
+      registryName: "Sample Registry",
+      recipeHash: "abc123",
+      review: {
+        riskLevel: "high",
+        riskScore: 64,
+        riskFlags: ["stdio_transport", "secret_inputs", "workspace_access"],
+        requiresAcknowledgement: true,
+        permissionGroups: [
+          { kind: "transport", summary: "stdio", items: ["node server.js"] },
+          { kind: "secrets", summary: "1 secret key(s)", items: ["EXTERNAL_TOKEN"] },
+          { kind: "oauth", summary: "example", items: ["read", "write"] },
+          { kind: "workspace", summary: "agent_workspace_root", items: ["${WORKSPACE}"] },
+        ],
+        recipeHash: "abc123",
+        recipeDiff: [],
+      },
+      mcp: {
+        transport: "stdio",
+        command: "node",
+        args: ["server.js"],
+      },
+      secrets: [{ key: "EXTERNAL_TOKEN", label: "External token" }],
+      auth: {
+        oauth: {
+          provider: "example",
+          scopes: ["read", "write"],
+        },
+      },
+      workspace: {
+        required: true,
+        binding: "agent_workspace_root",
+        placeholder: "${WORKSPACE}",
+      },
+      policySummary: {
+        reviewed: false,
+        defaultEnabledTools: 0,
+        confirmationRequiredTools: 2,
+      },
+    };
+
+    render(
+      <StoreToolkitDetailPanel
+        entry={externalEntry}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        onApproveEntry={onApproveEntry}
+        onBack={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("toolkit.store_approval_risk_summary")).toBeInTheDocument();
+    expect(screen.getAllByText("toolkit.store_risk_high").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("node server.js").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("EXTERNAL_TOKEN").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("read").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("write").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("${WORKSPACE}").length).toBeGreaterThan(0);
+    expect(screen.getByText("registry.inline.test")).toBeInTheDocument();
+    expect(screen.getByText("abc123")).toBeInTheDocument();
+
+    const approveButton = screen.getByRole("button", {
+      name: "toolkit.store_approve_entry",
+    });
+    expect(approveButton).toBeDisabled();
+    fireEvent.click(screen.getByLabelText("toolkit.store_acknowledge_risk"));
+    fireEvent.click(
+      screen.getByRole("button", { name: "toolkit.store_approve_entry" }),
+    );
+    expect(onApproveEntry).toHaveBeenCalledWith(externalEntry, {
+      acknowledgedRisk: true,
+    });
+  });
+
+  test("stale external review shows recipe diff paths", () => {
+    render(
+      <StoreToolkitDetailPanel
+        entry={{
+          ...entry,
+          id: "external.sample",
+          toolkitId: "mcp.external.sample",
+          source: "mcp_registry",
+          trustLevel: "external_review",
+          status: "needs_review",
+          approvalStatus: "stale",
+          approvalInvalidated: true,
+          registryId: "registry.inline.test",
+          recipeHash: "newhash",
+          approvedRecipeHash: "oldhash",
+          review: {
+            riskLevel: "medium",
+            riskScore: 30,
+            requiresAcknowledgement: true,
+            permissionGroups: [],
+            recipeDiff: [{ path: "mcp.url", kind: "changed" }],
+          },
+        }}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        onBack={() => {}}
+      />,
+    );
+
+    expect(screen.getByText("toolkit.store_recipe_diff")).toBeInTheDocument();
+    expect(screen.getByText("mcp.url")).toBeInTheDocument();
+    expect(screen.getByText("toolkit.store_approval_stale")).toBeInTheDocument();
+  });
+
+  test("approved external entry exposes revoke approval and existing install flow", () => {
+    const onRevokeApproval = jest.fn();
+    const approvedEntry = {
+      ...entry,
+      id: "external.sample",
+      toolkitId: "mcp.external.sample",
+      source: "mcp_registry",
+      trustLevel: "external_approved",
+      status: "available",
+      installable: true,
+      registryId: "registry.inline.test",
+      registryName: "Sample Registry",
+      approvalStatus: "approved",
+      recipeHash: "abc123",
+      approvedRecipeHash: "abc123",
+    };
+
+    render(
+      <StoreToolkitDetailPanel
+        entry={approvedEntry}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        onRevokeApproval={onRevokeApproval}
+        onBack={() => {}}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "toolkit.store_install" }),
+    ).not.toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("button", { name: "toolkit.store_revoke_approval" }),
+    );
+    expect(onRevokeApproval).toHaveBeenCalledWith(approvedEntry);
   });
 
   test("secret-backed entry explains missing secrets before install and passes secrets after input", () => {

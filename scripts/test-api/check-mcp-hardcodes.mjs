@@ -16,6 +16,7 @@ const SEARCH_ROOTS = [
   "unchain_runtime/server/mcp_toolkits.py",
   "unchain_runtime/server/mcp_oauth.py",
   "unchain_runtime/server/mcp_oauth_apps.py",
+  "unchain_runtime/server/mcp_external_registries.py",
   "unchain_runtime/server/mcp_secrets.py",
   "unchain_runtime/server/route_mcp.py",
   "scripts/test-api",

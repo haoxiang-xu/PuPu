@@ -53,6 +53,15 @@ jest.mock("../../../../SERVICEs/api", () => ({
       deleteMcpOAuthApp: jest.fn(() =>
         Promise.resolve({ ok: true, toolkitId: "mcp.dev.github-remote" }),
       ),
+      listMcpStoreRegistries: jest.fn(() =>
+        Promise.resolve({ registries: [], count: 0 }),
+      ),
+      refreshMcpStoreRegistry: jest.fn(() =>
+        Promise.resolve({ registry: { registryId: "registry.url.test" } }),
+      ),
+      deleteMcpStoreRegistry: jest.fn(() =>
+        Promise.resolve({ ok: true, registryId: "registry.url.test" }),
+      ),
     },
   },
 }));
@@ -142,6 +151,13 @@ describe("McpToolkitsSection", () => {
     });
     api.unchain.configureMcpOAuthApp.mockClear();
     api.unchain.deleteMcpOAuthApp.mockClear();
+    api.unchain.listMcpStoreRegistries.mockReset();
+    api.unchain.listMcpStoreRegistries.mockResolvedValue({
+      registries: [],
+      count: 0,
+    });
+    api.unchain.refreshMcpStoreRegistry.mockClear();
+    api.unchain.deleteMcpStoreRegistry.mockClear();
     deleteMcpEntry.mockClear();
   });
 
@@ -304,6 +320,52 @@ describe("McpToolkitsSection", () => {
     });
 
     expect(deleteMcpEntry).toHaveBeenCalledWith("mcp.memory.memory");
+  });
+
+  test("renders registry sources and supports refresh and delete", async () => {
+    api.unchain.listMcpStoreRegistries.mockResolvedValue({
+      registries: [
+        {
+          registryId: "registry.url.test",
+          name: "External Registry",
+          sourceType: "url",
+          entryCount: 2,
+          approvedCount: 1,
+          staleApprovalCount: 1,
+          riskCounts: { low: 1, medium: 0, high: 1, critical: 0 },
+        },
+      ],
+      count: 1,
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+
+    await screen.findByText("External Registry");
+    expect(
+      screen.getByText("local_storage.mcp_registry_sources"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText((text) =>
+        text.includes("1 local_storage.mcp_registry_approved") &&
+        text.includes("1 local_storage.mcp_registry_stale") &&
+        text.includes("1 local_storage.mcp_registry_risk_low") &&
+        text.includes("1 local_storage.mcp_registry_risk_high"),
+      ),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_registry_refresh"));
+    });
+    expect(api.unchain.refreshMcpStoreRegistry).toHaveBeenCalledWith(
+      "registry.url.test",
+    );
+
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_registry_delete"));
+    });
+    expect(api.unchain.deleteMcpStoreRegistry).toHaveBeenCalledWith(
+      "registry.url.test",
+    );
   });
 
   test("OAuth toolkit renders auth status and supports reconnect and disconnect", async () => {

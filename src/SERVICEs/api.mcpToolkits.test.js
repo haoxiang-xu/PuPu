@@ -37,6 +37,37 @@ describe("api.unchain MCP toolkits", () => {
       byEntryId: {},
       status: "unavailable",
     });
+    await expect(api.unchain.listMcpStoreEntries()).resolves.toEqual({
+      entries: [],
+      count: 0,
+      status: "unavailable",
+    });
+    await expect(api.unchain.listMcpStoreRegistries()).resolves.toEqual({
+      registries: [],
+      count: 0,
+      status: "unavailable",
+    });
+    await expect(api.unchain.validateMcpStoreRegistry({ registry: {} })).resolves.toEqual({
+      valid: false,
+      status: "unavailable",
+      diagnostics: [],
+      entries: [],
+      count: 0,
+    });
+    await expect(
+      api.unchain.approveMcpStoreEntry("external.sample", {
+        registryId: "registry.inline.test",
+      }),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+    await expect(
+      api.unchain.revokeMcpStoreEntryApproval("external.sample", {
+        registryId: "registry.inline.test",
+      }),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
     await expect(
       api.unchain.configureMcpToolkit("mcp.memory.memory"),
     ).rejects.toMatchObject({
@@ -117,6 +148,39 @@ describe("api.unchain MCP toolkits", () => {
         byEntryId: { "browser.playwright": { entryId: "browser.playwright" } },
         status: "ok",
       }),
+      listMcpStoreEntries: jest.fn().mockResolvedValue({
+        entries: [{ id: "external.sample" }],
+        count: 1,
+        status: "ok",
+      }),
+      listMcpStoreRegistries: jest.fn().mockResolvedValue({
+        registries: [{ registryId: "registry.inline.test" }],
+        count: 1,
+        status: "ok",
+      }),
+      importMcpStoreRegistry: jest.fn().mockResolvedValue({
+        registry: { registryId: "registry.inline.test" },
+      }),
+      validateMcpStoreRegistry: jest.fn().mockResolvedValue({
+        valid: true,
+        diagnostics: [],
+        entries: [],
+        count: 0,
+      }),
+      refreshMcpStoreRegistry: jest.fn().mockResolvedValue({
+        registry: { registryId: "registry.inline.test" },
+      }),
+      deleteMcpStoreRegistry: jest.fn().mockResolvedValue({
+        ok: true,
+        registryId: "registry.inline.test",
+      }),
+      approveMcpStoreEntry: jest.fn().mockResolvedValue({
+        entry: { id: "external.sample", approvalStatus: "approved" },
+      }),
+      revokeMcpStoreEntryApproval: jest.fn().mockResolvedValue({
+        ok: true,
+        entryId: "external.sample",
+      }),
     };
 
     await api.unchain.listMcpToolkits();
@@ -154,6 +218,23 @@ describe("api.unchain MCP toolkits", () => {
     await api.unchain.listMcpStoreMetadata();
     await api.unchain.reloadMcpStoreMetadata({
       entryId: "browser.playwright",
+    });
+    await api.unchain.listMcpStoreEntries();
+    await api.unchain.listMcpStoreRegistries();
+    await api.unchain.importMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    await api.unchain.validateMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    await api.unchain.refreshMcpStoreRegistry("registry.inline.test");
+    await api.unchain.deleteMcpStoreRegistry("registry.inline.test");
+    await api.unchain.approveMcpStoreEntry("external.sample", {
+      registryId: "registry.inline.test",
+      acknowledgedRisk: true,
+    });
+    await api.unchain.revokeMcpStoreEntryApproval("external.sample", {
+      registryId: "registry.inline.test",
     });
     await api.unchain.deleteMcpToolkit("mcp.workspace.filesystem");
 
@@ -207,6 +288,28 @@ describe("api.unchain MCP toolkits", () => {
     expect(window.unchainAPI.reloadMcpStoreMetadata).toHaveBeenCalledWith({
       entryId: "browser.playwright",
     });
+    expect(window.unchainAPI.listMcpStoreEntries).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.listMcpStoreRegistries).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.importMcpStoreRegistry).toHaveBeenCalledWith({
+      registry: { version: 1, entries: [] },
+    });
+    expect(window.unchainAPI.validateMcpStoreRegistry).toHaveBeenCalledWith({
+      registry: { version: 1, entries: [] },
+    });
+    expect(window.unchainAPI.refreshMcpStoreRegistry).toHaveBeenCalledWith(
+      "registry.inline.test",
+    );
+    expect(window.unchainAPI.deleteMcpStoreRegistry).toHaveBeenCalledWith(
+      "registry.inline.test",
+    );
+    expect(window.unchainAPI.approveMcpStoreEntry).toHaveBeenCalledWith(
+      "external.sample",
+      { registryId: "registry.inline.test", acknowledgedRisk: true },
+    );
+    expect(window.unchainAPI.revokeMcpStoreEntryApproval).toHaveBeenCalledWith(
+      "external.sample",
+      { registryId: "registry.inline.test" },
+    );
     expect(window.unchainAPI.deleteMcpToolkit).toHaveBeenCalledWith(
       "mcp.workspace.filesystem",
     );

@@ -2,10 +2,12 @@ import {
   MCP_STORE_CATEGORIES,
   MCP_STORE_ENTRIES,
   clearMcpStoreMetadataCache,
+  clearMcpStoreEntriesCache,
   listMcpStoreEntries,
   getMcpStoreEntry,
   resolveMcpIcon,
   searchMcpStoreEntries,
+  setMcpStoreEntriesCache,
   setMcpStoreMetadataCache,
   withMcpStoreIcon,
 } from "./mcp_toolkit_store";
@@ -13,6 +15,7 @@ import {
 describe("mcp_toolkit_store", () => {
   afterEach(() => {
     clearMcpStoreMetadataCache();
+    clearMcpStoreEntriesCache();
   });
 
   test("categories start with all and include the known set", () => {
@@ -89,6 +92,50 @@ describe("mcp_toolkit_store", () => {
     expect(MCP_STORE_ENTRIES.find((entry) => entry.id === "browser.playwright").toolkitDescription).toBe(
       "Browser automation through the official Playwright MCP server.",
     );
+  });
+
+  test("external registry entries overlay the static store as review-only", () => {
+    setMcpStoreEntriesCache({
+      entries: [
+        ...MCP_STORE_ENTRIES,
+        {
+          id: "external.sample",
+          toolkitId: "mcp.external.sample",
+          toolkitName: "External Sample",
+          toolkitDescription: "External review entry",
+          category: "dev",
+          source: "mcp_registry",
+          trustLevel: "external_review",
+          status: "needs_review",
+          installable: false,
+          registryId: "registry.inline.test",
+          registryName: "Sample Registry",
+          mcp: {
+            transport: "http",
+            runtime_transport: "streamable_http",
+            url: "https://example.test/mcp",
+            headers: [],
+          },
+          tools: [{ name: "external_search", title: "Search" }],
+          policySummary: { reviewed: false },
+        },
+      ],
+    });
+
+    const external = getMcpStoreEntry("external.sample");
+    expect(external).toEqual(
+      expect.objectContaining({
+        source: "mcp_registry",
+        trustLevel: "external_review",
+        status: "needs_review",
+        installable: false,
+        registryName: "Sample Registry",
+      }),
+    );
+    expect(
+      searchMcpStoreEntries(listMcpStoreEntries(), "external_search", "all")
+        .map((entry) => entry.id),
+    ).toContain("external.sample");
   });
 
   test("metadata fallback icon is used only when the registry lacks an explicit icon", () => {

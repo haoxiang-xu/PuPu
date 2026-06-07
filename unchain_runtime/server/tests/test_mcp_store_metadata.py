@@ -16,6 +16,7 @@ from mcp_store_metadata import (  # noqa: E402
     list_mcp_store_metadata,
     reload_mcp_store_metadata,
 )
+from mcp_external_registries import import_mcp_store_registry  # noqa: E402
 
 
 class McpStoreMetadataTests(unittest.TestCase):
@@ -122,6 +123,51 @@ class McpStoreMetadataTests(unittest.TestCase):
             )
 
         self.assertEqual(ctx.exception.code, "mcp_metadata_not_found")
+
+    def test_external_registry_metadata_entries_are_supported(self):
+        import_mcp_store_registry(
+            {
+                "registry": {
+                    "version": 1,
+                    "name": "External",
+                    "entries": [
+                        {
+                            "id": "external.metadata",
+                            "toolkitId": "mcp.external.metadata",
+                            "name": "External Metadata",
+                            "description": "External metadata entry",
+                            "category": "dev",
+                            "metadata": {
+                                "type": "http_json",
+                                "request": {"url": "https://example.test/api/repo"},
+                                "fields": {"description": "description"},
+                            },
+                            "mcp": {
+                                "transport": "http",
+                                "runtimeTransport": "streamable_http",
+                                "url": "https://example.test/mcp",
+                                "headers": [],
+                            },
+                        }
+                    ],
+                }
+            },
+            data_dir=self.data_dir,
+        )
+
+        result = reload_mcp_store_metadata(
+            entry_id="external.metadata",
+            data_dir=self.data_dir,
+            now_fn=lambda: 1000.0,
+            http_json_fetcher=lambda url, headers, timeout: {
+                "description": "Fetched external description",
+            },
+            icon_fetcher=self._icon_fetcher,
+        )
+
+        record = result["entries"][0]
+        self.assertEqual(record["entryId"], "external.metadata")
+        self.assertEqual(record["metadata"]["description"], "Fetched external description")
 
 
 class McpStoreMetadataRouteTests(unittest.TestCase):

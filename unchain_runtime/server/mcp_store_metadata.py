@@ -187,10 +187,22 @@ def _metadata_recipe(entry: Dict[str, Any]) -> Dict[str, Any]:
     return recipe
 
 
-def _entry_from_id(entry_id: str) -> Dict[str, Any]:
+def _entry_from_id(
+    entry_id: str,
+    *,
+    data_dir: str | Path | None = None,
+) -> Dict[str, Any]:
     try:
         return mcp_registry.registry_entry(entry_id)
     except KeyError as exc:
+        try:
+            from mcp_external_registries import external_registry_entry
+
+            entry = external_registry_entry(entry_id, data_dir=data_dir)
+            if entry:
+                return entry
+        except Exception:
+            pass
         raise McpStoreMetadataError(
             "mcp_metadata_not_found",
             "MCP metadata entry not found",
@@ -198,13 +210,28 @@ def _entry_from_id(entry_id: str) -> Dict[str, Any]:
         ) from exc
 
 
-def _entries_with_metadata(entry_id: str | None = None) -> List[Dict[str, Any]]:
+def _all_registry_entries(data_dir: str | Path | None = None) -> List[Dict[str, Any]]:
+    entries = mcp_registry.registry_entries()
+    try:
+        from mcp_external_registries import external_registry_entries
+
+        entries.extend(external_registry_entries(data_dir=data_dir))
+    except Exception:
+        pass
+    return entries
+
+
+def _entries_with_metadata(
+    entry_id: str | None = None,
+    *,
+    data_dir: str | Path | None = None,
+) -> List[Dict[str, Any]]:
     if entry_id:
-        entry = _entry_from_id(entry_id)
+        entry = _entry_from_id(entry_id, data_dir=data_dir)
         _metadata_recipe(entry)
         return [entry]
     entries: List[Dict[str, Any]] = []
-    for entry in mcp_registry.INSTALLABLE_MCP_REGISTRY.values():
+    for entry in _all_registry_entries(data_dir=data_dir):
         recipe = entry.get("metadata") if isinstance(entry.get("metadata"), dict) else {}
         if recipe:
             entries.append(copy.deepcopy(entry))
@@ -249,7 +276,7 @@ def list_mcp_store_metadata(
 ) -> Dict[str, Any]:
     now = (now_fn or time.time)()
     store = _read_store(data_dir)
-    valid_entry_ids = set(mcp_registry.INSTALLABLE_MCP_REGISTRY.keys())
+    valid_entry_ids = {entry["entry_id"] for entry in _all_registry_entries(data_dir=data_dir)}
     records = [
         record
         for record in store["entries"].values()
@@ -334,7 +361,7 @@ def reload_mcp_store_metadata(
     icon_fetcher: Callable[[str, int, int], Dict[str, Any]] | None = None,
 ) -> Dict[str, Any]:
     normalized_entry_id = str(entry_id or "").strip()
-    entries = _entries_with_metadata(normalized_entry_id or None)
+    entries = _entries_with_metadata(normalized_entry_id or None, data_dir=data_dir)
     now = (now_fn or time.time)()
     store = _read_store(data_dir)
     records: List[Dict[str, Any]] = []

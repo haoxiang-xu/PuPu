@@ -1,6 +1,10 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
+import {
+  StreamingMessageStoreContext,
+} from "./components/streaming_message_store_context";
 import TraceChain from "./trace_chain";
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
@@ -9,6 +13,9 @@ const renderTraceChain = ({
   frames,
   status = "done",
   streamingContent = "",
+  messageId = "assistant",
+  streamingMessageStore = null,
+  notifyStreamingContentCommitted = jest.fn(),
   onToolConfirmationDecision = null,
   toolConfirmationUiStateById = {},
   subagentFrames = undefined,
@@ -21,15 +28,24 @@ const renderTraceChain = ({
         onThemeMode: "light_mode",
       }}
     >
-      <TraceChain
-        frames={frames}
-        status={status}
-        streamingContent={streamingContent}
-        onToolConfirmationDecision={onToolConfirmationDecision}
-        toolConfirmationUiStateById={toolConfirmationUiStateById}
-        subagentFrames={subagentFrames}
-        subagentMetaByRunId={subagentMetaByRunId}
-      />
+      <StreamingMessageStoreContext.Provider
+        value={{
+          chatId: "chat",
+          store: streamingMessageStore,
+          notifyStreamingContentCommitted,
+        }}
+      >
+        <TraceChain
+          frames={frames}
+          status={status}
+          messageId={messageId}
+          streamingContent={streamingContent}
+          onToolConfirmationDecision={onToolConfirmationDecision}
+          toolConfirmationUiStateById={toolConfirmationUiStateById}
+          subagentFrames={subagentFrames}
+          subagentMetaByRunId={subagentMetaByRunId}
+        />
+      </StreamingMessageStoreContext.Provider>
     </ConfigContext.Provider>,
   );
 
@@ -39,6 +55,27 @@ const frame = ({ seq, type, payload = {}, ts = seq * 100 }) => ({
   type,
   payload,
 });
+
+const makeRafScheduler = () => {
+  const callbacks = [];
+  return {
+    scheduler: (callback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    },
+    cancel: (id) => {
+      callbacks[id - 1] = null;
+    },
+    flush: () => {
+      const pending = callbacks.splice(0);
+      pending.forEach((callback) => {
+        if (typeof callback === "function") {
+          callback();
+        }
+      });
+    },
+  };
+};
 
 describe("TraceChain final_message draft timeline", () => {
   test("shows one Assistant Draft for tool_call + two final_message frames", () => {
@@ -217,6 +254,115 @@ describe("TraceChain final_message draft timeline", () => {
     const streamingText = container.querySelector("[data-streaming-plain-text]");
     expect(streamingText).toBeInTheDocument();
     expect(streamingText).toHaveStyle({ fontSize: "14px", lineHeight: "1.6" });
+  });
+
+  test("reads active streaming response text from the external store", () => {
+    const raf = makeRafScheduler();
+    const store = createStreamingMessageStore({
+      notifyScheduler: raf.scheduler,
+      cancelScheduler: raf.cancel,
+    });
+    store.begin({ chatId: "chat", messageId: "assistant" });
+    const { container } = renderTraceChain({
+      frames: [],
+      status: "streaming",
+      messageId: "assistant",
+      streamingContent: "",
+      streamingMessageStore: store,
+    });
+
+    expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
+
+    store.append({
+      chatId: "chat",
+      messageId: "assistant",
+      delta: "streamed via store",
+    });
+    act(() => {
+      raf.flush();
+    });
+
+    expect(screen.getByText("Response")).toBeInTheDocument();
+    expect(container.textContent).toContain("streamed via store");
+  });
+
+  test("does not render the current streaming response twice when final_message mirrors the external store", () => {
+    const raf = makeRafScheduler();
+    const store = createStreamingMessageStore({
+      notifyScheduler: raf.scheduler,
+      cancelScheduler: raf.cancel,
+    });
+    store.begin({ chatId: "chat", messageId: "assistant" });
+    store.append({
+      chatId: "chat",
+      messageId: "assistant",
+      delta: "current streamed response",
+    });
+    store.flushNow({ chatId: "chat", messageId: "assistant" });
+
+    const { container } = renderTraceChain({
+      frames: [
+        frame({ seq: 1, type: "stream_started", payload: {} }),
+        frame({
+          seq: 2,
+          type: "tool_call",
+          payload: { call_id: "call-1", tool_name: "read_file", arguments: {} },
+        }),
+        frame({
+          seq: 3,
+          type: "final_message",
+          payload: { content: "current streamed response" },
+        }),
+      ],
+      status: "streaming",
+      messageId: "assistant",
+      streamingMessageStore: store,
+    });
+
+    expect(screen.getAllByText("Response")).toHaveLength(1);
+    expect(
+      (container.textContent || "").match(/current streamed response/g),
+    ).toHaveLength(1);
+  });
+
+  test("does not render stale streaming final_message snapshots beside the live response", () => {
+    const raf = makeRafScheduler();
+    const store = createStreamingMessageStore({
+      notifyScheduler: raf.scheduler,
+      cancelScheduler: raf.cancel,
+    });
+    store.begin({ chatId: "chat", messageId: "assistant" });
+    store.append({
+      chatId: "chat",
+      messageId: "assistant",
+      delta: "current streamed response plus continuation",
+    });
+    store.flushNow({ chatId: "chat", messageId: "assistant" });
+
+    const { container } = renderTraceChain({
+      frames: [
+        frame({ seq: 1, type: "stream_started", payload: {} }),
+        frame({
+          seq: 2,
+          type: "tool_call",
+          payload: { call_id: "call-1", tool_name: "read_file", arguments: {} },
+        }),
+        frame({
+          seq: 3,
+          type: "final_message",
+          payload: { content: "current streamed response" },
+        }),
+      ],
+      status: "streaming",
+      messageId: "assistant",
+      streamingMessageStore: store,
+    });
+
+    expect(screen.getAllByText("Response")).toHaveLength(1);
+    expect(screen.queryByText("current streamed response")).not.toBeInTheDocument();
+    expect(container).toHaveTextContent(
+      "current streamed response plus continuation",
+    );
   });
 
   test("uses tighter markdown spacing for observation details", () => {

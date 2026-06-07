@@ -72,10 +72,53 @@ def _write_store(store: Dict[str, Any], data_dir: str | Path | None = None) -> N
         pass
 
 
-def _entry_from_any_id(entry_or_toolkit_id: str) -> Dict[str, Any]:
+def _entry_from_any_id(
+    entry_or_toolkit_id: str,
+    *,
+    data_dir: str | Path | None = None,
+) -> Dict[str, Any]:
     try:
         return oauth_registry_entry(entry_or_toolkit_id)
     except KeyError as exc:
+        try:
+            from mcp_external_registries import (
+                approved_external_registry_entry,
+                external_entry_exists,
+            )
+
+            approved_external_seen = False
+            try:
+                entry = approved_external_registry_entry(
+                    entry_or_toolkit_id,
+                    data_dir=data_dir,
+                )
+                approved_external_seen = True
+                if oauth_recipe_for_entry(entry):
+                    return entry
+            except Exception as approval_exc:
+                if getattr(approval_exc, "code", "") not in {
+                    "mcp_registry_entry_not_approved",
+                    "mcp_registry_approval_stale",
+                    "mcp_registry_not_found",
+                }:
+                    raise
+            if approved_external_seen:
+                raise McpOAuthError(
+                    "unsupported_mcp_entry",
+                    "This MCP entry does not support OAuth setup",
+                    400,
+                )
+
+            if external_entry_exists(entry_or_toolkit_id, data_dir=data_dir):
+                raise McpOAuthError(
+                    "mcp_registry_entry_untrusted",
+                    "This external MCP registry entry requires review before OAuth setup",
+                    403,
+                )
+        except McpOAuthError:
+            raise
+        except Exception:
+            pass
         raise McpOAuthError(
             "unsupported_mcp_entry",
             "This MCP entry does not support OAuth setup",
@@ -251,7 +294,7 @@ def save_mcp_oauth_token(
     *,
     data_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
-    entry = _entry_from_any_id(str(token.get("entry_id") or toolkit_id))
+    entry = _entry_from_any_id(str(token.get("entry_id") or toolkit_id), data_dir=data_dir)
     clean_toolkit_id = str(toolkit_id or "").strip() or entry["toolkit_id"]
     clean_token = {
         "entry_id": entry["entry_id"],
@@ -278,7 +321,7 @@ def _get_token_record(
     *,
     data_dir: str | Path | None = None,
 ) -> tuple[Dict[str, str], Dict[str, Any] | None]:
-    entry = _entry_from_any_id(entry_or_toolkit_id)
+    entry = _entry_from_any_id(entry_or_toolkit_id, data_dir=data_dir)
     store = _read_store(data_dir)
     token = store["toolkits"].get(entry["toolkit_id"])
     return entry, token if isinstance(token, dict) else None
@@ -316,7 +359,7 @@ def delete_mcp_oauth_token(
     *,
     data_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
-    entry = _entry_from_any_id(toolkit_id)
+    entry = _entry_from_any_id(toolkit_id, data_dir=data_dir)
     store = _read_store(data_dir)
     store["toolkits"].pop(entry["toolkit_id"], None)
     _write_store(store, data_dir)
@@ -447,7 +490,7 @@ def start_mcp_oauth(
     state_factory: Callable[[], str] | None = None,
     verifier_factory: Callable[[], str] | None = None,
 ) -> Dict[str, Any]:
-    entry = _entry_from_any_id(entry_id)
+    entry = _entry_from_any_id(entry_id, data_dir=data_dir)
     recipe = oauth_recipe_for_entry(entry)
     now = (now_fn or time.time)()
     redirect_uri = str(callback_base_url or "").rstrip("/") + "/mcp/oauth/callback"
@@ -562,7 +605,7 @@ def _default_install(entry_id: str, **kwargs):
         return install_mcp_toolkit(entry_id, **kwargs)
     except Exception as exc:
         if getattr(exc, "code", "") == "mcp_already_installed":
-            entry = _entry_from_any_id(entry_id)
+            entry = _entry_from_any_id(entry_id, data_dir=kwargs.get("data_dir"))
             return check_mcp_toolkit_health(
                 entry["toolkit_id"],
                 data_dir=kwargs.get("data_dir"),
@@ -662,7 +705,7 @@ def disconnect_mcp_oauth(
     *,
     data_dir: str | Path | None = None,
 ) -> Dict[str, Any]:
-    entry = _entry_from_any_id(toolkit_id)
+    entry = _entry_from_any_id(toolkit_id, data_dir=data_dir)
     try:
         from mcp_toolkits import delete_mcp_toolkit
 

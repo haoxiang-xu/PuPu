@@ -5,6 +5,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import MessageMinimap from "./components/message_minimap";
 import { useMessageMinimap } from "./hooks/use_message_minimap";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
+import { StreamingMessageStoreContext } from "../chat-bubble/components/streaming_message_store_context";
 
 const ChatMessages = ({
   chatId,
@@ -22,6 +23,7 @@ const ChatMessages = ({
   pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
+  streamingMessageStore,
   initialVisibleCount = 12,
   loadBatchSize = 6,
   topLoadThreshold = 80,
@@ -32,11 +34,13 @@ const ChatMessages = ({
 
   const {
     messagesRef,
+    bottomSentinelRef,
     messageNodeRefs,
     safeVisibleStart,
     visibleMessages,
     handleScroll,
     handleUserScrollIntent,
+    notifyStreamingContentCommitted,
     scrollToMessageIndex,
   } = useMessageWindowScroll({
     chat_id: chatId,
@@ -94,82 +98,91 @@ const ChatMessages = ({
             gap: 20,
           }}
         >
-          {visibleMessages.map((msg, index) => {
-            const messageIndex = safeVisibleStart + index;
-            return (
-              <div
-                key={msg.id}
-                data-message-id={msg.id}
-                ref={(node) => {
-                  if (node) {
-                    messageNodeRefs.current.set(messageIndex, node);
-                  } else {
-                    messageNodeRefs.current.delete(messageIndex);
-                  }
-                }}
-                style={{
-                  width: "100%",
-                  maxWidth: 680,
-                  margin: "0 auto",
-                  padding: "0 20px",
-                  boxSizing: "border-box",
-                }}
-              >
-                {isCharacterChat ? (
-                  <CharacterChatBubble
-                    message={msg}
-                    characterName={characterName}
-                    characterAvatar={characterAvatar}
-                    characterAvailability={characterAvailability}
-                    onDeleteMessage={onDeleteMessage}
-                    onResendMessage={onResendMessage}
-                    onEditMessage={onEditMessage}
-                    onToolConfirmationDecision={onToolConfirmationDecision}
-                    toolConfirmationUiStateById={toolConfirmationUiStateById}
-                    pendingToolConfirmationRequests={
-                      pendingToolConfirmationRequests
+          <StreamingMessageStoreContext.Provider
+            value={{
+              chatId,
+              store: streamingMessageStore,
+              notifyStreamingContentCommitted,
+            }}
+          >
+            {visibleMessages.map((msg, index) => {
+              const messageIndex = safeVisibleStart + index;
+              return (
+                <div
+                  key={msg.id}
+                  data-message-id={msg.id}
+                  ref={(node) => {
+                    if (node) {
+                      messageNodeRefs.current.set(messageIndex, node);
+                    } else {
+                      messageNodeRefs.current.delete(messageIndex);
                     }
-                    disableActionButtons={isStreaming}
-                    traceFrames={msg.traceFrames}
-                    pendingContinuationRequest={
-                      messageIndex === messages.length - 1
-                        ? pendingContinuationRequest
-                        : undefined
-                    }
-                    onContinuationDecision={
-                      messageIndex === messages.length - 1
-                        ? onContinuationDecision
-                        : undefined
-                    }
-                  />
-                ) : (
-                  <ChatBubble
-                    message={msg}
-                    onDeleteMessage={onDeleteMessage}
-                    onResendMessage={onResendMessage}
-                    onEditMessage={onEditMessage}
-                    onToolConfirmationDecision={onToolConfirmationDecision}
-                    toolConfirmationUiStateById={toolConfirmationUiStateById}
-                    pendingToolConfirmationRequests={
-                      pendingToolConfirmationRequests
-                    }
-                    disableActionButtons={isStreaming}
-                    traceFrames={msg.traceFrames}
-                    pendingContinuationRequest={
-                      messageIndex === messages.length - 1
-                        ? pendingContinuationRequest
-                        : undefined
-                    }
-                    onContinuationDecision={
-                      messageIndex === messages.length - 1
-                        ? onContinuationDecision
-                        : undefined
-                    }
-                  />
-                )}
-              </div>
-            );
-          })}
+                  }}
+                  style={{
+                    width: "100%",
+                    maxWidth: 680,
+                    margin: "0 auto",
+                    padding: "0 20px",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {isCharacterChat ? (
+                    <CharacterChatBubble
+                      message={msg}
+                      characterName={characterName}
+                      characterAvatar={characterAvatar}
+                      characterAvailability={characterAvailability}
+                      onDeleteMessage={onDeleteMessage}
+                      onResendMessage={onResendMessage}
+                      onEditMessage={onEditMessage}
+                      onToolConfirmationDecision={onToolConfirmationDecision}
+                      toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      pendingToolConfirmationRequests={
+                        pendingToolConfirmationRequests
+                      }
+                      disableActionButtons={isStreaming}
+                      traceFrames={msg.traceFrames}
+                      pendingContinuationRequest={
+                        messageIndex === messages.length - 1
+                          ? pendingContinuationRequest
+                          : undefined
+                      }
+                      onContinuationDecision={
+                        messageIndex === messages.length - 1
+                          ? onContinuationDecision
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <ChatBubble
+                      message={msg}
+                      onDeleteMessage={onDeleteMessage}
+                      onResendMessage={onResendMessage}
+                      onEditMessage={onEditMessage}
+                      onToolConfirmationDecision={onToolConfirmationDecision}
+                      toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      pendingToolConfirmationRequests={
+                        pendingToolConfirmationRequests
+                      }
+                      disableActionButtons={isStreaming}
+                      traceFrames={msg.traceFrames}
+                      pendingContinuationRequest={
+                        messageIndex === messages.length - 1
+                          ? pendingContinuationRequest
+                          : undefined
+                      }
+                      onContinuationDecision={
+                        messageIndex === messages.length - 1
+                          ? onContinuationDecision
+                          : undefined
+                      }
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </StreamingMessageStoreContext.Provider>
+          <div ref={bottomSentinelRef} aria-hidden="true" style={{ height: 1 }} />
         </div>
       </div>
 

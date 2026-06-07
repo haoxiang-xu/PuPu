@@ -71,10 +71,40 @@ def _write_store(store: Dict[str, Any], data_dir: str | Path | None = None) -> N
     path.write_text(json.dumps(store, indent=2, sort_keys=True), encoding="utf-8")
 
 
-def _registry_entry(entry_id: str) -> Dict[str, Any]:
+def _registry_entry(
+    entry_id: str,
+    *,
+    data_dir: str | Path | None = None,
+) -> Dict[str, Any]:
     try:
         return mcp_registry.registry_entry(entry_id)
     except KeyError:
+        try:
+            from mcp_external_registries import (
+                approved_external_registry_entry,
+                external_entry_exists,
+            )
+
+            try:
+                return approved_external_registry_entry(entry_id, data_dir=data_dir)
+            except Exception as approval_exc:
+                if getattr(approval_exc, "code", "") not in {
+                    "mcp_registry_entry_not_approved",
+                    "mcp_registry_approval_stale",
+                    "mcp_registry_not_found",
+                }:
+                    raise
+
+            if external_entry_exists(entry_id, data_dir=data_dir):
+                raise McpToolkitError(
+                    "mcp_registry_entry_untrusted",
+                    "This external MCP registry entry requires review before installation",
+                    403,
+                )
+        except McpToolkitError:
+            raise
+        except Exception:
+            pass
         raise McpToolkitError(
             "unsupported_mcp_entry",
             "This MCP entry is not supported by the registry",
@@ -189,6 +219,8 @@ def _custom_entry(custom_recipe: Dict[str, Any] | None) -> Dict[str, Any]:
 def _entry_for_record(record: Dict[str, Any]) -> Dict[str, Any]:
     if record.get("entry_id") == "custom":
         return _custom_entry(record.get("custom_recipe"))
+    if isinstance(record.get("external_entry_snapshot"), dict):
+        return copy.deepcopy(record["external_entry_snapshot"])
     return _registry_entry(record.get("entry_id", ""))
 
 
@@ -607,6 +639,8 @@ def _record_from_entry(
         record["auth_provider"] = resolved_config.get("auth_provider", "")
     if entry.get("custom_recipe"):
         record["custom_recipe"] = copy.deepcopy(entry["custom_recipe"])
+    if entry.get("source") == "mcp_registry" or entry.get("registry_id"):
+        record["external_entry_snapshot"] = copy.deepcopy(entry)
     return record
 
 
@@ -653,7 +687,7 @@ def install_mcp_toolkit(
     entry = (
         _custom_entry(custom_recipe)
         if normalized_entry_id == "custom"
-        else _registry_entry(normalized_entry_id)
+        else _registry_entry(normalized_entry_id, data_dir=data_dir)
     )
     toolkit_id = entry["toolkit_id"]
     store = _read_store(data_dir)

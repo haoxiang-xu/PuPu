@@ -67,6 +67,7 @@ export const MCP_STORE_ENTRIES = Object.freeze(
   (Array.isArray(registry.entries) ? registry.entries : []).map(normalizeEntry),
 );
 
+let storeEntries = [...MCP_STORE_ENTRIES];
 let metadataByEntryId = new Map();
 let metadataByToolkitId = new Map();
 
@@ -113,6 +114,8 @@ const metadataRecordFor = (toolkit) => {
     null
   );
 };
+
+const currentStoreEntries = () => storeEntries;
 
 const overlayEntryMetadata = (entry) => {
   const record = metadataRecordFor(entry);
@@ -163,12 +166,21 @@ export function clearMcpStoreMetadataCache() {
   metadataByToolkitId = new Map();
 }
 
+export function setMcpStoreEntriesCache(payload = {}) {
+  const entries = Array.isArray(payload.entries) ? payload.entries : [];
+  storeEntries = entries.length ? entries.map(normalizeEntry) : [...MCP_STORE_ENTRIES];
+}
+
+export function clearMcpStoreEntriesCache() {
+  storeEntries = [...MCP_STORE_ENTRIES];
+}
+
 export function listMcpStoreEntries() {
-  return MCP_STORE_ENTRIES.map(overlayEntryMetadata);
+  return currentStoreEntries().map(overlayEntryMetadata);
 }
 
 export function getMcpStoreEntry(id) {
-  const entry = MCP_STORE_ENTRIES.find((item) => item.id === id);
+  const entry = currentStoreEntries().find((item) => item.id === id);
   return entry ? overlayEntryMetadata(entry) : null;
 }
 
@@ -177,7 +189,7 @@ export function getMcpStoreEntry(id) {
    the default mcp glyph. */
 export function resolveMcpIcon(toolkit) {
   const entry = toolkit
-    ? MCP_STORE_ENTRIES.find(
+    ? currentStoreEntries().find(
         (e) => e.id === toolkit.id || e.toolkitId === toolkit.toolkitId,
       )
     : null;
@@ -202,7 +214,7 @@ export function resolveMcpIcon(toolkit) {
 /* Look up the icon by installed toolkitId (mcp.*): curated registry icon, then
    a user-uploaded custom icon, else null (caller falls back to its own icon). */
 export function mcpStoreIconFor(toolkitId) {
-  const entry = MCP_STORE_ENTRIES.find((e) => e.toolkitId === toolkitId);
+  const entry = currentStoreEntries().find((e) => e.toolkitId === toolkitId);
   const record = metadataRecordFor({ toolkitId }) || metadataRecordFor(entry);
   const metadataIcon = isFileIcon(record?.icon) ? record.icon : null;
   if (metadataIcon && record?.iconPolicy === "replace") return metadataIcon;
@@ -216,7 +228,7 @@ export function mcpStoreIconFor(toolkitId) {
    builder): curated registry icon -> user-uploaded custom icon -> generic mcp. */
 export function withMcpStoreIcon(toolkit) {
   if (!toolkit || toolkit.source !== "mcp") return toolkit;
-  const entry = MCP_STORE_ENTRIES.find(
+  const entry = currentStoreEntries().find(
     (e) => e.toolkitId === toolkit.toolkitId,
   );
   const icon = resolveMcpIcon({ ...toolkit, id: entry?.id });

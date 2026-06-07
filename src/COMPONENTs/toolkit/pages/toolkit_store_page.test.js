@@ -88,4 +88,46 @@ describe("ToolkitStorePage", () => {
 
     expect(onRefreshMetadata).toHaveBeenCalledTimes(1);
   });
+
+  test("registry import form can validate pasted json and show diagnostics", async () => {
+    const onValidateRegistry = jest.fn().mockResolvedValue({
+      valid: false,
+      status: "invalid",
+      diagnostics: [
+        {
+          code: "mcp_registry_url_invalid",
+          message: "HTTP MCP url must use https",
+          path: "$.entries[0]",
+          entryId: "external.sample",
+          severity: "error",
+        },
+      ],
+      entries: [],
+      count: 0,
+    });
+    render(
+      <ToolkitStorePage
+        isDark={false}
+        onEntryClick={() => {}}
+        onValidateRegistry={onValidateRegistry}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "toolkit.store_import_registry" }));
+    fireEvent.change(
+      screen.getByPlaceholderText("toolkit.store_registry_json_placeholder"),
+      { target: { value: "{\"version\":1,\"entries\":[]}" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "toolkit.store_registry_validate" }));
+
+    expect(onValidateRegistry).toHaveBeenCalledWith({
+      registry: "{\"version\":1,\"entries\":[]}",
+    });
+    expect(
+      await screen.findByText((text) =>
+        text.includes("mcp_registry_url_invalid") &&
+        text.includes("$.entries[0]"),
+      ),
+    ).toBeInTheDocument();
+  });
 });

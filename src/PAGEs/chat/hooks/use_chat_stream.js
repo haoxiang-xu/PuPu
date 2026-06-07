@@ -20,12 +20,10 @@ import { adaptActivityTreeToTraceChainV4 } from "../../../SERVICEs/runtime_event
 import { isRuntimeEventStreamV4Enabled } from "../../../SERVICEs/runtime_events_v4/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
-  appendStreamingMessageDelta,
   clearStreamingMessageText,
   finalizeStreamingMessage,
-  getStreamingMessageText,
-  replaceStreamingMessageText,
 } from "../../../SERVICEs/streaming_message_chunks";
+import { createStreamingMessageStore } from "../../../SERVICEs/streaming_message_store";
 import {
   scheduleBackgroundPersist,
   flushBackgroundPersist,
@@ -203,6 +201,7 @@ export const useChatStream = ({
   setSelectedModelId,
   setAgentOrchestration,
   activeStreamsRef,
+  streamingMessageStore,
 }) => {
   const {
     buildHistoryForModel,
@@ -253,6 +252,12 @@ export const useChatStream = ({
   selectedModelIdRef.current = selectedModelId;
 
   const streamHandlesRef = useRef(new Map());
+  const fallbackStreamingMessageStoreRef = useRef(null);
+  if (!fallbackStreamingMessageStoreRef.current) {
+    fallbackStreamingMessageStoreRef.current = createStreamingMessageStore();
+  }
+  const activeStreamingMessageStore =
+    streamingMessageStore || fallbackStreamingMessageStoreRef.current;
   const streamingChatIdsRef = useRef(new Set());
   const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
   const confirmationIdByCallIdRef = useRef(new Map());
@@ -363,6 +368,52 @@ export const useChatStream = ({
 
     activeTokenFlushControllerRef.current = null;
   }, []);
+
+  const flushStreamingMessageStore = useCallback(
+    (targetChatId, assistantMessageId) => {
+      if (
+        activeStreamingMessageStore &&
+        typeof activeStreamingMessageStore.flushNow === "function"
+      ) {
+        activeStreamingMessageStore.flushNow({
+          chatId: targetChatId,
+          messageId: assistantMessageId,
+        });
+      }
+    },
+    [activeStreamingMessageStore],
+  );
+
+  const materializeStreamingMessages = useCallback(
+    (targetChatId, sourceMessages) => {
+      if (
+        activeStreamingMessageStore &&
+        typeof activeStreamingMessageStore.materializeMessages === "function"
+      ) {
+        return activeStreamingMessageStore.materializeMessages({
+          chatId: targetChatId,
+          messages: sourceMessages,
+        });
+      }
+      return Array.isArray(sourceMessages) ? sourceMessages : [];
+    },
+    [activeStreamingMessageStore],
+  );
+
+  const clearStreamingMessageStore = useCallback(
+    (targetChatId, assistantMessageId) => {
+      if (
+        activeStreamingMessageStore &&
+        typeof activeStreamingMessageStore.clear === "function"
+      ) {
+        activeStreamingMessageStore.clear({
+          chatId: targetChatId,
+          messageId: assistantMessageId,
+        });
+      }
+    },
+    [activeStreamingMessageStore],
+  );
 
   const updateToolConfirmationUiState = useCallback((updater) => {
     const previous = toolConfirmationUiStateByIdRef.current;
@@ -551,7 +602,7 @@ export const useChatStream = ({
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
-    clearActiveTokenFlushController("dispose");
+    clearActiveTokenFlushController("flush");
     const handle = streamHandlesRef.current.get(currentChatId);
     if (handle && typeof handle.cancel === "function") {
       handle.cancel();
@@ -578,9 +629,19 @@ export const useChatStream = ({
     setToolConfirmationUiStateById({});
     pendingContinuationRequestRef.current = null;
     setPendingContinuationRequest(null);
-    const { changed, nextMessages } = settleStreamingAssistantMessages(
+    const materializedMessages = materializeStreamingMessages(
+      currentChatId,
       messagesRef.current,
     );
+    const { changed, nextMessages } =
+      settleStreamingAssistantMessages(materializedMessages);
+    if (
+      currentChatId &&
+      activeStreamingMessageStore &&
+      typeof activeStreamingMessageStore.clearChat === "function"
+    ) {
+      activeStreamingMessageStore.clearChat(currentChatId);
+    }
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
 
@@ -593,7 +654,9 @@ export const useChatStream = ({
   }, [
     activeChatIdRef,
     activeStreamsRef,
+    activeStreamingMessageStore,
     clearActiveTokenFlushController,
+    materializeStreamingMessages,
     messagesRef,
     setMessages,
     storageApi,
@@ -1275,6 +1338,10 @@ export const useChatStream = ({
       setStreamError("");
       setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
       streamingChatIdsRef.current.add(targetChatId);
+      activeStreamingMessageStore.begin({
+        chatId: targetChatId,
+        messageId: assistantMessageId,
+      });
       activeStreamsRef.current.set(targetChatId, {
         messages: optimisticMessages,
       });
@@ -1288,6 +1355,7 @@ export const useChatStream = ({
           return next;
         });
         activeStreamsRef.current.delete(targetChatId);
+        clearStreamingMessageStore(targetChatId, assistantMessageId);
         if (clearComposer) {
           setInputValue(previousInputValue);
           setDraftAttachments(previousDraftAttachments);
@@ -1426,7 +1494,10 @@ export const useChatStream = ({
           return;
         }
 
-        scheduleBackgroundPersist(targetChatId, nextStreamMessages);
+        scheduleBackgroundPersist(
+          targetChatId,
+          materializeStreamingMessages(targetChatId, nextStreamMessages),
+        );
       };
 
       const dirtySubagentFrameRunIds = new Set();
@@ -1715,14 +1786,12 @@ export const useChatStream = ({
         const deltaChunk = bufferedTokenDelta;
         bufferedTokenDelta = "";
         const patchTime = Date.now();
-        const nextStreamMessages = streamMessages.map((message) =>
-          message.id === assistantMessageId
-            ? appendStreamingMessageDelta(message, deltaChunk, {
-                updatedAt: patchTime,
-              })
-            : message,
-        );
-        syncStreamMessages(nextStreamMessages);
+        activeStreamingMessageStore.append({
+          chatId: targetChatId,
+          messageId: assistantMessageId,
+          delta: deltaChunk,
+          updatedAt: patchTime,
+        });
       };
 
       const scheduleBufferedTokenFlush = () => {
@@ -2699,7 +2768,10 @@ export const useChatStream = ({
                 const nextStreamMessages = streamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
 
-                  const currentContent = getStreamingMessageText(message);
+                  const currentContent = activeStreamingMessageStore.getText({
+                    chatId: targetChatId,
+                    messageId: assistantMessageId,
+                  });
                   const hasToolActivity = (message.traceFrames || []).some(
                     (traceFrame) =>
                       traceFrame.type === "tool_call" ||
@@ -2711,17 +2783,17 @@ export const useChatStream = ({
                     currentContent.trim() === finalContent.trim() &&
                     currentContent.length > 0;
 
-                  const nextMessage = useAccumulated
-                    ? {
-                        ...message,
-                        updatedAt: patchTime,
-                      }
-                    : replaceStreamingMessageText(message, finalContent, {
-                        updatedAt: patchTime,
-                      });
+                  if (!useAccumulated) {
+                    activeStreamingMessageStore.replace({
+                      chatId: targetChatId,
+                      messageId: assistantMessageId,
+                      text: finalContent,
+                      updatedAt: patchTime,
+                    });
+                  }
 
                   return {
-                    ...nextMessage,
+                    ...message,
                     updatedAt: patchTime,
                     traceFrames: [...(message.traceFrames || []), frame],
                   };
@@ -2734,7 +2806,10 @@ export const useChatStream = ({
                 const nextStreamMessages = streamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
 
-                  const currentContent = getStreamingMessageText(message);
+                  const currentContent = activeStreamingMessageStore.getText({
+                    chatId: targetChatId,
+                    messageId: assistantMessageId,
+                  });
                   const currentContentTrimmed = currentContent.trim();
                   const existingFrames = message.traceFrames || [];
 
@@ -2795,6 +2870,12 @@ export const useChatStream = ({
                     updatedAt: patchTime,
                     traceFrames: mergedFrames,
                   };
+                });
+                activeStreamingMessageStore.replace({
+                  chatId: targetChatId,
+                  messageId: assistantMessageId,
+                  text: "",
+                  updatedAt: patchTime,
                 });
                 syncStreamMessages(nextStreamMessages);
                 return;
@@ -2862,6 +2943,7 @@ export const useChatStream = ({
 
               thinkTagParser.flush();
               flushBufferedTokenDelta();
+              flushStreamingMessageStore(targetChatId, assistantMessageId);
               const doneTime = Date.now();
               const bundle =
                 done?.bundle && typeof done.bundle === "object"
@@ -2872,9 +2954,14 @@ export const useChatStream = ({
                   ? normalizeAgentOrchestration(bundle.agent_orchestration)
                   : null;
 
-              const nextStreamMessages = streamMessages.map((message) => {
+              const materializedStreamMessages = materializeStreamingMessages(
+                targetChatId,
+                streamMessages,
+              );
+              const nextStreamMessages = materializedStreamMessages.map((message) => {
                 if (message.id !== assistantMessageId) return message;
-                let cleanContent = getStreamingMessageText(message);
+                let cleanContent =
+                  typeof message.content === "string" ? message.content : "";
                 cleanContent = cleanContent
                   .replace(/<think>[\s\S]*?<\/think>/g, "")
                   .replace(/^\s*\n/, "");
@@ -2950,6 +3037,7 @@ export const useChatStream = ({
                 isForeground: activeChatIdRef.current === targetChatId,
                 flushBackgroundPersist,
               });
+              clearStreamingMessageStore(targetChatId, assistantMessageId);
               streamHandlesRef.current.delete(targetChatId);
               streamingChatIdsRef.current.delete(targetChatId);
               activeStreamsRef.current.delete(targetChatId);
@@ -2972,6 +3060,7 @@ export const useChatStream = ({
             onError: (error) => {
               thinkTagParser.flush();
               flushBufferedTokenDelta();
+              flushStreamingMessageStore(targetChatId, assistantMessageId);
               if (
                 !streamHandlesRef.current.has(targetChatId) &&
                 !streamingChatIdsRef.current.has(targetChatId)
@@ -3011,9 +3100,10 @@ export const useChatStream = ({
                 releaseTokenFlushController();
 
                 const retryHistory = buildHistoryForModel(
-                  streamMessages,
+                  materializeStreamingMessages(targetChatId, streamMessages),
                   targetChatId,
                 );
+                clearStreamingMessageStore(targetChatId, assistantMessageId);
                 void runTurnRequest({
                   mode,
                   chatId: targetChatId,
@@ -3056,7 +3146,11 @@ export const useChatStream = ({
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
 
-              const nextStreamMessages = streamMessages.map((message) => {
+              const materializedStreamMessages = materializeStreamingMessages(
+                targetChatId,
+                streamMessages,
+              );
+              const nextStreamMessages = materializedStreamMessages.map((message) => {
                 if (message.id !== assistantMessageId) {
                   return message;
                 }
@@ -3072,7 +3166,8 @@ export const useChatStream = ({
                   type: "error",
                   payload: { code: errorCode, message: errorMessage },
                 };
-                const currentContent = getStreamingMessageText(message);
+                const currentContent =
+                  typeof message.content === "string" ? message.content : "";
 
                 return finalizeStreamingMessage(message, {
                   status: "error",
@@ -3096,6 +3191,7 @@ export const useChatStream = ({
               if (activeChatIdRef.current !== targetChatId) {
                 flushBackgroundPersist(targetChatId);
               }
+              clearStreamingMessageStore(targetChatId, assistantMessageId);
               activeStreamsRef.current.delete(targetChatId);
             },
           },
@@ -3111,6 +3207,7 @@ export const useChatStream = ({
         streamHandlesRef.current.delete(targetChatId);
         streamingChatIdsRef.current.delete(targetChatId);
         activeStreamsRef.current.delete(targetChatId);
+        clearStreamingMessageStore(targetChatId, assistantMessageId);
         setStreamingChatIds((prev) => {
           const next = new Set(prev);
           next.delete(targetChatId);

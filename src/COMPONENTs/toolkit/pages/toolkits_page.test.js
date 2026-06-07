@@ -8,6 +8,7 @@ import {
 } from "../../../SERVICEs/mcp_install";
 import {
   clearMcpStoreMetadataCache,
+  setMcpStoreEntriesCache,
   setMcpStoreMetadataCache,
 } from "../../../SERVICEs/mcp_toolkit_store";
 
@@ -43,6 +44,25 @@ jest.mock("../../../SERVICEs/api", () => ({
       listMcpStoreMetadata: jest.fn(() =>
         Promise.resolve({ entries: [], byEntryId: {}, status: "ok" }),
       ),
+      listMcpStoreEntries: jest.fn(() =>
+        Promise.resolve({
+          entries: [
+            {
+              id: "browser.playwright",
+              toolkitId: "mcp.browser.playwright",
+              toolkitName: "Playwright Browser",
+              toolkitDescription: "Browser automation",
+              source: "mcp",
+              status: "available",
+              installable: true,
+              mcp: { transport: "stdio" },
+              tools: [],
+            },
+          ],
+          count: 1,
+          status: "ok",
+        }),
+      ),
       reloadMcpStoreMetadata: jest.fn(() =>
         Promise.resolve({
           entries: [
@@ -56,17 +76,60 @@ jest.mock("../../../SERVICEs/api", () => ({
           status: "ok",
         }),
       ),
+      importMcpStoreRegistry: jest.fn(() =>
+        Promise.resolve({ registry: { registryId: "registry.inline.test" } }),
+      ),
+      approveMcpStoreEntry: jest.fn(() =>
+        Promise.resolve({ entry: { id: "external.sample", approvalStatus: "approved" } }),
+      ),
+      revokeMcpStoreEntryApproval: jest.fn(() =>
+        Promise.resolve({ ok: true, entryId: "external.sample" }),
+      ),
     },
   },
 }));
 
 jest.mock("../../../SERVICEs/mcp_toolkit_store", () => {
   const actual = jest.requireActual("../../../SERVICEs/mcp_toolkit_store");
+  let testEntries = null;
   return {
     __esModule: true,
     ...actual,
-    setMcpStoreMetadataCache: jest.fn(actual.setMcpStoreMetadataCache),
-    clearMcpStoreMetadataCache: jest.fn(actual.clearMcpStoreMetadataCache),
+    getMcpStoreEntry: jest.fn((id) => {
+      if (Array.isArray(testEntries)) {
+        const entry = testEntries.find((item) => item.id === id);
+        if (entry) return entry;
+      }
+      return (
+        actual.getMcpStoreEntry(id) ||
+        actual.MCP_STORE_ENTRIES.find((entry) => entry.id === id) ||
+        (id === "browser.playwright"
+          ? {
+              id: "browser.playwright",
+              toolkitId: "mcp.browser.playwright",
+              toolkitName: "Playwright Browser",
+              toolkitDescription: "Browser automation",
+              source: "mcp",
+              status: "available",
+              installable: true,
+              mcp: { transport: "stdio" },
+              tools: [],
+            }
+          : null) ||
+        null
+      );
+    }),
+    setMcpStoreEntriesCache: jest.fn((payload) => {
+      const entries = Array.isArray(payload?.entries) ? payload.entries : [];
+      testEntries = entries.length ? entries : null;
+      actual.setMcpStoreEntriesCache(payload);
+    }),
+    setMcpStoreMetadataCache: jest.fn((payload) =>
+      actual.setMcpStoreMetadataCache(payload),
+    ),
+    clearMcpStoreMetadataCache: jest.fn(() =>
+      actual.clearMcpStoreMetadataCache(),
+    ),
   };
 });
 
@@ -77,12 +140,28 @@ jest.mock("../../settings/runtime", () => ({
 
 jest.mock("./toolkit_store_page", () => ({
   __esModule: true,
-  default: ({ onEntryClick, onInstall, onOAuthConnect, onRefreshMetadata }) => (
+  default: ({
+    onEntryClick,
+    onInstall,
+    onOAuthConnect,
+    onRefreshMetadata,
+    onImportRegistry,
+  }) => (
     <div>
       <span>Store Page</span>
       <button onClick={() => onRefreshMetadata?.()}>Refresh Metadata</button>
+      <button
+        onClick={() =>
+          onImportRegistry?.({ registry: { version: 1, entries: [] } })
+        }
+      >
+        Import Registry
+      </button>
       <button onClick={() => onEntryClick?.("browser.playwright")}>
         Open Store Entry
+      </button>
+      <button onClick={() => onEntryClick?.("external.sample")}>
+        Open External Entry
       </button>
       <button
         onClick={() =>
@@ -166,9 +245,10 @@ jest.mock("../components/toolkit_detail_panel", () => ({
 
 jest.mock("../components/store_toolkit_detail_panel", () => ({
   __esModule: true,
-  default: ({ entry, onInstall }) => (
+  default: ({ entry, onInstall, onApproveEntry, onRevokeApproval }) => (
     <div>
       <span>Store Detail Panel: {entry?.id}</span>
+      <span>Store Detail Trust: {entry?.trustLevel}</span>
       <button
         onClick={() =>
           onInstall?.(entry, {
@@ -178,6 +258,12 @@ jest.mock("../components/store_toolkit_detail_panel", () => ({
       >
         Install From Detail
       </button>
+      <button
+        onClick={() => onApproveEntry?.(entry, { acknowledgedRisk: true })}
+      >
+        Approve From Detail
+      </button>
+      <button onClick={() => onRevokeApproval?.(entry)}>Revoke From Detail</button>
     </div>
   ),
 }));
@@ -196,7 +282,11 @@ describe("ToolkitsPage", () => {
     installMcpEntry.mockClear();
     connectMcpOAuthEntry.mockClear();
     api.unchain.listMcpStoreMetadata.mockClear();
+    api.unchain.listMcpStoreEntries.mockClear();
     api.unchain.reloadMcpStoreMetadata.mockClear();
+    api.unchain.importMcpStoreRegistry.mockClear();
+    api.unchain.approveMcpStoreEntry.mockClear();
+    api.unchain.revokeMcpStoreEntryApproval.mockClear();
     api.unchain.listMcpStoreMetadata.mockResolvedValue({
       entries: [],
       byEntryId: {},
@@ -213,6 +303,36 @@ describe("ToolkitsPage", () => {
       byEntryId: {},
       status: "ok",
     });
+    api.unchain.listMcpStoreEntries.mockResolvedValue({
+      entries: [
+        {
+          id: "browser.playwright",
+          toolkitId: "mcp.browser.playwright",
+          toolkitName: "Playwright Browser",
+          toolkitDescription: "Browser automation",
+          source: "mcp",
+          status: "available",
+          installable: true,
+          mcp: { transport: "stdio" },
+          tools: [],
+        },
+      ],
+      count: 1,
+      status: "ok",
+    });
+    api.unchain.importMcpStoreRegistry.mockResolvedValue({
+      registry: { registryId: "registry.inline.test" },
+    });
+    api.unchain.approveMcpStoreEntry.mockResolvedValue({
+      entry: { id: "external.sample", approvalStatus: "approved" },
+    });
+    api.unchain.revokeMcpStoreEntryApproval.mockResolvedValue({
+      ok: true,
+      entryId: "external.sample",
+    });
+    setMcpStoreEntriesCache.mockClear();
+    setMcpStoreEntriesCache({ entries: [] });
+    setMcpStoreEntriesCache.mockClear();
     setMcpStoreMetadataCache.mockClear();
     clearMcpStoreMetadataCache.mockClear();
     jest.useFakeTimers();
@@ -232,6 +352,7 @@ describe("ToolkitsPage", () => {
   test("loads cached store metadata on mount", async () => {
     await renderToolkitsPage();
 
+    expect(api.unchain.listMcpStoreEntries).toHaveBeenCalledTimes(1);
     expect(api.unchain.listMcpStoreMetadata).toHaveBeenCalledTimes(1);
     expect(setMcpStoreMetadataCache).toHaveBeenCalledWith(
       expect.objectContaining({ entries: [] }),
@@ -369,5 +490,64 @@ describe("ToolkitsPage", () => {
         ],
       }),
     );
+  });
+
+  test("store detail approval and revoke refresh entries and update selected detail", async () => {
+    const reviewEntry = {
+      id: "external.sample",
+      toolkitId: "mcp.external.sample",
+      toolkitName: "External Sample",
+      toolkitDescription: "External review entry",
+      category: "dev",
+      source: "mcp_registry",
+      trustLevel: "external_review",
+      status: "needs_review",
+      installable: false,
+      registryId: "registry.inline.test",
+      registryName: "Sample Registry",
+      mcp: { transport: "stdio", command: "node", args: ["server.js"] },
+      tools: [],
+      policySummary: { reviewed: false },
+    };
+    const approvedEntry = {
+      ...reviewEntry,
+      trustLevel: "external_approved",
+      status: "available",
+      installable: true,
+      approvalStatus: "approved",
+    };
+    api.unchain.listMcpStoreEntries
+      .mockResolvedValueOnce({ entries: [reviewEntry], count: 1, status: "ok" })
+      .mockResolvedValueOnce({ entries: [approvedEntry], count: 1, status: "ok" })
+      .mockResolvedValueOnce({ entries: [reviewEntry], count: 1, status: "ok" });
+    setMcpStoreEntriesCache({ entries: [reviewEntry], count: 1, status: "ok" });
+
+    await renderToolkitsPage();
+
+    fireEvent.click(screen.getByText("toolkit.store"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Open External Entry"));
+    });
+    expect(screen.getByText("Store Detail Trust: external_review")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Approve From Detail"));
+    });
+
+    expect(api.unchain.approveMcpStoreEntry).toHaveBeenCalledWith(
+      "external.sample",
+      { registryId: "registry.inline.test", acknowledgedRisk: true },
+    );
+    expect(screen.getByText("Store Detail Trust: external_approved")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByText("Revoke From Detail"));
+    });
+
+    expect(api.unchain.revokeMcpStoreEntryApproval).toHaveBeenCalledWith(
+      "external.sample",
+      { registryId: "registry.inline.test" },
+    );
+    expect(screen.getByText("Store Detail Trust: external_review")).toBeInTheDocument();
   });
 });

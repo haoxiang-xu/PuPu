@@ -46,6 +46,28 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA),
   reloadMcpStoreMetadata: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA, payload),
+  listMcpStoreEntries: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_STORE_ENTRIES),
+  listMcpStoreRegistries: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_STORE_REGISTRIES),
+  importMcpStoreRegistry: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.IMPORT_MCP_STORE_REGISTRY, payload),
+  validateMcpStoreRegistry: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.VALIDATE_MCP_STORE_REGISTRY, payload),
+  refreshMcpStoreRegistry: (registryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.REFRESH_MCP_STORE_REGISTRY, { registryId }),
+  deleteMcpStoreRegistry: (registryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_STORE_REGISTRY, { registryId }),
+  approveMcpStoreEntry: (entryId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.APPROVE_MCP_STORE_ENTRY, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      entryId,
+    }),
+  revokeMcpStoreEntryApproval: (entryId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.REVOKE_MCP_STORE_ENTRY_APPROVAL, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      entryId,
+    }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
   setChromeTerminalOpen: (open = false) =>

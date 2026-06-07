@@ -10,6 +10,7 @@ import { isBuiltinToolkit } from "../utils/toolkit_helpers";
 import api from "../../../SERVICEs/api";
 import {
   getMcpStoreEntry,
+  setMcpStoreEntriesCache,
   setMcpStoreMetadataCache,
 } from "../../../SERVICEs/mcp_toolkit_store";
 import {
@@ -43,6 +44,7 @@ const ToolkitsPage = ({ isDark }) => {
   const [detailMounted, setDetailMounted] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const slideTimer = useRef(null);
+  const storeEntriesByIdRef = useRef(new Map());
 
   const openDetail = useCallback((detail) => {
     setSelectedToolkit(detail);
@@ -72,7 +74,8 @@ const ToolkitsPage = ({ isDark }) => {
 
   const handleStoreEntryClick = useCallback(
     (entryId) => {
-      const entry = getMcpStoreEntry(entryId);
+      const entry =
+        getMcpStoreEntry(entryId) || storeEntriesByIdRef.current.get(entryId);
       if (!entry) return;
       openDetail({ kind: "store", entry });
     },
@@ -86,11 +89,27 @@ const ToolkitsPage = ({ isDark }) => {
   const [metadataRevision, setMetadataRevision] = useState(0);
   const [metadataRefreshing, setMetadataRefreshing] = useState(false);
   const [metadataError, setMetadataError] = useState(null);
+  const [registryImporting, setRegistryImporting] = useState(false);
+  const [registryError, setRegistryError] = useState(null);
+  const [approvalBusyId, setApprovalBusyId] = useState(null);
 
   const applyStoreMetadata = useCallback((payload) => {
     setMcpStoreMetadataCache(payload || {});
     setMetadataRevision((value) => value + 1);
     emitToolkitCatalogRefresh({ source: "mcp_store_metadata" });
+  }, []);
+
+  const applyStoreEntries = useCallback((payload) => {
+    if (Array.isArray(payload?.entries) && payload.entries.length > 0) {
+      storeEntriesByIdRef.current = new Map(
+        payload.entries
+          .filter((entry) => entry && entry.id)
+          .map((entry) => [entry.id, entry]),
+      );
+      setMcpStoreEntriesCache(payload);
+      setMetadataRevision((value) => value + 1);
+      emitToolkitCatalogRefresh({ source: "mcp_store_entries" });
+    }
   }, []);
 
   const loadInstalledMcpIds = useCallback(async () => {
@@ -108,6 +127,14 @@ const ToolkitsPage = ({ isDark }) => {
   useEffect(() => {
     let cancelled = false;
     api.unchain
+      .listMcpStoreEntries()
+      .then((payload) => {
+        if (!cancelled) applyStoreEntries(payload);
+      })
+      .catch(() => {
+        /* ignore — static registry remains usable */
+      });
+    api.unchain
       .listMcpStoreMetadata()
       .then((payload) => {
         if (!cancelled) applyStoreMetadata(payload);
@@ -118,7 +145,30 @@ const ToolkitsPage = ({ isDark }) => {
     return () => {
       cancelled = true;
     };
-  }, [applyStoreMetadata]);
+  }, [applyStoreEntries, applyStoreMetadata]);
+
+  const refreshStoreEntries = useCallback(async () => {
+    const payload = await api.unchain.listMcpStoreEntries();
+    applyStoreEntries(payload);
+    return payload;
+  }, [applyStoreEntries]);
+
+  const updateSelectedStoreEntry = useCallback((entryId, payload, fallbackEntry = null) => {
+    const updatedFromPayload = Array.isArray(payload?.entries)
+      ? payload.entries.find((entry) => entry?.id === entryId)
+      : null;
+    const updated =
+      updatedFromPayload ||
+      getMcpStoreEntry(entryId) ||
+      storeEntriesByIdRef.current.get(entryId) ||
+      fallbackEntry;
+    if (!updated) return;
+    setSelectedToolkit((prev) =>
+      prev?.kind === "store" && prev.entry?.id === entryId
+        ? { ...prev, entry: updated }
+        : prev,
+    );
+  }, []);
 
   const handleRefreshMetadata = useCallback(async () => {
     setMetadataRefreshing(true);
@@ -133,6 +183,27 @@ const ToolkitsPage = ({ isDark }) => {
       setMetadataRefreshing(false);
     }
   }, [applyStoreMetadata]);
+
+  const handleImportRegistry = useCallback(
+    async (payload) => {
+      setRegistryImporting(true);
+      setRegistryError(null);
+      try {
+        await api.unchain.importMcpStoreRegistry(payload);
+        await refreshStoreEntries();
+      } catch (error) {
+        setRegistryError(error?.code || "mcp_registry_import_failed");
+        throw error;
+      } finally {
+        setRegistryImporting(false);
+      }
+    },
+    [refreshStoreEntries],
+  );
+
+  const handleValidateRegistry = useCallback(async (payload) => {
+    return api.unchain.validateMcpStoreRegistry(payload);
+  }, []);
 
   const handleInstall = useCallback(
     async (entry, setupOptions = {}) => {
@@ -175,6 +246,53 @@ const ToolkitsPage = ({ isDark }) => {
       }
     },
     [loadInstalledMcpIds],
+  );
+
+  const handleApproveStoreEntry = useCallback(
+    async (entry, options = {}) => {
+      if (!entry?.id) return;
+      setApprovalBusyId(entry.id);
+      setInstallError(null);
+      try {
+        const result = await api.unchain.approveMcpStoreEntry(entry.id, {
+          registryId: entry.registryId,
+          ...(options?.acknowledgedRisk ? { acknowledgedRisk: true } : {}),
+        });
+        const payload = await refreshStoreEntries();
+        updateSelectedStoreEntry(entry.id, payload, result?.entry || null);
+      } catch (error) {
+        setInstallError({
+          entryId: entry.id,
+          code: error?.code || "mcp_registry_entry_not_approved",
+        });
+      } finally {
+        setApprovalBusyId(null);
+      }
+    },
+    [refreshStoreEntries, updateSelectedStoreEntry],
+  );
+
+  const handleRevokeStoreEntryApproval = useCallback(
+    async (entry) => {
+      if (!entry?.id) return;
+      setApprovalBusyId(entry.id);
+      setInstallError(null);
+      try {
+        await api.unchain.revokeMcpStoreEntryApproval(entry.id, {
+          registryId: entry.registryId,
+        });
+        const payload = await refreshStoreEntries();
+        updateSelectedStoreEntry(entry.id, payload);
+      } catch (error) {
+        setInstallError({
+          entryId: entry.id,
+          code: error?.code || "mcp_registry_approval_not_found",
+        });
+      } finally {
+        setApprovalBusyId(null);
+      }
+    },
+    [refreshStoreEntries, updateSelectedStoreEntry],
   );
 
   const panelBg = isDark ? "#141414" : "#ffffff";
@@ -224,6 +342,10 @@ const ToolkitsPage = ({ isDark }) => {
             metadataRefreshing={metadataRefreshing}
             metadataError={metadataError}
             onRefreshMetadata={handleRefreshMetadata}
+            registryImporting={registryImporting}
+            registryError={registryError}
+            onImportRegistry={handleImportRegistry}
+            onValidateRegistry={handleValidateRegistry}
           />
         );
       case "installed":
@@ -309,7 +431,10 @@ const ToolkitsPage = ({ isDark }) => {
                 installedIds={installedMcpIds}
                 onInstall={handleInstall}
                 onOAuthConnect={handleOAuthConnect}
+                onApproveEntry={handleApproveStoreEntry}
+                onRevokeApproval={handleRevokeStoreEntryApproval}
                 installing={installingId === selectedToolkit.entry?.id}
+                approvalBusy={approvalBusyId === selectedToolkit.entry?.id}
                 installError={
                   installError?.entryId === selectedToolkit.entry?.id
                     ? installError

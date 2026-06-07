@@ -29,5 +29,8 @@ describe("toolkit constants", () => {
     expect(TRUST_CONFIG.needs_review.labelKey).toBe(
       "toolkit.trust_needs_review",
     );
+    expect(TRUST_CONFIG.external_approved.labelKey).toBe(
+      "toolkit.trust_external_approved",
+    );
   });
 });

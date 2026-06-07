@@ -15,6 +15,7 @@ import unchain_adapter  # noqa: E402
 from mcp_toolkits import (  # noqa: E402
     McpToolkitError,
     build_mcp_runtime_toolkit,
+    check_mcp_toolkit_health,
     configure_mcp_toolkit,
     delete_mcp_toolkit,
     get_installed_mcp_toolkit,
@@ -26,6 +27,11 @@ from mcp_secrets import delete_mcp_secret_values, get_mcp_secret_value  # noqa: 
 from mcp_oauth import (  # noqa: E402
     get_mcp_oauth_status,
     save_mcp_oauth_token,
+)
+from mcp_external_registries import (  # noqa: E402
+    approve_mcp_store_entry,
+    delete_mcp_store_registry,
+    import_mcp_store_registry,
 )
 
 
@@ -121,6 +127,105 @@ class McpToolkitServiceTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, "unsupported_mcp_entry")
         self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
+
+    def test_install_rejects_external_registry_entries_as_untrusted(self):
+        import_mcp_store_registry(
+            {
+                "registry": {
+                    "version": 1,
+                    "name": "External",
+                    "entries": [
+                        {
+                            "id": "external.untrusted",
+                            "toolkitId": "mcp.external.untrusted",
+                            "name": "External Untrusted",
+                            "description": "Review-only external entry",
+                            "category": "dev",
+                            "installable": True,
+                            "mcp": {
+                                "transport": "stdio",
+                                "command": "node",
+                                "args": ["server.js"],
+                            },
+                        }
+                    ],
+                }
+            },
+            data_dir=self.data_dir,
+        )
+
+        with self.assertRaises(McpToolkitError) as ctx:
+            install_mcp_toolkit(
+                "external.untrusted",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        self.assertEqual(ctx.exception.code, "mcp_registry_entry_untrusted")
+        self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
+
+    def test_approved_external_registry_entry_installs_and_persists_snapshot(self):
+        imported = import_mcp_store_registry(
+            {
+                "registry": {
+                    "version": 1,
+                    "name": "External",
+                    "entries": [
+                        {
+                            "id": "external.approved",
+                            "toolkitId": "mcp.external.approved",
+                            "name": "External Approved",
+                            "description": "Approved external entry",
+                            "category": "dev",
+                            "installable": True,
+                            "license": "MIT",
+                            "sourceRepo": "https://example.test/repo",
+                            "docsUrl": "https://example.test/docs",
+                            "mcp": {
+                                "transport": "stdio",
+                                "command": "node",
+                                "args": ["server.js"],
+                            },
+                            "tools": [{"name": "external_tool"}],
+                            "policySummary": {"reviewed": True},
+                        }
+                    ],
+                }
+            },
+            data_dir=self.data_dir,
+        )
+        registry_id = imported["registry"]["registryId"]
+        approve_mcp_store_entry(
+            "external.approved",
+            registry_id=registry_id,
+            data_dir=self.data_dir,
+            acknowledged_risk=True,
+        )
+
+        result = install_mcp_toolkit(
+            "external.approved",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+            now_fn=lambda: 1000.0,
+        )
+
+        self.assertEqual(result["toolkit"]["toolkitId"], "mcp.external.approved")
+        self.assertEqual(FakeMCPToolkit.instances[-1].kwargs["command"], "node")
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        record = persisted["toolkits"][0]
+        self.assertEqual(record["external_entry_snapshot"]["entry_id"], "external.approved")
+        self.assertEqual(record["external_entry_snapshot"]["trust_level"], "external_approved")
+
+        delete_mcp_store_registry(registry_id, data_dir=self.data_dir)
+        health = check_mcp_toolkit_health(
+            "mcp.external.approved",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+            now_fn=lambda: 2000.0,
+        )
+
+        self.assertEqual(health["toolkit"]["status"], "available")
+        self.assertEqual(health["toolkit"]["lastCheckedAt"], 2000.0)
 
     def test_filesystem_requires_workspace_and_substitutes_placeholder(self):
         with self.assertRaises(McpToolkitError) as ctx:

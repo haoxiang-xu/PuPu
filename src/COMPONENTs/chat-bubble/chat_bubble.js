@@ -92,6 +92,12 @@ const ChatBubble = ({
     : buildPendingConfirmationTraceFrames(pendingToolConfirmationRequests);
   const hasVisibleTraceActivity =
     hasToolActivity || pendingToolConfirmationFrames.length > 0;
+  const hasTokenSummary =
+    isAssistant &&
+    message.status === "done" &&
+    typeof message.meta?.bundle?.consumed_tokens === "number" &&
+    message.meta.bundle.consumed_tokens > 0;
+  const shouldRenderTraceChain = hasVisibleTraceActivity || hasTokenSummary;
   const traceChainFrames = hasToolActivity
     ? traceFrames
     : pendingToolConfirmationFrames;
@@ -108,10 +114,11 @@ const ChatBubble = ({
         position: "relative",
       }}
     >
-      {isAssistant && hasVisibleTraceActivity && (
+      {isAssistant && shouldRenderTraceChain && (
         <TraceChain
           frames={traceChainFrames}
           status={message.status}
+          messageId={message.id}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
           streamingContent={
@@ -133,6 +140,7 @@ const ChatBubble = ({
         <TraceChain
           frames={[]}
           status={message.status}
+          messageId={message.id}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
           pendingContinuationRequest={pendingContinuationRequest}

@@ -36,6 +36,10 @@ const makeScrollHost = () => {
   };
 };
 
+const makeBottomSentinel = () => ({
+  scrollIntoView: jest.fn(),
+});
+
 const useScrollWithHost = (props, host) => {
   const scroll = useMessageWindowScroll(props);
   useLayoutEffect(() => {
@@ -124,13 +128,14 @@ describe("useMessageWindowScroll", () => {
 
   it("follows streaming output on a throttled timer", () => {
     const scrollHost = makeScrollHost();
+    const bottomSentinel = makeBottomSentinel();
     const initialMessages = makeMessages(20);
-    const { rerender } = renderHook(
-      ({ messages }) =>
+    const { result } = renderHook(
+      () =>
         useScrollWithHost(
           {
             chat_id: "chat-streaming",
-            messages,
+            messages: initialMessages,
             is_streaming: true,
             initial_visible_count: 12,
             load_batch_size: 6,
@@ -139,18 +144,17 @@ describe("useMessageWindowScroll", () => {
           },
           scrollHost.host,
         ),
-      { initialProps: { messages: initialMessages } },
     );
+    act(() => {
+      result.current.bottomSentinelRef.current = bottomSentinel;
+    });
 
     expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
     expect(scrollHost.getScrollHeightReads()).toBe(0);
     scrollHost.setScrollHeight(1400);
 
-    rerender({
-      messages: [
-        ...initialMessages,
-        { id: "m-20", role: "assistant", content: "streaming" },
-      ],
+    act(() => {
+      result.current.notifyStreamingContentCommitted();
     });
 
     expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
@@ -161,11 +165,44 @@ describe("useMessageWindowScroll", () => {
     act(() => {
       jest.advanceTimersByTime(1);
     });
-    expect(scrollHost.host.scrollTo).toHaveBeenCalledTimes(1);
-    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
-      top: 1400,
-      behavior: "auto",
+    expect(bottomSentinel.scrollIntoView).not.toHaveBeenCalled();
+    expect(scrollHost.host.scrollTop).toBe(Number.MAX_SAFE_INTEGER);
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+    expect(scrollHost.getScrollHeightReads()).toBe(0);
+  });
+
+  it("follows streaming output by clamping the scroll host instead of aligning the sentinel", () => {
+    const scrollHost = makeScrollHost();
+    const bottomSentinel = makeBottomSentinel();
+    const initialMessages = makeMessages(20);
+    const { result } = renderHook(
+      () =>
+        useScrollWithHost(
+          {
+            chat_id: "chat-streaming",
+            messages: initialMessages,
+            is_streaming: true,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+          },
+          scrollHost.host,
+        ),
+    );
+    act(() => {
+      result.current.bottomSentinelRef.current = bottomSentinel;
+      result.current.notifyStreamingContentCommitted();
     });
+
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+
+    expect(bottomSentinel.scrollIntoView).not.toHaveBeenCalled();
+    expect(scrollHost.host.scrollTop).toBe(Number.MAX_SAFE_INTEGER);
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+    expect(scrollHost.getScrollHeightReads()).toBe(0);
   });
 
   it("keeps following when streaming growth makes the viewport geometrically no longer at bottom", () => {
@@ -207,10 +244,8 @@ describe("useMessageWindowScroll", () => {
       jest.advanceTimersByTime(64);
     });
 
-    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
-      top: 2000,
-      behavior: "auto",
-    });
+    expect(scrollHost.host.scrollTop).toBe(Number.MAX_SAFE_INTEGER);
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
   });
 
   it("keeps following after a non-user scroll event looks like upward movement", () => {
@@ -256,10 +291,8 @@ describe("useMessageWindowScroll", () => {
       jest.advanceTimersByTime(64);
     });
 
-    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
-      top: 2200,
-      behavior: "auto",
-    });
+    expect(scrollHost.host.scrollTop).toBe(Number.MAX_SAFE_INTEGER);
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
   });
 
   it("does not force-follow streaming output after the user scrolls away", () => {

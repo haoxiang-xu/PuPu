@@ -9,6 +9,11 @@ import {
   ASSISTANT_MARKDOWN_FONT_SIZE,
   ASSISTANT_MARKDOWN_LINE_HEIGHT,
 } from "./components/assistant_markdown_metrics";
+import {
+  StreamingMarkdownView,
+  useStreamingMessageSnapshot,
+  useStreamingMessageStoreContext,
+} from "./components/streaming_message_store_context";
 import InteractWrapper from "./interact/interact_wrapper";
 import { normalizeStreamingChunks } from "../../SERVICEs/streaming_message_chunks";
 
@@ -584,6 +589,7 @@ const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }
 const TraceChain = ({
   frames = [],
   status,
+  messageId = "",
   streamingContent = "",
   streamingChunks,
   onToolConfirmationDecision,
@@ -597,6 +603,12 @@ const TraceChain = ({
   hideTrack = false,
   _depth = 0,
 }) => {
+  const { chatId, store } = useStreamingMessageStoreContext();
+  const streamingStoreSnapshot = useStreamingMessageSnapshot(
+    store,
+    chatId,
+    messageId,
+  );
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
       if (typeof onToolConfirmationDecision !== "function") return;
@@ -861,6 +873,20 @@ const TraceChain = ({
     const renderedCallIds = new Set();
     const usedRunIds = new Set();
     let prevTs = startFrame?.ts ?? null;
+    const liveChunks =
+      isStreaming &&
+      (streamingStoreSnapshot.textLength > 0 || streamingStoreSnapshot.version > 0)
+        ? streamingStoreSnapshot.chunks
+        : isStreaming
+          ? normalizeStreamingChunks(streamingChunks)
+          : [];
+    const liveContent =
+      isStreaming && typeof streamingContent === "string" ? streamingContent : "";
+    const hasLiveContent =
+      liveChunks.some((chunk) => chunk.trim().length > 0) ||
+      liveContent.trim().length > 0;
+    const liveText = liveChunks.length > 0 ? liveChunks.join("") : liveContent;
+    const normalizedLiveText = hasLiveContent ? liveText.trim() : "";
 
     for (const frame of displayFrames) {
       const delta =
@@ -1464,6 +1490,13 @@ const TraceChain = ({
             ? frame.payload.content
             : "";
         if (!content.trim()) continue;
+        if (
+          isStreaming &&
+          normalizedLiveText.length > 0 &&
+          normalizedLiveText.startsWith(content.trim())
+        ) {
+          continue;
+        }
         items.push({
           key: `${frame.seq}-final-message`,
           title: "Response",
@@ -1485,12 +1518,6 @@ const TraceChain = ({
     }
 
     if (isStreaming) {
-      const liveChunks = normalizeStreamingChunks(streamingChunks);
-      const liveContent =
-        typeof streamingContent === "string" ? streamingContent : "";
-      const hasLiveContent =
-        liveChunks.some((chunk) => chunk.trim().length > 0) ||
-        liveContent.trim().length > 0;
       if (hasLiveContent) {
         items.push({
           key: "__streaming_content__",
@@ -1500,10 +1527,10 @@ const TraceChain = ({
           point: "loading",
           body: (
             <div style={{ fontFamily: "inherit" }}>
-              <SeamlessMarkdown
-                content={liveContent}
-                streamingChunks={liveChunks}
-                status="streaming"
+              <StreamingMarkdownView
+                messageId={messageId}
+                fallbackContent={liveContent}
+                fallbackChunks={liveChunks}
                 fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
                 lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
                 style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
@@ -1598,8 +1625,10 @@ const TraceChain = ({
   }, [
     displayFrames,
     isStreaming,
+    messageId,
     streamingContent,
     streamingChunks,
+    streamingStoreSnapshot,
     startFrame,
     toolResultByCallId,
     confirmationStatusByCallId,

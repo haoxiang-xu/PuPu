@@ -101,7 +101,10 @@ const StoreToolkitDetailPanel = ({
   installedIds,
   onInstall,
   onOAuthConnect,
+  onApproveEntry,
+  onRevokeApproval,
   installing = false,
+  approvalBusy = false,
   installError = null,
 }) => {
   const context = useContext(ConfigContext) || {};
@@ -110,14 +113,25 @@ const StoreToolkitDetailPanel = ({
 
   const installState = entry ? entryInstallState(entry, installedIds) : "coming_soon";
   const setupKind = setupKindForEntry(entry);
+  const isExternalEntry = Boolean(entry?.externalReview || entry?.source === "mcp_registry");
+  const approvalStatus = entry?.approvalStatus || (
+    entry?.trustLevel === "external_approved" ? "approved" : "missing"
+  );
+  const canApproveExternal = isExternalEntry && approvalStatus !== "approved";
+  const canRevokeExternal = isExternalEntry && approvalStatus === "approved";
   const hasOAuthRecipe = Boolean(entry?.auth?.oauth);
   const showSecondaryOAuthAction =
     hasOAuthRecipe && installState === "installable" && Boolean(onOAuthConnect);
   const [secretValues, setSecretValues] = useState({});
+  const [riskAcknowledged, setRiskAcknowledged] = useState(false);
 
   useEffect(() => {
     setSecretValues({});
   }, [entry?.id]);
+
+  useEffect(() => {
+    setRiskAcknowledged(false);
+  }, [entry?.id, entry?.recipeHash, entry?.review?.recipeHash]);
 
   const secrets = useMemo(
     () => (Array.isArray(entry?.secrets) ? entry.secrets : []),
@@ -136,6 +150,17 @@ const StoreToolkitDetailPanel = ({
     .filter((secret) => !String(secretValues[secret.key] || "").trim())
     .map((secret) => secret.key)
     .filter(Boolean);
+  const review = entry?.review || {};
+  const riskLevel = String(review.riskLevel || "").trim();
+  const permissionGroups = Array.isArray(review.permissionGroups)
+    ? review.permissionGroups
+    : [];
+  const riskFlags = Array.isArray(review.riskFlags) ? review.riskFlags : [];
+  const recipeDiff = Array.isArray(review.recipeDiff) ? review.recipeDiff : [];
+  const requiresRiskAcknowledgement =
+    canApproveExternal && Boolean(review.requiresAcknowledgement);
+  const approveActionEnabled =
+    !approvalBusy && (!requiresRiskAcknowledgement || riskAcknowledged);
   const actionLabel = installing
     ? installState === "oauth"
       ? t("toolkit.store_waiting_for_oauth")
@@ -206,6 +231,34 @@ const StoreToolkitDetailPanel = ({
     ? entry.prerequisites
     : [];
   const policy = entry.policySummary || {};
+  const oauthRecipe = entry.auth?.oauth || {};
+  const commandSummary =
+    entry.mcp?.transport === "stdio"
+      ? [entry.mcp?.command, ...(entry.mcp?.args || [])].filter(Boolean).join(" ")
+      : "";
+  const urlSummary = entry.mcp?.transport === "http" ? entry.mcp?.url || "" : "";
+  const secretSummary = secrets.map((secret) => secret.key).filter(Boolean).join(", ");
+  const oauthSummary = oauthRecipe.provider
+    ? [
+        oauthRecipe.provider,
+        (oauthRecipe.scopes || []).filter(Boolean).join(", "),
+      ].filter(Boolean).join(" · ")
+    : "";
+  const workspaceSummary = [
+    entry.workspace?.binding || entry.workspaceBinding,
+    entry.workspace?.placeholder || entry.workspacePlaceholder,
+  ].filter(Boolean).join(" · ");
+  const approvalRiskRows = [
+    [t("toolkit.store_review_transport"), entry.mcp?.transport || ""],
+    [t("toolkit.store_review_command"), commandSummary],
+    [t("toolkit.store_review_url"), urlSummary],
+    [t("toolkit.store_review_secrets"), secretSummary],
+    [t("toolkit.store_review_oauth"), oauthSummary],
+    [t("toolkit.store_review_workspace"), workspaceSummary],
+    [t("toolkit.store_review_permissions"), `${policy.defaultEnabledTools || 0} / ${policy.confirmationRequiredTools || 0}`],
+    [t("toolkit.store_registry_source"), entry.registryId || entry.registryName || ""],
+    [t("toolkit.store_recipe_hash"), entry.recipeHash || ""],
+  ].filter(([, value]) => String(value || "").trim());
 
   const statusChip =
     installState === "installed"
@@ -372,6 +425,24 @@ const StoreToolkitDetailPanel = ({
                     fontFamily={fontFamily}
                   />
                 )}
+                {entry.externalReview && (
+                  <Badge
+                    text={[t("toolkit.store_external_registry"), entry.registryName]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    color={warningColor}
+                    bg={warningBg}
+                    fontFamily={fontFamily}
+                  />
+                )}
+                {riskLevel && (
+                  <Badge
+                    text={t(`toolkit.store_risk_${riskLevel}`)}
+                    color={warningColor}
+                    bg={warningBg}
+                    fontFamily={fontFamily}
+                  />
+                )}
                 <Badge
                   text={statusChip.label}
                   color={statusChip.color}
@@ -438,6 +509,88 @@ const StoreToolkitDetailPanel = ({
                 />
               </div>
             )}
+            {canApproveExternal && (
+              <div style={{ marginTop: 6 }}>
+                {requiresRiskAcknowledgement && (
+                  <label
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "flex-end",
+                      gap: 6,
+                      fontSize: 10.5,
+                      color: warningColor,
+                      marginBottom: 6,
+                      lineHeight: 1.35,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={riskAcknowledged}
+                      onChange={(event) =>
+                        setRiskAcknowledged(Boolean(event.target.checked))
+                      }
+                    />
+                    {t("toolkit.store_acknowledge_risk")}
+                  </label>
+                )}
+                <Button
+                  label={approvalBusy
+                    ? t("toolkit.store_approving_entry")
+                    : t("toolkit.store_approve_entry")}
+                  disabled={!approveActionEnabled}
+                  onClick={() =>
+                    onApproveEntry?.(entry, {
+                      acknowledgedRisk:
+                        riskAcknowledged || !requiresRiskAcknowledgement,
+                    })
+                  }
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: "#fff",
+                    paddingVertical: 4,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    root: {
+                      background: isDark ? "rgba(245,158,11,0.9)" : "#c2410c",
+                      border: "none",
+                    },
+                    state: {
+                      disabled: {
+                        root: { opacity: 0.55, cursor: "not-allowed" },
+                        background: {},
+                      },
+                    },
+                  }}
+                />
+              </div>
+            )}
+            {canRevokeExternal && (
+              <div style={{ marginTop: 6 }}>
+                <Button
+                  label={approvalBusy
+                    ? t("toolkit.store_revoking_approval")
+                    : t("toolkit.store_revoke_approval")}
+                  disabled={approvalBusy}
+                  onClick={() => onRevokeApproval?.(entry)}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: isDark ? "#fdba74" : "#c2410c",
+                    paddingVertical: 4,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    root: {
+                      background: isDark
+                        ? "rgba(251,146,60,0.12)"
+                        : "rgba(251,146,60,0.12)",
+                      border: "none",
+                    },
+                  }}
+                />
+              </div>
+            )}
             {installError && (
               <div
                 style={{
@@ -486,7 +639,8 @@ const StoreToolkitDetailPanel = ({
         }}
       >
         {(entry.status === "needs_review" ||
-          entry.trustLevel === "needs_review") && (
+          entry.trustLevel === "needs_review" ||
+          entry.trustLevel === "external_review") && (
           <div
             style={{
               display: "flex",
@@ -503,9 +657,141 @@ const StoreToolkitDetailPanel = ({
               {t("toolkit.store_needs_review_title")}
             </span>
             <span style={{ fontSize: 11.5, lineHeight: 1.45 }}>
-              {t("toolkit.store_needs_review_phase2a")}
+              {entry.approvalInvalidated
+                ? t("toolkit.store_approval_stale")
+                : t("toolkit.store_needs_review_phase2a")}
             </span>
           </div>
+        )}
+
+        {isExternalEntry && approvalRiskRows.length > 0 && (
+          <section
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              padding: "10px 12px",
+              borderRadius: 8,
+              backgroundColor: tagBg,
+              marginBottom: 16,
+            }}
+          >
+            <SectionTitle color={mutedColor} fontFamily={fontFamily}>
+              {t("toolkit.store_approval_risk_summary")}
+            </SectionTitle>
+            {riskLevel && (
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                <Badge
+                  text={t(`toolkit.store_risk_${riskLevel}`)}
+                  color={warningColor}
+                  bg={warningBg}
+                  fontFamily={fontFamily}
+                />
+                {riskFlags.map((flag) => (
+                  <Tag
+                    key={flag}
+                    text={flag}
+                    color={tagColor}
+                    bg={isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.035)"}
+                    fontFamily={fontFamily}
+                  />
+                ))}
+              </div>
+            )}
+            <div style={{ display: "grid", gap: 6 }}>
+              {approvalRiskRows.map(([label, value]) => (
+                <div
+                  key={label}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "96px minmax(0, 1fr)",
+                    gap: 8,
+                    alignItems: "baseline",
+                    fontSize: 11.5,
+                    lineHeight: 1.45,
+                  }}
+                >
+                  <span style={{ color: mutedColor }}>{label}</span>
+                  <span
+                    style={{
+                      color: textColor,
+                      fontFamily,
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    {value}
+                  </span>
+                </div>
+              ))}
+            </div>
+            {permissionGroups.length > 0 && (
+              <div style={{ display: "grid", gap: 8 }}>
+                {permissionGroups.map((group) => (
+                  <div
+                    key={`${group.kind}-${group.summary}`}
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 5,
+                      paddingTop: 4,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: mutedColor,
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {group.kind}
+                      {group.summary ? ` · ${group.summary}` : ""}
+                    </span>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {(group.items || []).map((item) => (
+                        <Tag
+                          key={`${group.kind}-${item}`}
+                          text={item}
+                          color={tagColor}
+                          bg={tagBg}
+                          fontFamily={fontFamily}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {isExternalEntry && recipeDiff.length > 0 && (
+          <section
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 8,
+              padding: "10px 12px",
+              borderRadius: 8,
+              backgroundColor: warningBg,
+              color: warningColor,
+              marginBottom: 16,
+            }}
+          >
+            <SectionTitle color={warningColor} fontFamily={fontFamily}>
+              {t("toolkit.store_recipe_diff")}
+            </SectionTitle>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {recipeDiff.map((item) => (
+                <Tag
+                  key={`${item.path}-${item.kind}`}
+                  text={item.path}
+                  color={warningColor}
+                  bg={isDark ? "rgba(0,0,0,0.18)" : "rgba(255,255,255,0.65)"}
+                  fontFamily={fontFamily}
+                />
+              ))}
+            </div>
+          </section>
         )}
 
         {(entry.sourceRepo || entry.docsUrl) && (

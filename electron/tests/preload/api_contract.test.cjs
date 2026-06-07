@@ -76,6 +76,14 @@ describe("preload API contract", () => {
       "deleteMcpOAuthApp",
       "listMcpStoreMetadata",
       "reloadMcpStoreMetadata",
+      "listMcpStoreEntries",
+      "listMcpStoreRegistries",
+      "importMcpStoreRegistry",
+      "validateMcpStoreRegistry",
+      "refreshMcpStoreRegistry",
+      "deleteMcpStoreRegistry",
+      "approveMcpStoreEntry",
+      "revokeMcpStoreEntryApproval",
       "respondToolConfirmation",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -247,6 +255,68 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
       { entryId: "browser.playwright" },
+    );
+
+    exposed.unchainAPI.listMcpStoreEntries();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_STORE_ENTRIES,
+    );
+
+    exposed.unchainAPI.listMcpStoreRegistries();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_STORE_REGISTRIES,
+    );
+
+    exposed.unchainAPI.importMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.IMPORT_MCP_STORE_REGISTRY,
+      { registry: { version: 1, entries: [] } },
+    );
+
+    exposed.unchainAPI.validateMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.VALIDATE_MCP_STORE_REGISTRY,
+      { registry: { version: 1, entries: [] } },
+    );
+
+    exposed.unchainAPI.refreshMcpStoreRegistry("registry.inline.test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.REFRESH_MCP_STORE_REGISTRY,
+      { registryId: "registry.inline.test" },
+    );
+
+    exposed.unchainAPI.deleteMcpStoreRegistry("registry.inline.test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DELETE_MCP_STORE_REGISTRY,
+      { registryId: "registry.inline.test" },
+    );
+
+    exposed.unchainAPI.approveMcpStoreEntry("external.sample", {
+      registryId: "registry.inline.test",
+      acknowledgedRisk: true,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.APPROVE_MCP_STORE_ENTRY,
+      {
+        entryId: "external.sample",
+        registryId: "registry.inline.test",
+        acknowledgedRisk: true,
+      },
+    );
+
+    exposed.unchainAPI.revokeMcpStoreEntryApproval("external.sample", {
+      registryId: "registry.inline.test",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.REVOKE_MCP_STORE_ENTRY_APPROVAL,
+      {
+        entryId: "external.sample",
+        registryId: "registry.inline.test",
+      },
     );
 
     exposed.unchainAPI.listCharacters();

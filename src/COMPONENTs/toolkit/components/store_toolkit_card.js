@@ -68,6 +68,11 @@ const StoreToolkitCard = ({
   ]
     .filter(Boolean)
     .join(" · ");
+  const externalMeta = entry.externalReview
+    ? [t("toolkit.store_external_registry"), entry.registryName]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   const iconWrapBackground = isBuiltinToolkitIcon(toolkitIcon)
     ? toolkitIcon.backgroundColor
@@ -163,6 +168,22 @@ const StoreToolkitCard = ({
             }}
           >
             {repoMeta}
+          </div>
+        )}
+        {externalMeta && (
+          <div
+            style={{
+              fontSize: 10.5,
+              fontFamily,
+              color: warningColor,
+              lineHeight: 1.35,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              marginTop: 1,
+            }}
+          >
+            {externalMeta}
           </div>
         )}
         {installError && (

@@ -1643,6 +1643,13 @@ describe("ChatInterface stop flow", () => {
         lastChatMessagesProps?.messages?.find(
           (message) => message.role === "assistant",
         );
+      const getAssistantStreamingText = () => {
+        const message = getAssistantMessage();
+        return lastChatMessagesProps?.streamingMessageStore?.getText({
+          chatId: lastChatMessagesProps.chatId,
+          messageId: message?.id,
+        });
+      };
 
       await waitFor(() => {
         expect(getAssistantMessage()?.content || "").toBe("");
@@ -1655,12 +1662,13 @@ describe("ChatInterface stop flow", () => {
       });
 
       await waitFor(() => {
-        expect(getAssistantMessage()?.content).toBe("Hello");
+        expect(getAssistantMessage()?.content || "").toBe("");
+        expect(getAssistantStreamingText()).toBe("Hello");
         expect(getAssistantMessage()?.status).toBe("streaming");
       });
 
       streamHandlers.onToken(" world");
-      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(2);
+      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(3);
       streamHandlers.onDone({});
 
       await waitFor(() => {
@@ -1704,6 +1712,13 @@ describe("ChatInterface stop flow", () => {
         lastChatMessagesProps?.messages?.find(
           (message) => message.role === "assistant",
         );
+      const getAssistantStreamingText = () => {
+        const message = getAssistantMessage();
+        return lastChatMessagesProps?.streamingMessageStore?.getText({
+          chatId: lastChatMessagesProps.chatId,
+          messageId: message?.id,
+        });
+      };
 
       act(() => {
         streamHandlers.onFrame({
@@ -1764,7 +1779,8 @@ describe("ChatInterface stop flow", () => {
       });
 
       await waitFor(() => {
-        expect(getAssistantMessage()?.content).toBe("parent output");
+        expect(getAssistantMessage()?.content || "").toBe("");
+        expect(getAssistantStreamingText()).toBe("parent output");
       });
     } finally {
       window.requestAnimationFrame = originalRaf;

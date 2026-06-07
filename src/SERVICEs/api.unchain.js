@@ -967,6 +967,191 @@ export const createUnchainApi = () => {
       }
     },
 
+    listMcpStoreEntries: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpStoreEntries")) {
+        return { entries: [], count: 0, status: "unavailable" };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpStoreEntries");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_store_entries_list_timeout",
+          "MCP store entries request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { entries: [], count: 0, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_entries_list_failed",
+          "Failed to query MCP store entries",
+        );
+      }
+    },
+
+    listMcpStoreRegistries: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpStoreRegistries")) {
+        return { registries: [], count: 0, status: "unavailable" };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpStoreRegistries");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_store_registries_list_timeout",
+          "MCP store registries request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { registries: [], count: 0, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_registries_list_failed",
+          "Failed to query MCP store registries",
+        );
+      }
+    },
+
+    importMcpStoreRegistry: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "importMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_store_registry_import_timeout",
+          "MCP store registry import timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_import_failed",
+          "Failed to import MCP store registry",
+        );
+      }
+    },
+
+    validateMcpStoreRegistry: async (payload = {}) => {
+      if (!hasBridgeMethod("unchainAPI", "validateMcpStoreRegistry")) {
+        return {
+          valid: false,
+          status: "unavailable",
+          diagnostics: [],
+          entries: [],
+          count: 0,
+        };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "validateMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_store_registry_validate_timeout",
+          "MCP store registry validation timed out",
+        );
+        return isObject(response)
+          ? response
+          : {
+              valid: false,
+              status: "unavailable",
+              diagnostics: [],
+              entries: [],
+              count: 0,
+            };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_invalid",
+          "Failed to validate MCP store registry",
+        );
+      }
+    },
+
+    refreshMcpStoreRegistry: async (registryId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "refreshMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(registryId),
+          60000,
+          "mcp_store_registry_refresh_timeout",
+          "MCP store registry refresh timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_refresh_failed",
+          "Failed to refresh MCP store registry",
+        );
+      }
+    },
+
+    deleteMcpStoreRegistry: async (registryId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(registryId),
+          12000,
+          "mcp_store_registry_delete_timeout",
+          "MCP store registry delete timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_delete_failed",
+          "Failed to delete MCP store registry",
+        );
+      }
+    },
+
+    approveMcpStoreEntry: async (entryId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "approveMcpStoreEntry");
+        const response = await withTimeout(
+          () => method(entryId, isObject(payload) ? payload : {}),
+          12000,
+          "mcp_store_entry_approve_timeout",
+          "MCP store entry approval timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_entry_not_approved",
+          "Failed to approve MCP store entry",
+        );
+      }
+    },
+
+    revokeMcpStoreEntryApproval: async (entryId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod(
+          "unchainAPI",
+          "revokeMcpStoreEntryApproval",
+        );
+        const response = await withTimeout(
+          () => method(entryId, isObject(payload) ? payload : {}),
+          12000,
+          "mcp_store_entry_approval_revoke_timeout",
+          "MCP store entry approval revoke timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_approval_not_found",
+          "Failed to revoke MCP store entry approval",
+        );
+      }
+    },
+
     respondToolConfirmation: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");

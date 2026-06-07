@@ -397,6 +397,71 @@ describe("unchain service session memory replacement", () => {
             },
             status: "ok",
           }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            entries: [{ id: "external.sample" }],
+            count: 1,
+            status: "ok",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            registries: [{ registryId: "registry.inline.test" }],
+            count: 1,
+            status: "ok",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            registry: { registryId: "registry.inline.test" },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            valid: true,
+            diagnostics: [],
+            entries: [],
+            count: 0,
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            registry: { registryId: "registry.inline.test" },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            registryId: "registry.inline.test",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            entry: { id: "external.sample", approvalStatus: "approved" },
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            ok: true,
+            entryId: "external.sample",
+          }),
       });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
@@ -441,6 +506,23 @@ describe("unchain service session memory replacement", () => {
     await service.listMisoMcpStoreMetadata();
     await service.reloadMisoMcpStoreMetadata({
       entryId: "browser.playwright",
+    });
+    await service.listMisoMcpStoreEntries();
+    await service.listMisoMcpStoreRegistries();
+    await service.importMisoMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    await service.validateMisoMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    await service.refreshMisoMcpStoreRegistry("registry.inline.test");
+    await service.deleteMisoMcpStoreRegistry("registry.inline.test");
+    await service.approveMisoMcpStoreEntry("external.sample", {
+      registryId: "registry.inline.test",
+      acknowledgedRisk: true,
+    });
+    await service.revokeMisoMcpStoreEntryApproval("external.sample", {
+      registryId: "registry.inline.test",
     });
 
     expect(global.fetch).toHaveBeenNthCalledWith(
@@ -497,6 +579,61 @@ describe("unchain service session memory replacement", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({ entry_id: "browser.playwright" }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      10,
+      "http://127.0.0.1:5879/mcp/store/entries",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      11,
+      "http://127.0.0.1:5879/mcp/store/registries",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      12,
+      "http://127.0.0.1:5879/mcp/store/registries/import",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ registry: { version: 1, entries: [] } }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      13,
+      "http://127.0.0.1:5879/mcp/store/registries/validate",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ registry: { version: 1, entries: [] } }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      14,
+      "http://127.0.0.1:5879/mcp/store/registries/registry.inline.test/refresh",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      15,
+      "http://127.0.0.1:5879/mcp/store/registries/registry.inline.test",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      16,
+      "http://127.0.0.1:5879/mcp/store/entries/external.sample/approve",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          registryId: "registry.inline.test",
+          acknowledgedRisk: true,
+        }),
+      }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      17,
+      "http://127.0.0.1:5879/mcp/store/entries/external.sample/approval",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ registryId: "registry.inline.test" }),
       }),
     );
   });

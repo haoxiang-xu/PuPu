@@ -240,6 +240,44 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
       unchainService.reloadMisoMcpStoreMetadata(payload),
   );
   ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_STORE_ENTRIES,
+    async () => unchainService.listMisoMcpStoreEntries(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_STORE_REGISTRIES,
+    async () => unchainService.listMisoMcpStoreRegistries(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.IMPORT_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.importMisoMcpStoreRegistry(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.VALIDATE_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.validateMisoMcpStoreRegistry(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.REFRESH_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.refreshMisoMcpStoreRegistry(payload.registryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoMcpStoreRegistry(payload.registryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.APPROVE_MCP_STORE_ENTRY,
+    async (_event, payload = {}) =>
+      unchainService.approveMisoMcpStoreEntry(payload.entryId, payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.REVOKE_MCP_STORE_ENTRY_APPROVAL,
+    async (_event, payload = {}) =>
+      unchainService.revokeMisoMcpStoreEntryApproval(payload.entryId, payload),
+  );
+  ipcMain.handle(
     CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
     async (_event, payload = {}) =>
       unchainService.submitMisoToolConfirmation(payload),

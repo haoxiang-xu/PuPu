@@ -41,6 +41,16 @@ from mcp_store_metadata import (
     list_mcp_store_metadata,
     reload_mcp_store_metadata,
 )
+from mcp_external_registries import (
+    approve_mcp_store_entry,
+    delete_mcp_store_registry,
+    import_mcp_store_registry,
+    list_mcp_store_entries,
+    list_mcp_store_registries,
+    refresh_mcp_store_registry,
+    revoke_mcp_store_entry_approval,
+    validate_mcp_store_registry,
+)
 
 import route_catalog  # noqa: F401
 import route_chat  # noqa: F401
@@ -78,11 +88,19 @@ __all__ = [
     "install_mcp_toolkit",
     "list_mcp_oauth_apps",
     "list_installed_mcp_toolkits",
+    "list_mcp_store_entries",
     "list_mcp_store_metadata",
+    "list_mcp_store_registries",
     "reload_mcp_toolkits",
     "reload_mcp_store_metadata",
+    "refresh_mcp_store_registry",
     "start_mcp_oauth",
     "stream_chat",
     "stream_chat_events",
     "submit_tool_confirmation",
+    "delete_mcp_store_registry",
+    "import_mcp_store_registry",
+    "approve_mcp_store_entry",
+    "revoke_mcp_store_entry_approval",
+    "validate_mcp_store_registry",
 ]

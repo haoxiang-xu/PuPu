@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "$id": "https://pupu.local/schemas/mcp_toolkit_registry.schema.json",
+  "title": "PuPu MCP Toolkit Registry",
+  "type": "object",
+  "required": ["version", "entries"],
+  "additionalProperties": true,
+  "properties": {
+    "version": { "type": "integer", "minimum": 1 },
+    "name": { "type": "string" },
+    "publisher": { "type": "string" },
+    "homepage": { "type": "string", "format": "uri" },
+    "categories": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/entry" }
+    }
+  },
+  "definitions": {
+    "entry": {
+      "type": "object",
+      "required": ["id", "toolkitId", "name", "description", "mcp"],
+      "additionalProperties": true,
+      "properties": {
+        "id": { "type": "string" },
+        "toolkitId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "status": { "type": "string" },
+        "installable": { "type": "boolean" },
+        "icon": { "type": "object" },
+        "license": { "type": "string" },
+        "sourceRepo": { "type": "string", "format": "uri" },
+        "docsUrl": { "type": "string", "format": "uri" },
+        "readmeMarkdown": { "type": "string" },
+        "mcp": { "$ref": "#/definitions/mcp" },
+        "secrets": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/secret" }
+        },
+        "auth": { "$ref": "#/definitions/auth" },
+        "workspace": { "$ref": "#/definitions/workspace" },
+        "metadata": { "$ref": "#/definitions/metadata" },
+        "tools": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "policySummary": { "type": "object" }
+      }
+    },
+    "mcp": {
+      "type": "object",
+      "required": ["transport"],
+      "oneOf": [
+        {
+          "required": ["transport", "command"],
+          "properties": {
+            "transport": { "const": "stdio" },
+            "command": { "type": "string" },
+            "args": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        {
+          "required": ["transport", "url"],
+          "properties": {
+            "transport": { "const": "http" },
+            "runtimeTransport": { "type": "string" },
+            "url": { "type": "string", "format": "uri" },
+            "headers": {
+              "type": ["array", "object"]
+            }
+          }
+        }
+      ]
+    },
+    "secret": {
+      "type": "object",
+      "required": ["key"],
+      "additionalProperties": true,
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "optional": { "type": "boolean" }
+      }
+    },
+    "auth": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "oauth": {
+          "type": "object",
+          "additionalProperties": true,
+          "properties": {
+            "provider": { "type": "string" },
+            "providerLabel": { "type": "string" },
+            "clientRegistration": {
+              "enum": ["dynamic", "user_credentials"]
+            },
+            "mcpUrl": { "type": "string", "format": "uri" },
+            "transport": { "type": "string" },
+            "protectedResourceMetadataUrl": { "type": "string", "format": "uri" },
+            "authorizationServerMetadataUrl": { "type": "string", "format": "uri" },
+            "authorizationEndpoint": { "type": "string", "format": "uri" },
+            "tokenEndpoint": { "type": "string", "format": "uri" },
+            "registrationEndpoint": { "type": "string", "format": "uri" },
+            "scopes": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "authUrlParams": { "type": "object" },
+            "tokenRequest": { "type": "object" }
+          }
+        }
+      }
+    },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "required": { "type": "boolean" },
+        "placeholder": { "type": "string" },
+        "binding": { "type": "string" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "type": { "const": "http_json" },
+        "request": {
+          "type": "object",
+          "required": ["url"],
+          "properties": {
+            "url": { "type": "string", "format": "uri" },
+            "headers": { "type": "object" }
+          }
+        },
+        "fields": { "type": "object" },
+        "icon": {
+          "type": "object",
+          "properties": {
+            "urlPath": { "type": "string" }
+          }
+        },
+        "iconPolicy": { "enum": ["fallback", "replace"] },
+        "cacheTtlMs": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

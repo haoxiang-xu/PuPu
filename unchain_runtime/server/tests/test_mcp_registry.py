@@ -12,6 +12,28 @@ import mcp_registry  # noqa: E402
 
 
 class McpRegistryTests(unittest.TestCase):
+    def test_registry_schema_document_exists_for_curated_and_external_entries(self):
+        schema_path = (
+            Path(__file__).resolve().parents[3]
+            / "src"
+            / "SERVICEs"
+            / "mcp_toolkit_registry.schema.json"
+        )
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(schema["$id"], "https://pupu.local/schemas/mcp_toolkit_registry.schema.json")
+        entry_schema = schema["definitions"]["entry"]
+        for field in ["id", "toolkitId", "name", "description", "mcp"]:
+            self.assertIn(field, entry_schema["required"])
+        for property_name in [
+            "secrets",
+            "auth",
+            "workspace",
+            "metadata",
+            "policySummary",
+        ]:
+            self.assertIn(property_name, entry_schema["properties"])
+
     def test_default_registry_loads_curated_entries_from_json(self):
         entry = mcp_registry.registry_entry("dev.github-remote")
 

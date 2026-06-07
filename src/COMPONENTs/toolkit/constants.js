@@ -52,6 +52,11 @@ export const SOURCE_CONFIG = {
     color: "#8b5cf6",
     bg: "rgba(139,92,246,0.12)",
   },
+  mcp_registry: {
+    labelKey: "toolkit.source_mcp_registry",
+    color: "#f59e0b",
+    bg: "rgba(251,146,60,0.12)",
+  },
 };
 
 export const STORE_CATEGORY_CONFIG = [
@@ -86,5 +91,15 @@ export const TRUST_CONFIG = {
     labelKey: "toolkit.trust_needs_review",
     color: "#f59e0b",
     bg: "rgba(251,146,60,0.13)",
+  },
+  external_review: {
+    labelKey: "toolkit.trust_external_review",
+    color: "#f59e0b",
+    bg: "rgba(251,146,60,0.13)",
+  },
+  external_approved: {
+    labelKey: "toolkit.trust_external_approved",
+    color: "#10b981",
+    bg: "rgba(52,211,153,0.13)",
   },
 };

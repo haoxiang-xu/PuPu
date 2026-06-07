@@ -12,6 +12,13 @@ from urllib.parse import urlparse
 REGISTRY_FILENAME = "mcp_toolkit_registry.json"
 
 
+class McpRegistryValidationError(RuntimeError):
+    def __init__(self, diagnostics: List[Dict[str, Any]]):
+        self.diagnostics = diagnostics
+        message = diagnostics[0]["message"] if diagnostics else "MCP registry is invalid"
+        super().__init__(message)
+
+
 def _candidate_registry_paths() -> List[Path]:
     candidates: List[Path] = []
     override = os.environ.get("PUPU_MCP_REGISTRY_PATH", "").strip()
@@ -54,6 +61,57 @@ def _clean_str(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _entry_identity(raw: Any) -> tuple[str, str]:
+    if not isinstance(raw, dict):
+        return "", ""
+    return (
+        _clean_str(raw.get("id") or raw.get("entry_id")),
+        _clean_str(raw.get("toolkitId") or raw.get("toolkit_id")),
+    )
+
+
+def _diagnostic(
+    code: str,
+    message: str,
+    *,
+    path: str = "$",
+    entry_id: str = "",
+    toolkit_id: str = "",
+    severity: str = "error",
+) -> Dict[str, Any]:
+    return {
+        "code": code,
+        "message": message,
+        "path": path,
+        "entryId": entry_id,
+        "toolkitId": toolkit_id,
+        "severity": severity,
+    }
+
+
+def _validation_code(message: str) -> str:
+    lower = message.lower()
+    if "duplicate" in lower:
+        return "mcp_registry_conflict"
+    if "https" in lower:
+        return "mcp_registry_url_invalid"
+    if "transport" in lower:
+        return "mcp_registry_transport_invalid"
+    if "metadata" in lower:
+        return "mcp_registry_metadata_invalid"
+    if "oauth" in lower:
+        return "mcp_registry_oauth_invalid"
+    return "mcp_registry_invalid"
+
+
+def _require_https_url(value: Any, label: str) -> str:
+    url = _clean_str(value)
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise RuntimeError(f"MCP registry {label} must use https")
+    return url
+
+
 def _normalize_header(raw: Any) -> Dict[str, Any] | None:
     if not isinstance(raw, dict):
         return None
@@ -84,13 +142,16 @@ def _normalize_mcp(raw: Any) -> Dict[str, Any]:
 
     mcp: Dict[str, Any] = {"transport": transport}
     if transport == "stdio":
-        mcp["command"] = _clean_str(raw.get("command"))
+        command = _clean_str(raw.get("command"))
+        if not command:
+            raise RuntimeError("MCP registry stdio command is required")
+        mcp["command"] = command
         mcp["args"] = [str(arg) for arg in (raw.get("args") or [])]
     else:
         mcp["runtime_transport"] = _clean_str(
             raw.get("runtime_transport") or raw.get("runtimeTransport")
         ) or "streamable_http"
-        mcp["url"] = _clean_str(raw.get("url"))
+        mcp["url"] = _require_https_url(raw.get("url"), "HTTP MCP url")
         raw_headers = raw.get("headers") or []
         if isinstance(raw_headers, dict):
             mcp["headers"] = {
@@ -105,6 +166,40 @@ def _normalize_mcp(raw: Any) -> Dict[str, Any]:
                 if header
             ]
     return mcp
+
+
+def _normalize_oauth_recipe(raw: Any) -> Dict[str, Any]:
+    if raw in (None, ""):
+        return {}
+    if not isinstance(raw, dict):
+        raise RuntimeError("MCP registry OAuth recipe must be an object")
+    recipe = copy.deepcopy(raw)
+    for key in [
+        "mcpUrl",
+        "protectedResourceMetadataUrl",
+        "authorizationServerMetadataUrl",
+        "authorizationEndpoint",
+        "tokenEndpoint",
+        "registrationEndpoint",
+    ]:
+        if _clean_str(recipe.get(key)):
+            recipe[key] = _require_https_url(recipe.get(key), f"OAuth {key}")
+    return recipe
+
+
+def _normalize_auth(raw: Any) -> Dict[str, Any]:
+    if raw in (None, ""):
+        return {}
+    if not isinstance(raw, dict):
+        raise RuntimeError("MCP registry auth must be an object")
+    auth = copy.deepcopy(raw)
+    if "oauth" in auth:
+        oauth = _normalize_oauth_recipe(auth.get("oauth"))
+        if oauth:
+            auth["oauth"] = oauth
+        else:
+            auth.pop("oauth", None)
+    return auth
 
 
 def _normalize_metadata_recipe(raw: Any) -> Dict[str, Any]:
@@ -169,7 +264,7 @@ def _normalize_entry(raw: Any) -> Dict[str, Any]:
         raise RuntimeError("MCP registry entry requires id and toolkitId")
 
     secrets = raw.get("secrets") if isinstance(raw.get("secrets"), list) else []
-    auth = copy.deepcopy(raw.get("auth") if isinstance(raw.get("auth"), dict) else {})
+    auth = _normalize_auth(raw.get("auth"))
     oauth = auth.get("oauth") if isinstance(auth.get("oauth"), dict) else {}
     workspace = (
         copy.deepcopy(raw.get("workspace"))
@@ -224,6 +319,9 @@ def _normalize_entry(raw: Any) -> Dict[str, Any]:
         "workspace_placeholder": workspace_placeholder,
         "workspace_binding": workspace_binding,
     }
+    registry_id = _clean_str(raw.get("registryId") or raw.get("registry_id"))
+    if registry_id:
+        entry["registry_id"] = registry_id
     if oauth:
         entry["requires_oauth"] = bool(raw.get("requiresOAuth") or not secrets)
         entry["auth_type"] = "oauth"
@@ -231,19 +329,115 @@ def _normalize_entry(raw: Any) -> Dict[str, Any]:
     return entry
 
 
-def _load_registry(path: Path | None = None) -> Dict[str, Any]:
-    payload = _read_registry_payload(path)
+def normalize_registry_payload(
+    payload: Dict[str, Any],
+    *,
+    registry_id: str = "",
+    force_review: bool = False,
+    existing_entry_ids: set[str] | None = None,
+    existing_toolkit_ids: set[str] | None = None,
+) -> Dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise RuntimeError("MCP registry JSON root must be an object")
+    if not isinstance(payload.get("entries"), list):
+        raise RuntimeError("MCP registry JSON must contain an entries array")
     categories = [str(item) for item in (payload.get("categories") or [])]
     entries_by_id: Dict[str, Dict[str, Any]] = {}
     toolkit_ids: set[str] = set()
-    for raw_entry in payload["entries"]:
-        entry = _normalize_entry(raw_entry)
+    existing_entry_ids = existing_entry_ids or set()
+    existing_toolkit_ids = existing_toolkit_ids or set()
+    for index, raw_entry in enumerate(payload["entries"]):
+        entry_id, toolkit_id = _entry_identity(raw_entry)
+        path = f"$.entries[{index}]"
+        try:
+            entry = _normalize_entry(raw_entry)
+        except RuntimeError as exc:
+            message = str(exc) or "MCP registry entry is invalid"
+            raise McpRegistryValidationError(
+                [
+                    _diagnostic(
+                        _validation_code(message),
+                        message,
+                        path=path,
+                        entry_id=entry_id,
+                        toolkit_id=toolkit_id,
+                    )
+                ]
+            ) from exc
+        if force_review:
+            review_original = {
+                "trust_level": entry.get("trust_level", ""),
+                "status": entry.get("status", "available"),
+                "installable": bool(entry.get("installable")),
+                "policy_summary": copy.deepcopy(entry.get("policy_summary") or {}),
+            }
+            policy_summary = (
+                copy.deepcopy(entry.get("policy_summary"))
+                if isinstance(entry.get("policy_summary"), dict)
+                else {}
+            )
+            policy_summary["reviewed"] = False
+            entry.update(
+                {
+                    "source": "mcp_registry",
+                    "trust_level": "external_review",
+                    "status": "needs_review",
+                    "installable": False,
+                    "policy_summary": policy_summary,
+                    "registry_id": registry_id,
+                    "review_original": review_original,
+                }
+            )
         entry_id = entry["entry_id"]
         toolkit_id = entry["toolkit_id"]
         if entry_id in entries_by_id:
-            raise RuntimeError(f"Duplicate MCP registry entry id: {entry_id}")
+            raise McpRegistryValidationError(
+                [
+                    _diagnostic(
+                        "mcp_registry_conflict",
+                        f"Duplicate MCP registry entry id: {entry_id}",
+                        path=path,
+                        entry_id=entry_id,
+                        toolkit_id=toolkit_id,
+                    )
+                ]
+            )
         if toolkit_id in toolkit_ids:
-            raise RuntimeError(f"Duplicate MCP registry toolkit id: {toolkit_id}")
+            raise McpRegistryValidationError(
+                [
+                    _diagnostic(
+                        "mcp_registry_conflict",
+                        f"Duplicate MCP registry toolkit id: {toolkit_id}",
+                        path=path,
+                        entry_id=entry_id,
+                        toolkit_id=toolkit_id,
+                    )
+                ]
+            )
+        if entry_id in existing_entry_ids:
+            raise McpRegistryValidationError(
+                [
+                    _diagnostic(
+                        "mcp_registry_conflict",
+                        f"Duplicate MCP registry entry id: {entry_id}",
+                        path=path,
+                        entry_id=entry_id,
+                        toolkit_id=toolkit_id,
+                    )
+                ]
+            )
+        if toolkit_id in existing_toolkit_ids:
+            raise McpRegistryValidationError(
+                [
+                    _diagnostic(
+                        "mcp_registry_conflict",
+                        f"Duplicate MCP registry toolkit id: {toolkit_id}",
+                        path=path,
+                        entry_id=entry_id,
+                        toolkit_id=toolkit_id,
+                    )
+                ]
+            )
         toolkit_ids.add(toolkit_id)
         entries_by_id[entry_id] = entry
     return {
@@ -253,9 +447,39 @@ def _load_registry(path: Path | None = None) -> Dict[str, Any]:
     }
 
 
+def validate_registry_payload(
+    payload: Dict[str, Any],
+    **normalize_kwargs: Any,
+) -> Dict[str, Any]:
+    try:
+        normalized = normalize_registry_payload(payload, **normalize_kwargs)
+    except McpRegistryValidationError as exc:
+        return {"valid": False, "diagnostics": exc.diagnostics}
+    except RuntimeError as exc:
+        return {
+            "valid": False,
+            "diagnostics": [
+                _diagnostic(
+                    _validation_code(str(exc)),
+                    str(exc) or "MCP registry is invalid",
+                )
+            ],
+        }
+    return {"valid": True, "diagnostics": [], "registry": normalized}
+
+
+def _load_registry(path: Path | None = None) -> Dict[str, Any]:
+    payload = _read_registry_payload(path)
+    return normalize_registry_payload(payload)
+
+
 _REGISTRY = _load_registry()
 MCP_STORE_CATEGORIES: List[str] = list(_REGISTRY["categories"])
 INSTALLABLE_MCP_REGISTRY: Dict[str, Dict[str, Any]] = _REGISTRY["entries_by_id"]
+
+
+def registry_entries() -> List[Dict[str, Any]]:
+    return [copy.deepcopy(entry) for entry in INSTALLABLE_MCP_REGISTRY.values()]
 
 
 def registry_entry(entry_id: str) -> Dict[str, Any]:

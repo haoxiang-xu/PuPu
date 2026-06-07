@@ -24,6 +24,7 @@ from mcp_oauth_apps import (  # noqa: E402
     get_mcp_oauth_app,
     list_mcp_oauth_apps,
 )
+from mcp_external_registries import approve_mcp_store_entry, import_mcp_store_registry  # noqa: E402
 
 
 class FakeOAuthHttp:
@@ -320,6 +321,125 @@ class McpOAuthTests(unittest.TestCase):
             )
 
         self.assertEqual(ctx.exception.code, "mcp_oauth_app_required")
+
+    def test_oauth_start_rejects_external_registry_entries_as_untrusted(self):
+        import_mcp_store_registry(
+            {
+                "registry": {
+                    "version": 1,
+                    "name": "External",
+                    "entries": [
+                        {
+                            "id": "external.oauth",
+                            "toolkitId": "mcp.external.oauth",
+                            "name": "External OAuth",
+                            "description": "External OAuth entry",
+                            "category": "dev",
+                            "mcp": {
+                                "transport": "http",
+                                "runtimeTransport": "streamable_http",
+                                "url": "https://example.test/mcp",
+                                "headers": [],
+                            },
+                            "auth": {
+                                "oauth": {
+                                    "type": "oauth",
+                                    "provider": "example",
+                                    "providerLabel": "Example",
+                                    "clientRegistration": "dynamic",
+                                    "mcpUrl": "https://example.test/mcp",
+                                    "transport": "streamable_http",
+                                    "authorizationEndpoint": "https://example.test/authorize",
+                                    "tokenEndpoint": "https://example.test/token",
+                                }
+                            },
+                        }
+                    ],
+                }
+            },
+            data_dir=self.data_dir,
+        )
+
+        with self.assertRaises(McpOAuthError) as ctx:
+            start_mcp_oauth(
+                "external.oauth",
+                callback_base_url="http://127.0.0.1:5879",
+                data_dir=self.data_dir,
+            )
+
+        self.assertEqual(ctx.exception.code, "mcp_registry_entry_untrusted")
+
+    def test_approved_external_oauth_entry_uses_recipe_driven_start(self):
+        imported = import_mcp_store_registry(
+            {
+                "registry": {
+                    "version": 1,
+                    "name": "External",
+                    "entries": [
+                        {
+                            "id": "external.oauth",
+                            "toolkitId": "mcp.external.oauth",
+                            "name": "External OAuth",
+                            "description": "External OAuth entry",
+                            "category": "dev",
+                            "installable": True,
+                            "mcp": {
+                                "transport": "http",
+                                "runtimeTransport": "streamable_http",
+                                "url": "https://example.test/mcp",
+                                "headers": [],
+                            },
+                            "auth": {
+                                "oauth": {
+                                    "type": "oauth",
+                                    "provider": "example",
+                                    "providerLabel": "Example",
+                                    "clientRegistration": "dynamic",
+                                    "mcpUrl": "https://example.test/mcp",
+                                    "transport": "streamable_http",
+                                    "authorizationEndpoint": "https://example.test/authorize",
+                                    "tokenEndpoint": "https://example.test/token",
+                                    "registrationEndpoint": "https://example.test/register",
+                                }
+                            },
+                        }
+                    ],
+                }
+            },
+            data_dir=self.data_dir,
+        )
+        registry_id = imported["registry"]["registryId"]
+        approve_mcp_store_entry(
+            "external.oauth",
+            registry_id=registry_id,
+            data_dir=self.data_dir,
+            acknowledged_risk=True,
+        )
+        posts = []
+
+        def post_json(url, payload=None, headers=None, form=None):
+            posts.append({"url": url, "payload": payload, "headers": headers or {}})
+            return {"client_id": "external-client-id"}
+
+        result = start_mcp_oauth(
+            "external.oauth",
+            callback_base_url="http://127.0.0.1:5879",
+            data_dir=self.data_dir,
+            http_get=lambda url: (_ for _ in ()).throw(AssertionError(f"unexpected GET {url}")),
+            http_post=post_json,
+            now_fn=lambda: 1000.0,
+            state_factory=lambda: "external-state",
+            verifier_factory=lambda: "external-verifier",
+        )
+
+        self.assertEqual(posts[0]["url"], "https://example.test/register")
+        self.assertEqual(result["entryId"], "external.oauth")
+        self.assertEqual(result["toolkitId"], "mcp.external.oauth")
+        parsed = urlparse(result["authUrl"])
+        params = parse_qs(parsed.query)
+        self.assertEqual(parsed.netloc, "example.test")
+        self.assertEqual(params["client_id"], ["external-client-id"])
+        self.assertEqual(params["state"], ["external-state"])
 
     def test_github_oauth_app_start_uses_configured_credentials_and_recipe_params(self):
         configure_mcp_oauth_app(

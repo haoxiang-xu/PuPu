@@ -36,7 +36,9 @@ export const useMessageWindowScroll = ({
   const prependCompensationRef = useRef(null);
   const pendingScrollToBottomRef = useRef("auto");
   const pendingStreamingBottomFollowRef = useRef(null);
+  const pendingStreamingBottomFollowTypeRef = useRef(null);
   const pendingJumpActionRef = useRef(null);
+  const bottomSentinelRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
   const isAtBottomRef = useRef(true);
   const streamingFollowEnabledRef = useRef(true);
@@ -75,8 +77,17 @@ export const useMessageWindowScroll = ({
     if (pendingStreamingBottomFollowRef.current == null) {
       return;
     }
-    clearTimeout(pendingStreamingBottomFollowRef.current);
+    if (
+      pendingStreamingBottomFollowTypeRef.current === "raf" &&
+      typeof window !== "undefined" &&
+      typeof window.cancelAnimationFrame === "function"
+    ) {
+      window.cancelAnimationFrame(pendingStreamingBottomFollowRef.current);
+    } else {
+      clearTimeout(pendingStreamingBottomFollowRef.current);
+    }
     pendingStreamingBottomFollowRef.current = null;
+    pendingStreamingBottomFollowTypeRef.current = null;
   }, []);
 
   const loadOlderMessages = useCallback(() => {
@@ -168,14 +179,46 @@ export const useMessageWindowScroll = ({
     if (pendingStreamingBottomFollowRef.current != null) {
       return;
     }
-    pendingStreamingBottomFollowRef.current = setTimeout(() => {
+    const follow = () => {
       pendingStreamingBottomFollowRef.current = null;
+      pendingStreamingBottomFollowTypeRef.current = null;
       if (!streamingFollowEnabledRef.current) {
         return;
       }
-      scrollToBottom("auto");
-    }, STREAMING_BOTTOM_FOLLOW_MS);
-  }, [scrollToBottom]);
+      const el = messagesRef.current;
+      if (!el) {
+        return;
+      }
+      el.scrollTop = Number.MAX_SAFE_INTEGER;
+      lastScrollTopRef.current = el.scrollTop;
+      isAtBottomRef.current = true;
+      setIsAtBottom(true);
+      setIsAtTop(false);
+    };
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.requestAnimationFrame === "function"
+    ) {
+      pendingStreamingBottomFollowTypeRef.current = "raf";
+      pendingStreamingBottomFollowRef.current =
+        window.requestAnimationFrame(follow);
+      return;
+    }
+
+    pendingStreamingBottomFollowTypeRef.current = "timeout";
+    pendingStreamingBottomFollowRef.current = setTimeout(
+      follow,
+      STREAMING_BOTTOM_FOLLOW_MS,
+    );
+  }, []);
+
+  const notifyStreamingContentCommitted = useCallback(() => {
+    if (!is_streaming || !streamingFollowEnabledRef.current) {
+      return;
+    }
+    scheduleStreamingBottomFollow();
+  }, [is_streaming, scheduleStreamingBottomFollow]);
 
   const scrollToTop = useCallback(
     (behavior = "smooth") => {
@@ -509,6 +552,7 @@ export const useMessageWindowScroll = ({
 
   return {
     messagesRef,
+    bottomSentinelRef,
     messageNodeRefs,
     safeVisibleStart,
     visibleMessages,
@@ -516,6 +560,7 @@ export const useMessageWindowScroll = ({
     isAtTop,
     handleScroll,
     handleUserScrollIntent,
+    notifyStreamingContentCommitted,
     handleBackToBottom,
     handleSkipToTop,
     handleJumpToPreviousMessage,

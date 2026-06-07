@@ -1,7 +1,11 @@
 import { act, render, screen } from "@testing-library/react";
 import hljs from "highlight.js/lib/common";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { createStreamingMessageStore } from "../../../SERVICEs/streaming_message_store";
 import AssistantMessageBody from "./assistant_message_body";
+import {
+  StreamingMessageStoreContext,
+} from "./streaming_message_store_context";
 
 jest.mock("highlight.js/lib/common", () => ({
   getLanguage: jest.fn(),
@@ -26,6 +30,52 @@ const renderAssistantBody = (props) =>
       }}
     >
       <AssistantMessageBody {...props} />
+    </ConfigContext.Provider>,
+  );
+
+const makeRafScheduler = () => {
+  const callbacks = [];
+  return {
+    scheduler: (callback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    },
+    cancel: (id) => {
+      callbacks[id - 1] = null;
+    },
+    flush: () => {
+      const pending = callbacks.splice(0);
+      pending.forEach((callback) => {
+        if (typeof callback === "function") {
+          callback();
+        }
+      });
+    },
+  };
+};
+
+const renderAssistantBodyWithStreamingStore = ({
+  props,
+  store,
+  chatId = "chat",
+  notifyStreamingContentCommitted = jest.fn(),
+}) =>
+  render(
+    <ConfigContext.Provider
+      value={{
+        theme: TEST_THEME,
+        onThemeMode: "light_mode",
+      }}
+    >
+      <StreamingMessageStoreContext.Provider
+        value={{
+          chatId,
+          store,
+          notifyStreamingContentCommitted,
+        }}
+      >
+        <AssistantMessageBody {...props} />
+      </StreamingMessageStoreContext.Provider>
     </ConfigContext.Provider>,
   );
 
@@ -80,8 +130,13 @@ describe("AssistantMessageBody seamless rendering", () => {
       hasTraceFrames: false,
     });
 
-    expect(screen.queryByRole("heading", { name: "Title" })).not.toBeInTheDocument();
-    expect(screen.getByText(/# Title/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Title" })).toBeInTheDocument();
+    expect(
+      document.querySelector("[data-streaming-plain-text]"),
+    ).toBeInTheDocument();
+    expect(
+      document.querySelector("[data-streaming-plain-text]").textContent,
+    ).toContain("Long line for markdown rendering");
 
     rerender(
       <ConfigContext.Provider
@@ -225,6 +280,48 @@ describe("AssistantMessageBody seamless rendering", () => {
     expect(
       container.querySelector("[data-streaming-plain-text]"),
     ).toBeInTheDocument();
-    expect(container.querySelector(".cell-split-spinner")).not.toBeInTheDocument();
+    expect(container.querySelector(".mini-ui-cell-split")).not.toBeInTheDocument();
+  });
+
+  test("renders external streaming store text without receiving a new message object", () => {
+    const raf = makeRafScheduler();
+    const store = createStreamingMessageStore({
+      notifyScheduler: raf.scheduler,
+      cancelScheduler: raf.cancel,
+    });
+    const notifyStreamingContentCommitted = jest.fn();
+    const message = {
+      id: "assistant-store",
+      role: "assistant",
+      status: "streaming",
+      content: "",
+    };
+    store.begin({ chatId: "chat", messageId: message.id });
+
+    const { container } = renderAssistantBodyWithStreamingStore({
+      store,
+      notifyStreamingContentCommitted,
+      props: {
+        message,
+        isRawTextMode: false,
+        theme: TEST_THEME,
+        hasTraceFrames: false,
+      },
+    });
+
+    expect(container.querySelector(".mini-ui-cell-split")).toBeInTheDocument();
+
+    store.append({
+      chatId: "chat",
+      messageId: message.id,
+      delta: "Hello from store",
+    });
+    act(() => {
+      raf.flush();
+    });
+
+    expect(container.textContent).toContain("Hello from store");
+    expect(container.querySelector(".mini-ui-cell-split")).not.toBeInTheDocument();
+    expect(notifyStreamingContentCommitted).toHaveBeenCalled();
   });
 });
