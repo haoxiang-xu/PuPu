@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { ConfigContext, LocaleContext } from "../../../CONTAINERs/config/context";
 import { TokenUsageSettings } from "./index";
 
@@ -190,11 +190,13 @@ describe("TokenUsageSettings", () => {
     );
 
     renderTokenUsageSettings();
+    const rangeSelect = screen.getAllByTestId("mock-select")[3];
+    fireEvent.change(rangeSelect, { target: { value: "all" } });
 
     expect(lastBarChartProps).toBeTruthy();
     expect(lastBarChartProps.minBarWidth).toBe(12);
-    expect(screen.getByTestId("token-breakdown-chart")).toHaveStyle(
-      "display: flex",
+    expect(screen.getByTestId("token-breakdown-scroll-area")).toHaveStyle(
+      "overflow-x: auto",
     );
   });
 });
