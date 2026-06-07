@@ -1,4 +1,4 @@
-import { useContext, useState, useMemo, useCallback } from "react";
+import { useContext, useState, useMemo, useCallback, useRef } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import { BarChart } from "../../../BUILTIN_COMPONENTs/bar_chart";
@@ -44,6 +44,9 @@ const BREAKDOWN_CHART_HEIGHT = 220;
 const BREAKDOWN_Y_GRID_LINES = 4;
 const BREAKDOWN_BAR_RADIUS = 3;
 const CHART_UNIT_HEADROOM = 18;
+const DENSE_CHART_MIN_BAR_WIDTH = 12;
+const DENSE_BREAKDOWN_MIN_BAR_WIDTH = 18;
+const BREAKDOWN_TOOLTIP_EDGE_THRESHOLD = 96;
 const BREAKDOWN_SERIES = [
   {
     key: "input",
@@ -335,7 +338,22 @@ const TokenBreakdownChart = ({
   emptyMessage,
   series = BREAKDOWN_SERIES,
 }) => {
-  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const scrollAreaRef = useRef(null);
+  const [hoveredBar, setHoveredBar] = useState({
+    index: null,
+    tooltipAnchor: "center",
+  });
+  const chartGap = data.length > 20 ? 4 : data.length > 10 ? 6 : 10;
+  const barGroupStyle =
+    data.length > 30
+      ? { flex: "0 0 auto", width: DENSE_BREAKDOWN_MIN_BAR_WIDTH }
+      : { flex: 1, minWidth: 0 };
+  const scrollContentMinWidth =
+    data.length > 30
+      ? data.length * DENSE_BREAKDOWN_MIN_BAR_WIDTH +
+        Math.max(data.length - 1, 0) * chartGap +
+        8
+      : 0;
   const hasUsableData = data.some(
     (entry) => entry.input > 0 || entry.output > 0,
   );
@@ -425,15 +443,26 @@ const TokenBreakdownChart = ({
       </div>
 
       <div
+        data-testid="token-breakdown-scroll-area"
+        ref={scrollAreaRef}
         style={{
           flex: 1,
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
+          minWidth: 0,
+          overflowX: data.length > 30 ? "auto" : "visible",
+          overflowY: "visible",
         }}
       >
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
-          {gridLines.map((val, i) => {
+        <div
+          style={{
+            minWidth: scrollContentMinWidth,
+            height: "100%",
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+            {gridLines.map((val, i) => {
             const pct = (val / niceMax) * 100;
             return (
               <div
@@ -458,19 +487,18 @@ const TokenBreakdownChart = ({
             flex: 1,
             display: "flex",
             alignItems: "stretch",
-            gap: data.length > 20 ? 4 : data.length > 10 ? 6 : 10,
+            gap: chartGap,
             padding: "0 4px",
             position: "relative",
           }}
         >
           {data.map((entry, index) => {
-            const isHovered = hoveredIndex === index;
+            const isHovered = hoveredBar.index === index;
             return (
               <div
                 key={entry.label}
                 style={{
-                  flex: 1,
-                  minWidth: 0,
+                  ...barGroupStyle,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -478,17 +506,41 @@ const TokenBreakdownChart = ({
                   position: "relative",
                   cursor: "default",
                 }}
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
+                onMouseEnter={(event) => {
+                  const scrollArea = scrollAreaRef.current;
+                  const target = event?.currentTarget;
+                  let tooltipAnchor = "center";
+
+                  if (scrollArea && target) {
+                    const targetRect = target.getBoundingClientRect();
+                    const scrollRect = scrollArea.getBoundingClientRect();
+                    if (
+                      targetRect.left - scrollRect.left <
+                      BREAKDOWN_TOOLTIP_EDGE_THRESHOLD
+                    ) {
+                      tooltipAnchor = "left";
+                    } else if (
+                      scrollRect.right - targetRect.right <
+                      BREAKDOWN_TOOLTIP_EDGE_THRESHOLD
+                    ) {
+                      tooltipAnchor = "right";
+                    }
+                  }
+
+                  setHoveredBar({ index, tooltipAnchor });
+                }}
+                onMouseLeave={() =>
+                  setHoveredBar({ index: null, tooltipAnchor: "center" })
+                }
               >
                 {isHovered ? (
                   <div
                     style={{
                       position: "absolute",
                       bottom: `calc(${(Math.max(entry.input, entry.output) / niceMax) * 100}% + 10px)`,
-                      ...(index >= data.length - 2 && data.length > 3
+                      ...(hoveredBar.tooltipAnchor === "right"
                         ? { right: 0 }
-                        : index <= 1 && data.length > 3
+                        : hoveredBar.tooltipAnchor === "left"
                           ? { left: 0 }
                           : { left: "50%", transform: "translateX(-50%)" }),
                       backgroundColor: isDark ? "#2a2a2a" : "#fff",
@@ -571,7 +623,7 @@ const TokenBreakdownChart = ({
         <div
           style={{
             display: "flex",
-            gap: data.length > 20 ? 4 : data.length > 10 ? 6 : 10,
+            gap: chartGap,
             padding: "6px 4px 0",
           }}
         >
@@ -579,8 +631,7 @@ const TokenBreakdownChart = ({
             <div
               key={entry.label}
               style={{
-                flex: 1,
-                minWidth: 0,
+                ...barGroupStyle,
                 textAlign: "center",
                 fontSize: 10,
                 color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
@@ -593,6 +644,7 @@ const TokenBreakdownChart = ({
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -907,6 +959,7 @@ export const TokenUsageSettings = () => {
               data={chartData}
               height={220}
               emptyMessage={t("token_usage.no_data")}
+              minBarWidth={chartData.length > 30 ? DENSE_CHART_MIN_BAR_WIDTH : 0}
             />
           </div>
         </div>

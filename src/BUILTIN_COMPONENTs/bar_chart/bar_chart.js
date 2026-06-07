@@ -8,6 +8,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 const DEFAULT_HEIGHT = 220;
 const BAR_RADIUS = 5;
 const Y_GRID_LINES = 4;
+const TOOLTIP_EDGE_THRESHOLD = 72;
 
 const formatTokenCount = (n) => {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
@@ -34,11 +35,16 @@ export const BarChart = ({
   barColor,
   valueFormatter = formatTokenCount,
   emptyMessage = "No data",
+  minBarWidth = 0,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const containerRef = useRef(null);
-  const [hoveredIndex, setHoveredIndex] = useState(null);
+  const scrollAreaRef = useRef(null);
+  const [hoveredBar, setHoveredBar] = useState({
+    index: null,
+    tooltipAnchor: "center",
+  });
 
   const defaultBarColor = isDark
     ? "rgba(99,102,241,0.85)"
@@ -54,8 +60,27 @@ export const BarChart = ({
     Math.round((niceMax / Y_GRID_LINES) * i),
   );
 
-  const handleMouseEnter = useCallback((i) => setHoveredIndex(i), []);
-  const handleMouseLeave = useCallback(() => setHoveredIndex(null), []);
+  const handleMouseEnter = useCallback((i, event) => {
+    const scrollArea = scrollAreaRef.current;
+    const target = event?.currentTarget;
+    let tooltipAnchor = "center";
+
+    if (scrollArea && target) {
+      const targetRect = target.getBoundingClientRect();
+      const scrollRect = scrollArea.getBoundingClientRect();
+      if (targetRect.left - scrollRect.left < TOOLTIP_EDGE_THRESHOLD) {
+        tooltipAnchor = "left";
+      } else if (scrollRect.right - targetRect.right < TOOLTIP_EDGE_THRESHOLD) {
+        tooltipAnchor = "right";
+      }
+    }
+
+    setHoveredBar({ index: i, tooltipAnchor });
+  }, []);
+  const handleMouseLeave = useCallback(
+    () => setHoveredBar({ index: null, tooltipAnchor: "center" }),
+    [],
+  );
 
   if (!data.length) {
     return (
@@ -76,6 +101,15 @@ export const BarChart = ({
   }
 
   const labelAxisWidth = 48;
+  const chartGap = data.length > 20 ? 2 : data.length > 10 ? 4 : 6;
+  const barColumnStyle =
+    minBarWidth > 0
+      ? { flex: "0 0 auto", width: minBarWidth }
+      : { flex: 1, minWidth: 0 };
+  const scrollContentMinWidth =
+    minBarWidth > 0
+      ? data.length * minBarWidth + Math.max(data.length - 1, 0) * chartGap + 8
+      : 0;
 
   return (
     <div
@@ -135,15 +169,25 @@ export const BarChart = ({
 
       {/* Chart area */}
       <div
+        ref={scrollAreaRef}
         style={{
           flex: 1,
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
+          minWidth: 0,
+          overflowX: minBarWidth > 0 ? "auto" : "visible",
+          overflowY: "visible",
         }}
       >
-        {/* Grid lines */}
-        <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
+        <div
+          style={{
+            minWidth: scrollContentMinWidth,
+            height: "100%",
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          {/* Grid lines */}
+          <div style={{ position: "absolute", inset: 0, pointerEvents: "none" }}>
           {gridLines.map((val, i) => {
             const pct = (val / niceMax) * 100;
             return (
@@ -170,20 +214,19 @@ export const BarChart = ({
             flex: 1,
             display: "flex",
             alignItems: "stretch",
-            gap: data.length > 20 ? 2 : data.length > 10 ? 4 : 6,
+            gap: chartGap,
             padding: "0 4px",
             position: "relative",
           }}
         >
           {data.map((d, i) => {
             const pct = Math.max((d.value / niceMax) * 100, 0.5);
-            const isHovered = hoveredIndex === i;
+            const isHovered = hoveredBar.index === i;
             return (
               <div
                 key={i}
                 style={{
-                  flex: 1,
-                  minWidth: 0,
+                  ...barColumnStyle,
                   display: "flex",
                   flexDirection: "column",
                   alignItems: "center",
@@ -191,7 +234,7 @@ export const BarChart = ({
                   position: "relative",
                   cursor: "default",
                 }}
-                onMouseEnter={() => handleMouseEnter(i)}
+                onMouseEnter={(event) => handleMouseEnter(i, event)}
                 onMouseLeave={handleMouseLeave}
               >
                 {/* Tooltip */}
@@ -200,9 +243,9 @@ export const BarChart = ({
                     style={{
                       position: "absolute",
                       bottom: `calc(${pct}% + 8px)`,
-                      ...(i >= data.length - 2 && data.length > 3
+                      ...(hoveredBar.tooltipAnchor === "right"
                         ? { right: 0 }
-                        : i <= 1 && data.length > 3
+                        : hoveredBar.tooltipAnchor === "left"
                           ? { left: 0 }
                           : { left: "50%", transform: "translateX(-50%)" }),
                       backgroundColor: isDark ? "#2a2a2a" : "#fff",
@@ -258,7 +301,7 @@ export const BarChart = ({
         <div
           style={{
             display: "flex",
-            gap: data.length > 20 ? 2 : data.length > 10 ? 4 : 6,
+            gap: chartGap,
             padding: "6px 4px 0",
           }}
         >
@@ -266,8 +309,7 @@ export const BarChart = ({
             <div
               key={i}
               style={{
-                flex: 1,
-                minWidth: 0,
+                ...barColumnStyle,
                 textAlign: "center",
                 fontSize: 10,
                 color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.3)",
@@ -280,6 +322,7 @@ export const BarChart = ({
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );
