@@ -38,4 +38,9 @@ describe("ChatMessages minimap integration", () => {
     const { container } = renderCM();
     expect(container.querySelector("[data-mm-track]")).not.toBeNull();
   });
+
+  it("does not render the minimap track while streaming", () => {
+    const { container } = renderCM({ isStreaming: true });
+    expect(container.querySelector("[data-mm-track]")).toBeNull();
+  });
 });

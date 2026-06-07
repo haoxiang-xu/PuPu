@@ -921,6 +921,52 @@ export const createUnchainApi = () => {
       }
     },
 
+    listMcpStoreMetadata: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpStoreMetadata")) {
+        return { entries: [], byEntryId: {}, status: "unavailable" };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpStoreMetadata");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_store_metadata_list_timeout",
+          "MCP store metadata list request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { entries: [], byEntryId: {}, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_metadata_list_failed",
+          "Failed to query MCP store metadata",
+        );
+      }
+    },
+
+    reloadMcpStoreMetadata: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "reloadMcpStoreMetadata");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_store_metadata_reload_timeout",
+          "MCP store metadata reload request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { entries: [], byEntryId: {}, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_metadata_reload_failed",
+          "Failed to reload MCP store metadata",
+        );
+      }
+    },
+
     respondToolConfirmation: async (payload = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "respondToolConfirmation");

@@ -12,6 +12,8 @@ import {
   TOP_EDGE_THRESHOLD,
 } from "../constants";
 
+const STREAMING_BOTTOM_FOLLOW_MS = 64;
+
 export const useMessageWindowScroll = ({
   chat_id,
   messages,
@@ -33,8 +35,12 @@ export const useMessageWindowScroll = ({
   );
   const prependCompensationRef = useRef(null);
   const pendingScrollToBottomRef = useRef("auto");
+  const pendingStreamingBottomFollowRef = useRef(null);
   const pendingJumpActionRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
+  const isAtBottomRef = useRef(true);
+  const streamingFollowEnabledRef = useRef(true);
+  const userScrollIntentRef = useRef(false);
 
   const [visibleStartIndex, setVisibleStartIndex] = useState(() =>
     Math.max(0, messages.length - initial_visible_count),
@@ -54,8 +60,23 @@ export const useMessageWindowScroll = ({
 
   const updateIsAtBottom = useCallback((el) => {
     const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
-    setIsAtBottom(distance <= BOTTOM_FOLLOW_THRESHOLD);
+    const nextIsAtBottom = distance <= BOTTOM_FOLLOW_THRESHOLD;
+    isAtBottomRef.current = nextIsAtBottom;
+    if (nextIsAtBottom) {
+      streamingFollowEnabledRef.current = true;
+      userScrollIntentRef.current = false;
+    }
+    setIsAtBottom(nextIsAtBottom);
     setIsAtTop(el.scrollTop <= TOP_EDGE_THRESHOLD);
+    return nextIsAtBottom;
+  }, []);
+
+  const clearScheduledStreamingBottomFollow = useCallback(() => {
+    if (pendingStreamingBottomFollowRef.current == null) {
+      return;
+    }
+    clearTimeout(pendingStreamingBottomFollowRef.current);
+    pendingStreamingBottomFollowRef.current = null;
   }, []);
 
   const loadOlderMessages = useCallback(() => {
@@ -92,7 +113,17 @@ export const useMessageWindowScroll = ({
     const isScrollingUp = currentScrollTop < lastScrollTopRef.current - 0.5;
     lastScrollTopRef.current = currentScrollTop;
 
-    updateIsAtBottom(el);
+    const nextIsAtBottom = updateIsAtBottom(el);
+
+    if (
+      is_streaming &&
+      userScrollIntentRef.current &&
+      !nextIsAtBottom &&
+      isScrollingUp
+    ) {
+      streamingFollowEnabledRef.current = false;
+      clearScheduledStreamingBottomFollow();
+    }
 
     if (
       currentScrollTop <= top_load_threshold &&
@@ -102,7 +133,13 @@ export const useMessageWindowScroll = ({
     ) {
       loadOlderMessages();
     }
-  }, [loadOlderMessages, top_load_threshold, updateIsAtBottom]);
+  }, [
+    clearScheduledStreamingBottomFollow,
+    is_streaming,
+    loadOlderMessages,
+    top_load_threshold,
+    updateIsAtBottom,
+  ]);
 
   const scrollToBottom = useCallback((behavior = "auto") => {
     const el = messagesRef.current;
@@ -110,11 +147,35 @@ export const useMessageWindowScroll = ({
       return;
     }
 
-    el.scrollTo({ top: el.scrollHeight, behavior });
-    lastScrollTopRef.current = el.scrollHeight;
+    const scrollHeight = el.scrollHeight;
+    el.scrollTo({ top: scrollHeight, behavior });
+    lastScrollTopRef.current = scrollHeight;
+    isAtBottomRef.current = true;
+    streamingFollowEnabledRef.current = true;
+    userScrollIntentRef.current = false;
     setIsAtBottom(true);
     setIsAtTop(false);
   }, []);
+
+  const handleUserScrollIntent = useCallback(() => {
+    if (!is_streaming) {
+      return;
+    }
+    userScrollIntentRef.current = true;
+  }, [is_streaming]);
+
+  const scheduleStreamingBottomFollow = useCallback(() => {
+    if (pendingStreamingBottomFollowRef.current != null) {
+      return;
+    }
+    pendingStreamingBottomFollowRef.current = setTimeout(() => {
+      pendingStreamingBottomFollowRef.current = null;
+      if (!streamingFollowEnabledRef.current) {
+        return;
+      }
+      scrollToBottom("auto");
+    }, STREAMING_BOTTOM_FOLLOW_MS);
+  }, [scrollToBottom]);
 
   const scrollToTop = useCallback(
     (behavior = "smooth") => {
@@ -238,6 +299,10 @@ export const useMessageWindowScroll = ({
   }, [visibleStartIndex]);
 
   useEffect(() => {
+    return () => clearScheduledStreamingBottomFollow();
+  }, [clearScheduledStreamingBottomFollow]);
+
+  useEffect(() => {
     if (activeChatIdRef.current === chat_id) {
       return;
     }
@@ -248,6 +313,9 @@ export const useMessageWindowScroll = ({
     const finalStart = Math.max(0, messages.length - initial_visible_count);
     visibleStartRef.current = bootStart;
     setVisibleStartIndex(bootStart);
+    isAtBottomRef.current = true;
+    streamingFollowEnabledRef.current = true;
+    userScrollIntentRef.current = false;
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
@@ -292,6 +360,9 @@ export const useMessageWindowScroll = ({
     visibleStartRef.current = 0;
     lastScrollTopRef.current = 0;
     setVisibleStartIndex(0);
+    isAtBottomRef.current = true;
+    streamingFollowEnabledRef.current = true;
+    userScrollIntentRef.current = false;
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
@@ -380,6 +451,18 @@ export const useMessageWindowScroll = ({
       return;
     }
 
+    if (is_streaming) {
+      pendingScrollToBottomRef.current = null;
+      if (streamingFollowEnabledRef.current) {
+        scheduleStreamingBottomFollow();
+      } else {
+        clearScheduledStreamingBottomFollow();
+      }
+      return;
+    }
+
+    clearScheduledStreamingBottomFollow();
+
     if (pendingScrollToBottomRef.current) {
       scrollToBottom(pendingScrollToBottomRef.current);
       pendingScrollToBottomRef.current = null;
@@ -389,11 +472,24 @@ export const useMessageWindowScroll = ({
     if (isAtBottom) {
       scrollToBottom(is_streaming ? "auto" : "smooth");
     }
-  }, [isAtBottom, is_streaming, messages, scrollToBottom, safeVisibleStart]);
+  }, [
+    clearScheduledStreamingBottomFollow,
+    isAtBottom,
+    is_streaming,
+    messages,
+    scheduleStreamingBottomFollow,
+    scrollToBottom,
+    safeVisibleStart,
+  ]);
 
   useEffect(() => {
     const el = messagesRef.current;
-    if (!el || prependCompensationRef.current || messages.length === 0) {
+    if (
+      !el ||
+      is_streaming ||
+      prependCompensationRef.current ||
+      messages.length === 0
+    ) {
       return;
     }
 
@@ -403,7 +499,13 @@ export const useMessageWindowScroll = ({
     ) {
       loadOlderMessages();
     }
-  }, [loadOlderMessages, messages, safeVisibleStart, top_load_threshold]);
+  }, [
+    is_streaming,
+    loadOlderMessages,
+    messages,
+    safeVisibleStart,
+    top_load_threshold,
+  ]);
 
   return {
     messagesRef,
@@ -413,6 +515,7 @@ export const useMessageWindowScroll = ({
     isAtBottom,
     isAtTop,
     handleScroll,
+    handleUserScrollIntent,
     handleBackToBottom,
     handleSkipToTop,
     handleJumpToPreviousMessage,

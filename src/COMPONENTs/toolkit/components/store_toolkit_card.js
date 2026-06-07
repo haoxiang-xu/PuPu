@@ -62,6 +62,12 @@ const StoreToolkitCard = ({
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const accentColor = isDark ? "#7c8cf8" : "#2563eb";
   const actionBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.055)";
+  const repoMeta = [
+    entry.repoFullName,
+    entry.repoStars != null ? `${Number(entry.repoStars).toLocaleString()} stars` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
 
   const iconWrapBackground = isBuiltinToolkitIcon(toolkitIcon)
     ? toolkitIcon.backgroundColor
@@ -141,6 +147,22 @@ const StoreToolkitCard = ({
             }}
           >
             {entry.toolkitDescription}
+          </div>
+        )}
+        {repoMeta && (
+          <div
+            style={{
+              fontSize: 10.5,
+              fontFamily,
+              color: mutedColor,
+              lineHeight: 1.35,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+              marginTop: 1,
+            }}
+          >
+            {repoMeta}
           </div>
         )}
         {installError && (

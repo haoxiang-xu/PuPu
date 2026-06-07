@@ -58,7 +58,9 @@ describe("AssistantMessageBody seamless rendering", () => {
   });
 
   afterEach(() => {
-    jest.runOnlyPendingTimers();
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
     jest.useRealTimers();
     delete window.requestIdleCallback;
     delete window.cancelIdleCallback;
@@ -168,7 +170,7 @@ describe("AssistantMessageBody seamless rendering", () => {
     ).not.toBeInTheDocument();
   });
 
-  test("keeps streaming html code fences safe before the closing fence arrives", () => {
+  test("keeps streaming html code fences as plain text before the closing fence arrives", () => {
     const partialHtmlDocumentMarkdown = `下面给你一个**纯前端页面**：
 
 \`\`\`html
@@ -193,12 +195,36 @@ describe("AssistantMessageBody seamless rendering", () => {
 
     expect(screen.getByText(/下面给你一个/)).toBeInTheDocument();
     expect(screen.getByText(/<!DOCTYPE html>/)).toBeInTheDocument();
-    expect(container.querySelector("code.hljs")).toBeInTheDocument();
+    expect(container.querySelector("code.hljs")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-streaming-plain-text]"),
+    ).toBeInTheDocument();
     expect(
       container.querySelector("[data-markdown-id] meta"),
     ).not.toBeInTheDocument();
     expect(
       container.querySelector("[data-markdown-id] html"),
     ).not.toBeInTheDocument();
+  });
+
+  test("renders streaming chunks even when message.content is kept empty", () => {
+    const { container } = renderAssistantBody({
+      message: {
+        id: "assistant-streaming-chunks",
+        role: "assistant",
+        status: "streaming",
+        content: "",
+        streamingChunks: ["Hello", ", world"],
+      },
+      isRawTextMode: false,
+      theme: TEST_THEME,
+      hasTraceFrames: false,
+    });
+
+    expect(container.textContent).toBe("Hello, world");
+    expect(
+      container.querySelector("[data-streaming-plain-text]"),
+    ).toBeInTheDocument();
+    expect(container.querySelector(".cell-split-spinner")).not.toBeInTheDocument();
   });
 });

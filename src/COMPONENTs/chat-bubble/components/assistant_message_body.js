@@ -6,6 +6,7 @@ import {
   ASSISTANT_MARKDOWN_FONT_SIZE,
   ASSISTANT_MARKDOWN_LINE_HEIGHT,
 } from "./assistant_markdown_metrics";
+import { hasStreamingMessageText } from "../../../SERVICEs/streaming_message_chunks";
 
 const AssistantMessageBody = ({
   message,
@@ -60,7 +61,7 @@ const AssistantMessageBody = ({
 
   // When timeline is already visible (has trace frames), skip the spinner —
   // the TraceChain "Thinking…" indicator is enough.
-  if (message.status === "streaming" && !message.content) {
+  if (message.status === "streaming" && !hasStreamingMessageText(message)) {
     if (hasTraceFrames) return null;
     return (
       <div style={{ padding: "8px 0" }}>
@@ -97,10 +98,15 @@ const AssistantMessageBody = ({
   const content = typeof message.content === "string" ? message.content : "";
   const renderStatus =
     typeof message.status === "string" ? message.status : "done";
+  const streamingChunks =
+    renderStatus === "streaming" && Array.isArray(message.streamingChunks)
+      ? message.streamingChunks
+      : undefined;
 
   return (
     <SeamlessMarkdown
       content={content}
+      streamingChunks={streamingChunks}
       status={renderStatus}
       fontSize={ASSISTANT_MARKDOWN_FONT_SIZE}
       lineHeight={ASSISTANT_MARKDOWN_LINE_HEIGHT}

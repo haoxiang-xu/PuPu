@@ -62,10 +62,11 @@ const ToolkitIcon = ({ icon, size = 18, fallbackColor, style }) => {
     );
   }
 
-  if (icon.mimeType === "image/png") {
+  if (icon.mimeType === "image/png" || icon.mimeType === "image/jpeg") {
+    const mimeType = icon.mimeType === "image/jpeg" ? "jpeg" : "png";
     return (
       <img
-        src={`data:image/png;base64,${icon.content}`}
+        src={`data:image/${mimeType};base64,${icon.content}`}
         alt=""
         width={size}
         height={size}

@@ -8,6 +8,11 @@ import {
 } from "react";
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import {
+  normalizeStreamingChunks,
+  splitTextIntoStreamingChunks,
+  appendTextToStreamingChunks,
+} from "../../../SERVICEs/streaming_message_chunks";
 
 const HEAVY_CHAR_THRESHOLD = 8 * 1024;
 const HEAVY_LINE_THRESHOLD = 120;
@@ -17,6 +22,7 @@ const HIGH_PRIORITY_IDLE_TIMEOUT = 120;
 const NORMAL_PRIORITY_IDLE_TIMEOUT = 240;
 const HIGH_PRIORITY_TIMEOUT_DELAY = 32;
 const NORMAL_PRIORITY_TIMEOUT_DELAY = 72;
+const STREAMING_MARKDOWN_SNAPSHOT_MS = 300;
 const HTML_DOCUMENT_LINE_PATTERN =
   /^\s*(?:<!doctype\s+html\b|<(?:html|head|body|meta|title|link|style|script)\b)/i;
 const MARKDOWN_FENCE_LINE_PATTERN = /^\s{0,3}([`~]{3,})(.*)$/;
@@ -161,8 +167,172 @@ const scheduleIdleUpgrade = (callback, priority = "normal") => {
   return () => clearTimeout(timerId);
 };
 
+const useStreamingTextChunks = (text, externalChunks) => {
+  const chunksRef = useRef([]);
+  const lengthRef = useRef(0);
+  const normalizedText = typeof text === "string" ? text : "";
+
+  return useMemo(() => {
+    const normalizedExternalChunks = normalizeStreamingChunks(externalChunks);
+    if (normalizedExternalChunks.length > 0) {
+      chunksRef.current = [];
+      lengthRef.current = 0;
+      return normalizedExternalChunks;
+    }
+
+    if (!normalizedText) {
+      chunksRef.current = [];
+      lengthRef.current = 0;
+      return chunksRef.current;
+    }
+
+    if (normalizedText.length < lengthRef.current) {
+      chunksRef.current = splitTextIntoStreamingChunks(normalizedText);
+      lengthRef.current = normalizedText.length;
+      return chunksRef.current;
+    }
+
+    if (normalizedText.length === lengthRef.current) {
+      return chunksRef.current;
+    }
+
+    const delta = normalizedText.slice(lengthRef.current);
+    chunksRef.current = appendTextToStreamingChunks(chunksRef.current, delta);
+    lengthRef.current = normalizedText.length;
+    return chunksRef.current;
+  }, [externalChunks, normalizedText]);
+};
+
+const mergeStreamingChunksText = (previousChunks, previousText, nextChunks) => {
+  const chunks = normalizeStreamingChunks(nextChunks);
+  if (chunks.length === 0) {
+    return "";
+  }
+
+  let prefixLength = 0;
+  let prefixTextLength = 0;
+  while (
+    prefixLength < previousChunks.length &&
+    prefixLength < chunks.length &&
+    previousChunks[prefixLength] === chunks[prefixLength]
+  ) {
+    prefixTextLength += chunks[prefixLength].length;
+    prefixLength += 1;
+  }
+
+  return `${previousText.slice(0, prefixTextLength)}${chunks
+    .slice(prefixLength)
+    .join("")}`;
+};
+
+const sliceStreamingChunksAfterLength = (chunks, offset) => {
+  const normalizedChunks = normalizeStreamingChunks(chunks);
+  if (offset <= 0) {
+    return normalizedChunks;
+  }
+
+  const tailChunks = [];
+  let remainingOffset = offset;
+  for (const chunk of normalizedChunks) {
+    if (remainingOffset >= chunk.length) {
+      remainingOffset -= chunk.length;
+      continue;
+    }
+
+    tailChunks.push(remainingOffset > 0 ? chunk.slice(remainingOffset) : chunk);
+    remainingOffset = 0;
+  }
+  return tailChunks;
+};
+
+const useStreamingMarkdownSnapshot = (isStreaming, chunks) => {
+  const [snapshot, setSnapshot] = useState("");
+  const latestTextRef = useRef("");
+  const chunksRef = useRef([]);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      latestTextRef.current = "";
+      chunksRef.current = [];
+      setSnapshot("");
+      return undefined;
+    }
+
+    const normalizedChunks = normalizeStreamingChunks(chunks);
+    latestTextRef.current = mergeStreamingChunksText(
+      chunksRef.current,
+      latestTextRef.current,
+      normalizedChunks,
+    );
+    chunksRef.current = normalizedChunks;
+
+    if (!latestTextRef.current || timerRef.current != null) {
+      return undefined;
+    }
+
+    timerRef.current = setTimeout(() => {
+      timerRef.current = null;
+      const nextSnapshot = latestTextRef.current;
+      setSnapshot((previousSnapshot) =>
+        previousSnapshot === nextSnapshot ? previousSnapshot : nextSnapshot,
+      );
+    }, STREAMING_MARKDOWN_SNAPSHOT_MS);
+
+    return undefined;
+  }, [chunks, isStreaming]);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current != null) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, []);
+
+  return snapshot;
+};
+
+const StreamingPlainTextChunk = memo(({ text }) => (
+  <span data-streaming-plain-text-chunk="true">{text}</span>
+));
+
+const StreamingPlainText = ({
+  text,
+  chunks: externalChunks,
+  markdownStyle,
+  theme,
+}) => {
+  const chunks = useStreamingTextChunks(text, externalChunks);
+  const fontSize = markdownStyle?.fontSize ?? theme?.markdown?.fontSize ?? 14;
+  const lineHeight =
+    markdownStyle?.lineHeight ?? theme?.markdown?.lineHeight ?? 1.6;
+  const color = markdownStyle?.color ?? theme?.markdown?.color ?? theme?.color;
+
+  return (
+    <div
+      data-streaming-plain-text="true"
+      style={{
+        margin: 0,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        fontFamily: theme?.font?.paragraphFontFamily || "inherit",
+        fontSize,
+        lineHeight,
+        color: color ?? "inherit",
+      }}
+    >
+      {chunks.map((chunk, index) => (
+        <StreamingPlainTextChunk key={index} text={chunk} />
+      ))}
+    </div>
+  );
+};
+
 const SeamlessMarkdown = ({
   content = "",
+  streamingChunks,
   status = "done",
   fontSize = 14,
   lineHeight = 1.6,
@@ -174,15 +344,6 @@ const SeamlessMarkdown = ({
   const containerRef = useRef(null);
   const [isNearViewport, setIsNearViewport] = useState(false);
   const [isUpgraded, setIsUpgraded] = useState(false);
-  const normalizedContent = useMemo(
-    () => normalizeHtmlDocumentMarkdown(content),
-    [content],
-  );
-
-  const isHeavyContent = useMemo(
-    () => isHeavyMarkdownContent(normalizedContent),
-    [normalizedContent],
-  );
   const isStreaming = status === "streaming";
   const markdownStyle = useMemo(
     () => ({
@@ -191,6 +352,59 @@ const SeamlessMarkdown = ({
       lineHeight,
     }),
     [fontSize, lineHeight, style],
+  );
+  const streamingTextChunks = useStreamingTextChunks(content, streamingChunks);
+  const streamingMarkdownSnapshot = useStreamingMarkdownSnapshot(
+    isStreaming,
+    streamingTextChunks,
+  );
+  const streamingTailChunks = useMemo(
+    () =>
+      isStreaming
+        ? sliceStreamingChunksAfterLength(
+            streamingTextChunks,
+            streamingMarkdownSnapshot.length,
+          )
+        : [],
+    [isStreaming, streamingMarkdownSnapshot.length, streamingTextChunks],
+  );
+
+  const normalizedFull = useMemo(
+    () => (isStreaming ? "" : normalizeHtmlDocumentMarkdown(content)),
+    [content, isStreaming],
+  );
+  const normalizedStreamingSnapshot = useMemo(
+    () =>
+      streamingMarkdownSnapshot
+        ? normalizeHtmlDocumentMarkdown(streamingMarkdownSnapshot)
+        : "",
+    [streamingMarkdownSnapshot],
+  );
+  const streamingMarkdownElement = useMemo(
+    () =>
+      normalizedStreamingSnapshot ? (
+        <Markdown
+          className={className}
+          style={markdownStyle}
+          markdown={normalizedStreamingSnapshot}
+        />
+      ) : null,
+    [className, markdownStyle, normalizedStreamingSnapshot],
+  );
+
+  const isHeavyContent = useMemo(
+    () => !isStreaming && isHeavyMarkdownContent(normalizedFull),
+    [isStreaming, normalizedFull],
+  );
+  const fullMarkdownElement = useMemo(
+    () => (
+      <Markdown
+        className={className}
+        style={markdownStyle}
+        markdown={normalizedFull}
+      />
+    ),
+    [className, markdownStyle, normalizedFull],
   );
 
   useEffect(() => {
@@ -252,14 +466,28 @@ const SeamlessMarkdown = ({
     };
   }, [isHeavyContent, isNearViewport, isStreaming, isUpgraded, priority]);
 
-  if (!isHeavyContent || isUpgraded) {
+  if (isStreaming) {
     return (
-      <Markdown
+      <div
+        data-streaming-markdown-root="true"
         className={className}
         style={markdownStyle}
-        markdown={normalizedContent}
-      />
+      >
+        {streamingMarkdownElement}
+        {streamingTailChunks.length > 0 ? (
+          <StreamingPlainText
+            text=""
+            chunks={streamingTailChunks}
+            markdownStyle={markdownStyle}
+            theme={theme}
+          />
+        ) : null}
+      </div>
     );
+  }
+
+  if (!isHeavyContent || isUpgraded) {
+    return fullMarkdownElement;
   }
 
   return (

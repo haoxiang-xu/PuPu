@@ -10,6 +10,7 @@ import {
   ASSISTANT_MARKDOWN_LINE_HEIGHT,
 } from "./components/assistant_markdown_metrics";
 import InteractWrapper from "./interact/interact_wrapper";
+import { normalizeStreamingChunks } from "../../SERVICEs/streaming_message_chunks";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -584,6 +585,7 @@ const TraceChain = ({
   frames = [],
   status,
   streamingContent = "",
+  streamingChunks,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
   bundle,
@@ -1483,9 +1485,13 @@ const TraceChain = ({
     }
 
     if (isStreaming) {
+      const liveChunks = normalizeStreamingChunks(streamingChunks);
       const liveContent =
         typeof streamingContent === "string" ? streamingContent : "";
-      if (liveContent.trim()) {
+      const hasLiveContent =
+        liveChunks.some((chunk) => chunk.trim().length > 0) ||
+        liveContent.trim().length > 0;
+      if (hasLiveContent) {
         items.push({
           key: "__streaming_content__",
           title: "Response",
@@ -1496,6 +1502,7 @@ const TraceChain = ({
             <div style={{ fontFamily: "inherit" }}>
               <SeamlessMarkdown
                 content={liveContent}
+                streamingChunks={liveChunks}
                 status="streaming"
                 fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
                 lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
@@ -1592,6 +1599,7 @@ const TraceChain = ({
     displayFrames,
     isStreaming,
     streamingContent,
+    streamingChunks,
     startFrame,
     toolResultByCallId,
     confirmationStatusByCallId,

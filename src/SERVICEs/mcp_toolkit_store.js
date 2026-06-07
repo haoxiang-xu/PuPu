@@ -67,12 +67,109 @@ export const MCP_STORE_ENTRIES = Object.freeze(
   (Array.isArray(registry.entries) ? registry.entries : []).map(normalizeEntry),
 );
 
+let metadataByEntryId = new Map();
+let metadataByToolkitId = new Map();
+
+const isFileIcon = (icon) =>
+  Boolean(
+    icon &&
+      icon.type === "file" &&
+      typeof icon.content === "string" &&
+      icon.content &&
+      typeof icon.mimeType === "string" &&
+      icon.mimeType,
+  );
+
+const normalizeMetadataRecord = (record = {}) => {
+  if (!record || typeof record !== "object") return null;
+  const entryId = String(record.entryId || record.entry_id || "").trim();
+  const toolkitId = String(record.toolkitId || record.toolkit_id || "").trim();
+  if (!entryId && !toolkitId) return null;
+  const metadata =
+    record.metadata && typeof record.metadata === "object"
+      ? { ...record.metadata }
+      : {};
+  const icon = isFileIcon(record.icon) ? { ...record.icon } : null;
+  return {
+    ...record,
+    entryId,
+    toolkitId,
+    metadata,
+    ...(icon ? { icon } : {}),
+    iconPolicy:
+      record.iconPolicy === "replace" || record.icon_policy === "replace"
+        ? "replace"
+        : "fallback",
+  };
+};
+
+const metadataRecordFor = (toolkit) => {
+  if (!toolkit) return null;
+  const entryId = String(toolkit.id || toolkit.entryId || "").trim();
+  const toolkitId = String(toolkit.toolkitId || toolkit.toolkit_id || "").trim();
+  return (
+    (entryId && metadataByEntryId.get(entryId)) ||
+    (toolkitId && metadataByToolkitId.get(toolkitId)) ||
+    null
+  );
+};
+
+const overlayEntryMetadata = (entry) => {
+  const record = metadataRecordFor(entry);
+  if (!record) return entry;
+  const repoMetadata = record.metadata || {};
+  return {
+    ...entry,
+    ...(repoMetadata.description
+      ? { toolkitDescription: String(repoMetadata.description) }
+      : {}),
+    ...(repoMetadata.license ? { license: String(repoMetadata.license) } : {}),
+    ...(repoMetadata.stars != null ? { repoStars: repoMetadata.stars } : {}),
+    ...(repoMetadata.fullName
+      ? { repoFullName: String(repoMetadata.fullName) }
+      : {}),
+    ...(repoMetadata.ownerLogin
+      ? { repoOwnerLogin: String(repoMetadata.ownerLogin) }
+      : {}),
+    ...(repoMetadata.ownerAvatarUrl
+      ? { repoOwnerAvatarUrl: String(repoMetadata.ownerAvatarUrl) }
+      : {}),
+    repoMetadata,
+    metadataIcon: record.icon || null,
+    metadataIconPolicy: record.iconPolicy || "fallback",
+    metadataLastFetchedAt: record.lastFetchedAt || 0,
+    metadataLastError: record.lastError || "",
+  };
+};
+
+export function setMcpStoreMetadataCache(payload = {}) {
+  const entries = Array.isArray(payload.entries)
+    ? payload.entries
+    : Object.values(payload.byEntryId || {});
+  const nextByEntryId = new Map();
+  const nextByToolkitId = new Map();
+  for (const rawRecord of entries) {
+    const record = normalizeMetadataRecord(rawRecord);
+    if (!record) continue;
+    if (record.entryId) nextByEntryId.set(record.entryId, record);
+    if (record.toolkitId) nextByToolkitId.set(record.toolkitId, record);
+  }
+  metadataByEntryId = nextByEntryId;
+  metadataByToolkitId = nextByToolkitId;
+}
+
+export function clearMcpStoreMetadataCache() {
+  metadataByEntryId = new Map();
+  metadataByToolkitId = new Map();
+}
+
 export function listMcpStoreEntries() {
-  return MCP_STORE_ENTRIES;
+  return MCP_STORE_ENTRIES.map(overlayEntryMetadata);
 }
 
 export function getMcpStoreEntry(id) {
-  return MCP_STORE_ENTRIES.find((entry) => entry.id === id) || null;
+  const entry = MCP_STORE_ENTRIES.find((item) => item.id === id);
+  return entry ? overlayEntryMetadata(entry) : null;
 }
 
 /* Resolves the icon for an mcp toolkit. Priority: the registry entry's curated
@@ -84,8 +181,18 @@ export function resolveMcpIcon(toolkit) {
         (e) => e.id === toolkit.id || e.toolkitId === toolkit.toolkitId,
       )
     : null;
+  const record = metadataRecordFor(toolkit) || metadataRecordFor(entry);
+  const metadataIcon = isFileIcon(record?.icon) ? record.icon : null;
+  if (metadataIcon && record?.iconPolicy === "replace") {
+    return metadataIcon;
+  }
+  if (entry?.toolkitIcon) {
+    return entry.toolkitIcon;
+  }
+  if (metadataIcon) {
+    return metadataIcon;
+  }
   return (
-    (entry && entry.toolkitIcon) ||
     getCustomMcpIcon(toolkit?.toolkitId) ||
     toolkit?.toolkitIcon ||
     DEFAULT_MCP_ICON
@@ -96,7 +203,12 @@ export function resolveMcpIcon(toolkit) {
    a user-uploaded custom icon, else null (caller falls back to its own icon). */
 export function mcpStoreIconFor(toolkitId) {
   const entry = MCP_STORE_ENTRIES.find((e) => e.toolkitId === toolkitId);
-  if (entry) return entry.toolkitIcon || DEFAULT_MCP_ICON;
+  const record = metadataRecordFor({ toolkitId }) || metadataRecordFor(entry);
+  const metadataIcon = isFileIcon(record?.icon) ? record.icon : null;
+  if (metadataIcon && record?.iconPolicy === "replace") return metadataIcon;
+  if (entry?.toolkitIcon) return entry.toolkitIcon;
+  if (metadataIcon) return metadataIcon;
+  if (entry) return DEFAULT_MCP_ICON;
   return getCustomMcpIcon(toolkitId);
 }
 
@@ -107,10 +219,7 @@ export function withMcpStoreIcon(toolkit) {
   const entry = MCP_STORE_ENTRIES.find(
     (e) => e.toolkitId === toolkit.toolkitId,
   );
-  const icon =
-    (entry && entry.toolkitIcon) ||
-    getCustomMcpIcon(toolkit.toolkitId) ||
-    DEFAULT_MCP_ICON;
+  const icon = resolveMcpIcon({ ...toolkit, id: entry?.id });
   return { ...toolkit, toolkitIcon: icon };
 }
 

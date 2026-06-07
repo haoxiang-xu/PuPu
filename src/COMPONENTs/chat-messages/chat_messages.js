@@ -36,6 +36,7 @@ const ChatMessages = ({
     safeVisibleStart,
     visibleMessages,
     handleScroll,
+    handleUserScrollIntent,
     scrollToMessageIndex,
   } = useMessageWindowScroll({
     chat_id: chatId,
@@ -47,9 +48,10 @@ const ChatMessages = ({
     boot_visible_count: bootVisibleCount,
   });
 
+  const minimapMessages = isStreaming ? [] : messages;
   const { segments, total, measure } = useMessageMinimap({
     chatId,
-    messages,
+    messages: minimapMessages,
     messageNodeRefs,
     safeVisibleStart,
   });
@@ -66,6 +68,13 @@ const ChatMessages = ({
         ref={messagesRef}
         className="chat-scroll-host"
         onScroll={handleScroll}
+        onWheel={handleUserScrollIntent}
+        onTouchMove={handleUserScrollIntent}
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) {
+            handleUserScrollIntent();
+          }
+        }}
         style={{
           height: "100%",
           overflowY: "auto",
@@ -164,16 +173,18 @@ const ChatMessages = ({
         </div>
       </div>
 
-      <MessageMinimap
-        messagesRef={messagesRef}
-        messageNodeRefs={messageNodeRefs}
-        segments={segments}
-        total={total}
-        safeVisibleStart={safeVisibleStart}
-        measure={measure}
-        scrollToMessageIndex={scrollToMessageIndex}
-        isDark={isDark}
-      />
+      {!isStreaming ? (
+        <MessageMinimap
+          messagesRef={messagesRef}
+          messageNodeRefs={messageNodeRefs}
+          segments={segments}
+          total={total}
+          safeVisibleStart={safeVisibleStart}
+          measure={measure}
+          scrollToMessageIndex={scrollToMessageIndex}
+          isDark={isDark}
+        />
+      ) : null}
     </div>
   );
 };

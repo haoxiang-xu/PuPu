@@ -37,6 +37,10 @@ from mcp_oauth_apps import (
     delete_mcp_oauth_app,
     list_mcp_oauth_apps,
 )
+from mcp_store_metadata import (
+    list_mcp_store_metadata,
+    reload_mcp_store_metadata,
+)
 
 import route_catalog  # noqa: F401
 import route_chat  # noqa: F401
@@ -74,7 +78,9 @@ __all__ = [
     "install_mcp_toolkit",
     "list_mcp_oauth_apps",
     "list_installed_mcp_toolkits",
+    "list_mcp_store_metadata",
     "reload_mcp_toolkits",
+    "reload_mcp_store_metadata",
     "start_mcp_oauth",
     "stream_chat",
     "stream_chat_events",

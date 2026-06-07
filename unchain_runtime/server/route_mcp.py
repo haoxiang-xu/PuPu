@@ -253,3 +253,29 @@ def disconnect_mcp_oauth_route(toolkit_id: str) -> Response:
         return jsonify(root.disconnect_mcp_oauth(toolkit_id))
     except Exception as exc:
         return _mcp_error_response(root, exc)
+
+
+@api_blueprint.get("/mcp/store/metadata")
+def list_mcp_store_metadata_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    try:
+        return jsonify(root.list_mcp_store_metadata())
+    except Exception as exc:
+        return _mcp_error_response(root, exc)
+
+
+@api_blueprint.post("/mcp/store/metadata/reload")
+def reload_mcp_store_metadata_route() -> Response:
+    root = _root()
+    if not root._is_authorized():
+        return root._json_error("unauthorized", "Invalid auth token", 401)
+
+    payload = request.get_json(silent=True) or {}
+    entry_id = str(payload.get("entry_id") or payload.get("entryId") or "").strip()
+    try:
+        return jsonify(root.reload_mcp_store_metadata(entry_id=entry_id))
+    except Exception as exc:
+        return _mcp_error_response(root, exc)

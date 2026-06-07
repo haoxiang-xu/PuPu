@@ -1,13 +1,20 @@
 import {
   MCP_STORE_CATEGORIES,
   MCP_STORE_ENTRIES,
+  clearMcpStoreMetadataCache,
   listMcpStoreEntries,
   getMcpStoreEntry,
   resolveMcpIcon,
   searchMcpStoreEntries,
+  setMcpStoreMetadataCache,
+  withMcpStoreIcon,
 } from "./mcp_toolkit_store";
 
 describe("mcp_toolkit_store", () => {
+  afterEach(() => {
+    clearMcpStoreMetadataCache();
+  });
+
   test("categories start with all and include the known set", () => {
     expect(MCP_STORE_CATEGORIES[0]).toBe("all");
     expect(MCP_STORE_CATEGORIES).toEqual(
@@ -45,6 +52,100 @@ describe("mcp_toolkit_store", () => {
         backgroundColor: "transparent",
       }),
     );
+  });
+
+  test("metadata cache overlays entries without mutating the static registry", () => {
+    const before = getMcpStoreEntry("browser.playwright");
+    expect(before.toolkitDescription).toBe(
+      "Browser automation through the official Playwright MCP server.",
+    );
+
+    setMcpStoreMetadataCache({
+      entries: [
+        {
+          entryId: "browser.playwright",
+          toolkitId: "mcp.browser.playwright",
+          metadata: {
+            description: "Fetched Playwright description",
+            license: "Apache-2.0",
+            stars: 1234,
+            fullName: "microsoft/playwright-mcp",
+          },
+          icon: {
+            type: "file",
+            mimeType: "image/svg+xml",
+            content: "<svg />",
+          },
+          iconPolicy: "fallback",
+        },
+      ],
+    });
+
+    const after = getMcpStoreEntry("browser.playwright");
+    expect(after.toolkitDescription).toBe("Fetched Playwright description");
+    expect(after.license).toBe("Apache-2.0");
+    expect(after.repoStars).toBe(1234);
+    expect(after.repoFullName).toBe("microsoft/playwright-mcp");
+    expect(MCP_STORE_ENTRIES.find((entry) => entry.id === "browser.playwright").toolkitDescription).toBe(
+      "Browser automation through the official Playwright MCP server.",
+    );
+  });
+
+  test("metadata fallback icon is used only when the registry lacks an explicit icon", () => {
+    const avatarIcon = {
+      type: "file",
+      mimeType: "image/png",
+      content: "iVBORw0KGgo=",
+    };
+    setMcpStoreMetadataCache({
+      entries: [
+        {
+          entryId: "browser.playwright",
+          toolkitId: "mcp.browser.playwright",
+          icon: avatarIcon,
+          iconPolicy: "fallback",
+        },
+        {
+          entryId: "dev.github-remote",
+          toolkitId: "mcp.dev.github-remote",
+          icon: avatarIcon,
+          iconPolicy: "fallback",
+        },
+      ],
+    });
+
+    expect(resolveMcpIcon(getMcpStoreEntry("browser.playwright"))).toEqual(
+      avatarIcon,
+    );
+    expect(resolveMcpIcon(getMcpStoreEntry("dev.github-remote"))).toEqual(
+      expect.objectContaining({ type: "builtin", name: "github" }),
+    );
+  });
+
+  test("metadata replace icon can override an explicit registry icon", () => {
+    const replacement = {
+      type: "file",
+      mimeType: "image/png",
+      content: "iVBORw0KGgo=",
+    };
+    setMcpStoreMetadataCache({
+      entries: [
+        {
+          entryId: "dev.github-remote",
+          toolkitId: "mcp.dev.github-remote",
+          icon: replacement,
+          iconPolicy: "replace",
+        },
+      ],
+    });
+
+    expect(resolveMcpIcon(getMcpStoreEntry("dev.github-remote"))).toEqual(
+      replacement,
+    );
+    expect(withMcpStoreIcon({
+      source: "mcp",
+      toolkitId: "mcp.dev.github-remote",
+    }).toolkitIcon).toEqual(replacement);
   });
 
   test("getMcpStoreEntry returns the entry or null", () => {

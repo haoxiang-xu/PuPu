@@ -24,6 +24,8 @@ const UNCHAIN_MCP_OAUTH_START_ENDPOINT = "/mcp/oauth/start";
 const UNCHAIN_MCP_OAUTH_STATUS_ENDPOINT = "/mcp/oauth/status";
 const UNCHAIN_MCP_OAUTH_ENDPOINT = "/mcp/oauth";
 const UNCHAIN_MCP_OAUTH_APPS_ENDPOINT = "/mcp/oauth/apps";
+const UNCHAIN_MCP_STORE_METADATA_ENDPOINT = "/mcp/store/metadata";
+const UNCHAIN_MCP_STORE_METADATA_RELOAD_ENDPOINT = "/mcp/store/metadata/reload";
 const UNCHAIN_MEMORY_PROJECTION_ENDPOINT = "/memory/projection";
 const UNCHAIN_LONG_TERM_MEMORY_PROJECTION_ENDPOINT =
   "/memory/long-term/projection";
@@ -970,6 +972,51 @@ const createUnchainService = ({
       "Miso MCP OAuth app delete request failed",
       {},
       "Invalid Miso MCP OAuth app delete response",
+    );
+  };
+
+  const listMisoMcpStoreMetadata = async () => {
+    ensureMisoReady();
+
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_MCP_STORE_METADATA_ENDPOINT),
+      {
+        method: "GET",
+        headers: unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {},
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP store metadata request failed",
+      { entries: [], byEntryId: {}, status: "unavailable" },
+      "Invalid Miso MCP store metadata response",
+    );
+  };
+
+  const reloadMisoMcpStoreMetadata = async (payload = {}) => {
+    ensureMisoReady();
+
+    const source = payload && typeof payload === "object" ? payload : {};
+    const entryIdRaw = source.entry_id ?? source.entryId;
+    const entryId = typeof entryIdRaw === "string" ? entryIdRaw.trim() : "";
+    const response = await fetch(
+      buildMisoUrl(UNCHAIN_MCP_STORE_METADATA_RELOAD_ENDPOINT),
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+        },
+        body: JSON.stringify(entryId ? { entry_id: entryId } : {}),
+      },
+    );
+
+    return readJsonResponse(
+      response,
+      "Miso MCP store metadata reload request failed",
+      { entries: [], byEntryId: {}, status: "unavailable" },
+      "Invalid Miso MCP store metadata reload response",
     );
   };
 
@@ -2198,6 +2245,8 @@ const createUnchainService = ({
     listMisoMcpOAuthApps,
     configureMisoMcpOAuthApp,
     deleteMisoMcpOAuthApp,
+    listMisoMcpStoreMetadata,
+    reloadMisoMcpStoreMetadata,
     getMisoMemoryProjection,
     getMisoLongTermMemoryProjection,
     replaceMisoSessionMemory,

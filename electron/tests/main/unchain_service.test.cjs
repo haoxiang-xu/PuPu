@@ -375,6 +375,28 @@ describe("unchain service session memory replacement", () => {
             ok: true,
             toolkitId: "mcp.dev.github-remote",
           }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            entries: [{ entryId: "browser.playwright" }],
+            byEntryId: {
+              "browser.playwright": { entryId: "browser.playwright" },
+            },
+            status: "ok",
+          }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        text: async () =>
+          JSON.stringify({
+            entries: [{ entryId: "browser.playwright", status: "cached" }],
+            byEntryId: {
+              "browser.playwright": { entryId: "browser.playwright" },
+            },
+            status: "ok",
+          }),
       });
 
     process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
@@ -416,6 +438,10 @@ describe("unchain service session memory replacement", () => {
       clientSecret: "github-client-secret",
     });
     await service.deleteMisoMcpOAuthApp("mcp.dev.github-remote");
+    await service.listMisoMcpStoreMetadata();
+    await service.reloadMisoMcpStoreMetadata({
+      entryId: "browser.playwright",
+    });
 
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
@@ -459,6 +485,19 @@ describe("unchain service session memory replacement", () => {
       7,
       "http://127.0.0.1:5879/mcp/oauth/apps/mcp.dev.github-remote",
       expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      8,
+      "http://127.0.0.1:5879/mcp/store/metadata",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      9,
+      "http://127.0.0.1:5879/mcp/store/metadata/reload",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ entry_id: "browser.playwright" }),
+      }),
     );
   });
 

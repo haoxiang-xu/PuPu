@@ -356,6 +356,22 @@ const StoreToolkitDetailPanel = ({
                     fontFamily={fontFamily}
                   />
                 )}
+                {entry.repoFullName && (
+                  <Badge
+                    text={entry.repoFullName}
+                    color={tagColor}
+                    bg={tagBg}
+                    fontFamily={fontFamily}
+                  />
+                )}
+                {entry.repoStars != null && (
+                  <Badge
+                    text={`${Number(entry.repoStars).toLocaleString()} stars`}
+                    color={tagColor}
+                    bg={tagBg}
+                    fontFamily={fontFamily}
+                  />
+                )}
                 <Badge
                   text={statusChip.label}
                   color={statusChip.color}

@@ -40,6 +40,8 @@ const CHANNELS = Object.freeze({
     LIST_MCP_OAUTH_APPS: "unchain:list-mcp-oauth-apps",
     CONFIGURE_MCP_OAUTH_APP: "unchain:configure-mcp-oauth-app",
     DELETE_MCP_OAUTH_APP: "unchain:delete-mcp-oauth-app",
+    LIST_MCP_STORE_METADATA: "unchain:list-mcp-store-metadata",
+    RELOAD_MCP_STORE_METADATA: "unchain:reload-mcp-store-metadata",
     TOOL_CONFIRMATION: "unchain:tool-confirmation",
     SET_CHROME_TERMINAL_OPEN: "unchain:set-chrome-terminal-open",
     SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT: "unchain:sync-build-feature-flags-snapshot",

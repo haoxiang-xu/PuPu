@@ -20,11 +20,20 @@ import { adaptActivityTreeToTraceChainV4 } from "../../../SERVICEs/runtime_event
 import { isRuntimeEventStreamV4Enabled } from "../../../SERVICEs/runtime_events_v4/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
+  appendStreamingMessageDelta,
+  clearStreamingMessageText,
+  finalizeStreamingMessage,
+  getStreamingMessageText,
+  replaceStreamingMessageText,
+} from "../../../SERVICEs/streaming_message_chunks";
+import {
   scheduleBackgroundPersist,
   flushBackgroundPersist,
   cancelBackgroundPersist,
 } from "./background_stream_persister";
 import { createStreamFlushScheduler } from "./stream_flush_scheduler";
+import { finalizeStreamPersist } from "./finalize_stream_persist";
+import { createRuntimeEventBatcher } from "./runtime_event_batcher";
 import {
   start as progressStart,
   stop as progressStop,
@@ -33,6 +42,7 @@ import {
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
 const STREAM_TRACE_LEVEL = "minimal";
+const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
 const SUBAGENT_STATE_FLUSH_MS = 100;
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
@@ -1707,11 +1717,9 @@ export const useChatStream = ({
         const patchTime = Date.now();
         const nextStreamMessages = streamMessages.map((message) =>
           message.id === assistantMessageId
-            ? {
-                ...message,
-                content: `${typeof message.content === "string" ? message.content : ""}${deltaChunk}`,
+            ? appendStreamingMessageDelta(message, deltaChunk, {
                 updatedAt: patchTime,
-              }
+              })
             : message,
         );
         syncStreamMessages(nextStreamMessages);
@@ -1765,6 +1773,8 @@ export const useChatStream = ({
           reduceTree,
           adaptTree,
           startStream,
+          batchRuntimeEvents = false,
+          batchFlushMs = 0,
         }) => {
         const runtimeEventStore = createStore();
         let runtimeEventActivityTree = reduceTree(
@@ -1859,41 +1869,63 @@ export const useChatStream = ({
           syncStreamMessages(nextStreamMessages);
         };
 
-        return startStream(payload, {
+        const dispatchRuntimeEventEffects = (effects) => {
+          const hasErrorEffect = effects.some((effect) => effect.type === "error");
+          effects.forEach((effect) => {
+            if (
+              effect.type === "frame" &&
+              !(hasErrorEffect && effect.frame?.type === "error")
+            ) {
+              handlers.onFrame?.(effect.frame);
+              return;
+            }
+            if (effect.type === "meta") {
+              handlers.onMeta?.(effect.meta);
+              return;
+            }
+            if (effect.type === "token") {
+              handlers.onToken?.(effect.delta);
+              return;
+            }
+            if (effect.type === "error") {
+              runtimeEventStreamFailed = true;
+              handlers.onError?.(effect.error);
+            }
+            if (
+              effect.type === "artifact_summary" ||
+              effect.type === "run_artifact_summary"
+            ) {
+              patchArtifactSummary(effect);
+              return;
+            }
+          });
+        };
+
+        const flushRuntimeEventBatch = (events) => {
+          runtimeEventStore.appendMany(events);
+          const effects = flushRuntimeEventEffects();
+          return dispatchRuntimeEventEffects(effects);
+        };
+
+        const runtimeEventBatcher = batchRuntimeEvents
+          ? createRuntimeEventBatcher({
+              delayMs: batchFlushMs,
+              onFlush: flushRuntimeEventBatch,
+            })
+          : null;
+
+        const streamHandle = startStream(payload, {
           onRuntimeEvent: (runtimeEvent) => {
+            if (runtimeEventBatcher) {
+              runtimeEventBatcher.enqueue(runtimeEvent);
+              return;
+            }
             runtimeEventStore.append(runtimeEvent);
             const effects = flushRuntimeEventEffects();
-            const hasErrorEffect = effects.some((effect) => effect.type === "error");
-            effects.forEach((effect) => {
-              if (
-                effect.type === "frame" &&
-                !(hasErrorEffect && effect.frame?.type === "error")
-              ) {
-                handlers.onFrame?.(effect.frame);
-                return;
-              }
-              if (effect.type === "meta") {
-                handlers.onMeta?.(effect.meta);
-                return;
-              }
-              if (effect.type === "token") {
-                handlers.onToken?.(effect.delta);
-                return;
-              }
-              if (effect.type === "error") {
-                runtimeEventStreamFailed = true;
-                handlers.onError?.(effect.error);
-              }
-              if (
-                effect.type === "artifact_summary" ||
-                effect.type === "run_artifact_summary"
-              ) {
-                patchArtifactSummary(effect);
-                return;
-              }
-            });
+            dispatchRuntimeEventEffects(effects);
           },
           onDone: (done) => {
+            runtimeEventBatcher?.flushNow();
             if (runtimeEventStreamFailed) {
               return;
             }
@@ -1905,10 +1937,28 @@ export const useChatStream = ({
             handlers.onDone?.(donePayload);
           },
           onError: (error) => {
+            runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
             handlers.onError?.(error);
           },
         });
+
+        if (
+          runtimeEventBatcher &&
+          streamHandle &&
+          typeof streamHandle.cancel === "function"
+        ) {
+          const originalCancel = streamHandle.cancel;
+          return {
+            ...streamHandle,
+            cancel: (...args) => {
+              runtimeEventBatcher.cancel();
+              return originalCancel(...args);
+            },
+          };
+        }
+
+        return streamHandle;
         };
 
         const shouldUseRuntimeEventsV4 =
@@ -1921,6 +1971,8 @@ export const useChatStream = ({
             reduceTree: reduceActivityTreeV4,
             adaptTree: adaptActivityTreeToTraceChainV4,
             startStream: api.unchain.startStreamV4,
+            batchRuntimeEvents: true,
+            batchFlushMs: RUNTIME_EVENT_BATCH_FLUSH_MS,
           });
         }
 
@@ -1937,6 +1989,7 @@ export const useChatStream = ({
           reduceTree: reduceActivityTree,
           adaptTree: adaptActivityTreeToTraceChain,
           startStream: api.unchain.startStreamV3,
+          batchRuntimeEvents: false,
         });
       };
 
@@ -2646,8 +2699,7 @@ export const useChatStream = ({
                 const nextStreamMessages = streamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
 
-                  const currentContent =
-                    typeof message.content === "string" ? message.content : "";
+                  const currentContent = getStreamingMessageText(message);
                   const hasToolActivity = (message.traceFrames || []).some(
                     (traceFrame) =>
                       traceFrame.type === "tool_call" ||
@@ -2659,9 +2711,17 @@ export const useChatStream = ({
                     currentContent.trim() === finalContent.trim() &&
                     currentContent.length > 0;
 
+                  const nextMessage = useAccumulated
+                    ? {
+                        ...message,
+                        updatedAt: patchTime,
+                      }
+                    : replaceStreamingMessageText(message, finalContent, {
+                        updatedAt: patchTime,
+                      });
+
                   return {
-                    ...message,
-                    content: useAccumulated ? currentContent : finalContent,
+                    ...nextMessage,
                     updatedAt: patchTime,
                     traceFrames: [...(message.traceFrames || []), frame],
                   };
@@ -2674,8 +2734,7 @@ export const useChatStream = ({
                 const nextStreamMessages = streamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
 
-                  const currentContent =
-                    typeof message.content === "string" ? message.content : "";
+                  const currentContent = getStreamingMessageText(message);
                   const currentContentTrimmed = currentContent.trim();
                   const existingFrames = message.traceFrames || [];
 
@@ -2732,8 +2791,7 @@ export const useChatStream = ({
                   }
 
                   return {
-                    ...message,
-                    content: "",
+                    ...clearStreamingMessageText(message),
                     updatedAt: patchTime,
                     traceFrames: mergedFrames,
                   };
@@ -2816,13 +2874,11 @@ export const useChatStream = ({
 
               const nextStreamMessages = streamMessages.map((message) => {
                 if (message.id !== assistantMessageId) return message;
-                let cleanContent =
-                  typeof message.content === "string" ? message.content : "";
+                let cleanContent = getStreamingMessageText(message);
                 cleanContent = cleanContent
                   .replace(/<think>[\s\S]*?<\/think>/g, "")
                   .replace(/^\s*\n/, "");
-                return {
-                  ...message,
+                return finalizeStreamingMessage(message, {
                   content: cleanContent,
                   status: "done",
                   updatedAt: doneTime,
@@ -2830,7 +2886,7 @@ export const useChatStream = ({
                     ...(message.meta || {}),
                     ...(bundle ? { bundle } : {}),
                   },
-                };
+                });
               });
               syncStreamMessages(nextStreamMessages);
 
@@ -2883,9 +2939,17 @@ export const useChatStream = ({
                 });
               }
 
-              if (activeChatIdRef.current !== targetChatId) {
-                flushBackgroundPersist(targetChatId);
-              }
+              // Persist the final messages now. Foreground writes synchronously
+              // (the debounced persist effect waits on a React commit that a
+              // janky main thread can starve → lost last response); background
+              // chats flush their own buffer.
+              finalizeStreamPersist({
+                storageApi,
+                chatId: targetChatId,
+                messages: nextStreamMessages,
+                isForeground: activeChatIdRef.current === targetChatId,
+                flushBackgroundPersist,
+              });
               streamHandlesRef.current.delete(targetChatId);
               streamingChatIdsRef.current.delete(targetChatId);
               activeStreamsRef.current.delete(targetChatId);
@@ -3008,14 +3072,14 @@ export const useChatStream = ({
                   type: "error",
                   payload: { code: errorCode, message: errorMessage },
                 };
+                const currentContent = getStreamingMessageText(message);
 
-                return {
-                  ...message,
+                return finalizeStreamingMessage(message, {
                   status: "error",
                   updatedAt: errorTime,
                   content: hasTrace
-                    ? message.content
-                    : message.content || `[error] ${errorMessage}`,
+                    ? currentContent
+                    : currentContent || `[error] ${errorMessage}`,
                   traceFrames: hasTrace
                     ? [...message.traceFrames, errorFrame]
                     : message.traceFrames,
@@ -3026,7 +3090,7 @@ export const useChatStream = ({
                       message: errorMessage,
                     },
                   },
-                };
+                });
               });
               syncStreamMessages(nextStreamMessages);
               if (activeChatIdRef.current !== targetChatId) {

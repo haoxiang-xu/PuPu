@@ -1,10 +1,15 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import ToolkitsPage from "./toolkits_page";
+import api from "../../../SERVICEs/api";
 import {
   getInstalledMcpIds,
   installMcpEntry,
   connectMcpOAuthEntry,
 } from "../../../SERVICEs/mcp_install";
+import {
+  clearMcpStoreMetadataCache,
+  setMcpStoreMetadataCache,
+} from "../../../SERVICEs/mcp_toolkit_store";
 
 jest.mock("../../../BUILTIN_COMPONENTs/mini_react/use_translation", () => ({
   __esModule: true,
@@ -31,6 +36,40 @@ jest.mock("../../../SERVICEs/mcp_install", () => ({
   ),
 }));
 
+jest.mock("../../../SERVICEs/api", () => ({
+  __esModule: true,
+  default: {
+    unchain: {
+      listMcpStoreMetadata: jest.fn(() =>
+        Promise.resolve({ entries: [], byEntryId: {}, status: "ok" }),
+      ),
+      reloadMcpStoreMetadata: jest.fn(() =>
+        Promise.resolve({
+          entries: [
+            {
+              entryId: "browser.playwright",
+              toolkitId: "mcp.browser.playwright",
+              metadata: { stars: 1234 },
+            },
+          ],
+          byEntryId: {},
+          status: "ok",
+        }),
+      ),
+    },
+  },
+}));
+
+jest.mock("../../../SERVICEs/mcp_toolkit_store", () => {
+  const actual = jest.requireActual("../../../SERVICEs/mcp_toolkit_store");
+  return {
+    __esModule: true,
+    ...actual,
+    setMcpStoreMetadataCache: jest.fn(actual.setMcpStoreMetadataCache),
+    clearMcpStoreMetadataCache: jest.fn(actual.clearMcpStoreMetadataCache),
+  };
+});
+
 jest.mock("../../settings/runtime", () => ({
   __esModule: true,
   readWorkspaceRoot: () => "",
@@ -38,9 +77,10 @@ jest.mock("../../settings/runtime", () => ({
 
 jest.mock("./toolkit_store_page", () => ({
   __esModule: true,
-  default: ({ onEntryClick, onInstall, onOAuthConnect }) => (
+  default: ({ onEntryClick, onInstall, onOAuthConnect, onRefreshMetadata }) => (
     <div>
       <span>Store Page</span>
+      <button onClick={() => onRefreshMetadata?.()}>Refresh Metadata</button>
       <button onClick={() => onEntryClick?.("browser.playwright")}>
         Open Store Entry
       </button>
@@ -155,6 +195,26 @@ describe("ToolkitsPage", () => {
     getInstalledMcpIds.mockClear();
     installMcpEntry.mockClear();
     connectMcpOAuthEntry.mockClear();
+    api.unchain.listMcpStoreMetadata.mockClear();
+    api.unchain.reloadMcpStoreMetadata.mockClear();
+    api.unchain.listMcpStoreMetadata.mockResolvedValue({
+      entries: [],
+      byEntryId: {},
+      status: "ok",
+    });
+    api.unchain.reloadMcpStoreMetadata.mockResolvedValue({
+      entries: [
+        {
+          entryId: "browser.playwright",
+          toolkitId: "mcp.browser.playwright",
+          metadata: { stars: 1234 },
+        },
+      ],
+      byEntryId: {},
+      status: "ok",
+    });
+    setMcpStoreMetadataCache.mockClear();
+    clearMcpStoreMetadataCache.mockClear();
     jest.useFakeTimers();
     jest
       .spyOn(window, "requestAnimationFrame")
@@ -167,6 +227,15 @@ describe("ToolkitsPage", () => {
   afterEach(() => {
     window.requestAnimationFrame.mockRestore();
     jest.useRealTimers();
+  });
+
+  test("loads cached store metadata on mount", async () => {
+    await renderToolkitsPage();
+
+    expect(api.unchain.listMcpStoreMetadata).toHaveBeenCalledTimes(1);
+    expect(setMcpStoreMetadataCache).toHaveBeenCalledWith(
+      expect.objectContaining({ entries: [] }),
+    );
   });
 
   test("keeps installed as the default tab and opens installed detail", async () => {
@@ -280,5 +349,25 @@ describe("ToolkitsPage", () => {
       expect.objectContaining({ id: "productivity.notion-remote" }),
     );
     expect(getInstalledMcpIds.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("store metadata refresh reloads cache", async () => {
+    await renderToolkitsPage();
+
+    fireEvent.click(screen.getByText("toolkit.store"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Refresh Metadata"));
+    });
+
+    expect(api.unchain.reloadMcpStoreMetadata).toHaveBeenCalledWith({});
+    expect(setMcpStoreMetadataCache).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        entries: [
+          expect.objectContaining({
+            entryId: "browser.playwright",
+          }),
+        ],
+      }),
+    );
   });
 });

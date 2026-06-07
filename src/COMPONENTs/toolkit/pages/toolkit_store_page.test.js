@@ -73,4 +73,19 @@ describe("ToolkitStorePage", () => {
 
     expect(onEntryClick).toHaveBeenCalledWith("browser.playwright");
   });
+
+  test("refresh metadata action calls the provided handler", () => {
+    const onRefreshMetadata = jest.fn();
+    render(
+      <ToolkitStorePage
+        isDark={false}
+        onEntryClick={() => {}}
+        onRefreshMetadata={onRefreshMetadata}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "toolkit.store_refresh_metadata" }));
+
+    expect(onRefreshMetadata).toHaveBeenCalledTimes(1);
+  });
 });

@@ -1,3 +1,4 @@
+import { useLayoutEffect } from "react";
 import { act, renderHook } from "@testing-library/react";
 import useMessageWindowScroll from "./use_message_window_scroll";
 
@@ -7,6 +8,41 @@ const makeMessages = (n) =>
     role: "user",
     content: `${i}`,
   }));
+
+const makeScrollHost = () => {
+  let scrollHeightReads = 0;
+  const host = {
+    __scrollHeight: 1000,
+    clientHeight: 400,
+    scrollTop: 0,
+    scrollTo: jest.fn(({ top }) => {
+      host.scrollTop = top;
+    }),
+    get scrollHeight() {
+      scrollHeightReads += 1;
+      return host.__scrollHeight;
+    },
+  };
+
+  return {
+    host,
+    getScrollHeightReads: () => scrollHeightReads,
+    resetScrollHeightReads: () => {
+      scrollHeightReads = 0;
+    },
+    setScrollHeight: (value) => {
+      host.__scrollHeight = value;
+    },
+  };
+};
+
+const useScrollWithHost = (props, host) => {
+  const scroll = useMessageWindowScroll(props);
+  useLayoutEffect(() => {
+    scroll.messagesRef.current = host;
+  });
+  return scroll;
+};
 
 describe("boot visible window", () => {
   const originalIdle = window.requestIdleCallback;
@@ -75,6 +111,207 @@ describe("boot visible window", () => {
 });
 
 describe("useMessageWindowScroll", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+  });
+
+  it("follows streaming output on a throttled timer", () => {
+    const scrollHost = makeScrollHost();
+    const initialMessages = makeMessages(20);
+    const { rerender } = renderHook(
+      ({ messages }) =>
+        useScrollWithHost(
+          {
+            chat_id: "chat-streaming",
+            messages,
+            is_streaming: true,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+          },
+          scrollHost.host,
+        ),
+      { initialProps: { messages: initialMessages } },
+    );
+
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+    expect(scrollHost.getScrollHeightReads()).toBe(0);
+    scrollHost.setScrollHeight(1400);
+
+    rerender({
+      messages: [
+        ...initialMessages,
+        { id: "m-20", role: "assistant", content: "streaming" },
+      ],
+    });
+
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+    act(() => {
+      jest.advanceTimersByTime(63);
+    });
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledTimes(1);
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
+      top: 1400,
+      behavior: "auto",
+    });
+  });
+
+  it("keeps following when streaming growth makes the viewport geometrically no longer at bottom", () => {
+    const scrollHost = makeScrollHost();
+    const initialMessages = makeMessages(20);
+    const { result, rerender } = renderHook(
+      ({ messages }) =>
+        useScrollWithHost(
+          {
+            chat_id: "chat-streaming",
+            messages,
+            is_streaming: true,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+          },
+          scrollHost.host,
+        ),
+      { initialProps: { messages: initialMessages } },
+    );
+
+    act(() => {
+      scrollHost.host.scrollTop = 0;
+      scrollHost.setScrollHeight(2000);
+      result.current.handleScroll();
+    });
+
+    scrollHost.host.scrollTo.mockClear();
+
+    rerender({
+      messages: [
+        ...initialMessages,
+        { id: "m-20", role: "assistant", content: "streaming" },
+      ],
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
+      top: 2000,
+      behavior: "auto",
+    });
+  });
+
+  it("keeps following after a non-user scroll event looks like upward movement", () => {
+    const scrollHost = makeScrollHost();
+    const initialMessages = makeMessages(20);
+    const { result, rerender } = renderHook(
+      ({ messages }) =>
+        useScrollWithHost(
+          {
+            chat_id: "chat-streaming",
+            messages,
+            is_streaming: true,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+          },
+          scrollHost.host,
+        ),
+      { initialProps: { messages: initialMessages } },
+    );
+
+    scrollHost.setScrollHeight(1200);
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+    scrollHost.host.scrollTo.mockClear();
+
+    act(() => {
+      scrollHost.host.scrollTop = 700;
+      scrollHost.setScrollHeight(2200);
+      result.current.handleScroll();
+    });
+
+    rerender({
+      messages: [
+        ...initialMessages,
+        { id: "m-20", role: "assistant", content: "streaming" },
+      ],
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
+      top: 2200,
+      behavior: "auto",
+    });
+  });
+
+  it("does not force-follow streaming output after the user scrolls away", () => {
+    const scrollHost = makeScrollHost();
+    const initialMessages = makeMessages(20);
+    const { result, rerender } = renderHook(
+      ({ messages }) =>
+        useScrollWithHost(
+          {
+            chat_id: "chat-streaming",
+            messages,
+            is_streaming: true,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+          },
+          scrollHost.host,
+        ),
+      { initialProps: { messages: initialMessages } },
+    );
+
+    scrollHost.setScrollHeight(1200);
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+    scrollHost.host.scrollTo.mockClear();
+    scrollHost.resetScrollHeightReads();
+
+    act(() => {
+      result.current.handleUserScrollIntent();
+      scrollHost.host.scrollTop = 0;
+      scrollHost.setScrollHeight(2000);
+      result.current.handleScroll();
+    });
+
+    scrollHost.host.scrollTo.mockClear();
+    scrollHost.resetScrollHeightReads();
+
+    rerender({
+      messages: [
+        ...initialMessages,
+        { id: "m-20", role: "assistant", content: "streaming" },
+      ],
+    });
+
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+  });
+
   it("scrollToMessageIndex expands the window when target is above it", () => {
     const messages = makeMessages(40);
     const { result } = renderHook(() =>

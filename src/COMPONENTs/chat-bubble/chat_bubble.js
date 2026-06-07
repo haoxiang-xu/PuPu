@@ -117,6 +117,9 @@ const ChatBubble = ({
           streamingContent={
             message.status === "streaming" ? message.content : ""
           }
+          streamingChunks={
+            message.status === "streaming" ? message.streamingChunks : undefined
+          }
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
           bundle={message.meta?.bundle}

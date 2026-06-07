@@ -7,13 +7,18 @@ import CustomMcpPage from "./custom_mcp_page";
 import ToolkitDetailPanel from "../components/toolkit_detail_panel";
 import StoreToolkitDetailPanel from "../components/store_toolkit_detail_panel";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
-import { getMcpStoreEntry } from "../../../SERVICEs/mcp_toolkit_store";
+import api from "../../../SERVICEs/api";
+import {
+  getMcpStoreEntry,
+  setMcpStoreMetadataCache,
+} from "../../../SERVICEs/mcp_toolkit_store";
 import {
   connectMcpOAuthEntry,
   getInstalledMcpIds,
   installMcpEntry,
 } from "../../../SERVICEs/mcp_install";
 import { readWorkspaceRoot } from "../../settings/runtime";
+import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 
 const SLIDE_DURATION = 260;
 
@@ -78,6 +83,15 @@ const ToolkitsPage = ({ isDark }) => {
   const [installedMcpIds, setInstalledMcpIds] = useState(() => new Set());
   const [installingId, setInstallingId] = useState(null);
   const [installError, setInstallError] = useState(null);
+  const [metadataRevision, setMetadataRevision] = useState(0);
+  const [metadataRefreshing, setMetadataRefreshing] = useState(false);
+  const [metadataError, setMetadataError] = useState(null);
+
+  const applyStoreMetadata = useCallback((payload) => {
+    setMcpStoreMetadataCache(payload || {});
+    setMetadataRevision((value) => value + 1);
+    emitToolkitCatalogRefresh({ source: "mcp_store_metadata" });
+  }, []);
 
   const loadInstalledMcpIds = useCallback(async () => {
     try {
@@ -90,6 +104,35 @@ const ToolkitsPage = ({ isDark }) => {
   useEffect(() => {
     loadInstalledMcpIds();
   }, [loadInstalledMcpIds]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.unchain
+      .listMcpStoreMetadata()
+      .then((payload) => {
+        if (!cancelled) applyStoreMetadata(payload);
+      })
+      .catch(() => {
+        /* ignore — static registry remains usable */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyStoreMetadata]);
+
+  const handleRefreshMetadata = useCallback(async () => {
+    setMetadataRefreshing(true);
+    setMetadataError(null);
+    try {
+      const payload = await api.unchain.reloadMcpStoreMetadata({});
+      applyStoreMetadata(payload);
+      installedHandlersRef.current?.reload?.();
+    } catch (error) {
+      setMetadataError(error?.code || "mcp_store_metadata_reload_failed");
+    } finally {
+      setMetadataRefreshing(false);
+    }
+  }, [applyStoreMetadata]);
 
   const handleInstall = useCallback(
     async (entry, setupOptions = {}) => {
@@ -177,6 +220,10 @@ const ToolkitsPage = ({ isDark }) => {
             onOAuthConnect={handleOAuthConnect}
             installingId={installingId}
             installError={installError}
+            metadataRevision={metadataRevision}
+            metadataRefreshing={metadataRefreshing}
+            metadataError={metadataError}
+            onRefreshMetadata={handleRefreshMetadata}
           />
         );
       case "installed":

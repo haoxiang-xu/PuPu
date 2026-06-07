@@ -193,30 +193,30 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
   });
 
-  test("preserves leading whitespace in streaming content markdown", () => {
+  test("renders leading whitespace streaming content as plain text", () => {
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "    const x = 1;\n",
     });
 
-    expect(container.querySelector("code.hljs")).toBeInTheDocument();
+    expect(container.querySelector("code.hljs")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-streaming-plain-text]"),
+    ).toBeInTheDocument();
     expect(container).toHaveTextContent("const x = 1;");
   });
 
-  test("uses the same markdown metrics as the final assistant response", () => {
+  test("uses the same text metrics as the final assistant response while streaming", () => {
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "Paragraph one.\n\nParagraph two.",
     });
 
-    const markdownRoot = container.querySelector("[data-markdown-id]");
-    expect(markdownRoot).toBeInTheDocument();
-
-    const styleTag = markdownRoot.querySelector("style");
-    expect(styleTag?.textContent).toContain("font-size: 14px;");
-    expect(styleTag?.textContent).toContain("line-height: 1.6;");
+    const streamingText = container.querySelector("[data-streaming-plain-text]");
+    expect(streamingText).toBeInTheDocument();
+    expect(streamingText).toHaveStyle({ fontSize: "14px", lineHeight: "1.6" });
   });
 
   test("uses tighter markdown spacing for observation details", () => {

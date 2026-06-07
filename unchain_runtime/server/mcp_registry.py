@@ -6,6 +6,7 @@ import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, List
+from urllib.parse import urlparse
 
 
 REGISTRY_FILENAME = "mcp_toolkit_registry.json"
@@ -106,6 +107,59 @@ def _normalize_mcp(raw: Any) -> Dict[str, Any]:
     return mcp
 
 
+def _normalize_metadata_recipe(raw: Any) -> Dict[str, Any]:
+    if raw in (None, ""):
+        return {}
+    if not isinstance(raw, dict):
+        raise RuntimeError("MCP registry metadata recipe must be an object")
+    recipe_type = _clean_str(raw.get("type"))
+    if recipe_type != "http_json":
+        raise RuntimeError(f"Unsupported MCP registry metadata type: {recipe_type}")
+    request = raw.get("request") if isinstance(raw.get("request"), dict) else {}
+    url = _clean_str(request.get("url"))
+    if not url:
+        raise RuntimeError("MCP registry metadata request.url is required")
+    parsed = urlparse(url)
+    if parsed.scheme != "https" or not parsed.netloc:
+        raise RuntimeError("MCP registry metadata request.url must use https")
+    headers = request.get("headers") if isinstance(request.get("headers"), dict) else {}
+    fields = raw.get("fields") if isinstance(raw.get("fields"), dict) else {}
+    icon = raw.get("icon") if isinstance(raw.get("icon"), dict) else {}
+    icon_policy = _clean_str(raw.get("iconPolicy") or raw.get("icon_policy")) or "fallback"
+    if icon_policy not in {"fallback", "replace"}:
+        raise RuntimeError("MCP registry metadata iconPolicy must be fallback or replace")
+    cache_ttl_ms = raw.get("cacheTtlMs") or raw.get("cache_ttl_ms") or 86400000
+    try:
+        cache_ttl_ms = int(cache_ttl_ms)
+    except (TypeError, ValueError):
+        cache_ttl_ms = 86400000
+    if cache_ttl_ms <= 0:
+        cache_ttl_ms = 86400000
+    return {
+        "type": "http_json",
+        "request": {
+            "url": url,
+            "headers": {
+                str(key): str(value)
+                for key, value in headers.items()
+                if _clean_str(key)
+            },
+        },
+        "fields": {
+            str(key): str(value)
+            for key, value in fields.items()
+            if _clean_str(key) and _clean_str(value)
+        },
+        "icon": {
+            "urlPath": _clean_str(
+                icon.get("urlPath") or icon.get("url_path") or icon.get("path")
+            )
+        },
+        "iconPolicy": icon_policy,
+        "cacheTtlMs": cache_ttl_ms,
+    }
+
+
 def _normalize_entry(raw: Any) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         raise RuntimeError("MCP registry entries must be objects")
@@ -151,6 +205,7 @@ def _normalize_entry(raw: Any) -> Dict[str, Any]:
         "source_repo": _clean_str(raw.get("sourceRepo") or raw.get("source_repo")),
         "docs_url": _clean_str(raw.get("docsUrl") or raw.get("docs_url")),
         "readme_markdown": str(raw.get("readmeMarkdown") or raw.get("readme_markdown") or ""),
+        "metadata": _normalize_metadata_recipe(raw.get("metadata")),
         "setup_preview": str(raw.get("setupPreview") or raw.get("setup_preview") or ""),
         "prerequisites": [str(item) for item in (raw.get("prerequisites") or [])],
         "tools": copy.deepcopy(raw.get("tools") if isinstance(raw.get("tools"), list) else []),

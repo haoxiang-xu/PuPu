@@ -35,6 +35,8 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
   CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP,
   CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
+  CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
+  CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
@@ -227,6 +229,15 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
     CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
     async (_event, payload = {}) =>
       unchainService.deleteMisoMcpOAuthApp(payload.toolkitId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
+    async () => unchainService.listMisoMcpStoreMetadata(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
+    async (_event, payload = {}) =>
+      unchainService.reloadMisoMcpStoreMetadata(payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.TOOL_CONFIRMATION,

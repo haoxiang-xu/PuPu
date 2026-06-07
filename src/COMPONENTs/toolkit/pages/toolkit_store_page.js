@@ -1,5 +1,6 @@
 import { useContext, useMemo, useState } from "react";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
+import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import {
@@ -17,6 +18,10 @@ const ToolkitStorePage = ({
   onInstall,
   installingId,
   installError,
+  metadataRevision = 0,
+  metadataRefreshing = false,
+  metadataError = null,
+  onRefreshMetadata,
 }) => {
   const context = useContext(ConfigContext) || {};
   const { t } = useTranslation();
@@ -33,7 +38,10 @@ const ToolkitStorePage = ({
     [t],
   );
 
-  const entries = useMemo(() => listMcpStoreEntries(), []);
+  const entries = useMemo(
+    () => listMcpStoreEntries(),
+    [metadataRevision],
+  );
   const filtered = useMemo(
     () => searchMcpStoreEntries(entries, search, category),
     [entries, search, category],
@@ -105,7 +113,52 @@ const ToolkitStorePage = ({
             </button>
           );
         })}
+        <Button
+          label={
+            metadataRefreshing
+              ? t("toolkit.store_refreshing_metadata")
+              : t("toolkit.store_refresh_metadata")
+          }
+          disabled={metadataRefreshing}
+          onClick={onRefreshMetadata}
+          style={{
+            fontSize: 11,
+            fontFamily,
+            fontWeight: 500,
+            paddingVertical: 3,
+            paddingHorizontal: 10,
+            borderRadius: 999,
+            color: isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)",
+            root: {
+              background: isDark
+                ? "rgba(255,255,255,0.05)"
+                : "rgba(0,0,0,0.035)",
+              border: `1px solid ${
+                isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
+              }`,
+            },
+            state: {
+              disabled: {
+                root: { opacity: 0.55, cursor: "not-allowed" },
+                background: {},
+              },
+            },
+          }}
+        />
       </div>
+
+      {metadataError && (
+        <div
+          style={{
+            fontSize: 10.5,
+            fontFamily,
+            color: isDark ? "#fdba74" : "#c2410c",
+            marginTop: -6,
+          }}
+        >
+          {t("toolkit.store_metadata_error")}
+        </div>
+      )}
 
       {filtered.length > 0 ? (
         <div

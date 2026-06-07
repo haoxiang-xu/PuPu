@@ -15,6 +15,27 @@
       "license": "Apache-2.0",
       "sourceRepo": "https://github.com/microsoft/playwright-mcp",
       "docsUrl": "https://github.com/microsoft/playwright-mcp",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/microsoft/playwright-mcp",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
       "mcp": {
         "transport": "stdio",
         "command": "npx",
@@ -49,6 +70,27 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/browser-use/browser-use",
       "docsUrl": "https://github.com/browser-use/browser-use",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/browser-use/browser-use",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
       "mcp": {
         "transport": "stdio",
         "command": "uvx",
@@ -201,6 +243,27 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/filesystem",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
       "workspace": {
         "required": true,
         "placeholder": "${WORKSPACE}",
@@ -240,6 +303,27 @@
       "license": "Apache-2.0 / MIT",
       "sourceRepo": "https://github.com/modelcontextprotocol/servers",
       "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/memory",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
       "mcp": {
         "transport": "stdio",
         "command": "npx",

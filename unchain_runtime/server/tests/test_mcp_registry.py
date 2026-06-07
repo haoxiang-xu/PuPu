@@ -34,6 +34,17 @@ class McpRegistryTests(unittest.TestCase):
         self.assertEqual(entry["workspace_binding"], "agent_workspace_root")
         self.assertEqual(entry["workspace_placeholder"], "${WORKSPACE}")
 
+    def test_metadata_recipe_is_normalized_from_json(self):
+        entry = mcp_registry.registry_entry("browser.playwright")
+        recipe = entry["metadata"]
+
+        self.assertEqual(recipe["type"], "http_json")
+        self.assertTrue(recipe["request"]["url"].startswith("https://"))
+        self.assertEqual(recipe["fields"]["stars"], "stargazers_count")
+        self.assertEqual(recipe["fields"]["license"], "license.spdx_id")
+        self.assertEqual(recipe["icon"]["urlPath"], "owner.avatar_url")
+        self.assertEqual(recipe["iconPolicy"], "fallback")
+
     def test_duplicate_entry_ids_fail_fast(self):
         payload = {
             "version": 1,
@@ -60,6 +71,31 @@ class McpRegistryTests(unittest.TestCase):
             path.write_text(json.dumps(payload), encoding="utf-8")
 
             with self.assertRaisesRegex(RuntimeError, "Duplicate MCP registry entry id"):
+                mcp_registry._load_registry(path)
+
+    def test_metadata_recipe_requires_https_url(self):
+        payload = {
+            "version": 1,
+            "categories": ["all"],
+            "entries": [
+                {
+                    "id": "sample.one",
+                    "toolkitId": "mcp.sample.one",
+                    "name": "One",
+                    "description": "One",
+                    "metadata": {
+                        "type": "http_json",
+                        "request": {"url": "http://example.test/repo"},
+                    },
+                    "mcp": {"transport": "stdio", "command": "node", "args": []},
+                },
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "registry.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "metadata request.url must use https"):
                 mcp_registry._load_registry(path)
 
     def test_oauth_registry_entries_are_recipe_driven(self):

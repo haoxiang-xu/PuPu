@@ -74,6 +74,8 @@ describe("preload API contract", () => {
       "listMcpOAuthApps",
       "configureMcpOAuthApp",
       "deleteMcpOAuthApp",
+      "listMcpStoreMetadata",
+      "reloadMcpStoreMetadata",
       "respondToolConfirmation",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -232,6 +234,19 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
       { toolkitId: "mcp.dev.github-remote" },
+    );
+
+    exposed.unchainAPI.listMcpStoreMetadata();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
+    );
+
+    exposed.unchainAPI.reloadMcpStoreMetadata({
+      entryId: "browser.playwright",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
+      { entryId: "browser.playwright" },
     );
 
     exposed.unchainAPI.listCharacters();

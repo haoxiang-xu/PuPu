@@ -64,6 +64,21 @@ const collectEndpointTokens = (tokens, oauth = {}) => {
   }
 };
 
+const collectMetadataTokens = (tokens, metadata = {}) => {
+  addToken(tokens, metadata?.request?.url);
+  for (const value of Object.values(metadata?.request?.headers || {})) {
+    addToken(tokens, value);
+  }
+  for (const selector of Object.values(metadata?.fields || {})) {
+    const clean = String(selector || "").trim();
+    if (clean.includes(".") || clean.includes("_")) addToken(tokens, clean);
+  }
+  const iconSelector = String(metadata?.icon?.urlPath || "").trim();
+  if (iconSelector.includes(".") || iconSelector.includes("_")) {
+    addToken(tokens, iconSelector);
+  }
+};
+
 const registryTokens = () => {
   const tokens = new Set();
   for (const entry of REGISTRY.entries || []) {
@@ -77,6 +92,7 @@ const registryTokens = () => {
       addToken(tokens, header.valueFromSecret || header.value_from_secret);
     }
     collectEndpointTokens(tokens, entry?.auth?.oauth || {});
+    collectMetadataTokens(tokens, entry?.metadata || {});
   }
   return [...tokens].sort();
 };

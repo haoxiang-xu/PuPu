@@ -32,6 +32,11 @@ describe("api.unchain MCP toolkits", () => {
       apps: [],
       count: 0,
     });
+    await expect(api.unchain.listMcpStoreMetadata()).resolves.toEqual({
+      entries: [],
+      byEntryId: {},
+      status: "unavailable",
+    });
     await expect(
       api.unchain.configureMcpToolkit("mcp.memory.memory"),
     ).rejects.toMatchObject({
@@ -102,6 +107,16 @@ describe("api.unchain MCP toolkits", () => {
         ok: true,
         toolkitId: "mcp.dev.github-remote",
       }),
+      listMcpStoreMetadata: jest.fn().mockResolvedValue({
+        entries: [{ entryId: "browser.playwright" }],
+        byEntryId: { "browser.playwright": { entryId: "browser.playwright" } },
+        status: "ok",
+      }),
+      reloadMcpStoreMetadata: jest.fn().mockResolvedValue({
+        entries: [{ entryId: "browser.playwright", status: "cached" }],
+        byEntryId: { "browser.playwright": { entryId: "browser.playwright" } },
+        status: "ok",
+      }),
     };
 
     await api.unchain.listMcpToolkits();
@@ -136,6 +151,10 @@ describe("api.unchain MCP toolkits", () => {
       scopes: ["repo"],
     });
     await api.unchain.deleteMcpOAuthApp("mcp.dev.github-remote");
+    await api.unchain.listMcpStoreMetadata();
+    await api.unchain.reloadMcpStoreMetadata({
+      entryId: "browser.playwright",
+    });
     await api.unchain.deleteMcpToolkit("mcp.workspace.filesystem");
 
     expect(window.unchainAPI.listMcpToolkits).toHaveBeenCalledTimes(1);
@@ -184,6 +203,10 @@ describe("api.unchain MCP toolkits", () => {
     expect(window.unchainAPI.deleteMcpOAuthApp).toHaveBeenCalledWith(
       "mcp.dev.github-remote",
     );
+    expect(window.unchainAPI.listMcpStoreMetadata).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.reloadMcpStoreMetadata).toHaveBeenCalledWith({
+      entryId: "browser.playwright",
+    });
     expect(window.unchainAPI.deleteMcpToolkit).toHaveBeenCalledWith(
       "mcp.workspace.filesystem",
     );
