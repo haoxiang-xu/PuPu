@@ -1,6 +1,8 @@
 import { useLayoutEffect } from "react";
 import { act, renderHook } from "@testing-library/react";
-import useMessageWindowScroll from "./use_message_window_scroll";
+import useMessageWindowScroll, {
+  computeLandingTop,
+} from "./use_message_window_scroll";
 
 const makeMessages = (n) =>
   Array.from({ length: n }, (_, i) => ({
@@ -370,5 +372,94 @@ describe("useMessageWindowScroll", () => {
     });
     // 窗口应被展开到 <= 目标(max(0, 2 - load_batch_size) = 0)
     expect(result.current.safeVisibleStart).toBeLessThanOrEqual(2);
+  });
+
+  it("scrollToMessageIndex 默认 top 对齐:落到 offsetTop - 12", () => {
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useMessageWindowScroll({
+        chat_id: "chat-top",
+        messages,
+        is_streaming: false,
+        initial_visible_count: 12,
+        load_batch_size: 6,
+        top_load_threshold: 80,
+        boot_visible_count: 3,
+      }),
+    );
+    // 只捕获第一次 scrollTo 调用:scrollToMessageIndex 同步触发,effects 之后的 scrollToBottom 不计
+    let firstCapture = null;
+    act(() => {
+      result.current.messagesRef.current = {
+        scrollTo: (opts) => {
+          if (firstCapture === null) firstCapture = opts;
+        },
+        scrollHeight: 5000,
+        clientHeight: 400,
+        scrollTop: 0,
+      };
+      // index 38 落在初始/展开窗口内(boot start=37, final start=28),节点已渲染
+      result.current.messageNodeRefs.current.set(38, { offsetTop: 1000 });
+      result.current.scrollToMessageIndex(38, "auto");
+    });
+    expect(firstCapture.top).toBe(988); // 1000 - 12
+  });
+
+  it("scrollToMessageIndex center 对齐:落点 = offsetTop + within - 视口高/2", () => {
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useMessageWindowScroll({
+        chat_id: "chat-center",
+        messages,
+        is_streaming: false,
+        initial_visible_count: 12,
+        load_batch_size: 6,
+        top_load_threshold: 80,
+        boot_visible_count: 3,
+      }),
+    );
+    let firstCapture = null;
+    act(() => {
+      result.current.messagesRef.current = {
+        scrollTo: (opts) => {
+          if (firstCapture === null) firstCapture = opts;
+        },
+        scrollHeight: 5000,
+        clientHeight: 400,
+        scrollTop: 0,
+      };
+      result.current.messageNodeRefs.current.set(38, { offsetTop: 1000 });
+      result.current.scrollToMessageIndex(38, "auto", { within: 150, align: "center" });
+    });
+    expect(firstCapture.top).toBe(950); // 1000 + 150 - 200
+  });
+});
+
+describe("computeLandingTop", () => {
+  it("top 对齐:offsetTop 减 12px 顶边距", () => {
+    expect(
+      computeLandingTop({ offsetTop: 1000, align: "top", viewportHeight: 400 }),
+    ).toBe(988);
+  });
+
+  it("center 对齐:落点 = offsetTop + within - 视口高/2", () => {
+    expect(
+      computeLandingTop({
+        offsetTop: 1000,
+        within: 150,
+        align: "center",
+        viewportHeight: 400,
+      }),
+    ).toBe(950); // 1000 + 150 - 200
+  });
+
+  it("不为负:贴顶时 clamp 到 0", () => {
+    expect(
+      computeLandingTop({ offsetTop: 0, within: 0, align: "center", viewportHeight: 400 }),
+    ).toBe(0);
+  });
+
+  it("缺省参数:within=0, align=top", () => {
+    expect(computeLandingTop({ offsetTop: 500 })).toBe(488);
   });
 });

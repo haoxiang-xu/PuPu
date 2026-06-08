@@ -71,7 +71,9 @@ dmypy.json
 # pyinstaller / frozen builds
 *.spec
 .gitnexus
+# superpowers — skill runtime cache (.superpowers/) + design docs (docs/superpowers/)
 .superpowers/
+superpowers/
 
 # worktrees
 .worktrees/

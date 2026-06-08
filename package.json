@@ -63,6 +63,9 @@
     "pack:win:unsigned": "npm run build:electron:win:unsigned",
     "pack:linux": "npm run build:electron:linux",
     "test": "react-scripts test",
+    "test:frontend": "react-scripts test --watchAll=false",
+    "test:electron": "node node_modules/.bin/jest --env=node --runInBand --silent --moduleFileExtensions js --moduleFileExtensions cjs --moduleFileExtensions json --testMatch=\"**/electron/tests/**/*.test.cjs\"",
+    "test:release-qa": "node --test scripts/release-qa/*.test.mjs",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

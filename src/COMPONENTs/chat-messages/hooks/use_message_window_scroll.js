@@ -14,6 +14,18 @@ import {
 
 const STREAMING_BOTTOM_FOLLOW_MS = 64;
 
+// 跳转落点(content 绝对坐标):top 对齐留 12px 顶边距;center 对齐让目标点落到视口正中。
+// 立即跳转与延迟跳转(目标未渲染先挪窗口)两条路径共用,保证落点一致。
+export function computeLandingTop({
+  offsetTop,
+  within = 0,
+  align = "top",
+  viewportHeight = 0,
+}) {
+  const margin = align === "center" ? viewportHeight / 2 : 12;
+  return Math.max(0, offsetTop + within - margin);
+}
+
 export const useMessageWindowScroll = ({
   chat_id,
   messages,
@@ -313,7 +325,7 @@ export const useMessageWindowScroll = ({
   }, [jumpToPreviousRenderedMessage, loadOlderMessages, scrollToTop]);
 
   const scrollToMessageIndex = useCallback(
-    (index, behavior = "auto") => {
+    (index, behavior = "auto", { within = 0, align = "top" } = {}) => {
       const el = messagesRef.current;
       if (!el) {
         return;
@@ -323,7 +335,15 @@ export const useMessageWindowScroll = ({
       if (clamped >= visibleStartRef.current) {
         const node = messageNodeRefs.current.get(clamped);
         if (node) {
-          el.scrollTo({ top: Math.max(0, node.offsetTop - 12), behavior });
+          el.scrollTo({
+            top: computeLandingTop({
+              offsetTop: node.offsetTop,
+              within,
+              align,
+              viewportHeight: el.clientHeight,
+            }),
+            behavior,
+          });
           updateIsAtBottom(el);
           return;
         }
@@ -331,7 +351,13 @@ export const useMessageWindowScroll = ({
 
       const nextStart = Math.max(0, clamped - load_batch_size);
       visibleStartRef.current = nextStart;
-      pendingJumpActionRef.current = { type: "toIndex", index: clamped, behavior };
+      pendingJumpActionRef.current = {
+        type: "toIndex",
+        index: clamped,
+        behavior,
+        within,
+        align,
+      };
       setVisibleStartIndex(nextStart);
     },
     [messages.length, load_batch_size, updateIsAtBottom],
@@ -447,7 +473,12 @@ export const useMessageWindowScroll = ({
       if (targetNode) {
         pendingJumpActionRef.current = null;
         el.scrollTo({
-          top: Math.max(0, targetNode.offsetTop - 12),
+          top: computeLandingTop({
+            offsetTop: targetNode.offsetTop,
+            within: pendingAction.within ?? 0,
+            align: pendingAction.align ?? "top",
+            viewportHeight: el.clientHeight,
+          }),
           behavior: pendingAction.behavior || "auto",
         });
         updateIsAtBottom(el);

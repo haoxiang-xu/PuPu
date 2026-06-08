@@ -383,7 +383,11 @@ const MessageMinimap = ({
     const rel = Math.min(Math.max(0, clientY - r.top - PAD), usable);
     const contentY = (rel + off) / scale;
     const index = indexAtContentY({ offsets: g.offsets, total: g.cTotal, contentY });
-    scrollToMessageIndex(index, "auto");
+    // 保留块内偏移:点击位置距该消息顶部多少 content px。offsets[index] 与 node.offsetTop
+    // 同为 content 绝对坐标,故落点 = node.offsetTop + within - 视口高/2 = contentY - 视口高/2,
+    // 正好让手指点中的像素落到视口正中(贴顶/贴底时由 computeLandingTop 与 scrollTo 自身 clamp 兜住)。
+    const within = contentY - g.offsets[index];
+    scrollToMessageIndex(index, "auto", { within, align: "center" });
   };
 
   // 上一条 / 下一条:基于「已渲染节点的真实 offsetTop」定位当前视口顶部所在消息,
