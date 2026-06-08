@@ -67,6 +67,73 @@ class McpRegistryTests(unittest.TestCase):
         self.assertEqual(recipe["icon"]["urlPath"], "owner.avatar_url")
         self.assertEqual(recipe["iconPolicy"], "fallback")
 
+    def test_markitdown_registry_entry_uses_official_stdio_server(self):
+        entry = mcp_registry.registry_entry("workspace.markitdown")
+
+        self.assertEqual(entry["toolkit_id"], "mcp.workspace.markitdown")
+        self.assertEqual(entry["toolkit_name"], "MarkItDown")
+        self.assertEqual(entry["category"], "workspace")
+        self.assertEqual(entry["trust_level"], "verified")
+        self.assertTrue(entry["installable"])
+        self.assertEqual(entry["mcp"]["transport"], "stdio")
+        self.assertEqual(entry["mcp"]["command"], "uvx")
+        self.assertEqual(entry["mcp"]["args"], ["markitdown-mcp"])
+        self.assertEqual(
+            entry["metadata"]["request"]["url"],
+            "https://api.github.com/repos/microsoft/markitdown",
+        )
+        self.assertEqual(entry["secrets"], [])
+        self.assertIn("local trusted agents", entry["readme_markdown"])
+        self.assertEqual(
+            [tool["name"] for tool in entry["tools"]],
+            ["convert_to_markdown"],
+        )
+        self.assertEqual(entry["policy_summary"]["confirmationRequiredTools"], 1)
+
+    def test_figma_remote_registry_entry_uses_official_oauth_server(self):
+        entry = mcp_registry.registry_entry("dev.figma-remote")
+        oauth = mcp_registry.oauth_recipe_for_entry(entry)
+
+        self.assertEqual(entry["toolkit_id"], "mcp.dev.figma-remote")
+        self.assertEqual(entry["toolkit_name"], "Figma")
+        self.assertEqual(entry["category"], "dev")
+        self.assertFalse(entry["installable"])
+        self.assertEqual(entry["toolkit_icon"]["type"], "file")
+        self.assertEqual(entry["toolkit_icon"]["mimeType"], "image/svg+xml")
+        self.assertIn('viewBox="0 0 1024 1024"', entry["toolkit_icon"]["content"])
+        self.assertIn('fill="#FF3737"', entry["toolkit_icon"]["content"])
+        self.assertIn('fill="#874FFF"', entry["toolkit_icon"]["content"])
+        self.assertIn('fill="#24CB71"', entry["toolkit_icon"]["content"])
+        self.assertIn('fill="#FF7237"', entry["toolkit_icon"]["content"])
+        self.assertIn('fill="#00B6FF"', entry["toolkit_icon"]["content"])
+        self.assertEqual(entry["mcp"]["transport"], "http")
+        self.assertEqual(entry["mcp"]["runtime_transport"], "streamable_http")
+        self.assertEqual(entry["mcp"]["url"], "https://mcp.figma.com/mcp")
+        self.assertEqual(oauth["provider"], "figma")
+        self.assertEqual(oauth["clientRegistration"], "dynamic")
+        self.assertEqual(oauth["mcpUrl"], "https://mcp.figma.com/mcp")
+        self.assertEqual(
+            oauth["protectedResourceMetadataUrl"],
+            "https://mcp.figma.com/.well-known/oauth-protected-resource",
+        )
+        self.assertEqual(
+            oauth["authorizationServerMetadataUrl"],
+            "https://api.figma.com/.well-known/oauth-authorization-server",
+        )
+        self.assertEqual(
+            oauth["authorizationEndpoint"],
+            "https://www.figma.com/oauth/mcp",
+        )
+        self.assertEqual(
+            oauth["tokenEndpoint"],
+            "https://api.figma.com/v1/oauth/token",
+        )
+        self.assertEqual(
+            oauth["registrationEndpoint"],
+            "https://api.figma.com/v1/oauth/mcp/register",
+        )
+        self.assertEqual(oauth["scopes"], ["mcp:connect"])
+
     def test_duplicate_entry_ids_fail_fast(self):
         payload = {
             "version": 1,
@@ -127,7 +194,7 @@ class McpRegistryTests(unittest.TestCase):
             for entry in entries
         }
 
-        self.assertEqual(providers, {"github", "notion", "slack"})
+        self.assertEqual(providers, {"figma", "github", "notion", "slack"})
 
 
 if __name__ == "__main__":

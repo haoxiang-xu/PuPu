@@ -41,7 +41,7 @@ describe("mcp_toolkit_store", () => {
       expect(MCP_STORE_CATEGORIES).toContain(entry.category);
       expect(["stdio", "http"]).toContain(entry.mcp.transport);
       expect(Array.isArray(entry.tools)).toBe(true);
-      expect(resolveMcpIcon(entry).type).toBe("builtin");
+      expect(["builtin", "file"]).toContain(resolveMcpIcon(entry).type);
     }
   });
 
@@ -55,6 +55,45 @@ describe("mcp_toolkit_store", () => {
         backgroundColor: "transparent",
       }),
     );
+  });
+
+  test("browser use uses the official brand svg icon", () => {
+    const browserUse = getMcpStoreEntry("browser.browser-use-local");
+
+    expect(browserUse.toolkitIcon).toEqual(
+      expect.objectContaining({
+        type: "file",
+        mimeType: "image/svg+xml",
+      }),
+    );
+    expect(browserUse.toolkitIcon.content).toContain('viewBox="-24 -24 148 148"');
+    expect(browserUse.toolkitIcon.content).toContain(
+      '<rect x="-24" y="-24" width="148" height="148" rx="28" fill="#18181B"/>',
+    );
+    expect(browserUse.toolkitIcon.content).toContain('fill="#FE750E"');
+    expect(browserUse.toolkitIcon.content).toContain("M97.8916 39.0448");
+    expect(resolveMcpIcon(browserUse)).toEqual(browserUse.toolkitIcon);
+  });
+
+  test("figma remote uses the official brand svg icon", () => {
+    const figma = getMcpStoreEntry("dev.figma-remote");
+
+    expect(figma.toolkitIcon).toEqual(
+      expect.objectContaining({
+        type: "file",
+        mimeType: "image/svg+xml",
+      }),
+    );
+    expect(figma.toolkitIcon.content).toContain('viewBox="0 0 1024 1024"');
+    expect(figma.toolkitIcon.content).toContain(
+      '<rect width="1024" height="1024" rx="180" fill="#000000"/>',
+    );
+    expect(figma.toolkitIcon.content).toContain('fill="#FF3737"');
+    expect(figma.toolkitIcon.content).toContain('fill="#874FFF"');
+    expect(figma.toolkitIcon.content).toContain('fill="#24CB71"');
+    expect(figma.toolkitIcon.content).toContain('fill="#FF7237"');
+    expect(figma.toolkitIcon.content).toContain('fill="#00B6FF"');
+    expect(resolveMcpIcon(figma)).toEqual(figma.toolkitIcon);
   });
 
   test("metadata cache overlays entries without mutating the static registry", () => {
@@ -249,6 +288,53 @@ describe("mcp_toolkit_store", () => {
     expect(filesystem.workspacePlaceholder).toBe("${WORKSPACE}");
   });
 
+  test("markitdown is registered as a workspace MCP converter", () => {
+    const markitdown = getMcpStoreEntry("workspace.markitdown");
+
+    expect(markitdown).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.workspace.markitdown",
+        toolkitName: "MarkItDown",
+        category: "workspace",
+        source: "mcp",
+        trustLevel: "verified",
+        installable: true,
+        license: "MIT",
+        sourceRepo: "https://github.com/microsoft/markitdown",
+        docsUrl: "https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp",
+      }),
+    );
+    expect(markitdown.mcp).toEqual(
+      expect.objectContaining({
+        transport: "stdio",
+        command: "uvx",
+        args: ["markitdown-mcp"],
+      }),
+    );
+    expect(markitdown.secrets).toEqual([]);
+    expect(markitdown.prerequisites).toEqual(
+      expect.arrayContaining(["uv / uvx", "Python >= 3.10"]),
+    );
+    expect(markitdown.tools).toEqual([
+      expect.objectContaining({
+        name: "convert_to_markdown",
+        title: "Convert to Markdown",
+        requiresConfirmation: true,
+      }),
+    ]);
+    expect(markitdown.policySummary).toEqual(
+      expect.objectContaining({
+        reviewed: true,
+        defaultEnabledTools: 0,
+        confirmationRequiredTools: 1,
+      }),
+    );
+    expect(
+      searchMcpStoreEntries(listMcpStoreEntries(), "convert_to_markdown", "workspace")
+        .map((entry) => entry.id),
+    ).toContain("workspace.markitdown");
+  });
+
   test("github remote uses GITHUB_MCP_PAT, not GITHUB_TOKEN", () => {
     const github = getMcpStoreEntry("dev.github-remote");
     expect(github.secrets).toEqual(
@@ -301,6 +387,32 @@ describe("mcp_toolkit_store", () => {
         provider: "slack",
         clientRegistration: "user_credentials",
         mcpUrl: "https://mcp.slack.com/mcp",
+      }),
+    );
+    const figma = getMcpStoreEntry("dev.figma-remote");
+    expect(figma).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.dev.figma-remote",
+        toolkitName: "Figma",
+        category: "dev",
+        installable: false,
+      }),
+    );
+    expect(figma.mcp).toEqual(
+      expect.objectContaining({
+        transport: "http",
+        runtime_transport: "streamable_http",
+        url: "https://mcp.figma.com/mcp",
+      }),
+    );
+    expect(figma.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "figma",
+        clientRegistration: "dynamic",
+        mcpUrl: "https://mcp.figma.com/mcp",
+        protectedResourceMetadataUrl: "https://mcp.figma.com/.well-known/oauth-protected-resource",
+        authorizationServerMetadataUrl: "https://api.figma.com/.well-known/oauth-authorization-server",
+        scopes: ["mcp:connect"],
       }),
     );
     expect(getMcpStoreEntry("productivity.slack").toolkitId).toBe(

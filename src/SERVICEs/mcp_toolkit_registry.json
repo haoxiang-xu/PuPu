@@ -70,6 +70,11 @@
       "license": "MIT",
       "sourceRepo": "https://github.com/browser-use/browser-use",
       "docsUrl": "https://github.com/browser-use/browser-use",
+      "icon": {
+        "type": "file",
+        "mimeType": "image/svg+xml",
+        "content": "<svg viewBox=\"-24 -24 148 148\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect x=\"-24\" y=\"-24\" width=\"148\" height=\"148\" rx=\"28\" fill=\"#18181B\"/><path d=\"M97.8916 39.0448C82.6177 33.1997 95.2199 10.8169 74.212 11.3849C48.5413 12.0793 8.31528 52.4518 12.4236 78.6851C14.4652 91.6755 24.6096 86.2218 29.3732 88.1154C32.5364 89.3652 36.2792 95.0083 40.3245 95.9047C22.4293 106.193 -0.556809 96.397 0.0102912 74.3423C0.829435 41.86 47.7474 -5.25386 81.1937 0.477571C99.8702 3.68414 102.189 23.5422 97.8916 39.0448Z\" fill=\"#FE750E\"/><path d=\"M24.8115 57.7541L39.6068 71.7166C49.0332 80.1875 74.061 94.9706 85.403 84.9469C98.774 73.1306 70.495 32.3162 57.4769 25.802L68.9069 20.6639C86.7138 33.6796 113.783 75.9836 91.7294 94.4025C77.5014 106.282 54.5655 96.2204 41.0811 87.3707C30.8103 80.6294 15.9647 70.9591 24.8115 57.7415V57.7541Z\" fill=\"#FE750E\"/><path d=\"M40.3373 4.75723C35.5485 4.88347 31.8055 11.1199 28.2895 12.2182C25.1642 13.1903 20.8414 10.5266 16.1408 14.0487C11.0495 17.8613 12.7891 36.0655 3.02233 40.5976C-2.98893 22.9362 0.75354 1.8789 22.4672 0.0736228C24.1433 -0.0652445 42.7822 1.17195 40.3373 4.74463V4.75723Z\" fill=\"#FE750E\"/><path d=\"M76.1025 57.754C84.1175 71.0348 69.5871 86.2092 57.489 74.1025L76.1025 57.754Z\" fill=\"#FE750E\"/></svg>"
+      },
       "metadata": {
         "type": "http_json",
         "request": {
@@ -174,6 +179,68 @@
         "confirmationRequiredTools": 2
       },
       "readmeMarkdown": "## GitHub (remote)\n\nThe official remote GitHub MCP server. Supports OAuth or a Personal Access Token header. Phase 1 shows the connection details only."
+    },
+    {
+      "id": "dev.figma-remote",
+      "toolkitId": "mcp.dev.figma-remote",
+      "name": "Figma",
+      "description": "Official remote Figma MCP server for design context, screenshots, variables and canvas workflows.",
+      "category": "dev",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": false,
+      "license": "hosted",
+      "sourceRepo": "https://developers.figma.com/docs/figma-mcp-server/",
+      "docsUrl": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+      "icon": {
+        "type": "file",
+        "mimeType": "image/svg+xml",
+        "content": "<svg viewBox=\"0 0 1024 1024\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\"><rect width=\"1024\" height=\"1024\" rx=\"180\" fill=\"#000000\"/><g transform=\"translate(0 -148)\"><path d=\"M312 840C312 784.772 356.772 740 412 740H512V840C512 895.228 467.228 940 412 940C356.772 940 312 895.228 312 840Z\" fill=\"#24CB71\"/><path d=\"M512 340V540H612C667.228 540 712 495.228 712 440C712 384.772 667.228 340 612 340H512Z\" fill=\"#FF7237\"/><circle cx=\"611.167\" cy=\"640\" r=\"100\" fill=\"#00B6FF\"/><path d=\"M312 440C312 495.228 356.772 540 412 540H512V340H412C356.772 340 312 384.772 312 440Z\" fill=\"#FF3737\"/><path d=\"M312 640C312 695.228 356.772 740 412 740H512V540H412C356.772 540 312 584.772 312 640Z\" fill=\"#874FFF\"/></g></svg>"
+      },
+      "mcp": {
+        "transport": "http",
+        "runtimeTransport": "streamable_http",
+        "url": "https://mcp.figma.com/mcp",
+        "headers": []
+      },
+      "auth": {
+        "oauth": {
+          "type": "oauth",
+          "provider": "figma",
+          "providerLabel": "Figma",
+          "clientRegistration": "dynamic",
+          "mcpUrl": "https://mcp.figma.com/mcp",
+          "transport": "streamable_http",
+          "protectedResourceMetadataUrl": "https://mcp.figma.com/.well-known/oauth-protected-resource",
+          "authorizationServerMetadataUrl": "https://api.figma.com/.well-known/oauth-authorization-server",
+          "authorizationEndpoint": "https://www.figma.com/oauth/mcp",
+          "tokenEndpoint": "https://api.figma.com/v1/oauth/token",
+          "registrationEndpoint": "https://api.figma.com/v1/oauth/mcp/register",
+          "scopes": ["mcp:connect"],
+          "authUrlParams": {},
+          "tokenRequest": { "contentType": "form", "includeClientSecret": true },
+          "discovery": "protected_resource"
+        }
+      },
+      "setupPreview": "https://mcp.figma.com/mcp",
+      "prerequisites": ["Figma account", "Figma file access"],
+      "secrets": [],
+      "tools": [
+        { "name": "get_design_context", "title": "Get design context", "requiresConfirmation": false },
+        { "name": "get_metadata", "title": "Get metadata", "requiresConfirmation": false },
+        { "name": "get_screenshot", "title": "Get screenshot", "requiresConfirmation": false },
+        { "name": "get_variable_defs", "title": "Get variables", "requiresConfirmation": false },
+        { "name": "create_new_file", "title": "Create file", "requiresConfirmation": true },
+        { "name": "generate_diagram", "title": "Generate diagram", "requiresConfirmation": true },
+        { "name": "use_figma", "title": "Use Figma", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 3
+      },
+      "readmeMarkdown": "## Figma Remote\n\nConnects to Figma's official hosted MCP endpoint over Streamable HTTP. Authentication uses Figma OAuth with the `mcp:connect` scope. The remote server is link-based: copy a Figma frame, layer, FigJam, Slides or Make URL and use it in the agent prompt."
     },
     {
       "id": "productivity.notion-remote",
@@ -289,6 +356,58 @@
         "confirmationRequiredTools": 2
       },
       "readmeMarkdown": "## Filesystem\n\nReference MCP server for scoped file access. The `${WORKSPACE}` placeholder is filled with the chosen directory during setup."
+    },
+    {
+      "id": "workspace.markitdown",
+      "toolkitId": "mcp.workspace.markitdown",
+      "name": "MarkItDown",
+      "description": "Convert documents, archives and rich files into Markdown through Microsoft's local MarkItDown MCP server.",
+      "category": "workspace",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/microsoft/markitdown",
+      "docsUrl": "https://github.com/microsoft/markitdown/tree/main/packages/markitdown-mcp",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/microsoft/markitdown",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "uvx",
+        "args": ["markitdown-mcp"]
+      },
+      "setupPreview": "uvx markitdown-mcp",
+      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "secrets": [],
+      "tools": [
+        { "name": "convert_to_markdown", "title": "Convert to Markdown", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "readmeMarkdown": "## MarkItDown\n\nRuns Microsoft's local MarkItDown MCP server over STDIO for local trusted agents. It exposes `convert_to_markdown(uri)` for `file:`, `http:`, `https:`, and `data:` URIs. The server runs with the current user's file and network access, so review URI inputs and avoid exposing HTTP or SSE modes beyond localhost."
     },
     {
       "id": "memory.memory",

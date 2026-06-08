@@ -1,6 +1,7 @@
 import { useContext, useMemo, useState } from "react";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
+import ArcSpinner from "../../../BUILTIN_COMPONENTs/spinner/arc_spinner";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import {
@@ -108,38 +109,50 @@ const ToolkitStorePage = ({
             </button>
           );
         })}
-        <Button
-          label={
+        <span
+          title={
             metadataRefreshing
               ? t("toolkit.store_refreshing_metadata")
               : t("toolkit.store_refresh_metadata")
           }
-          disabled={metadataRefreshing}
-          onClick={onRefreshMetadata}
-          style={{
-            fontSize: 11,
-            fontFamily,
-            fontWeight: 500,
-            paddingVertical: 3,
-            paddingHorizontal: 10,
-            borderRadius: 999,
-            color: isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)",
-            root: {
-              background: isDark
-                ? "rgba(255,255,255,0.05)"
-                : "rgba(0,0,0,0.035)",
-              border: `1px solid ${
-                isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-              }`,
-            },
-            state: {
-              disabled: {
-                root: { opacity: 0.55, cursor: "not-allowed" },
-                background: {},
-              },
-            },
-          }}
-        />
+          style={{ display: "inline-flex", alignItems: "center" }}
+        >
+          {metadataRefreshing ? (
+            <span
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 4,
+              }}
+            >
+              <ArcSpinner
+                size={14}
+                stroke_width={2}
+                color={
+                  isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)"
+                }
+              />
+            </span>
+          ) : (
+            <Button
+              prefix_icon="update"
+              onClick={onRefreshMetadata}
+              style={{
+                paddingVertical: 4,
+                paddingHorizontal: 4,
+                borderRadius: 999,
+                color: isDark
+                  ? "rgba(255,255,255,0.62)"
+                  : "rgba(0,0,0,0.58)",
+                hoverBackgroundColor: isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.06)",
+                content: { icon: { width: 14, height: 14 } },
+              }}
+            />
+          )}
+        </span>
       </div>
 
       {metadataError && (

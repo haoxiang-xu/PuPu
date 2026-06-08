@@ -88,7 +88,10 @@ const usePalette = (isDark) => {
   const cardBg = isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.05)";
   const chipBg = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.08)";
   const hoverBg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)";
-  return { primary, secondary, cardBg, chipBg, hoverBg };
+  // diff 统计前景色:增绿 / 删红(GitHub 标准 fg,与灰色 secondary 同源)
+  const added = isDark ? "#3fb950" : "#1a7f37";
+  const removed = isDark ? "#f85149" : "#cf222e";
+  return { primary, secondary, cardBg, chipBg, hoverBg, added, removed };
 };
 
 const DisclosureArrow = ({ open, color, size = 14 }) => (
@@ -109,7 +112,7 @@ const DisclosureArrow = ({ open, color, size = 14 }) => (
 const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
-  const { primary, secondary, cardBg, hoverBg } = usePalette(isDark);
+  const { primary, secondary, cardBg, hoverBg, added, removed } = usePalette(isDark);
   const files = useMemo(() => collectFiles(artifacts), [artifacts]);
   const totals = useMemo(
     () =>
@@ -199,7 +202,8 @@ const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
             whiteSpace: "nowrap",
           }}
         >
-          +{totals.plus} −{totals.minus}
+          <span style={{ color: added }}>+{totals.plus}</span>{" "}
+          <span style={{ color: removed }}>−{totals.minus}</span>
           {partialTotals ? " shown" : ""}
         </span>
         <DisclosureArrow open={expanded} color={primary} />
@@ -221,7 +225,7 @@ const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
 const FileRow = ({ file, isDark }) => {
   const [expanded, setExpanded] = useState(false);
   const [hover, setHover] = useState(false);
-  const { primary, secondary, chipBg, hoverBg } = usePalette(isDark);
+  const { primary, secondary, chipBg, hoverBg, added, removed } = usePalette(isDark);
 
   const fallbackChip = file.binary
     ? "Binary file"
@@ -305,7 +309,8 @@ const FileRow = ({ file, isDark }) => {
             whiteSpace: "nowrap",
           }}
         >
-          +{file.additions} −{file.deletions}
+          <span style={{ color: added }}>+{file.additions}</span>{" "}
+          <span style={{ color: removed }}>−{file.deletions}</span>
           {file.truncated && !file.statsFromBackend ? " shown" : ""}
         </span>
         <DisclosureArrow open={expanded} color={primary} size={12} />
