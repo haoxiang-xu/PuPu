@@ -100,3 +100,22 @@ export function absScrollTop({ offsets, safeVisibleStart, scrollTop, firstNodeOf
   const base = offsets[safeVisibleStart] || 0;
   return base + (scrollTop - firstNodeOffsetTop);
 }
+
+// 拖动几何:off 冻结为 off0,视口框跟手指 1:1 但锁在当前可见窗口内
+// [0, usable-boxH]。返回 content-minimap 坐标 boxTop 与绝对滚动量 absTop。
+// 框拖到窗口顶/底即止 —— 要露出更多 node 须松手让 off 归中(见 spec §2)。
+export function dragScrollGeometry({
+  cursorTrackY,
+  off0,
+  grabOffset,
+  usable,
+  MH,
+  boxH,
+  scale,
+}) {
+  const maxVisual = Math.max(0, usable - boxH);
+  const boxVisualTop = Math.min(Math.max(0, cursorTrackY - grabOffset), maxVisual);
+  const boxTop = Math.min(Math.max(0, boxVisualTop + off0), Math.max(0, MH - boxH));
+  const absTop = scale > 0 ? boxTop / scale : 0;
+  return { boxVisualTop, boxTop, absTop };
+}

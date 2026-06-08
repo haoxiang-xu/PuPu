@@ -3,6 +3,7 @@ import {
   median, estimateHeight, calibrate, buildHeights,
   cumulativeOffsets, pickScale, slideOffset, visibleCounts,
   capCount, indexAtContentY, absScrollTop,
+  dragScrollGeometry,
 } from "./minimap_geometry";
 
 describe("minimap_geometry", () => {
@@ -95,5 +96,88 @@ describe("minimap_geometry", () => {
     expect(absScrollTop({
       offsets: [0, 100, 250], safeVisibleStart: 1, scrollTop: 30, firstNodeOffsetTop: 10,
     })).toBe(120);
+  });
+});
+
+describe("dragScrollGeometry", () => {
+  // off 冻结 + 框锁窗口内 + 跟手指 1:1
+  const base = { usable: 200, MH: 400, boxH: 40, scale: 0.5 };
+
+  it("中段:框跟手指 1:1,boxTop = boxVisualTop + off0", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 100, off0: 50, grabOffset: 10, ...base,
+    });
+    // boxVisualTop = clamp(100-10, 0, 200-40=160) = 90
+    // boxTop = 90 + 50 = 140; absTop = 140/0.5 = 280
+    expect(r.boxVisualTop).toBe(90);
+    expect(r.boxTop).toBe(140);
+    expect(r.absTop).toBe(280);
+  });
+
+  it("框锁在窗口顶(cursor 过高 → boxVisualTop clamp 到 0)", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 5, off0: 50, grabOffset: 20, ...base,
+    });
+    // 5-20 = -15 → clamp 0; boxTop = 0 + 50 = 50; absTop = 100
+    expect(r.boxVisualTop).toBe(0);
+    expect(r.boxTop).toBe(50);
+    expect(r.absTop).toBe(100);
+  });
+
+  it("框锁在窗口底(cursor 超 usable → boxVisualTop clamp 到 usable-boxH)", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 300, off0: 0, grabOffset: 0, ...base,
+    });
+    // clamp(300, 0, 160) = 160; boxTop = 160; absTop = 320
+    expect(r.boxVisualTop).toBe(160);
+    expect(r.boxTop).toBe(160);
+    expect(r.absTop).toBe(320);
+  });
+
+  it("非溢出(off0=0):退化为整条轨道自由移动", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 80, off0: 0, grabOffset: 0, ...base,
+    });
+    expect(r.boxVisualTop).toBe(80);
+    expect(r.boxTop).toBe(80);
+    expect(r.absTop).toBe(160);
+  });
+
+  it("boxTop 不超过内容边界 MH-boxH", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 200, off0: 300, grabOffset: 0,
+      usable: 200, MH: 360, boxH: 40, scale: 0.9,
+    });
+    // boxVisualTop = clamp(200,0,160)=160; boxTop = 160+300=460 → clamp(_,0,320)=320
+    expect(r.boxTop).toBe(320);
+  });
+
+  it("boxH 大于 usable(极小轨道):maxVisual=0,框定死顶部", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 50, off0: 0, grabOffset: 0,
+      usable: 30, MH: 400, boxH: 40, scale: 0.5,
+    });
+    // maxVisual=0 → boxVisualTop=0 → boxTop=off0=0 → absTop=0
+    expect(r.boxVisualTop).toBe(0);
+    expect(r.boxTop).toBe(0);
+    expect(r.absTop).toBe(0);
+  });
+
+  it("scale=0 守卫:absTop 不为 NaN", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 50, off0: 0, grabOffset: 0,
+      usable: 200, MH: 0, boxH: 40, scale: 0,
+    });
+    expect(r.absTop).toBe(0);
+  });
+
+  it("grabOffset 为负(抓在框外上方):框落到 cursor 下方,纯函数不设限", () => {
+    const r = dragScrollGeometry({
+      cursorTrackY: 50, off0: 0, grabOffset: -20, ...base,
+    });
+    // boxVisualTop = clamp(50-(-20), 0, 160) = 70; boxTop = 70; absTop = 140
+    expect(r.boxVisualTop).toBe(70);
+    expect(r.boxTop).toBe(70);
+    expect(r.absTop).toBe(140);
   });
 });

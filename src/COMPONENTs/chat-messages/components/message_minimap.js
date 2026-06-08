@@ -15,6 +15,7 @@ import {
   capCount,
   indexAtContentY,
   absScrollTop,
+  dragScrollGeometry,
 } from "../minimap_geometry";
 
 const EASE = "cubic-bezier(.22,.61,.36,1)";
@@ -135,6 +136,12 @@ const MessageMinimap = ({
   const cBotRef = useRef(null);
   const tickRefs = useRef([]);
   const hideTimer = useRef(null);
+  const draggingRef = useRef(false);
+  const movedRef = useRef(false);
+  const dragStartYRef = useRef(0);
+  const dragStateRef = useRef(null);
+  const minimapApiRef = useRef(null);
+  const settlingRef = useRef(false); // 松手归中动画期间,抑制积压的 onScroll 抢清 inner transition
 
   useEffect(() => {
     ensureStyle();
@@ -224,20 +231,12 @@ const MessageMinimap = ({
       });
     };
 
-    const update = () => {
+    // 纯 DOM 写:给定绝对滚动量 absTop 与滑动偏移 off,渲染框/竖条/计数/pill。
+    // 被动滚动与拖动共用(拖动传冻结的 off0,被动传 slideOffset 居中值)。
+    const applyLayout = (absTop, off) => {
       const viewH = el.clientHeight;
-      // 内容撑不满视口(不可滚动)→ 整条 minimap 隐藏。没有「视口位置」可言,
-      // 否则 box 高 = clientHeight*scale 会远超轨道、ticks 散乱(spec §7 边界)。
-      const scrollable = el.scrollHeight - viewH > 1;
-      if (stackRef.current) {
-        stackRef.current.style.display = scrollable ? "" : "none";
-      }
-      if (!scrollable) return;
-      const absTop = computeAbsTop();
       const boxH = Math.max(20, viewH * scale);
-      // 框限制在内容范围 [0, MH-boxH] 内
       const boxTop = Math.min(Math.max(0, absTop * scale), Math.max(0, MH - boxH));
-      const off = slideOffset({ boxTop, boxHeight: boxH, usable, MH });
       inner.style.transform = `translateY(${-off}px)`;
       box.style.top = `${PAD + boxTop - GAP}px`;
       box.style.height = `${boxH + 2 * GAP}px`;
@@ -285,11 +284,34 @@ const MessageMinimap = ({
         ref.current.style.opacity = hidden ? "0" : "1";
         ref.current.style.pointerEvents = hidden ? "none" : "auto";
       };
-      // 顶部两颗(到顶/上一条)在顶部时隐藏;底部两颗(下一条/到底)在底部时隐藏
       setPill(topPillRef, atTop);
       setPill(upOnePillRef, atTop);
       setPill(botPillRef, atBottom);
       setPill(downOnePillRef, atBottom);
+    };
+
+    // 当前几何快照(供拖动在组件体里读)。off 为被动居中值,拖动按下时取作 off0。
+    const getGeom = () => {
+      const viewH = el.clientHeight;
+      const boxH = Math.max(20, viewH * scale);
+      const absTop = computeAbsTop();
+      const boxTop = Math.min(Math.max(0, absTop * scale), Math.max(0, MH - boxH));
+      const off = slideOffset({ boxTop, boxHeight: boxH, usable, MH });
+      return { viewH, boxH, absTop, boxTop, off, scale, usable, MH, cTotal };
+    };
+
+    const update = () => {
+      const viewH = el.clientHeight;
+      const scrollable = el.scrollHeight - viewH > 1;
+      if (stackRef.current) {
+        stackRef.current.style.display = scrollable ? "" : "none";
+      }
+      if (!scrollable) return;
+      const absTop = computeAbsTop();
+      const boxH = Math.max(20, viewH * scale);
+      const boxTop = Math.min(Math.max(0, absTop * scale), Math.max(0, MH - boxH));
+      const off = slideOffset({ boxTop, boxHeight: boxH, usable, MH });
+      applyLayout(absTop, off);
     };
 
     const showActive = () => {
@@ -307,12 +329,13 @@ const MessageMinimap = ({
     const onScroll = () => {
       measure();
       showActive();
-      update();
+      if (!draggingRef.current && !settlingRef.current) update();
       scheduleHide();
     };
 
     recalcGeometry();
     update();
+    minimapApiRef.current = { applyLayout, getGeom };
 
     el.addEventListener("scroll", onScroll, { passive: true });
     const ro =
@@ -331,6 +354,7 @@ const MessageMinimap = ({
       el.removeEventListener("scroll", onScroll);
       if (ro) ro.disconnect();
       if (hideTimer.current) clearTimeout(hideTimer.current);
+      minimapApiRef.current = null;
     };
   }, [segments, total, C, measure, messagesRef, messageNodeRefs, safeVisibleStart]);
 
@@ -390,6 +414,91 @@ const MessageMinimap = ({
     scrollToMessageIndex(index, "auto", { within, align: "center" });
   };
 
+  // 拖动按下:捕获冻结 off0 与抓取偏移,使拖动起步框不跳(手指停在框上原位)。
+  const beginDrag = (clientY) => {
+    const api = minimapApiRef.current;
+    const mini = miniRef.current;
+    if (!api || !mini) return false;
+    const g = api.getGeom();
+    if (!(g.MH > 0) || g.scale <= 0) return false;
+    // content 几何(offsets/cTotal)拖动期间不变,只在按下时量一次,dragTo 复用,
+    // 避免每帧 getComputedStyle + 重建 offsets 数组(长对话 GC 压力)。
+    const cg = computeContentGeom();
+    if (!cg) return false;
+    const r = mini.getBoundingClientRect();
+    const cursorTrackY = clientY - r.top - PAD;
+    const boxVisualTop0 = g.boxTop - g.off; // 框当前在轨道内的视觉顶
+    dragStateRef.current = {
+      off0: g.off,
+      grabOffset: cursorTrackY - boxVisualTop0,
+      trackTop: r.top,
+      scale: g.scale,
+      usable: g.usable,
+      MH: g.MH,
+      boxH: g.boxH,
+      offsets: cg.offsets,
+      cTotal: cg.cTotal,
+    };
+    return true;
+  };
+  // 阈值判定用 dragStartYRef(独立于 dragStateRef 的几何快照)。
+
+  // 拖动移动:off 冻结,框锁窗口内跟手指;滚动 + 同步 applyLayout(不等异步 scroll)。
+  const dragTo = (clientY) => {
+    const st = dragStateRef.current;
+    const api = minimapApiRef.current;
+    if (!st || !api) return;
+    const cursorTrackY = Math.min(
+      Math.max(0, clientY - st.trackTop - PAD),
+      st.usable,
+    );
+    const { absTop } = dragScrollGeometry({
+      cursorTrackY,
+      off0: st.off0,
+      grabOffset: st.grabOffset,
+      usable: st.usable,
+      MH: st.MH,
+      boxH: st.boxH,
+      scale: st.scale,
+    });
+    const index = indexAtContentY({
+      offsets: st.offsets,
+      total: st.cTotal,
+      contentY: absTop,
+    });
+    const within = absTop - st.offsets[index];
+    scrollToMessageIndex(index, "auto", { within, align: "top" });
+    api.applyLayout(absTop, st.off0); // 用冻结 off0 同步渲染,框跟手指
+  };
+
+  // 松手:框 ~140ms 平滑归中(off → slideOffset),滑出更多 node。
+  const endDrag = () => {
+    const st = dragStateRef.current;
+    const api = minimapApiRef.current;
+    const inner = innerRef.current;
+    const box = boxRef.current;
+    dragStateRef.current = null;
+    if (!st || !api || !inner || !box) return;
+    const g = api.getGeom();
+    // 用 getGeom 的当前几何(g.usable/g.MH)与 g.boxTop/g.boxH 同源,避免拖动中途
+    // resize 时 st 快照与当前几何混用导致归中偏差。
+    const offPassive = slideOffset({
+      boxTop: g.boxTop,
+      boxHeight: g.boxH,
+      usable: g.usable,
+      MH: g.MH,
+    });
+    box.style.transition = ""; // 恢复 box 原 transition(JSX 内联已带 top .14s)
+    inner.style.transition = `transform .14s ${EASE}`;
+    settlingRef.current = true; // 抑制积压 onScroll 在动画期间抢清 inner transition
+    api.applyLayout(g.absTop, offPassive);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    window.setTimeout(() => {
+      settlingRef.current = false;
+      if (innerRef.current) innerRef.current.style.transition = "";
+    }, 200);
+  };
+
   // 上一条 / 下一条:基于「已渲染节点的真实 offsetTop」定位当前视口顶部所在消息,
   // 再跳到绝对 index ±1。必须用真实 DOM 坐标 —— 估算坐标在虚拟化窗口下会严重偏移
   // (cOffsets[safeVisibleStart] 与真实 scrollTop 不在同一基准),导致点一下跳飞。
@@ -413,8 +522,6 @@ const MessageMinimap = ({
     const next = Math.min(Math.max(0, currentIdx + delta), segments.length - 1);
     if (next !== currentIdx) scrollToMessageIndex(next, "smooth");
   };
-
-  let dragging = false;
 
   return (
     <div
@@ -475,15 +582,47 @@ const MessageMinimap = ({
           cursor: "pointer",
         }}
         onPointerDown={(e) => {
-          dragging = true;
           e.currentTarget.setPointerCapture(e.pointerId);
-          jumpToRatio(e.clientY);
+          draggingRef.current = false;
+          movedRef.current = false;
+          dragStartYRef.current = e.clientY;
+          jumpToRatio(e.clientY); // 按下即精确居中(恢复 issue#1 手感)
+          if (!beginDrag(e.clientY)) dragStateRef.current = null; // 捕获居中后几何,供可能的拖动
         }}
         onPointerMove={(e) => {
-          if (dragging) jumpToRatio(e.clientY);
+          if (!dragStateRef.current) return;
+          // 6px 阈值:正常点击的手抖不被误判为 drag(按下已居中,超阈值才接管为拖动)。
+          if (!movedRef.current && Math.abs(e.clientY - dragStartYRef.current) < 6) return;
+          if (!movedRef.current) {
+            movedRef.current = true;
+            draggingRef.current = true;
+            settlingRef.current = false; // 若上次归中动画未结束,新拖动立即接管
+            if (boxRef.current) boxRef.current.style.transition = "none";
+            if (innerRef.current) innerRef.current.style.transition = "";
+          }
+          dragTo(e.clientY);
         }}
-        onPointerUp={() => {
-          dragging = false;
+        onPointerUp={(e) => {
+          const wasDrag = movedRef.current;
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }
+          draggingRef.current = false;
+          movedRef.current = false;
+          if (wasDrag) endDrag();
+          // 纯点击已在 onPointerDown 居中,松手无需再做
+          dragStateRef.current = null;
+        }}
+        onPointerCancel={(e) => {
+          // 系统中断(如触控板手势抢占):清理拖动状态,避免 draggingRef 卡死冻结 minimap。
+          const wasDrag = movedRef.current;
+          if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+            e.currentTarget.releasePointerCapture(e.pointerId);
+          }
+          draggingRef.current = false;
+          movedRef.current = false;
+          if (wasDrag) endDrag(); // 平滑归中并恢复 transition;非拖动则无副作用
+          else dragStateRef.current = null;
         }}
       >
         <div ref={innerRef} style={{ position: "absolute", left: 0, right: 0, top: 0 }}>
