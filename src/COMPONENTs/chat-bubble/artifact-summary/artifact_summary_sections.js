@@ -83,7 +83,10 @@ const ArtifactSummarySections = ({
   return (
     <>
       {showRunSummary && (
-        <div data-testid="run-artifact-summary-section">
+        <div
+          data-testid="run-artifact-summary-section"
+          style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
+        >
           <ArtifactSummary
             bucket={runArtifactSummary}
             isDark={isDark}
@@ -92,7 +95,11 @@ const ArtifactSummarySections = ({
         </div>
       )}
       {turnEntries.map(([turnId, bucket]) => (
-        <div data-testid="turn-artifact-summary-section" key={turnId}>
+        <div
+          data-testid="turn-artifact-summary-section"
+          key={turnId}
+          style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
+        >
           <ArtifactSummary
             bucket={bucket}
             isDark={isDark}

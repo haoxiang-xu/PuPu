@@ -37,6 +37,21 @@ const NEW_TEST_DIFF =
   "+  expect(result.ok).toBe(false);\n" +
   "+});\n";
 
+const LONG_WORKSPACE_PATH =
+  "/Users/red/Desktop/DEV/pupu_workspace/PuPu_traffic/build_dashboard.py";
+
+const LONG_WORKSPACE_DIFF =
+  `--- a${LONG_WORKSPACE_PATH}\n` +
+  `+++ b${LONG_WORKSPACE_PATH}\n` +
+  "@@ -23,6 +23,67 @@\n" +
+  ' return df.sort_values(["data_type", "date", "snapshot_date", "fetched_at"], na_position="last").reset_index(drop=True)\n' +
+  "-def build_kpis(df: pd.DataFrame) -> dict:\n" +
+  '-    views = df[df["data_type"] == "views"].copy()\n' +
+  '-    clones = df[df["data_type"] == "clones"].copy()\n' +
+  "+def build_kpis(df: pd.DataFrame) -> dict:\n" +
+  '+    views = df[df["data_type"] == "views"].copy()\n' +
+  '+    clones = df[df["data_type"] == "clones"].copy()\n';
+
 function buildTruncatedDiff() {
   const lines = ["--- a/big.js", "+++ b/big.js", "@@ -1,200 +1,200 @@"];
   for (let i = 0; i < 100; i += 1) {
@@ -201,6 +216,21 @@ const SCENARIOS = [
           truncated: true,
           totalLines: 400,
           displayedLines: 200,
+        }),
+      ]),
+    ],
+  },
+  {
+    key: "diff_long_workspace_path",
+    label: "Diff — long workspace path",
+    buckets: [
+      scenarioBucket([
+        fileDiffArtifact({
+          id: "c1",
+          path: LONG_WORKSPACE_PATH,
+          unifiedDiff: LONG_WORKSPACE_DIFF,
+          additions: 4,
+          deletions: 3,
         }),
       ]),
     ],

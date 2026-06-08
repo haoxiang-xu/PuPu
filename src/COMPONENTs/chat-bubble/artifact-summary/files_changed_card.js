@@ -135,6 +135,10 @@ const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
     <div
       data-testid="files-changed-card"
       style={{
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
         backgroundColor: cardBg,
         borderRadius: 10,
         color: primary,
@@ -160,6 +164,7 @@ const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
           display: "flex",
           alignItems: "center",
           gap: 12,
+          minWidth: 0,
           fontSize: 13,
           backgroundColor: hover ? hoverBg : "transparent",
           transition: "background-color 0.15s ease",
@@ -185,14 +190,25 @@ const FilesChangedCard = ({ artifacts, isDark, kindMeta }) => {
             {files.length} {files.length === 1 ? "file" : "files"}
           </span>
         </div>
-        <span style={{ marginLeft: "auto", color: secondary, fontSize: 12 }}>
+        <span
+          style={{
+            marginLeft: "auto",
+            color: secondary,
+            fontSize: 12,
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}
+        >
           +{totals.plus} −{totals.minus}
           {partialTotals ? " shown" : ""}
         </span>
         <DisclosureArrow open={expanded} color={primary} />
       </div>
       {expanded && (
-        <div data-testid="files-changed-card-body">
+        <div
+          data-testid="files-changed-card-body"
+          style={{ minWidth: 0, maxWidth: "100%" }}
+        >
           {files.map((file, idx) => (
             <FileRow key={`${file.path}:${idx}`} file={file} isDark={isDark} />
           ))}
@@ -214,7 +230,7 @@ const FileRow = ({ file, isDark }) => {
       : null;
 
   return (
-    <div style={{ color: primary }}>
+    <div style={{ color: primary, minWidth: 0, maxWidth: "100%" }}>
       <div
         role="button"
         tabIndex={0}
@@ -232,13 +248,24 @@ const FileRow = ({ file, isDark }) => {
           display: "flex",
           alignItems: "center",
           gap: 10,
+          minWidth: 0,
+          maxWidth: "100%",
+          boxSizing: "border-box",
           fontSize: 12.5,
           cursor: "pointer",
           backgroundColor: hover ? hoverBg : "transparent",
           transition: "background-color 0.15s ease",
         }}
       >
-        <span>{file.path}</span>
+        <span
+          style={{
+            flex: "1 1 auto",
+            minWidth: 0,
+            overflowWrap: "anywhere",
+          }}
+        >
+          {file.path}
+        </span>
         {file.operation && (
           <span
             style={{
@@ -248,6 +275,8 @@ const FileRow = ({ file, isDark }) => {
               borderRadius: 3,
               backgroundColor: chipBg,
               color: secondary,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
             }}
           >
             {file.operation}
@@ -261,19 +290,35 @@ const FileRow = ({ file, isDark }) => {
               borderRadius: 3,
               color: secondary,
               backgroundColor: chipBg,
+              flexShrink: 0,
+              whiteSpace: "nowrap",
             }}
           >
             {fallbackChip}
           </span>
         )}
-        <span style={{ marginLeft: "auto", color: secondary }}>
+        <span
+          style={{
+            marginLeft: "auto",
+            color: secondary,
+            flexShrink: 0,
+            whiteSpace: "nowrap",
+          }}
+        >
           +{file.additions} −{file.deletions}
           {file.truncated && !file.statsFromBackend ? " shown" : ""}
         </span>
         <DisclosureArrow open={expanded} color={primary} size={12} />
       </div>
       {expanded && !file.binary && (
-        <div style={{ padding: "12px 16px 16px 16px" }}>
+        <div
+          style={{
+            padding: "12px 16px 16px 16px",
+            minWidth: 0,
+            maxWidth: "100%",
+            boxSizing: "border-box",
+          }}
+        >
           {file.unifiedDiff ? (
             <DiffBody unifiedDiff={file.unifiedDiff} isDark={isDark} />
           ) : file.truncated && file.totalLines !== null && file.displayedLines !== null ? (

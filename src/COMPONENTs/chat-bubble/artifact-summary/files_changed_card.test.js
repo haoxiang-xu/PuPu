@@ -138,6 +138,45 @@ describe("FilesChangedCard expanded", () => {
 });
 
 describe("FilesChangedCard per-row diff expansion", () => {
+  test("constrains long paths and diff previews to the card width", () => {
+    const longPath =
+      "/Users/red/Desktop/DEV/pupu_workspace/PuPu_traffic/build_dashboard.py";
+    const longLine =
+      "return df.sort_values([\"data_type\", \"date\", \"snapshot_date\", \"fetched_at\"], na_position=\"last\").reset_index(drop=True)";
+    const { container } = render(
+      <FilesChangedCard
+        artifacts={[
+          fileDiff({
+            id: "c1",
+            path: longPath,
+            unifiedDiff: [
+              `--- a${longPath}`,
+              `+++ b${longPath}`,
+              "@@ -23,3 +23,3 @@",
+              ` ${longLine}`,
+              `-${longLine}`,
+              `+${longLine}`,
+            ].join("\n"),
+          }),
+        ]}
+        isDark={false}
+      />,
+    );
+
+    const card = screen.getByTestId("files-changed-card");
+    expect(card).toHaveStyle({ width: "100%", maxWidth: "100%" });
+
+    fireEvent.click(screen.getByTestId("files-changed-card-header"));
+    const pathNode = screen.getByText(longPath);
+    const fileRow = pathNode.closest('[role="button"]');
+    expect(fileRow).toHaveStyle({ minWidth: "0" });
+    expect(pathNode).toHaveStyle({ minWidth: "0", overflowWrap: "anywhere" });
+
+    fireEvent.click(pathNode);
+    const diffScroller = container.querySelector(".scrollable");
+    expect(diffScroller).toHaveStyle({ minWidth: "0", maxWidth: "100%" });
+  });
+
   test("clicking a file row mounts the DiffBody for that file", () => {
     render(
       <FilesChangedCard
