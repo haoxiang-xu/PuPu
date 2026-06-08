@@ -95,106 +95,6 @@ const OAuthAppRow = ({
   );
 };
 
-const RegistrySourceRow = ({
-  registry,
-  isDark,
-  fontFamily,
-  onRefresh,
-  onDelete,
-}) => {
-  const { t } = useTranslation();
-  const textColor = isDark ? "rgba(255,255,255,0.78)" : "rgba(0,0,0,0.72)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
-  const canRefresh = registry.sourceType === "url";
-  const riskCounts =
-    registry.riskCounts && typeof registry.riskCounts === "object"
-      ? registry.riskCounts
-      : {};
-  const riskMeta = ["low", "medium", "high", "critical"]
-    .map((level) =>
-      riskCounts[level]
-        ? `${riskCounts[level]} ${t(`local_storage.mcp_registry_risk_${level}`)}`
-        : "",
-    )
-    .filter(Boolean);
-  const meta = [
-    registry.sourceType || "inline",
-    `${registry.entryCount || 0} ${t("local_storage.mcp_registry_entries")}`,
-    registry.approvedCount
-      ? `${registry.approvedCount} ${t("local_storage.mcp_registry_approved")}`
-      : "",
-    registry.staleApprovalCount
-      ? `${registry.staleApprovalCount} ${t("local_storage.mcp_registry_stale")}`
-      : "",
-    ...riskMeta,
-    registry.lastError ? t("local_storage.mcp_registry_error") : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "8px 0",
-        borderBottom: `1px solid ${
-          isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)"
-        }`,
-      }}
-    >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
-          style={{
-            fontSize: 12.5,
-            fontFamily,
-            fontWeight: 500,
-            color: textColor,
-          }}
-        >
-          {registry.name || registry.registryId}
-        </div>
-        <div
-          style={{
-            fontSize: 11,
-            fontFamily,
-            color: mutedColor,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-          }}
-        >
-          {meta}
-        </div>
-      </div>
-      {canRefresh && (
-        <Button
-          label={t("local_storage.mcp_registry_refresh")}
-          onClick={() => onRefresh(registry)}
-          style={{
-            fontSize: 10.5,
-            paddingVertical: 4,
-            paddingHorizontal: 7,
-            borderRadius: 5,
-            opacity: 0.65,
-          }}
-        />
-      )}
-      <Button
-        label={t("local_storage.mcp_registry_delete")}
-        onClick={() => onDelete(registry)}
-        style={{
-          fontSize: 10.5,
-          paddingVertical: 4,
-          paddingHorizontal: 7,
-          borderRadius: 5,
-          opacity: 0.65,
-        }}
-      />
-    </div>
-  );
-};
-
 /* "checked just now" / "checked 3m ago"; null when there is no timestamp. */
 const formatLastChecked = (t, lastCheckedAt) => {
   if (!lastCheckedAt) return null;
@@ -472,7 +372,6 @@ const McpToolkitsSection = ({ isDark }) => {
   const [status, setStatus] = useState("loading");
   const [items, setItems] = useState([]);
   const [oauthApps, setOauthApps] = useState([]);
-  const [registrySources, setRegistrySources] = useState([]);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [secretTarget, setSecretTarget] = useState(null);
   const [secretValues, setSecretValues] = useState({});
@@ -485,23 +384,16 @@ const McpToolkitsSection = ({ isDark }) => {
   const load = useCallback(async () => {
     setStatus("loading");
     try {
-      const [payload, appsPayload, registriesPayload] = await Promise.all([
+      const [payload, appsPayload] = await Promise.all([
         api.unchain.listMcpToolkits(),
         api.unchain.listMcpOAuthApps(),
-        api.unchain.listMcpStoreRegistries(),
       ]);
       setItems(Array.isArray(payload?.toolkits) ? payload.toolkits : []);
       setOauthApps(Array.isArray(appsPayload?.apps) ? appsPayload.apps : []);
-      setRegistrySources(
-        Array.isArray(registriesPayload?.registries)
-          ? registriesPayload.registries
-          : [],
-      );
       setStatus("ready");
     } catch {
       setItems([]);
       setOauthApps([]);
-      setRegistrySources([]);
       setStatus("error");
     }
   }, []);
@@ -632,30 +524,6 @@ const McpToolkitsSection = ({ isDark }) => {
     load();
   }, [load]);
 
-  const handleRefreshRegistry = useCallback(async (registry) => {
-    if (!registry?.registryId) return;
-    setStatus("loading");
-    try {
-      await api.unchain.refreshMcpStoreRegistry(registry.registryId);
-      emitToolkitCatalogRefresh({ reason: "mcp_registry_refresh", registryId: registry.registryId });
-    } catch {
-      /* ignore — load() below surfaces final state */
-    }
-    load();
-  }, [load]);
-
-  const handleDeleteRegistry = useCallback(async (registry) => {
-    if (!registry?.registryId) return;
-    setStatus("loading");
-    try {
-      await api.unchain.deleteMcpStoreRegistry(registry.registryId);
-      emitToolkitCatalogRefresh({ reason: "mcp_registry_delete", registryId: registry.registryId });
-    } catch {
-      /* ignore — load() below surfaces final state */
-    }
-    load();
-  }, [load]);
-
   const handleConfirmDelete = useCallback(async () => {
     const target = deleteTarget;
     setDeleteTarget(null);
@@ -769,34 +637,6 @@ const McpToolkitsSection = ({ isDark }) => {
               fontFamily={fontFamily}
               onUpdate={openOAuthAppForm}
               onDelete={handleDeleteOAuthApp}
-            />
-          ))}
-        </div>
-      )}
-
-      {registrySources.length > 0 && (
-        <div style={{ marginTop: 14 }}>
-          <div
-            style={{
-              fontSize: 11,
-              fontFamily,
-              fontWeight: 500,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              color: mutedColor,
-              marginBottom: 4,
-            }}
-          >
-            {t("local_storage.mcp_registry_sources")}
-          </div>
-          {registrySources.map((registry) => (
-            <RegistrySourceRow
-              key={registry.registryId}
-              registry={registry}
-              isDark={isDark}
-              fontFamily={fontFamily}
-              onRefresh={handleRefreshRegistry}
-              onDelete={handleDeleteRegistry}
             />
           ))}
         </div>

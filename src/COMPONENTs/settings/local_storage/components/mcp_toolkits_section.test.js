@@ -322,7 +322,7 @@ describe("McpToolkitsSection", () => {
     expect(deleteMcpEntry).toHaveBeenCalledWith("mcp.memory.memory");
   });
 
-  test("renders registry sources and supports refresh and delete", async () => {
+  test("does not manage registry sources in Local Storage", async () => {
     api.unchain.listMcpStoreRegistries.mockResolvedValue({
       registries: [
         {
@@ -330,9 +330,6 @@ describe("McpToolkitsSection", () => {
           name: "External Registry",
           sourceType: "url",
           entryCount: 2,
-          approvedCount: 1,
-          staleApprovalCount: 1,
-          riskCounts: { low: 1, medium: 0, high: 1, critical: 0 },
         },
       ],
       count: 1,
@@ -340,32 +337,12 @@ describe("McpToolkitsSection", () => {
 
     render(<McpToolkitsSection isDark={false} />);
 
-    await screen.findByText("External Registry");
+    await screen.findByText("Memory");
+    expect(api.unchain.listMcpStoreRegistries).not.toHaveBeenCalled();
+    expect(screen.queryByText("External Registry")).toBeNull();
     expect(
-      screen.getByText("local_storage.mcp_registry_sources"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText((text) =>
-        text.includes("1 local_storage.mcp_registry_approved") &&
-        text.includes("1 local_storage.mcp_registry_stale") &&
-        text.includes("1 local_storage.mcp_registry_risk_low") &&
-        text.includes("1 local_storage.mcp_registry_risk_high"),
-      ),
-    ).toBeInTheDocument();
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_registry_refresh"));
-    });
-    expect(api.unchain.refreshMcpStoreRegistry).toHaveBeenCalledWith(
-      "registry.url.test",
-    );
-
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("btn-local_storage.mcp_registry_delete"));
-    });
-    expect(api.unchain.deleteMcpStoreRegistry).toHaveBeenCalledWith(
-      "registry.url.test",
-    );
+      screen.queryByText("local_storage.mcp_registry_sources"),
+    ).toBeNull();
   });
 
   test("OAuth toolkit renders auth status and supports reconnect and disconnect", async () => {

@@ -169,6 +169,10 @@ export const BarChart = ({
 
       {/* Chart area */}
       <div
+        data-testid="bar-chart-scroll-area"
+        className="scrollable"
+        data-sb-wall="-10"
+        data-sb-persist="1"
         ref={scrollAreaRef}
         style={{
           flex: 1,

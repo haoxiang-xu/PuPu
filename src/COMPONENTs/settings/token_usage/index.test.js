@@ -198,5 +198,8 @@ describe("TokenUsageSettings", () => {
     expect(screen.getByTestId("token-breakdown-scroll-area")).toHaveStyle(
       "overflow-x: auto",
     );
+    expect(screen.getByTestId("token-breakdown-scroll-area")).toHaveClass(
+      "scrollable",
+    );
   });
 });

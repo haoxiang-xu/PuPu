@@ -89,8 +89,6 @@ const ToolkitsPage = ({ isDark }) => {
   const [metadataRevision, setMetadataRevision] = useState(0);
   const [metadataRefreshing, setMetadataRefreshing] = useState(false);
   const [metadataError, setMetadataError] = useState(null);
-  const [registryImporting, setRegistryImporting] = useState(false);
-  const [registryError, setRegistryError] = useState(null);
   const [approvalBusyId, setApprovalBusyId] = useState(null);
 
   const applyStoreMetadata = useCallback((payload) => {
@@ -183,27 +181,6 @@ const ToolkitsPage = ({ isDark }) => {
       setMetadataRefreshing(false);
     }
   }, [applyStoreMetadata]);
-
-  const handleImportRegistry = useCallback(
-    async (payload) => {
-      setRegistryImporting(true);
-      setRegistryError(null);
-      try {
-        await api.unchain.importMcpStoreRegistry(payload);
-        await refreshStoreEntries();
-      } catch (error) {
-        setRegistryError(error?.code || "mcp_registry_import_failed");
-        throw error;
-      } finally {
-        setRegistryImporting(false);
-      }
-    },
-    [refreshStoreEntries],
-  );
-
-  const handleValidateRegistry = useCallback(async (payload) => {
-    return api.unchain.validateMcpStoreRegistry(payload);
-  }, []);
 
   const handleInstall = useCallback(
     async (entry, setupOptions = {}) => {
@@ -342,10 +319,6 @@ const ToolkitsPage = ({ isDark }) => {
             metadataRefreshing={metadataRefreshing}
             metadataError={metadataError}
             onRefreshMetadata={handleRefreshMetadata}
-            registryImporting={registryImporting}
-            registryError={registryError}
-            onImportRegistry={handleImportRegistry}
-            onValidateRegistry={handleValidateRegistry}
           />
         );
       case "installed":

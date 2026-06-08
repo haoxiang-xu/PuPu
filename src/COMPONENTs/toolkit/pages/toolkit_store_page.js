@@ -21,22 +21,12 @@ const ToolkitStorePage = ({
   metadataRefreshing = false,
   metadataError = null,
   onRefreshMetadata,
-  registryImporting = false,
-  registryError = null,
-  onImportRegistry,
-  onValidateRegistry,
 }) => {
   const context = useContext(ConfigContext) || {};
   const { t } = useTranslation();
   const fontFamily = context.theme?.font?.fontFamily || "Jost, sans-serif";
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const [showImport, setShowImport] = useState(false);
-  const [registryUrl, setRegistryUrl] = useState("");
-  const [registryName, setRegistryName] = useState("");
-  const [registryJson, setRegistryJson] = useState("");
-  const [registryValidating, setRegistryValidating] = useState(false);
-  const [registryValidation, setRegistryValidation] = useState(null);
 
   const categorySections = useMemo(
     () =>
@@ -65,54 +55,6 @@ const ToolkitStorePage = ({
   const activePillBorder = isDark
     ? "rgba(255,255,255,0.15)"
     : "rgba(0,0,0,0.15)";
-  const importDisabled =
-    registryImporting || (!registryUrl.trim() && !registryJson.trim());
-  const validateDisabled =
-    registryValidating || (!registryUrl.trim() && !registryJson.trim());
-  const buildRegistryPayload = () => ({
-    ...(registryName.trim() ? { name: registryName.trim() } : {}),
-    ...(registryUrl.trim()
-      ? { url: registryUrl.trim() }
-      : { registry: registryJson.trim() }),
-  });
-  const handleValidate = async () => {
-    if (validateDisabled || !onValidateRegistry) return;
-    setRegistryValidation(null);
-    setRegistryValidating(true);
-    try {
-      const result = await onValidateRegistry(buildRegistryPayload());
-      setRegistryValidation(result && typeof result === "object" ? result : null);
-    } catch (error) {
-      setRegistryValidation({
-        valid: false,
-        diagnostics: [
-          {
-            code: error?.code || "mcp_registry_invalid",
-            message: error?.message || "",
-            path: "$",
-            severity: "error",
-          },
-        ],
-      });
-    } finally {
-      setRegistryValidating(false);
-    }
-  };
-  const handleImport = async () => {
-    if (importDisabled || !onImportRegistry) return;
-    const payload = buildRegistryPayload();
-    try {
-      await onImportRegistry(payload);
-      setRegistryUrl("");
-      setRegistryName("");
-      setRegistryJson("");
-      setRegistryValidation(null);
-      setShowImport(false);
-    } catch {
-      /* parent renders stable error */
-    }
-  };
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <Input
@@ -198,171 +140,7 @@ const ToolkitStorePage = ({
             },
           }}
         />
-        <Button
-          label={t("toolkit.store_import_registry")}
-          onClick={() => setShowImport((value) => !value)}
-          style={{
-            fontSize: 11,
-            fontFamily,
-            fontWeight: 500,
-            paddingVertical: 3,
-            paddingHorizontal: 10,
-            borderRadius: 999,
-            color: isDark ? "rgba(255,255,255,0.62)" : "rgba(0,0,0,0.58)",
-            root: {
-              background: isDark
-                ? "rgba(255,255,255,0.05)"
-                : "rgba(0,0,0,0.035)",
-              border: `1px solid ${
-                isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-              }`,
-            },
-          }}
-        />
       </div>
-
-      {showImport && (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-            padding: "10px 12px",
-            borderRadius: 8,
-            backgroundColor: isDark
-              ? "rgba(255,255,255,0.04)"
-              : "rgba(0,0,0,0.035)",
-          }}
-        >
-          <Input
-            value={registryName}
-            set_value={(value) => setRegistryName(value)}
-            placeholder={t("toolkit.store_registry_name_placeholder")}
-            style={{
-              width: "100%",
-              fontSize: 12,
-              fontFamily,
-              borderRadius: 7,
-              color: isDark ? "#fff" : "#222",
-              paddingVertical: 7,
-              paddingHorizontal: 10,
-            }}
-          />
-          <Input
-            value={registryUrl}
-            set_value={(value) => setRegistryUrl(value)}
-            placeholder={t("toolkit.store_registry_url_placeholder")}
-            style={{
-              width: "100%",
-              fontSize: 12,
-              fontFamily,
-              borderRadius: 7,
-              color: isDark ? "#fff" : "#222",
-              paddingVertical: 7,
-              paddingHorizontal: 10,
-            }}
-          />
-          <textarea
-            value={registryJson}
-            onChange={(event) => setRegistryJson(event.target.value)}
-            placeholder={t("toolkit.store_registry_json_placeholder")}
-            style={{
-              width: "100%",
-              minHeight: 84,
-              resize: "vertical",
-              boxSizing: "border-box",
-              borderRadius: 7,
-              border: `1px solid ${
-                isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.08)"
-              }`,
-              background: isDark ? "rgba(255,255,255,0.04)" : "#fff",
-              color: isDark ? "#fff" : "#222",
-              fontSize: 12,
-              fontFamily,
-              padding: "8px 10px",
-              outline: "none",
-            }}
-          />
-          {registryValidation && (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 4,
-                fontSize: 10.5,
-                fontFamily,
-                color: registryValidation.valid
-                  ? isDark
-                    ? "#86efac"
-                    : "#15803d"
-                  : isDark
-                    ? "#fdba74"
-                    : "#c2410c",
-              }}
-            >
-              {registryValidation.valid ? (
-                <span>
-                  {t("toolkit.store_registry_valid")}{" "}
-                  {registryValidation.count || 0}
-                </span>
-              ) : (
-                (registryValidation.diagnostics || []).map((diagnostic, index) => (
-                  <span key={`${diagnostic.code}-${diagnostic.path}-${index}`}>
-                    {[diagnostic.code, diagnostic.path, diagnostic.entryId]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                ))
-              )}
-            </div>
-          )}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6 }}>
-            <Button
-              label={t("toolkit.store_registry_cancel")}
-              onClick={() => setShowImport(false)}
-              style={{
-                fontSize: 11.5,
-                paddingVertical: 5,
-                paddingHorizontal: 10,
-                borderRadius: 6,
-                opacity: 0.6,
-              }}
-            />
-            <Button
-              label={
-                registryValidating
-                  ? t("toolkit.store_registry_validating")
-                  : t("toolkit.store_registry_validate")
-              }
-              disabled={validateDisabled}
-              onClick={handleValidate}
-              style={{
-                fontSize: 11.5,
-                paddingVertical: 5,
-                paddingHorizontal: 10,
-                borderRadius: 6,
-                opacity: validateDisabled ? 0.45 : 0.75,
-              }}
-            />
-            <Button
-              label={
-                registryImporting
-                  ? t("toolkit.store_registry_importing")
-                  : t("toolkit.store_registry_import")
-              }
-              disabled={importDisabled}
-              onClick={handleImport}
-              style={{
-                fontSize: 11.5,
-                paddingVertical: 5,
-                paddingHorizontal: 10,
-                borderRadius: 6,
-                opacity: importDisabled ? 0.45 : 0.75,
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {metadataError && (
         <div
@@ -374,19 +152,6 @@ const ToolkitStorePage = ({
           }}
         >
           {t("toolkit.store_metadata_error")}
-        </div>
-      )}
-
-      {registryError && (
-        <div
-          style={{
-            fontSize: 10.5,
-            fontFamily,
-            color: isDark ? "#fdba74" : "#c2410c",
-            marginTop: -6,
-          }}
-        >
-          {t("toolkit.store_registry_error")}
         </div>
       )}
 

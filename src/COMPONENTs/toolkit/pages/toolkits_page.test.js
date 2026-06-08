@@ -150,13 +150,15 @@ jest.mock("./toolkit_store_page", () => ({
     <div>
       <span>Store Page</span>
       <button onClick={() => onRefreshMetadata?.()}>Refresh Metadata</button>
-      <button
-        onClick={() =>
-          onImportRegistry?.({ registry: { version: 1, entries: [] } })
-        }
-      >
-        Import Registry
-      </button>
+      {onImportRegistry && (
+        <button
+          onClick={() =>
+            onImportRegistry?.({ registry: { version: 1, entries: [] } })
+          }
+        >
+          Import Registry
+        </button>
+      )}
       <button onClick={() => onEntryClick?.("browser.playwright")}>
         Open Store Entry
       </button>
@@ -490,6 +492,16 @@ describe("ToolkitsPage", () => {
         ],
       }),
     );
+  });
+
+  test("store tab does not receive registry import wiring", async () => {
+    await renderToolkitsPage();
+
+    fireEvent.click(screen.getByText("toolkit.store"));
+
+    expect(screen.getByText("Store Page")).toBeInTheDocument();
+    expect(screen.queryByText("Import Registry")).toBeNull();
+    expect(api.unchain.importMcpStoreRegistry).not.toHaveBeenCalled();
   });
 
   test("store detail approval and revoke refresh entries and update selected detail", async () => {

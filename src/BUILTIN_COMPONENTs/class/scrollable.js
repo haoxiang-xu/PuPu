@@ -28,8 +28,7 @@ const Scrollable = () => {
       sb.backgroundColor?.active ||
       (isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.3)");
     const DEFAULT_EDGE = sb.edge ?? 2;
-    const IDLE_THICK = 4;
-    const ACTIVE_THICK = 6;
+    const THICK = 6;
     const MIN_THUMB = 24;
     const FADE_DELAY = 1000;
 
@@ -74,7 +73,7 @@ const Scrollable = () => {
         backgroundColor: COLOR_IDLE,
         opacity: "0",
         pointerEvents: "auto",
-        cursor: "default",
+        cursor: "grab",
         transition:
           "opacity 0.25s ease, " +
           "background-color 0.35s ease, " +
@@ -100,6 +99,9 @@ const Scrollable = () => {
       const edgeLeft = getEdgeSide(container, "left", edge);
       const edgeRight = getEdgeSide(container, "right", edge);
       const wall = getWall(container, edge);
+      /* data-sb-persist — keep the scrollbar permanently visible (never fade). */
+      const persist = container.getAttribute("data-sb-persist") != null;
+      const restOpacity = persist ? "1" : "0";
 
       /* Create overlay — a non-scrolling sibling that sits on top */
       const overlay = document.createElement("div");
@@ -120,6 +122,12 @@ const Scrollable = () => {
       const hThumb = makeThumb();
       overlay.appendChild(vThumb);
       overlay.appendChild(hThumb);
+
+      /* Persistent scrollbars start visible and never fade back to 0. */
+      if (persist) {
+        vThumb.style.opacity = restOpacity;
+        hThumb.style.opacity = restOpacity;
+      }
 
       let fadeTimer = null;
       let rafId = null;
@@ -149,8 +157,11 @@ const Scrollable = () => {
 
         const hasV = sh > clientH + 1;
         const hasH = sw > clientW + 1;
-        const vThick = scrolling || hoveringV ? ACTIVE_THICK : IDLE_THICK;
-        const hThick = scrolling || hoveringH ? ACTIVE_THICK : IDLE_THICK;
+        /* Constant thickness in every state. A hover/active size change shifts
+           the thumb edges, so near a boundary the pointer crosses in and out →
+           enter/leave flicker. Visual feedback comes from colour only. */
+        const vThick = THICK;
+        const hThick = THICK;
 
         /* Vertical thumb */
         if (hasV) {
@@ -208,8 +219,8 @@ const Scrollable = () => {
           scrolling = false;
           sync();
           if (!hoveringV && !hoveringH && !mouseInside) {
-            vThumb.style.opacity = "0";
-            hThumb.style.opacity = "0";
+            vThumb.style.opacity = restOpacity;
+            hThumb.style.opacity = restOpacity;
           }
           vThumb.style.backgroundColor = COLOR_IDLE;
           hThumb.style.backgroundColor = COLOR_IDLE;
@@ -241,8 +252,8 @@ const Scrollable = () => {
       function onContainerLeave() {
         mouseInside = false;
         if (!scrolling && !hoveringV && !hoveringH) {
-          vThumb.style.opacity = "0";
-          hThumb.style.opacity = "0";
+          vThumb.style.opacity = restOpacity;
+          hThumb.style.opacity = restOpacity;
         }
       }
 
@@ -257,7 +268,7 @@ const Scrollable = () => {
         if (!scrolling) {
           sync();
           vThumb.style.backgroundColor = COLOR_IDLE;
-          if (!mouseInside) vThumb.style.opacity = "0";
+          if (!mouseInside) vThumb.style.opacity = restOpacity;
           else vThumb.style.opacity = "0.45";
         }
       }
@@ -272,7 +283,7 @@ const Scrollable = () => {
         if (!scrolling) {
           sync();
           hThumb.style.backgroundColor = COLOR_IDLE;
-          if (!mouseInside) hThumb.style.opacity = "0";
+          if (!mouseInside) hThumb.style.opacity = restOpacity;
           else hThumb.style.opacity = "0.45";
         }
       }
@@ -288,6 +299,8 @@ const Scrollable = () => {
           startPos = axis === "v" ? e.clientY : e.clientX;
           startScroll =
             axis === "v" ? container.scrollTop : container.scrollLeft;
+          thumb.style.cursor = "grabbing";
+          document.body.style.cursor = "grabbing";
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
         }
@@ -308,12 +321,19 @@ const Scrollable = () => {
         }
 
         function onUp() {
+          thumb.style.cursor = "grab";
+          document.body.style.cursor = "";
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
         }
 
         thumb.addEventListener("mousedown", onDown);
-        return () => thumb.removeEventListener("mousedown", onDown);
+        return () => {
+          thumb.removeEventListener("mousedown", onDown);
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          document.body.style.cursor = "";
+        };
       }
 
       const cleanDragV = makeDragger(vThumb, "v");
