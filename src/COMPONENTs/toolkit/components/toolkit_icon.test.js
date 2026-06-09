@@ -35,6 +35,34 @@ describe("ToolkitIcon", () => {
     const image = container.querySelector("img");
     expect(image).toBeInTheDocument();
     expect(image?.getAttribute("src")).toContain("data:image/svg+xml");
+    expect(image).toHaveAttribute("width", "24");
+    expect(image).toHaveAttribute("height", "24");
+  });
+
+  test("renders scaled file icons centered inside the original layout box", () => {
+    const { container } = render(
+      <ToolkitIcon
+        icon={{
+          type: "file",
+          mimeType: "image/svg+xml",
+          content: "<svg xmlns='http://www.w3.org/2000/svg'></svg>",
+          displayScale: 0.82,
+        }}
+        size={36}
+        style={{ borderRadius: 10, flexShrink: 0 }}
+      />,
+    );
+
+    const frame = screen.getByTestId("toolkit-file-icon-frame");
+    expect(frame).toHaveStyle({
+      width: "36px",
+      height: "36px",
+      borderRadius: "10px",
+      flexShrink: "0",
+    });
+    const image = container.querySelector("img");
+    expect(image).toHaveAttribute("width", "30");
+    expect(image).toHaveAttribute("height", "30");
   });
 
   test("renders builtin payload with shared icon component", () => {

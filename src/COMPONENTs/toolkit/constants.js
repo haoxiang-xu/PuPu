@@ -63,6 +63,7 @@ export const STORE_CATEGORY_CONFIG = [
   { key: "all", icon: "search", labelKey: "toolkit.store_category_all" },
   { key: "browser", icon: "globe", labelKey: "toolkit.store_category_browser" },
   { key: "dev", icon: "code", labelKey: "toolkit.store_category_dev" },
+  { key: "devops", icon: "server", labelKey: "toolkit.store_category_devops" },
   {
     key: "productivity",
     icon: "tool",

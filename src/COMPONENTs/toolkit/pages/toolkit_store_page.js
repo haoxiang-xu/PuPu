@@ -137,6 +137,8 @@ const ToolkitStorePage = ({
           ) : (
             <Button
               prefix_icon="update"
+              ariaLabel={t("toolkit.store_refresh_metadata")}
+              title={t("toolkit.store_refresh_metadata")}
               onClick={onRefreshMetadata}
               style={{
                 paddingVertical: 4,

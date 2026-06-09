@@ -5,6 +5,7 @@ import {
   clearMcpStoreEntriesCache,
   listMcpStoreEntries,
   getMcpStoreEntry,
+  mcpStoreIconFor,
   resolveMcpIcon,
   searchMcpStoreEntries,
   setMcpStoreEntriesCache,
@@ -24,6 +25,7 @@ describe("mcp_toolkit_store", () => {
       expect.arrayContaining([
         "browser",
         "dev",
+        "devops",
         "productivity",
         "workspace",
         "memory",
@@ -49,6 +51,42 @@ describe("mcp_toolkit_store", () => {
     const playwright = getMcpStoreEntry("browser.playwright");
     expect(playwright.toolkitIcon).toBeUndefined();
     expect(resolveMcpIcon(playwright)).toEqual(
+      expect.objectContaining({
+        type: "builtin",
+        name: "mcp",
+        backgroundColor: "transparent",
+      }),
+    );
+  });
+
+  test("mcp toolkit fallbacks use the mcp icon when backend sends an empty icon", () => {
+    expect(
+      resolveMcpIcon({
+        toolkitId: "mcp.custom.local-empty",
+        source: "mcp",
+        toolkitIcon: {},
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        type: "builtin",
+        name: "mcp",
+        backgroundColor: "transparent",
+      }),
+    );
+    expect(
+      withMcpStoreIcon({
+        toolkitId: "mcp.custom.local-empty",
+        source: "mcp",
+        toolkitIcon: {},
+      }).toolkitIcon,
+    ).toEqual(
+      expect.objectContaining({
+        type: "builtin",
+        name: "mcp",
+        backgroundColor: "transparent",
+      }),
+    );
+    expect(mcpStoreIconFor("mcp.custom.local-empty")).toEqual(
       expect.objectContaining({
         type: "builtin",
         name: "mcp",
@@ -335,6 +373,150 @@ describe("mcp_toolkit_store", () => {
     ).toContain("workspace.markitdown");
   });
 
+  test("devops category includes Sentry, Vercel, Grafana and Netdata recipes", () => {
+    const devopsEntries = searchMcpStoreEntries(
+      listMcpStoreEntries(),
+      "",
+      "devops",
+    );
+    expect(devopsEntries.map((entry) => entry.id)).toEqual(
+      expect.arrayContaining([
+        "devops.sentry-remote",
+        "devops.vercel-remote",
+        "devops.grafana",
+        "devops.netdata-cloud",
+      ]),
+    );
+
+    const sentry = getMcpStoreEntry("devops.sentry-remote");
+    expect(sentry).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.devops.sentry-remote",
+        toolkitName: "Sentry",
+        category: "devops",
+        trustLevel: "verified",
+        installable: false,
+        license: "NOASSERTION",
+        docsUrl: "https://mcp.sentry.dev",
+      }),
+    );
+    expect(sentry.mcp).toEqual(
+      expect.objectContaining({
+        transport: "http",
+        runtime_transport: "streamable_http",
+        url: "https://mcp.sentry.dev/mcp",
+      }),
+    );
+    expect(sentry.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "sentry",
+        clientRegistration: "dynamic",
+        mcpUrl: "https://mcp.sentry.dev/mcp",
+        authorizationEndpoint: "https://mcp.sentry.dev/oauth/authorize",
+        tokenEndpoint: "https://mcp.sentry.dev/oauth/token",
+        registrationEndpoint: "https://mcp.sentry.dev/oauth/register",
+      }),
+    );
+
+    const vercel = getMcpStoreEntry("devops.vercel-remote");
+    expect(vercel.mcp).toEqual(
+      expect.objectContaining({
+        transport: "http",
+        runtime_transport: "streamable_http",
+        url: "https://mcp.vercel.com",
+      }),
+    );
+    expect(vercel.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "vercel",
+        clientRegistration: "dynamic",
+        mcpUrl: "https://mcp.vercel.com",
+        protectedResourceMetadataUrl:
+          "https://mcp.vercel.com/.well-known/oauth-protected-resource",
+      }),
+    );
+
+    const grafana = getMcpStoreEntry("devops.grafana");
+    expect(grafana.mcp).toEqual(
+      expect.objectContaining({
+        transport: "stdio",
+        command: "uvx",
+        args: ["mcp-grafana"],
+      }),
+    );
+    expect(grafana.secrets).toEqual([
+      expect.objectContaining({ key: "GRAFANA_URL" }),
+      expect.objectContaining({ key: "GRAFANA_SERVICE_ACCOUNT_TOKEN" }),
+    ]);
+
+    const netdata = getMcpStoreEntry("devops.netdata-cloud");
+    expect(netdata.mcp).toEqual(
+      expect.objectContaining({
+        transport: "http",
+        runtime_transport: "streamable_http",
+        url: "https://app.netdata.cloud/api/v1/mcp",
+      }),
+    );
+    expect(netdata.secrets).toEqual([
+      expect.objectContaining({ key: "NETDATA_CLOUD_MCP_TOKEN" }),
+    ]);
+    expect(netdata.mcp.headers).toEqual([
+      expect.objectContaining({
+        name: "Authorization",
+        value_from_secret: "NETDATA_CLOUD_MCP_TOKEN",
+        prefix: "Bearer ",
+      }),
+    ]);
+  });
+
+  test("chrome devtools MCP is registered as a direct browser toolkit", () => {
+    const chrome = getMcpStoreEntry("browser.chrome-devtools");
+
+    expect(chrome).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.browser.chrome-devtools",
+        toolkitName: "Chrome DevTools",
+        category: "browser",
+        trustLevel: "verified",
+        installable: true,
+        license: "Apache-2.0",
+        sourceRepo: "https://github.com/ChromeDevTools/chrome-devtools-mcp",
+      }),
+    );
+    expect(chrome.mcp).toEqual(
+      expect.objectContaining({
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "chrome-devtools-mcp@latest"],
+      }),
+    );
+    expect(chrome.secrets).toEqual([]);
+    expect(
+      searchMcpStoreEntries(listMcpStoreEntries(), "performance trace", "browser")
+        .map((entry) => entry.id),
+    ).toContain("browser.chrome-devtools");
+  });
+
+  test("new devops and chrome entries carry JSON-defined brand icons", () => {
+    for (const id of [
+      "browser.chrome-devtools",
+      "devops.sentry-remote",
+      "devops.vercel-remote",
+      "devops.grafana",
+      "devops.netdata-cloud",
+    ]) {
+      const entry = getMcpStoreEntry(id);
+      expect(resolveMcpIcon(entry)).toEqual(
+        expect.objectContaining({
+          type: "file",
+          mimeType: "image/svg+xml",
+          displayScale: 0.82,
+        }),
+      );
+      expect(resolveMcpIcon(entry).content).toContain("<svg");
+    }
+  });
+
   test("github remote uses GITHUB_MCP_PAT, not GITHUB_TOKEN", () => {
     const github = getMcpStoreEntry("dev.github-remote");
     expect(github.secrets).toEqual(
@@ -389,6 +571,22 @@ describe("mcp_toolkit_store", () => {
         mcpUrl: "https://mcp.slack.com/mcp",
       }),
     );
+    const sentry = getMcpStoreEntry("devops.sentry-remote");
+    expect(sentry.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "sentry",
+        clientRegistration: "dynamic",
+      }),
+    );
+
+    const vercel = getMcpStoreEntry("devops.vercel-remote");
+    expect(vercel.auth.oauth).toEqual(
+      expect.objectContaining({
+        provider: "vercel",
+        clientRegistration: "dynamic",
+      }),
+    );
+
     const figma = getMcpStoreEntry("dev.figma-remote");
     expect(figma).toEqual(
       expect.objectContaining({

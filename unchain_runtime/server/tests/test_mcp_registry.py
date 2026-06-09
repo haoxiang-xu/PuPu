@@ -134,6 +134,84 @@ class McpRegistryTests(unittest.TestCase):
         )
         self.assertEqual(oauth["scopes"], ["mcp:connect"])
 
+    def test_devops_registry_entries_are_json_driven(self):
+        sentry = mcp_registry.registry_entry("devops.sentry-remote")
+        sentry_oauth = mcp_registry.oauth_recipe_for_entry(sentry)
+        self.assertEqual(sentry["toolkit_id"], "mcp.devops.sentry-remote")
+        self.assertEqual(sentry["category"], "devops")
+        self.assertEqual(sentry["toolkit_icon"]["type"], "file")
+        self.assertEqual(sentry["toolkit_icon"]["mimeType"], "image/svg+xml")
+        self.assertFalse(sentry["installable"])
+        self.assertEqual(sentry["mcp"]["transport"], "http")
+        self.assertEqual(sentry["mcp"]["runtime_transport"], "streamable_http")
+        self.assertEqual(sentry["mcp"]["url"], "https://mcp.sentry.dev/mcp")
+        self.assertEqual(sentry_oauth["provider"], "sentry")
+        self.assertEqual(sentry_oauth["clientRegistration"], "dynamic")
+        self.assertEqual(
+            sentry_oauth["authorizationEndpoint"],
+            "https://mcp.sentry.dev/oauth/authorize",
+        )
+        self.assertEqual(
+            sentry_oauth["registrationEndpoint"],
+            "https://mcp.sentry.dev/oauth/register",
+        )
+
+        vercel = mcp_registry.registry_entry("devops.vercel-remote")
+        vercel_oauth = mcp_registry.oauth_recipe_for_entry(vercel)
+        self.assertEqual(vercel["toolkit_id"], "mcp.devops.vercel-remote")
+        self.assertEqual(vercel["toolkit_icon"]["type"], "file")
+        self.assertEqual(vercel["mcp"]["url"], "https://mcp.vercel.com")
+        self.assertEqual(vercel_oauth["provider"], "vercel")
+        self.assertEqual(vercel_oauth["clientRegistration"], "dynamic")
+        self.assertEqual(
+            vercel_oauth["protectedResourceMetadataUrl"],
+            "https://mcp.vercel.com/.well-known/oauth-protected-resource",
+        )
+
+        grafana = mcp_registry.registry_entry("devops.grafana")
+        self.assertEqual(grafana["toolkit_id"], "mcp.devops.grafana")
+        self.assertEqual(grafana["toolkit_icon"]["type"], "file")
+        self.assertTrue(grafana["installable"])
+        self.assertEqual(grafana["mcp"]["transport"], "stdio")
+        self.assertEqual(grafana["mcp"]["command"], "uvx")
+        self.assertEqual(grafana["mcp"]["args"], ["mcp-grafana"])
+        self.assertEqual(
+            [secret["key"] for secret in grafana["secrets"]],
+            ["GRAFANA_URL", "GRAFANA_SERVICE_ACCOUNT_TOKEN"],
+        )
+
+        netdata = mcp_registry.registry_entry("devops.netdata-cloud")
+        self.assertEqual(netdata["toolkit_id"], "mcp.devops.netdata-cloud")
+        self.assertEqual(netdata["toolkit_icon"]["type"], "file")
+        self.assertTrue(netdata["installable"])
+        self.assertEqual(netdata["mcp"]["transport"], "http")
+        self.assertEqual(netdata["mcp"]["runtime_transport"], "streamable_http")
+        self.assertEqual(
+            netdata["mcp"]["url"],
+            "https://app.netdata.cloud/api/v1/mcp",
+        )
+        self.assertEqual(
+            netdata["mcp"]["headers"][0]["value_from_secret"],
+            "NETDATA_CLOUD_MCP_TOKEN",
+        )
+
+    def test_chrome_devtools_registry_entry_uses_official_stdio_server(self):
+        entry = mcp_registry.registry_entry("browser.chrome-devtools")
+
+        self.assertEqual(entry["toolkit_id"], "mcp.browser.chrome-devtools")
+        self.assertEqual(entry["toolkit_name"], "Chrome DevTools")
+        self.assertEqual(entry["category"], "browser")
+        self.assertEqual(entry["trust_level"], "verified")
+        self.assertEqual(entry["toolkit_icon"]["type"], "file")
+        self.assertEqual(entry["toolkit_icon"]["mimeType"], "image/svg+xml")
+        self.assertTrue(entry["installable"])
+        self.assertEqual(entry["license"], "Apache-2.0")
+        self.assertEqual(entry["mcp"]["transport"], "stdio")
+        self.assertEqual(entry["mcp"]["command"], "npx")
+        self.assertEqual(entry["mcp"]["args"], ["-y", "chrome-devtools-mcp@latest"])
+        self.assertEqual(entry["secrets"], [])
+        self.assertIn("performance trace", entry["readme_markdown"])
+
     def test_duplicate_entry_ids_fail_fast(self):
         payload = {
             "version": 1,
@@ -194,7 +272,10 @@ class McpRegistryTests(unittest.TestCase):
             for entry in entries
         }
 
-        self.assertEqual(providers, {"figma", "github", "notion", "slack"})
+        self.assertEqual(
+            providers,
+            {"figma", "github", "notion", "sentry", "slack", "vercel"},
+        )
 
 
 if __name__ == "__main__":

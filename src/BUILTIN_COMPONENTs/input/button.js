@@ -184,6 +184,8 @@ const resolveStateStyle = ({ stateStyle, hovered, pressed, disabled }) => {
  *   style             – slot-based style: { root, background, content, state }
  *   disabled          – disables the button
  *   onClick           – click handler
+ *   ariaLabel         – accessible name for icon-only buttons
+ *   title             – native tooltip/title
  */
 const Button = ({
   prefix_icon,
@@ -191,6 +193,8 @@ const Button = ({
   label,
   postfix,
   postfix_icon,
+  ariaLabel,
+  title,
   style,
   disabled = false,
   onClick = () => {},
@@ -311,6 +315,8 @@ const Button = ({
 
   return (
     <button
+      aria-label={ariaLabel}
+      title={title}
       disabled={disabled}
       onClick={disabled ? undefined : onClick}
       onMouseEnter={() => setHovered(true)}
