@@ -2160,6 +2160,36 @@ requires_confirmation = true
         self.assertIn("artifactKinds", payload)
         self.assertEqual(payload["artifactKinds"][0]["kind"], "file_diff")
 
+    def test_get_toolkit_catalog_v2_exposes_emoji_toolkit_icon(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="👁️",
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            catalog_payload = unchain_adapter.get_toolkit_catalog_v2()
+            metadata_payload = unchain_adapter.get_toolkit_metadata("DemoToolkit")
+
+        expected_icon = {"type": "emoji", "emoji": "👁️"}
+        entry = catalog_payload["toolkits"][0]
+        self.assertEqual(entry["toolkitIcon"], expected_icon)
+        self.assertEqual(entry["tools"][0]["icon"], expected_icon)
+        self.assertEqual(metadata_payload["toolkitIcon"], expected_icon)
+
     def test_get_toolkit_catalog_v2_exposes_core_with_confirmation_metadata(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_core_toolkit_fixture()
 

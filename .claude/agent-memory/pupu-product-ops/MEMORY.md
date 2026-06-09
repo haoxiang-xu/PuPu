@@ -1,0 +1,2 @@
+- [Team Roster](team_roster.md) — the 3 PuPu agents (product-ops, qa-tester, mcp-store-curator) and their roles
+- [Handoff Protocol](handoff_protocol.md) — when to hand off to / cite qa-tester and mcp-store-curator vs. own it

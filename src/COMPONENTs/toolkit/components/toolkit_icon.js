@@ -13,6 +13,8 @@ export const isFileToolkitIcon = (icon) =>
   );
 
 export const isBuiltinToolkitIcon = (icon) => icon?.type === "builtin";
+export const isEmojiToolkitIcon = (icon) =>
+  icon?.type === "emoji" && typeof icon?.emoji === "string" && icon.emoji.trim();
 
 const isKnownBuiltinIcon = (name) =>
   typeof name === "string" && (name in UISVGs || name in LogoSVGs);
@@ -35,6 +37,29 @@ export const hasTransparentToolkitIconBackground = (backgroundColor) =>
   !backgroundColor || backgroundColor === "transparent";
 
 const ToolkitIcon = ({ icon, size = 18, fallbackColor, style }) => {
+  if (isEmojiToolkitIcon(icon)) {
+    return (
+      <span
+        aria-hidden="true"
+        data-testid="toolkit-emoji-icon"
+        style={{
+          width: size,
+          height: size,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: size,
+          lineHeight: 1,
+          fontFamily:
+            '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+          ...style,
+        }}
+      >
+        {icon.emoji.trim()}
+      </span>
+    );
+  }
+
   if (isBuiltinToolkitIcon(icon)) {
     return (
       <Icon

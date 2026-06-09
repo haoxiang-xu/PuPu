@@ -88,6 +88,21 @@ describe("ToolkitIcon", () => {
     );
   });
 
+  test("renders emoji payload as text instead of falling back to the tool glyph", () => {
+    render(
+      <ToolkitIcon
+        icon={{
+          type: "emoji",
+          emoji: "👁️",
+        }}
+        size={24}
+      />,
+    );
+
+    expect(screen.getByTestId("toolkit-emoji-icon")).toHaveTextContent("👁️");
+    expect(screen.queryByTestId("shared-icon")).not.toBeInTheDocument();
+  });
+
   test("falls back to tool when builtin icon name is unknown", () => {
     render(
       <ToolkitIcon

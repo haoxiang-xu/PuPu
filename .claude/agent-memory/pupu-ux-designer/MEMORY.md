@@ -1,0 +1,2 @@
+- [设计准则（CEO 三条）](feedback_design_principles.md) — 复用现成基元 / 风格统一 / 设计语言与逻辑统一，不可妥协
+- [团队花名册与交棒协议](team_roster.md) — qa-tester(验)/product-ops(发)/curator(策) 三位队友的边界 + 向 CEO 的汇报线

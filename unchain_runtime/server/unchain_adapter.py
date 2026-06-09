@@ -12,6 +12,7 @@ import copy
 import sys
 import threading
 import time
+import unicodedata
 import uuid as _uuid
 from pathlib import Path
 from types import SimpleNamespace
@@ -1443,6 +1444,10 @@ def _looks_like_icon_asset(value: str) -> bool:
     return Path(value).suffix.lower() in {".svg", ".png"}
 
 
+def _looks_like_emoji_icon(value: str) -> bool:
+    return any(unicodedata.category(char) == "So" for char in value)
+
+
 def _read_icon_payload(icon_path: object) -> Dict[str, str]:
     """Read an icon file and return an IconPayload dict.
 
@@ -1650,6 +1655,18 @@ def _read_builtin_icon_payload(
         "name": icon_name.strip(),
         "color": color.strip(),
         "backgroundColor": background_color.strip(),
+    }
+
+
+def _read_emoji_icon_payload(emoji: object) -> Dict[str, str]:
+    if not isinstance(emoji, str):
+        return {}
+    normalized = emoji.strip()
+    if not normalized or not _looks_like_emoji_icon(normalized):
+        return {}
+    return {
+        "type": "emoji",
+        "emoji": normalized,
     }
 
 
@@ -1866,6 +1883,9 @@ def _get_toolkit_icon_payload(toolkit_class: type) -> Dict[str, str]:
 
     icon_path = getattr(toolkit_class, "icon", None)
     if isinstance(icon_path, str) and icon_path.strip():
+        payload = _read_emoji_icon_payload(icon_path)
+        if payload:
+            return payload
         payload = _read_icon_payload(icon_path.strip())
         if payload:
             return payload
@@ -1881,6 +1901,8 @@ def _get_toolkit_icon_payload(toolkit_class: type) -> Dict[str, str]:
                 payload = _read_icon_payload(str((toolkit_dir / icon_name).resolve()))
                 if payload:
                     return payload
+        if _looks_like_emoji_icon(icon_name):
+            return _read_emoji_icon_payload(icon_name)
         payload = _read_builtin_icon_payload(
             icon_name,
             toml_toolkit.get("color"),

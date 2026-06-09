@@ -1,0 +1,1 @@
+- [Team Roster & Handoff Protocol](team_roster.md) — PuPu 3-agent team: qa-tester (整机功能归他)、product-ops (我交付"条目已校验"证据，不碰发版)
