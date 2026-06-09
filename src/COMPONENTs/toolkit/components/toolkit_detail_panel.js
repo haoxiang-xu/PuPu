@@ -6,7 +6,7 @@ import ToolkitIcon, {
   isFileToolkitIcon,
 } from "./toolkit_icon";
 import { SOURCE_CONFIG } from "../constants";
-import { mcpStoreIconFor } from "../../../SERVICEs/mcp_toolkit_store";
+import { resolveMcpIcon } from "../../../SERVICEs/mcp_toolkit_store";
 import SuspenseFallback from "../../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
 import useAsyncAction from "../../../BUILTIN_COMPONENTs/mini_react/use_async_action";
 import PlaceholderBlock from "./placeholder_block";
@@ -311,8 +311,12 @@ const ToolkitDetailPanel = ({
     setInitialLoadDone(false);
     loadDetail({ id: toolkitId, name: toolName }).then((payload) => {
       if (payload !== undefined) {
-        const mcpIcon = mcpStoreIconFor(toolkitId);
-        setDetail(mcpIcon ? { ...payload, toolkitIcon: mcpIcon } : payload);
+        const isMcpToolkit = String(toolkitId || "").startsWith("mcp.");
+        setDetail(
+          isMcpToolkit
+            ? { ...payload, toolkitIcon: resolveMcpIcon({ ...payload, toolkitId }) }
+            : payload,
+        );
       }
       setInitialLoadDone(true);
     });

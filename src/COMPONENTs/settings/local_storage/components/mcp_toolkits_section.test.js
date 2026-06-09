@@ -88,7 +88,7 @@ jest.mock("../../appearance", () => ({
 
 jest.mock("../../../../BUILTIN_COMPONENTs/icon/icon", () => ({
   __esModule: true,
-  default: () => <span data-testid="icon" />,
+  default: ({ src }) => <span data-testid="icon" data-src={src} />,
 }));
 
 jest.mock("../../../../BUILTIN_COMPONENTs/input/button", () => ({
@@ -168,6 +168,26 @@ describe("McpToolkitsSection", () => {
     expect(
       screen.getByText("toolkit.store_status_available"),
     ).toBeInTheDocument();
+  });
+
+  test("uses the mcp icon for installed MCP rows with empty backend icons", async () => {
+    api.unchain.listMcpToolkits.mockResolvedValue({
+      toolkits: [
+        {
+          toolkitId: "mcp.custom.empty",
+          toolkitName: "Empty MCP",
+          status: "available",
+          tools: [],
+          toolCount: 0,
+          toolkitIcon: {},
+        },
+      ],
+    });
+
+    render(<McpToolkitsSection isDark={false} />);
+
+    await screen.findByText("Empty MCP");
+    expect(screen.getByTestId("icon")).toHaveAttribute("data-src", "mcp");
   });
 
   test("renders secret configuration status when required secrets are present or missing", async () => {

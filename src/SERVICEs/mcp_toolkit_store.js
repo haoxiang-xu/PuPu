@@ -1,5 +1,9 @@
 import registry from "./mcp_toolkit_registry.json";
 import { getCustomMcpIcon } from "./custom_mcp_icon_store";
+import {
+  LogoSVGs,
+  UISVGs,
+} from "../BUILTIN_COMPONENTs/icon/icon_manifest";
 
 /* Default icon for any MCP toolkit that has no curated brand logo: the generic
    "mcp" glyph, grey, no background. Entries simply omit icon to get it. */
@@ -79,6 +83,29 @@ const isFileIcon = (icon) =>
       icon.content &&
       typeof icon.mimeType === "string" &&
       icon.mimeType,
+  );
+
+const hasIconPayload = (icon) =>
+  Boolean(icon && typeof icon === "object" && Object.keys(icon).length > 0);
+
+const isKnownBuiltinIcon = (name) =>
+  typeof name === "string" && (name in UISVGs || name in LogoSVGs);
+
+const isExplicitMcpIcon = (icon) => {
+  if (!hasIconPayload(icon)) return false;
+  if (isFileIcon(icon)) return true;
+  if (icon.type !== "builtin") return false;
+  return icon.name !== "tool" && isKnownBuiltinIcon(icon.name);
+};
+
+const isMcpToolkit = (toolkit) =>
+  Boolean(
+    toolkit &&
+      (toolkit.source === "mcp" ||
+        toolkit.source === "mcp_registry" ||
+        String(toolkit.toolkitId || toolkit.toolkit_id || toolkit.id || "")
+          .trim()
+          .startsWith("mcp.")),
   );
 
 const normalizeMetadataRecord = (record = {}) => {
@@ -184,9 +211,9 @@ export function getMcpStoreEntry(id) {
   return entry ? overlayEntryMetadata(entry) : null;
 }
 
-/* Resolves the icon for an mcp toolkit. Priority: the registry entry's curated
-   icon -> a user-uploaded custom icon (custom MCP) -> the toolkit's own icon ->
-   the default mcp glyph. */
+/* Resolves the icon for an mcp toolkit. Metadata icons only replace defaults
+   when the registry explicitly opts into iconPolicy: "replace"; otherwise an
+   MCP without a curated/custom icon uses the generic mcp glyph. */
 export function resolveMcpIcon(toolkit) {
   const entry = toolkit
     ? currentStoreEntries().find(
@@ -198,14 +225,23 @@ export function resolveMcpIcon(toolkit) {
   if (metadataIcon && record?.iconPolicy === "replace") {
     return metadataIcon;
   }
-  if (entry?.toolkitIcon) {
+  if (isExplicitMcpIcon(entry?.toolkitIcon)) {
     return entry.toolkitIcon;
+  }
+  const customIcon = getCustomMcpIcon(toolkit?.toolkitId);
+  if (customIcon) {
+    return customIcon;
+  }
+  if (isExplicitMcpIcon(toolkit?.toolkitIcon)) {
+    return toolkit.toolkitIcon;
+  }
+  if (isMcpToolkit(toolkit) || entry) {
+    return DEFAULT_MCP_ICON;
   }
   if (metadataIcon) {
     return metadataIcon;
   }
   return (
-    getCustomMcpIcon(toolkit?.toolkitId) ||
     toolkit?.toolkitIcon ||
     DEFAULT_MCP_ICON
   );
@@ -218,16 +254,20 @@ export function mcpStoreIconFor(toolkitId) {
   const record = metadataRecordFor({ toolkitId }) || metadataRecordFor(entry);
   const metadataIcon = isFileIcon(record?.icon) ? record.icon : null;
   if (metadataIcon && record?.iconPolicy === "replace") return metadataIcon;
-  if (entry?.toolkitIcon) return entry.toolkitIcon;
+  if (isExplicitMcpIcon(entry?.toolkitIcon)) return entry.toolkitIcon;
+  const customIcon = getCustomMcpIcon(toolkitId);
+  if (customIcon) return customIcon;
+  if (entry || String(toolkitId || "").trim().startsWith("mcp.")) {
+    return DEFAULT_MCP_ICON;
+  }
   if (metadataIcon) return metadataIcon;
-  if (entry) return DEFAULT_MCP_ICON;
-  return getCustomMcpIcon(toolkitId);
+  return null;
 }
 
 /* Applies the resolved icon to any mcp toolkit (Installed / selector / agent
    builder): curated registry icon -> user-uploaded custom icon -> generic mcp. */
 export function withMcpStoreIcon(toolkit) {
-  if (!toolkit || toolkit.source !== "mcp") return toolkit;
+  if (!isMcpToolkit(toolkit)) return toolkit;
   const entry = currentStoreEntries().find(
     (e) => e.toolkitId === toolkit.toolkitId,
   );

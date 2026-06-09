@@ -6,6 +6,7 @@ import Icon from "../../../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import api from "../../../../SERVICEs/api";
 import { deleteMcpEntry } from "../../../../SERVICEs/mcp_install";
+import { withMcpStoreIcon } from "../../../../SERVICEs/mcp_toolkit_store";
 import { emitToolkitCatalogRefresh } from "../../../../SERVICEs/toolkit_catalog_refresh";
 import { SettingsSection } from "../../appearance";
 import { readWorkspaceRoot } from "../../runtime";
@@ -134,7 +135,9 @@ const McpToolkitRow = ({
   const tools = Array.isArray(toolkit.tools) ? toolkit.tools : [];
   const toolCount =
     typeof toolkit.toolCount === "number" ? toolkit.toolCount : tools.length;
-  const iconName = toolkit.toolkitIcon?.name || "server";
+  const iconName = toolkit.toolkitIcon?.type === "builtin"
+    ? toolkit.toolkitIcon?.name || "mcp"
+    : "mcp";
   const secretKeys = Array.isArray(toolkit.secretKeys)
     ? toolkit.secretKeys.filter(Boolean)
     : [];
@@ -388,7 +391,11 @@ const McpToolkitsSection = ({ isDark }) => {
         api.unchain.listMcpToolkits(),
         api.unchain.listMcpOAuthApps(),
       ]);
-      setItems(Array.isArray(payload?.toolkits) ? payload.toolkits : []);
+      setItems(
+        Array.isArray(payload?.toolkits)
+          ? payload.toolkits.map(withMcpStoreIcon)
+          : [],
+      );
       setOauthApps(Array.isArray(appsPayload?.apps) ? appsPayload.apps : []);
       setStatus("ready");
     } catch {

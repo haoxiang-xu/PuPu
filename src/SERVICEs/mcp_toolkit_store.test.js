@@ -95,6 +95,44 @@ describe("mcp_toolkit_store", () => {
     );
   });
 
+  test("mcp toolkit treats generic tool and invalid builtin icons as missing icons", () => {
+    expect(
+      resolveMcpIcon({
+        source: "mcp",
+        toolkitId: "mcp.custom.generic-tool",
+        toolkitIcon: {
+          type: "builtin",
+          name: "tool",
+          backgroundColor: "#111827",
+        },
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        type: "builtin",
+        name: "mcp",
+        backgroundColor: "transparent",
+      }),
+    );
+
+    expect(
+      withMcpStoreIcon({
+        source: "mcp",
+        toolkitId: "mcp.custom.invalid-icon",
+        toolkitIcon: {
+          type: "builtin",
+          name: "missing_icon",
+          backgroundColor: "#111827",
+        },
+      }).toolkitIcon,
+    ).toEqual(
+      expect.objectContaining({
+        type: "builtin",
+        name: "mcp",
+        backgroundColor: "transparent",
+      }),
+    );
+  });
+
   test("browser use uses the official brand svg icon", () => {
     const browserUse = getMcpStoreEntry("browser.browser-use-local");
 
@@ -215,7 +253,7 @@ describe("mcp_toolkit_store", () => {
     ).toContain("external.sample");
   });
 
-  test("metadata fallback icon is used only when the registry lacks an explicit icon", () => {
+  test("metadata fallback icon does not override the default mcp icon", () => {
     const avatarIcon = {
       type: "file",
       mimeType: "image/png",
@@ -239,7 +277,10 @@ describe("mcp_toolkit_store", () => {
     });
 
     expect(resolveMcpIcon(getMcpStoreEntry("browser.playwright"))).toEqual(
-      avatarIcon,
+      expect.objectContaining({ type: "builtin", name: "mcp" }),
+    );
+    expect(mcpStoreIconFor("mcp.browser.playwright")).toEqual(
+      expect.objectContaining({ type: "builtin", name: "mcp" }),
     );
     expect(resolveMcpIcon(getMcpStoreEntry("dev.github-remote"))).toEqual(
       expect.objectContaining({ type: "builtin", name: "github" }),
