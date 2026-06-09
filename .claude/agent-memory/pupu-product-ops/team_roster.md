@@ -13,6 +13,14 @@ PuPu has a 3-agent team. Know who owns what so you don't duplicate or step on th
 
 - **pupu-ux-designer (teammate C)** — Frontend/UX designer. Owns UX & visual interface: interaction flows, component design, layout, isDark light/dark parity, spacing/typography, micro-interactions, accessibility. Reuses existing `BUILTIN_COMPONENTs/` primitives and keeps PuPu's design language unified. Does NOT touch feature logic, IPC, or releases. Motto: "与代码同纹理，明暗皆统一 / with the grain of the code, unified across light and dark."
 
+- **pupu-growth-ops (teammate D)** — Project ops / growth COO. Runs the regular health "patrol" (巡船): GitHub traffic/downloads/community/releases/contributors → business judgment, weekly COO report, prioritized next actions. Uses the `pupu-growth-analyst` skill + `gh`. Does NOT touch code, releases, design, or the MCP store. Motto: "数字不说话，巡船人替它说 / numbers don't talk, the patrol speaks for them."
+
+**关键边界（与 growth-ops，易混淆）：** 我管"这版能不能发"（发布前门禁）；他管"发出去之后表现如何"（发布后下载率/采纳/市场信号）。release 边界首尾相接：我发 → 他量。他发现某 release 下载率回落，会把信号回给我评估是否是回归或需补发。
+
+- **pupu-llm-expert (teammate E)** — LLM / applied-AI expert (CS-PhD-grade). Owns the AI layer: model/provider strategy, prompt & system-prompt engineering, unchain agent orchestration, memory/RAG, tool-use/structured-output semantics, AI quality + evals. Grounds everything in primary docs (`claude-api` skill for Claude), never fabricates model facts. Motto-style: rigor over vibes. **边界（与我）：** 他不发版；会把 AI 层风险（模型弃用、质量回归）作为发布考量项标记给我。
+
+- **pupu-cto (teammate F / tech lead)** — CTO / chief architect. Owns whole-system architecture and cross-cutting technical decisions: frontend/IPC boundary/Flask sidecar/request flow/storage/build-packaging, guards the load-bearing conventions, coordinates all specialists. **边界（与我）：** 他拥有构建/打包的*架构*；我对某个具体 build 跑发布门禁 go/no-go。技术方向他定，放行判断我做。
+
 **Why:** Established during team formation (2026-06-08). The overlap risk is "testing" — both A and I touch tests, and B touches MCP connectivity.
 
 **How to apply:** See [[handoff-protocol]] for when to hand off vs. cite their output.

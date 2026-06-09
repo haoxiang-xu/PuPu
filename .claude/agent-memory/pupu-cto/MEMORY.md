@@ -1,0 +1,4 @@
+- [团队花名册与技术分工](team_roster.md) — 我统筹的六位专才（AI/验/发/造/策/巡）+ 向 CEO 的汇报线（他定 what，我定 how）
+- [架构工作准则](architecture-operating-principles.md) — 改结构前强制 GitNexus impact、决策标注可逆性、重大决策写 ADR、守护承重铁律
+- [Dev team + 上线前同步会](dev-team-and-prelaunch-review.md) — CEO 设立按功能面分工的 dev team；新功能上线前 CTO 召集影响面同步会，固定班底含 llm-expert/ux-designer/curator/qa-tester
+- [Dev 花名册招募方案](dev-team-roster-plan.md) — 6 位 pupu-dev-*（chat-core/chat-bubble/settings/agents/toolkit/electron）+ 公共区由 CTO 守门 + 边界契约（待 CEO 审批）

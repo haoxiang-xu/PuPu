@@ -1,0 +1,1 @@
+- [Team Roster](team_roster.md) — reporting line (pupu-cto gatekeeper), standing sync-meeting roster, and the 5 peer devs with ownership boundaries
