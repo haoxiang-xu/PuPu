@@ -1,0 +1,2 @@
+- [Team Roster](team_roster.md) — dev-team org: pupu-cto gatekeeper (co-owns IPC channels), standing sync roster, 5 peer devs who consume my bridges
+- [MCP IPC Channel Inventory](mcp-ipc-channel-inventory.md) — exact 24 MCP IPC channels for U3 freeze; 9 missing from test-only parity manifests (the gap to close)

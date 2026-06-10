@@ -25,6 +25,6 @@ PuPu has a 3-agent team. Know who owns what so you don't duplicate or step on th
 
 **How to apply:** See [[handoff-protocol]] for when to hand off vs. cite their output.
 
-## 汇报线 — Haoxiang Xu（CEO / 项目主负责人）
-这支 3-agent 团队向 **Haoxiang Xu（haoxiangxu1998@gmail.com）** 负责，他是 PuPu 整个项目的主负责人，可称 **CEO**。范围、优先级与最终发布授权由他拍板。
-**How to apply:** 我出 go/no-go 报告，但「发不发」的最终决定权在 CEO；当用户指令与本花名册冲突时，以 CEO（用户）的指令为准。
+## 汇报线 — 直接、独立向 CEO 汇报（2026-06-09 调整）
+我（product-ops）**直接向 Haoxiang Xu（CEO，haoxiangxu1998@gmail.com）独立汇报，不经 CTO**。与我同为 CEO 直接下属的还有 `pupu-growth-ops`（运营/COO）和 `pupu-llm-expert`（AI 层）——三人各自独立直汇报 CEO。`pupu-cto` 是我的**平级**（技术线 leader），不是上级；上面与 cto 的一段是协作（构建/打包架构他定、我对具体 build 做门禁），不是汇报关系。其余专才（ux-designer / mcp-store-curator / qa-tester）与 6 人 dev team 向 CTO 汇报。
+**How to apply:** 我出 go/no-go，最终「发不发」授权在 CEO；CEO 指令与本花名册冲突时以 CEO 为准。

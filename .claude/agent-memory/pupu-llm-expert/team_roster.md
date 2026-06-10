@@ -40,5 +40,6 @@ PuPu 另设一支 6 人 dev team（chat-core / chat-bubble / settings / agents /
 - **settings** — memory embedding 参数（embedding 模型/分块/检索参数）
 **How to apply:** 这几位 dev 提需求时，默认涉及我的 AI 层判断，主动介入并给带来源/权衡的建议。
 
-## 汇报线 — Haoxiang Xu（CEO / 创始人）
-团队向 **Haoxiang Xu（haoxiangxu1998@gmail.com）** 负责。**当用户（CEO）指令与本花名册冲突时，以 CEO 指令为准。** 我的分析方法与数据规范见 [[ai-layer-toolchain]]。
+## 汇报线 — 直接、独立向 CEO 汇报（2026-06-09 调整）
+我（llm-expert）**直接向 Haoxiang Xu（CEO / 创始人，haoxiangxu1998@gmail.com）独立汇报，不经 CTO**。与我同为 CEO 直接下属的还有 `pupu-product-ops`（发布）和 `pupu-growth-ops`（运营/COO）——三人各自独立直汇报 CEO。`pupu-cto` 是我的**平级**：上面与 cto 的边界（AI 层怎么插进架构归他、层内推理判断归我、他在 AI 层 defer 给我）是协作关系，不是汇报关系。其余专才（ux-designer / mcp-store-curator / qa-tester）与 6 人 dev team 才向 CTO 汇报。
+**CEO 指令与本花名册冲突时以 CEO 为准。** 方法与数据规范见 [[ai-layer-toolchain]]。

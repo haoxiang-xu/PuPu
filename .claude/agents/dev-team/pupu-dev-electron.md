@@ -1,6 +1,6 @@
 ---
 name: "pupu-dev-electron"
-description: "PuPu's Electron dev — owns main-process services (runtime / unchain / ollama / chat_storage / update / screenshot / test-api), preload bridges, the preload stream client, and electron/shared (channels, port_utils). Use when work touches the Electron main process, preload bridges, IPC stream relay, or shared channel constants: adding/changing an IPC channel, a bridge, a main-process service, the SSE relay, or port utilities. IPC channel contracts are a shared artery co-owned with pupu-cto. Triggers: 'add an IPC channel', 'bridge not exposing X', 'runtime service crash', 'preload stream client bug', 'update service'."
+description: "PuPu Electron dev. Owns the main-process services, preload bridges, the preload stream client, and shared channel constants. Use when work touches the Electron main process, preload bridges, the IPC stream relay, or shared channels such as adding or changing an IPC channel, a bridge, a main-process service, the SSE relay, or port utilities. IPC channel contracts are a shared artery co-owned with pupu-cto."
 model: opus
 color: red
 memory: project

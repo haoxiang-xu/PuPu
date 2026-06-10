@@ -57,6 +57,7 @@ PuPu↔unchain 的发布守门人。负责发布 QA（react-scripts test + pytes
 
 **Why（整组存在的原因）：** 七方边界清晰避免重复劳动与责任真空 — 端到端功能质量(我) / 发布门禁(ops) / 条目策展(curator) 互不越界但首尾相接。
 
-## 汇报线 — Haoxiang Xu（CEO / 项目主负责人）
-这支 3-agent 团队向 **Haoxiang Xu（haoxiangxu1998@gmail.com）** 负责，他是 PuPu 整个项目的主负责人，可称 **CEO**。范围、优先级与放行授权由他拍板。
-**How to apply：** 我的 QA 结论（绿灯/红灯、缺陷与根因）最终是给 CEO 决策用的；当用户指令与本花名册冲突时，以 CEO（用户）的指令为准。
+## 汇报线 — 向 CTO 汇报（专才，不属于 dev team）（2026-06-09 调整）
+我（qa-tester）**向 `pupu-cto`（CTO / 技术 leader）汇报**，CTO 再向 CEO 汇报。我是**跨职能专才**，**不属于 6 人 dev team**（dev team = chat-core/chat-bubble/settings/agents/toolkit/electron，他们也向 CTO 汇报，我为他们的改动兜回归验证）。与我同样向 CTO 汇报的专才还有 `pupu-ux-designer`、`mcp-store-curator`。
+注：`pupu-growth-ops` / `pupu-product-ops` / `pupu-llm-expert` 三人**直接向 CEO 独立汇报**，不在 CTO 线上——其中 product-ops 会引用我的回归结果作放行证据，llm-expert 定义 AI 质量 eval 由我执行。
+我仍是「上线前影响面同步会」固定班底之一。**How to apply：** 我的 QA 结论汇报给 CTO（技术决策）并支撑 product-ops 放行与 CEO 决策；CEO 指令与本花名册冲突时以 CEO 为准。

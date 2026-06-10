@@ -2,3 +2,9 @@
 - [架构工作准则](architecture-operating-principles.md) — 改结构前强制 GitNexus impact、决策标注可逆性、重大决策写 ADR、守护承重铁律
 - [Dev team + 上线前同步会](dev-team-and-prelaunch-review.md) — CEO 设立按功能面分工的 dev team；新功能上线前 CTO 召集影响面同步会，固定班底含 llm-expert/ux-designer/curator/qa-tester
 - [Dev 花名册招募方案](dev-team-roster-plan.md) — 6 位 pupu-dev-*（chat-core/chat-bubble/settings/agents/toolkit/electron）+ 公共区由 CTO 守门 + 边界契约（待 CEO 审批）
+- [招募政策（CEO 准则）](hiring-policy.md) — 扩编必先经 CEO 批准；成员 scope 固定不重叠；新大功能配新成员而非撑大现有成员
+- [契约：toolkit catalog 共享 ID 空间](contract-toolkit-catalog-shared-id-space.md) — toolkitId+enabled_tools 被 chat-input/chat-bubble/settings/toolkit/**recipe tool pool** 共用；MCP 改 catalog/ID 跨面波及，recipe 持久化引用是延期功能的唯一存量耦合点
+- [ADR：toolkitId/tool_name 稳定性与迁移](adr-toolkitid-stability.md) — 全局稳定·发布即冻结·永不复用·`mcp.<server>.<slug>`·curator 签发·软删·别名映射；迁移须带回归测试+回滚+staging 演练，单向门 CTO+curator 双签
+- [纪要：MCP 上线前影响面同步会 2026-06-09](meeting-mcp-launch-2026-06-09.md) — 11 人；8 同步点责任矩阵（可逆 vs 单向门）+ 未决项 owner；U1 安装态归 toolkit 主面→IPC 可冻结；U2 工具注入暂不设上限（CEO 批 deferred，accepted risk，llm-expert 重评）
+- [契约：安装态唯一 owner = toolkit 主面](contract-install-state-owner.md) — CEO 拍板 U1；MCP 安装/卸载/启停态只 toolkit 写，settings 两处 MCP UI 纯只读，绝不双写 localStorage
+- [Freeze gate：IPC parity 测试清单补齐（U3）](freeze-gate-ipc-parity-manifests.md) — MCP IPC 冻结前置阻塞：补 9 条 MCP 通道(+STREAM_START_V4)进两 parity 数组令测试真覆盖 24 条；纯测试面 LOW/可逆；owner dev-electron 验 qa
