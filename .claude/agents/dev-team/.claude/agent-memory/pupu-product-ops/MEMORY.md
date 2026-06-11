@@ -1,1 +1,0 @@
-- [Team Roster](team_roster.md) — 4 peer lines under CEO; product-ops reports to CEO, cto is a peer

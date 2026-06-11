@@ -1,2 +1,3 @@
-- [团队花名册与交棒协议](team_roster.md) — 5 队友边界 + cto；上线前同步会固定班底 + 常与 chat-bubble/agents/toolkit/settings 4 个 dev 协作；向 CEO 汇报
+- [团队花名册与交棒协议](team_roster.md) — 队友边界（含 cto、security-expert 守）；上线前同步会固定班底 + 常与 4 个 dev 协作；向 CEO 汇报
 - [AI 层工具链](ai-layer-toolchain.md) — claude-api skill 查 Claude、provider 文档查其他、GitNexus 读 unchain 层；绝不凭记忆编造模型事实
+- [扩编立场：backend dev 组](org-backend-dev-position.md) — 2026-06-10 我 recommend 建组；spec vs implementation 边界 + 我的 AI 行为否决权

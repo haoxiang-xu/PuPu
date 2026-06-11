@@ -1,0 +1,2 @@
+- [Team Roster](team_roster.md) — COO「发」=我（2026-06-10 升格，原 product-ops），下辖 growth-ops「巡」；CEO 3 直属之一；全员角色边界
+- [Handoff Protocol](handoff_protocol.md) — 与 qa-tester / mcp-store-curator / security-expert（守签字才放行）的交接：何时自己干、何时引用他们结论

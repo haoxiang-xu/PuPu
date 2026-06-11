@@ -1,0 +1,6 @@
+- [Team Roster](team_roster.md) — 全组分工边界、汇报线（向 CTO）、ADR/HIGH 上报硬规则、欠各成员的交付物
+- [QA 红用例流水线](qa-red-case-pipeline.md) — exploit 场景必须固化为会失败的红用例；没有红用例的防御等于没防御
+- [发版安全门禁](release-security-gates.md) — sign-off 规则、更新完整性 no-go 硬门、IPC/MCP 安装流变更自动触发审查
+- [MCP 商店安全基线](mcp-store-security-baseline.md) — 15 条目现状（npx -y @latest、workspace.filesystem、7 个 http）与 vetting 分工
+- [Flask sidecar 安全现状](flask-sidecar-posture.md) — SEC-001清单7深审：每会话随机token逐路由强制认证；H=MCP工具确认自声明无server默认拒绝；2条SSRF；C0/H1/M2/L4
+- [SEC-001 最终定级](sec-001-final-verdict.md) — 七区汇总复核：1 Critical(秘密链路接缝B) + 6 High根因合并；3大系统性根因；CTO仲裁清单与处置建议

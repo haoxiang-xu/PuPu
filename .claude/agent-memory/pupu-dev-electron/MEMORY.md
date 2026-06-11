@@ -1,2 +1,3 @@
-- [Team Roster](team_roster.md) — dev-team org: pupu-cto gatekeeper (co-owns IPC channels), standing sync roster, 5 peer devs who consume my bridges
+- [Team Roster](team_roster.md) — 我=平台与安全组 lead (辖 electron+守), 向 CTO 汇报; 含守的安全裁量越级红线 + IPC 共门 + 同步会班底
 - [MCP IPC Channel Inventory](mcp-ipc-channel-inventory.md) — exact 24 MCP IPC channels for U3 freeze; 9 missing from test-only parity manifests (the gap to close)
+- [Security Attack Surface](security-attack-surface.md) — SEC-001 自查: IPC 任意文件读写、token 漏进 avatar URL、SSE relay 不设防、dev-gate 用 NODE_ENV 而非 app.isPackaged

@@ -1,10 +1,16 @@
-- [团队花名册与技术分工](team_roster.md) — 我统筹的六位专才（AI/验/发/造/策/巡）+ 向 CEO 的汇报线（他定 what，我定 how）
+- [团队花名册（组织真相源）](team_roster.md) — 2026-06-10 两层结构：CEO→CTO/COO/智；CTO 线内 3 sub-team(chat/配置扩展/平台安全)+横向直挂验造策擎(4)；含 agent 文件目录布局
+- [backend dev「擎」入职契约](backend-dev-onboarding.md) — 擎(2026-06-10)横向直挂 CTO，拥后端唯一真实副本+unchain core 库；三权边界(智定spec/守定级/验端到端)、跨repo双边impact+接口双签、第二人触发条件
+- [Reorg 2026-06-10（已批准并落地）](reorg-proposal-2026-06-10.md) — 顶层收成 3 线(CTO/COO=发收编巡/智平级) + CTO 线内 3 sub-team 各设 lead + 验造策横向直挂；权威以 team-roster 为准
+- [security-expert 入职契约](security-expert-onboarding.md) — 守（2026-06-10 加入）挂平台安全组但安全裁量权越级；安全 ADR 须守 review、HIGH/CRITICAL 上报 CTO 仲裁、发版 sign-off 对 COO
 - [架构工作准则](architecture-operating-principles.md) — 改结构前强制 GitNexus impact、决策标注可逆性、重大决策写 ADR、守护承重铁律
-- [Dev team + 上线前同步会](dev-team-and-prelaunch-review.md) — CEO 设立按功能面分工的 dev team；新功能上线前 CTO 召集影响面同步会，固定班底含 llm-expert/ux-designer/curator/qa-tester
-- [Dev 花名册招募方案](dev-team-roster-plan.md) — 6 位 pupu-dev-*（chat-core/chat-bubble/settings/agents/toolkit/electron）+ 公共区由 CTO 守门 + 边界契约（待 CEO 审批）
+- [Dev team + 上线前同步会](dev-team-and-prelaunch-review.md) — 上线前 CTO 召集影响面同步会；reorg 后改 3 sub-team lead 代表各组出席 + 横向验造策 + COO 列席发版会
+- [Dev 花名册招募方案](dev-team-roster-plan.md) — 6 位 pupu-dev-* 分入 3 sub-team(各设 lead) + 功能面 ownership 不变 + 公共区守门权仍留 CTO 不下放
+- [边界：PuPu server vs unchain repo](boundary-pupu-server-vs-unchain.md) — 库消费非镜像；editable 链接 sibling repo；events_v4 跨 repo 契约；unchain 内 unchain_runtime 是空壳
 - [招募政策（CEO 准则）](hiring-policy.md) — 扩编必先经 CEO 批准；成员 scope 固定不重叠；新大功能配新成员而非撑大现有成员
 - [契约：toolkit catalog 共享 ID 空间](contract-toolkit-catalog-shared-id-space.md) — toolkitId+enabled_tools 被 chat-input/chat-bubble/settings/toolkit/**recipe tool pool** 共用；MCP 改 catalog/ID 跨面波及，recipe 持久化引用是延期功能的唯一存量耦合点
 - [ADR：toolkitId/tool_name 稳定性与迁移](adr-toolkitid-stability.md) — 全局稳定·发布即冻结·永不复用·`mcp.<server>.<slug>`·curator 签发·软删·别名映射；迁移须带回归测试+回滚+staging 演练，单向门 CTO+curator 双签
 - [纪要：MCP 上线前影响面同步会 2026-06-09](meeting-mcp-launch-2026-06-09.md) — 11 人；8 同步点责任矩阵（可逆 vs 单向门）+ 未决项 owner；U1 安装态归 toolkit 主面→IPC 可冻结；U2 工具注入暂不设上限（CEO 批 deferred，accepted risk，llm-expert 重评）
 - [契约：安装态唯一 owner = toolkit 主面](contract-install-state-owner.md) — CEO 拍板 U1；MCP 安装/卸载/启停态只 toolkit 写，settings 两处 MCP UI 纯只读，绝不双写 localStorage
 - [Freeze gate：IPC parity 测试清单补齐（U3）](freeze-gate-ipc-parity-manifests.md) — MCP IPC 冻结前置阻塞：补 9 条 MCP 通道(+STREAM_START_V4)进两 parity 数组令测试真覆盖 24 条；纯测试面 LOW/可逆；owner dev-electron 验 qa
+- [SEC-INVESTIGATION-001 首次全面安全调查](sec-investigation-001.md) — 2026-06-10 CEO 启动；守（平台安全组，定级/上报越级直达 CTO）主导+全 dev 参与；三条信任边界 threat model 落地+教育目标
+- [ADR：SEC-001 仲裁裁决](adr-sec-001-arbitration.md) — Critical×1+High×6 逐条处置；P0=RC-5/RC-3 quick win，P1=SEAM-B/markdown清洗/确认门控，P2=key keychain；RC-1默认翻转=单向门；M-10接线硬门/RC-6过渡accepted risk
