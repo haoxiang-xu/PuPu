@@ -396,6 +396,7 @@
     "store_status_error": "错误",
     "store_status_unknown": "未知",
     "store_needs_review_phase2a": "本阶段不可安装 —— 需 secret / OAuth / 审核 / 自定义配置。",
+    "store_trademark_disclaimer": "第三方名称与商标归各自所有者所有，在此仅用于标识对应的服务。PuPu 与这些服务不存在隶属或背书关系。",
     "coming_soon_title": "即将推出",
     "coming_soon_subtitle": "此部分尚不可用。",
     "unchain_not_connected_title": "Unchain 未连接",

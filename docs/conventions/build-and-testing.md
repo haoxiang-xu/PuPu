@@ -36,6 +36,27 @@ cd unchain_runtime/server && python main.py
 
 > Always run `version:prepare-build` before `react-scripts build`. Skipping it causes missing version info.
 
+### License Gate (pre-publish)
+
+Every `build:electron:*` target runs `npm run notices:check` after the artifacts
+are built (`build:unchain && build:web`) and **before** `electron-builder` packages
+them. The gate:
+
+1. Aggregates third-party attribution for the redistributed code — the production
+   npm graph (`license-checker`) and the Python deps frozen into the
+   `unchain-server` binary (`pip-licenses` over `.venv-unchain-build`).
+2. Writes `THIRD_PARTY_NOTICES.txt` (git-ignored; regenerated each build) to the
+   repo root; electron-builder ships it to `Contents/Resources/` via
+   `extraResources`.
+3. **Fails the build (`exit 1`)** on any unresolved license or if the build venv
+   is missing (i.e. the artifact wasn't built before the gate ran).
+
+> **Release checklist:** `npm run notices:check` must PASS before any `publish`.
+> Because auto-update re-distributes the same installer, the gate must pass on
+> every version, not just the first. `license-checker` / `pip-licenses` are
+> build-time only and are not in the dependency tree. Run `npm run notices`
+> (without `--check`) to regenerate locally with warnings instead of failures.
+
 ### Build Targets
 
 | Command | Platform | Architecture |

@@ -396,6 +396,7 @@
     "store_status_error": "Error",
     "store_status_unknown": "Unknown",
     "store_needs_review_phase2a": "Not installable in this phase — needs secret / OAuth / review / custom setup.",
+    "store_trademark_disclaimer": "Third-party names and trademarks are the property of their respective owners and are used here solely to identify the corresponding services. PuPu is not affiliated with or endorsed by them.",
     "coming_soon_title": "Coming soon",
     "coming_soon_subtitle": "This section is not yet available.",
     "unchain_not_connected_title": "Unchain not connected",
