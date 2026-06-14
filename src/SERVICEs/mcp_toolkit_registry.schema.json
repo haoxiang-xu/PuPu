@@ -31,6 +31,10 @@
         "description": { "type": "string" },
         "category": { "type": "string" },
         "status": { "type": "string" },
+        "trustLevel": {
+          "type": "string",
+          "enum": ["official", "verified", "community", "needs_review"]
+        },
         "installable": { "type": "boolean" },
         "icon": { "type": "object" },
         "license": { "type": "string" },
