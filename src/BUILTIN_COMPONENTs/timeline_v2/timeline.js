@@ -2,6 +2,10 @@ import { useCallback, useContext, useMemo, useState } from "react";
 
 /* { Contexts } ----------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import {
+  colorWithAlpha,
+  themeHighlightColor,
+} from "../../CONTAINERs/config/theme_highlight";
 /* { Contexts } ----------------------------------------------------------------------------------------------------------- */
 
 /* { Components } --------------------------------------------------------------------------------------------------------- */
@@ -34,14 +38,17 @@ const STEP_RAIL_W = 2; // rail thickness
 
 /* ── helpers ──────────────────────────────────────────────────────────────────────────────────────────────────────────────── */
 const resolveLineColor = (status, tl) => {
-  if (status === "done") return tl.lineDoneColor ?? "rgba(10,186,181,0.85)";
-  if (status === "active") return "rgba(10,186,181,0.38)";
+  const highlight = tl.highlightColor;
+  if (status === "done")
+    return tl.lineDoneColor ?? colorWithAlpha(highlight, 0.85);
+  if (status === "active") return colorWithAlpha(highlight, 0.38);
   return tl.lineColor ?? "rgba(0,0,0,0.12)";
 };
 
 const resolvePointColor = (status, tl) => {
+  const highlight = tl.highlightColor;
   if (status === "done" || status === "active")
-    return tl.pointColor ?? "rgba(10,186,181,1)";
+    return tl.pointColor ?? highlight;
   return tl.pointPendingColor ?? "rgba(0,0,0,0.18)";
 };
 
@@ -104,7 +111,7 @@ const DotDefault = ({ status, tl }) => {
 };
 
 const DotStart = ({ tl }) => {
-  const color = tl.pointColor ?? "rgba(10,186,181,1)";
+  const color = tl.pointColor ?? tl.highlightColor;
   return (
     <div
       style={{
@@ -179,7 +186,7 @@ const StepDot = ({ status, tl, point, bgColor, metrics, inactive_hollow }) => {
         <ArcSpinner
           size={LOADING_R * 2}
           stroke_width={2}
-          color={tl.pointColor ?? "rgba(10,186,181,1)"}
+          color={tl.pointColor ?? tl.highlightColor}
         />
       </div>
     );
@@ -238,7 +245,7 @@ const TimelineNode = ({
         <ArcSpinner
           size={LOADING_R * 2}
           stroke_width={2}
-          color={tl.pointColor ?? "rgba(10,186,181,1)"}
+          color={tl.pointColor ?? tl.highlightColor}
         />
       );
     if (point != null && typeof point !== "string") return point;
@@ -392,7 +399,7 @@ const TimelineNode = ({
               border: "none",
               cursor: "pointer",
               fontSize: tl.fontSize ?? "13px",
-              color: tl.seeDetailsColor ?? "rgba(10,186,181,1)",
+              color: tl.seeDetailsColor ?? tl.highlightColor,
               fontFamily: "inherit",
               letterSpacing: "0.01em",
               outline: "none",
@@ -464,7 +471,7 @@ const HorizontalTimelineNode = ({ item, index, total, tl }) => {
         <ArcSpinner
           size={LOADING_R * 2}
           stroke_width={2}
-          color={tl.pointColor ?? "rgba(10,186,181,1)"}
+          color={tl.pointColor ?? tl.highlightColor}
         />
       );
     if (point != null && typeof point !== "string") return point;
@@ -608,7 +615,7 @@ const TimelineSteps = ({
   }, [current_step, step_progress, total]);
 
   const railColor = tl.lineColor ?? "rgba(0,0,0,0.12)";
-  const fillColor = tl.lineDoneColor ?? "rgba(10,186,181,0.85)";
+  const fillColor = tl.lineDoneColor ?? colorWithAlpha(tl.highlightColor, 0.85);
 
   /* offset to center of first / last flex item — each item is 100/total % wide/tall */
   const edgeOffset = `${50 / total}%`;
@@ -982,7 +989,13 @@ const Timeline = ({
   style,
 }) => {
   const { theme } = useContext(ConfigContext);
-  const tl = useMemo(() => theme?.timeline ?? {}, [theme]);
+  const tl = useMemo(
+    () => ({
+      ...(theme?.timeline ?? {}),
+      highlightColor: themeHighlightColor(theme),
+    }),
+    [theme],
+  );
 
   /* ── controlled / uncontrolled expanded state (always called, hooks cannot be conditional) ── */
   const isControlled = expanded_indices !== undefined;

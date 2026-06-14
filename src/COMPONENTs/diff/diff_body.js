@@ -79,8 +79,11 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
           color: isDark ? "#e8e8e8" : "#1f2328",
           overflowX: "auto",
           overflowY: "auto",
+          maxWidth: "100%",
+          minWidth: 0,
           maxHeight: 480,
           borderRadius: 6,
+          boxSizing: "border-box",
         }}
       >
         {unifiedDiff || "(no changes)"}
@@ -113,7 +116,10 @@ export const DiffBody = ({ unifiedDiff, isDark }) => {
         borderRadius: 6,
         overflowX: "auto",
         overflowY: "auto",
+        maxWidth: "100%",
+        minWidth: 0,
         maxHeight: 480,
+        boxSizing: "border-box",
       }}
     >
       {rows.map((row, idx) => {

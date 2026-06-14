@@ -1,5 +1,6 @@
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 export default function SubagentPoolNode({ node, isDark }) {
   const count = (node.subagents || []).length;
@@ -14,16 +15,13 @@ export default function SubagentPoolNode({ node, isDark }) {
                 height: 28,
                 borderRadius: 9,
                 background: "linear-gradient(135deg, #8a8cee, #5a5dd6)",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
               }}
             >
-              S
+              <Icon src="shapes" color="#fff" style={{ width: 16, height: 16 }} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div

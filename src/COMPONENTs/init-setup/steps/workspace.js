@@ -1,5 +1,6 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
@@ -27,6 +28,7 @@ const writeWorkspaceRoot = (path) => {
 const WorkspaceStep = ({ onNext }) => {
   const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const highlight = themeHighlightColor(theme);
 
   const [path, setPath] = useState(() => readWorkspaceRoot());
   const [validation, setValidation] = useState(null); // null | { valid: bool, message: string }
@@ -201,12 +203,12 @@ const WorkspaceStep = ({ onNext }) => {
               gap: 5,
               fontSize: 12,
               fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-              color: validation.valid ? "rgba(10,186,181,1)" : "#e05c5c",
+              color: validation.valid ? highlight : "#e05c5c",
             }}
           >
             <Icon
               src={validation.valid ? "check" : "error"}
-              color={validation.valid ? "rgba(10,186,181,1)" : "#e05c5c"}
+              color={validation.valid ? highlight : "#e05c5c"}
               style={{ width: 14, height: 14, flexShrink: 0 }}
             />
             {validation.message}

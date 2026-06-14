@@ -12,6 +12,9 @@
 | `npm run start:web` | React-only dev server |
 | `npm run react-start` | Alias for `start:web` |
 | `npm test` | Jest test runner |
+| `npm run test:frontend` | CRA/Jest frontend tests with watch mode disabled |
+| `npm run test:electron` | Electron main/preload/test-api Jest tests under Node |
+| `npm run test:release-qa` | Unit tests for release QA report scripts |
 
 ### Python Backend (Standalone)
 
@@ -32,6 +35,27 @@ cd unchain_runtime/server && python main.py
 ```
 
 > Always run `version:prepare-build` before `react-scripts build`. Skipping it causes missing version info.
+
+### License Gate (pre-publish)
+
+Every `build:electron:*` target runs `npm run notices:check` after the artifacts
+are built (`build:unchain && build:web`) and **before** `electron-builder` packages
+them. The gate:
+
+1. Aggregates third-party attribution for the redistributed code — the production
+   npm graph (`license-checker`) and the Python deps frozen into the
+   `unchain-server` binary (`pip-licenses` over `.venv-unchain-build`).
+2. Writes `THIRD_PARTY_NOTICES.txt` (git-ignored; regenerated each build) to the
+   repo root; electron-builder ships it to `Contents/Resources/` via
+   `extraResources`.
+3. **Fails the build (`exit 1`)** on any unresolved license or if the build venv
+   is missing (i.e. the artifact wasn't built before the gate ran).
+
+> **Release checklist:** `npm run notices:check` must PASS before any `publish`.
+> Because auto-update re-distributes the same installer, the gate must pass on
+> every version, not just the first. `license-checker` / `pip-licenses` are
+> build-time only and are not in the dependency tree. Run `npm run notices`
+> (without `--check`) to regenerate locally with warnings instead of failures.
 
 ### Build Targets
 
@@ -79,16 +103,13 @@ Test framework: Jest + `@testing-library/react`
 ### Electron Tests
 
 ```bash
-# Main process tests
-node --experimental-vm-modules node_modules/.bin/jest \
-  electron/tests/main/ --config=electron/tests/jest.config.cjs
-
-# Preload tests
-node --experimental-vm-modules node_modules/.bin/jest \
-  electron/tests/preload/ --config=electron/tests/jest.config.cjs
+# Main, preload, and test-api tests
+npm run test:electron
 ```
 
 > Electron tests have both `.js` and `.cjs` variants. Keep them in sync.
+> The CI runner uses the `.cjs` variants directly; there is currently no
+> `electron/tests/jest.config.cjs` file.
 
 ### Python Backend Tests
 
@@ -101,6 +122,19 @@ python -m pytest tests/ -q --tb=short
 # Filter
 python -m pytest tests/ -q --tb=short -k "test_character"
 ```
+
+### Release QA CI
+
+Release QA is implemented by `.github/workflows/release-qa.yml`.
+
+```bash
+npm run test:release-qa
+```
+
+- Pull requests to `dev` or `main` run lightweight deterministic QA on Ubuntu.
+- `v*` tags and manual `qa_mode=release` runs add unsigned macOS, Windows, and Linux package builds.
+- Deterministic test/build failures fail CI. Optional Unchain analysis is advisory and does not block by itself.
+- Manual release QA remains required for Gatekeeper/notarization, Windows installer launch, Linux install behavior, Ollama, API-key provider smoke, and real workspace attach.
 
 ### Test File Locations
 

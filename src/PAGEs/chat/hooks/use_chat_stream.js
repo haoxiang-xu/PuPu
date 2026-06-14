@@ -14,13 +14,24 @@ import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tr
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
 import { isRuntimeEventStreamV3Enabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
+import { createRuntimeEventStoreV4 } from "../../../SERVICEs/runtime_events_v4/event_store";
+import { reduceActivityTreeV4 } from "../../../SERVICEs/runtime_events_v4/activity_tree";
+import { adaptActivityTreeToTraceChainV4 } from "../../../SERVICEs/runtime_events_v4/trace_chain_adapter";
+import { isRuntimeEventStreamV4Enabled } from "../../../SERVICEs/runtime_events_v4/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
+import {
+  clearStreamingMessageText,
+  finalizeStreamingMessage,
+} from "../../../SERVICEs/streaming_message_chunks";
+import { createStreamingMessageStore } from "../../../SERVICEs/streaming_message_store";
 import {
   scheduleBackgroundPersist,
   flushBackgroundPersist,
   cancelBackgroundPersist,
 } from "./background_stream_persister";
 import { createStreamFlushScheduler } from "./stream_flush_scheduler";
+import { finalizeStreamPersist } from "./finalize_stream_persist";
+import { createRuntimeEventBatcher } from "./runtime_event_batcher";
 import {
   start as progressStart,
   stop as progressStop,
@@ -29,6 +40,7 @@ import {
 const CHAT_STREAM_PROGRESS_ID = "chat_stream_active";
 
 const STREAM_TRACE_LEVEL = "minimal";
+const RUNTIME_EVENT_BATCH_FLUSH_MS = 64;
 const SUBAGENT_STATE_FLUSH_MS = 100;
 const DEFAULT_AGENT_ORCHESTRATION = Object.freeze({ mode: "default" });
 const UNCHAIN_TRACE_LABEL_BY_TYPE = Object.freeze({
@@ -189,6 +201,7 @@ export const useChatStream = ({
   setSelectedModelId,
   setAgentOrchestration,
   activeStreamsRef,
+  streamingMessageStore,
 }) => {
   const {
     buildHistoryForModel,
@@ -239,6 +252,12 @@ export const useChatStream = ({
   selectedModelIdRef.current = selectedModelId;
 
   const streamHandlesRef = useRef(new Map());
+  const fallbackStreamingMessageStoreRef = useRef(null);
+  if (!fallbackStreamingMessageStoreRef.current) {
+    fallbackStreamingMessageStoreRef.current = createStreamingMessageStore();
+  }
+  const activeStreamingMessageStore =
+    streamingMessageStore || fallbackStreamingMessageStoreRef.current;
   const streamingChatIdsRef = useRef(new Set());
   const sessionAutoApproveRef = useRef(new Set()); // keys: "toolkitId:toolName", cleared on chatId change
   const confirmationIdByCallIdRef = useRef(new Map());
@@ -349,6 +368,52 @@ export const useChatStream = ({
 
     activeTokenFlushControllerRef.current = null;
   }, []);
+
+  const flushStreamingMessageStore = useCallback(
+    (targetChatId, assistantMessageId) => {
+      if (
+        activeStreamingMessageStore &&
+        typeof activeStreamingMessageStore.flushNow === "function"
+      ) {
+        activeStreamingMessageStore.flushNow({
+          chatId: targetChatId,
+          messageId: assistantMessageId,
+        });
+      }
+    },
+    [activeStreamingMessageStore],
+  );
+
+  const materializeStreamingMessages = useCallback(
+    (targetChatId, sourceMessages) => {
+      if (
+        activeStreamingMessageStore &&
+        typeof activeStreamingMessageStore.materializeMessages === "function"
+      ) {
+        return activeStreamingMessageStore.materializeMessages({
+          chatId: targetChatId,
+          messages: sourceMessages,
+        });
+      }
+      return Array.isArray(sourceMessages) ? sourceMessages : [];
+    },
+    [activeStreamingMessageStore],
+  );
+
+  const clearStreamingMessageStore = useCallback(
+    (targetChatId, assistantMessageId) => {
+      if (
+        activeStreamingMessageStore &&
+        typeof activeStreamingMessageStore.clear === "function"
+      ) {
+        activeStreamingMessageStore.clear({
+          chatId: targetChatId,
+          messageId: assistantMessageId,
+        });
+      }
+    },
+    [activeStreamingMessageStore],
+  );
 
   const updateToolConfirmationUiState = useCallback((updater) => {
     const previous = toolConfirmationUiStateByIdRef.current;
@@ -537,7 +602,7 @@ export const useChatStream = ({
 
   const cancelCurrentStreamAndSettleMessages = useCallback(() => {
     const currentChatId = activeChatIdRef.current;
-    clearActiveTokenFlushController("dispose");
+    clearActiveTokenFlushController("flush");
     const handle = streamHandlesRef.current.get(currentChatId);
     if (handle && typeof handle.cancel === "function") {
       handle.cancel();
@@ -564,9 +629,19 @@ export const useChatStream = ({
     setToolConfirmationUiStateById({});
     pendingContinuationRequestRef.current = null;
     setPendingContinuationRequest(null);
-    const { changed, nextMessages } = settleStreamingAssistantMessages(
+    const materializedMessages = materializeStreamingMessages(
+      currentChatId,
       messagesRef.current,
     );
+    const { changed, nextMessages } =
+      settleStreamingAssistantMessages(materializedMessages);
+    if (
+      currentChatId &&
+      activeStreamingMessageStore &&
+      typeof activeStreamingMessageStore.clearChat === "function"
+    ) {
+      activeStreamingMessageStore.clearChat(currentChatId);
+    }
     messagesRef.current = nextMessages;
     setMessages(nextMessages);
 
@@ -579,7 +654,9 @@ export const useChatStream = ({
   }, [
     activeChatIdRef,
     activeStreamsRef,
+    activeStreamingMessageStore,
     clearActiveTokenFlushController,
+    materializeStreamingMessages,
     messagesRef,
     setMessages,
     storageApi,
@@ -1261,6 +1338,10 @@ export const useChatStream = ({
       setStreamError("");
       setStreamingChatIds((prev) => new Set(prev).add(targetChatId));
       streamingChatIdsRef.current.add(targetChatId);
+      activeStreamingMessageStore.begin({
+        chatId: targetChatId,
+        messageId: assistantMessageId,
+      });
       activeStreamsRef.current.set(targetChatId, {
         messages: optimisticMessages,
       });
@@ -1274,6 +1355,7 @@ export const useChatStream = ({
           return next;
         });
         activeStreamsRef.current.delete(targetChatId);
+        clearStreamingMessageStore(targetChatId, assistantMessageId);
         if (clearComposer) {
           setInputValue(previousInputValue);
           setDraftAttachments(previousDraftAttachments);
@@ -1412,7 +1494,10 @@ export const useChatStream = ({
           return;
         }
 
-        scheduleBackgroundPersist(targetChatId, nextStreamMessages);
+        scheduleBackgroundPersist(
+          targetChatId,
+          materializeStreamingMessages(targetChatId, nextStreamMessages),
+        );
       };
 
       const dirtySubagentFrameRunIds = new Set();
@@ -1701,16 +1786,12 @@ export const useChatStream = ({
         const deltaChunk = bufferedTokenDelta;
         bufferedTokenDelta = "";
         const patchTime = Date.now();
-        const nextStreamMessages = streamMessages.map((message) =>
-          message.id === assistantMessageId
-            ? {
-                ...message,
-                content: `${typeof message.content === "string" ? message.content : ""}${deltaChunk}`,
-                updatedAt: patchTime,
-              }
-            : message,
-        );
-        syncStreamMessages(nextStreamMessages);
+        activeStreamingMessageStore.append({
+          chatId: targetChatId,
+          messageId: assistantMessageId,
+          delta: deltaChunk,
+          updatedAt: patchTime,
+        });
       };
 
       const scheduleBufferedTokenFlush = () => {
@@ -1756,16 +1837,16 @@ export const useChatStream = ({
       };
 
       const startChatStream = (payload, handlers = {}) => {
-        const shouldUseRuntimeEventsV3 =
-          isRuntimeEventStreamV3Enabled() &&
-          typeof api.unchain.isRuntimeEventStreamV3Available === "function" &&
-          api.unchain.isRuntimeEventStreamV3Available();
-        if (!shouldUseRuntimeEventsV3) {
-          return api.unchain.startStreamV2(payload, handlers);
-        }
-
-        const runtimeEventStore = createRuntimeEventStore();
-        let runtimeEventActivityTree = reduceActivityTree(
+        const startRuntimeEventStream = ({
+          createStore,
+          reduceTree,
+          adaptTree,
+          startStream,
+          batchRuntimeEvents = false,
+          batchFlushMs = 0,
+        }) => {
+        const runtimeEventStore = createStore();
+        let runtimeEventActivityTree = reduceTree(
           null,
           runtimeEventStore.getSnapshot(),
         );
@@ -1793,14 +1874,16 @@ export const useChatStream = ({
               : "";
           const artifactKey =
             effect?.type === "artifact_summary"
-              ? `${effect.turnId || ""}:${effect.reason || ""}`
-              : "";
+              ? `turn:${effect.turnId || ""}:${effect.reason || ""}`
+              : effect?.type === "run_artifact_summary"
+                ? `run:${effect.reason || ""}`
+                : "";
           return [eventId, effect?.type || "", frameType, delta, errorCode, artifactKey].join(
             "::",
           );
         };
         const flushRuntimeEventEffects = () => {
-          runtimeEventActivityTree = reduceActivityTree(
+          runtimeEventActivityTree = reduceTree(
             runtimeEventActivityTree,
             runtimeEventStore.getSnapshot(),
           );
@@ -1814,68 +1897,108 @@ export const useChatStream = ({
           });
           return nextEffects;
         };
+        const cloneArtifactBucket = (bucket) => ({
+          order: bucket.order,
+          status: bucket.status,
+          artifacts: Array.isArray(bucket.artifacts)
+            ? bucket.artifacts.map((a) => ({ ...a }))
+            : [],
+        });
+        const patchArtifactSummary = (effect) => {
+          const isRunSummary = effect.type === "run_artifact_summary";
+          const bucket = isRunSummary
+            ? runtimeEventActivityTree?.runArtifactSummary
+            : runtimeEventActivityTree?.artifactSummariesByTurnId?.[effect.turnId];
+          if (!bucket || bucket.status !== "completed") return;
+          const patchTime = Date.now();
+          const nextStreamMessages = streamMessages.map((message) => {
+            if (message.id !== assistantMessageId) return message;
+            if (isRunSummary) {
+              return {
+                ...message,
+                updatedAt: patchTime,
+                runArtifactSummary: cloneArtifactBucket(bucket),
+              };
+            }
+            const prev =
+              message.artifactSummariesByTurnId &&
+              typeof message.artifactSummariesByTurnId === "object" &&
+              !Array.isArray(message.artifactSummariesByTurnId)
+                ? message.artifactSummariesByTurnId
+                : {};
+            return {
+              ...message,
+              updatedAt: patchTime,
+              artifactSummariesByTurnId: {
+                ...prev,
+                [effect.turnId]: cloneArtifactBucket(bucket),
+              },
+            };
+          });
+          syncStreamMessages(nextStreamMessages);
+        };
 
-        return api.unchain.startStreamV3(payload, {
+        const dispatchRuntimeEventEffects = (effects) => {
+          const hasErrorEffect = effects.some((effect) => effect.type === "error");
+          effects.forEach((effect) => {
+            if (
+              effect.type === "frame" &&
+              !(hasErrorEffect && effect.frame?.type === "error")
+            ) {
+              handlers.onFrame?.(effect.frame);
+              return;
+            }
+            if (effect.type === "meta") {
+              handlers.onMeta?.(effect.meta);
+              return;
+            }
+            if (effect.type === "token") {
+              handlers.onToken?.(effect.delta);
+              return;
+            }
+            if (effect.type === "error") {
+              runtimeEventStreamFailed = true;
+              handlers.onError?.(effect.error);
+            }
+            if (
+              effect.type === "artifact_summary" ||
+              effect.type === "run_artifact_summary"
+            ) {
+              patchArtifactSummary(effect);
+              return;
+            }
+          });
+        };
+
+        const flushRuntimeEventBatch = (events) => {
+          runtimeEventStore.appendMany(events);
+          const effects = flushRuntimeEventEffects();
+          return dispatchRuntimeEventEffects(effects);
+        };
+
+        const runtimeEventBatcher = batchRuntimeEvents
+          ? createRuntimeEventBatcher({
+              delayMs: batchFlushMs,
+              onFlush: flushRuntimeEventBatch,
+            })
+          : null;
+
+        const streamHandle = startStream(payload, {
           onRuntimeEvent: (runtimeEvent) => {
+            if (runtimeEventBatcher) {
+              runtimeEventBatcher.enqueue(runtimeEvent);
+              return;
+            }
             runtimeEventStore.append(runtimeEvent);
             const effects = flushRuntimeEventEffects();
-            const hasErrorEffect = effects.some((effect) => effect.type === "error");
-            effects.forEach((effect) => {
-              if (
-                effect.type === "frame" &&
-                !(hasErrorEffect && effect.frame?.type === "error")
-              ) {
-                handlers.onFrame?.(effect.frame);
-                return;
-              }
-              if (effect.type === "meta") {
-                handlers.onMeta?.(effect.meta);
-                return;
-              }
-              if (effect.type === "token") {
-                handlers.onToken?.(effect.delta);
-                return;
-              }
-              if (effect.type === "error") {
-                runtimeEventStreamFailed = true;
-                handlers.onError?.(effect.error);
-              }
-              if (effect.type === "artifact_summary") {
-                const bucket = runtimeEventActivityTree?.artifactSummariesByTurnId?.[effect.turnId];
-                if (!bucket || bucket.status !== "completed") return;
-                const patchTime = Date.now();
-                const nextStreamMessages = streamMessages.map((message) => {
-                  if (message.id !== assistantMessageId) return message;
-                  const prev =
-                    message.artifactSummariesByTurnId &&
-                    typeof message.artifactSummariesByTurnId === "object" &&
-                    !Array.isArray(message.artifactSummariesByTurnId)
-                      ? message.artifactSummariesByTurnId : {};
-                  return {
-                    ...message,
-                    updatedAt: patchTime,
-                    artifactSummariesByTurnId: {
-                      ...prev,
-                      [effect.turnId]: {
-                        order: bucket.order,
-                        status: bucket.status,
-                        artifacts: bucket.artifacts.map((a) => ({ ...a })),
-                      },
-                    },
-                  };
-                });
-                syncStreamMessages(nextStreamMessages);
-                return;
-              }
-            });
+            dispatchRuntimeEventEffects(effects);
           },
           onDone: (done) => {
+            runtimeEventBatcher?.flushNow();
             if (runtimeEventStreamFailed) {
               return;
             }
-            const traceProps = adaptActivityTreeToTraceChain(
-              runtimeEventActivityTree,
-            );
+            const traceProps = adaptTree(runtimeEventActivityTree);
             const donePayload =
               traceProps.bundle && !(done?.bundle && typeof done.bundle === "object")
                 ? { ...(done || {}), bundle: traceProps.bundle }
@@ -1883,9 +2006,59 @@ export const useChatStream = ({
             handlers.onDone?.(donePayload);
           },
           onError: (error) => {
+            runtimeEventBatcher?.flushNow();
             runtimeEventStreamFailed = true;
             handlers.onError?.(error);
           },
+        });
+
+        if (
+          runtimeEventBatcher &&
+          streamHandle &&
+          typeof streamHandle.cancel === "function"
+        ) {
+          const originalCancel = streamHandle.cancel;
+          return {
+            ...streamHandle,
+            cancel: (...args) => {
+              runtimeEventBatcher.cancel();
+              return originalCancel(...args);
+            },
+          };
+        }
+
+        return streamHandle;
+        };
+
+        const shouldUseRuntimeEventsV4 =
+          isRuntimeEventStreamV4Enabled() &&
+          typeof api.unchain.isRuntimeEventStreamV4Available === "function" &&
+          api.unchain.isRuntimeEventStreamV4Available();
+        if (shouldUseRuntimeEventsV4) {
+          return startRuntimeEventStream({
+            createStore: createRuntimeEventStoreV4,
+            reduceTree: reduceActivityTreeV4,
+            adaptTree: adaptActivityTreeToTraceChainV4,
+            startStream: api.unchain.startStreamV4,
+            batchRuntimeEvents: true,
+            batchFlushMs: RUNTIME_EVENT_BATCH_FLUSH_MS,
+          });
+        }
+
+        const shouldUseRuntimeEventsV3 =
+          isRuntimeEventStreamV3Enabled() &&
+          typeof api.unchain.isRuntimeEventStreamV3Available === "function" &&
+          api.unchain.isRuntimeEventStreamV3Available();
+        if (!shouldUseRuntimeEventsV3) {
+          return api.unchain.startStreamV2(payload, handlers);
+        }
+
+        return startRuntimeEventStream({
+          createStore: createRuntimeEventStore,
+          reduceTree: reduceActivityTree,
+          adaptTree: adaptActivityTreeToTraceChain,
+          startStream: api.unchain.startStreamV3,
+          batchRuntimeEvents: false,
         });
       };
 
@@ -2595,8 +2768,10 @@ export const useChatStream = ({
                 const nextStreamMessages = streamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
 
-                  const currentContent =
-                    typeof message.content === "string" ? message.content : "";
+                  const currentContent = activeStreamingMessageStore.getText({
+                    chatId: targetChatId,
+                    messageId: assistantMessageId,
+                  });
                   const hasToolActivity = (message.traceFrames || []).some(
                     (traceFrame) =>
                       traceFrame.type === "tool_call" ||
@@ -2608,9 +2783,17 @@ export const useChatStream = ({
                     currentContent.trim() === finalContent.trim() &&
                     currentContent.length > 0;
 
+                  if (!useAccumulated) {
+                    activeStreamingMessageStore.replace({
+                      chatId: targetChatId,
+                      messageId: assistantMessageId,
+                      text: finalContent,
+                      updatedAt: patchTime,
+                    });
+                  }
+
                   return {
                     ...message,
-                    content: useAccumulated ? currentContent : finalContent,
                     updatedAt: patchTime,
                     traceFrames: [...(message.traceFrames || []), frame],
                   };
@@ -2623,8 +2806,10 @@ export const useChatStream = ({
                 const nextStreamMessages = streamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
 
-                  const currentContent =
-                    typeof message.content === "string" ? message.content : "";
+                  const currentContent = activeStreamingMessageStore.getText({
+                    chatId: targetChatId,
+                    messageId: assistantMessageId,
+                  });
                   const currentContentTrimmed = currentContent.trim();
                   const existingFrames = message.traceFrames || [];
 
@@ -2681,11 +2866,16 @@ export const useChatStream = ({
                   }
 
                   return {
-                    ...message,
-                    content: "",
+                    ...clearStreamingMessageText(message),
                     updatedAt: patchTime,
                     traceFrames: mergedFrames,
                   };
+                });
+                activeStreamingMessageStore.replace({
+                  chatId: targetChatId,
+                  messageId: assistantMessageId,
+                  text: "",
+                  updatedAt: patchTime,
                 });
                 syncStreamMessages(nextStreamMessages);
                 return;
@@ -2753,6 +2943,7 @@ export const useChatStream = ({
 
               thinkTagParser.flush();
               flushBufferedTokenDelta();
+              flushStreamingMessageStore(targetChatId, assistantMessageId);
               const doneTime = Date.now();
               const bundle =
                 done?.bundle && typeof done.bundle === "object"
@@ -2763,15 +2954,18 @@ export const useChatStream = ({
                   ? normalizeAgentOrchestration(bundle.agent_orchestration)
                   : null;
 
-              const nextStreamMessages = streamMessages.map((message) => {
+              const materializedStreamMessages = materializeStreamingMessages(
+                targetChatId,
+                streamMessages,
+              );
+              const nextStreamMessages = materializedStreamMessages.map((message) => {
                 if (message.id !== assistantMessageId) return message;
                 let cleanContent =
                   typeof message.content === "string" ? message.content : "";
                 cleanContent = cleanContent
                   .replace(/<think>[\s\S]*?<\/think>/g, "")
                   .replace(/^\s*\n/, "");
-                return {
-                  ...message,
+                return finalizeStreamingMessage(message, {
                   content: cleanContent,
                   status: "done",
                   updatedAt: doneTime,
@@ -2779,7 +2973,7 @@ export const useChatStream = ({
                     ...(message.meta || {}),
                     ...(bundle ? { bundle } : {}),
                   },
-                };
+                });
               });
               syncStreamMessages(nextStreamMessages);
 
@@ -2832,9 +3026,18 @@ export const useChatStream = ({
                 });
               }
 
-              if (activeChatIdRef.current !== targetChatId) {
-                flushBackgroundPersist(targetChatId);
-              }
+              // Persist the final messages now. Foreground writes synchronously
+              // (the debounced persist effect waits on a React commit that a
+              // janky main thread can starve → lost last response); background
+              // chats flush their own buffer.
+              finalizeStreamPersist({
+                storageApi,
+                chatId: targetChatId,
+                messages: nextStreamMessages,
+                isForeground: activeChatIdRef.current === targetChatId,
+                flushBackgroundPersist,
+              });
+              clearStreamingMessageStore(targetChatId, assistantMessageId);
               streamHandlesRef.current.delete(targetChatId);
               streamingChatIdsRef.current.delete(targetChatId);
               activeStreamsRef.current.delete(targetChatId);
@@ -2857,6 +3060,7 @@ export const useChatStream = ({
             onError: (error) => {
               thinkTagParser.flush();
               flushBufferedTokenDelta();
+              flushStreamingMessageStore(targetChatId, assistantMessageId);
               if (
                 !streamHandlesRef.current.has(targetChatId) &&
                 !streamingChatIdsRef.current.has(targetChatId)
@@ -2896,9 +3100,10 @@ export const useChatStream = ({
                 releaseTokenFlushController();
 
                 const retryHistory = buildHistoryForModel(
-                  streamMessages,
+                  materializeStreamingMessages(targetChatId, streamMessages),
                   targetChatId,
                 );
+                clearStreamingMessageStore(targetChatId, assistantMessageId);
                 void runTurnRequest({
                   mode,
                   chatId: targetChatId,
@@ -2941,7 +3146,11 @@ export const useChatStream = ({
               disposeBufferedTokenFlush();
               releaseTokenFlushController();
 
-              const nextStreamMessages = streamMessages.map((message) => {
+              const materializedStreamMessages = materializeStreamingMessages(
+                targetChatId,
+                streamMessages,
+              );
+              const nextStreamMessages = materializedStreamMessages.map((message) => {
                 if (message.id !== assistantMessageId) {
                   return message;
                 }
@@ -2957,14 +3166,15 @@ export const useChatStream = ({
                   type: "error",
                   payload: { code: errorCode, message: errorMessage },
                 };
+                const currentContent =
+                  typeof message.content === "string" ? message.content : "";
 
-                return {
-                  ...message,
+                return finalizeStreamingMessage(message, {
                   status: "error",
                   updatedAt: errorTime,
                   content: hasTrace
-                    ? message.content
-                    : message.content || `[error] ${errorMessage}`,
+                    ? currentContent
+                    : currentContent || `[error] ${errorMessage}`,
                   traceFrames: hasTrace
                     ? [...message.traceFrames, errorFrame]
                     : message.traceFrames,
@@ -2975,12 +3185,13 @@ export const useChatStream = ({
                       message: errorMessage,
                     },
                   },
-                };
+                });
               });
               syncStreamMessages(nextStreamMessages);
               if (activeChatIdRef.current !== targetChatId) {
                 flushBackgroundPersist(targetChatId);
               }
+              clearStreamingMessageStore(targetChatId, assistantMessageId);
               activeStreamsRef.current.delete(targetChatId);
             },
           },
@@ -2996,6 +3207,7 @@ export const useChatStream = ({
         streamHandlesRef.current.delete(targetChatId);
         streamingChatIdsRef.current.delete(targetChatId);
         activeStreamsRef.current.delete(targetChatId);
+        clearStreamingMessageStore(targetChatId, assistantMessageId);
         setStreamingChatIds((prev) => {
           const next = new Set(prev);
           next.delete(targetChatId);

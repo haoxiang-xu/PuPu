@@ -1,3 +1,8 @@
+import {
+  finalizeStreamingMessage,
+  getStreamingMessageText,
+} from "../../../SERVICEs/streaming_message_chunks";
+
 export const settleStreamingAssistantMessages = (messages) => {
   if (!Array.isArray(messages)) {
     return { changed: false, nextMessages: [] };
@@ -16,15 +21,16 @@ export const settleStreamingAssistantMessages = (messages) => {
     }
 
     changed = true;
-    if (!message?.content) {
+    const content = getStreamingMessageText(message);
+    if (!content) {
       continue;
     }
 
-    nextMessages.push({
-      ...message,
+    nextMessages.push(finalizeStreamingMessage(message, {
+      content,
       status: "cancelled",
       updatedAt: patchedAt,
-    });
+    }));
   }
 
   return {

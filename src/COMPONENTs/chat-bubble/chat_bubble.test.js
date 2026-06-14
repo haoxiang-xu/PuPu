@@ -171,6 +171,47 @@ describe("ChatBubble artifact summaries", () => {
     expect(screen.getAllByTestId("artifact-summary")).toHaveLength(2);
   });
 
+  test("renders a run-level ArtifactSummary before turn buckets", () => {
+    renderWithConfig(
+      <ChatBubble
+        message={{
+          role: "assistant",
+          status: "done",
+          content: "done",
+          runArtifactSummary: {
+            order: 0,
+            status: "completed",
+            artifacts: [
+              {
+                artifact_id: "workspace_change_set:run-1",
+                kind: "workspace_change_set",
+                snapshot: {
+                  files: [
+                    {
+                      path: "src/run.js",
+                      operation: "edit",
+                      unified_diff: "@@ -1 +1 @@\n-a\n+b\n",
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          artifactSummariesByTurnId: {
+            "run-1:turn-1": fileBucket("turn-1", 1),
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId("run-artifact-summary-section")).toBeInTheDocument();
+    expect(screen.getAllByTestId("turn-artifact-summary-section")).toHaveLength(1);
+    expect(screen.getAllByTestId("artifact-summary")).toHaveLength(2);
+    expect(screen.getAllByTestId("files-changed-card")[0].textContent).toMatch(
+      /Workspace changes/,
+    );
+  });
+
   test("renders nothing artifact-related when artifactSummariesByTurnId is empty", () => {
     renderWithConfig(
       <ChatBubble

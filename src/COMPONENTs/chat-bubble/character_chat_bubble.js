@@ -6,7 +6,7 @@ import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
 import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
-import ArtifactSummary from "./artifact-summary/artifact_summary";
+import ArtifactSummarySections from "./artifact-summary/artifact_summary_sections";
 
 const resolveAvatarSrc = (avatar) => {
   const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
@@ -123,6 +123,12 @@ const CharacterChatBubble = ({
     : buildPendingConfirmationTraceFrames(pendingToolConfirmationRequests);
   const hasVisibleTraceActivity =
     hasToolActivity || pendingToolConfirmationFrames.length > 0;
+  const hasTokenSummary =
+    isAssistant &&
+    message.status === "done" &&
+    typeof message.meta?.bundle?.consumed_tokens === "number" &&
+    message.meta.bundle.consumed_tokens > 0;
+  const shouldRenderTraceChain = hasVisibleTraceActivity || hasTokenSummary;
   const traceChainFrames = hasToolActivity
     ? traceFrames
     : pendingToolConfirmationFrames;
@@ -144,17 +150,22 @@ const CharacterChatBubble = ({
         position: "relative",
       }}
     >
-      {isAssistant && hasVisibleTraceActivity && (
+      {isAssistant && shouldRenderTraceChain && (
         <TraceChain
           frames={traceChainFrames}
           status={message.status}
+          messageId={message.id}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
           streamingContent={
             message.status === "streaming" ? message.content : ""
           }
+          streamingChunks={
+            message.status === "streaming" ? message.streamingChunks : undefined
+          }
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
+          bundle={message.meta?.bundle}
         />
       )}
       {isAssistant &&
@@ -163,6 +174,7 @@ const CharacterChatBubble = ({
         <TraceChain
           frames={[]}
           status={message.status}
+          messageId={message.id}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
           pendingContinuationRequest={pendingContinuationRequest}
@@ -299,12 +311,15 @@ const CharacterChatBubble = ({
                 hasTraceFrames={hasToolActivity}
               />
             )}
-            {isAssistant && message?.artifactSummariesByTurnId &&
-              Object.entries(message.artifactSummariesByTurnId)
-                .sort(([, a], [, b]) => (a?.order || 0) - (b?.order || 0))
-                .map(([turnId, bucket]) => (
-                  <ArtifactSummary key={turnId} bucket={bucket} isDark={isDark} />
-                ))}
+            {isAssistant &&
+              (message?.runArtifactSummary ||
+                message?.artifactSummariesByTurnId) && (
+              <ArtifactSummarySections
+                runArtifactSummary={message.runArtifactSummary}
+                artifactSummariesByTurnId={message.artifactSummariesByTurnId}
+                isDark={isDark}
+              />
+            )}
           </div>
 
           {timestamp && (

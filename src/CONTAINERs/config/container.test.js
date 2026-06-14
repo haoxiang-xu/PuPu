@@ -49,6 +49,12 @@ const FragmentProbe = () => {
   );
 };
 
+const HighlightProbe = () => {
+  const { theme } = useContext(ConfigContext);
+
+  return <div data-testid="highlight-color">{theme?.highlightColor}</div>;
+};
+
 describe("ConfigContainer side menu persistence", () => {
   beforeEach(() => {
     window.localStorage.clear();
@@ -92,6 +98,20 @@ describe("ConfigContainer side menu persistence", () => {
     await waitFor(() => {
       const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
       expect(root?.ui?.side_menu_open).toBe(false);
+    });
+  });
+
+  test("provides the global theme highlight color", async () => {
+    render(
+      <ConfigContainer>
+        <HighlightProbe />
+      </ConfigContainer>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("highlight-color")).toHaveTextContent(
+        "#65c466",
+      );
     });
   });
 });

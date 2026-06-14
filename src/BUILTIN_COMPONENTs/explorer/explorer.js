@@ -11,6 +11,10 @@ import AnimatedChildren from "../class/animated_children";
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import {
+  colorWithAlpha,
+  themeHighlightColor,
+} from "../../CONTAINERs/config/theme_highlight";
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
@@ -470,6 +474,7 @@ const ExplorerRow = ({
   onHoverRow,
   activeNodeId,
   contextMenuNodeId,
+  highlightColor,
 }) => {
   const { theme } = useContext(ConfigContext);
   const isActive =
@@ -689,8 +694,8 @@ const ExplorerRow = ({
       (isFolder && node.has_unread_generated_descendant && !isExpanded)),
   );
   const unreadDotColor = isDark
-    ? "rgba(10, 186, 181, 0.92)"
-    : "rgba(10, 186, 181, 0.85)";
+    ? colorWithAlpha(highlightColor, 0.92)
+    : colorWithAlpha(highlightColor, 0.85);
   const hasPrefixVisual = Boolean(
     showPrefixSpinner || showUnreadDot || node.prefix_icon,
   );
@@ -1082,6 +1087,7 @@ const ExplorerBranch = ({
   onHoverRow,
   activeNodeId,
   contextMenuNodeId,
+  highlightColor,
 }) => {
   return childKeys.map((key) => {
     const data = nodeMap[key];
@@ -1110,6 +1116,7 @@ const ExplorerBranch = ({
           onHoverRow={onHoverRow}
           activeNodeId={activeNodeId}
           contextMenuNodeId={contextMenuNodeId}
+          highlightColor={highlightColor}
         />
         {isFolder && (
           <AnimatedChildren open={isOpen} skipAnimation={isDragging}>
@@ -1150,6 +1157,7 @@ const ExplorerBranch = ({
                   onHoverRow={onHoverRow}
                   activeNodeId={activeNodeId}
                   contextMenuNodeId={contextMenuNodeId}
+                  highlightColor={highlightColor}
                 />
               )}
             </div>
@@ -1164,7 +1172,13 @@ const ExplorerBranch = ({
 /*  DropIndicator — Figma-style line or folder highlight                                                                        */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const DropIndicator = ({ dropTarget, rowRefs, containerRef, isDark }) => {
+const DropIndicator = ({
+  dropTarget,
+  rowRefs,
+  containerRef,
+  isDark,
+  highlightColor,
+}) => {
   if (!dropTarget || !containerRef.current) return null;
 
   const containerRect = containerRef.current.getBoundingClientRect();
@@ -1173,8 +1187,8 @@ const DropIndicator = ({ dropTarget, rowRefs, containerRef, isDark }) => {
   const targetRect = targetEl.getBoundingClientRect();
 
   const accent = isDark
-    ? "rgba(10, 186, 181, 0.85)"
-    : "rgba(10, 186, 181, 0.75)";
+    ? colorWithAlpha(highlightColor, 0.85)
+    : colorWithAlpha(highlightColor, 0.75);
 
   /* ── folder highlight (drop-inside) ────────────────── */
   if (dropTarget.type === "inside") {
@@ -1189,8 +1203,8 @@ const DropIndicator = ({ dropTarget, rowRefs, containerRef, isDark }) => {
           right: 3,
           height: targetRect.height,
           backgroundColor: isDark
-            ? "rgba(10, 186, 181, 0.12)"
-            : "rgba(10, 186, 181, 0.09)",
+            ? colorWithAlpha(highlightColor, 0.12)
+            : colorWithAlpha(highlightColor, 0.09),
           borderRadius: 5,
           pointerEvents: "none",
           zIndex: 10,
@@ -1222,8 +1236,8 @@ const DropIndicator = ({ dropTarget, rowRefs, containerRef, isDark }) => {
           pointerEvents: "none",
           zIndex: 11,
           boxShadow: isDark
-            ? "0 0 4px rgba(10,186,181,0.4)"
-            : "0 0 3px rgba(10,186,181,0.25)",
+            ? `0 0 4px ${colorWithAlpha(highlightColor, 0.4)}`
+            : `0 0 3px ${colorWithAlpha(highlightColor, 0.25)}`,
         }}
       />
       {/* line */}
@@ -1240,8 +1254,8 @@ const DropIndicator = ({ dropTarget, rowRefs, containerRef, isDark }) => {
           pointerEvents: "none",
           zIndex: 10,
           boxShadow: isDark
-            ? "0 0 4px rgba(10,186,181,0.35)"
-            : "0 0 3px rgba(10,186,181,0.2)",
+            ? `0 0 4px ${colorWithAlpha(highlightColor, 0.35)}`
+            : `0 0 3px ${colorWithAlpha(highlightColor, 0.2)}`,
         }}
       />
     </>
@@ -1335,6 +1349,7 @@ const Explorer = ({
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const highlightColor = themeHighlightColor(theme);
 
   /* ── flat store: { map, root } ─────────────────────── */
   const [store, setStore] = useState(() => ({
@@ -1758,6 +1773,7 @@ const Explorer = ({
         onHoverRow={handleHoverRow}
         activeNodeId={active_node_id}
         contextMenuNodeId={context_menu_node_id}
+        highlightColor={highlightColor}
       />
 
       {/* ── drop indicator ──────────────────────────── */}
@@ -1767,6 +1783,7 @@ const Explorer = ({
           rowRefs={rowRefsMap}
           containerRef={containerRef}
           isDark={isDark}
+          highlightColor={highlightColor}
         />
       )}
 

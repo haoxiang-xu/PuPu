@@ -139,9 +139,10 @@ if (-not (Test-Path (Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\__init__.py")))
 
 $CAPABILITY_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources\model_capabilities.json"
 $DEFAULT_PAYLOADS_JSON = Join-Path $UNCHAIN_SOURCE_PATH "src\unchain\runtime\resources\model_default_payloads.json"
+$MCP_REGISTRY_JSON = Join-Path $ROOT_DIR "src\SERVICEs\mcp_toolkit_registry.json"
 
-if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON)) {
-  Write-Error "Missing required unchain model metadata files in source path: $UNCHAIN_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON"
+if (-not (Test-Path $CAPABILITY_JSON) -or -not (Test-Path $DEFAULT_PAYLOADS_JSON) -or -not (Test-Path $MCP_REGISTRY_JSON)) {
+  Write-Error "Missing required unchain model metadata files in source path: $UNCHAIN_SOURCE_PATH`nExpected:`n  $CAPABILITY_JSON`n  $DEFAULT_PAYLOADS_JSON`n  $MCP_REGISTRY_JSON"
   exit 1
 }
 
@@ -251,6 +252,7 @@ $pyinstallerArgs = @(
   "--collect-data", "unchain",
   "--add-data", "${CAPABILITY_JSON};unchain/runtime/resources",
   "--add-data", "${DEFAULT_PAYLOADS_JSON};unchain/runtime/resources",
+  "--add-data", "${MCP_REGISTRY_JSON};resources",
   "--hidden-import", "unchain",
   "--hidden-import", "unchain.runtime",
   "--hidden-import", "unchain.tools",

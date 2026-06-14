@@ -17,6 +17,20 @@ import unchain_adapter  # noqa: E402
 
 
 class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Hermeticity: both stream_chat_events() and _create_agent() call
+        # _load_recipe_from_options(), which defaults to loading the user's local
+        # ~/.pupu/agent_recipes/Default.recipe. On a developer machine that has a
+        # saved *graph* recipe, that diverts these tests into the graph engine and
+        # past the mocked _create_agent/FakeAgent, breaking assertions that have
+        # nothing to do with recipes. Force "no recipe" so this suite exercises the
+        # plain developer-agent path regardless of machine-local user state.
+        recipe_patcher = mock.patch.object(
+            unchain_adapter, "_load_recipe_from_options", return_value=None
+        )
+        recipe_patcher.start()
+        self.addCleanup(recipe_patcher.stop)
+
     def _write_capability_file(self, payload: dict) -> tuple[tempfile.TemporaryDirectory, Path]:
         temp_dir = tempfile.TemporaryDirectory()
         capability_file = Path(temp_dir.name) / "model_capabilities.json"
@@ -2159,6 +2173,36 @@ requires_confirmation = true
         self.assertEqual(entry["tools"][0]["icon"], entry["toolkitIcon"])
         self.assertIn("artifactKinds", payload)
         self.assertEqual(payload["artifactKinds"][0]["kind"], "file_diff")
+
+    def test_get_toolkit_catalog_v2_exposes_emoji_toolkit_icon(self) -> None:
+        toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
+            icon_value="👁️",
+        )
+
+        with mock.patch.object(
+            unchain_adapter,
+            "_resolve_toolkit_base",
+            return_value=toolkit_base,
+        ), mock.patch.object(
+            unchain_adapter.importlib,
+            "import_module",
+            side_effect=self._build_import_side_effect(
+                module_name=module_name,
+                toolkit_module=toolkit_module,
+            ),
+        ), mock.patch.object(
+            unchain_adapter.pkgutil,
+            "iter_modules",
+            return_value=[(None, "demo_toolkit", True)],
+        ):
+            catalog_payload = unchain_adapter.get_toolkit_catalog_v2()
+            metadata_payload = unchain_adapter.get_toolkit_metadata("DemoToolkit")
+
+        expected_icon = {"type": "emoji", "emoji": "👁️"}
+        entry = catalog_payload["toolkits"][0]
+        self.assertEqual(entry["toolkitIcon"], expected_icon)
+        self.assertEqual(entry["tools"][0]["icon"], expected_icon)
+        self.assertEqual(metadata_payload["toolkitIcon"], expected_icon)
 
     def test_get_toolkit_catalog_v2_exposes_core_with_confirmation_metadata(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_core_toolkit_fixture()

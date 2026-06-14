@@ -349,6 +349,31 @@ const injectMemoryIntoPayload = (payload) => {
   };
 };
 
+const parseMcpErrorCode = (error) => {
+  const explicitCode =
+    typeof error?.code === "string" ? error.code.trim() : "";
+  if (explicitCode.startsWith("mcp_")) {
+    return explicitCode;
+  }
+
+  const message =
+    typeof error?.message === "string" ? error.message.trim() : "";
+  const match = message.match(/\b(mcp_[a-z0-9_]+)\b/i);
+  return match ? match[1] : "";
+};
+
+const toMcpFrontendApiError = (error, fallbackCode, fallbackMessage) => {
+  if (error instanceof FrontendApiError) {
+    return error;
+  }
+
+  return toFrontendApiError(
+    error,
+    parseMcpErrorCode(error) || fallbackCode,
+    fallbackMessage,
+  );
+};
+
 const getStoredSystemPromptV2Config = () => {
   const runtimeSettings = readRuntimeSettings();
   const runtimePromptConfig = isObject(runtimeSettings?.system_prompt_v2)
@@ -512,6 +537,9 @@ export const createUnchainApi = () => {
     isRuntimeEventStreamV3Available: () =>
       hasBridgeMethod("unchainAPI", "startStreamV3"),
 
+    isRuntimeEventStreamV4Available: () =>
+      hasBridgeMethod("unchainAPI", "startStreamV4"),
+
     getStatus: async () => {
       try {
         const method = assertBridgeMethod("unchainAPI", "getStatus");
@@ -635,6 +663,491 @@ export const createUnchainApi = () => {
           error,
           "unchain_toolkit_detail_failed",
           "Failed to query Unchain toolkit detail",
+        );
+      }
+    },
+
+    listMcpToolkits: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpToolkits")) {
+        return { toolkits: [], count: 0 };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpToolkits");
+        const payload = await withTimeout(
+          () => method(),
+          8000,
+          "mcp_toolkit_list_timeout",
+          "MCP toolkit list request timed out",
+        );
+        return payload || { toolkits: [], count: 0 };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_list_failed",
+          "Failed to query MCP toolkits",
+        );
+      }
+    },
+
+    installMcpToolkit: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "installMcpToolkit");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_install_timeout",
+          "MCP toolkit install request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_install_failed",
+          "Failed to install MCP toolkit",
+        );
+      }
+    },
+
+    deleteMcpToolkit: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteMcpToolkit");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "mcp_toolkit_delete_timeout",
+          "MCP toolkit delete request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_delete_failed",
+          "Failed to delete MCP toolkit",
+        );
+      }
+    },
+
+    reloadMcpToolkits: async (payload = {}) => {
+      if (!hasBridgeMethod("unchainAPI", "reloadMcpToolkits")) {
+        return { toolkits: [], count: 0 };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "reloadMcpToolkits");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_reload_timeout",
+          "MCP toolkit reload request timed out",
+        );
+        return response || { toolkits: [], count: 0 };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_reload_failed",
+          "Failed to reload MCP toolkits",
+        );
+      }
+    },
+
+    checkMcpToolkitHealth: async (toolkitId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "checkMcpToolkitHealth");
+        const response = await withTimeout(
+          () => method(toolkitId, isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_health_timeout",
+          "MCP toolkit health request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_health_failed",
+          "Failed to check MCP toolkit health",
+        );
+      }
+    },
+
+    configureMcpToolkit: async (toolkitId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "configureMcpToolkit");
+        const response = await withTimeout(
+          () => method(toolkitId, isObject(payload) ? payload : {}),
+          60000,
+          "mcp_toolkit_configure_timeout",
+          "MCP toolkit configure request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_toolkit_configure_failed",
+          "Failed to configure MCP toolkit",
+        );
+      }
+    },
+
+    startMcpOAuth: async (entryId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "startMcpOAuth");
+        const response = await withTimeout(
+          () => method(entryId),
+          30000,
+          "mcp_oauth_start_timeout",
+          "MCP OAuth start request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_start_failed",
+          "Failed to start MCP OAuth",
+        );
+      }
+    },
+
+    getMcpOAuthStatus: async (entryId) => {
+      if (!hasBridgeMethod("unchainAPI", "getMcpOAuthStatus")) {
+        return {
+          entryId: typeof entryId === "string" ? entryId : "",
+          toolkitId: "",
+          authStatus: "unknown",
+        };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "getMcpOAuthStatus");
+        const response = await withTimeout(
+          () => method(entryId),
+          12000,
+          "mcp_oauth_status_timeout",
+          "MCP OAuth status request timed out",
+        );
+        return isObject(response)
+          ? response
+          : {
+              entryId: typeof entryId === "string" ? entryId : "",
+              toolkitId: "",
+              authStatus: "unknown",
+            };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_status_failed",
+          "Failed to query MCP OAuth status",
+        );
+      }
+    },
+
+    disconnectMcpOAuth: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "disconnectMcpOAuth");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "mcp_oauth_disconnect_timeout",
+          "MCP OAuth disconnect request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_disconnect_failed",
+          "Failed to disconnect MCP OAuth",
+        );
+      }
+    },
+
+    listMcpOAuthApps: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpOAuthApps")) {
+        return { apps: [], count: 0 };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpOAuthApps");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_oauth_apps_list_timeout",
+          "MCP OAuth apps list request timed out",
+        );
+        return isObject(response) ? response : { apps: [], count: 0 };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_apps_list_failed",
+          "Failed to query MCP OAuth apps",
+        );
+      }
+    },
+
+    configureMcpOAuthApp: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "configureMcpOAuthApp");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          12000,
+          "mcp_oauth_app_configure_timeout",
+          "MCP OAuth app configure request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_app_configure_failed",
+          "Failed to configure MCP OAuth app",
+        );
+      }
+    },
+
+    deleteMcpOAuthApp: async (toolkitId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteMcpOAuthApp");
+        const response = await withTimeout(
+          () => method(toolkitId),
+          12000,
+          "mcp_oauth_app_delete_timeout",
+          "MCP OAuth app delete request timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_oauth_app_delete_failed",
+          "Failed to delete MCP OAuth app",
+        );
+      }
+    },
+
+    listMcpStoreMetadata: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpStoreMetadata")) {
+        return { entries: [], byEntryId: {}, status: "unavailable" };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpStoreMetadata");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_store_metadata_list_timeout",
+          "MCP store metadata list request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { entries: [], byEntryId: {}, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_metadata_list_failed",
+          "Failed to query MCP store metadata",
+        );
+      }
+    },
+
+    reloadMcpStoreMetadata: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "reloadMcpStoreMetadata");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_store_metadata_reload_timeout",
+          "MCP store metadata reload request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { entries: [], byEntryId: {}, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_metadata_reload_failed",
+          "Failed to reload MCP store metadata",
+        );
+      }
+    },
+
+    listMcpStoreEntries: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpStoreEntries")) {
+        return { entries: [], count: 0, status: "unavailable" };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpStoreEntries");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_store_entries_list_timeout",
+          "MCP store entries request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { entries: [], count: 0, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_entries_list_failed",
+          "Failed to query MCP store entries",
+        );
+      }
+    },
+
+    listMcpStoreRegistries: async () => {
+      if (!hasBridgeMethod("unchainAPI", "listMcpStoreRegistries")) {
+        return { registries: [], count: 0, status: "unavailable" };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "listMcpStoreRegistries");
+        const response = await withTimeout(
+          () => method(),
+          12000,
+          "mcp_store_registries_list_timeout",
+          "MCP store registries request timed out",
+        );
+        return isObject(response)
+          ? response
+          : { registries: [], count: 0, status: "unavailable" };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_store_registries_list_failed",
+          "Failed to query MCP store registries",
+        );
+      }
+    },
+
+    importMcpStoreRegistry: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "importMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_store_registry_import_timeout",
+          "MCP store registry import timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_import_failed",
+          "Failed to import MCP store registry",
+        );
+      }
+    },
+
+    validateMcpStoreRegistry: async (payload = {}) => {
+      if (!hasBridgeMethod("unchainAPI", "validateMcpStoreRegistry")) {
+        return {
+          valid: false,
+          status: "unavailable",
+          diagnostics: [],
+          entries: [],
+          count: 0,
+        };
+      }
+
+      try {
+        const method = assertBridgeMethod("unchainAPI", "validateMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(isObject(payload) ? payload : {}),
+          60000,
+          "mcp_store_registry_validate_timeout",
+          "MCP store registry validation timed out",
+        );
+        return isObject(response)
+          ? response
+          : {
+              valid: false,
+              status: "unavailable",
+              diagnostics: [],
+              entries: [],
+              count: 0,
+            };
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_invalid",
+          "Failed to validate MCP store registry",
+        );
+      }
+    },
+
+    refreshMcpStoreRegistry: async (registryId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "refreshMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(registryId),
+          60000,
+          "mcp_store_registry_refresh_timeout",
+          "MCP store registry refresh timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_refresh_failed",
+          "Failed to refresh MCP store registry",
+        );
+      }
+    },
+
+    deleteMcpStoreRegistry: async (registryId) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "deleteMcpStoreRegistry");
+        const response = await withTimeout(
+          () => method(registryId),
+          12000,
+          "mcp_store_registry_delete_timeout",
+          "MCP store registry delete timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_delete_failed",
+          "Failed to delete MCP store registry",
+        );
+      }
+    },
+
+    approveMcpStoreEntry: async (entryId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "approveMcpStoreEntry");
+        const response = await withTimeout(
+          () => method(entryId, isObject(payload) ? payload : {}),
+          12000,
+          "mcp_store_entry_approve_timeout",
+          "MCP store entry approval timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_entry_not_approved",
+          "Failed to approve MCP store entry",
+        );
+      }
+    },
+
+    revokeMcpStoreEntryApproval: async (entryId, payload = {}) => {
+      try {
+        const method = assertBridgeMethod(
+          "unchainAPI",
+          "revokeMcpStoreEntryApproval",
+        );
+        const response = await withTimeout(
+          () => method(entryId, isObject(payload) ? payload : {}),
+          12000,
+          "mcp_store_entry_approval_revoke_timeout",
+          "MCP store entry approval revoke timed out",
+        );
+        return isObject(response) ? response : {};
+      } catch (error) {
+        throw toMcpFrontendApiError(
+          error,
+          "mcp_registry_approval_not_found",
+          "Failed to revoke MCP store entry approval",
         );
       }
     },
@@ -1056,6 +1569,30 @@ export const createUnchainApi = () => {
           error,
           "unchain_stream_v3_start_failed",
           "Failed to start Unchain v3 stream",
+        );
+      }
+    },
+
+    startStreamV4: (payload, handlers = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "startStreamV4");
+        const normalizedPayload = normalizeUnchainV2Payload(payload);
+        const streamHandle = method(normalizedPayload, handlers);
+        if (
+          !isObject(streamHandle) ||
+          typeof streamHandle.cancel !== "function"
+        ) {
+          throw new FrontendApiError(
+            "invalid_stream_handle",
+            "Unchain bridge returned an invalid stream handle",
+          );
+        }
+        return streamHandle;
+      } catch (error) {
+        throw toFrontendApiError(
+          error,
+          "unchain_stream_v4_start_failed",
+          "Failed to start Unchain v4 stream",
         );
       }
     },

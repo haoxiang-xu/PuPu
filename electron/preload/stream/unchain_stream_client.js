@@ -206,6 +206,10 @@ const createMisoStreamClient = (ipcRenderer) => {
     activeMisoStreamCleanups.set(requestId, cleanup);
   };
 
+  const registerMisoStreamV4Listener = (requestId, handlers = {}) => {
+    registerMisoStreamV3Listener(requestId, handlers);
+  };
+
   const startStream = (payload, handlers = {}) => {
     const requestId = createRequestId();
     registerMisoStreamListener(requestId, handlers);
@@ -268,11 +272,30 @@ const createMisoStreamClient = (ipcRenderer) => {
     };
   };
 
+  const startStreamV4 = (payload, handlers = {}) => {
+    const requestId = createRequestId();
+    registerMisoStreamV4Listener(requestId, handlers);
+
+    ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_START_V4, {
+      requestId,
+      payload,
+    });
+
+    return {
+      requestId,
+      cancel: () => {
+        ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
+        cleanupMisoStreamListener(requestId);
+      },
+    };
+  };
+
   return {
     startStream,
     cancelStream,
     startStreamV2,
     startStreamV3,
+    startStreamV4,
     __debug: {
       getActiveListenerCount: () => activeMisoStreamCleanups.size,
       cleanupMisoStreamListener,

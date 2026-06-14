@@ -2,8 +2,10 @@ import { memo, useContext } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import MessageJumpControls from "./components/message_jump_controls";
+import MessageMinimap from "./components/message_minimap";
+import { useMessageMinimap } from "./hooks/use_message_minimap";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
+import { StreamingMessageStoreContext } from "../chat-bubble/components/streaming_message_store_context";
 
 const ChatMessages = ({
   chatId,
@@ -21,28 +23,25 @@ const ChatMessages = ({
   pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
-  className = "scrollable",
+  streamingMessageStore,
   initialVisibleCount = 12,
   loadBatchSize = 6,
   topLoadThreshold = 80,
   bootVisibleCount = 3,
 }) => {
-  const { theme, onThemeMode } = useContext(ConfigContext);
+  const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
-  const color = theme?.color || "#222";
-  const attachPanelBg = isDark ? "rgb(30, 30, 30)" : "rgb(255, 255, 255)";
 
   const {
     messagesRef,
+    bottomSentinelRef,
     messageNodeRefs,
     safeVisibleStart,
     visibleMessages,
-    isAtBottom,
-    isAtTop,
     handleScroll,
-    handleBackToBottom,
-    handleSkipToTop,
-    handleJumpToPreviousMessage,
+    handleUserScrollIntent,
+    notifyStreamingContentCommitted,
+    scrollToMessageIndex,
   } = useMessageWindowScroll({
     chat_id: chatId,
     messages,
@@ -51,6 +50,14 @@ const ChatMessages = ({
     load_batch_size: loadBatchSize,
     top_load_threshold: topLoadThreshold,
     boot_visible_count: bootVisibleCount,
+  });
+
+  const minimapMessages = isStreaming ? [] : messages;
+  const { segments, total, measure } = useMessageMinimap({
+    chatId,
+    messages: minimapMessages,
+    messageNodeRefs,
+    safeVisibleStart,
   });
 
   return (
@@ -63,8 +70,15 @@ const ChatMessages = ({
     >
       <div
         ref={messagesRef}
-        className={className}
+        className="chat-scroll-host"
         onScroll={handleScroll}
+        onWheel={handleUserScrollIntent}
+        onTouchMove={handleUserScrollIntent}
+        onPointerDown={(event) => {
+          if (event.target === event.currentTarget) {
+            handleUserScrollIntent();
+          }
+        }}
         style={{
           height: "100%",
           overflowY: "auto",
@@ -84,96 +98,106 @@ const ChatMessages = ({
             gap: 20,
           }}
         >
-          {visibleMessages.map((msg, index) => {
-            const messageIndex = safeVisibleStart + index;
-            return (
-              <div
-                key={msg.id}
-                data-message-id={msg.id}
-                ref={(node) => {
-                  if (node) {
-                    messageNodeRefs.current.set(messageIndex, node);
-                  } else {
-                    messageNodeRefs.current.delete(messageIndex);
-                  }
-                }}
-                style={{
-                  width: "100%",
-                  maxWidth: 680,
-                  margin: "0 auto",
-                  padding: "0 20px",
-                  boxSizing: "border-box",
-                }}
-              >
-                {isCharacterChat ? (
-                  <CharacterChatBubble
-                    message={msg}
-                    characterName={characterName}
-                    characterAvatar={characterAvatar}
-                    characterAvailability={characterAvailability}
-                    onDeleteMessage={onDeleteMessage}
-                    onResendMessage={onResendMessage}
-                    onEditMessage={onEditMessage}
-                    onToolConfirmationDecision={onToolConfirmationDecision}
-                    toolConfirmationUiStateById={toolConfirmationUiStateById}
-                    pendingToolConfirmationRequests={
-                      pendingToolConfirmationRequests
+          <StreamingMessageStoreContext.Provider
+            value={{
+              chatId,
+              store: streamingMessageStore,
+              notifyStreamingContentCommitted,
+            }}
+          >
+            {visibleMessages.map((msg, index) => {
+              const messageIndex = safeVisibleStart + index;
+              return (
+                <div
+                  key={msg.id}
+                  data-message-id={msg.id}
+                  ref={(node) => {
+                    if (node) {
+                      messageNodeRefs.current.set(messageIndex, node);
+                    } else {
+                      messageNodeRefs.current.delete(messageIndex);
                     }
-                    disableActionButtons={isStreaming}
-                    traceFrames={msg.traceFrames}
-                    pendingContinuationRequest={
-                      messageIndex === messages.length - 1
-                        ? pendingContinuationRequest
-                        : undefined
-                    }
-                    onContinuationDecision={
-                      messageIndex === messages.length - 1
-                        ? onContinuationDecision
-                        : undefined
-                    }
-                  />
-                ) : (
-                  <ChatBubble
-                    message={msg}
-                    onDeleteMessage={onDeleteMessage}
-                    onResendMessage={onResendMessage}
-                    onEditMessage={onEditMessage}
-                    onToolConfirmationDecision={onToolConfirmationDecision}
-                    toolConfirmationUiStateById={toolConfirmationUiStateById}
-                    pendingToolConfirmationRequests={
-                      pendingToolConfirmationRequests
-                    }
-                    disableActionButtons={isStreaming}
-                    traceFrames={msg.traceFrames}
-                    pendingContinuationRequest={
-                      messageIndex === messages.length - 1
-                        ? pendingContinuationRequest
-                        : undefined
-                    }
-                    onContinuationDecision={
-                      messageIndex === messages.length - 1
-                        ? onContinuationDecision
-                        : undefined
-                    }
-                  />
-                )}
-              </div>
-            );
-          })}
+                  }}
+                  style={{
+                    width: "100%",
+                    maxWidth: 680,
+                    margin: "0 auto",
+                    padding: "0 20px",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {isCharacterChat ? (
+                    <CharacterChatBubble
+                      message={msg}
+                      characterName={characterName}
+                      characterAvatar={characterAvatar}
+                      characterAvailability={characterAvailability}
+                      onDeleteMessage={onDeleteMessage}
+                      onResendMessage={onResendMessage}
+                      onEditMessage={onEditMessage}
+                      onToolConfirmationDecision={onToolConfirmationDecision}
+                      toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      pendingToolConfirmationRequests={
+                        pendingToolConfirmationRequests
+                      }
+                      disableActionButtons={isStreaming}
+                      traceFrames={msg.traceFrames}
+                      pendingContinuationRequest={
+                        messageIndex === messages.length - 1
+                          ? pendingContinuationRequest
+                          : undefined
+                      }
+                      onContinuationDecision={
+                        messageIndex === messages.length - 1
+                          ? onContinuationDecision
+                          : undefined
+                      }
+                    />
+                  ) : (
+                    <ChatBubble
+                      message={msg}
+                      onDeleteMessage={onDeleteMessage}
+                      onResendMessage={onResendMessage}
+                      onEditMessage={onEditMessage}
+                      onToolConfirmationDecision={onToolConfirmationDecision}
+                      toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      pendingToolConfirmationRequests={
+                        pendingToolConfirmationRequests
+                      }
+                      disableActionButtons={isStreaming}
+                      traceFrames={msg.traceFrames}
+                      pendingContinuationRequest={
+                        messageIndex === messages.length - 1
+                          ? pendingContinuationRequest
+                          : undefined
+                      }
+                      onContinuationDecision={
+                        messageIndex === messages.length - 1
+                          ? onContinuationDecision
+                          : undefined
+                      }
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </StreamingMessageStoreContext.Provider>
+          <div ref={bottomSentinelRef} aria-hidden="true" style={{ height: 1 }} />
         </div>
       </div>
 
-      <MessageJumpControls
-        messagesCount={messages.length}
-        isAtBottom={isAtBottom}
-        isAtTop={isAtTop}
-        onSkipToTop={handleSkipToTop}
-        onJumpToPreviousMessage={handleJumpToPreviousMessage}
-        onBackToBottom={handleBackToBottom}
-        attachPanelBg={attachPanelBg}
-        isDark={isDark}
-        color={color}
-      />
+      {!isStreaming ? (
+        <MessageMinimap
+          messagesRef={messagesRef}
+          messageNodeRefs={messageNodeRefs}
+          segments={segments}
+          total={total}
+          safeVisibleStart={safeVisibleStart}
+          measure={measure}
+          scrollToMessageIndex={scrollToMessageIndex}
+          isDark={isDark}
+        />
+      ) : null}
     </div>
   );
 };

@@ -132,11 +132,13 @@ fi
 
 CAPABILITY_JSON="$UNCHAIN_SOURCE_PATH/src/unchain/runtime/resources/model_capabilities.json"
 DEFAULT_PAYLOADS_JSON="$UNCHAIN_SOURCE_PATH/src/unchain/runtime/resources/model_default_payloads.json"
-if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" ]]; then
+MCP_REGISTRY_JSON="$ROOT_DIR/src/SERVICEs/mcp_toolkit_registry.json"
+if [[ ! -f "$CAPABILITY_JSON" || ! -f "$DEFAULT_PAYLOADS_JSON" || ! -f "$MCP_REGISTRY_JSON" ]]; then
   echo "Missing required unchain model metadata files in source path: $UNCHAIN_SOURCE_PATH"
   echo "Expected files:"
   echo "  $CAPABILITY_JSON"
   echo "  $DEFAULT_PAYLOADS_JSON"
+  echo "  $MCP_REGISTRY_JSON"
   exit 1
 fi
 
@@ -251,6 +253,7 @@ PYINSTALLER_ARGS=(
   --collect-data unchain
   --add-data "${CAPABILITY_JSON}${PYI_DATA_SEP}unchain/runtime/resources"
   --add-data "${DEFAULT_PAYLOADS_JSON}${PYI_DATA_SEP}unchain/runtime/resources"
+  --add-data "${MCP_REGISTRY_JSON}${PYI_DATA_SEP}resources"
   --hidden-import unchain
   --hidden-import unchain.runtime
   --hidden-import unchain.runtime.engine

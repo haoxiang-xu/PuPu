@@ -449,6 +449,9 @@ export const sanitizeArtifactSummariesByTurnId = (value) => {
   return Object.fromEntries(entries);
 };
 
+export const sanitizeRunArtifactSummary = (value) =>
+  sanitizeArtifactBucket(value) || undefined;
+
 const sanitizeTraceFrame = (frame) => {
   if (!isObject(frame)) return null;
   const cleanedFrame = {
@@ -619,6 +622,13 @@ export const sanitizeMessage = (message) => {
     );
     if (cleanedArtifactSummaries) {
       cleaned.artifactSummariesByTurnId = cleanedArtifactSummaries;
+    }
+
+    const cleanedRunArtifactSummary = sanitizeRunArtifactSummary(
+      message.runArtifactSummary,
+    );
+    if (cleanedRunArtifactSummary) {
+      cleaned.runArtifactSummary = cleanedRunArtifactSummary;
     }
   }
 

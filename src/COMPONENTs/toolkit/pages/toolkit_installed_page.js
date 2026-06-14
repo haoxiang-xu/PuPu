@@ -5,8 +5,11 @@ import {
   setDefaultToolkitEnabled,
   removeInvalidToolkitIds,
 } from "../../../SERVICEs/default_toolkit_store";
+import { deleteMcpEntry } from "../../../SERVICEs/mcp_install";
+import { withMcpStoreIcon } from "../../../SERVICEs/mcp_toolkit_store";
 import { BASE_TOOLKIT_IDENTIFIERS } from "../constants";
 import ToolkitRow from "../components/toolkit_row";
+import { ToolkitDeleteConfirmModal } from "../components/toolkit_detail_panel";
 import SuspenseFallback from "../../../BUILTIN_COMPONENTs/suspense/suspense_fallback";
 import PlaceholderBlock from "../components/placeholder_block";
 import { Input } from "../../../BUILTIN_COMPONENTs/input/input";
@@ -46,10 +49,12 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
       const validIds = visible.map((tk) => tk.toolkitId);
       removeInvalidToolkitIds("global", validIds);
       const enabledIds = new Set(getDefaultToolkitSelection("global"));
-      return visible.map((tk) => ({
-        ...tk,
-        defaultEnabled: enabledIds.has(tk.toolkitId),
-      }));
+      return visible.map((tk) =>
+        withMcpStoreIcon({
+          ...tk,
+          defaultEnabled: enabledIds.has(tk.toolkitId),
+        }),
+      );
     }, []),
     { label: "toolkit_catalog_load", pendingDelayMs: 0, onError: () => {} },
   );
@@ -75,14 +80,44 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
     );
   }, []);
 
-  const handleDelete = useCallback((toolkitId) => {
-    // TODO: implement actual toolkit deletion when backend supports it
-  }, []);
+  const reload = useCallback(async () => {
+    const result = await loadCatalog();
+    if (result !== undefined) setToolkits(result);
+  }, [loadCatalog]);
 
-  /* Expose handlers so parent (detail panel) can call them */
+  /* Delete is MCP-only — built-in / local toolkits are never deletable here. */
+  const handleDelete = useCallback(
+    async (toolkitId) => {
+      const tk = toolkits.find((t) => t.toolkitId === toolkitId);
+      if (!tk || tk.source !== "mcp") return;
+      try {
+        await deleteMcpEntry(toolkitId);
+      } catch {
+        return;
+      }
+      const remainingIds = toolkits
+        .filter((t) => t.toolkitId !== toolkitId)
+        .map((t) => t.toolkitId);
+      removeInvalidToolkitIds("global", remainingIds);
+      await reload();
+    },
+    [toolkits, reload],
+  );
+
+  /* Row delete asks for confirmation first (detail panel has its own modal). */
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const requestDelete = useCallback(
+    (toolkitId) => {
+      const tk = toolkits.find((t) => t.toolkitId === toolkitId);
+      if (tk && tk.source === "mcp") setDeleteTarget(tk);
+    },
+    [toolkits],
+  );
+
+  /* Expose handlers so parent (detail panel / install flow) can call them */
   useEffect(() => {
-    onHandlersReady?.({ handleToggleEnabled, handleDelete });
-  }, [onHandlersReady, handleToggleEnabled, handleDelete]);
+    onHandlersReady?.({ handleToggleEnabled, handleDelete, reload });
+  }, [onHandlersReady, handleToggleEnabled, handleDelete, reload]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -149,8 +184,8 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
           fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
           fontWeight: 500,
           color: isDark ? "rgba(255,255,255,0.7)" : "rgba(0,0,0,0.6)",
-          marginTop: 4,
-          marginBottom: 2,
+          marginTop: 14,
+          marginBottom: 6,
         }}
       >
         {filtered.length} toolkit{filtered.length !== 1 ? "s" : ""} installed
@@ -176,6 +211,7 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
             isDark={isDark}
             isBuiltin={isBuiltinToolkit(tk)}
             onToggleEnabled={handleToggleEnabled}
+            onDelete={requestDelete}
             onClick={(toolkitId) => onToolClick?.(toolkitId, null, tk)}
           />
         </React.Fragment>
@@ -194,6 +230,17 @@ const ToolkitInstalledPage = ({ isDark, onToolClick, onHandlersReady }) => {
           No toolkits matching "{search.trim()}"
         </div>
       )}
+
+      <ToolkitDeleteConfirmModal
+        open={Boolean(deleteTarget)}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (deleteTarget) handleDelete(deleteTarget.toolkitId);
+          setDeleteTarget(null);
+        }}
+        isDark={isDark}
+        toolkitLabel={deleteTarget?.toolkitName || deleteTarget?.toolkitId}
+      />
     </div>
   );
 };

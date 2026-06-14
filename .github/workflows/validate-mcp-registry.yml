@@ -1,0 +1,29 @@
+name: Validate MCP Registry
+
+on:
+  pull_request:
+    paths:
+      - "src/SERVICEs/mcp_toolkit_registry.json"
+      - "src/SERVICEs/mcp_toolkit_registry.schema.json"
+      - "scripts/validate-mcp-registry.cjs"
+      - "scripts/validate-mcp-registry.test.mjs"
+  push:
+    branches: [main]
+    paths:
+      - "src/SERVICEs/mcp_toolkit_registry.json"
+      - "src/SERVICEs/mcp_toolkit_registry.schema.json"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install Ajv
+        run: npm install ajv@^6 --no-save
+      - name: Validate registry
+        run: npm run validate:mcp
+      - name: Test validator
+        run: npm run test:mcp-registry

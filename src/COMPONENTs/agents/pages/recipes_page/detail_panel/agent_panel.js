@@ -5,6 +5,7 @@ import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
 import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 const MODEL_OPTIONS = [
   { value: "", label: "(use recipe default)" },
@@ -201,16 +202,13 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             height: 26,
             borderRadius: 7,
             background: "linear-gradient(135deg, #6478f6, #4a5bd8)",
-            color: "#fff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 13,
-            fontWeight: 700,
             flexShrink: 0,
           }}
         >
-          A
+          <Icon src="bot" color="#fff" style={{ width: 14, height: 14 }} />
         </div>
         <div style={{ minWidth: 0, flex: 1, fontSize: 14, fontWeight: 600 }}>
           {node.id}

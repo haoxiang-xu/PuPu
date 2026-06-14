@@ -2,6 +2,7 @@ import React from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import api from "../../../SERVICEs/api";
 import useChatInputToolkits from "./use_chat_input_toolkits";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
 
 jest.mock("../../../SERVICEs/api", () => ({
   __esModule: true,
@@ -81,9 +82,18 @@ const createDeferred = () => {
 const HookHarness = () => {
   const { toolkitOptions, toolkitLoading, refreshToolkits } =
     useChatInputToolkits();
+  const iconNameFor = (option) =>
+    option?.value?.startsWith?.("mcp.")
+      ? option.icon?.props?.children?.props?.icon?.name ||
+        option.icon?.props?.icon?.name ||
+        ""
+      : "";
   const summarizedOptions = toolkitOptions.map(({ icon, ...option }) => ({
     ...option,
     hasIcon: Boolean(icon),
+    ...(iconNameFor({ ...option, icon })
+      ? { iconName: iconNameFor({ ...option, icon }) }
+      : {}),
   }));
 
   return (
@@ -97,6 +107,26 @@ const HookHarness = () => {
 
 const readOptions = () =>
   JSON.parse(screen.getByTestId("options").textContent || "[]");
+
+const RenderedOptionsHarness = () => {
+  const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
+  return (
+    <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+      <button onClick={() => void refreshToolkits()}>refresh</button>
+      {toolkitOptions.map((option) => (
+        <div key={option.value} data-testid={`option-${option.value}`}>
+          {option.icon}
+          <span>{option.label}</span>
+        </div>
+      ))}
+    </ConfigContext.Provider>
+  );
+};
+
+const iconPathData = (container) =>
+  Array.from(container.querySelectorAll("path"))
+    .map((path) => path.getAttribute("d"))
+    .join(" ");
 
 describe("use_chat_input_toolkits", () => {
   beforeEach(() => {
@@ -152,6 +182,77 @@ describe("use_chat_input_toolkits", () => {
       ]),
     );
     expect(screen.getByTestId("loading")).toHaveTextContent("false");
+  });
+
+  test("uses the mcp icon for attach selector MCP entries with empty backend icons", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValueOnce({
+      toolkits: [
+        {
+          toolkitId: "mcp.custom.empty",
+          toolkitName: "Empty MCP",
+          toolkitDescription: "Custom MCP",
+          source: "mcp",
+          hidden: false,
+          toolkitIcon: {},
+          tools: [{ title: "Ping", name: "ping" }],
+        },
+      ],
+    });
+
+    render(<HookHarness />);
+    fireEvent.click(screen.getByText("refresh"));
+
+    await waitFor(() =>
+      expect(readOptions()).toEqual([
+        {
+          value: "mcp.custom.empty",
+          label: "Empty MCP",
+          description: "Custom MCP",
+          search: "Empty MCP mcp.custom.empty Custom MCP Ping",
+          hasIcon: true,
+          iconName: "mcp",
+        },
+      ]),
+    );
+  });
+
+  test("renders the real mcp glyph in the attach selector when catalog sends a generic tool icon", async () => {
+    api.unchain.listToolModalCatalog.mockResolvedValueOnce({
+      toolkits: [
+        {
+          toolkitId: "mcp.workspace.markitdown",
+          toolkitName: "Mark It Down",
+          toolkitDescription: "Convert documents",
+          source: "mcp",
+          hidden: false,
+          toolkitIcon: {
+            type: "builtin",
+            name: "tool",
+            color: "#ffffff",
+            backgroundColor: "#111827",
+          },
+          tools: [{ title: "Convert", name: "convert_to_markdown" }],
+        },
+      ],
+    });
+
+    render(<RenderedOptionsHarness />);
+    fireEvent.click(screen.getByText("refresh"));
+
+    await waitFor(() => {
+      expect(screen.getByText("Mark It Down")).toBeInTheDocument();
+    });
+
+    const option = screen.getByTestId("option-mcp.workspace.markitdown");
+    await waitFor(() => {
+      expect(option.querySelector("svg")).toBeInTheDocument();
+    });
+
+    expect(option.querySelector("[aria-hidden='true']")).toHaveStyle({
+      backgroundColor: "transparent",
+    });
+    expect(iconPathData(option)).toContain("M9.795 1.694");
+    expect(iconPathData(option)).not.toContain("M16.3303 13.497");
   });
 
   test("shows a failure placeholder after an initial request error and retries on demand", async () => {

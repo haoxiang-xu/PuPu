@@ -7,6 +7,11 @@ jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => ({
   default: ({ src }) => <span data-testid={`icon-${src}`} />,
 }));
 
+// 统计数 +n/−n 现在拆成两个着色 span,合并文本分散在子节点,getByText 的单节点
+// 匹配会失效。改按 stat 外层 span 的 textContent 精确匹配(唯一)。
+const statSpan = (text) =>
+  screen.getByText((_, el) => el?.tagName === "SPAN" && el.textContent === text);
+
 const fileDiff = ({ id, path, op = "edit", additions, deletions, unifiedDiff }) => ({
   artifact_id: `file_diff:${id}`,
   kind: "file_diff",
@@ -38,7 +43,7 @@ describe("FilesChangedCard collapsed", () => {
     );
     expect(screen.getByText("Files changed")).toBeInTheDocument();
     expect(screen.getByText("2 files")).toBeInTheDocument();
-    expect(screen.getByText(/\+15 −5/)).toBeInTheDocument();
+    expect(statSpan("+15 −5")).toBeInTheDocument();
   });
 
   test("falls back to computing +/− from unified diff when stats are missing", () => {
@@ -50,7 +55,7 @@ describe("FilesChangedCard collapsed", () => {
     );
     expect(screen.getByText("Files changed")).toBeInTheDocument();
     expect(screen.getByText("1 file")).toBeInTheDocument();
-    expect(screen.getByText(/\+1 −1/)).toBeInTheDocument();
+    expect(statSpan("+1 −1")).toBeInTheDocument();
   });
 
   test("accepts camelCase unifiedDiff field as well as snake_case", () => {
@@ -68,7 +73,7 @@ describe("FilesChangedCard collapsed", () => {
       },
     };
     render(<FilesChangedCard artifacts={[camelArtifact]} isDark={false} />);
-    expect(screen.getByText(/\+1 −1/)).toBeInTheDocument();
+    expect(statSpan("+1 −1")).toBeInTheDocument();
   });
 
   test("accepts single-file snapshot shape (no snapshot.files array)", () => {
@@ -85,7 +90,7 @@ describe("FilesChangedCard collapsed", () => {
     render(<FilesChangedCard artifacts={[singleFile]} isDark={false} />);
     expect(screen.getByText("Files changed")).toBeInTheDocument();
     expect(screen.getByText("1 file")).toBeInTheDocument();
-    expect(screen.getByText(/\+1 −1/)).toBeInTheDocument();
+    expect(statSpan("+1 −1")).toBeInTheDocument();
   });
 });
 
@@ -138,6 +143,45 @@ describe("FilesChangedCard expanded", () => {
 });
 
 describe("FilesChangedCard per-row diff expansion", () => {
+  test("constrains long paths and diff previews to the card width", () => {
+    const longPath =
+      "/Users/red/Desktop/DEV/pupu_workspace/PuPu_traffic/build_dashboard.py";
+    const longLine =
+      "return df.sort_values([\"data_type\", \"date\", \"snapshot_date\", \"fetched_at\"], na_position=\"last\").reset_index(drop=True)";
+    const { container } = render(
+      <FilesChangedCard
+        artifacts={[
+          fileDiff({
+            id: "c1",
+            path: longPath,
+            unifiedDiff: [
+              `--- a${longPath}`,
+              `+++ b${longPath}`,
+              "@@ -23,3 +23,3 @@",
+              ` ${longLine}`,
+              `-${longLine}`,
+              `+${longLine}`,
+            ].join("\n"),
+          }),
+        ]}
+        isDark={false}
+      />,
+    );
+
+    const card = screen.getByTestId("files-changed-card");
+    expect(card).toHaveStyle({ width: "100%", maxWidth: "100%" });
+
+    fireEvent.click(screen.getByTestId("files-changed-card-header"));
+    const pathNode = screen.getByText(longPath);
+    const fileRow = pathNode.closest('[role="button"]');
+    expect(fileRow).toHaveStyle({ minWidth: "0" });
+    expect(pathNode).toHaveStyle({ minWidth: "0", overflowWrap: "anywhere" });
+
+    fireEvent.click(pathNode);
+    const diffScroller = container.querySelector(".scrollable");
+    expect(diffScroller).toHaveStyle({ minWidth: "0", maxWidth: "100%" });
+  });
+
   test("clicking a file row mounts the DiffBody for that file", () => {
     render(
       <FilesChangedCard
@@ -268,7 +312,7 @@ describe("FilesChangedCard 0-line truncation", () => {
       },
     };
     render(<FilesChangedCard artifacts={[artifact]} isDark={false} />);
-    expect(screen.getByText(/\+1 −1 shown/)).toBeInTheDocument();
+    expect(statSpan("+1 −1 shown")).toBeInTheDocument();
   });
 
   test("does NOT label stats as 'shown' when backend supplied additions/deletions", () => {
@@ -292,6 +336,6 @@ describe("FilesChangedCard 0-line truncation", () => {
     };
     render(<FilesChangedCard artifacts={[artifact]} isDark={false} />);
     expect(screen.queryByText(/shown/)).toBeNull();
-    expect(screen.getByText(/\+50 −20/)).toBeInTheDocument();
+    expect(statSpan("+50 −20")).toBeInTheDocument();
   });
 });

@@ -284,7 +284,6 @@
     "timeline": {
       "lineColor": "rgba(0,0,0,0.12)",
       "lineDoneColor": "rgba(0,0,0,0.18)",
-      "pointColor": "rgba(10,186,181,1)",
       "pointDoneColor": "rgba(0,0,0,0.22)",
       "pointPendingColor": "rgba(0,0,0,0.18)",
       "titleColor": "#222222",
@@ -601,7 +600,6 @@
     "timeline": {
       "lineColor": "rgba(255,255,255,0.12)",
       "lineDoneColor": "rgba(255,255,255,0.15)",
-      "pointColor": "rgba(10,186,181,1)",
       "pointDoneColor": "rgba(255,255,255,0.22)",
       "pointPendingColor": "rgba(255,255,255,0.18)",
       "titleColor": "#CCCCCC",

@@ -106,7 +106,8 @@ const CodeDiffInteract = ({ config, onSubmit, uiState, isDark, disabled }) => {
       >
         <span style={{ overflowWrap: "anywhere" }}>{path}</span>
         <span style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
-          +{plus} -{minus}
+          <span style={{ color: isDark ? "#3fb950" : "#1a7f37" }}>+{plus}</span>{" "}
+          <span style={{ color: isDark ? "#f85149" : "#cf222e" }}>-{minus}</span>
         </span>
       </div>
       <DiffBody unifiedDiff={unifiedDiff} isDark={isDark} />

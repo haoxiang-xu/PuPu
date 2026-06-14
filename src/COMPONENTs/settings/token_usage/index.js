@@ -444,6 +444,9 @@ const TokenBreakdownChart = ({
 
       <div
         data-testid="token-breakdown-scroll-area"
+        className="scrollable"
+        data-sb-wall="-10"
+        data-sb-persist="1"
         ref={scrollAreaRef}
         style={{
           flex: 1,

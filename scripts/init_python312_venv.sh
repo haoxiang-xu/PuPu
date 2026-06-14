@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="$ROOT_DIR/.venv"
-REQUIREMENTS_FILE="$ROOT_DIR/miso_runtime/server/requirements.txt"
+REQUIREMENTS_FILE="$ROOT_DIR/unchain_runtime/server/requirements.txt"
 
 is_python312() {
   local python_bin="$1"

@@ -32,6 +32,7 @@ export default function DetailPanel({
       <div
         className="scrollable"
         data-sb-wall="4"
+        data-sb-edge="2"
         data-sb-edge-top="36"
         data-sb-edge-bottom="12"
         data-testid="recipe-detail-panel"
@@ -54,6 +55,7 @@ export default function DetailPanel({
     <div
       className="scrollable"
       data-sb-wall="4"
+      data-sb-edge="2"
       data-sb-edge-top="36"
       data-sb-edge-bottom="12"
       data-testid="recipe-detail-panel"

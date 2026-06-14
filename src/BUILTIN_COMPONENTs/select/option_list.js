@@ -1,4 +1,6 @@
-import { isValidElement, useState } from "react";
+import { isValidElement, useContext, useState } from "react";
+import { ConfigContext } from "../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
 import AnimatedChildren from "../class/animated_children";
 import { get_option_text, render_icon } from "./use_select";
 import Icon from "../icon/icon";
@@ -7,18 +9,16 @@ import Icon from "../icon/icon";
  *  Checkbox — teal checkbox for multi-select mode
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const CHECK_COLOR = "rgba(10,186,181,1)";
-
-const Checkbox = ({ checked, isDark }) => (
+const Checkbox = ({ checked, isDark, checkColor }) => (
   <div
     style={{
       width: 14,
       height: 14,
       borderRadius: 4,
       border: checked
-        ? `2px solid ${CHECK_COLOR}`
+        ? `2px solid ${checkColor}`
         : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
-      background: checked ? CHECK_COLOR : "transparent",
+      background: checked ? checkColor : "transparent",
       flexShrink: 0,
       display: "flex",
       alignItems: "center",
@@ -62,6 +62,7 @@ const OptionItem = ({
   placeholderColor,
   option_theme,
   option_style,
+  checkColor,
 }) => {
   const isDisabled = !!option?.disabled;
   const optionColor = isDisabled
@@ -110,7 +111,9 @@ const OptionItem = ({
       }}
     >
       {/* checkbox for multi-select */}
-      {multi && <Checkbox checked={isSelected} isDark={isDark} />}
+      {multi && (
+        <Checkbox checked={isSelected} isDark={isDark} checkColor={checkColor} />
+      )}
 
       {/* icon */}
       {showIcon ? <>{render_icon(iconValue, fontSize, optionColor)}</> : null}
@@ -300,6 +303,8 @@ const OptionList = ({
   option_style,
   isDark,
 }) => {
+  const { theme } = useContext(ConfigContext);
+  const checkColor = themeHighlightColor(theme);
   const is_selected = (option) =>
     multi
       ? selectedValuesSet?.has(option?.value)
@@ -343,6 +348,7 @@ const OptionList = ({
         placeholderColor={placeholderColor}
         option_theme={option_theme}
         option_style={option_style}
+        checkColor={checkColor}
       />
     ));
   }
@@ -451,6 +457,7 @@ const OptionList = ({
                       placeholderColor={placeholderColor}
                       option_theme={option_theme}
                       option_style={option_style}
+                      checkColor={checkColor}
                     />
                   );
                 })}
@@ -500,6 +507,7 @@ const OptionList = ({
             placeholderColor={placeholderColor}
             option_theme={option_theme}
             option_style={option_style}
+            checkColor={checkColor}
           />
         );
       })}

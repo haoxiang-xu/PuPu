@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "categories": ["all", "workspace"],
+  "entries": [
+    {
+      "id": "workspace.example",
+      "toolkitId": "mcp.workspace.example",
+      "name": "Example",
+      "description": "Fixture entry with an illegal trustLevel for testing.",
+      "category": "workspace",
+      "trustLevel": "totally-bogus",
+      "mcp": { "transport": "stdio", "command": "npx", "args": ["-y", "example@1.0.0"] }
+    }
+  ]
+}

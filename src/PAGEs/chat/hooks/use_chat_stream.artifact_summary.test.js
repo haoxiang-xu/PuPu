@@ -22,31 +22,35 @@ describe("use_chat_stream artifact_summary plumbing", () => {
     source = fs.readFileSync(HOOK_PATH, "utf8");
   });
 
-  test("runtimeEventEffectKey distinguishes artifact_summary by turnId and reason", () => {
+  test("runtimeEventEffectKey distinguishes artifact summaries by scope and reason", () => {
     // The key function must mix turnId + reason for artifact_summary effects,
     // otherwise multiple flushed effects from one run.completed collide.
     expect(source).toMatch(/effect\?\.type\s*===\s*"artifact_summary"/);
+    expect(source).toMatch(/effect\?\.type\s*===\s*"run_artifact_summary"/);
     expect(source).toMatch(/effect\.turnId/);
     expect(source).toMatch(/effect\.reason/);
+    expect(source).toMatch(/run:\$\{effect\.reason/);
   });
 
-  test("effects loop has an artifact_summary branch", () => {
+  test("effects loop has artifact summary branches", () => {
     expect(source).toMatch(/effect\.type\s*===\s*"artifact_summary"/);
+    expect(source).toMatch(/effect\.type\s*===\s*"run_artifact_summary"/);
   });
 
   test("artifact_summary branch reads from runtimeEventActivityTree.artifactSummariesByTurnId", () => {
     expect(source).toMatch(/artifactSummariesByTurnId/);
   });
 
-  test("artifact_summary branch writes through syncStreamMessages", () => {
+  test("artifact summary branch writes through syncStreamMessages", () => {
     // The branch must follow the same pattern as syncAssistantSubagentState:
     // build nextStreamMessages via streamMessages.map and call syncStreamMessages.
     const branch = source.match(
-      /effect\.type\s*===\s*"artifact_summary"[\s\S]{0,1200}/,
+      /const patchArtifactSummary[\s\S]{0,1800}/,
     );
     expect(branch).not.toBeNull();
     expect(branch[0]).toMatch(/streamMessages\.map/);
     expect(branch[0]).toMatch(/syncStreamMessages\(/);
     expect(branch[0]).toMatch(/assistantMessageId/);
+    expect(branch[0]).toMatch(/runArtifactSummary/);
   });
 });
