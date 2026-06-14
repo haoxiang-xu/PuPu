@@ -1,1 +1,6 @@
 - [Team Roster & Handoff Protocol](team_roster.md) — PuPu 3-agent team: qa-tester (整机功能归他)、product-ops (我交付"条目已校验"证据，不碰发版)
+- [Catalog Source of Truth](catalog_source_of_truth.md) — 商店=seed-registry 驱动: mcp_toolkit_registry.json + .schema.json + mcp_toolkit_store.js；工作树19条(HEAD 15,新增未提交)
+- [Slack 双条目 & tool_name 限定](slack-dual-entry-and-tool-name-qualification.md) — Slack 已有2条(remote成品/local 已软删 deprecated)；{server}__{tool}前缀由backend加非seed
+- [Discord 条目 & 版本钉死规则](discord-entry-and-version-pin-rule.md) — mcp.productivity.discord(needs_review,@0.0.6,22工具18门控,DISCORD_TOKEN后端密钥)；CTO规则:needs_review/community stdio 必钉版本
+- [Telegram 条目](telegram-entry-2026-06.md) — mcp.productivity.telegram(needs_review,@0.1.4,Bot-API only,5工具3门控含FORWARD_MESSAGE外泄原语,TELEGRAM_BOT_TOKEN后端密钥)
+- [SQLite 条目](sqlite-entry-2026-06.md) — mcp.workspace.sqlite(community,uvx==2025.4.25,db-path是ARG绑${WORKSPACE},无secret,6工具3门控含append_insight写资源)；registry现19条

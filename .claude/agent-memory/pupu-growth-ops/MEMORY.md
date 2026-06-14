@@ -3,3 +3,5 @@
 - [Clone 暴涨 2026-06](clone-spike-2026-06.md) — CEO 关注的 clone 飙升；判定为 bot/CI 噪声 + 下次如何证实
 - [创始人画像](founder_profile.md) — Haoxiang Xu 单人维护者，什么算赢、什么算忧
 - [汇报风格偏好](feedback_report_style.md) — CEO 要数据优先：诚实/直接/全面展示原始数字，解读单独成层、不挤掉数据
+- [安装信号 2026-06](install-signal-2026-06.md) — v0.1.6 安装速率最高且加速（5天+17），三平台均衡，支持加快发布节奏
+- [沉默下载者缺口](silent-downloader-gap.md) — 83/85 issue 是维护者自开，用户在用不反馈；首个外部 PR #150 是火苗

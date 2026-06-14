@@ -2,3 +2,4 @@
 - [AI 层工具链](ai-layer-toolchain.md) — claude-api skill 查 Claude、provider 文档查其他、GitNexus 读 unchain 层；绝不凭记忆编造模型事实
 - [扩编立场：backend dev 组](org-backend-dev-position.md) — 2026-06-10 我 recommend 建组；spec vs implementation 边界 + 我的 AI 行为否决权
 - [A2A channel 方向会](a2a-channel-direction.md) — 2026-06-10 CEO 定调多 agent 方向；peer 注入 role spec（user+envelope）+ agent org 分阶段路线
+- [工具进模型的链路](tool-injection-path.md) — MCP/builtin 工具主走 provider tools-API 参数（全 schema）；<tools> system 块是次要 guidance（MCP 仅 name+desc 一行）
