@@ -17,6 +17,20 @@ import unchain_adapter  # noqa: E402
 
 
 class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Hermeticity: both stream_chat_events() and _create_agent() call
+        # _load_recipe_from_options(), which defaults to loading the user's local
+        # ~/.pupu/agent_recipes/Default.recipe. On a developer machine that has a
+        # saved *graph* recipe, that diverts these tests into the graph engine and
+        # past the mocked _create_agent/FakeAgent, breaking assertions that have
+        # nothing to do with recipes. Force "no recipe" so this suite exercises the
+        # plain developer-agent path regardless of machine-local user state.
+        recipe_patcher = mock.patch.object(
+            unchain_adapter, "_load_recipe_from_options", return_value=None
+        )
+        recipe_patcher.start()
+        self.addCleanup(recipe_patcher.stop)
+
     def _write_capability_file(self, payload: dict) -> tuple[tempfile.TemporaryDirectory, Path]:
         temp_dir = tempfile.TemporaryDirectory()
         capability_file = Path(temp_dir.name) / "model_capabilities.json"
