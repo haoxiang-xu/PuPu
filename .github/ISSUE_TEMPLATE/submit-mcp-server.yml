@@ -1,0 +1,105 @@
+name: "🧩 Submit an MCP server to the store"
+description: Propose a new MCP server / toolkit for the PuPu store catalog.
+title: "[MCP] <server name>"
+labels: ["mcp-submission", "needs-review"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for extending PuPu! Fill this in and a maintainer will turn it into a
+        store entry. New entries land as **needs_review** and ship only after a
+        security review. See the full guide:
+        https://github.com/haoxiang-xu/PuPu/blob/main/docs/contributing/mcp-store-submission.md
+  - type: input
+    id: name
+    attributes:
+      label: Server name
+      placeholder: e.g. Acme Tasks
+    validations:
+      required: true
+  - type: input
+    id: description
+    attributes:
+      label: One-line description
+      placeholder: What does it let the assistant do?
+    validations:
+      required: true
+  - type: input
+    id: source_repo
+    attributes:
+      label: Source repo or homepage URL
+      placeholder: https://github.com/owner/repo
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      options:
+        - stdio (runs locally via a command)
+        - http (connects to a hosted server URL)
+    validations:
+      required: true
+  - type: input
+    id: install
+    attributes:
+      label: Install command (stdio) — MUST pin a version
+      placeholder: npx -y @acme/mcp@1.2.3
+    validations:
+      required: false
+  - type: input
+    id: url
+    attributes:
+      label: Server URL (http)
+      placeholder: https://mcp.acme.com/sse
+    validations:
+      required: false
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      options:
+        - browser
+        - dev
+        - devops
+        - productivity
+        - workspace
+        - memory
+        - communication
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Does it need an API key or OAuth?
+      options:
+        - "No"
+        - "Yes — API key / token"
+        - "Yes — OAuth"
+    validations:
+      required: true
+  - type: textarea
+    id: tools
+    attributes:
+      label: Which tools does it expose, and which have side effects?
+      placeholder: |
+        - list_tasks (read-only)
+        - create_task (writes — should require confirmation)
+    validations:
+      required: true
+  - type: input
+    id: license
+    attributes:
+      label: License
+      placeholder: MIT / Apache-2.0 / ...
+    validations:
+      required: true
+  - type: checkboxes
+    id: agreements
+    attributes:
+      label: Before submitting
+      options:
+        - label: The install command / URL pins a specific version (no bare @latest).
+          required: true
+        - label: I have read the submission guide and the CLA (docs/CLA.md).
+          required: true
