@@ -7,3 +7,4 @@
 - [Database MCP 供应链裁决](mcp-vetting-database-2026-06.md) — SQLite 入库(archived uvx,community,写工具门控,钉版本)；Postgres 整体 defer(MTProto 类,读=外泄)
 - [Flask sidecar 安全现状](flask-sidecar-posture.md) — SEC-001清单7深审：每会话随机token逐路由强制认证；H=MCP工具确认自声明无server默认拒绝；2条SSRF；C0/H1/M2/L4
 - [SEC-001 最终定级](sec-001-final-verdict.md) — 七区汇总复核：1 Critical(秘密链路接缝B) + 6 High根因合并；3大系统性根因；CTO仲裁清单与处置建议
+- [Custom MCP 发版裁决](custom-mcp-release-assessment.md) — 2026-06-14 任意stdio/http MCP；CONDITIONAL GO：argv-exec无shell注入但确认自声明默认关；最小门=安装风险确认弹窗
