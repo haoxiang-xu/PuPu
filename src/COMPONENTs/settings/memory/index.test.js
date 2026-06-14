@@ -1,6 +1,6 @@
 import React from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
-import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { ConfigContext, LocaleContext } from "../../../CONTAINERs/config/context";
 import { MemorySettings } from "./index";
 import useOllamaEmbeddingModels from "./use_ollama_embedding_models";
 import useOpenAIEmbeddingModels from "./use_openai_embedding_models";
@@ -42,7 +42,9 @@ jest.mock("../../../BUILTIN_COMPONENTs/select/select", () => {
 const renderMemorySettings = () =>
   render(
     <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
-      <MemorySettings />
+      <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+        <MemorySettings />
+      </LocaleContext.Provider>
     </ConfigContext.Provider>,
   );
 

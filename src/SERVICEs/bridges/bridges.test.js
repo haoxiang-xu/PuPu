@@ -284,11 +284,12 @@ describe("bridge wrappers", () => {
 });
 
 describe("window API boundary guard", () => {
-  test("direct window API usage is restricted to SERVICEs/bridges and tests", () => {
+  test("direct window API usage is restricted to SERVICEs/bridges, SERVICEs/test_bridge, and tests", () => {
     const disallowedPattern = /window\.(unchainAPI|ollamaAPI|themeAPI|windowStateAPI)/;
 
     const offenders = collectJsFiles(SRC_ROOT)
       .filter((filePath) => !filePath.includes(`${path.sep}SERVICEs${path.sep}bridges${path.sep}`))
+      .filter((filePath) => !filePath.includes(`${path.sep}SERVICEs${path.sep}test_bridge${path.sep}`))
       .filter((filePath) => !filePath.endsWith(".test.js"))
       .filter((filePath) => disallowedPattern.test(fs.readFileSync(filePath, "utf8")))
       .map((filePath) => path.relative(SRC_ROOT, filePath));

@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 
-import { ConfigContext } from "../../CONTAINERs/config/context";
+import { ConfigContext, LocaleContext } from "../../CONTAINERs/config/context";
 import { __mockApi as mockApi } from "../../SERVICEs/api.unchain";
 import { MemoryInspectModal } from "./memory_inspect_modal";
 
@@ -77,7 +77,9 @@ describe("MemoryInspectModal long-term profiles", () => {
 
     render(
       <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
-        <MemoryInspectModal open={true} onClose={() => {}} mode="long_term" />
+        <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+          <MemoryInspectModal open={true} onClose={() => {}} mode="long_term" />
+        </LocaleContext.Provider>
       </ConfigContext.Provider>,
     );
 

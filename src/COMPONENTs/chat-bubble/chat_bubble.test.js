@@ -154,6 +154,31 @@ describe("ChatBubble artifact summaries", () => {
     ],
   });
 
+  // A plan bucket is NOT covered by a run-level workspace_change_set, so it
+  // survives the covered-turn-artifact dedup filter and still renders.
+  const planBucket = (turnId, order) => ({
+    order,
+    status: "completed",
+    artifacts: [
+      {
+        artifact_id: `plan:${turnId}`,
+        kind: "plan",
+        title: `Plan ${turnId}`,
+        revision: 1,
+        snapshot: {
+          plan_id: turnId,
+          status: "draft",
+          revision: 1,
+          title: `Plan ${turnId}`,
+          markdown: `# Plan ${turnId}\n\n- Step one`,
+          truncated: false,
+          total_lines: 3,
+          displayed_lines: 3,
+        },
+      },
+    ],
+  });
+
   test("renders an ArtifactSummary block per completed turn bucket", () => {
     renderWithConfig(
       <ChatBubble
@@ -198,7 +223,7 @@ describe("ChatBubble artifact summaries", () => {
             ],
           },
           artifactSummariesByTurnId: {
-            "run-1:turn-1": fileBucket("turn-1", 1),
+            "run-1:turn-1": planBucket("turn-1", 1),
           },
         }}
       />,
