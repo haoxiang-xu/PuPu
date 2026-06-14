@@ -66,6 +66,8 @@
     "test:frontend": "react-scripts test --watchAll=false",
     "test:electron": "node node_modules/.bin/jest --env=node --runInBand --silent --moduleFileExtensions js --moduleFileExtensions cjs --moduleFileExtensions json --testMatch=\"**/electron/tests/**/*.test.cjs\"",
     "test:release-qa": "node --test scripts/release-qa/*.test.mjs",
+    "validate:mcp": "node scripts/validate-mcp-registry.cjs",
+    "test:mcp-registry": "node --test scripts/validate-mcp-registry.test.mjs",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
