@@ -1,9 +1,11 @@
+
 <div align="center">
   <img src="./public/logo512.png" alt="PuPu" style="height: 128px">
   <h1>PuPu</h1>
   <p>Your AI, your way — beautifully simple.</p>
   <p>
-    A desktop AI client for local and cloud models, with workspace-aware chat in one clean app.
+    A desktop AI client for local and cloud models — workspace-aware chat and a
+    built-in MCP tool store, in one clean native app.
   </p>
   <p>
     <a href="#macos">
@@ -34,6 +36,8 @@ If you find the project useful, ⭐⭐⭐ star the repo.
   - Attach a project folder so PuPu can work with your local files in context.
 - A cleaner desktop workflow
   - Keep conversations, settings, and tools inside one native app on macOS, Windows, and Linux.
+- An extensible tool ecosystem
+  - Add capabilities through the built-in MCP store, or contribute your own.
 - Built for real usage
   - Manage multiple chats, keep context close to your work, and avoid bouncing between disconnected tools.
 
@@ -95,6 +99,18 @@ sudo chmod 4755 /opt/PuPu/chrome-sandbox
 4. Optionally attach a workspace folder so PuPu can work with local files in context.
 5. Start chatting.
 
+## 🧩 Extend PuPu — Tools & MCP
+
+PuPu has a built-in MCP tool store, and the catalog is open to the community.
+
+- **Add a tool the easy way** — [submit an MCP server](https://github.com/haoxiang-xu/PuPu/issues/new?template=submit-mcp-server.yml)
+  with a short form, no code required.
+- **Prefer a PR?** Edit the catalog directly — see the
+  [submission guide](./docs/contributing/mcp-store-submission.md).
+
+New entries are security-reviewed before they ship. Full details in
+[CONTRIBUTING.md](./CONTRIBUTING.md).
+
 ## What You Can Do
 
 ### Work With Local Models
@@ -121,11 +137,13 @@ Manage multiple conversations without losing context or cluttering your workflow
 
 - Agent Builder
 - Agent Teams and Skills
-- MCP integration
+- A growing, community-driven MCP tool store
 
 ## Contributing
 
 Contributions are welcome.
+
+The fastest way to contribute is the [MCP tool store](./CONTRIBUTING.md#-add-a-tool--mcp-server-to-the-store) — no code required. See [CONTRIBUTING.md](./CONTRIBUTING.md) for everything else.
 
 By intentionally submitting a contribution, you agree to the terms in
 [docs/CLA.md](./docs/CLA.md). In short:
