@@ -75,6 +75,11 @@ export const STORE_CATEGORY_CONFIG = [
     labelKey: "toolkit.store_category_workspace",
   },
   { key: "memory", icon: "server", labelKey: "toolkit.store_category_memory" },
+  {
+    key: "communication",
+    icon: "chat",
+    labelKey: "toolkit.store_category_communication",
+  },
 ];
 
 export const TRUST_CONFIG = {

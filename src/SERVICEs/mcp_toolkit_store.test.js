@@ -330,9 +330,21 @@ describe("mcp_toolkit_store", () => {
     expect(browser.every((entry) => entry.category === "browser")).toBe(true);
   });
 
-  test("searchMcpStoreEntries all category returns everything", () => {
+  test("searchMcpStoreEntries all category returns everything except deprecated", () => {
+    const entries = listMcpStoreEntries();
+    const all = searchMcpStoreEntries(entries, "", "all");
+    const nonDeprecated = entries.filter(
+      (entry) => entry.status !== "deprecated" && entry.deprecated !== true,
+    );
+    expect(all.length).toBe(nonDeprecated.length);
+  });
+
+  test("searchMcpStoreEntries hides deprecated entries but keeps the live replacement", () => {
     const all = searchMcpStoreEntries(listMcpStoreEntries(), "", "all");
-    expect(all.length).toBe(listMcpStoreEntries().length);
+    expect(all.some((entry) => entry.id === "productivity.slack")).toBe(false);
+    expect(all.some((entry) => entry.id === "productivity.slack-remote")).toBe(
+      true,
+    );
   });
 
   test("searchMcpStoreEntries matches name, description and tool names", () => {
@@ -412,6 +424,232 @@ describe("mcp_toolkit_store", () => {
       searchMcpStoreEntries(listMcpStoreEntries(), "convert_to_markdown", "workspace")
         .map((entry) => entry.id),
     ).toContain("workspace.markitdown");
+  });
+
+  test("fetch is registered as a workspace MCP", () => {
+    const fetch = getMcpStoreEntry("workspace.fetch");
+
+    expect(fetch).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.workspace.fetch",
+        toolkitName: "Fetch",
+        category: "workspace",
+        source: "mcp",
+        trustLevel: "verified",
+        installable: true,
+        license: "Apache-2.0 / MIT",
+        sourceRepo: "https://github.com/modelcontextprotocol/servers",
+        docsUrl: "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      }),
+    );
+    expect(fetch.mcp).toEqual(
+      expect.objectContaining({
+        transport: "stdio",
+        command: "uvx",
+        args: ["mcp-server-fetch"],
+      }),
+    );
+    expect(fetch.secrets).toEqual([]);
+    expect(fetch.prerequisites).toEqual(
+      expect.arrayContaining(["uv / uvx", "Python >= 3.10"]),
+    );
+    expect(fetch.tools).toEqual([
+      expect.objectContaining({
+        name: "fetch",
+        title: "Fetch URL",
+        requiresConfirmation: true,
+      }),
+    ]);
+    expect(fetch.policySummary).toEqual(
+      expect.objectContaining({
+        reviewed: true,
+        defaultEnabledTools: 0,
+        confirmationRequiredTools: 1,
+      }),
+    );
+    expect(fetch.readmeMarkdown).toContain(
+      "This server can access local/internal IP addresses and may represent a security risk. Exercise caution when using this MCP server to ensure this does not expose any sensitive data.",
+    );
+  });
+
+  test("discord is registered as a needs-review communication MCP", () => {
+    const discord = getMcpStoreEntry("productivity.discord");
+
+    expect(discord).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.productivity.discord",
+        toolkitName: "Discord",
+        category: "communication",
+        source: "mcp",
+        trustLevel: "needs_review",
+        installable: true,
+        license: "MIT",
+        sourceRepo: "https://github.com/IQAIcom/mcp-discord",
+        docsUrl: "https://github.com/IQAIcom/mcp-discord",
+      }),
+    );
+    expect(discord.mcp).toEqual(
+      expect.objectContaining({
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@iqai/mcp-discord@0.0.6"],
+      }),
+    );
+    expect(discord.secrets).toEqual([
+      expect.objectContaining({ key: "DISCORD_TOKEN" }),
+    ]);
+    expect(discord.tools).toHaveLength(22);
+    expect(
+      discord.tools.filter((tool) => tool.requiresConfirmation === true),
+    ).toHaveLength(18);
+    expect(
+      discord.tools.filter((tool) => tool.requiresConfirmation === false),
+    ).toHaveLength(4);
+    expect(discord.policySummary).toEqual(
+      expect.objectContaining({
+        reviewed: true,
+        defaultEnabledTools: 0,
+        confirmationRequiredTools: 18,
+      }),
+    );
+    expect(discord.readmeMarkdown).toContain("Administrator");
+    expect(discord.readmeMarkdown).toContain("pending review");
+    expect(
+      searchMcpStoreEntries(listMcpStoreEntries(), "discord_send", "communication")
+        .map((entry) => entry.id),
+    ).toContain("productivity.discord");
+  });
+
+  test("telegram is registered as a needs-review communication MCP", () => {
+    const telegram = getMcpStoreEntry("productivity.telegram");
+
+    expect(telegram).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.productivity.telegram",
+        toolkitName: "Telegram",
+        category: "communication",
+        source: "mcp",
+        trustLevel: "needs_review",
+        installable: true,
+        license: "MIT",
+        sourceRepo: "https://github.com/IQAIcom/mcp-telegram",
+        docsUrl: "https://github.com/IQAIcom/mcp-telegram",
+      }),
+    );
+    expect(telegram.mcp).toEqual(
+      expect.objectContaining({
+        transport: "stdio",
+        command: "npx",
+        args: ["-y", "@iqai/mcp-telegram@0.1.4"],
+      }),
+    );
+    expect(telegram.secrets).toEqual([
+      expect.objectContaining({ key: "TELEGRAM_BOT_TOKEN" }),
+    ]);
+    expect(telegram.tools).toHaveLength(5);
+    expect(
+      telegram.tools.filter((tool) => tool.requiresConfirmation === true),
+    ).toHaveLength(3);
+    expect(
+      telegram.tools.filter((tool) => tool.requiresConfirmation === false),
+    ).toHaveLength(2);
+    // FORWARD_MESSAGE is an exfiltration primitive and MUST be gated.
+    expect(
+      telegram.tools.find((tool) => tool.name === "FORWARD_MESSAGE")
+        .requiresConfirmation,
+    ).toBe(true);
+    expect(telegram.policySummary).toEqual(
+      expect.objectContaining({
+        reviewed: true,
+        defaultEnabledTools: 0,
+        confirmationRequiredTools: 3,
+      }),
+    );
+    expect(telegram.readmeMarkdown).toContain("mention-only");
+    expect(telegram.readmeMarkdown).toContain("pending review");
+    expect(
+      searchMcpStoreEntries(listMcpStoreEntries(), "SEND_MESSAGE", "communication")
+        .map((entry) => entry.id),
+    ).toContain("productivity.telegram");
+  });
+
+  test("sqlite is registered as a community workspace MCP", () => {
+    const sqlite = getMcpStoreEntry("workspace.sqlite");
+
+    expect(sqlite).toEqual(
+      expect.objectContaining({
+        toolkitId: "mcp.workspace.sqlite",
+        toolkitName: "SQLite",
+        category: "workspace",
+        source: "mcp",
+        trustLevel: "community",
+        installable: true,
+        license: "MIT",
+        sourceRepo: "https://github.com/modelcontextprotocol/servers-archived",
+        docsUrl:
+          "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+      }),
+    );
+    // Local DB file is bound to the agent workspace, mirroring filesystem.
+    expect(sqlite.workspace).toEqual(
+      expect.objectContaining({
+        required: true,
+        placeholder: "${WORKSPACE}",
+        binding: "agent_workspace_root",
+      }),
+    );
+    // Version pinned via uvx (community stdio never rides @latest); db path is an arg.
+    expect(sqlite.mcp).toEqual(
+      expect.objectContaining({
+        transport: "stdio",
+        command: "uvx",
+        args: ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}"],
+      }),
+    );
+    // No connection string, password, or secret — it is a local file path only.
+    expect(sqlite.secrets).toEqual([]);
+    expect(sqlite.prerequisites).toEqual(
+      expect.arrayContaining(["uv / uvx", "Python >= 3.10"]),
+    );
+    expect(sqlite.tools).toHaveLength(6);
+    expect(
+      sqlite.tools.filter((tool) => tool.requiresConfirmation === true),
+    ).toHaveLength(3);
+    expect(
+      sqlite.tools.filter((tool) => tool.requiresConfirmation === false),
+    ).toHaveLength(3);
+    // Every write/DDL/resource-mutating tool MUST be gated.
+    expect(
+      sqlite.tools.find((tool) => tool.name === "write_query")
+        .requiresConfirmation,
+    ).toBe(true);
+    expect(
+      sqlite.tools.find((tool) => tool.name === "create_table")
+        .requiresConfirmation,
+    ).toBe(true);
+    expect(
+      sqlite.tools.find((tool) => tool.name === "append_insight")
+        .requiresConfirmation,
+    ).toBe(true);
+    // read_query (SELECT only) stays ungated.
+    expect(
+      sqlite.tools.find((tool) => tool.name === "read_query")
+        .requiresConfirmation,
+    ).toBe(false);
+    expect(sqlite.policySummary).toEqual(
+      expect.objectContaining({
+        reviewed: true,
+        defaultEnabledTools: 0,
+        confirmationRequiredTools: 3,
+      }),
+    );
+    expect(sqlite.readmeMarkdown).toContain("non-production");
+    expect(sqlite.readmeMarkdown).toContain("community");
+    expect(
+      searchMcpStoreEntries(listMcpStoreEntries(), "read_query", "workspace").map(
+        (entry) => entry.id,
+      ),
+    ).toContain("workspace.sqlite");
   });
 
   test("devops category includes Sentry, Vercel, Grafana and Netdata recipes", () => {
@@ -569,20 +807,27 @@ describe("mcp_toolkit_store", () => {
       .toBe(false);
   });
 
-  test("github and slack entries declare all backend-required secrets", () => {
+  test("github entry declares all backend-required secrets", () => {
     const github = getMcpStoreEntry("dev.github-remote");
     expect(github.secrets).toEqual([
       expect.objectContaining({ key: "GITHUB_MCP_PAT" }),
     ]);
     expect(github.secrets[0].optional).not.toBe(true);
+  });
 
-    const slack = getMcpStoreEntry("productivity.slack");
-    expect(slack.status).toBe("available");
-    expect(slack.trustLevel).toBe("needs_review");
-    expect(slack.secrets).toEqual([
-      expect.objectContaining({ key: "SLACK_BOT_TOKEN" }),
-      expect.objectContaining({ key: "SLACK_TEAM_ID" }),
-    ]);
+  // The stdio bot-token Slack (toolkitId mcp.productivity.slack) was a
+  // pre-launch, never-circulated entry that never shipped in any release
+  // (absent from every tag v0.0.1..v0.1.6). Under the toolkitId-stability
+  // ADR's recorded "pre-launch un-circulated toolkitId may be hard-deleted"
+  // exception, it was hard-removed in favour of mcp.productivity.slack-remote,
+  // which becomes the only Slack. The id must now resolve to nothing.
+  test("hard-deleted stdio slack entry is absent from the store", () => {
+    expect(getMcpStoreEntry("productivity.slack")).toBeNull();
+    expect(
+      MCP_STORE_ENTRIES.some(
+        (entry) => entry.toolkitId === "mcp.productivity.slack",
+      ),
+    ).toBe(false);
   });
 
   test("oauth-capable entries declare generic oauth recipes", () => {
@@ -653,9 +898,6 @@ describe("mcp_toolkit_store", () => {
         authorizationServerMetadataUrl: "https://api.figma.com/.well-known/oauth-authorization-server",
         scopes: ["mcp:connect"],
       }),
-    );
-    expect(getMcpStoreEntry("productivity.slack").toolkitId).toBe(
-      "mcp.productivity.slack",
     );
   });
 });

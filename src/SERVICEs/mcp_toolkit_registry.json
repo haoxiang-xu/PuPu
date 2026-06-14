@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "categories": ["all", "browser", "dev", "devops", "productivity", "workspace", "memory"],
+  "categories": ["all", "browser", "dev", "devops", "productivity", "workspace", "memory", "communication"],
   "entries": [
     {
       "id": "browser.playwright",
@@ -799,52 +799,11 @@
       "readmeMarkdown": "## Memory\n\nReference knowledge-graph memory server. Stores entities and relations the agent can recall across sessions."
     },
     {
-      "id": "productivity.slack",
-      "toolkitId": "mcp.productivity.slack",
-      "name": "Slack",
-      "description": "Send messages and read channels via the Slack MCP server.",
-      "category": "productivity",
-      "source": "mcp",
-      "trustLevel": "needs_review",
-      "status": "available",
-      "installable": true,
-      "license": "Unverified",
-      "sourceRepo": "https://github.com/modelcontextprotocol/servers",
-      "docsUrl": "https://github.com/modelcontextprotocol/servers",
-      "icon": {
-        "type": "builtin",
-        "name": "slack",
-        "color": "#ffffff",
-        "backgroundColor": "#4A154B"
-      },
-      "mcp": {
-        "transport": "stdio",
-        "command": "npx",
-        "args": ["-y", "@modelcontextprotocol/server-slack"]
-      },
-      "setupPreview": "npx -y @modelcontextprotocol/server-slack",
-      "prerequisites": ["Node.js >= 18"],
-      "secrets": [
-        { "key": "SLACK_BOT_TOKEN", "label": "Slack bot token" },
-        { "key": "SLACK_TEAM_ID", "label": "Slack team ID" }
-      ],
-      "tools": [
-        { "name": "list_channels", "title": "List channels", "requiresConfirmation": false },
-        { "name": "post_message", "title": "Post message", "requiresConfirmation": true }
-      ],
-      "policySummary": {
-        "reviewed": false,
-        "defaultEnabledTools": 0,
-        "confirmationRequiredTools": 1
-      },
-      "readmeMarkdown": "## Slack\n\nCandidate entry - recipe and license are not yet verified. Shown for review only."
-    },
-    {
       "id": "productivity.slack-remote",
       "toolkitId": "mcp.productivity.slack-remote",
       "name": "Slack Remote",
       "description": "Official hosted Slack MCP server over Streamable HTTP.",
-      "category": "productivity",
+      "category": "communication",
       "source": "mcp",
       "trustLevel": "verified",
       "status": "available",
@@ -921,6 +880,267 @@
         "confirmationRequiredTools": 1
       },
       "readmeMarkdown": "## Slack Remote\n\nConnects to Slack's official hosted MCP endpoint. Requires a Slack app configured for OAuth."
+    },
+    {
+      "id": "workspace.fetch",
+      "toolkitId": "mcp.workspace.fetch",
+      "name": "Fetch",
+      "description": "Fetch a URL and convert its contents to Markdown for the agent via the official local Fetch MCP server.",
+      "category": "workspace",
+      "source": "mcp",
+      "trustLevel": "verified",
+      "status": "available",
+      "installable": true,
+      "license": "Apache-2.0 / MIT",
+      "sourceRepo": "https://github.com/modelcontextprotocol/servers",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers/tree/main/src/fetch",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/modelcontextprotocol/servers",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "uvx",
+        "args": ["mcp-server-fetch"]
+      },
+      "setupPreview": "uvx mcp-server-fetch",
+      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "secrets": [],
+      "tools": [
+        { "name": "fetch", "title": "Fetch URL", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 1
+      },
+      "readmeMarkdown": "## Fetch\n\nRuns the official local `mcp-server-fetch` server over STDIO. It exposes a single `fetch(url)` tool that retrieves a web page and converts it to Markdown for the agent. Every fetch requires explicit confirmation.\n\nThis server can access local/internal IP addresses and may represent a security risk. Exercise caution when using this MCP server to ensure this does not expose any sensitive data."
+    },
+    {
+      "id": "productivity.discord",
+      "toolkitId": "mcp.productivity.discord",
+      "name": "Discord",
+      "description": "Third-party Discord MCP server (IQAI) for messaging, channels, forums, reactions and webhooks via a Discord bot token.",
+      "category": "communication",
+      "source": "mcp",
+      "trustLevel": "needs_review",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/IQAIcom/mcp-discord",
+      "docsUrl": "https://github.com/IQAIcom/mcp-discord",
+      "icon": {
+        "type": "file",
+        "mimeType": "image/svg+xml",
+        "displayScale": 0.82,
+        "content": "<svg fill=\"#5865F2\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Discord</title><path d=\"M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z\"/></svg>"
+      },
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/IQAIcom/mcp-discord",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@iqai/mcp-discord@0.0.6"]
+      },
+      "setupPreview": "npx -y @iqai/mcp-discord@0.0.6",
+      "prerequisites": ["Node.js >= 18", "Discord bot token from the Developer Portal"],
+      "secrets": [
+        { "key": "DISCORD_TOKEN", "label": "Discord bot token" }
+      ],
+      "tools": [
+        { "name": "discord_get_server_info", "title": "Get server info", "requiresConfirmation": false },
+        { "name": "discord_read_messages", "title": "Read messages", "requiresConfirmation": false },
+        { "name": "discord_get_forum_channels", "title": "List forum channels", "requiresConfirmation": false },
+        { "name": "discord_get_forum_post", "title": "Get forum post", "requiresConfirmation": false },
+        { "name": "discord_login", "title": "Login", "requiresConfirmation": true },
+        { "name": "discord_send", "title": "Send message", "requiresConfirmation": true },
+        { "name": "discord_create_forum_post", "title": "Create forum post", "requiresConfirmation": true },
+        { "name": "discord_reply_to_forum", "title": "Reply to forum", "requiresConfirmation": true },
+        { "name": "discord_create_category", "title": "Create category", "requiresConfirmation": true },
+        { "name": "discord_edit_category", "title": "Edit category", "requiresConfirmation": true },
+        { "name": "discord_delete_category", "title": "Delete category", "requiresConfirmation": true },
+        { "name": "discord_create_text_channel", "title": "Create text channel", "requiresConfirmation": true },
+        { "name": "discord_delete_channel", "title": "Delete channel", "requiresConfirmation": true },
+        { "name": "discord_delete_message", "title": "Delete message", "requiresConfirmation": true },
+        { "name": "discord_delete_forum_post", "title": "Delete forum post", "requiresConfirmation": true },
+        { "name": "discord_add_reaction", "title": "Add reaction", "requiresConfirmation": true },
+        { "name": "discord_add_multiple_reactions", "title": "Add multiple reactions", "requiresConfirmation": true },
+        { "name": "discord_remove_reaction", "title": "Remove reaction", "requiresConfirmation": true },
+        { "name": "discord_create_webhook", "title": "Create webhook", "requiresConfirmation": true },
+        { "name": "discord_send_webhook_message", "title": "Send webhook message", "requiresConfirmation": true },
+        { "name": "discord_edit_webhook", "title": "Edit webhook", "requiresConfirmation": true },
+        { "name": "discord_delete_webhook", "title": "Delete webhook", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 18
+      },
+      "readmeMarkdown": "## Discord (third-party, pending review)\n\nRuns the **third-party** `@iqai/mcp-discord` server (IQAI) over stdio, pinned to `@0.0.6`. This is **not** an official Discord MCP server and is **pending PuPu review** (`needs_review`); the version is pinned so future releases are not auto-pulled without a re-vet. The bot token is read from the `DISCORD_TOKEN` environment variable, injected by the PuPu backend secret store — it is never written to localStorage.\n\n### Least-privilege bot setup (required)\n\nBefore connecting, create a **dedicated Discord bot** for the agent and grant it the **minimum** permissions only:\n\n- Do **not** grant the **Administrator** permission. Grant only the specific guild/channel permissions for the actions you want the agent to perform (e.g. Send Messages / Read Message History for the specific channels in use).\n- **Scope the bot to a single guild (server)** wherever possible, rather than inviting it to multiple servers.\n- When inviting the bot, select only the OAuth2 scopes/permissions it needs; avoid blanket permission integers.\n- Treat the bot token as a secret: rotate it if it leaks, and remove the bot from servers you no longer want the agent to reach.\n\nEvery write, messaging, moderation, webhook and login tool requires explicit confirmation; only read-only tools (get server info, read messages, list/get forum posts) run without a prompt."
+    },
+    {
+      "id": "productivity.telegram",
+      "toolkitId": "mcp.productivity.telegram",
+      "name": "Telegram",
+      "description": "Third-party Telegram MCP server (IQAI, Bot API / Telegraf) for sending, forwarding and pinning messages and reading channel info/members via a Telegram bot token.",
+      "category": "communication",
+      "source": "mcp",
+      "trustLevel": "needs_review",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/IQAIcom/mcp-telegram",
+      "docsUrl": "https://github.com/IQAIcom/mcp-telegram",
+      "icon": {
+        "type": "file",
+        "mimeType": "image/svg+xml",
+        "displayScale": 0.82,
+        "content": "<svg fill=\"#26A5E4\" role=\"img\" viewBox=\"0 0 24 24\" xmlns=\"http://www.w3.org/2000/svg\"><title>Telegram</title><path d=\"M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z\"/></svg>"
+      },
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/IQAIcom/mcp-telegram",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": { "urlPath": "owner.avatar_url" },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@iqai/mcp-telegram@0.1.4"]
+      },
+      "setupPreview": "npx -y @iqai/mcp-telegram@0.1.4",
+      "prerequisites": ["Node.js >= 18", "Telegram bot token from @BotFather"],
+      "secrets": [
+        { "key": "TELEGRAM_BOT_TOKEN", "label": "Telegram bot token" }
+      ],
+      "tools": [
+        { "name": "GET_CHANNEL_INFO", "title": "Get channel info", "requiresConfirmation": false },
+        { "name": "GET_CHANNEL_MEMBERS", "title": "Get channel members", "requiresConfirmation": false },
+        { "name": "SEND_MESSAGE", "title": "Send message", "requiresConfirmation": true },
+        { "name": "FORWARD_MESSAGE", "title": "Forward message", "requiresConfirmation": true },
+        { "name": "PIN_MESSAGE", "title": "Pin message", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 3
+      },
+      "readmeMarkdown": "## Telegram (third-party, pending review)\n\nRuns the **third-party** `@iqai/mcp-telegram` server (IQAI) over stdio, pinned to `@0.1.4`. This is built on the Telegram **Bot API** (Telegraf) and is **not** an official Telegram MCP server; it is **pending PuPu review** (`needs_review`). The version is pinned so future releases are not auto-pulled without a re-vet. The bot token is read from the `TELEGRAM_BOT_TOKEN` environment variable, injected by the PuPu backend secret store — it is never written to localStorage.\n\n### Least-privilege bot setup (required)\n\nBefore connecting, create a **dedicated Telegram bot** for the agent and constrain its reach:\n\n- Create the bot via [@BotFather](https://t.me/BotFather) and treat the token as a secret; rotate it if it leaks.\n- Add the bot **only to the specific groups/channels** the agent needs. The bot's group/channel membership **is its blast radius** and is not enforceable in code — a bot can message, forward from, and pin in every chat it has joined.\n- Enable **mention-only mode** (the package's `SAMPLING_MENTION_ONLY` is on by default) so the bot only reacts when explicitly mentioned in groups, rather than to all traffic.\n- Remove the bot from any chat you no longer want the agent to reach.\n\n### Forwarding is an exfiltration primitive\n\n`FORWARD_MESSAGE` copies content from one chat into another and is gated behind explicit confirmation, alongside `SEND_MESSAGE` and `PIN_MESSAGE`. Only the read-only tools (get channel info, get channel members) run without a prompt."
+    },
+    {
+      "id": "workspace.sqlite",
+      "toolkitId": "mcp.workspace.sqlite",
+      "name": "SQLite",
+      "description": "Query and manage a local SQLite database file through the SQLite reference MCP server.",
+      "category": "workspace",
+      "source": "mcp",
+      "trustLevel": "community",
+      "status": "available",
+      "installable": true,
+      "license": "MIT",
+      "sourceRepo": "https://github.com/modelcontextprotocol/servers-archived",
+      "docsUrl": "https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite",
+      "metadata": {
+        "type": "http_json",
+        "request": {
+          "url": "https://api.github.com/repos/modelcontextprotocol/servers-archived",
+          "headers": {
+            "Accept": "application/vnd.github+json",
+            "User-Agent": "PuPu-MCP-Store"
+          }
+        },
+        "fields": {
+          "fullName": "full_name",
+          "description": "description",
+          "stars": "stargazers_count",
+          "license": "license.spdx_id",
+          "ownerLogin": "owner.login",
+          "ownerAvatarUrl": "owner.avatar_url"
+        },
+        "icon": {
+          "urlPath": "owner.avatar_url"
+        },
+        "iconPolicy": "fallback",
+        "cacheTtlMs": 86400000
+      },
+      "workspace": {
+        "required": true,
+        "placeholder": "${WORKSPACE}",
+        "binding": "agent_workspace_root"
+      },
+      "mcp": {
+        "transport": "stdio",
+        "command": "uvx",
+        "args": ["mcp-server-sqlite==2025.4.25", "--db-path", "${WORKSPACE}"]
+      },
+      "setupPreview": "uvx mcp-server-sqlite==2025.4.25 --db-path ${WORKSPACE}",
+      "prerequisites": ["uv / uvx", "Python >= 3.10"],
+      "secrets": [],
+      "tools": [
+        { "name": "read_query", "title": "Run SELECT query", "requiresConfirmation": false },
+        { "name": "list_tables", "title": "List tables", "requiresConfirmation": false },
+        { "name": "describe_table", "title": "Describe table", "requiresConfirmation": false },
+        { "name": "write_query", "title": "Run INSERT/UPDATE/DELETE query", "requiresConfirmation": true },
+        { "name": "create_table", "title": "Create table", "requiresConfirmation": true },
+        { "name": "append_insight", "title": "Append business insight to memo", "requiresConfirmation": true }
+      ],
+      "policySummary": {
+        "reviewed": true,
+        "defaultEnabledTools": 0,
+        "confirmationRequiredTools": 3
+      },
+      "readmeMarkdown": "## SQLite (community / archived reference server)\n\nRuns the official **`mcp-server-sqlite`** reference server over stdio via `uvx`, pinned to `==2025.4.25`. This server lives in the **archived** [`modelcontextprotocol/servers-archived`](https://github.com/modelcontextprotocol/servers-archived/tree/main/src/sqlite) repository — it is a community/archived reference server, so the version is pinned and future releases are not auto-pulled without a re-vet. No connection string, password, or secret is required: the server only opens a **local SQLite database file** whose path is bound to your agent workspace (`--db-path ${WORKSPACE}`).\n\n### Point it at a disposable, non-production database\n\nThe agent can read **every table and row** in the database file you connect — reading the database **is** data exfiltration. Connect a **disposable / non-production** `.db` file you are comfortable exposing in full; never point it at a production or sensitive database.\n\n### Gated vs. ungated tools\n\nThe read tools — `read_query` (SELECT only), `list_tables`, and `describe_table` — run without a prompt. Every tool that **mutates state** is gated behind explicit confirmation:\n\n- `write_query` — INSERT / UPDATE / DELETE.\n- `create_table` — CREATE TABLE (DDL).\n- `append_insight` — writes to the server's `memo://insights` resource.\n\nEven with writes gated, treat the connected database as fully readable by the agent."
     }
   ]
 }

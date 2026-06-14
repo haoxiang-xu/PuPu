@@ -9,6 +9,10 @@ SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
 
+TESTS_ROOT = Path(__file__).resolve().parent
+if str(TESTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(TESTS_ROOT))
+
 import app as miso_app  # noqa: E402
 import routes as miso_routes  # noqa: E402
 import unchain_adapter  # noqa: E402
@@ -32,6 +36,15 @@ from mcp_external_registries import (  # noqa: E402
     approve_mcp_store_entry,
     delete_mcp_store_registry,
     import_mcp_store_registry,
+)
+from _mcp_registry_fixture import (  # noqa: E402
+    FIXTURE_SECRET_KEY_A,
+    FIXTURE_SECRET_KEY_B,
+    FIXTURE_STDIO_SECRET_ENTRY_ID,
+    FIXTURE_STDIO_SECRET_TOOLKIT_ID,
+    FIXTURE_TOOL_NAME,
+    install_fixture_registry_entries,
+    remove_fixture_registry_entries,
 )
 
 
@@ -83,6 +96,7 @@ class McpToolkitServiceTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.data_dir = Path(self.tmpdir.name)
+        install_fixture_registry_entries()
         FakeMCPToolkit.instances = []
         FakeMCPToolkit.fail_connect = False
         FakeMCPToolkit.next_tools = {
@@ -97,6 +111,7 @@ class McpToolkitServiceTests(unittest.TestCase):
         }
 
     def tearDown(self):
+        remove_fixture_registry_entries()
         self.tmpdir.cleanup()
 
     def test_install_memory_validates_and_persists_discovered_tools(self):
@@ -266,22 +281,22 @@ class McpToolkitServiceTests(unittest.TestCase):
     def test_secret_stdio_entry_requires_all_secret_values(self):
         with self.assertRaises(McpToolkitError) as ctx:
             install_mcp_toolkit(
-                "productivity.slack",
-                secrets={"SLACK_BOT_TOKEN": "xoxb-test"},
+                FIXTURE_STDIO_SECRET_ENTRY_ID,
+                secrets={FIXTURE_SECRET_KEY_A: "fixture-a-value"},
                 data_dir=self.data_dir,
                 toolkit_factory=FakeMCPToolkit,
             )
 
         self.assertEqual(ctx.exception.code, "mcp_secret_required")
-        self.assertIn("SLACK_TEAM_ID", str(ctx.exception))
+        self.assertIn(FIXTURE_SECRET_KEY_B, str(ctx.exception))
         self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
 
     def test_secret_stdio_entry_injects_env_and_persists_secret_refs_only(self):
         install_mcp_toolkit(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-test",
-                "SLACK_TEAM_ID": "T012345",
+                FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                FIXTURE_SECRET_KEY_B: "fixture-b-value",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
@@ -289,21 +304,23 @@ class McpToolkitServiceTests(unittest.TestCase):
         )
 
         env = FakeMCPToolkit.instances[-1].kwargs["env"]
-        self.assertEqual(env["SLACK_BOT_TOKEN"], "xoxb-test")
-        self.assertEqual(env["SLACK_TEAM_ID"], "T012345")
+        self.assertEqual(env[FIXTURE_SECRET_KEY_A], "fixture-a-value")
+        self.assertEqual(env[FIXTURE_SECRET_KEY_B], "fixture-b-value")
 
         persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
         record = persisted["toolkits"][0]
-        self.assertEqual(record["toolkit_id"], "mcp.productivity.slack")
-        self.assertEqual(record["secret_keys"], ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"])
-        self.assertNotIn("xoxb-test", json.dumps(record))
+        self.assertEqual(record["toolkit_id"], FIXTURE_STDIO_SECRET_TOOLKIT_ID)
+        self.assertEqual(
+            record["secret_keys"], [FIXTURE_SECRET_KEY_A, FIXTURE_SECRET_KEY_B]
+        )
+        self.assertNotIn("fixture-b-value", json.dumps(record))
         self.assertEqual(
             get_mcp_secret_value(
-                "mcp.productivity.slack",
-                "SLACK_BOT_TOKEN",
+                FIXTURE_STDIO_SECRET_TOOLKIT_ID,
+                FIXTURE_SECRET_KEY_B,
                 data_dir=self.data_dir,
             ),
-            "xoxb-test",
+            "fixture-b-value",
         )
 
     def test_http_entry_uses_streamable_http_and_secret_header(self):
@@ -354,7 +371,7 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertEqual(result["toolkit"]["authType"], "oauth")
         self.assertEqual(result["toolkit"]["authProvider"], "github")
 
-    def test_slack_remote_requires_oauth_and_preserves_stdio_slack_entry(self):
+    def test_slack_remote_requires_oauth(self):
         with self.assertRaises(McpToolkitError) as ctx:
             install_mcp_toolkit(
                 "productivity.slack-remote",
@@ -386,21 +403,6 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.assertEqual(result["toolkit"]["toolkitId"], "mcp.productivity.slack-remote")
         self.assertEqual(result["toolkit"]["authProvider"], "slack")
         self.assertEqual(FakeMCPToolkit.instances[-1].kwargs["url"], "https://mcp.slack.com/mcp")
-
-        install_mcp_toolkit(
-            "productivity.slack",
-            secrets={"SLACK_BOT_TOKEN": "xoxb-test", "SLACK_TEAM_ID": "T012345"},
-            data_dir=self.data_dir,
-            toolkit_factory=FakeMCPToolkit,
-        )
-        installed_ids = {
-            tk["toolkitId"]
-            for tk in list_installed_mcp_toolkits(data_dir=self.data_dir)
-        }
-        self.assertEqual(
-            installed_ids,
-            {"mcp.productivity.slack-remote", "mcp.productivity.slack"},
-        )
 
     def test_oauth_http_entry_requires_oauth_flow(self):
         with self.assertRaises(McpToolkitError) as ctx:
@@ -570,10 +572,10 @@ class McpToolkitServiceTests(unittest.TestCase):
 
     def test_reload_secret_entry_uses_stored_secret_values(self):
         install_mcp_toolkit(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-test",
-                "SLACK_TEAM_ID": "T012345",
+                FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                FIXTURE_SECRET_KEY_B: "fixture-b-value",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
@@ -588,20 +590,20 @@ class McpToolkitServiceTests(unittest.TestCase):
 
         self.assertEqual(result["toolkits"][0]["status"], "available")
         env = FakeMCPToolkit.instances[-1].kwargs["env"]
-        self.assertEqual(env["SLACK_BOT_TOKEN"], "xoxb-test")
-        self.assertEqual(env["SLACK_TEAM_ID"], "T012345")
+        self.assertEqual(env[FIXTURE_SECRET_KEY_A], "fixture-a-value")
+        self.assertEqual(env[FIXTURE_SECRET_KEY_B], "fixture-b-value")
 
     def test_reload_secret_entry_marks_error_when_secret_is_missing(self):
         install_mcp_toolkit(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-test",
-                "SLACK_TEAM_ID": "T012345",
+                FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                FIXTURE_SECRET_KEY_B: "fixture-b-value",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
         )
-        delete_mcp_secret_values("mcp.productivity.slack", data_dir=self.data_dir)
+        delete_mcp_secret_values(FIXTURE_STDIO_SECRET_TOOLKIT_ID, data_dir=self.data_dir)
 
         result = reload_mcp_toolkits(
             data_dir=self.data_dir,
@@ -610,15 +612,15 @@ class McpToolkitServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(result["toolkits"][0]["status"], "error")
-        self.assertIn("SLACK_BOT_TOKEN", result["toolkits"][0]["lastError"])
+        self.assertIn(FIXTURE_SECRET_KEY_A, result["toolkits"][0]["lastError"])
         self.assertEqual(result["toolkits"][0]["lastCheckedAt"], 4000.0)
 
     def test_configure_secret_entry_updates_secrets_after_successful_discovery(self):
         install_mcp_toolkit(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-old",
-                "SLACK_TEAM_ID": "TOLD",
+                FIXTURE_SECRET_KEY_A: "fixture-a-old",
+                FIXTURE_SECRET_KEY_B: "fixture-b-old",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
@@ -626,17 +628,17 @@ class McpToolkitServiceTests(unittest.TestCase):
         )
         FakeMCPToolkit.instances = []
         FakeMCPToolkit.next_tools = {
-            "slack_list_channels": {
-                "description": "List channels",
+            FIXTURE_TOOL_NAME: {
+                "description": "Search dashboards",
                 "requires_confirmation": False,
             },
         }
 
         result = configure_mcp_toolkit(
-            "mcp.productivity.slack",
+            FIXTURE_STDIO_SECRET_TOOLKIT_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-new",
-                "SLACK_TEAM_ID": "TNEW",
+                FIXTURE_SECRET_KEY_A: "fixture-a-new",
+                FIXTURE_SECRET_KEY_B: "fixture-b-new",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
@@ -644,31 +646,34 @@ class McpToolkitServiceTests(unittest.TestCase):
         )
 
         self.assertEqual(result["toolkit"]["status"], "available")
-        self.assertEqual(result["toolkit"]["tools"][0]["name"], "slack_list_channels")
+        self.assertEqual(result["toolkit"]["tools"][0]["name"], FIXTURE_TOOL_NAME)
         self.assertEqual(result["toolkit"]["lastCheckedAt"], 5000.0)
         self.assertEqual(
             result["toolkit"]["secretStatus"],
             [
-                {"key": "SLACK_BOT_TOKEN", "configured": True},
-                {"key": "SLACK_TEAM_ID", "configured": True},
+                {"key": FIXTURE_SECRET_KEY_A, "configured": True},
+                {"key": FIXTURE_SECRET_KEY_B, "configured": True},
             ],
         )
-        self.assertEqual(FakeMCPToolkit.instances[-1].kwargs["env"]["SLACK_BOT_TOKEN"], "xoxb-new")
+        self.assertEqual(
+            FakeMCPToolkit.instances[-1].kwargs["env"][FIXTURE_SECRET_KEY_A],
+            "fixture-a-new",
+        )
         self.assertEqual(
             get_mcp_secret_value(
-                "mcp.productivity.slack",
-                "SLACK_BOT_TOKEN",
+                FIXTURE_STDIO_SECRET_TOOLKIT_ID,
+                FIXTURE_SECRET_KEY_A,
                 data_dir=self.data_dir,
             ),
-            "xoxb-new",
+            "fixture-a-new",
         )
 
     def test_configure_failure_does_not_overwrite_existing_secret_or_record(self):
         install_mcp_toolkit(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-old",
-                "SLACK_TEAM_ID": "TOLD",
+                FIXTURE_SECRET_KEY_A: "fixture-a-old",
+                FIXTURE_SECRET_KEY_B: "fixture-b-old",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
@@ -678,10 +683,10 @@ class McpToolkitServiceTests(unittest.TestCase):
 
         with self.assertRaises(McpToolkitError) as ctx:
             configure_mcp_toolkit(
-                "mcp.productivity.slack",
+                FIXTURE_STDIO_SECRET_TOOLKIT_ID,
                 secrets={
-                    "SLACK_BOT_TOKEN": "xoxb-new",
-                    "SLACK_TEAM_ID": "TNEW",
+                    FIXTURE_SECRET_KEY_A: "fixture-a-new",
+                    FIXTURE_SECRET_KEY_B: "fixture-b-new",
                 },
                 data_dir=self.data_dir,
                 toolkit_factory=FakeMCPToolkit,
@@ -690,17 +695,17 @@ class McpToolkitServiceTests(unittest.TestCase):
 
         self.assertEqual(ctx.exception.code, "mcp_configure_failed")
         installed = get_installed_mcp_toolkit(
-            "mcp.productivity.slack",
+            FIXTURE_STDIO_SECRET_TOOLKIT_ID,
             data_dir=self.data_dir,
         )
         self.assertEqual(installed["lastCheckedAt"], 1000.0)
         self.assertEqual(
             get_mcp_secret_value(
-                "mcp.productivity.slack",
-                "SLACK_BOT_TOKEN",
+                FIXTURE_STDIO_SECRET_TOOLKIT_ID,
+                FIXTURE_SECRET_KEY_A,
                 data_dir=self.data_dir,
             ),
-            "xoxb-old",
+            "fixture-a-old",
         )
 
     def test_configure_filesystem_updates_workspace_after_successful_discovery(self):
@@ -755,21 +760,21 @@ class McpToolkitServiceTests(unittest.TestCase):
 
     def test_delete_removes_installed_toolkit_secrets(self):
         install_mcp_toolkit(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-test",
-                "SLACK_TEAM_ID": "T012345",
+                FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                FIXTURE_SECRET_KEY_B: "fixture-b-value",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
         )
 
-        delete_mcp_toolkit("mcp.productivity.slack", data_dir=self.data_dir)
+        delete_mcp_toolkit(FIXTURE_STDIO_SECRET_TOOLKIT_ID, data_dir=self.data_dir)
 
         self.assertEqual(
             get_mcp_secret_value(
-                "mcp.productivity.slack",
-                "SLACK_BOT_TOKEN",
+                FIXTURE_STDIO_SECRET_TOOLKIT_ID,
+                FIXTURE_SECRET_KEY_A,
                 data_dir=self.data_dir,
             ),
             "",
@@ -819,24 +824,26 @@ class McpToolkitServiceTests(unittest.TestCase):
 
     def test_build_runtime_toolkit_resolves_stdio_secret_env(self):
         install_mcp_toolkit(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-test",
-                "SLACK_TEAM_ID": "T012345",
+                FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                FIXTURE_SECRET_KEY_B: "fixture-b-value",
             },
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
         )
 
         toolkit = build_mcp_runtime_toolkit(
-            "mcp.productivity.slack",
+            FIXTURE_STDIO_SECRET_TOOLKIT_ID,
             data_dir=self.data_dir,
             toolkit_factory=FakeMCPToolkit,
         )
 
         self.assertTrue(toolkit.connected)
-        self.assertEqual(toolkit.kwargs["env"]["SLACK_BOT_TOKEN"], "xoxb-test")
-        self.assertEqual(toolkit.kwargs["env"]["SLACK_TEAM_ID"], "T012345")
+        self.assertEqual(toolkit.kwargs["env"][FIXTURE_SECRET_KEY_A], "fixture-a-value")
+        self.assertEqual(
+            toolkit.kwargs["env"][FIXTURE_SECRET_KEY_B], "fixture-b-value"
+        )
 
     def test_build_runtime_toolkit_resolves_http_secret_headers(self):
         install_mcp_toolkit(
@@ -952,26 +959,26 @@ class McpToolkitRouteTests(unittest.TestCase):
         with mock.patch.object(
             miso_routes,
             "install_mcp_toolkit",
-            return_value={"toolkit": {"toolkitId": "mcp.productivity.slack"}},
+            return_value={"toolkit": {"toolkitId": FIXTURE_STDIO_SECRET_TOOLKIT_ID}},
         ) as install:
             response = self.client.post(
                 "/mcp/toolkits/install",
                 json={
-                    "entryId": "productivity.slack",
+                    "entryId": FIXTURE_STDIO_SECRET_ENTRY_ID,
                     "secrets": {
-                        "SLACK_BOT_TOKEN": "xoxb-test",
-                        "SLACK_TEAM_ID": "T012345",
+                        FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                        FIXTURE_SECRET_KEY_B: "fixture-b-value",
                     },
                 },
             )
 
         self.assertEqual(response.status_code, 200)
         install.assert_called_once_with(
-            "productivity.slack",
+            FIXTURE_STDIO_SECRET_ENTRY_ID,
             workspace_root="",
             secrets={
-                "SLACK_BOT_TOKEN": "xoxb-test",
-                "SLACK_TEAM_ID": "T012345",
+                FIXTURE_SECRET_KEY_A: "fixture-a-value",
+                FIXTURE_SECRET_KEY_B: "fixture-b-value",
             },
             custom_recipe=None,
         )

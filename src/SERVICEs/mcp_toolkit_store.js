@@ -280,6 +280,14 @@ export function searchMcpStoreEntries(entries, query, category) {
   const q = (query || "").trim().toLowerCase();
 
   return entries.filter((entry) => {
+    // Store browse excludes deprecated/superseded entries. This is a
+    // browse-only guard: installed instances render off the installed-toolkit
+    // path (api catalog), not this funnel, so already-installed deprecated
+    // toolkits keep working / show as archived and are unaffected here.
+    if (entry.status === "deprecated" || entry.deprecated === true) {
+      return false;
+    }
+
     if (selectedCategory !== "all" && entry.category !== selectedCategory) {
       return false;
     }

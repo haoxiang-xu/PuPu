@@ -26,31 +26,31 @@ class McpSecretsTests(unittest.TestCase):
 
     def test_save_get_status_and_delete_secret_values(self):
         save_mcp_secret_values(
-            "mcp.productivity.slack",
-            {"SLACK_BOT_TOKEN": "xoxb-test"},
+            "mcp.test.stdio-secret",
+            {"FIXTURE_TOKEN_B": "fixture-b-value"},
             data_dir=self.data_dir,
         )
 
         self.assertEqual(
             get_mcp_secret_value(
-                "mcp.productivity.slack",
-                "SLACK_BOT_TOKEN",
+                "mcp.test.stdio-secret",
+                "FIXTURE_TOKEN_B",
                 data_dir=self.data_dir,
             ),
-            "xoxb-test",
+            "fixture-b-value",
         )
         self.assertEqual(
             list_mcp_secret_status(
-                "mcp.productivity.slack",
+                "mcp.test.stdio-secret",
                 data_dir=self.data_dir,
             ),
-            [{"key": "SLACK_BOT_TOKEN", "configured": True}],
+            [{"key": "FIXTURE_TOKEN_B", "configured": True}],
         )
 
         raw = json.loads((self.data_dir / "mcp_secrets.json").read_text())
         self.assertEqual(
-            raw["toolkits"]["mcp.productivity.slack"]["SLACK_BOT_TOKEN"],
-            "xoxb-test",
+            raw["toolkits"]["mcp.test.stdio-secret"]["FIXTURE_TOKEN_B"],
+            "fixture-b-value",
         )
         self.assertEqual(
             (self.data_dir / "mcp_secrets.json").stat().st_mode & 0o777,
@@ -58,12 +58,12 @@ class McpSecretsTests(unittest.TestCase):
         )
 
         delete_mcp_secret_values(
-            "mcp.productivity.slack",
+            "mcp.test.stdio-secret",
             data_dir=self.data_dir,
         )
         self.assertEqual(
             list_mcp_secret_status(
-                "mcp.productivity.slack",
+                "mcp.test.stdio-secret",
                 data_dir=self.data_dir,
             ),
             [],

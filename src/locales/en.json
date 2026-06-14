@@ -318,6 +318,7 @@
     "store_category_productivity": "Productivity",
     "store_category_workspace": "Workspace",
     "store_category_memory": "Memory",
+    "store_category_communication": "Communication",
     "store_search_placeholder": "Search MCP servers...",
     "store_refresh_metadata": "Refresh metadata",
     "store_refreshing_metadata": "Refreshing...",
