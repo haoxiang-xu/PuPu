@@ -23,6 +23,20 @@ const IPC_HANDLE_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.GET_TOOLKIT_CATALOG,
   CHANNELS.UNCHAIN.LIST_TOOL_MODAL_CATALOG,
   CHANNELS.UNCHAIN.GET_TOOLKIT_DETAIL,
+  CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS,
+  CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS,
+  CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
+  CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
+  CHANNELS.UNCHAIN.START_MCP_OAUTH,
+  CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
+  CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
+  CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
+  CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP,
+  CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
+  CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
+  CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
   CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
   CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN,
   CHANNELS.UNCHAIN.SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT,
@@ -68,6 +82,7 @@ const IPC_ON_CHANNELS = Object.freeze([
   CHANNELS.UNCHAIN.STREAM_START,
   CHANNELS.UNCHAIN.STREAM_START_V2,
   CHANNELS.UNCHAIN.STREAM_START_V3,
+  CHANNELS.UNCHAIN.STREAM_START_V4,
   CHANNELS.UNCHAIN.STREAM_CANCEL,
   ...CHAT_STORAGE_ON_CHANNELS,
 ]);
@@ -157,6 +172,110 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
         payload.toolkitId,
         payload.toolName,
       ),
+  );
+  ipcMain.handle(CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS, async () =>
+    unchainService.listMisoMcpToolkits(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+    async (_event, payload = {}) =>
+      unchainService.installMisoMcpToolkit(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoMcpToolkit(payload.toolkitId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS,
+    async (_event, payload = {}) =>
+      unchainService.reloadMisoMcpToolkits(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH,
+    async (_event, payload = {}) =>
+      unchainService.checkMisoMcpToolkitHealth(payload.toolkitId, payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
+    async (_event, payload = {}) =>
+      unchainService.configureMisoMcpToolkit(payload.toolkitId, payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.START_MCP_OAUTH,
+    async (_event, payload = {}) =>
+      unchainService.startMisoMcpOAuth(payload.entryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
+    async (_event, payload = {}) =>
+      unchainService.getMisoMcpOAuthStatus(payload.entryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
+    async (_event, payload = {}) =>
+      unchainService.disconnectMisoMcpOAuth(payload.toolkitId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
+    async () => unchainService.listMisoMcpOAuthApps(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP,
+    async (_event, payload = {}) =>
+      unchainService.configureMisoMcpOAuthApp(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoMcpOAuthApp(payload.toolkitId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
+    async () => unchainService.listMisoMcpStoreMetadata(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
+    async (_event, payload = {}) =>
+      unchainService.reloadMisoMcpStoreMetadata(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_STORE_ENTRIES,
+    async () => unchainService.listMisoMcpStoreEntries(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.LIST_MCP_STORE_REGISTRIES,
+    async () => unchainService.listMisoMcpStoreRegistries(),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.IMPORT_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.importMisoMcpStoreRegistry(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.VALIDATE_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.validateMisoMcpStoreRegistry(payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.REFRESH_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.refreshMisoMcpStoreRegistry(payload.registryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.DELETE_MCP_STORE_REGISTRY,
+    async (_event, payload = {}) =>
+      unchainService.deleteMisoMcpStoreRegistry(payload.registryId),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.APPROVE_MCP_STORE_ENTRY,
+    async (_event, payload = {}) =>
+      unchainService.approveMisoMcpStoreEntry(payload.entryId, payload),
+  );
+  ipcMain.handle(
+    CHANNELS.UNCHAIN.REVOKE_MCP_STORE_ENTRY_APPROVAL,
+    async (_event, payload = {}) =>
+      unchainService.revokeMisoMcpStoreEntryApproval(payload.entryId, payload),
   );
   ipcMain.handle(
     CHANNELS.UNCHAIN.TOOL_CONFIRMATION,
@@ -332,6 +451,10 @@ const registerIpcHandlers = ({ ipcMain, app, services }) => {
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V3, (event, payload) => {
     unchainService.handleStreamStartV3(event, payload);
+  });
+
+  ipcMain.on(CHANNELS.UNCHAIN.STREAM_START_V4, (event, payload) => {
+    unchainService.handleStreamStartV4(event, payload);
   });
 
   ipcMain.on(CHANNELS.UNCHAIN.STREAM_CANCEL, (event, payload) => {

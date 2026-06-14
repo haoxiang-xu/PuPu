@@ -117,4 +117,95 @@ describe("AgentPanel", () => {
     const call = onChange.mock.calls[0][0];
     expect(call.nodes[0].outputs).toEqual([{ name: "", type: "string" }]);
   });
+
+  test("renders optimizer controls and disabling writes the off preset", () => {
+    const onChange = jest.fn();
+    const recipe = {
+      nodes: [
+        {
+          id: "a1",
+          type: "agent",
+          override: { model: "m", prompt: "", optimizer: { preset: "default" } },
+          outputs: [],
+        },
+      ],
+      edges: [],
+    };
+    const { container } = render(
+      wrap(
+        <AgentPanel
+          node={recipe.nodes[0]}
+          recipe={recipe}
+          onChange={onChange}
+        />,
+      ),
+    );
+
+    expect(screen.getByText("Context Optimizer")).toBeTruthy();
+    fireEvent.click(
+      container
+        .querySelector('[data-testid="optimizer-enabled-switch"]')
+        .querySelector(".mini-ui-switch-track"),
+    );
+
+    const call = onChange.mock.calls[0][0];
+    expect(call.nodes[0].override.optimizer).toEqual({
+      preset: "off",
+      enabled: false,
+    });
+  });
+
+  test("custom optimizer fields clamp and write full config", () => {
+    const onChange = jest.fn();
+    const recipe = {
+      nodes: [
+        {
+          id: "a1",
+          type: "agent",
+          override: {
+            model: "m",
+            prompt: "",
+            optimizer: {
+              preset: "custom",
+              sliding_window: {
+                enabled: true,
+                max_window_pct: 0.5,
+                max_window_tokens: null,
+              },
+              tool_history_compaction: {
+                enabled: true,
+                keep_completed_turns: 1,
+                max_chars: 1200,
+                preview_chars: 160,
+                hash_payloads: true,
+              },
+              context_usage: { enabled: true },
+              tool_pair_safety: { enabled: true },
+            },
+          },
+          outputs: [],
+        },
+      ],
+      edges: [],
+    };
+    render(
+      wrap(
+        <AgentPanel
+          node={recipe.nodes[0]}
+          recipe={recipe}
+          onChange={onChange}
+        />,
+      ),
+    );
+
+    fireEvent.change(screen.getByDisplayValue("0.5"), {
+      target: { value: "0.01" },
+    });
+
+    const call = onChange.mock.calls[0][0];
+    expect(call.nodes[0].override.optimizer.preset).toBe("custom");
+    expect(
+      call.nodes[0].override.optimizer.sliding_window.max_window_pct,
+    ).toBe(0.05);
+  });
 });

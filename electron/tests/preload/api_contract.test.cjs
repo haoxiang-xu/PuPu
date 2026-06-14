@@ -62,6 +62,28 @@ describe("preload API contract", () => {
       "getStatus",
       "getModelCatalog",
       "getToolkitCatalog",
+      "listMcpToolkits",
+      "installMcpToolkit",
+      "deleteMcpToolkit",
+      "reloadMcpToolkits",
+      "checkMcpToolkitHealth",
+      "configureMcpToolkit",
+      "startMcpOAuth",
+      "getMcpOAuthStatus",
+      "disconnectMcpOAuth",
+      "listMcpOAuthApps",
+      "configureMcpOAuthApp",
+      "deleteMcpOAuthApp",
+      "listMcpStoreMetadata",
+      "reloadMcpStoreMetadata",
+      "listMcpStoreEntries",
+      "listMcpStoreRegistries",
+      "importMcpStoreRegistry",
+      "validateMcpStoreRegistry",
+      "refreshMcpStoreRegistry",
+      "deleteMcpStoreRegistry",
+      "approveMcpStoreEntry",
+      "revokeMcpStoreEntryApproval",
       "respondToolConfirmation",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
@@ -82,6 +104,7 @@ describe("preload API contract", () => {
       "startStream",
       "startStreamV2",
       "startStreamV3",
+      "startStreamV4",
       "cancelStream",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");
@@ -131,6 +154,169 @@ describe("preload API contract", () => {
     expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
       CHANNELS.UNCHAIN.REPLACE_SESSION_MEMORY,
       { sessionId: "chat-1", messages: [] },
+    );
+
+    exposed.unchainAPI.installMcpToolkit({
+      entryId: "custom",
+      secrets: {
+        SLACK_BOT_TOKEN: "xoxb-test",
+        SLACK_TEAM_ID: "T012345",
+      },
+      customRecipe: {
+        toolkit_id: "mcp.custom.local-test",
+        toolkit_name: "Local Test",
+        mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+      },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT,
+      {
+        entryId: "custom",
+        secrets: {
+          SLACK_BOT_TOKEN: "xoxb-test",
+          SLACK_TEAM_ID: "T012345",
+        },
+        customRecipe: {
+          toolkit_id: "mcp.custom.local-test",
+          toolkit_name: "Local Test",
+          mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+        },
+      },
+    );
+
+    exposed.unchainAPI.deleteMcpToolkit("mcp.memory.memory");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT,
+      { toolkitId: "mcp.memory.memory" },
+    );
+
+    exposed.unchainAPI.configureMcpToolkit("mcp.memory.memory", {
+      secrets: { OPENAI_API_KEY: "sk-test" },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT,
+      {
+        toolkitId: "mcp.memory.memory",
+        secrets: { OPENAI_API_KEY: "sk-test" },
+      },
+    );
+
+    exposed.unchainAPI.startMcpOAuth("productivity.notion-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.START_MCP_OAUTH,
+      { entryId: "productivity.notion-remote" },
+    );
+
+    exposed.unchainAPI.getMcpOAuthStatus("productivity.notion-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS,
+      { entryId: "productivity.notion-remote" },
+    );
+
+    exposed.unchainAPI.disconnectMcpOAuth("mcp.productivity.notion-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH,
+      { toolkitId: "mcp.productivity.notion-remote" },
+    );
+
+    exposed.unchainAPI.listMcpOAuthApps();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS,
+    );
+
+    exposed.unchainAPI.configureMcpOAuthApp({
+      toolkitId: "mcp.dev.github-remote",
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP,
+      {
+        toolkitId: "mcp.dev.github-remote",
+        clientId: "github-client-id",
+        clientSecret: "github-client-secret",
+      },
+    );
+
+    exposed.unchainAPI.deleteMcpOAuthApp("mcp.dev.github-remote");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP,
+      { toolkitId: "mcp.dev.github-remote" },
+    );
+
+    exposed.unchainAPI.listMcpStoreMetadata();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA,
+    );
+
+    exposed.unchainAPI.reloadMcpStoreMetadata({
+      entryId: "browser.playwright",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA,
+      { entryId: "browser.playwright" },
+    );
+
+    exposed.unchainAPI.listMcpStoreEntries();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_STORE_ENTRIES,
+    );
+
+    exposed.unchainAPI.listMcpStoreRegistries();
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.LIST_MCP_STORE_REGISTRIES,
+    );
+
+    exposed.unchainAPI.importMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.IMPORT_MCP_STORE_REGISTRY,
+      { registry: { version: 1, entries: [] } },
+    );
+
+    exposed.unchainAPI.validateMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.VALIDATE_MCP_STORE_REGISTRY,
+      { registry: { version: 1, entries: [] } },
+    );
+
+    exposed.unchainAPI.refreshMcpStoreRegistry("registry.inline.test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.REFRESH_MCP_STORE_REGISTRY,
+      { registryId: "registry.inline.test" },
+    );
+
+    exposed.unchainAPI.deleteMcpStoreRegistry("registry.inline.test");
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.DELETE_MCP_STORE_REGISTRY,
+      { registryId: "registry.inline.test" },
+    );
+
+    exposed.unchainAPI.approveMcpStoreEntry("external.sample", {
+      registryId: "registry.inline.test",
+      acknowledgedRisk: true,
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.APPROVE_MCP_STORE_ENTRY,
+      {
+        entryId: "external.sample",
+        registryId: "registry.inline.test",
+        acknowledgedRisk: true,
+      },
+    );
+
+    exposed.unchainAPI.revokeMcpStoreEntryApproval("external.sample", {
+      registryId: "registry.inline.test",
+    });
+    expect(ipcRenderer.invoke).toHaveBeenLastCalledWith(
+      CHANNELS.UNCHAIN.REVOKE_MCP_STORE_ENTRY_APPROVAL,
+      {
+        entryId: "external.sample",
+        registryId: "registry.inline.test",
+      },
     );
 
     exposed.unchainAPI.listCharacters();

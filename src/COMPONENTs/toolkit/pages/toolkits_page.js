@@ -3,13 +3,29 @@ import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import ToolkitStorePage from "./toolkit_store_page";
 import ToolkitInstalledPage from "./toolkit_installed_page";
+import CustomMcpPage from "./custom_mcp_page";
 import ToolkitDetailPanel from "../components/toolkit_detail_panel";
+import StoreToolkitDetailPanel from "../components/store_toolkit_detail_panel";
 import { isBuiltinToolkit } from "../utils/toolkit_helpers";
+import api from "../../../SERVICEs/api";
+import {
+  getMcpStoreEntry,
+  setMcpStoreEntriesCache,
+  setMcpStoreMetadataCache,
+} from "../../../SERVICEs/mcp_toolkit_store";
+import {
+  connectMcpOAuthEntry,
+  getInstalledMcpIds,
+  installMcpEntry,
+} from "../../../SERVICEs/mcp_install";
+import { readWorkspaceRoot } from "../../settings/runtime";
+import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
 
 const SLIDE_DURATION = 260;
 
 const TOOLKIT_SUB_PAGES = [
   { key: "store", icon: "search", labelKey: "toolkit.store" },
+  { key: "custom", icon: "mcp", labelKey: "toolkit.custom_mcp" },
   { key: "installed", icon: "tool", labelKey: "toolkit.installed" },
 ];
 
@@ -28,9 +44,10 @@ const ToolkitsPage = ({ isDark }) => {
   const [detailMounted, setDetailMounted] = useState(false);
   const [detailVisible, setDetailVisible] = useState(false);
   const slideTimer = useRef(null);
+  const storeEntriesByIdRef = useRef(new Map());
 
-  const openDetail = useCallback((toolkitId, toolName, toolkit) => {
-    setSelectedToolkit({ toolkitId, toolName, toolkit });
+  const openDetail = useCallback((detail) => {
+    setSelectedToolkit(detail);
     setDetailMounted(true);
     requestAnimationFrame(() =>
       requestAnimationFrame(() => setDetailVisible(true)),
@@ -50,9 +67,209 @@ const ToolkitsPage = ({ isDark }) => {
 
   const handleToolClick = useCallback(
     (toolkitId, toolName, toolkit) => {
-      openDetail(toolkitId, toolName, toolkit);
+      openDetail({ kind: "installed", toolkitId, toolName, toolkit });
     },
     [openDetail],
+  );
+
+  const handleStoreEntryClick = useCallback(
+    (entryId) => {
+      const entry =
+        getMcpStoreEntry(entryId) || storeEntriesByIdRef.current.get(entryId);
+      if (!entry) return;
+      openDetail({ kind: "store", entry });
+    },
+    [openDetail],
+  );
+
+  /* ── Installed MCP set + install flow ── */
+  const [installedMcpIds, setInstalledMcpIds] = useState(() => new Set());
+  const [installingId, setInstallingId] = useState(null);
+  const [installError, setInstallError] = useState(null);
+  const [metadataRevision, setMetadataRevision] = useState(0);
+  const [metadataRefreshing, setMetadataRefreshing] = useState(false);
+  const [metadataError, setMetadataError] = useState(null);
+  const [approvalBusyId, setApprovalBusyId] = useState(null);
+
+  const applyStoreMetadata = useCallback((payload) => {
+    setMcpStoreMetadataCache(payload || {});
+    setMetadataRevision((value) => value + 1);
+    emitToolkitCatalogRefresh({ source: "mcp_store_metadata" });
+  }, []);
+
+  const applyStoreEntries = useCallback((payload) => {
+    if (Array.isArray(payload?.entries) && payload.entries.length > 0) {
+      storeEntriesByIdRef.current = new Map(
+        payload.entries
+          .filter((entry) => entry && entry.id)
+          .map((entry) => [entry.id, entry]),
+      );
+      setMcpStoreEntriesCache(payload);
+      setMetadataRevision((value) => value + 1);
+      emitToolkitCatalogRefresh({ source: "mcp_store_entries" });
+    }
+  }, []);
+
+  const loadInstalledMcpIds = useCallback(async () => {
+    try {
+      setInstalledMcpIds(await getInstalledMcpIds());
+    } catch {
+      /* ignore — keep previous set */
+    }
+  }, []);
+
+  useEffect(() => {
+    loadInstalledMcpIds();
+  }, [loadInstalledMcpIds]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.unchain
+      .listMcpStoreEntries()
+      .then((payload) => {
+        if (!cancelled) applyStoreEntries(payload);
+      })
+      .catch(() => {
+        /* ignore — static registry remains usable */
+      });
+    api.unchain
+      .listMcpStoreMetadata()
+      .then((payload) => {
+        if (!cancelled) applyStoreMetadata(payload);
+      })
+      .catch(() => {
+        /* ignore — static registry remains usable */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [applyStoreEntries, applyStoreMetadata]);
+
+  const refreshStoreEntries = useCallback(async () => {
+    const payload = await api.unchain.listMcpStoreEntries();
+    applyStoreEntries(payload);
+    return payload;
+  }, [applyStoreEntries]);
+
+  const updateSelectedStoreEntry = useCallback((entryId, payload, fallbackEntry = null) => {
+    const updatedFromPayload = Array.isArray(payload?.entries)
+      ? payload.entries.find((entry) => entry?.id === entryId)
+      : null;
+    const updated =
+      updatedFromPayload ||
+      getMcpStoreEntry(entryId) ||
+      storeEntriesByIdRef.current.get(entryId) ||
+      fallbackEntry;
+    if (!updated) return;
+    setSelectedToolkit((prev) =>
+      prev?.kind === "store" && prev.entry?.id === entryId
+        ? { ...prev, entry: updated }
+        : prev,
+    );
+  }, []);
+
+  const handleRefreshMetadata = useCallback(async () => {
+    setMetadataRefreshing(true);
+    setMetadataError(null);
+    try {
+      const payload = await api.unchain.reloadMcpStoreMetadata({});
+      applyStoreMetadata(payload);
+      installedHandlersRef.current?.reload?.();
+    } catch (error) {
+      setMetadataError(error?.code || "mcp_store_metadata_reload_failed");
+    } finally {
+      setMetadataRefreshing(false);
+    }
+  }, [applyStoreMetadata]);
+
+  const handleInstall = useCallback(
+    async (entry, setupOptions = {}) => {
+      setInstallingId(entry.id);
+      setInstallError(null);
+      try {
+        await installMcpEntry(entry, {
+          workspaceRoot: readWorkspaceRoot(),
+          ...setupOptions,
+        });
+        await loadInstalledMcpIds();
+        installedHandlersRef.current?.reload?.();
+      } catch (e) {
+        setInstallError({
+          entryId: entry.id,
+          code: e?.code || "mcp_install_failed",
+        });
+      } finally {
+        setInstallingId(null);
+      }
+    },
+    [loadInstalledMcpIds],
+  );
+
+  const handleOAuthConnect = useCallback(
+    async (entry) => {
+      setInstallingId(entry.id);
+      setInstallError(null);
+      try {
+        await connectMcpOAuthEntry(entry);
+        await loadInstalledMcpIds();
+        installedHandlersRef.current?.reload?.();
+      } catch (e) {
+        setInstallError({
+          entryId: entry.id,
+          code: e?.code || "mcp_oauth_start_failed",
+        });
+      } finally {
+        setInstallingId(null);
+      }
+    },
+    [loadInstalledMcpIds],
+  );
+
+  const handleApproveStoreEntry = useCallback(
+    async (entry, options = {}) => {
+      if (!entry?.id) return;
+      setApprovalBusyId(entry.id);
+      setInstallError(null);
+      try {
+        const result = await api.unchain.approveMcpStoreEntry(entry.id, {
+          registryId: entry.registryId,
+          ...(options?.acknowledgedRisk ? { acknowledgedRisk: true } : {}),
+        });
+        const payload = await refreshStoreEntries();
+        updateSelectedStoreEntry(entry.id, payload, result?.entry || null);
+      } catch (error) {
+        setInstallError({
+          entryId: entry.id,
+          code: error?.code || "mcp_registry_entry_not_approved",
+        });
+      } finally {
+        setApprovalBusyId(null);
+      }
+    },
+    [refreshStoreEntries, updateSelectedStoreEntry],
+  );
+
+  const handleRevokeStoreEntryApproval = useCallback(
+    async (entry) => {
+      if (!entry?.id) return;
+      setApprovalBusyId(entry.id);
+      setInstallError(null);
+      try {
+        await api.unchain.revokeMcpStoreEntryApproval(entry.id, {
+          registryId: entry.registryId,
+        });
+        const payload = await refreshStoreEntries();
+        updateSelectedStoreEntry(entry.id, payload);
+      } catch (error) {
+        setInstallError({
+          entryId: entry.id,
+          code: error?.code || "mcp_registry_approval_not_found",
+        });
+      } finally {
+        setApprovalBusyId(null);
+      }
+    },
+    [refreshStoreEntries, updateSelectedStoreEntry],
   );
 
   const panelBg = isDark ? "#141414" : "#ffffff";
@@ -67,7 +284,7 @@ const ToolkitsPage = ({ isDark }) => {
         label={t(item.labelKey)}
         onClick={() => {
           setActiveTab(item.key);
-          if (detailVisible) closeDetail();
+          if (detailMounted) closeDetail();
         }}
         style={{
           fontSize: 12,
@@ -89,13 +306,38 @@ const ToolkitsPage = ({ isDark }) => {
   const renderPage = () => {
     switch (activeTab) {
       case "store":
-        return <ToolkitStorePage isDark={isDark} />;
+        return (
+          <ToolkitStorePage
+            isDark={isDark}
+            onEntryClick={handleStoreEntryClick}
+            installedIds={installedMcpIds}
+            onInstall={handleInstall}
+            onOAuthConnect={handleOAuthConnect}
+            installingId={installingId}
+            installError={installError}
+            metadataRevision={metadataRevision}
+            metadataRefreshing={metadataRefreshing}
+            metadataError={metadataError}
+            onRefreshMetadata={handleRefreshMetadata}
+          />
+        );
       case "installed":
         return (
           <ToolkitInstalledPage
             isDark={isDark}
             onToolClick={handleToolClick}
             onHandlersReady={handleHandlersReady}
+          />
+        );
+      case "custom":
+        return (
+          <CustomMcpPage
+            isDark={isDark}
+            onInstall={handleInstall}
+            installing={installingId === "custom"}
+            installError={
+              installError?.entryId === "custom" ? installError : null
+            }
           />
         );
       default:
@@ -155,35 +397,55 @@ const ToolkitsPage = ({ isDark }) => {
               overflow: "hidden",
             }}
           >
-            <ToolkitDetailPanel
-              toolkitId={selectedToolkit.toolkitId}
-              toolName={selectedToolkit.toolName}
-              tools={selectedToolkit.toolkit?.tools}
-              isDark={isDark}
-              isBuiltin={isBuiltinToolkit(selectedToolkit.toolkit)}
-              defaultEnabled={Boolean(
-                selectedToolkit.toolkit?.defaultEnabled,
-              )}
-              onToggleEnabled={(id, val) => {
-                installedHandlersRef.current?.handleToggleEnabled?.(id, val);
-                setSelectedToolkit((prev) =>
-                  prev
-                    ? {
-                        ...prev,
-                        toolkit: {
-                          ...prev.toolkit,
-                          defaultEnabled: val,
-                        },
-                      }
-                    : prev,
-                );
-              }}
-              onDelete={(id) => {
-                installedHandlersRef.current?.handleDelete?.(id);
-                closeDetail();
-              }}
-              onBack={closeDetail}
-            />
+            {selectedToolkit.kind === "store" ? (
+              <StoreToolkitDetailPanel
+                entry={selectedToolkit.entry}
+                isDark={isDark}
+                installedIds={installedMcpIds}
+                onInstall={handleInstall}
+                onOAuthConnect={handleOAuthConnect}
+                onApproveEntry={handleApproveStoreEntry}
+                onRevokeApproval={handleRevokeStoreEntryApproval}
+                installing={installingId === selectedToolkit.entry?.id}
+                approvalBusy={approvalBusyId === selectedToolkit.entry?.id}
+                installError={
+                  installError?.entryId === selectedToolkit.entry?.id
+                    ? installError
+                    : null
+                }
+                onBack={closeDetail}
+              />
+            ) : (
+              <ToolkitDetailPanel
+                toolkitId={selectedToolkit.toolkitId}
+                toolName={selectedToolkit.toolName}
+                tools={selectedToolkit.toolkit?.tools}
+                isDark={isDark}
+                isBuiltin={isBuiltinToolkit(selectedToolkit.toolkit)}
+                defaultEnabled={Boolean(
+                  selectedToolkit.toolkit?.defaultEnabled,
+                )}
+                onToggleEnabled={(id, val) => {
+                  installedHandlersRef.current?.handleToggleEnabled?.(id, val);
+                  setSelectedToolkit((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          toolkit: {
+                            ...prev.toolkit,
+                            defaultEnabled: val,
+                          },
+                        }
+                      : prev,
+                  );
+                }}
+                onDelete={(id) => {
+                  installedHandlersRef.current?.handleDelete?.(id);
+                  closeDetail();
+                }}
+                onBack={closeDetail}
+              />
+            )}
           </div>
         )}
       </div>

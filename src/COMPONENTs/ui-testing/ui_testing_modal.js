@@ -5,6 +5,7 @@ import { useModalLifecycle } from "../../BUILTIN_COMPONENTs/mini_react/use_modal
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import TraceChainRunner from "./runners/trace_chain_runner";
 import CodeDiffInteractRunner from "./runners/code_diff_runner";
+import ArtifactSummaryRunner from "./runners/artifact_summary_runner";
 
 /* ── test component registry ── */
 const COMPONENTS = [
@@ -13,6 +14,11 @@ const COMPONENTS = [
     key: "code_diff_interact",
     label: "CodeDiffInteract",
     runner: CodeDiffInteractRunner,
+  },
+  {
+    key: "artifact_summary",
+    label: "ArtifactSummary",
+    runner: ArtifactSummaryRunner,
   },
 ];
 

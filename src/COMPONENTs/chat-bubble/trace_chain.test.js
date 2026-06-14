@@ -1,6 +1,10 @@
 import React from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
+import {
+  StreamingMessageStoreContext,
+} from "./components/streaming_message_store_context";
 import TraceChain from "./trace_chain";
 
 jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => () => null);
@@ -9,6 +13,9 @@ const renderTraceChain = ({
   frames,
   status = "done",
   streamingContent = "",
+  messageId = "assistant",
+  streamingMessageStore = null,
+  notifyStreamingContentCommitted = jest.fn(),
   onToolConfirmationDecision = null,
   toolConfirmationUiStateById = {},
   subagentFrames = undefined,
@@ -21,15 +28,24 @@ const renderTraceChain = ({
         onThemeMode: "light_mode",
       }}
     >
-      <TraceChain
-        frames={frames}
-        status={status}
-        streamingContent={streamingContent}
-        onToolConfirmationDecision={onToolConfirmationDecision}
-        toolConfirmationUiStateById={toolConfirmationUiStateById}
-        subagentFrames={subagentFrames}
-        subagentMetaByRunId={subagentMetaByRunId}
-      />
+      <StreamingMessageStoreContext.Provider
+        value={{
+          chatId: "chat",
+          store: streamingMessageStore,
+          notifyStreamingContentCommitted,
+        }}
+      >
+        <TraceChain
+          frames={frames}
+          status={status}
+          messageId={messageId}
+          streamingContent={streamingContent}
+          onToolConfirmationDecision={onToolConfirmationDecision}
+          toolConfirmationUiStateById={toolConfirmationUiStateById}
+          subagentFrames={subagentFrames}
+          subagentMetaByRunId={subagentMetaByRunId}
+        />
+      </StreamingMessageStoreContext.Provider>
     </ConfigContext.Provider>,
   );
 
@@ -39,6 +55,27 @@ const frame = ({ seq, type, payload = {}, ts = seq * 100 }) => ({
   type,
   payload,
 });
+
+const makeRafScheduler = () => {
+  const callbacks = [];
+  return {
+    scheduler: (callback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    },
+    cancel: (id) => {
+      callbacks[id - 1] = null;
+    },
+    flush: () => {
+      const pending = callbacks.splice(0);
+      pending.forEach((callback) => {
+        if (typeof callback === "function") {
+          callback();
+        }
+      });
+    },
+  };
+};
 
 describe("TraceChain final_message draft timeline", () => {
   test("shows one Assistant Draft for tool_call + two final_message frames", () => {
@@ -193,30 +230,139 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
   });
 
-  test("preserves leading whitespace in streaming content markdown", () => {
+  test("renders leading whitespace streaming content as plain text", () => {
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "    const x = 1;\n",
     });
 
-    expect(container.querySelector("code.hljs")).toBeInTheDocument();
+    expect(container.querySelector("code.hljs")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-streaming-plain-text]"),
+    ).toBeInTheDocument();
     expect(container).toHaveTextContent("const x = 1;");
   });
 
-  test("uses the same markdown metrics as the final assistant response", () => {
+  test("uses the same text metrics as the final assistant response while streaming", () => {
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "Paragraph one.\n\nParagraph two.",
     });
 
-    const markdownRoot = container.querySelector("[data-markdown-id]");
-    expect(markdownRoot).toBeInTheDocument();
+    const streamingText = container.querySelector("[data-streaming-plain-text]");
+    expect(streamingText).toBeInTheDocument();
+    expect(streamingText).toHaveStyle({ fontSize: "14px", lineHeight: "1.6" });
+  });
 
-    const styleTag = markdownRoot.querySelector("style");
-    expect(styleTag?.textContent).toContain("font-size: 14px;");
-    expect(styleTag?.textContent).toContain("line-height: 1.6;");
+  test("reads active streaming response text from the external store", () => {
+    const raf = makeRafScheduler();
+    const store = createStreamingMessageStore({
+      notifyScheduler: raf.scheduler,
+      cancelScheduler: raf.cancel,
+    });
+    store.begin({ chatId: "chat", messageId: "assistant" });
+    const { container } = renderTraceChain({
+      frames: [],
+      status: "streaming",
+      messageId: "assistant",
+      streamingContent: "",
+      streamingMessageStore: store,
+    });
+
+    expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
+
+    store.append({
+      chatId: "chat",
+      messageId: "assistant",
+      delta: "streamed via store",
+    });
+    act(() => {
+      raf.flush();
+    });
+
+    expect(screen.getByText("Response")).toBeInTheDocument();
+    expect(container.textContent).toContain("streamed via store");
+  });
+
+  test("does not render the current streaming response twice when final_message mirrors the external store", () => {
+    const raf = makeRafScheduler();
+    const store = createStreamingMessageStore({
+      notifyScheduler: raf.scheduler,
+      cancelScheduler: raf.cancel,
+    });
+    store.begin({ chatId: "chat", messageId: "assistant" });
+    store.append({
+      chatId: "chat",
+      messageId: "assistant",
+      delta: "current streamed response",
+    });
+    store.flushNow({ chatId: "chat", messageId: "assistant" });
+
+    const { container } = renderTraceChain({
+      frames: [
+        frame({ seq: 1, type: "stream_started", payload: {} }),
+        frame({
+          seq: 2,
+          type: "tool_call",
+          payload: { call_id: "call-1", tool_name: "read_file", arguments: {} },
+        }),
+        frame({
+          seq: 3,
+          type: "final_message",
+          payload: { content: "current streamed response" },
+        }),
+      ],
+      status: "streaming",
+      messageId: "assistant",
+      streamingMessageStore: store,
+    });
+
+    expect(screen.getAllByText("Response")).toHaveLength(1);
+    expect(
+      (container.textContent || "").match(/current streamed response/g),
+    ).toHaveLength(1);
+  });
+
+  test("does not render stale streaming final_message snapshots beside the live response", () => {
+    const raf = makeRafScheduler();
+    const store = createStreamingMessageStore({
+      notifyScheduler: raf.scheduler,
+      cancelScheduler: raf.cancel,
+    });
+    store.begin({ chatId: "chat", messageId: "assistant" });
+    store.append({
+      chatId: "chat",
+      messageId: "assistant",
+      delta: "current streamed response plus continuation",
+    });
+    store.flushNow({ chatId: "chat", messageId: "assistant" });
+
+    const { container } = renderTraceChain({
+      frames: [
+        frame({ seq: 1, type: "stream_started", payload: {} }),
+        frame({
+          seq: 2,
+          type: "tool_call",
+          payload: { call_id: "call-1", tool_name: "read_file", arguments: {} },
+        }),
+        frame({
+          seq: 3,
+          type: "final_message",
+          payload: { content: "current streamed response" },
+        }),
+      ],
+      status: "streaming",
+      messageId: "assistant",
+      streamingMessageStore: store,
+    });
+
+    expect(screen.getAllByText("Response")).toHaveLength(1);
+    expect(screen.queryByText("current streamed response")).not.toBeInTheDocument();
+    expect(container).toHaveTextContent(
+      "current streamed response plus continuation",
+    );
   });
 
   test("uses tighter markdown spacing for observation details", () => {
@@ -266,6 +412,44 @@ describe("TraceChain final_message draft timeline", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("right-aligns timeline delta labels to the row edge", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {}, ts: 0 }),
+      frame({
+        seq: 2,
+        type: "reasoning",
+        payload: { reasoning: "Read the project structure first." },
+        ts: 120,
+      }),
+      frame({
+        seq: 3,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "read_file",
+          arguments: { path: "src/example.js" },
+        },
+        ts: 450,
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    ["+120ms", "+330ms"].forEach((label) => {
+      const delta = screen.getByText(label);
+      expect(delta.parentElement).toHaveStyle({
+        width: "100%",
+        maxWidth: "100%",
+        boxSizing: "border-box",
+      });
+      expect(delta).toHaveStyle({
+        marginLeft: "auto",
+        textAlign: "right",
+        flexShrink: "0",
+      });
+    });
+  });
+
   test("renders tool confirmation actions and forwards allow decision", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [
@@ -300,6 +484,53 @@ describe("TraceChain final_message draft timeline", () => {
       scope: "once",
     });
     expect(screen.getByRole("button", { name: "Deny" })).toBeInTheDocument();
+  });
+
+  test("forwards code diff approval as confirmation without user response", () => {
+    const onToolConfirmationDecision = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          confirmation_id: "confirm-1",
+          requires_confirmation: true,
+          tool_name: "write",
+          interact_type: "code_diff",
+          interact_config: {
+            title: "Create demo.txt",
+            operation: "create",
+            path: "/workspace/demo.txt",
+            unified_diff:
+              "--- a//workspace/demo.txt\n+++ b//workspace/demo.txt\n@@ -0,0 +1 @@\n+hello\n",
+            truncated: false,
+            total_lines: 4,
+            displayed_lines: 4,
+            fallback_description: "create demo.txt (+1 -0)",
+          },
+          arguments: { path: "/workspace/demo.txt", content: "hello" },
+        },
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "streaming",
+      onToolConfirmationDecision,
+      toolConfirmationUiStateById: {
+        "confirm-1": { status: "idle", error: "" },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+    expect(onToolConfirmationDecision).toHaveBeenCalledWith({
+      confirmationId: "confirm-1",
+      approved: true,
+      scope: "once",
+    });
   });
 
   test("renders selector requests and submits other text responses", () => {
@@ -705,6 +936,174 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getByText("Child delegate final output")).toBeInTheDocument();
   });
 
+  test("lazy renders large delegate child timelines until expanded", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          arguments: {
+            target: "analyzer",
+            task: "Inspect a large trace",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          result: {
+            agent_name: "developer.analyzer.1",
+            template_name: "analyzer",
+            status: "completed",
+            output: "Large child summary",
+          },
+        },
+      }),
+    ];
+    const childFrames = [
+      frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+      ...Array.from({ length: 26 }, (_, index) =>
+        frame({
+          seq: index + 2,
+          type: "tool_call",
+          payload: {
+            call_id: `child-call-${index}`,
+            tool_name: "read",
+            arguments: { path: `file-${index}.js` },
+          },
+          ts: 20 + index,
+        }),
+      ),
+      frame({
+        seq: 30,
+        type: "final_message",
+        payload: { content: "Large child hidden content" },
+        ts: 60,
+      }),
+    ];
+
+    renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: { "child-run-alpha": childFrames },
+      subagentMetaByRunId: {
+        "child-run-alpha": {
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          status: "completed",
+        },
+      },
+    });
+
+    expect(
+      screen.queryByText("Large child hidden content"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+
+    expect(screen.getByText("Large child hidden content")).toBeInTheDocument();
+  });
+
+  test("keeps nested subagent detail panels within the trace width", () => {
+    const longPath = `src/${"very-long-folder-name-".repeat(12)}target.js`;
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "tool_call",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          arguments: {
+            target: "analyzer",
+            task: "Inspect a nested trace detail",
+          },
+        },
+      }),
+      frame({
+        seq: 3,
+        type: "tool_result",
+        payload: {
+          call_id: "call-1",
+          tool_name: "delegate_to_subagent",
+          result: {
+            agent_name: "developer.analyzer.1",
+            template_name: "analyzer",
+            status: "completed",
+            output: "Nested child summary",
+          },
+        },
+      }),
+    ];
+
+    const { container } = renderTraceChain({
+      frames,
+      status: "done",
+      subagentFrames: {
+        "child-run-alpha": [
+          frame({ seq: 1, type: "stream_started", payload: {}, ts: 10 }),
+          frame({
+            seq: 2,
+            type: "tool_call",
+            payload: {
+              call_id: "child-call-1",
+              tool_name: "read_file",
+              arguments: { path: longPath },
+            },
+            ts: 20,
+          }),
+        ],
+      },
+      subagentMetaByRunId: {
+        "child-run-alpha": {
+          subagentId: "developer.analyzer.1",
+          mode: "delegate",
+          template: "analyzer",
+          status: "completed",
+        },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /detail/i }));
+
+    const traceRoot = container.firstElementChild;
+    expect(traceRoot).toHaveStyle({
+      width: "100%",
+      maxWidth: "100%",
+      minWidth: "0",
+    });
+
+    let detailCard = screen.getByText(longPath).parentElement;
+    while (detailCard && !detailCard.style.background) {
+      detailCard = detailCard.parentElement;
+    }
+    expect(detailCard).toHaveStyle({
+      width: "100%",
+      maxWidth: "100%",
+      boxSizing: "border-box",
+    });
+    expect(detailCard).not.toHaveStyle({ overflowX: "auto" });
+
+    let childTraceRoot = screen.getByText(longPath);
+    while (
+      childTraceRoot &&
+      childTraceRoot.style.marginBottom !== "0px"
+    ) {
+      childTraceRoot = childTraceRoot.parentElement;
+    }
+    expect(childTraceRoot).toBeTruthy();
+    expect(
+      childTraceRoot.querySelector('[style*="padding-left: 2px"]'),
+    ).not.toBeInTheDocument();
+  });
+
   test("forwards selector requests from delegate child timelines", () => {
     const onToolConfirmationDecision = jest.fn();
     const frames = [
@@ -777,6 +1176,8 @@ describe("TraceChain final_message draft timeline", () => {
       },
     });
 
+    expect(screen.queryByText("Child needs input?")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
     expect(screen.getByText("Child needs input?")).toBeInTheDocument();
     fireEvent.click(screen.getByText("Frontend"));
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));

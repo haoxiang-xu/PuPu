@@ -149,7 +149,7 @@ export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
   const screenW = window.innerWidth;
   const screenH = window.innerHeight;
   const menuW = 180;
-  const menuH = items.length * 32;
+  const menuH = items.length * 28;
   const left = Math.min(x, screenW - menuW - 8);
   const top = Math.min(y, screenH - menuH - 8);
 
@@ -210,7 +210,7 @@ export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
               display: "flex",
               alignItems: "center",
               gap: 8,
-              padding: "8px",
+              padding: "6px 8px",
               cursor: "pointer",
               fontSize: 13,
               fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",

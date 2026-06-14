@@ -2,7 +2,13 @@ name: Enforce Merge Source
 
 on:
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - edited
     branches:
+      - dev
       - main
 
 jobs:
@@ -11,13 +17,21 @@ jobs:
     permissions:
       contents: read
     steps:
-      - name: Check if source branch is dev
+      - name: Check allowed source branch by target branch
         run: |
           SOURCE="${{ github.head_ref }}"
-          if [ "$SOURCE" = "dev" ] || [[ "$SOURCE" == auto/update-readme-downloads-* ]]; then
-            echo "✅ Source branch '$SOURCE' is allowed. Merge allowed."
+          TARGET="${{ github.base_ref }}"
+
+          if [ "$TARGET" = "main" ]; then
+            if [ "$SOURCE" = "dev" ] || [[ "$SOURCE" == auto/update-readme-downloads-* ]]; then
+              echo "✅ Source branch '$SOURCE' is allowed to merge into '$TARGET'."
+            else
+              echo "❌ Only the 'dev' branch (or automated 'auto/update-readme-downloads-*' branches) is allowed to merge into '$TARGET'."
+              echo "Current source branch: $SOURCE"
+              exit 1
+            fi
+          elif [ "$TARGET" = "dev" ]; then
+            echo "✅ PR targets '$TARGET'; source branch '$SOURCE' is allowed."
           else
-            echo "❌ Only the 'dev' branch (or automated 'auto/update-readme-downloads-*' branches) is allowed to merge into 'main'."
-            echo "Current source branch: $SOURCE"
-            exit 1
+            echo "✅ No source branch restriction configured for target '$TARGET'."
           fi

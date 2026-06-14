@@ -1,0 +1,140 @@
+import { sanitizeMessage } from "./chat_storage_sanitize";
+
+describe("sanitizeMessage assistant artifactSummariesByTurnId", () => {
+  const validBucket = {
+    order: 1,
+    status: "completed",
+    artifacts: [
+      {
+        artifact_id: "file_diff:c1",
+        kind: "file_diff",
+        snapshot: { unified_diff: "@@ -1 +1 @@\n-a\n+b\n", truncated: false },
+      },
+    ],
+  };
+
+  test("preserves valid artifact summaries on assistant messages", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "hi",
+      artifactSummariesByTurnId: { "run-1:turn-1": validBucket },
+    });
+    expect(cleaned.artifactSummariesByTurnId).toEqual({
+      "run-1:turn-1": validBucket,
+    });
+  });
+
+  test("preserves unknown but structurally valid artifact descriptors", () => {
+    const unknownBucket = {
+      order: 1,
+      status: "completed",
+      artifacts: [
+        {
+          artifact_id: "benchmark:1",
+          kind: "benchmark_report",
+          title: "Benchmark",
+          snapshot: { markdown: "p95: 18ms" },
+        },
+      ],
+    };
+
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "hi",
+      artifactSummariesByTurnId: { "run-1:turn-1": unknownBucket },
+    });
+
+    expect(cleaned.artifactSummariesByTurnId).toEqual({
+      "run-1:turn-1": unknownBucket,
+    });
+  });
+
+  test("drops artifacts missing required fields without dropping the bucket", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "hi",
+      artifactSummariesByTurnId: {
+        "run-1:turn-1": {
+          order: 1,
+          status: "completed",
+          artifacts: [
+            { artifact_id: "ok", kind: "file_diff", snapshot: { unified_diff: "" } },
+            { kind: "file_diff", snapshot: {} }, // missing artifact_id
+            { artifact_id: "no-kind", snapshot: {} }, // missing kind
+            { artifact_id: "no-snap", kind: "file_diff" }, // missing snapshot
+          ],
+        },
+      },
+    });
+    expect(cleaned.artifactSummariesByTurnId["run-1:turn-1"].artifacts).toHaveLength(1);
+    expect(cleaned.artifactSummariesByTurnId["run-1:turn-1"].artifacts[0].artifact_id).toBe("ok");
+  });
+
+  test("drops pending buckets entirely", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "hi",
+      artifactSummariesByTurnId: {
+        "run-1:turn-1": { ...validBucket, status: "pending" },
+      },
+    });
+    expect(cleaned.artifactSummariesByTurnId).toBeUndefined();
+  });
+
+  test("does not set the field on user messages", () => {
+    const cleaned = sanitizeMessage({
+      role: "user",
+      content: "hi",
+      artifactSummariesByTurnId: { "run-1:turn-1": validBucket },
+    });
+    expect(cleaned.artifactSummariesByTurnId).toBeUndefined();
+  });
+
+  test("preserves completed runArtifactSummary on assistant messages", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "hi",
+      runArtifactSummary: {
+        order: 0,
+        status: "completed",
+        artifacts: [
+          {
+            artifact_id: "workspace_change_set:run-1",
+            kind: "workspace_change_set",
+            snapshot: { files: [{ path: "src/App.js", unified_diff: "" }] },
+          },
+        ],
+      },
+    });
+
+    expect(cleaned.runArtifactSummary).toEqual({
+      order: 0,
+      status: "completed",
+      artifacts: [
+        {
+          artifact_id: "workspace_change_set:run-1",
+          kind: "workspace_change_set",
+          snapshot: { files: [{ path: "src/App.js", unified_diff: "" }] },
+        },
+      ],
+    });
+  });
+
+  test("drops pending runArtifactSummary and never stores it on user messages", () => {
+    expect(
+      sanitizeMessage({
+        role: "assistant",
+        content: "hi",
+        runArtifactSummary: { ...validBucket, status: "pending" },
+      }).runArtifactSummary,
+    ).toBeUndefined();
+
+    expect(
+      sanitizeMessage({
+        role: "user",
+        content: "hi",
+        runArtifactSummary: validBucket,
+      }).runArtifactSummary,
+    ).toBeUndefined();
+  });
+});

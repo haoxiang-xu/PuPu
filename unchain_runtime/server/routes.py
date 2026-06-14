@@ -18,6 +18,39 @@ from unchain_adapter import (
     stream_chat_events,
     submit_tool_confirmation,
 )
+from mcp_toolkits import (
+    check_mcp_toolkit_health,
+    configure_mcp_toolkit,
+    delete_mcp_toolkit,
+    install_mcp_toolkit,
+    list_installed_mcp_toolkits,
+    reload_mcp_toolkits,
+)
+from mcp_oauth import (
+    disconnect_mcp_oauth,
+    get_mcp_oauth_status,
+    handle_mcp_oauth_callback,
+    start_mcp_oauth,
+)
+from mcp_oauth_apps import (
+    configure_mcp_oauth_app,
+    delete_mcp_oauth_app,
+    list_mcp_oauth_apps,
+)
+from mcp_store_metadata import (
+    list_mcp_store_metadata,
+    reload_mcp_store_metadata,
+)
+from mcp_external_registries import (
+    approve_mcp_store_entry,
+    delete_mcp_store_registry,
+    import_mcp_store_registry,
+    list_mcp_store_entries,
+    list_mcp_store_registries,
+    refresh_mcp_store_registry,
+    revoke_mcp_store_entry_approval,
+    validate_mcp_store_registry,
+)
 
 import route_catalog  # noqa: F401
 import route_chat  # noqa: F401
@@ -25,6 +58,7 @@ import route_projection  # noqa: F401
 import route_characters  # noqa: F401
 import route_memory  # noqa: F401
 import route_recipes  # noqa: F401
+import route_mcp  # noqa: F401
 
 __all__ = [
     "api_blueprint",
@@ -43,7 +77,30 @@ __all__ = [
     "get_toolkit_catalog",
     "get_toolkit_catalog_v2",
     "get_toolkit_metadata",
+    "check_mcp_toolkit_health",
+    "configure_mcp_toolkit",
+    "configure_mcp_oauth_app",
+    "delete_mcp_toolkit",
+    "delete_mcp_oauth_app",
+    "disconnect_mcp_oauth",
+    "get_mcp_oauth_status",
+    "handle_mcp_oauth_callback",
+    "install_mcp_toolkit",
+    "list_mcp_oauth_apps",
+    "list_installed_mcp_toolkits",
+    "list_mcp_store_entries",
+    "list_mcp_store_metadata",
+    "list_mcp_store_registries",
+    "reload_mcp_toolkits",
+    "reload_mcp_store_metadata",
+    "refresh_mcp_store_registry",
+    "start_mcp_oauth",
     "stream_chat",
     "stream_chat_events",
     "submit_tool_confirmation",
+    "delete_mcp_store_registry",
+    "import_mcp_store_registry",
+    "approve_mcp_store_entry",
+    "revoke_mcp_store_entry_approval",
+    "validate_mcp_store_registry",
 ]

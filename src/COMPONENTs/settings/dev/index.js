@@ -13,6 +13,7 @@ import { SettingsRow, SettingsSection } from "../appearance";
 import { readDevSettings, writeDevSettings } from "./storage";
 import { useTranslation } from "../../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import UITestingModal from "../../ui-testing/ui_testing_modal";
+import McpRegistriesModal from "./components/mcp_registries_modal";
 
 export const DevSettings = () => {
   const { theme, onThemeMode } = useContext(ConfigContext);
@@ -28,6 +29,7 @@ export const DevSettings = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [featureFlagsSyncError, setFeatureFlagsSyncError] = useState("");
   const [showUITesting, setShowUITesting] = useState(false);
+  const [showMcpRegistries, setShowMcpRegistries] = useState(false);
 
   const errorColor = isDark ? "#ff7f7f" : "#c62828";
   const successColor = isDark ? "#86efac" : "#2e7d32";
@@ -198,11 +200,46 @@ export const DevSettings = () => {
             }}
           />
         </SettingsRow>
+
+        <SettingsRow
+          label={t("dev.mcp_registries")}
+          description={t("dev.mcp_registry_desc")}
+        >
+          <Button
+            label={t("dev.open")}
+            onClick={() => setShowMcpRegistries(true)}
+            style={{
+              fontSize: 12,
+              paddingVertical: 5,
+              paddingHorizontal: 14,
+              borderRadius: 6,
+              hoverBackgroundColor: isDark
+                ? "rgba(255,255,255,0.14)"
+                : "rgba(0,0,0,0.10)",
+              background: {
+                hoverBackgroundColor: isDark
+                  ? "rgba(255,255,255,0.14)"
+                  : "rgba(0,0,0,0.10)",
+              },
+              root: {
+                backgroundColor: isDark
+                  ? "rgba(255,255,255,0.08)"
+                  : "rgba(0,0,0,0.05)",
+              },
+            }}
+          />
+        </SettingsRow>
       </SettingsSection>
 
       <UITestingModal
         open={showUITesting}
         onClose={() => setShowUITesting(false)}
+      />
+
+      <McpRegistriesModal
+        open={showMcpRegistries}
+        onClose={() => setShowMcpRegistries(false)}
+        isDark={isDark}
       />
 
       <SettingsSection title="Feature Flags" icon="flag">

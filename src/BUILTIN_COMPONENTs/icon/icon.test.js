@@ -7,6 +7,37 @@ describe("Icon", () => {
     jest.restoreAllMocks();
   });
 
+  test("renders mcp and tool as different glyphs", async () => {
+    const { container, rerender } = render(
+      <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+        <Icon src="mcp" />
+      </ConfigContext.Provider>,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector("svg")).toBeInTheDocument();
+    });
+    const mcpPaths = Array.from(container.querySelectorAll("path")).map((path) =>
+      path.getAttribute("d"),
+    );
+    expect(mcpPaths.join(" ")).toContain("M9.795 1.694");
+    expect(mcpPaths.join(" ")).not.toContain("M16.3303 13.497");
+
+    rerender(
+      <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
+        <Icon src="tool" />
+      </ConfigContext.Provider>,
+    );
+
+    await waitFor(() => {
+      const toolPaths = Array.from(container.querySelectorAll("path")).map(
+        (path) => path.getAttribute("d"),
+      );
+      expect(toolPaths.join(" ")).toContain("M16.3303 13.497");
+      expect(toolPaths.join(" ")).not.toContain("M9.795 1.694");
+    });
+  });
+
   test("renders side_menu_close without SVG parse errors", async () => {
     const consoleErrorSpy = jest
       .spyOn(console, "error")

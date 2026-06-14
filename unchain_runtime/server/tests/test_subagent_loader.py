@@ -406,7 +406,14 @@ class _FakeSubagentTemplate:
 
 
 class LoadTemplatesTests(unittest.TestCase):
-    def _call(self, *, user_dir, workspace_dir=None, toolkit_tools=("read", "grep")):
+    def _call(
+        self,
+        *,
+        user_dir,
+        workspace_dir=None,
+        toolkit_tools=("read", "grep"),
+        optimizer_module_factory=None,
+    ):
         return load_templates(
             toolkits=(_FakeToolkit(toolkit_tools),),
             provider="anthropic",
@@ -419,6 +426,7 @@ class LoadTemplatesTests(unittest.TestCase):
             ToolsModule=_FakeToolsModule,
             PoliciesModule=_FakePoliciesModule,
             SubagentTemplate=_FakeSubagentTemplate,
+            optimizer_module_factory=optimizer_module_factory,
         )
 
     def test_empty_dirs_returns_empty(self):
@@ -433,6 +441,29 @@ class LoadTemplatesTests(unittest.TestCase):
             templates = self._call(user_dir=Path(d), workspace_dir=None)
             self.assertEqual(len(templates), 1)
             self.assertEqual(templates[0].name, "A")
+
+    def test_optimizer_factory_appends_fresh_module_after_policy(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "A.skeleton").write_text(
+                json.dumps({"name": "A", "description": "d", "instructions": "i"})
+            )
+            created = []
+
+            def optimizer_module_factory():
+                module = object()
+                created.append(module)
+                return module
+
+            templates = self._call(
+                user_dir=Path(d),
+                optimizer_module_factory=optimizer_module_factory,
+            )
+
+            self.assertEqual(len(templates), 1)
+            modules = templates[0].agent.modules
+            self.assertIsInstance(modules[0], _FakeToolsModule)
+            self.assertIsInstance(modules[1], _FakePoliciesModule)
+            self.assertIs(modules[2], created[0])
 
     def test_nonexistent_workspace_dir_falls_back(self):
         with tempfile.TemporaryDirectory() as d:

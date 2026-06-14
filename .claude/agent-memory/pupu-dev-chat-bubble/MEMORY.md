@@ -1,0 +1,2 @@
+- [Team Roster](team_roster.md) — reporting line (pupu-cto gatekeeper), standing sync-meeting roster, and the 5 peer devs with ownership boundaries
+- [Security Render Sinks](security_render_sinks.md) — chat-bubble 攻击面 + react-showdown 真实威胁模型（createElement≠innerHTML，sanitize_html=false 坑，SEC-001 结论）

@@ -10,6 +10,7 @@ import {
 const DEFAULT_SAMPLE_INTERVAL_MS = 48;
 const DEFAULT_SETTLE_DELAY_MS = 140;
 const DEFAULT_TRANSITION_MS = 180;
+const DEFAULT_KEYED_TRANSITION_MS = 300;
 
 const EASING = "cubic-bezier(0.22, 1, 0.36, 1)";
 
@@ -49,6 +50,8 @@ const framesEqual = (left, right) =>
   Boolean(left && right && left.width === right.width && left.height === right.height);
 
 const useSmoothResizeFrame = ({
+  instantResizeKey,
+  keyedTransitionMs = DEFAULT_KEYED_TRANSITION_MS,
   sampleIntervalMs = DEFAULT_SAMPLE_INTERVAL_MS,
   settleDelayMs = DEFAULT_SETTLE_DELAY_MS,
   transitionMs = DEFAULT_TRANSITION_MS,
@@ -56,9 +59,14 @@ const useSmoothResizeFrame = ({
   const containerRef = useRef(null);
   const sampleTimerRef = useRef(null);
   const settleTimerRef = useRef(null);
+  const restoreTransitionTimerRef = useRef(null);
+  const instantResizeKeyRef = useRef(instantResizeKey);
+  const keyedTransitionActiveRef = useRef(false);
   const latestFrameRef = useRef(null);
   const [frame, setFrame] = useState(null);
+  const [isKeyedTransitionActive, setIsKeyedTransitionActive] = useState(false);
 
+  const safeKeyedTransitionMs = Math.max(0, keyedTransitionMs);
   const safeSampleIntervalMs = Math.max(0, sampleIntervalMs);
   const safeSettleDelayMs = Math.max(0, settleDelayMs);
   const safeTransitionMs = Math.max(0, transitionMs);
@@ -67,14 +75,6 @@ const useSmoothResizeFrame = ({
     () => readNodeFrame(containerRef.current),
     [],
   );
-
-  const commitFrame = useCallback((nextFrame) => {
-    const normalizedFrame = normalizeFrame(nextFrame);
-    latestFrameRef.current = normalizedFrame;
-    setFrame((currentFrame) =>
-      framesEqual(currentFrame, normalizedFrame) ? currentFrame : normalizedFrame,
-    );
-  }, []);
 
   const clearSampleTimer = useCallback(() => {
     if (sampleTimerRef.current) {
@@ -90,10 +90,46 @@ const useSmoothResizeFrame = ({
     }
   }, []);
 
-  const refreshFrame = useCallback(() => {
+  const clearRestoreTransitionTimer = useCallback(() => {
+    if (restoreTransitionTimerRef.current) {
+      clearTimeout(restoreTransitionTimerRef.current);
+      restoreTransitionTimerRef.current = null;
+    }
+  }, []);
+
+  const commitFrameValue = useCallback((nextFrame) => {
+    const normalizedFrame = normalizeFrame(nextFrame);
+    latestFrameRef.current = normalizedFrame;
+    setFrame((currentFrame) =>
+      framesEqual(currentFrame, normalizedFrame) ? currentFrame : normalizedFrame,
+    );
+  }, []);
+
+  const finishKeyedTransitionAfter = useCallback((delayMs) => {
+    clearRestoreTransitionTimer();
+    restoreTransitionTimerRef.current = setTimeout(() => {
+      restoreTransitionTimerRef.current = null;
+      keyedTransitionActiveRef.current = false;
+      commitFrameValue(measureFrame());
+      setIsKeyedTransitionActive(false);
+    }, Math.max(0, delayMs));
+  }, [clearRestoreTransitionTimer, commitFrameValue, measureFrame]);
+
+  const commitFrame = useCallback((nextFrame, options = {}) => {
+    if (Number.isFinite(options.transitionMs)) {
+      const nextTransitionMs = Math.max(0, options.transitionMs);
+      keyedTransitionActiveRef.current = true;
+      setIsKeyedTransitionActive(true);
+      finishKeyedTransitionAfter(nextTransitionMs);
+    }
+
+    commitFrameValue(nextFrame);
+  }, [commitFrameValue, finishKeyedTransitionAfter]);
+
+  const refreshFrame = useCallback((options) => {
     clearSampleTimer();
     clearSettleTimer();
-    commitFrame(measureFrame());
+    commitFrame(measureFrame(), options);
   }, [clearSampleTimer, clearSettleTimer, commitFrame, measureFrame]);
 
   const scheduleResizeFrame = useCallback(() => {
@@ -121,9 +157,26 @@ const useSmoothResizeFrame = ({
     safeSettleDelayMs,
   ]);
 
+  const scheduleObservedResizeFrame = useCallback(() => {
+    if (keyedTransitionActiveRef.current) {
+      return;
+    }
+
+    scheduleResizeFrame();
+  }, [scheduleResizeFrame]);
+
   useLayoutEffect(() => {
     refreshFrame();
   }, [refreshFrame]);
+
+  useLayoutEffect(() => {
+    if (instantResizeKeyRef.current === instantResizeKey) {
+      return;
+    }
+
+    instantResizeKeyRef.current = instantResizeKey;
+    refreshFrame({ transitionMs: safeKeyedTransitionMs });
+  }, [instantResizeKey, refreshFrame, safeKeyedTransitionMs]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -137,7 +190,7 @@ const useSmoothResizeFrame = ({
       typeof ResizeObserver !== "undefined" &&
       containerRef.current
     ) {
-      resizeObserver = new ResizeObserver(scheduleResizeFrame);
+      resizeObserver = new ResizeObserver(scheduleObservedResizeFrame);
       resizeObserver.observe(containerRef.current);
     }
 
@@ -148,8 +201,15 @@ const useSmoothResizeFrame = ({
       }
       clearSampleTimer();
       clearSettleTimer();
+      clearRestoreTransitionTimer();
     };
-  }, [clearSampleTimer, clearSettleTimer, scheduleResizeFrame]);
+  }, [
+    clearRestoreTransitionTimer,
+    clearSampleTimer,
+    clearSettleTimer,
+    scheduleObservedResizeFrame,
+    scheduleResizeFrame,
+  ]);
 
   const frameStyle = useMemo(() => {
     const transition = [
@@ -158,13 +218,13 @@ const useSmoothResizeFrame = ({
       `transform ${safeTransitionMs}ms ${EASING}`,
     ].join(", ");
 
-    if (!frame) {
+    if (!frame || isKeyedTransitionActive) {
       return {
         position: "absolute",
         inset: 0,
         overflow: "hidden",
         transform: "translate3d(0, 0, 0)",
-        transition,
+        transition: isKeyedTransitionActive ? "none" : transition,
       };
     }
 
@@ -179,7 +239,7 @@ const useSmoothResizeFrame = ({
       transition,
       willChange: "width, height, transform",
     };
-  }, [frame, safeTransitionMs]);
+  }, [frame, isKeyedTransitionActive, safeTransitionMs]);
 
   return {
     containerRef,

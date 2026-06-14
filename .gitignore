@@ -70,8 +70,13 @@ dmypy.json
 
 # pyinstaller / frozen builds
 *.spec
+
+# generated at build time by scripts/generate-third-party-notices.cjs
+/THIRD_PARTY_NOTICES.txt
 .gitnexus
+# superpowers — skill runtime cache (.superpowers/) + design docs (docs/superpowers/)
 .superpowers/
+superpowers/
 
 # worktrees
 .worktrees/

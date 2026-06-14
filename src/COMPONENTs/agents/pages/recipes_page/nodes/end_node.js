@@ -13,7 +13,7 @@ export default function EndNode({ isDark }) {
                 width: 28,
                 height: 28,
                 borderRadius: 9,
-                background: "linear-gradient(135deg, #e06a9a, #b64a78)",
+                background: "linear-gradient(135deg, #f0635a, #d23f37)",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -21,9 +21,9 @@ export default function EndNode({ isDark }) {
               }}
             >
               <Icon
-                src="stop_mini_filled"
+                src="target"
                 color="#fff"
-                style={{ width: 18, height: 18 }}
+                style={{ width: 16, height: 16 }}
               />
             </div>
             <div>

@@ -6,6 +6,7 @@ import AssistantMessageBody from "./components/assistant_message_body";
 import MessageActionBar from "./components/message_action_bar";
 import { useEditableMessage } from "./hooks/use_editable_message";
 import { buildPendingConfirmationTraceFrames } from "./pending_confirmation_trace_frames";
+import ArtifactSummarySections from "./artifact-summary/artifact_summary_sections";
 
 const ChatBubble = ({
   message,
@@ -91,6 +92,12 @@ const ChatBubble = ({
     : buildPendingConfirmationTraceFrames(pendingToolConfirmationRequests);
   const hasVisibleTraceActivity =
     hasToolActivity || pendingToolConfirmationFrames.length > 0;
+  const hasTokenSummary =
+    isAssistant &&
+    message.status === "done" &&
+    typeof message.meta?.bundle?.consumed_tokens === "number" &&
+    message.meta.bundle.consumed_tokens > 0;
+  const shouldRenderTraceChain = hasVisibleTraceActivity || hasTokenSummary;
   const traceChainFrames = hasToolActivity
     ? traceFrames
     : pendingToolConfirmationFrames;
@@ -107,14 +114,18 @@ const ChatBubble = ({
         position: "relative",
       }}
     >
-      {isAssistant && hasVisibleTraceActivity && (
+      {isAssistant && shouldRenderTraceChain && (
         <TraceChain
           frames={traceChainFrames}
           status={message.status}
+          messageId={message.id}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
           streamingContent={
             message.status === "streaming" ? message.content : ""
+          }
+          streamingChunks={
+            message.status === "streaming" ? message.streamingChunks : undefined
           }
           pendingContinuationRequest={pendingContinuationRequest}
           onContinuationDecision={onContinuationDecision}
@@ -129,6 +140,7 @@ const ChatBubble = ({
         <TraceChain
           frames={[]}
           status={message.status}
+          messageId={message.id}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
           pendingContinuationRequest={pendingContinuationRequest}
@@ -185,6 +197,15 @@ const ChatBubble = ({
             />
           )}
         </div>
+      )}
+      {isAssistant &&
+        !(isAssistant && hasVisibleTraceActivity && message.status === "streaming") &&
+        (message?.runArtifactSummary || message?.artifactSummariesByTurnId) && (
+        <ArtifactSummarySections
+          runArtifactSummary={message.runArtifactSummary}
+          artifactSummariesByTurnId={message.artifactSummariesByTurnId}
+          isDark={isDark}
+        />
       )}
 
       <MessageActionBar

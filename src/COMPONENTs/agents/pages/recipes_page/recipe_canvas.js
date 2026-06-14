@@ -68,6 +68,8 @@ export default function RecipeCanvas({
     x: 0,
     y: 0,
   });
+  // Canvas coords of the last right-click, used to place newly added nodes.
+  const menuPosRef = useRef(null);
 
   useEffect(() => {
     if (recipe && is_legacy_recipe(recipe)) {
@@ -151,6 +153,14 @@ export default function RecipeCanvas({
     const prefix =
       type === "agent" ? "agent" : is_toolkit_pool_type(type) ? "tp" : "sp";
     const id = new_id(prefix, existing_ids);
+    const fallback = {
+      agent: { x: 400, y: 300 },
+      [TOOLKIT_POOL_TYPE]: { x: 400, y: 100 },
+      subagent_pool: { x: 400, y: 500 },
+    };
+    const pos = menuPosRef.current;
+    const x = pos ? Math.round(pos.x) : fallback[type].x;
+    const y = pos ? Math.round(pos.y) : fallback[type].y;
     const base_defaults = {
       agent: {
         id,
@@ -159,8 +169,8 @@ export default function RecipeCanvas({
         deletable: true,
         override: { model: "", prompt: "" },
         outputs: [{ name: "output", type: "string" }],
-        x: 400,
-        y: 300,
+        x,
+        y,
       },
       [TOOLKIT_POOL_TYPE]: {
         id,
@@ -169,8 +179,8 @@ export default function RecipeCanvas({
         deletable: true,
         toolkits: [],
         merge_with_user_selected: false,
-        x: 400,
-        y: 100,
+        x,
+        y,
       },
       subagent_pool: {
         id,
@@ -178,8 +188,8 @@ export default function RecipeCanvas({
         kind: "plugin",
         deletable: true,
         subagents: [],
-        x: 400,
-        y: 500,
+        x,
+        y,
       },
     };
     onRecipeChange({
@@ -224,13 +234,7 @@ export default function RecipeCanvas({
 
   return (
     <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
-      <div
-        onContextMenu={(e) => {
-          e.preventDefault();
-          setContextMenu({ visible: true, x: e.clientX, y: e.clientY });
-        }}
-        style={{ position: "absolute", inset: 0, overflow: "hidden" }}
-      >
+      <div style={{ position: "absolute", inset: 0, overflow: "hidden" }}>
         <FlowEditor
           style={{
             width: "100%",
@@ -259,6 +263,10 @@ export default function RecipeCanvas({
           on_edges_change={handleEdgesChange}
           validate_connection={validate}
           render_node={renderNode}
+          on_context_menu={({ canvas_x, canvas_y, client_x, client_y }) => {
+            menuPosRef.current = { x: canvas_x, y: canvas_y };
+            setContextMenu({ visible: true, x: client_x, y: client_y });
+          }}
           reset_token={resetToken}
         />
 

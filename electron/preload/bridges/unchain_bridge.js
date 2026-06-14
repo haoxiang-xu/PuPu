@@ -12,6 +12,62 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
       toolkitId,
       toolName,
     }),
+  listMcpToolkits: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_TOOLKITS),
+  installMcpToolkit: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.INSTALL_MCP_TOOLKIT, payload),
+  deleteMcpToolkit: (toolkitId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_TOOLKIT, { toolkitId }),
+  reloadMcpToolkits: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.RELOAD_MCP_TOOLKITS, payload),
+  checkMcpToolkitHealth: (toolkitId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CHECK_MCP_TOOLKIT_HEALTH, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      toolkitId,
+    }),
+  configureMcpToolkit: (toolkitId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CONFIGURE_MCP_TOOLKIT, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      toolkitId,
+    }),
+  startMcpOAuth: (entryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.START_MCP_OAUTH, { entryId }),
+  getMcpOAuthStatus: (entryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.GET_MCP_OAUTH_STATUS, { entryId }),
+  disconnectMcpOAuth: (toolkitId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DISCONNECT_MCP_OAUTH, { toolkitId }),
+  listMcpOAuthApps: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_OAUTH_APPS),
+  configureMcpOAuthApp: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.CONFIGURE_MCP_OAUTH_APP, payload),
+  deleteMcpOAuthApp: (toolkitId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_OAUTH_APP, { toolkitId }),
+  listMcpStoreMetadata: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_STORE_METADATA),
+  reloadMcpStoreMetadata: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.RELOAD_MCP_STORE_METADATA, payload),
+  listMcpStoreEntries: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_STORE_ENTRIES),
+  listMcpStoreRegistries: () =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.LIST_MCP_STORE_REGISTRIES),
+  importMcpStoreRegistry: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.IMPORT_MCP_STORE_REGISTRY, payload),
+  validateMcpStoreRegistry: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.VALIDATE_MCP_STORE_REGISTRY, payload),
+  refreshMcpStoreRegistry: (registryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.REFRESH_MCP_STORE_REGISTRY, { registryId }),
+  deleteMcpStoreRegistry: (registryId = "") =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.DELETE_MCP_STORE_REGISTRY, { registryId }),
+  approveMcpStoreEntry: (entryId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.APPROVE_MCP_STORE_ENTRY, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      entryId,
+    }),
+  revokeMcpStoreEntryApproval: (entryId = "", payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.REVOKE_MCP_STORE_ENTRY_APPROVAL, {
+      ...(payload && typeof payload === "object" ? payload : {}),
+      entryId,
+    }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
   setChromeTerminalOpen: (open = false) =>
@@ -92,6 +148,7 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
   cancelStream: streamClient.cancelStream,
   startStreamV2: streamClient.startStreamV2,
   startStreamV3: streamClient.startStreamV3,
+  startStreamV4: streamClient.startStreamV4,
 });
 
 module.exports = {

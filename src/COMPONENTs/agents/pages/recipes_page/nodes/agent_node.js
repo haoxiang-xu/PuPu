@@ -1,5 +1,6 @@
 import React from "react";
 import PuzzleShape from "./puzzle_shape";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 /* Workflow agent node — left in, right out, top + bottom attach. */
 
@@ -22,16 +23,13 @@ export default function AgentNode({ node, isDark }) {
                 height: 28,
                 borderRadius: 9,
                 background: "linear-gradient(135deg, #6478f6, #4a5bd8)",
-                color: "#fff",
-                fontSize: 13,
-                fontWeight: 700,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
               }}
             >
-              A
+              <Icon src="bot" color="#fff" style={{ width: 16, height: 16 }} />
             </div>
             <div style={{ minWidth: 0 }}>
               <div

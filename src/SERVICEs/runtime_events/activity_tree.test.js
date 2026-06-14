@@ -1,5 +1,5 @@
 import { createRuntimeEventStore } from "./event_store";
-import { reduceActivityTree } from "./activity_tree";
+import { reduceActivityTree, createInitialActivityTreeState } from "./activity_tree";
 
 const event = ({
   id,
@@ -220,5 +220,391 @@ describe("activity tree reducer", () => {
         options: [{ label: "A", value: "a" }],
       },
     });
+  });
+});
+
+describe("artifactSummariesByTurnId initial state", () => {
+  test("createInitialActivityTreeState includes empty artifactSummariesByTurnId", () => {
+    const state = createInitialActivityTreeState();
+    expect(state.artifactSummariesByTurnId).toEqual({});
+  });
+});
+
+describe("artifact.created", () => {
+  test("creates a pending bucket and pushes the artifact descriptor", () => {
+    const events = [
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "file_diff:call-1",
+          kind: "file_diff",
+          title: "src/App.js",
+          owner: { turn_id: "run-root:turn-1", call_id: "call-1" },
+          snapshot: { unified_diff: "--- a/App.js\n+++ b/App.js\n@@ -1 +1 @@\n-old\n+new\n" },
+        },
+      }),
+    ];
+    const state = reduceEvents(events);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket).toBeDefined();
+    expect(bucket.status).toBe("pending");
+    expect(bucket.order).toBe(1);
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].artifact_id).toBe("file_diff:call-1");
+    expect(bucket.artifacts[0].kind).toBe("file_diff");
+  });
+
+  test("resolves turn_id from event.turn_id when present", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        turnId: "run-root:turn-2",
+        payload: {
+          artifact_id: "x:1",
+          kind: "file_diff",
+          owner: { turn_id: "DIFFERENT" },
+          snapshot: { unified_diff: "" },
+        },
+      }),
+    ]);
+    expect(state.artifactSummariesByTurnId["run-root:turn-2"]).toBeDefined();
+    expect(state.artifactSummariesByTurnId["DIFFERENT"]).toBeUndefined();
+  });
+
+  test("does not emit an artifact_summary effect while bucket is pending", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "x:1",
+          kind: "file_diff",
+          snapshot: { unified_diff: "" },
+        },
+      }),
+    ]);
+    const artifactEffects = state.effects.filter(
+      (e) => e.type === "artifact_summary",
+    );
+    expect(artifactEffects).toEqual([]);
+  });
+
+  test("keeps unknown but structurally valid artifact kinds", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "benchmark:1",
+          kind: "benchmark_report",
+          title: "Benchmark",
+          snapshot: { markdown: "p95: 18ms" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].kind).toBe("benchmark_report");
+  });
+
+  test("drops malformed artifact descriptors even for known event types", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "benchmark:1",
+          kind: "benchmark_report",
+        },
+      }),
+    ]);
+    expect(state.artifactSummariesByTurnId["run-root:turn-1"]).toBeUndefined();
+  });
+
+  test("upserts stable artifacts when artifact.created repeats the same artifact_id", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 1,
+          title: "Initial",
+          snapshot: { markdown: "# v1", status: "draft" },
+        },
+      }),
+      event({
+        id: "e2",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 2,
+          title: "Updated",
+          snapshot: { markdown: "# v2", status: "draft" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].title).toBe("Updated");
+    expect(bucket.artifacts[0].revision).toBe(2);
+  });
+});
+
+describe("artifact.updated", () => {
+  test("replaces the existing entry with the same artifact_id", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 1,
+          title: "Initial",
+          snapshot: { markdown: "# v1", status: "draft" },
+        },
+      }),
+      event({
+        id: "e2",
+        type: "artifact.updated",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 2,
+          title: "Updated",
+          snapshot: { markdown: "# v2", status: "draft" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].title).toBe("Updated");
+    expect(bucket.artifacts[0].revision).toBe(2);
+  });
+
+  test("ignores revision regression for the same artifact_id", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 5,
+          snapshot: { markdown: "# rev5" },
+        },
+      }),
+      event({
+        id: "e2",
+        type: "artifact.updated",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 3,
+          snapshot: { markdown: "# rev3" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts[0].revision).toBe(5);
+    expect(bucket.artifacts[0].snapshot.markdown).toBe("# rev5");
+  });
+
+  test("pushes the artifact when no existing entry matches (out-of-order delivery)", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.updated",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 1,
+          snapshot: { markdown: "# v1" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].revision).toBe(1);
+  });
+
+  test("does not let late older artifact.created duplicate or downgrade an updated artifact", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.updated",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 2,
+          title: "Updated",
+          snapshot: { markdown: "# v2", status: "draft" },
+        },
+      }),
+      event({
+        id: "e2",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "plan:p1",
+          kind: "plan",
+          revision: 1,
+          title: "Initial",
+          snapshot: { markdown: "# v1", status: "draft" },
+        },
+      }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.artifacts).toHaveLength(1);
+    expect(bucket.artifacts[0].title).toBe("Updated");
+    expect(bucket.artifacts[0].revision).toBe(2);
+  });
+});
+
+describe("turn.completed flips bucket to completed", () => {
+  test("status becomes completed and an artifact_summary completed effect is emitted", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "file_diff:c1",
+          kind: "file_diff",
+          snapshot: { unified_diff: "@@ -1 +1 @@\n-a\n+b\n" },
+        },
+      }),
+      event({ id: "e2", type: "turn.completed", payload: {} }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.status).toBe("completed");
+    const completedEffects = state.effects.filter(
+      (e) => e.type === "artifact_summary" && e.reason === "completed",
+    );
+    expect(completedEffects).toHaveLength(1);
+    expect(completedEffects[0].turnId).toBe("run-root:turn-1");
+    expect(completedEffects[0].eventId).toBe("e2");
+  });
+
+  test("does not create a bucket when the turn produced no artifacts", () => {
+    const state = reduceEvents([
+      event({ id: "e1", type: "turn.completed", payload: {} }),
+    ]);
+    expect(state.artifactSummariesByTurnId["run-root:turn-1"]).toBeUndefined();
+    const completedEffects = state.effects.filter(
+      (e) => e.type === "artifact_summary",
+    );
+    expect(completedEffects).toEqual([]);
+  });
+
+  test("artifact.created arriving after turn.completed emits a created effect", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "file_diff:c1",
+          kind: "file_diff",
+          snapshot: { unified_diff: "@@ -1 +1 @@\n-a\n+b\n" },
+        },
+      }),
+      event({ id: "e2", type: "turn.completed", payload: {} }),
+      event({
+        id: "e3",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "file_diff:c2",
+          kind: "file_diff",
+          snapshot: { unified_diff: "@@ -1 +1 @@\n-x\n+y\n" },
+        },
+      }),
+    ]);
+    const created = state.effects.filter(
+      (e) => e.type === "artifact_summary" && e.reason === "created",
+    );
+    expect(created).toHaveLength(1);
+  });
+});
+
+describe("run.completed flushes pending buckets", () => {
+  test("converts pending buckets to completed and emits flushed effects", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        turnId: "run-root:turn-1",
+        payload: {
+          artifact_id: "file_diff:c1",
+          kind: "file_diff",
+          snapshot: { unified_diff: "@@ -1 +1 @@\n-a\n+b\n" },
+        },
+      }),
+      event({ id: "e2", type: "run.completed", payload: {} }),
+    ]);
+    const bucket = state.artifactSummariesByTurnId["run-root:turn-1"];
+    expect(bucket.status).toBe("completed");
+    const flushed = state.effects.filter(
+      (e) => e.type === "artifact_summary" && e.reason === "flushed",
+    );
+    expect(flushed).toHaveLength(1);
+    expect(flushed[0].turnId).toBe("run-root:turn-1");
+    expect(flushed[0].eventId).toBe("e2");
+  });
+
+  test("multiple pending turns produce one flushed effect each, all keyed by the same event_id but distinguishable by turnId+reason", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        turnId: "run-root:turn-1",
+        payload: {
+          artifact_id: "file_diff:c1",
+          kind: "file_diff",
+          snapshot: { unified_diff: "@@ -1 +1 @@\n-a\n+b\n" },
+        },
+      }),
+      event({
+        id: "e2",
+        type: "artifact.created",
+        turnId: "run-root:turn-2",
+        payload: {
+          artifact_id: "file_diff:c2",
+          kind: "file_diff",
+          snapshot: { unified_diff: "@@ -1 +1 @@\n-x\n+y\n" },
+        },
+      }),
+      event({ id: "e3", type: "run.completed", payload: {} }),
+    ]);
+    const flushed = state.effects.filter(
+      (e) => e.type === "artifact_summary" && e.reason === "flushed",
+    );
+    expect(flushed).toHaveLength(2);
+    expect(flushed.every((e) => e.eventId === "e3")).toBe(true);
+    expect(new Set(flushed.map((e) => e.turnId))).toEqual(
+      new Set(["run-root:turn-1", "run-root:turn-2"]),
+    );
+  });
+
+  test("already-completed buckets are not re-flushed", () => {
+    const state = reduceEvents([
+      event({
+        id: "e1",
+        type: "artifact.created",
+        payload: {
+          artifact_id: "file_diff:c1",
+          kind: "file_diff",
+          snapshot: { unified_diff: "@@ -1 +1 @@\n-a\n+b\n" },
+        },
+      }),
+      event({ id: "e2", type: "turn.completed", payload: {} }),
+      event({ id: "e3", type: "run.completed", payload: {} }),
+    ]);
+    const flushed = state.effects.filter(
+      (e) => e.type === "artifact_summary" && e.reason === "flushed",
+    );
+    expect(flushed).toEqual([]);
   });
 });

@@ -1,11 +1,14 @@
 import { memo, useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
-import CellSplitSpinner from "../../../BUILTIN_COMPONENTs/spinner/cell_split_spinner";
 import SeamlessMarkdown from "./seamless_markdown";
 import {
   ASSISTANT_MARKDOWN_FONT_SIZE,
   ASSISTANT_MARKDOWN_LINE_HEIGHT,
 } from "./assistant_markdown_metrics";
+import {
+  StreamingAssistantSpinner,
+  StreamingMarkdownView,
+} from "./streaming_message_store_context";
 
 const AssistantMessageBody = ({
   message,
@@ -58,22 +61,19 @@ const AssistantMessageBody = ({
     );
   }
 
-  // When timeline is already visible (has trace frames), skip the spinner —
-  // the TraceChain "Thinking…" indicator is enough.
-  if (message.status === "streaming" && !message.content) {
-    if (hasTraceFrames) return null;
+  if (message.status === "streaming") {
     return (
-      <div style={{ padding: "8px 0" }}>
-        <CellSplitSpinner
-          size={28}
-          cells={5}
-          speed={0.9}
-          spread={1}
-          stagger={120}
-          spin={true}
-          spinSpeed={0.6}
-        />
-      </div>
+      <StreamingMarkdownView
+        messageId={message.id}
+        fallbackContent={typeof message.content === "string" ? message.content : ""}
+        fallbackChunks={
+          Array.isArray(message.streamingChunks) ? message.streamingChunks : undefined
+        }
+        fontSize={ASSISTANT_MARKDOWN_FONT_SIZE}
+        lineHeight={ASSISTANT_MARKDOWN_LINE_HEIGHT}
+        priority="high"
+        spinner={hasTraceFrames ? null : <StreamingAssistantSpinner />}
+      />
     );
   }
 
@@ -97,7 +97,6 @@ const AssistantMessageBody = ({
   const content = typeof message.content === "string" ? message.content : "";
   const renderStatus =
     typeof message.status === "string" ? message.status : "done";
-
   return (
     <SeamlessMarkdown
       content={content}

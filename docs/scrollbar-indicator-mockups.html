@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PuPu · 分段滚动指示器 设计稿</title>
+<style>
+  :root {
+    --bg: #0f0f10;
+    --card: #161617;
+    --card-edge: rgba(255,255,255,0.06);
+    --text: rgba(255,255,255,0.92);
+    --dim: rgba(255,255,255,0.42);
+    --faint: rgba(255,255,255,0.16);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 48px 40px 80px;
+  }
+  .page-head { max-width: 1320px; margin: 0 auto 36px; }
+  .page-head h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 8px; }
+  .page-head p { color: var(--dim); font-size: 13.5px; line-height: 1.65; margin: 4px 0; max-width: 760px; }
+  .page-head kbd {
+    font-family: "SF Mono", ui-monospace, monospace; font-size: 11.5px;
+    background: rgba(255,255,255,0.07); border: 1px solid var(--card-edge);
+    border-radius: 5px; padding: 1px 6px; color: var(--text);
+  }
+
+  .grid {
+    max-width: 1320px; margin: 0 auto;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px;
+  }
+  @media (max-width: 1100px) { .grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 740px)  { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--card-edge);
+    border-radius: 16px;
+    padding: 18px 18px 20px;
+    display: flex; flex-direction: column;
+  }
+  .card-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 14px; }
+  .card-head .name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .card-head .tag { font-size: 11px; color: var(--dim); }
+  .card-desc { font-size: 11.5px; color: var(--dim); line-height: 1.55; margin: -6px 0 14px; min-height: 32px; }
+
+  /* the demo body: a chat viewport on the left + indicator gutter on the right */
+  .demo {
+    position: relative;
+    height: 440px;
+    display: flex;
+    gap: 0;
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(255,255,255,0.012);
+  }
+  .viewport {
+    flex: 1; height: 100%; overflow-y: auto; position: relative;
+    padding: 18px 16px 40px;
+    scrollbar-width: none;
+  }
+  .viewport::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  .msg { margin: 0 0 14px; display: flex; }
+  .msg.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 78%; border-radius: 12px; padding: 9px 12px;
+    font-size: 12px; line-height: 1.55; white-space: pre-wrap;
+  }
+  .msg.assistant .bubble { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.82); }
+  .msg.user .bubble { background: rgba(120,170,255,0.16); color: rgba(225,235,255,0.92); }
+
+  /* indicator gutter — fixed width column on the right of each demo */
+  .gutter {
+    position: relative; width: 34px; height: 100%; flex: 0 0 34px;
+    display: flex; align-items: stretch; justify-content: center;
+    padding: 14px 0;
+  }
+  .track {
+    position: relative; height: 100%; width: 100%;
+    display: flex; justify-content: center;
+  }
+  .seg { position: absolute; cursor: pointer; }
+  .vp-window { position: absolute; pointer-events: none; }
+
+  .legend { display: flex; gap: 16px; margin-top: 12px; font-size: 11px; color: var(--dim); }
+  .legend i { display: inline-block; width: 18px; height: 6px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+</style>
+</head>
+<body>
+  <div class="page-head">
+    <h1>PuPu · 垂直分段滚动指示器 — 6 个方向</h1>
+    <p>每个卡片左边是模拟对话区(可滚动),右边是对应的指示器。<b>每段方块的竖向长度 ∝ 该消息的渲染高度</b>,位置和真实滚动位置一一对应。
+       区分了 <span style="color:rgba(120,170,255,0.92)">user</span> 与 <span style="color:var(--text)">assistant</span>。无 icon,动效克制。</p>
+    <p>交互:在对话区<b>滚动</b> → 指示器视口高亮跟随;在指示器上<b>点击 / 拖动</b> → 对话区跳转;<b>悬停</b>指示器看展开/强调动效。</p>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+<script>
+/* ---------- mock conversation: varied render heights ---------- */
+const SENT = [
+  "好的。", "嗯,我看看。", "这个问题有点意思。",
+  "我们可以从几个角度来分析这个需求,先看看现状再决定方向。",
+  "让我把整个调用链梳理一遍:入口在路由层,经过中间件后落到 service,再写入 store。",
+  "这是一个比较长的回答,涉及多个步骤,需要逐条展开说明,所以它在对话里占的高度会明显更大,指示器上对应的方块也会更长。",
+  "短。", "再帮我确认一下边界情况?",
+  "总结:第一,先读文档;第二,查完整调用链;第三,小步验证。每一步都不要凭直觉改动核心逻辑。",
+];
+const MSGS = [];
+(function seed(){
+  // deterministic-ish varied set, alternating-ish roles
+  const plan = [
+    ['user',2],['assistant',5],['user',1],['assistant',6],['assistant',4],
+    ['user',7],['assistant',8],['user',0],['assistant',3],['assistant',5],
+    ['user',2],['assistant',6],['user',7],['assistant',8],['assistant',1],
+    ['user',4],['assistant',5],['user',0],['assistant',6],['assistant',3],
+  ];
+  for (const [role, idx] of plan) {
+    let txt = SENT[idx];
+    // inflate a few long ones to exaggerate height variance
+    if (idx === 7 || idx === 6) txt = txt + "\n\n" + SENT[4] + " " + SENT[8];
+    MSGS.push({ role, text: txt, weight: txt.length });
+  }
+})();
+
+/* ---------- per-variant indicator renderers ----------
+   each renderer gets: ({track, segs, viewport}) and draws absolutely-positioned
+   segments. segs = [{role, top, height, weight, el}] in CONTENT px.
+   It must also return an update(scrollTop) hook for the viewport window. */
+
+const VARIANTS = [
+  {
+    name: "V1 · Segments",
+    tag: "基准分段",
+    desc: "最直接:每条消息一个圆角竖条,右对齐。assistant 实、user 淡。视口内的段加亮,悬停整条变宽。",
+    build: v1,
+  },
+  {
+    name: "V2 · Spine",
+    tag: "双侧脊柱",
+    desc: "中线为轴,user 段偏左、assistant 段偏右,形成对话节奏的锯齿。一眼看出谁在主导。",
+    build: v2,
+  },
+  {
+    name: "V3 · Window Rail",
+    tag: "视口胶囊",
+    desc: "整条是一根极淡的轨,消息之间只留细缝;一颗明亮的胶囊随视口滑动。最克制,强调位置。",
+    build: v3,
+  },
+  {
+    name: "V4 · Weighted Ink",
+    tag: "字数加权",
+    desc: "长度=渲染高度,亮度=字数权重。话越多的消息颜色越实,长+亮一眼锁定重点段落。",
+    build: v4,
+  },
+  {
+    name: "V5 · Ticks",
+    tag: "极简刻度",
+    desc: "不填充,只有居中细线表达长度;视口是一条柔光带。信息密度最低、最安静的版本。",
+    build: v5,
+  },
+  {
+    name: "V6 · Edge → Panel",
+    tag: "悬停展开",
+    desc: "静止时贴边 3px 细条,几乎隐形;悬停展开成面板,变宽并显角色色。渐进披露。",
+    build: v6,
+  },
+];
+
+/* ---------- shared scaffold ---------- */
+function makeDemo(variant) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `
+    <div class="card-head"><span class="name">${variant.name}</span><span class="tag">${variant.tag}</span></div>
+    <div class="card-desc">${variant.desc}</div>`;
+  const demo = document.createElement('div'); demo.className = 'demo';
+  const viewport = document.createElement('div'); viewport.className = 'viewport';
+  const gutter = document.createElement('div'); gutter.className = 'gutter';
+  const track = document.createElement('div'); track.className = 'track';
+  gutter.appendChild(track);
+  demo.appendChild(viewport); demo.appendChild(gutter);
+  card.appendChild(demo);
+
+  // render messages
+  const nodes = [];
+  for (const m of MSGS) {
+    const row = document.createElement('div'); row.className = 'msg ' + m.role;
+    const b = document.createElement('div'); b.className = 'bubble'; b.textContent = m.text;
+    row.appendChild(b); viewport.appendChild(row); nodes.push({ row, m });
+  }
+
+  // measure after layout
+  requestAnimationFrame(() => {
+    const contentH = viewport.scrollHeight;
+    const viewH = viewport.clientHeight;
+    const trackH = track.clientHeight;
+    const scale = trackH / contentH;
+    const segs = nodes.map(({ row, m }) => ({
+      role: m.role, weight: m.weight,
+      top: row.offsetTop - 18, // minus viewport padding-top
+      height: row.offsetHeight,
+    }));
+    const api = variant.build({ track, segs, scale, trackH, viewH, contentH });
+    const onScroll = () => api.update(viewport.scrollTop);
+    viewport.addEventListener('scroll', onScroll);
+    onScroll();
+
+    // click / drag to scroll
+    let dragging = false;
+    const toScroll = (clientY) => {
+      const r = track.getBoundingClientRect();
+      const ratio = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+      viewport.scrollTop = ratio * (contentH - viewH) ;
+    };
+    track.addEventListener('pointerdown', (e) => { dragging = true; track.setPointerCapture(e.pointerId); toScroll(e.clientY); });
+    track.addEventListener('pointermove', (e) => { if (dragging) toScroll(e.clientY); });
+    track.addEventListener('pointerup', () => dragging = false);
+  });
+
+  // legend
+  const lg = document.createElement('div'); lg.className = 'legend';
+  lg.innerHTML = `<span><i style="background:rgba(255,255,255,0.34)"></i>assistant</span>
+                  <span><i style="background:rgba(120,170,255,0.7)"></i>user</span>`;
+  card.appendChild(lg);
+  return card;
+}
+
+/* ---------- helpers ---------- */
+const A_DARK = 'rgba(255,255,255,0.34)', A_DIM = 'rgba(255,255,255,0.13)';
+const U_DARK = 'rgba(120,170,255,0.72)', U_DIM = 'rgba(120,170,255,0.26)';
+const EASE = 'cubic-bezier(.22,.61,.36,1)';
+function seg(top, h, extra) {
+  const s = document.createElement('div'); s.className = 'seg';
+  s.style.top = top + 'px'; s.style.height = Math.max(3, h) + 'px';
+  Object.assign(s.style, extra); return s;
+}
+const px = (n) => n + 'px';
+
+/* ===================== V1 · Segments ===================== */
+function v1({ track, segs, scale }) {
+  const W = 6, GAP = 2.2;
+  const els = segs.map(s => {
+    const e = seg(s.top * scale, s.height * scale - GAP, {
+      width: px(W), right: '8px', borderRadius: '3px',
+      background: s.role === 'user' ? U_DIM : A_DIM,
+      transition: `width .22s ${EASE}, background .25s ${EASE}, right .22s ${EASE}`,
+    });
+    e.dataset.role = s.role; track.appendChild(e); return { e, s };
+  });
+  const win = document.createElement('div'); win.className = 'vp-window';
+  track.addEventListener('pointerenter', () => els.forEach(({e}) => { e.style.width = px(W + 4); e.style.right = '6px'; }));
+  track.addEventListener('pointerleave', () => els.forEach(({e}) => { e.style.width = px(W); e.style.right = '8px'; }));
+  return { update(st) {
+    const top = st * scale, bot = top + track.clientHeight * (track.clientHeight / (segs.reduce((a,s)=>Math.max(a,(s.top+s.height)),0)*scale));
+    els.forEach(({ e, s }) => {
+      const y = s.top * scale, yend = y + s.height * scale;
+      const vis = yend > st*scale && y < st*scale + (track.clientHeight * 0.32);
+      const inView = yend > st*scale && y < (st*scale + track.clientHeight*0.5);
+      e.style.background = inView
+        ? (s.role === 'user' ? U_DARK : A_DARK)
+        : (s.role === 'user' ? U_DIM : A_DIM);
+    });
+  }};
+}
+
+/* ===================== V2 · Spine ===================== */
+function v2({ track, segs, scale }) {
+  const spine = document.createElement('div');
+  Object.assign(spine.style, { position:'absolute', left:'50%', top:'0', bottom:'0', width:'1px',
+    transform:'translateX(-0.5px)', background:'rgba(255,255,255,0.08)' });
+  track.appendChild(spine);
+  const W = 5;
+  const els = segs.map(s => {
+    const e = seg(s.top * scale, s.height * scale - 2, {
+      width: px(W), borderRadius: '3px',
+      background: s.role === 'user' ? U_DIM : A_DIM,
+      transition: `background .25s ${EASE}, transform .22s ${EASE}, width .22s ${EASE}`,
+    });
+    if (s.role === 'user') { e.style.right = '50%'; e.style.marginRight = '2px'; }
+    else { e.style.left = '50%'; e.style.marginLeft = '2px'; }
+    track.appendChild(e); return { e, s };
+  });
+  track.addEventListener('pointerenter', () => els.forEach(({e}) => { e.style.width = px(W+3); }));
+  track.addEventListener('pointerleave', () => els.forEach(({e}) => { e.style.width = px(W); }));
+  return { update(st) {
+    const center = st * scale + track.clientHeight * 0.18;
+    els.forEach(({ e, s }) => {
+      const y = s.top*scale, yend = y + s.height*scale;
+      const inView = yend > st*scale && y < (st*scale + track.clientHeight*0.5);
+      e.style.background = inView ? (s.role==='user'?U_DARK:A_DARK) : (s.role==='user'?U_DIM:A_DIM);
+    });
+  }};
+}
+
+/* ===================== V3 · Window Rail ===================== */
+function v3({ track, segs, scale, viewH }) {
+  const rail = document.createElement('div');
+  Object.assign(rail.style, { position:'absolute', left:'50%', top:'0', bottom:'0', width:'6px',
+    transform:'translateX(-50%)', borderRadius:'100px', background:'rgba(255,255,255,0.06)', overflow:'hidden' });
+  track.appendChild(rail);
+  // faint dividers between messages
+  segs.forEach((s, i) => { if (i===0) return;
+    const d = document.createElement('div');
+    Object.assign(d.style, { position:'absolute', left:'0', right:'0', height:'2px',
+      top: px(s.top*scale - 1), background:'var(--bg)' });
+    rail.appendChild(d);
+  });
+  // role hint: tiny dot column to the left
+  segs.forEach(s => {
+    const dot = seg(s.top*scale, s.height*scale-2, { left:'calc(50% - 13px)', width:'2px', borderRadius:'2px',
+      background: s.role==='user'? 'rgba(120,170,255,0.5)':'rgba(255,255,255,0.22)' });
+    track.appendChild(dot);
+  });
+  const win = document.createElement('div'); win.className='vp-window';
+  Object.assign(win.style, { left:'50%', width:'6px', transform:'translateX(-50%)', borderRadius:'100px',
+    background:'rgba(255,255,255,0.55)', boxShadow:'0 0 10px rgba(255,255,255,0.25)',
+    transition:`top .14s ${EASE}, height .14s ${EASE}` });
+  track.appendChild(win);
+  return { update(st) {
+    win.style.top = px(st*scale);
+    win.style.height = px(Math.max(18, viewH*scale));
+  }};
+}
+
+/* ===================== V4 · Weighted Ink ===================== */
+function v4({ track, segs, scale }) {
+  const W = 7;
+  const maxW = Math.max(...segs.map(s=>s.weight));
+  const els = segs.map(s => {
+    const w = 0.18 + 0.62 * (s.weight / maxW); // weight → base opacity
+    const e = seg(s.top*scale, s.height*scale-2.2, {
+      width: px(W), right:'8px', borderRadius:'3px',
+      background: s.role==='user' ? `rgba(120,170,255,${w})` : `rgba(255,255,255,${w})`,
+      transition:`filter .25s ${EASE}, width .2s ${EASE}`,
+    });
+    e.dataset.base = w; track.appendChild(e); return { e, s, w };
+  });
+  track.addEventListener('pointerenter', ()=> els.forEach(({e})=> e.style.width=px(W+3)));
+  track.addEventListener('pointerleave', ()=> els.forEach(({e})=> e.style.width=px(W)));
+  return { update(st) {
+    els.forEach(({ e, s }) => {
+      const y=s.top*scale, yend=y+s.height*scale;
+      const inView = yend>st*scale && y<(st*scale+track.clientHeight*0.5);
+      e.style.filter = inView ? 'brightness(1.5)' : 'brightness(0.8)';
+    });
+  }};
+}
+
+/* ===================== V5 · Ticks ===================== */
+function v5({ track, segs, scale, viewH }) {
+  const band = document.createElement('div'); band.className='vp-window';
+  Object.assign(band.style, { left:'4px', right:'4px', borderRadius:'8px',
+    background:'rgba(255,255,255,0.05)', boxShadow:'inset 0 0 0 1px rgba(255,255,255,0.04)',
+    transition:`top .14s ${EASE}, height .14s ${EASE}` });
+  track.appendChild(band);
+  const els = segs.map(s => {
+    const e = seg(s.top*scale, s.height*scale-3, {
+      width: s.role==='user'? '14px':'18px',
+      left: '50%', transform:'translateX(-50%)',
+      borderRadius:'2px',
+      background:'transparent',
+      borderTop:'none',
+      transition:`background .25s ${EASE}`,
+    });
+    // draw as a thin centered line using a child to keep length=height but thin stroke
+    const line = document.createElement('div');
+    Object.assign(line.style, { position:'absolute', left:'50%', top:'0', bottom:'0', width:'2px',
+      transform:'translateX(-50%)', borderRadius:'2px',
+      background: s.role==='user'? 'rgba(120,170,255,0.45)':'rgba(255,255,255,0.22)' });
+    e.appendChild(line); track.appendChild(e); return { e, s, line };
+  });
+  return { update(st) {
+    band.style.top = px(st*scale - 2);
+    band.style.height = px(Math.max(20, viewH*scale + 4));
+    els.forEach(({ line, s }) => {
+      const y=s.top*scale, yend=y+s.height*scale;
+      const inView = yend>st*scale && y<(st*scale+track.clientHeight*0.5);
+      line.style.background = inView
+        ? (s.role==='user'?'rgba(120,170,255,0.95)':'rgba(255,255,255,0.7)')
+        : (s.role==='user'?'rgba(120,170,255,0.4)':'rgba(255,255,255,0.2)');
+    });
+  }};
+}
+
+/* ===================== V6 · Edge → Panel ===================== */
+function v6({ track, segs, scale }) {
+  // collapsed bars pinned to far right; on hover the whole track widens visually
+  const els = segs.map(s => {
+    const e = seg(s.top*scale, s.height*scale-2, {
+      width:'3px', right:'2px', borderRadius:'2px',
+      background: s.role==='user'? U_DIM : A_DIM,
+      transition:`width .26s ${EASE}, right .26s ${EASE}, background .26s ${EASE}`,
+    });
+    track.appendChild(e); return { e, s };
+  });
+  track.addEventListener('pointerenter', () => els.forEach(({e,s}) => {
+    e.style.width='16px'; e.style.right='6px';
+    e.style.background = s.role==='user'? U_DARK : A_DARK;
+  }));
+  track.addEventListener('pointerleave', () => els.forEach(({e,s}) => {
+    e.style.width='3px'; e.style.right='2px';
+    e.style.background = s.role==='user'? U_DIM : A_DIM;
+  }));
+  return { update(st) {
+    els.forEach(({ e, s }) => {
+      const y=s.top*scale, yend=y+s.height*scale;
+      const inView = yend>st*scale && y<(st*scale+track.clientHeight*0.5);
+      e.style.opacity = inView ? '1' : '0.5';
+    });
+  }};
+}
+
+/* ---------- mount ---------- */
+const grid = document.getElementById('grid');
+VARIANTS.forEach(v => grid.appendChild(makeDemo(v)));
+</script>
+</body>
+</html>

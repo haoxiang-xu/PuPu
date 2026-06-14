@@ -13,7 +13,7 @@ const TRACK_PADDING = 3;
 const BUTTON_HEIGHT = 28;
 const CONTROL_HEIGHT = BUTTON_HEIGHT + TRACK_PADDING * 2;
 
-const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
+const SegmentedControl = ({ sections, selected, onChange, isDark, trackStyle }) => {
   const { theme } = useContext(ConfigContext);
   const containerRef = useRef(null);
   const buttonRefs = useRef({});
@@ -109,6 +109,7 @@ const SegmentedControl = ({ sections, selected, onChange, isDark }) => {
         padding: TRACK_PADDING,
         borderRadius: 10,
         background: isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)",
+        ...trackStyle,
       }}
     >
       <div

@@ -1,6 +1,6 @@
 {
   "name": "PuPu",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "PuPu desktop application",
   "author": {
@@ -48,14 +48,16 @@
     "build:unchain:mac:intel": "npm run version:prepare-build && MISO_TARGET_ARCH=x86_64 bash ./unchain_runtime/scripts/build_unchain_server.sh macos",
     "build:unchain:linux": "npm run version:prepare-build && bash ./unchain_runtime/scripts/build_unchain_server.sh linux",
     "build:unchain:win": "npm run version:prepare-build && powershell -ExecutionPolicy Bypass -File ./unchain_runtime/scripts/build_unchain_server.ps1 windows",
-    "build:electron": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain && npm run build:web && electron-builder\"",
-    "build:electron:mac": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && electron-builder --mac --arm64\"",
-    "build:electron:mac:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && electron-builder --mac --arm64\"",
-    "build:electron:mac:intel": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && electron-builder --mac --x64\"",
-    "build:electron:mac:intel:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && electron-builder --mac --x64\"",
-    "build:electron:win": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:win && npm run build:web && electron-builder --win\"",
-    "build:electron:win:unsigned": "npm run version:prepare-build && cross-env-shell WIN_CSC_LINK= CSC_LINK= WIN_CSC_KEY_PASSWORD= CSC_KEY_PASSWORD= CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:win && npm run build:web && electron-builder --win --config.win.verifyUpdateCodeSignature=false\"",
-    "build:electron:linux": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:linux && npm run build:web && electron-builder --linux\"",
+    "build:electron": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain && npm run build:web && npm run notices:check && electron-builder\"",
+    "build:electron:mac": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64\"",
+    "build:electron:mac:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac && npm run build:web && npm run notices:check && electron-builder --mac --arm64\"",
+    "build:electron:mac:intel": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && npm run notices:check && electron-builder --mac --x64\"",
+    "build:electron:mac:intel:unsigned": "npm run version:prepare-build && cross-env-shell CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:mac:intel && npm run build:web && npm run notices:check && electron-builder --mac --x64\"",
+    "build:electron:win": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:win && npm run build:web && npm run notices:check && electron-builder --win\"",
+    "build:electron:win:unsigned": "npm run version:prepare-build && cross-env-shell WIN_CSC_LINK= CSC_LINK= WIN_CSC_KEY_PASSWORD= CSC_KEY_PASSWORD= CSC_IDENTITY_AUTO_DISCOVERY=false PUPU_VERSION_PREPARED=1 \"npm run build:unchain:win && npm run build:web && npm run notices:check && electron-builder --win --config.win.verifyUpdateCodeSignature=false\"",
+    "build:electron:linux": "npm run version:prepare-build && cross-env-shell PUPU_VERSION_PREPARED=1 \"npm run build:unchain:linux && npm run build:web && npm run notices:check && electron-builder --linux\"",
+    "notices": "node ./scripts/generate-third-party-notices.cjs",
+    "notices:check": "node ./scripts/generate-third-party-notices.cjs --check",
     "pack": "npm run build:electron",
     "pack:mac": "npm run build:electron:mac",
     "pack:mac:unsigned": "npm run build:electron:mac:unsigned",
@@ -63,6 +65,11 @@
     "pack:win:unsigned": "npm run build:electron:win:unsigned",
     "pack:linux": "npm run build:electron:linux",
     "test": "react-scripts test",
+    "test:frontend": "react-scripts test --watchAll=false",
+    "test:electron": "node node_modules/.bin/jest --env=node --runInBand --silent --moduleFileExtensions js --moduleFileExtensions cjs --moduleFileExtensions json --testMatch=\"**/electron/tests/**/*.test.cjs\"",
+    "test:release-qa": "node --test scripts/release-qa/*.test.mjs",
+    "validate:mcp": "node scripts/validate-mcp-registry.cjs",
+    "test:mcp-registry": "node --test scripts/validate-mcp-registry.test.mjs",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
@@ -115,6 +122,10 @@
         "filter": [
           "**/*"
         ]
+      },
+      {
+        "from": "THIRD_PARTY_NOTICES.txt",
+        "to": "THIRD_PARTY_NOTICES.txt"
       }
     ],
     "mac": {

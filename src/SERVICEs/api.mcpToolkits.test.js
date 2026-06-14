@@ -1,0 +1,334 @@
+import { api } from "./api";
+
+describe("api.unchain MCP toolkits", () => {
+  const originalUnchainApi = window.unchainAPI;
+
+  beforeEach(() => {
+    window.unchainAPI = {};
+  });
+
+  afterEach(() => {
+    jest.clearAllMocks();
+    window.unchainAPI = originalUnchainApi;
+  });
+
+  test("returns stable fallbacks when MCP bridge methods are missing", async () => {
+    await expect(api.unchain.listMcpToolkits()).resolves.toEqual({
+      toolkits: [],
+      count: 0,
+    });
+    await expect(api.unchain.reloadMcpToolkits()).resolves.toEqual({
+      toolkits: [],
+      count: 0,
+    });
+    await expect(
+      api.unchain.getMcpOAuthStatus("productivity.notion-remote"),
+    ).resolves.toEqual({
+      entryId: "productivity.notion-remote",
+      toolkitId: "",
+      authStatus: "unknown",
+    });
+    await expect(api.unchain.listMcpOAuthApps()).resolves.toEqual({
+      apps: [],
+      count: 0,
+    });
+    await expect(api.unchain.listMcpStoreMetadata()).resolves.toEqual({
+      entries: [],
+      byEntryId: {},
+      status: "unavailable",
+    });
+    await expect(api.unchain.listMcpStoreEntries()).resolves.toEqual({
+      entries: [],
+      count: 0,
+      status: "unavailable",
+    });
+    await expect(api.unchain.listMcpStoreRegistries()).resolves.toEqual({
+      registries: [],
+      count: 0,
+      status: "unavailable",
+    });
+    await expect(api.unchain.validateMcpStoreRegistry({ registry: {} })).resolves.toEqual({
+      valid: false,
+      status: "unavailable",
+      diagnostics: [],
+      entries: [],
+      count: 0,
+    });
+    await expect(
+      api.unchain.approveMcpStoreEntry("external.sample", {
+        registryId: "registry.inline.test",
+      }),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+    await expect(
+      api.unchain.revokeMcpStoreEntryApproval("external.sample", {
+        registryId: "registry.inline.test",
+      }),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+    await expect(
+      api.unchain.configureMcpToolkit("mcp.memory.memory"),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+    await expect(
+      api.unchain.startMcpOAuth("productivity.notion-remote"),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+    await expect(
+      api.unchain.disconnectMcpOAuth("mcp.productivity.notion-remote"),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+    await expect(
+      api.unchain.configureMcpOAuthApp({
+        toolkitId: "mcp.dev.github-remote",
+        clientId: "github-client-id",
+        clientSecret: "github-client-secret",
+      }),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+    await expect(
+      api.unchain.deleteMcpOAuthApp("mcp.dev.github-remote"),
+    ).rejects.toMatchObject({
+      code: "bridge_unavailable",
+    });
+  });
+
+  test("proxies install/delete/reload/health/configure/oauth through the bridge", async () => {
+    window.unchainAPI = {
+      listMcpToolkits: jest.fn().mockResolvedValue({ toolkits: [], count: 0 }),
+      installMcpToolkit: jest.fn().mockResolvedValue({
+        toolkit: { toolkitId: "mcp.workspace.filesystem" },
+      }),
+      deleteMcpToolkit: jest.fn().mockResolvedValue({ ok: true }),
+      reloadMcpToolkits: jest.fn().mockResolvedValue({ toolkits: [], count: 0 }),
+      checkMcpToolkitHealth: jest.fn().mockResolvedValue({
+        toolkit: { toolkitId: "mcp.workspace.filesystem" },
+      }),
+      configureMcpToolkit: jest.fn().mockResolvedValue({
+        toolkit: { toolkitId: "mcp.workspace.filesystem" },
+      }),
+      startMcpOAuth: jest.fn().mockResolvedValue({
+        entryId: "productivity.notion-remote",
+        toolkitId: "mcp.productivity.notion-remote",
+        authUrl: "https://auth.notion.test/authorize",
+      }),
+      getMcpOAuthStatus: jest.fn().mockResolvedValue({
+        entryId: "productivity.notion-remote",
+        toolkitId: "mcp.productivity.notion-remote",
+        authStatus: "connected",
+      }),
+      disconnectMcpOAuth: jest.fn().mockResolvedValue({
+        ok: true,
+        toolkitId: "mcp.productivity.notion-remote",
+      }),
+      listMcpOAuthApps: jest.fn().mockResolvedValue({
+        apps: [{ toolkitId: "mcp.dev.github-remote", configured: false }],
+        count: 1,
+      }),
+      configureMcpOAuthApp: jest.fn().mockResolvedValue({
+        app: { toolkitId: "mcp.dev.github-remote", configured: true },
+      }),
+      deleteMcpOAuthApp: jest.fn().mockResolvedValue({
+        ok: true,
+        toolkitId: "mcp.dev.github-remote",
+      }),
+      listMcpStoreMetadata: jest.fn().mockResolvedValue({
+        entries: [{ entryId: "browser.playwright" }],
+        byEntryId: { "browser.playwright": { entryId: "browser.playwright" } },
+        status: "ok",
+      }),
+      reloadMcpStoreMetadata: jest.fn().mockResolvedValue({
+        entries: [{ entryId: "browser.playwright", status: "cached" }],
+        byEntryId: { "browser.playwright": { entryId: "browser.playwright" } },
+        status: "ok",
+      }),
+      listMcpStoreEntries: jest.fn().mockResolvedValue({
+        entries: [{ id: "external.sample" }],
+        count: 1,
+        status: "ok",
+      }),
+      listMcpStoreRegistries: jest.fn().mockResolvedValue({
+        registries: [{ registryId: "registry.inline.test" }],
+        count: 1,
+        status: "ok",
+      }),
+      importMcpStoreRegistry: jest.fn().mockResolvedValue({
+        registry: { registryId: "registry.inline.test" },
+      }),
+      validateMcpStoreRegistry: jest.fn().mockResolvedValue({
+        valid: true,
+        diagnostics: [],
+        entries: [],
+        count: 0,
+      }),
+      refreshMcpStoreRegistry: jest.fn().mockResolvedValue({
+        registry: { registryId: "registry.inline.test" },
+      }),
+      deleteMcpStoreRegistry: jest.fn().mockResolvedValue({
+        ok: true,
+        registryId: "registry.inline.test",
+      }),
+      approveMcpStoreEntry: jest.fn().mockResolvedValue({
+        entry: { id: "external.sample", approvalStatus: "approved" },
+      }),
+      revokeMcpStoreEntryApproval: jest.fn().mockResolvedValue({
+        ok: true,
+        entryId: "external.sample",
+      }),
+    };
+
+    await api.unchain.listMcpToolkits();
+    await api.unchain.installMcpToolkit({
+      entryId: "custom",
+      secrets: {
+        SLACK_BOT_TOKEN: "xoxb-test",
+        SLACK_TEAM_ID: "T012345",
+      },
+      customRecipe: {
+        toolkit_id: "mcp.custom.local-test",
+        toolkit_name: "Local Test",
+        mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+      },
+    });
+    await api.unchain.reloadMcpToolkits({ workspaceRoot: "/tmp/project" });
+    await api.unchain.checkMcpToolkitHealth("mcp.workspace.filesystem", {
+      workspaceRoot: "/tmp/project",
+    });
+    await api.unchain.configureMcpToolkit("mcp.workspace.filesystem", {
+      workspaceRoot: "/tmp/project",
+      secrets: { OPENAI_API_KEY: "sk-test" },
+    });
+    await api.unchain.startMcpOAuth("productivity.notion-remote");
+    await api.unchain.getMcpOAuthStatus("productivity.notion-remote");
+    await api.unchain.disconnectMcpOAuth("mcp.productivity.notion-remote");
+    await api.unchain.listMcpOAuthApps();
+    await api.unchain.configureMcpOAuthApp({
+      toolkitId: "mcp.dev.github-remote",
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+      scopes: ["repo"],
+    });
+    await api.unchain.deleteMcpOAuthApp("mcp.dev.github-remote");
+    await api.unchain.listMcpStoreMetadata();
+    await api.unchain.reloadMcpStoreMetadata({
+      entryId: "browser.playwright",
+    });
+    await api.unchain.listMcpStoreEntries();
+    await api.unchain.listMcpStoreRegistries();
+    await api.unchain.importMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    await api.unchain.validateMcpStoreRegistry({
+      registry: { version: 1, entries: [] },
+    });
+    await api.unchain.refreshMcpStoreRegistry("registry.inline.test");
+    await api.unchain.deleteMcpStoreRegistry("registry.inline.test");
+    await api.unchain.approveMcpStoreEntry("external.sample", {
+      registryId: "registry.inline.test",
+      acknowledgedRisk: true,
+    });
+    await api.unchain.revokeMcpStoreEntryApproval("external.sample", {
+      registryId: "registry.inline.test",
+    });
+    await api.unchain.deleteMcpToolkit("mcp.workspace.filesystem");
+
+    expect(window.unchainAPI.listMcpToolkits).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.installMcpToolkit).toHaveBeenCalledWith({
+      entryId: "custom",
+      secrets: {
+        SLACK_BOT_TOKEN: "xoxb-test",
+        SLACK_TEAM_ID: "T012345",
+      },
+      customRecipe: {
+        toolkit_id: "mcp.custom.local-test",
+        toolkit_name: "Local Test",
+        mcp: { transport: "stdio", command: "echo", args: ["ok"] },
+      },
+    });
+    expect(window.unchainAPI.reloadMcpToolkits).toHaveBeenCalledWith({
+      workspaceRoot: "/tmp/project",
+    });
+    expect(window.unchainAPI.checkMcpToolkitHealth).toHaveBeenCalledWith(
+      "mcp.workspace.filesystem",
+      { workspaceRoot: "/tmp/project" },
+    );
+    expect(window.unchainAPI.configureMcpToolkit).toHaveBeenCalledWith(
+      "mcp.workspace.filesystem",
+      {
+        workspaceRoot: "/tmp/project",
+        secrets: { OPENAI_API_KEY: "sk-test" },
+      },
+    );
+    expect(window.unchainAPI.startMcpOAuth).toHaveBeenCalledWith(
+      "productivity.notion-remote",
+    );
+    expect(window.unchainAPI.getMcpOAuthStatus).toHaveBeenCalledWith(
+      "productivity.notion-remote",
+    );
+    expect(window.unchainAPI.disconnectMcpOAuth).toHaveBeenCalledWith(
+      "mcp.productivity.notion-remote",
+    );
+    expect(window.unchainAPI.listMcpOAuthApps).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.configureMcpOAuthApp).toHaveBeenCalledWith({
+      toolkitId: "mcp.dev.github-remote",
+      clientId: "github-client-id",
+      clientSecret: "github-client-secret",
+      scopes: ["repo"],
+    });
+    expect(window.unchainAPI.deleteMcpOAuthApp).toHaveBeenCalledWith(
+      "mcp.dev.github-remote",
+    );
+    expect(window.unchainAPI.listMcpStoreMetadata).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.reloadMcpStoreMetadata).toHaveBeenCalledWith({
+      entryId: "browser.playwright",
+    });
+    expect(window.unchainAPI.listMcpStoreEntries).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.listMcpStoreRegistries).toHaveBeenCalledTimes(1);
+    expect(window.unchainAPI.importMcpStoreRegistry).toHaveBeenCalledWith({
+      registry: { version: 1, entries: [] },
+    });
+    expect(window.unchainAPI.validateMcpStoreRegistry).toHaveBeenCalledWith({
+      registry: { version: 1, entries: [] },
+    });
+    expect(window.unchainAPI.refreshMcpStoreRegistry).toHaveBeenCalledWith(
+      "registry.inline.test",
+    );
+    expect(window.unchainAPI.deleteMcpStoreRegistry).toHaveBeenCalledWith(
+      "registry.inline.test",
+    );
+    expect(window.unchainAPI.approveMcpStoreEntry).toHaveBeenCalledWith(
+      "external.sample",
+      { registryId: "registry.inline.test", acknowledgedRisk: true },
+    );
+    expect(window.unchainAPI.revokeMcpStoreEntryApproval).toHaveBeenCalledWith(
+      "external.sample",
+      { registryId: "registry.inline.test" },
+    );
+    expect(window.unchainAPI.deleteMcpToolkit).toHaveBeenCalledWith(
+      "mcp.workspace.filesystem",
+    );
+  });
+
+  test("preserves stable MCP error code from bridge errors", async () => {
+    window.unchainAPI = {
+      installMcpToolkit: jest
+        .fn()
+        .mockRejectedValue(
+          new Error("mcp_workspace_required: Workspace required"),
+        ),
+    };
+
+    await expect(
+      api.unchain.installMcpToolkit({ entryId: "workspace.filesystem" }),
+    ).rejects.toMatchObject({
+      code: "mcp_workspace_required",
+      message: "mcp_workspace_required: Workspace required",
+    });
+  });
+});

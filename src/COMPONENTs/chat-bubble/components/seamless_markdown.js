@@ -8,6 +8,12 @@ import {
 } from "react";
 import Markdown from "../../../BUILTIN_COMPONENTs/markdown/markdown";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import {
+  normalizeStreamingChunks,
+  splitTextIntoStreamingChunks,
+  appendTextToStreamingChunks,
+} from "../../../SERVICEs/streaming_message_chunks";
+import { createStreamingMarkdownAccumulator } from "./streaming_markdown_blocks";
 
 const HEAVY_CHAR_THRESHOLD = 8 * 1024;
 const HEAVY_LINE_THRESHOLD = 120;
@@ -161,8 +167,172 @@ const scheduleIdleUpgrade = (callback, priority = "normal") => {
   return () => clearTimeout(timerId);
 };
 
+const useStreamingTextChunks = (text, externalChunks) => {
+  const chunksRef = useRef([]);
+  const lengthRef = useRef(0);
+  const textRef = useRef("");
+  const normalizedText = typeof text === "string" ? text : "";
+
+  return useMemo(() => {
+    const normalizedExternalChunks = normalizeStreamingChunks(externalChunks);
+    if (normalizedExternalChunks.length > 0) {
+      chunksRef.current = [];
+      lengthRef.current = 0;
+      textRef.current = "";
+      return normalizedExternalChunks;
+    }
+
+    if (!normalizedText) {
+      chunksRef.current = [];
+      lengthRef.current = 0;
+      textRef.current = "";
+      return chunksRef.current;
+    }
+
+    if (
+      normalizedText.length < lengthRef.current ||
+      (normalizedText.length === lengthRef.current &&
+        normalizedText !== textRef.current)
+    ) {
+      chunksRef.current = splitTextIntoStreamingChunks(normalizedText);
+      lengthRef.current = normalizedText.length;
+      textRef.current = normalizedText;
+      return chunksRef.current;
+    }
+
+    if (normalizedText.length === lengthRef.current) {
+      return chunksRef.current;
+    }
+
+    const delta = normalizedText.slice(lengthRef.current);
+    chunksRef.current = appendTextToStreamingChunks(chunksRef.current, delta);
+    lengthRef.current = normalizedText.length;
+    textRef.current = normalizedText;
+    return chunksRef.current;
+  }, [externalChunks, normalizedText]);
+};
+
+const mergeStreamingChunksText = (previousChunks, previousText, nextChunks) => {
+  const chunks = normalizeStreamingChunks(nextChunks);
+  if (chunks.length === 0) {
+    return "";
+  }
+
+  let prefixLength = 0;
+  let prefixTextLength = 0;
+  while (
+    prefixLength < previousChunks.length &&
+    prefixLength < chunks.length &&
+    previousChunks[prefixLength] === chunks[prefixLength]
+  ) {
+    prefixTextLength += chunks[prefixLength].length;
+    prefixLength += 1;
+  }
+
+  return `${previousText.slice(0, prefixTextLength)}${chunks
+    .slice(prefixLength)
+    .join("")}`;
+};
+
+const useStreamingMarkdownBlocks = (isStreaming, chunks) => {
+  const accumulatorRef = useRef(createStreamingMarkdownAccumulator());
+  const textRef = useRef("");
+  const chunksRef = useRef([]);
+
+  return useMemo(() => {
+    if (!isStreaming) {
+      accumulatorRef.current.replace("");
+      textRef.current = "";
+      chunksRef.current = [];
+      return accumulatorRef.current.getSnapshot();
+    }
+
+    const normalizedChunks = normalizeStreamingChunks(chunks);
+    const nextText = mergeStreamingChunksText(
+      chunksRef.current,
+      textRef.current,
+      normalizedChunks,
+    );
+    chunksRef.current = normalizedChunks;
+
+    if (nextText.startsWith(textRef.current)) {
+      accumulatorRef.current.append(nextText.slice(textRef.current.length));
+    } else {
+      accumulatorRef.current.replace(nextText);
+    }
+    textRef.current = nextText;
+
+    return accumulatorRef.current.getSnapshot();
+  }, [chunks, isStreaming]);
+};
+
+const StreamingPlainTextChunk = memo(({ text }) => (
+  <span data-streaming-plain-text-chunk="true">{text}</span>
+));
+
+const StreamingPlainText = ({
+  text,
+  chunks: externalChunks,
+  markdownStyle,
+  theme,
+  liveKind = "text",
+}) => {
+  const chunks = useStreamingTextChunks(text, externalChunks);
+  const fontSize = markdownStyle?.fontSize ?? theme?.markdown?.fontSize ?? 14;
+  const lineHeight =
+    markdownStyle?.lineHeight ?? theme?.markdown?.lineHeight ?? 1.6;
+  const color = markdownStyle?.color ?? theme?.markdown?.color ?? theme?.color;
+
+  const Element = liveKind === "code" ? "pre" : "div";
+
+  return (
+    <Element
+      data-streaming-plain-text="true"
+      data-streaming-live-kind={liveKind}
+      style={{
+        margin: 0,
+        whiteSpace: "pre-wrap",
+        wordBreak: "break-word",
+        fontFamily:
+          liveKind === "code"
+            ? "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+            : theme?.font?.paragraphFontFamily || "inherit",
+        fontSize,
+        lineHeight,
+        color: color ?? "inherit",
+        overflowX: "auto",
+      }}
+    >
+      {chunks.map((chunk, index) => (
+        <StreamingPlainTextChunk key={index} text={chunk} />
+      ))}
+    </Element>
+  );
+};
+
+const StreamingMarkdownBlock = memo(
+  ({ block, className, markdownStyle }) => {
+    const normalizedMarkdown = useMemo(
+      () => normalizeHtmlDocumentMarkdown(block.markdown),
+      [block.markdown],
+    );
+    return (
+      <Markdown
+        className={className}
+        style={markdownStyle}
+        markdown={normalizedMarkdown}
+      />
+    );
+  },
+  (previousProps, nextProps) =>
+    previousProps.block === nextProps.block &&
+    previousProps.className === nextProps.className &&
+    previousProps.markdownStyle === nextProps.markdownStyle,
+);
+
 const SeamlessMarkdown = ({
   content = "",
+  streamingChunks,
   status = "done",
   fontSize = 14,
   lineHeight = 1.6,
@@ -174,15 +344,6 @@ const SeamlessMarkdown = ({
   const containerRef = useRef(null);
   const [isNearViewport, setIsNearViewport] = useState(false);
   const [isUpgraded, setIsUpgraded] = useState(false);
-  const normalizedContent = useMemo(
-    () => normalizeHtmlDocumentMarkdown(content),
-    [content],
-  );
-
-  const isHeavyContent = useMemo(
-    () => isHeavyMarkdownContent(normalizedContent),
-    [normalizedContent],
-  );
   const isStreaming = status === "streaming";
   const markdownStyle = useMemo(
     () => ({
@@ -191,6 +352,31 @@ const SeamlessMarkdown = ({
       lineHeight,
     }),
     [fontSize, lineHeight, style],
+  );
+  const streamingTextChunks = useStreamingTextChunks(content, streamingChunks);
+  const streamingBlockSnapshot = useStreamingMarkdownBlocks(
+    isStreaming,
+    streamingTextChunks,
+  );
+
+  const normalizedFull = useMemo(
+    () => (isStreaming ? "" : normalizeHtmlDocumentMarkdown(content)),
+    [content, isStreaming],
+  );
+
+  const isHeavyContent = useMemo(
+    () => !isStreaming && isHeavyMarkdownContent(normalizedFull),
+    [isStreaming, normalizedFull],
+  );
+  const fullMarkdownElement = useMemo(
+    () => (
+      <Markdown
+        className={className}
+        style={markdownStyle}
+        markdown={normalizedFull}
+      />
+    ),
+    [className, markdownStyle, normalizedFull],
   );
 
   useEffect(() => {
@@ -252,14 +438,35 @@ const SeamlessMarkdown = ({
     };
   }, [isHeavyContent, isNearViewport, isStreaming, isUpgraded, priority]);
 
-  if (!isHeavyContent || isUpgraded) {
+  if (isStreaming) {
     return (
-      <Markdown
+      <div
+        data-streaming-markdown-root="true"
         className={className}
         style={markdownStyle}
-        markdown={normalizedContent}
-      />
+      >
+        {streamingBlockSnapshot.stableBlocks.map((block) => (
+          <StreamingMarkdownBlock
+            key={block.id}
+            block={block}
+            className={className}
+            markdownStyle={markdownStyle}
+          />
+        ))}
+        {streamingBlockSnapshot.liveText ? (
+          <StreamingPlainText
+            text={streamingBlockSnapshot.liveText}
+            markdownStyle={markdownStyle}
+            theme={theme}
+            liveKind={streamingBlockSnapshot.liveKind}
+          />
+        ) : null}
+      </div>
     );
+  }
+
+  if (!isHeavyContent || isUpgraded) {
+    return fullMarkdownElement;
   }
 
   return (

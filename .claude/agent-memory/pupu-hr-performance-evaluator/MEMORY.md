@@ -1,0 +1,2 @@
+- [取证方法论](methods.md) — 多信号取证路径 + 裁撤双证 + 新角色/休眠误判防护
+- [团队花名册](team_roster.md) — reorg 后顶层 3 线 + HR，全 18 人归属、我的 scope/方法论/红线、与 org-architect 分界

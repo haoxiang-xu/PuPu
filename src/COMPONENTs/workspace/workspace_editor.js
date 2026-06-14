@@ -12,10 +12,11 @@ import {
 import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
 
 /* ── Theme colours ───────────────────────────────────────────────────────── */
 
-const useThemeColors = (isDark) =>
+const useThemeColors = (isDark, theme) =>
   useMemo(
     () => ({
       text: isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.82)",
@@ -24,9 +25,9 @@ const useThemeColors = (isDark) =>
       success: isDark ? "#86efac" : "#2e7d32",
       border: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
       hoverBg: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
-      accent: "rgba(10,186,181,1)",
+      accent: themeHighlightColor(theme),
     }),
-    [isDark],
+    [isDark, theme],
   );
 
 /* ── Sub-heading ─────────────────────────────────────────────────────────── */
@@ -73,7 +74,7 @@ const Divider = ({ isDark }) => (
 
 const DefaultWorkspaceSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
-  const c = useThemeColors(isDark);
+  const c = useThemeColors(isDark, theme);
   const { t } = useTranslation();
   const [workspaceRoot, setWorkspaceRoot] = useState(() => readWorkspaceRoot());
   const [savedWorkspaceRoot, setSavedWorkspaceRoot] = useState(() =>
@@ -319,7 +320,7 @@ const DefaultWorkspaceSection = ({ isDark }) => {
 
 const WorkspacesSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
-  const c = useThemeColors(isDark);
+  const c = useThemeColors(isDark, theme);
   const { t } = useTranslation();
   const [items, setItems] = useState(() => readWorkspaces());
   const [editingId, setEditingId] = useState(null);

@@ -1,4 +1,6 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
+import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
 
 /**
  * MultiChoiceInteract – renders a list of selectable choices.
@@ -9,8 +11,6 @@ import { useEffect, useState } from "react";
  *
  * onSubmit is called with { selected: string[] }
  */
-
-const ACCENT = "rgba(10,186,181,1)";
 
 const CHOICE_BASE = {
   display: "flex",
@@ -35,16 +35,16 @@ const SUBMIT_BASE = {
   marginTop: 4,
 };
 
-const Checkbox = ({ checked, isDark }) => (
+const Checkbox = ({ checked, isDark, accent }) => (
   <div
     style={{
       width: 14,
       height: 14,
       borderRadius: 4,
       border: checked
-        ? `2px solid ${ACCENT}`
+        ? `2px solid ${accent}`
         : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
-      background: checked ? ACCENT : "transparent",
+      background: checked ? accent : "transparent",
       flexShrink: 0,
       display: "flex",
       alignItems: "center",
@@ -67,16 +67,16 @@ const Checkbox = ({ checked, isDark }) => (
   </div>
 );
 
-const Radio = ({ checked, isDark }) => (
+const Radio = ({ checked, isDark, accent }) => (
   <div
     style={{
       width: 14,
       height: 14,
       borderRadius: "50%",
       border: checked
-        ? `2px solid ${ACCENT}`
+        ? `2px solid ${accent}`
         : `2px solid ${isDark ? "rgba(255,255,255,0.28)" : "rgba(0,0,0,0.22)"}`,
-      background: checked ? ACCENT : "transparent",
+      background: checked ? accent : "transparent",
       flexShrink: 0,
       display: "flex",
       alignItems: "center",
@@ -105,6 +105,8 @@ const MultiChoiceInteract = ({
   isDark,
   disabled,
 }) => {
+  const { theme } = useContext(ConfigContext);
+  const accent = themeHighlightColor(theme);
   const choices = Array.isArray(config?.choices) ? config.choices : [];
   const multiSelect = config?.multi_select === true;
   const submittedResponse = uiState?.userResponse;
@@ -165,7 +167,7 @@ const MultiChoiceInteract = ({
               cursor: disabled ? "default" : "pointer",
             }}
           >
-            <Indicator checked={isSelected} isDark={isDark} />
+            <Indicator checked={isSelected} isDark={isDark} accent={accent} />
             <div
               style={{ display: "flex", flexDirection: "column", minWidth: 0 }}
             >

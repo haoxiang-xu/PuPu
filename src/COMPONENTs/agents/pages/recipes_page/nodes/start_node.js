@@ -21,7 +21,7 @@ export default function StartNode({ isDark }) {
               }}
             >
               <Icon
-                src="play"
+                src="flag"
                 color="#fff"
                 style={{ width: 16, height: 16 }}
               />

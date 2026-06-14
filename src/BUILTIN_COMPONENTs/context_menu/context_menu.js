@@ -126,6 +126,13 @@ function MenuRow({ item, isDark, onClose }) {
         backgroundColor: hover && !item.disabled ? hoverBg : "transparent",
       }}
     >
+      {item.prefix_icon && (
+        <Icon
+          src={item.prefix_icon}
+          color={textColor}
+          style={{ width: 12, height: 12, opacity: 0.6 }}
+        />
+      )}
       {item.icon && (
         <Icon src={item.icon} color={textColor} style={{ width: 14, height: 14 }} />
       )}

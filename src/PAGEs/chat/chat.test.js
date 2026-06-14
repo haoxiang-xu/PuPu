@@ -84,6 +84,7 @@ describe("ChatInterface stop flow", () => {
   let consoleErrorSpy;
   let streamHandlers;
   let streamV3Handlers;
+  let streamV4Handlers;
 
   beforeEach(() => {
     window.localStorage.clear();
@@ -92,6 +93,7 @@ describe("ChatInterface stop flow", () => {
     cancelSpy = jest.fn();
     streamHandlers = null;
     streamV3Handlers = null;
+    streamV4Handlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockScopedLogger.log.mockClear();
     mockScopedLogger.warn.mockClear();
@@ -138,7 +140,7 @@ describe("ChatInterface stop flow", () => {
     delete window.unchainAPI;
   });
 
-  const renderChat = () =>
+  const renderChatWithFragment = (onFragment = "main") =>
     render(
       <ThemeContext.Provider
         value={{
@@ -147,7 +149,7 @@ describe("ChatInterface stop flow", () => {
         }}
       >
         <NavigationContext.Provider
-          value={{ onFragment: "main", setOnFragment: jest.fn() }}
+          value={{ onFragment, setOnFragment: jest.fn() }}
         >
           <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
             <ChatInterface />
@@ -155,6 +157,8 @@ describe("ChatInterface stop flow", () => {
         </NavigationContext.Provider>
       </ThemeContext.Provider>,
     );
+
+  const renderChat = () => renderChatWithFragment("main");
 
   const waitForReady = async () => {
     await waitFor(() => {
@@ -239,6 +243,35 @@ describe("ChatInterface stop flow", () => {
       ),
     );
     expect(hasRenderPhaseWarning).toBe(false);
+  });
+
+  test("animates the chat surface offset when the side menu changes", () => {
+    const { container, rerender } = renderChatWithFragment("main");
+    const chatSurface = container.querySelector("[data-chat-id]");
+
+    expect(chatSurface).toBeTruthy();
+    expect(chatSurface.style.left).toBe("0px");
+    expect(chatSurface.style.transition).toBe("left 0.3s ease");
+
+    rerender(
+      <ThemeContext.Provider
+        value={{
+          theme: {},
+          onThemeMode: "light_mode",
+        }}
+      >
+        <NavigationContext.Provider
+          value={{ onFragment: "side_menu", setOnFragment: jest.fn() }}
+        >
+          <LocaleContext.Provider value={{ locale: "en", setLocale: jest.fn() }}>
+            <ChatInterface />
+          </LocaleContext.Provider>
+        </NavigationContext.Provider>
+      </ThemeContext.Provider>,
+    );
+
+    expect(chatSurface.style.left).toBe("320px");
+    expect(chatSurface.style.transition).toBe("left 0.3s ease");
   });
 
   test("disables send when no model is selected", async () => {
@@ -1069,6 +1102,56 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("logs request_messages with a compact summary instead of full transcript", async () => {
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Start request log stream" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(streamHandlers).toBeTruthy();
+    });
+
+    const largeContent = "full transcript content ".repeat(100);
+
+    act(() => {
+      streamHandlers.onFrame({
+        seq: 1,
+        ts: 100,
+        type: "request_messages",
+        payload: {
+          system: "system prompt",
+          provider: "openai",
+          previous_response_id: "resp_1",
+          tool_names: ["read"],
+          messages: [
+            { role: "user", content: largeContent },
+            { role: "assistant", content: "ok" },
+          ],
+        },
+      });
+    });
+
+    await waitFor(() => {
+      expect(
+        mockScopedLogger.log.mock.calls.some((call) => {
+          const [eventName, payload] = call;
+          return (
+            eventName === "request_messages" &&
+            payload?.summary?.messageCount === 2 &&
+            payload?.summary?.previewMessages?.[0]?.contentPreview?.length ===
+              240 &&
+            !Object.prototype.hasOwnProperty.call(payload, "messages") &&
+            !JSON.stringify(payload).includes(largeContent)
+          );
+        }),
+      ).toBe(true);
+    });
+  });
+
   test("routes child ask_user_question frames to subagent timelines", async () => {
     renderChat();
     await waitForReady();
@@ -1321,6 +1404,132 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
+  test("prefers runtime event stream v4 and stores run-level artifact summaries", async () => {
+    window.unchainAPI.startStreamV3 = jest.fn();
+    window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers = {}) => {
+      streamV4Handlers = handlers;
+      return {
+        cancel: cancelSpy,
+      };
+    });
+
+    renderChat();
+    await waitForReady();
+
+    fireEvent.change(screen.getByTestId("chat-input"), {
+      target: { value: "Hello v4" },
+    });
+    fireEvent.click(screen.getByTestId("send-button"));
+
+    await waitFor(() => {
+      expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.startStreamV3).not.toHaveBeenCalled();
+      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
+      expect(streamV4Handlers).toBeTruthy();
+    });
+
+    const baseEvent = {
+      schema_version: "v4",
+      timestamp: "2026-05-26T12:00:00.000Z",
+      session_id: "thread-v4",
+      run_id: "run-root",
+      agent_id: "developer",
+      turn_id: "run-root:turn-1",
+      links: {},
+      surface: { slot: "trace_inline", scope: "turn" },
+      visibility: "user",
+      metadata: {},
+    };
+
+    act(() => {
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-run",
+        seq: 1,
+        type: "run.started",
+        payload: { status: "running", provider: "openai", model: "gpt-5" },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-delta",
+        seq: 2,
+        type: "step.delta",
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response",
+          kind: "text",
+          delta: "Hello from v4",
+        },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-final",
+        seq: 3,
+        type: "step.completed",
+        payload: {
+          step_id: "model:run-root:turn-1:response",
+          step_type: "model_response",
+          status: "completed",
+          final_text: "Hello from v4",
+        },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-artifact",
+        seq: 4,
+        type: "artifact.created",
+        links: {
+          artifact_id: "workspace_change_set:run-root",
+          workspace_change_set_id: "wcs-run-root",
+        },
+        surface: {
+          slot: "run_summary",
+          scope: "run",
+          group: "files",
+          default_state: "expanded",
+        },
+        payload: {
+          artifact_id: "workspace_change_set:run-root",
+          kind: "workspace_change_set",
+          title: "Workspace changes",
+          snapshot: {
+            change_set_id: "wcs-run-root",
+            files: [{ path: "src/App.js", unified_diff: "" }],
+          },
+        },
+      });
+      streamV4Handlers.onRuntimeEvent({
+        ...baseEvent,
+        event_id: "evt-completed",
+        seq: 5,
+        type: "run.completed",
+        payload: {
+          status: "completed",
+          usage: { consumed_tokens: 10, model: "openai:gpt-5" },
+        },
+      });
+      streamV4Handlers.onDone({ finished_at: 123 });
+    });
+
+    await waitFor(() => {
+      const assistantMessage = [...(lastChatMessagesProps?.messages || [])]
+        .reverse()
+        .find((message) => message.role === "assistant");
+      expect(assistantMessage?.status).toBe("done");
+      expect(assistantMessage?.content).toBe("Hello from v4");
+      expect(assistantMessage?.meta?.bundle?.consumed_tokens).toBe(10);
+      expect(assistantMessage?.runArtifactSummary).toMatchObject({
+        status: "completed",
+        artifacts: [
+          {
+            artifact_id: "workspace_change_set:run-root",
+            kind: "workspace_change_set",
+          },
+        ],
+      });
+    });
+  });
+
   test("does not store or expose legacy plan doc artifacts", async () => {
     renderChat();
     await waitForReady();
@@ -1434,6 +1643,13 @@ describe("ChatInterface stop flow", () => {
         lastChatMessagesProps?.messages?.find(
           (message) => message.role === "assistant",
         );
+      const getAssistantStreamingText = () => {
+        const message = getAssistantMessage();
+        return lastChatMessagesProps?.streamingMessageStore?.getText({
+          chatId: lastChatMessagesProps.chatId,
+          messageId: message?.id,
+        });
+      };
 
       await waitFor(() => {
         expect(getAssistantMessage()?.content || "").toBe("");
@@ -1446,12 +1662,13 @@ describe("ChatInterface stop flow", () => {
       });
 
       await waitFor(() => {
-        expect(getAssistantMessage()?.content).toBe("Hello");
+        expect(getAssistantMessage()?.content || "").toBe("");
+        expect(getAssistantStreamingText()).toBe("Hello");
         expect(getAssistantMessage()?.status).toBe("streaming");
       });
 
       streamHandlers.onToken(" world");
-      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(2);
+      expect(window.requestAnimationFrame).toHaveBeenCalledTimes(3);
       streamHandlers.onDone({});
 
       await waitFor(() => {
@@ -1495,6 +1712,13 @@ describe("ChatInterface stop flow", () => {
         lastChatMessagesProps?.messages?.find(
           (message) => message.role === "assistant",
         );
+      const getAssistantStreamingText = () => {
+        const message = getAssistantMessage();
+        return lastChatMessagesProps?.streamingMessageStore?.getText({
+          chatId: lastChatMessagesProps.chatId,
+          messageId: message?.id,
+        });
+      };
 
       act(() => {
         streamHandlers.onFrame({
@@ -1555,7 +1779,8 @@ describe("ChatInterface stop flow", () => {
       });
 
       await waitFor(() => {
-        expect(getAssistantMessage()?.content).toBe("parent output");
+        expect(getAssistantMessage()?.content || "").toBe("");
+        expect(getAssistantStreamingText()).toBe("parent output");
       });
     } finally {
       window.requestAnimationFrame = originalRaf;

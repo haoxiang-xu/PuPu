@@ -12,12 +12,21 @@ import copy
 import sys
 import threading
 import time
+import unicodedata
 import uuid as _uuid
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterable, List
 
+from mcp_toolkits import (
+    McpToolkitError,
+    build_mcp_runtime_toolkit,
+    get_installed_mcp_toolkit,
+    list_installed_mcp_toolkits,
+)
+
 _subagent_logger = logging.getLogger(__name__ + ".subagent")
+_artifact_kind_logger = logging.getLogger(__name__ + ".artifact_kinds")
 
 try:
     import httpx as _httpx
@@ -59,6 +68,7 @@ try:
         SlidingWindowOptimizer as _SlidingWindowOptimizer,
         SlidingWindowOptimizerConfig as _SlidingWindowOptimizerConfig,
         ToolHistoryCompactionOptimizer as _ToolHistoryCompactionOptimizer,
+        ToolHistoryCompactionOptimizerConfig as _ToolHistoryCompactionOptimizerConfig,
         ToolPairSafetyOptimizer as _ToolPairSafetyOptimizer,
     )
 except ImportError:
@@ -76,6 +86,7 @@ except ImportError:
     _SlidingWindowOptimizer = None  # type: ignore
     _SlidingWindowOptimizerConfig = None  # type: ignore
     _ToolHistoryCompactionOptimizer = None  # type: ignore
+    _ToolHistoryCompactionOptimizerConfig = None  # type: ignore
     _ToolPairSafetyOptimizer = None  # type: ignore
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
@@ -92,6 +103,66 @@ _KNOWN_TOOLKIT_EXPORTS = {
     "ExternalAPIToolkit": "builtin",
     "PlanToolkit": "plan",
 }
+_ARTIFACT_FALLBACK_RENDERERS = {"markdown", "text", "table", "kv", "log", "link", "json"}
+_BUILTIN_ARTIFACT_KINDS = (
+    {
+        "kind": "file_diff",
+        "displayName": "Files changed",
+        "description": "Immutable snapshots of file changes produced by tools.",
+        "icon": {"type": "builtin", "name": "file_edit"},
+        "fallbackRenderer": "json",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "plan",
+        "displayName": "Plan",
+        "description": "Plan snapshots produced by PlanToolkit.",
+        "icon": {"type": "builtin", "name": "check_list"},
+        "fallbackRenderer": "markdown",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "markdown",
+        "displayName": "Markdown",
+        "description": "Markdown artifact snapshots.",
+        "icon": {"type": "builtin", "name": "markdown"},
+        "fallbackRenderer": "markdown",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "table",
+        "displayName": "Table",
+        "description": "Tabular artifact snapshots.",
+        "icon": {"type": "builtin", "name": "data"},
+        "fallbackRenderer": "table",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "kv",
+        "displayName": "Metadata",
+        "description": "Key-value artifact snapshots.",
+        "icon": {"type": "builtin", "name": "information"},
+        "fallbackRenderer": "kv",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "log",
+        "displayName": "Log",
+        "description": "Log artifact snapshots.",
+        "icon": {"type": "builtin", "name": "terminal"},
+        "fallbackRenderer": "log",
+        "toolkitId": "builtin",
+    },
+    {
+        "kind": "link",
+        "displayName": "Link",
+        "description": "Link artifact snapshots.",
+        "icon": {"type": "builtin", "name": "link"},
+        "fallbackRenderer": "link",
+        "toolkitId": "builtin",
+    },
+)
+_BUILTIN_ARTIFACT_KIND_NAMES = {item["kind"] for item in _BUILTIN_ARTIFACT_KINDS}
 _TOOLKIT_EXPORT_ID_ALIASES = {
     "WorkspaceToolkit": "workspace_toolkit",
     "TerminalToolkit": "terminal_toolkit",
@@ -1272,9 +1343,11 @@ def _enumerate_builtin_submodule_toolkits(
 def get_toolkit_catalog() -> Dict[str, object]:
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
+        entries = _installed_mcp_catalog_v1_entries()
         return {
-            "toolkits": [],
-            "count": 0,
+            "toolkits": entries,
+            "artifactKinds": _merged_artifact_kinds(entries),
+            "count": len(entries),
             "source": "",
         }
 
@@ -1320,6 +1393,8 @@ def get_toolkit_catalog() -> Dict[str, object]:
                 "kind": kind,
                 "tools": tools,
             })
+
+    entries.extend(_installed_mcp_catalog_v1_entries())
 
     return {
         "toolkits": entries,
@@ -1367,6 +1442,10 @@ def _read_toolkit_toml(toolkit_class: type) -> Dict[str, object]:
 
 def _looks_like_icon_asset(value: str) -> bool:
     return Path(value).suffix.lower() in {".svg", ".png"}
+
+
+def _looks_like_emoji_icon(value: str) -> bool:
+    return any(unicodedata.category(char) == "So" for char in value)
 
 
 def _read_icon_payload(icon_path: object) -> Dict[str, str]:
@@ -1579,6 +1658,146 @@ def _read_builtin_icon_payload(
     }
 
 
+def _read_emoji_icon_payload(emoji: object) -> Dict[str, str]:
+    if not isinstance(emoji, str):
+        return {}
+    normalized = emoji.strip()
+    if not normalized or not _looks_like_emoji_icon(normalized):
+        return {}
+    return {
+        "type": "emoji",
+        "emoji": normalized,
+    }
+
+
+def _read_builtin_artifact_icon_payload(
+    icon_name: object,
+    color: object = "",
+    background_color: object = "",
+) -> Dict[str, str]:
+    if not isinstance(icon_name, str) or not icon_name.strip():
+        return {}
+    payload = {
+        "type": "builtin",
+        "name": icon_name.strip(),
+    }
+    if isinstance(color, str) and color.strip():
+        payload["color"] = color.strip()
+    if isinstance(background_color, str) and background_color.strip():
+        payload["backgroundColor"] = background_color.strip()
+    return payload
+
+
+def _artifact_icon_payload(
+    toolkit_class: type,
+    icon_value: object,
+    color: object = "",
+    background_color: object = "",
+) -> Dict[str, str]:
+    if not isinstance(icon_value, str) or not icon_value.strip():
+        return {}
+    icon_name = icon_value.strip()
+    if not _looks_like_icon_asset(icon_name):
+        return _read_builtin_artifact_icon_payload(icon_name, color, background_color)
+
+    toolkit_dir = _resolve_toolkit_dir(toolkit_class)
+    if toolkit_dir is None:
+        return {}
+    icon_path = (toolkit_dir / icon_name).resolve()
+    try:
+        icon_path.relative_to(toolkit_dir.resolve())
+    except ValueError:
+        return {}
+    return _read_icon_payload(str(icon_path))
+
+
+def _artifact_kinds_for_toolkit(toolkit_class: type, toolkit_id: str) -> List[Dict[str, object]]:
+    toml_data = _read_toolkit_toml(toolkit_class)
+    artifact_kinds = toml_data.get("artifact_kinds") or []
+    if not isinstance(artifact_kinds, list):
+        return []
+
+    out: List[Dict[str, object]] = []
+    seen: set[str] = set()
+    for entry in artifact_kinds:
+        if not isinstance(entry, dict):
+            continue
+        kind = str(entry.get("kind", "") or "").strip()
+        if not kind or kind in seen:
+            continue
+        seen.add(kind)
+        if kind in _BUILTIN_ARTIFACT_KIND_NAMES:
+            _artifact_kind_logger.warning(
+                "toolkit '%s' cannot override builtin artifact kind '%s'; ignoring manifest entry",
+                toolkit_id,
+                kind,
+            )
+            continue
+        fallback_renderer = str(entry.get("fallback_renderer", "") or "").strip()
+        if fallback_renderer not in _ARTIFACT_FALLBACK_RENDERERS:
+            _artifact_kind_logger.warning(
+                "toolkit '%s' artifact kind '%s' has invalid fallback_renderer '%s'; ignoring manifest entry",
+                toolkit_id,
+                kind,
+                fallback_renderer,
+            )
+            continue
+        icon_payload = _artifact_icon_payload(
+            toolkit_class,
+            entry.get("icon"),
+            entry.get("color", ""),
+            entry.get("backgroundcolor", entry.get("background_color", "")),
+        )
+        if not icon_payload:
+            icon_payload = _read_builtin_artifact_icon_payload("information")
+        out.append({
+            "kind": kind,
+            "displayName": str(entry.get("display_name", "") or kind).strip(),
+            "description": str(entry.get("description", "") or "").strip(),
+            "icon": icon_payload,
+            "fallbackRenderer": fallback_renderer,
+            "toolkitId": toolkit_id,
+        })
+    return out
+
+
+def _merged_artifact_kinds(entries: List[Dict[str, object]]) -> List[Dict[str, object]]:
+    custom: Dict[str, Dict[str, object]] = {}
+    for entry in entries:
+        artifact_kinds = entry.get("artifactKinds")
+        if not isinstance(artifact_kinds, list):
+            continue
+        for artifact_kind in artifact_kinds:
+            if not isinstance(artifact_kind, dict):
+                continue
+            kind = str(artifact_kind.get("kind", "") or "").strip()
+            if not kind or kind in _BUILTIN_ARTIFACT_KIND_NAMES:
+                continue
+            existing = custom.get(kind)
+            if existing is None:
+                custom[kind] = artifact_kind
+                continue
+            existing_toolkit = str(existing.get("toolkitId", "") or "")
+            incoming_toolkit = str(artifact_kind.get("toolkitId", "") or "")
+            if incoming_toolkit.casefold() < existing_toolkit.casefold():
+                winner = artifact_kind
+                loser = existing
+            else:
+                winner = existing
+                loser = artifact_kind
+            custom[kind] = winner
+            _artifact_kind_logger.warning(
+                "duplicate artifact kind '%s' from toolkit '%s' ignored; toolkit '%s' wins",
+                kind,
+                str(loser.get("toolkitId", "") or ""),
+                str(winner.get("toolkitId", "") or ""),
+            )
+    return [copy.deepcopy(item) for item in _BUILTIN_ARTIFACT_KINDS] + [
+        copy.deepcopy(item)
+        for item in sorted(custom.values(), key=lambda item: str(item.get("kind", "")).casefold())
+    ]
+
+
 def _resolve_toolkit_readme(toolkit_class: type) -> str:
     """Locate and read the README.md that lives beside a toolkit module.
 
@@ -1664,6 +1883,9 @@ def _get_toolkit_icon_payload(toolkit_class: type) -> Dict[str, str]:
 
     icon_path = getattr(toolkit_class, "icon", None)
     if isinstance(icon_path, str) and icon_path.strip():
+        payload = _read_emoji_icon_payload(icon_path)
+        if payload:
+            return payload
         payload = _read_icon_payload(icon_path.strip())
         if payload:
             return payload
@@ -1679,6 +1901,8 @@ def _get_toolkit_icon_payload(toolkit_class: type) -> Dict[str, str]:
                 payload = _read_icon_payload(str((toolkit_dir / icon_name).resolve()))
                 if payload:
                     return payload
+        if _looks_like_emoji_icon(icon_name):
+            return _read_emoji_icon_payload(icon_name)
         payload = _read_builtin_icon_payload(
             icon_name,
             toml_toolkit.get("color"),
@@ -1788,16 +2012,71 @@ def _detect_toolkit_source(kind: str) -> str:
     return "local"
 
 
+def _installed_mcp_catalog_entries() -> List[Dict[str, object]]:
+    try:
+        entries = list_installed_mcp_toolkits()
+    except Exception as exc:
+        _subagent_logger.warning("[mcp] failed to load installed MCP catalog: %s", exc)
+        return []
+    return [entry for entry in entries if isinstance(entry, dict)]
+
+
+def _installed_mcp_catalog_v1_entries() -> List[Dict[str, object]]:
+    entries: List[Dict[str, object]] = []
+    for entry in _installed_mcp_catalog_entries():
+        toolkit_id = str(entry.get("toolkitId") or entry.get("id") or "").strip()
+        if not toolkit_id:
+            continue
+        tools: List[Dict[str, str]] = []
+        for tool in entry.get("tools") or []:
+            if not isinstance(tool, dict):
+                continue
+            name = str(tool.get("name") or "").strip()
+            if not name:
+                continue
+            description = str(
+                tool.get("description") or tool.get("title") or ""
+            ).strip()
+            tools.append({"name": name, "description": description})
+        entries.append({
+            "id": toolkit_id,
+            "name": toolkit_id,
+            "class_name": "MCPToolkit",
+            "module": "unchain.toolkits.mcp",
+            "kind": "mcp",
+            "source": "mcp",
+            "toolkitName": entry.get("toolkitName", toolkit_id),
+            "toolkitDescription": entry.get("toolkitDescription", ""),
+            "toolkitIcon": entry.get("toolkitIcon", {}),
+            "status": entry.get("status", "unknown"),
+            "tools": tools,
+        })
+    return entries
+
+
+def _append_installed_mcp_toolkits(payload: Dict[str, object]) -> Dict[str, object]:
+    entries = list(payload.get("toolkits") or [])
+    mcp_entries = _installed_mcp_catalog_entries()
+    entries.extend(mcp_entries)
+    next_payload = dict(payload)
+    next_payload["toolkits"] = entries
+    next_payload["count"] = len(entries)
+    if "artifactKinds" in next_payload:
+        next_payload["artifactKinds"] = _merged_artifact_kinds(entries)
+    return next_payload
+
+
 def get_toolkit_catalog_v2() -> Dict[str, object]:
     """Enriched toolkit catalog with icon payloads, per-tool metadata, and
     README support for the tool-modal UI."""
     toolkit_base = _resolve_toolkit_base()
     if toolkit_base is None:
-        return {
+        return _append_installed_mcp_toolkits({
             "toolkits": [],
+            "artifactKinds": [],
             "count": 0,
             "source": "",
-        }
+        })
 
     def _build_entry(candidate: type, kind: str) -> Dict[str, object]:
         """Build a single ToolkitGroup dict, merging toolkit.toml fields."""
@@ -1825,12 +2104,14 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
 
         tools_v2 = _enumerate_toolkit_tools_v2(candidate)
         toolkit_icon = _get_toolkit_icon_payload(candidate)
+        toolkit_id = _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, class_name)
+        artifact_kinds = _artifact_kinds_for_toolkit(candidate, toolkit_id)
         tags = toml_toolkit.get("tags", [])
         if not isinstance(tags, list):
             tags = []
 
         return {
-            "toolkitId": _TOOLKIT_EXPORT_ID_ALIASES.get(class_name, class_name),
+            "toolkitId": toolkit_id,
             "toolkitName": toolkit_name,
             "toolkitDescription": toolkit_description,
             "toolkitIcon": toolkit_icon,
@@ -1841,6 +2122,7 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
             "displayOrder": int(display_order),
             "hidden": hidden,
             "tags": [str(t) for t in tags if isinstance(t, str)],
+            "artifactKinds": artifact_kinds,
         }
 
     # Re-use the same discovery logic as v1
@@ -1915,11 +2197,12 @@ def get_toolkit_catalog_v2() -> Dict[str, object]:
     # Sort by display order from toolkit.toml
     entries.sort(key=lambda e: (e.get("displayOrder", 999), e.get("toolkitName", "")))
 
-    return {
+    return _append_installed_mcp_toolkits({
         "toolkits": entries,
+        "artifactKinds": _merged_artifact_kinds(entries),
         "count": len(entries),
         "source": "",
-    }
+    })
 
 
 def get_toolkit_metadata(
@@ -1933,11 +2216,25 @@ def get_toolkit_metadata(
             "toolkitName": "",
             "toolkitDescription": "",
             "toolkitIcon": {},
+            "artifactKinds": [],
             "readmeMarkdown": "",
             "selectedToolName": None,
         }
 
     toolkit_id = toolkit_id.strip()
+    if toolkit_id.startswith("mcp."):
+        installed_mcp = get_installed_mcp_toolkit(toolkit_id)
+        if installed_mcp is not None:
+            return {
+                "toolkitId": installed_mcp.get("toolkitId", toolkit_id),
+                "toolkitName": installed_mcp.get("toolkitName", toolkit_id),
+                "toolkitDescription": installed_mcp.get("toolkitDescription", ""),
+                "toolkitIcon": installed_mcp.get("toolkitIcon", {}),
+                "artifactKinds": [],
+                "readmeMarkdown": installed_mcp.get("readmeMarkdown", ""),
+                "selectedToolName": tool_name,
+            }
+
     normalized_toolkit_id = _TOOLKIT_NAME_ALIASES.get(toolkit_id, toolkit_id)
     canonical_toolkit_id = _canonical_toolkit_id_for_class_name(normalized_toolkit_id)
 
@@ -1948,6 +2245,7 @@ def get_toolkit_metadata(
             "toolkitName": canonical_toolkit_id or toolkit_id,
             "toolkitDescription": "",
             "toolkitIcon": {},
+            "artifactKinds": [],
             "readmeMarkdown": "",
             "selectedToolName": tool_name,
         }
@@ -2009,11 +2307,13 @@ def get_toolkit_metadata(
             "toolkitName": canonical_toolkit_id or toolkit_id,
             "toolkitDescription": "",
             "toolkitIcon": {},
+            "artifactKinds": [],
             "readmeMarkdown": "",
             "selectedToolName": tool_name,
         }
 
     toolkit_icon = _get_toolkit_icon_payload(found_class)
+    artifact_kinds = _artifact_kinds_for_toolkit(found_class, canonical_toolkit_id)
     readme_markdown = _resolve_toolkit_readme(found_class)
 
     toml_data = _read_toolkit_toml(found_class)
@@ -2031,6 +2331,7 @@ def get_toolkit_metadata(
         "toolkitName": toolkit_name,
         "toolkitDescription": toolkit_description,
         "toolkitIcon": toolkit_icon,
+        "artifactKinds": artifact_kinds,
         "readmeMarkdown": readme_markdown,
         "selectedToolName": tool_name,
     }
@@ -2808,6 +3109,29 @@ def _build_selected_toolkits(
     if not toolkit_names:
         return []
 
+    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
+    workspace_root = resolved_roots[0] if resolved_roots else None
+    result: list = []
+    generic_toolkit_names: list[str] = []
+
+    for toolkit_name in toolkit_names:
+        if toolkit_name.startswith("mcp."):
+            try:
+                toolkit_instance = build_mcp_runtime_toolkit(toolkit_name)
+            except McpToolkitError as exc:
+                raise RuntimeError(str(exc)) from exc
+            _set_runtime_toolkit_metadata(
+                toolkit_instance,
+                toolkit_id=toolkit_name,
+                toolkit_name=toolkit_name,
+            )
+            result.append(toolkit_instance)
+            continue
+        generic_toolkit_names.append(toolkit_name)
+
+    if not generic_toolkit_names:
+        return result
+
     try:
         toolkit_module = importlib.import_module("unchain.toolkits")
     except Exception as import_error:
@@ -2815,11 +3139,7 @@ def _build_selected_toolkits(
             f"Failed to import unchain.toolkits for toolkit attachment: {import_error}"
         ) from import_error
 
-    resolved_roots = _resolve_workspace_roots(_extract_workspace_roots_from_options(options))
-    workspace_root = resolved_roots[0] if resolved_roots else None
-    result: list = []
-
-    for toolkit_name in toolkit_names:
+    for toolkit_name in generic_toolkit_names:
         normalized_toolkit_name = _TOOLKIT_NAME_ALIASES.get(toolkit_name, toolkit_name)
         if normalized_toolkit_name == "WorkspaceToolkit":
             continue
@@ -3068,6 +3388,22 @@ def _build_requested_toolkits(
     return toolkits
 
 
+def _disconnect_runtime_toolkits(toolkits: Iterable[Any]) -> None:
+    seen: set[int] = set()
+    for toolkit in toolkits or []:
+        identity = id(toolkit)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        disconnect = getattr(toolkit, "disconnect", None)
+        if not callable(disconnect):
+            continue
+        try:
+            disconnect()
+        except Exception as exc:
+            _subagent_logger.warning("[toolkit] disconnect failed: %s", exc)
+
+
 _ANALYZER_READ_ONLY_TOOLS = (
     "read_files", "read_lines", "search_text", "list_directories",
     "file_exists", "pin_file_context", "unpin_file_context",
@@ -3235,6 +3571,7 @@ def _materialize_recipe_subagents(
     PoliciesModule,
     SubagentTemplate,
     options: Dict[str, object] | None = None,
+    optimizer_module_factory=None,
 ) -> tuple:
     """Build SubagentTemplate instances from a Recipe's subagent_pool.
 
@@ -3391,6 +3728,7 @@ def _materialize_recipe_subagents(
             max_iterations=max_iterations,
             name=parsed.name,
             instructions=parsed.instructions,
+            optimizer_module_factory=optimizer_module_factory,
         )
         built.append(
             SubagentTemplate(
@@ -3406,6 +3744,253 @@ def _materialize_recipe_subagents(
             )
         )
     return tuple(built)
+
+
+_DEFAULT_CONTEXT_OPTIMIZER_CONFIG = {
+    "preset": "default",
+    "sliding_window": {
+        "enabled": True,
+        "max_window_pct": 0.50,
+        "max_window_tokens": None,
+    },
+    "tool_history_compaction": {
+        "enabled": True,
+        "keep_completed_turns": 1,
+        "max_chars": 1200,
+        "preview_chars": 160,
+        "hash_payloads": True,
+    },
+    "context_usage": {"enabled": True},
+    "tool_pair_safety": {"enabled": True},
+}
+
+_AGGRESSIVE_CONTEXT_OPTIMIZER_CONFIG = {
+    "preset": "aggressive",
+    "sliding_window": {
+        "enabled": True,
+        "max_window_pct": 0.25,
+        "max_window_tokens": 12000,
+    },
+    "tool_history_compaction": {
+        "enabled": True,
+        "keep_completed_turns": 0,
+        "max_chars": 600,
+        "preview_chars": 96,
+        "hash_payloads": True,
+    },
+    "context_usage": {"enabled": True},
+    "tool_pair_safety": {"enabled": True},
+}
+
+
+def _optimizer_bool(value: Any, default: bool = True) -> bool:
+    if isinstance(value, bool):
+        return value
+    return default
+
+
+def _optimizer_float(
+    value: Any,
+    *,
+    min_value: float,
+    max_value: float,
+    default: float,
+) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return default
+    if not (parsed == parsed) or parsed in (float("inf"), float("-inf")):
+        return default
+    return min(max_value, max(min_value, parsed))
+
+
+def _optimizer_int(
+    value: Any,
+    *,
+    min_value: int,
+    max_value: int,
+    default: int,
+) -> int:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return min(max_value, max(min_value, parsed))
+
+
+def _optimizer_optional_int(
+    value: Any,
+    *,
+    min_value: int,
+    max_value: int,
+) -> int | None:
+    if value is None or value == "":
+        return None
+    return _optimizer_int(
+        value,
+        min_value=min_value,
+        max_value=max_value,
+        default=min_value,
+    )
+
+
+def _copy_context_optimizer_base(base: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "preset": base["preset"],
+        "sliding_window": dict(base["sliding_window"]),
+        "tool_history_compaction": dict(base["tool_history_compaction"]),
+        "context_usage": dict(base["context_usage"]),
+        "tool_pair_safety": dict(base["tool_pair_safety"]),
+    }
+
+
+def _resolve_context_optimizer_config(raw_config: Any = None) -> Dict[str, Any]:
+    raw = raw_config if isinstance(raw_config, dict) else {}
+    preset = str(raw.get("preset") or "default").strip().lower()
+    if raw.get("enabled") is False:
+        preset = "off"
+    if preset not in {"default", "aggressive", "off", "custom"}:
+        preset = "default"
+
+    if preset == "off":
+        return {"preset": "off", "enabled": False}
+
+    if preset == "aggressive":
+        return _copy_context_optimizer_base(_AGGRESSIVE_CONTEXT_OPTIMIZER_CONFIG)
+
+    base = _copy_context_optimizer_base(_DEFAULT_CONTEXT_OPTIMIZER_CONFIG)
+    if preset != "custom":
+        return base
+
+    resolved = _copy_context_optimizer_base(_DEFAULT_CONTEXT_OPTIMIZER_CONFIG)
+    resolved["preset"] = "custom"
+
+    raw_sliding = (
+        raw.get("sliding_window")
+        if isinstance(raw.get("sliding_window"), dict)
+        else {}
+    )
+    resolved["sliding_window"] = {
+        "enabled": _optimizer_bool(raw_sliding.get("enabled"), True),
+        "max_window_pct": _optimizer_float(
+            raw_sliding.get("max_window_pct"),
+            min_value=0.05,
+            max_value=1.0,
+            default=0.50,
+        ),
+        "max_window_tokens": _optimizer_optional_int(
+            raw_sliding.get("max_window_tokens"),
+            min_value=1,
+            max_value=1000000,
+        ),
+    }
+
+    raw_tools = (
+        raw.get("tool_history_compaction")
+        if isinstance(raw.get("tool_history_compaction"), dict)
+        else {}
+    )
+    max_chars = _optimizer_int(
+        raw_tools.get("max_chars"),
+        min_value=64,
+        max_value=1000000,
+        default=1200,
+    )
+    preview_chars = _optimizer_int(
+        raw_tools.get("preview_chars"),
+        min_value=32,
+        max_value=max_chars,
+        default=min(160, max_chars),
+    )
+    resolved["tool_history_compaction"] = {
+        "enabled": _optimizer_bool(raw_tools.get("enabled"), True),
+        "keep_completed_turns": _optimizer_int(
+            raw_tools.get("keep_completed_turns"),
+            min_value=0,
+            max_value=100,
+            default=1,
+        ),
+        "max_chars": max_chars,
+        "preview_chars": preview_chars,
+        "hash_payloads": _optimizer_bool(raw_tools.get("hash_payloads"), True),
+    }
+
+    raw_context_usage = (
+        raw.get("context_usage") if isinstance(raw.get("context_usage"), dict) else {}
+    )
+    raw_pair_safety = (
+        raw.get("tool_pair_safety")
+        if isinstance(raw.get("tool_pair_safety"), dict)
+        else {}
+    )
+    resolved["context_usage"] = {
+        "enabled": _optimizer_bool(raw_context_usage.get("enabled"), True)
+    }
+    resolved["tool_pair_safety"] = {
+        "enabled": _optimizer_bool(raw_pair_safety.get("enabled"), True)
+    }
+    return resolved
+
+
+def _build_context_optimizer_module(optimizer_config: Any = None):
+    OptimizersModule = _OptimizersModule
+    LlmSummaryOptimizer = _LlmSummaryOptimizer
+    ToolHistoryCompactionOptimizer = _ToolHistoryCompactionOptimizer
+    ToolHistoryCompactionOptimizerConfig = _ToolHistoryCompactionOptimizerConfig
+    SlidingWindowOptimizer = _SlidingWindowOptimizer
+    SlidingWindowOptimizerConfig = _SlidingWindowOptimizerConfig
+    resolved = _resolve_context_optimizer_config(optimizer_config)
+    if resolved.get("preset") == "off":
+        return None
+    if (
+        OptimizersModule is None
+        or SlidingWindowOptimizer is None
+        or LlmSummaryOptimizer is None
+        or ToolHistoryCompactionOptimizer is None
+        or ToolHistoryCompactionOptimizerConfig is None
+    ):
+        return None
+
+    optimizer_harnesses = []
+    tool_config = resolved.get("tool_history_compaction") or {}
+    if tool_config.get("enabled") is not False:
+        optimizer_harnesses.append(
+            ToolHistoryCompactionOptimizer(
+                ToolHistoryCompactionOptimizerConfig(
+                    enabled=True,
+                    keep_completed_turns=int(tool_config["keep_completed_turns"]),
+                    max_chars=int(tool_config["max_chars"]),
+                    preview_chars=int(tool_config["preview_chars"]),
+                    hash_payloads=bool(tool_config["hash_payloads"]),
+                )
+            )
+        )
+
+    sliding_config = resolved.get("sliding_window") or {}
+    if sliding_config.get("enabled") is not False:
+        optimizer_harnesses.append(
+            SlidingWindowOptimizer(
+                SlidingWindowOptimizerConfig(
+                    max_window_pct=float(sliding_config["max_window_pct"]),
+                    max_window_tokens=sliding_config["max_window_tokens"],
+                ),
+            )
+        )
+
+    if (
+        _ContextUsageOptimizer is not None
+        and (resolved.get("context_usage") or {}).get("enabled") is not False
+    ):
+        optimizer_harnesses.append(_ContextUsageOptimizer())
+    if (
+        _ToolPairSafetyOptimizer is not None
+        and (resolved.get("tool_pair_safety") or {}).get("enabled") is not False
+    ):
+        optimizer_harnesses.append(_ToolPairSafetyOptimizer())
+    if not optimizer_harnesses:
+        return None
+    return OptimizersModule(harnesses=tuple(optimizer_harnesses))
 
 
 def _apply_recipe_toolkit_filter(toolkits: list, refs: tuple) -> list:
@@ -3870,6 +4455,7 @@ def _build_developer_agent(
     enable_subagents: bool = True,
     options: Dict[str, object] | None = None,
     recipe=None,
+    optimizer_config: Any | None = None,
 ):
     if recipe is not None:
         toolkits = _resolve_recipe_toolkits(toolkits, recipe, options=options)
@@ -3882,29 +4468,12 @@ def _build_developer_agent(
     modules.append(PoliciesModule(max_iterations=max_iterations))
 
     # ── Context window optimizers ──
-    OptimizersModule = _OptimizersModule
-    LlmSummaryOptimizer = _LlmSummaryOptimizer
-    LlmSummaryOptimizerConfig = _LlmSummaryOptimizerConfig
-    ToolHistoryCompactionOptimizer = _ToolHistoryCompactionOptimizer
-    SlidingWindowOptimizer = _SlidingWindowOptimizer
-    SlidingWindowOptimizerConfig = _SlidingWindowOptimizerConfig
-    if (
-        OptimizersModule is not None
-        and SlidingWindowOptimizer is not None
-        and LlmSummaryOptimizer is not None
-        and ToolHistoryCompactionOptimizer is not None
-    ):
-        optimizer_harnesses = [ToolHistoryCompactionOptimizer()]
-        optimizer_harnesses.append(
-            SlidingWindowOptimizer(
-                SlidingWindowOptimizerConfig(max_window_pct=0.50),
-            )
-        )
-        if _ContextUsageOptimizer is not None:
-            optimizer_harnesses.append(_ContextUsageOptimizer())
-        if _ToolPairSafetyOptimizer is not None:
-            optimizer_harnesses.append(_ToolPairSafetyOptimizer())
-        modules.append(OptimizersModule(harnesses=tuple(optimizer_harnesses)))
+    optimizer_module = _build_context_optimizer_module(optimizer_config)
+    if optimizer_module is not None:
+        modules.append(optimizer_module)
+
+    def optimizer_module_factory():
+        return _build_context_optimizer_module(optimizer_config)
 
     templates: tuple = ()
     if (
@@ -3927,6 +4496,7 @@ def _build_developer_agent(
                     PoliciesModule=PoliciesModule,
                     SubagentTemplate=SubagentTemplate,
                     options=options,
+                    optimizer_module_factory=optimizer_module_factory,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -3951,6 +4521,7 @@ def _build_developer_agent(
                     ToolsModule=ToolsModule,
                     PoliciesModule=PoliciesModule,
                     SubagentTemplate=SubagentTemplate,
+                    optimizer_module_factory=optimizer_module_factory,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -4286,6 +4857,7 @@ def _stream_recipe_graph_events(
         )
     except RuntimeError as exc:
         raise RuntimeError(str(exc)) from exc
+    runtime_toolkits_to_disconnect = list(user_toolkits)
 
     workflow_run_id = str(run_id_override or _uuid.uuid4())
     event_queue: "queue.Queue[object]" = queue.Queue()
@@ -4373,6 +4945,11 @@ def _stream_recipe_graph_events(
                     if isinstance(agent_node.get("override"), dict)
                     else {}
                 )
+                step_optimizer_config = (
+                    override.get("optimizer")
+                    if isinstance(override.get("optimizer"), dict)
+                    else None
+                )
                 step_config = dict(selected_config)
                 raw_model = str(
                     override.get("model")
@@ -4391,6 +4968,7 @@ def _stream_recipe_graph_events(
                     user_toolkits,
                     options,
                 )
+                runtime_toolkits_to_disconnect.extend(step_toolkits)
                 step_subagents = _resolve_graph_agent_subagents(agent_node, compiled)
                 instructions = _replace_workflow_variables(
                     _resolve_graph_agent_prompt(agent_node),
@@ -4419,6 +4997,7 @@ def _stream_recipe_graph_events(
                     memory_manager=None,
                     options=options,
                     recipe=step_recipe,
+                    optimizer_config=step_optimizer_config,
                 )
                 step_agent._toolkits = step_toolkits
                 step_agent._display_model = _format_model_id(
@@ -4580,6 +5159,7 @@ def _stream_recipe_graph_events(
             output_holder["error_traceback"] = _tb.format_exc()
             output_holder["error"] = run_error
         finally:
+            _disconnect_runtime_toolkits(runtime_toolkits_to_disconnect)
             event_queue.put(done_marker)
 
     threading.Thread(
@@ -4716,6 +5296,7 @@ def stream_chat(
         except Exception as run_error:  # pragma: no cover
             output_holder["error"] = run_error
         finally:
+            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
             token_queue.put(done_marker)
 
     worker = threading.Thread(target=run_agent, name="unchain-runner", daemon=True)
@@ -4917,6 +5498,7 @@ def stream_chat_events(
             output_holder["error_traceback"] = _tb.format_exc()
             output_holder["error"] = run_error
         finally:
+            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
             event_queue.put(done_marker)
 
     worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)

@@ -1,0 +1,6 @@
+- [Team Roster](team_roster.md) — COO「发」=我（2026-06-10 升格，原 product-ops），下辖 growth-ops「巡」；CEO 3 直属之一；全员角色边界
+- [Handoff Protocol](handoff_protocol.md) — 与 qa-tester / mcp-store-curator / security-expert（守签字才放行）的交接：何时自己干、何时引用他们结论
+- [Registry is a shared FE/BE file](registry-frontend-backend-shared-file.md) — src/SERVICEs/mcp_toolkit_registry.json 被 Python 后端读取；改它必须两侧都跑测试，删条目易炸 backend pytest
+- [Release license/bundling boundary](release-license-bundling-boundary.md) — 安装包真正捆绑啥 vs 运行时 npx/uvx 拉取啥；第三方 NOTICE 聚合缺口；auto-update 走 GitHub releases
+- [react-router-dom jest main 字段坏](react-router-dom-jest-main-field.md) — 5 前端套件同挂 "Cannot find module react-router-dom"，根因 rr-dom 7.x main 指向不存在的 dist/main.js，npm ci 修不了，需 jest moduleNameMapper/换版本
+- [adapter 测试读本机 recipe 泄漏](adapter-tests-local-recipe-leak.md) — MisoAdapterCapabilityCatalogTests 隔离下挂因 stream_chat_events/_create_agent 读 ~/.pupu Default.recipe；已加 setUp hermetic 化（9→3）；剩 3 workspace 测试是陈旧 mock 第二根因

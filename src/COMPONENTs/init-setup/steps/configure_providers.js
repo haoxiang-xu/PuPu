@@ -1,5 +1,9 @@
 import { useCallback, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import {
+  themeHighlightColor,
+  themeHighlightRgba,
+} from "../../../CONTAINERs/config/theme_highlight";
 import { Password } from "../../../BUILTIN_COMPONENTs/input/input";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
@@ -14,20 +18,24 @@ import { ollamaBridge } from "../../../SERVICEs/bridges/ollama_bridge";
 /* ── shared sub-components ──────────────────────────────────────────────────── */
 const StatusBadge = ({ status, label }) => {
   const { theme } = useContext(ConfigContext);
+  const highlight = themeHighlightColor(theme);
+  const highlightBg = themeHighlightRgba(theme, 0.1);
   const iconSrc =
     status === "ok" ? "check" : status === "error" ? "error" : "circle";
   const color =
     status === "ok"
-      ? "rgba(10,186,181,1)"
+      ? highlight
       : status === "error"
         ? "#e05c5c"
         : "rgba(150,150,150,0.7)";
   const bg =
     status === "ok"
-      ? "rgba(10,186,181,0.10)"
+      ? highlightBg
       : status === "error"
         ? "rgba(224,92,92,0.10)"
         : "rgba(150,150,150,0.07)";
+  const borderColor =
+    status === "ok" ? themeHighlightRgba(theme, 0.2) : `${color}33`;
 
   return (
     <div
@@ -42,7 +50,7 @@ const StatusBadge = ({ status, label }) => {
         fontSize: 12,
         fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
         fontWeight: 500,
-        border: `1px solid ${color}33`,
+        border: `1px solid ${borderColor}`,
       }}
     >
       <Icon
@@ -140,6 +148,7 @@ const ApiKeySubStep = ({ providerKey, label, placeholder, isDark }) => {
 /* ── Ollama sub-step ─────────────────────────────────────────────────────────── */
 const OllamaSubStep = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
+  const highlight = themeHighlightColor(theme);
   const [ollamaStatus, setOllamaStatus] = useState("checking");
   const [installProgress, setInstallProgress] = useState(null);
   const [installError, setInstallError] = useState(null);
@@ -286,7 +295,7 @@ const OllamaSubStep = ({ isDark }) => {
                   style={{
                     height: "100%",
                     width: `${installProgress}%`,
-                    background: "rgba(10,186,181,1)",
+                    background: highlight,
                     borderRadius: 2,
                     transition: "width 0.2s linear",
                   }}
@@ -346,7 +355,7 @@ const OllamaSubStep = ({ isDark }) => {
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Icon
             src="check"
-            color="rgba(10,186,181,1)"
+            color={highlight}
             style={{ width: 14, height: 14 }}
           />
           <span
@@ -386,6 +395,7 @@ const ConfigureProvidersStep = ({
 }) => {
   const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const highlight = themeHighlightColor(theme);
 
   const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
   const subColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
@@ -470,15 +480,15 @@ const ConfigureProvidersStep = ({
                     iconSize: 14,
                     gap: 5,
                     border: `1px solid ${
-                      isActive ? "rgba(10,186,181,0.32)" : dividerColor
+                      isActive ? themeHighlightRgba(theme, 0.32) : dividerColor
                     }`,
                     background: isActive
                       ? isDark
-                        ? "rgba(10,186,181,0.14)"
-                        : "rgba(10,186,181,0.10)"
+                        ? themeHighlightRgba(theme, 0.14)
+                        : themeHighlightRgba(theme, 0.1)
                       : "transparent",
                     color: isActive
-                      ? "rgba(10,186,181,1)"
+                      ? highlight
                       : isDark
                         ? "rgba(255,255,255,0.40)"
                         : "rgba(0,0,0,0.35)",

@@ -34,6 +34,7 @@ import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
+import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
@@ -180,6 +181,10 @@ const ChatInterface = () => {
 
   const activeStreamsRef = useRef(new Map());
   const messagePersistTimerRef = useRef(null);
+  const streamingMessageStoreRef = useRef(null);
+  if (!streamingMessageStoreRef.current) {
+    streamingMessageStoreRef.current = createStreamingMessageStore();
+  }
   const commitUnchainStatus = useCallback((nextStatus) => {
     setUnchainStatus((currentStatus) =>
       isSameUnchainStatus(currentStatus, nextStatus)
@@ -340,6 +345,7 @@ const ChatInterface = () => {
     setSelectedModelId: session.setSelectedModelId,
     setAgentOrchestration: session.setAgentOrchestration,
     activeStreamsRef,
+    streamingMessageStore: streamingMessageStoreRef.current,
   });
   const {
     sendForTest: streamSendForTest,
@@ -361,7 +367,13 @@ const ChatInterface = () => {
     const delay = streamIsStreaming ? 250 : 0;
     messagePersistTimerRef.current = setTimeout(() => {
       messagePersistTimerRef.current = null;
-      storageApi.setChatMessages(currentChatId, session.messages, {
+      const messagesToPersist = streamIsStreaming
+        ? streamingMessageStoreRef.current.materializeMessages({
+            chatId: currentChatId,
+            messages: session.messages,
+          })
+        : session.messages;
+      storageApi.setChatMessages(currentChatId, messagesToPersist, {
         source: "chat-page",
       });
     }, delay);
@@ -616,7 +628,9 @@ const ChatInterface = () => {
     containerRef: smoothResizeContainerRef,
     frameStyle: smoothResizeFrameStyle,
     refreshFrame: refreshSmoothResizeFrame,
-  } = useSmoothResizeFrame();
+  } = useSmoothResizeFrame({
+    instantResizeKey: onFragment,
+  });
 
   useEffect(() => {
     refreshSmoothResizeFrame();
@@ -895,6 +909,7 @@ const ChatInterface = () => {
             }
             pendingContinuationRequest={stream.pendingContinuationRequest}
             onContinuationDecision={stream.handleContinuationDecision}
+            streamingMessageStore={streamingMessageStoreRef.current}
             initialVisibleCount={12}
             loadBatchSize={6}
             topLoadThreshold={80}

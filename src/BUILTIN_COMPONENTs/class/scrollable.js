@@ -10,6 +10,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
  *
  * Per-element config:
  *   data-sb-edge="N" — track margin at both ends (top/bottom for V, left/right for H).
+ *   data-sb-edge-top/bottom/left/right="N" — optional per-side track margins.
  *   data-sb-wall="N" — distance from the outer wall (right for V, bottom for H).
  *                      Defaults to the element's edge if not set.
  */
@@ -27,8 +28,7 @@ const Scrollable = () => {
       sb.backgroundColor?.active ||
       (isDark ? "rgba(255,255,255,0.38)" : "rgba(0,0,0,0.3)");
     const DEFAULT_EDGE = sb.edge ?? 2;
-    const IDLE_THICK = 4;
-    const ACTIVE_THICK = 6;
+    const THICK = 6;
     const MIN_THUMB = 24;
     const FADE_DELAY = 1000;
 
@@ -55,6 +55,11 @@ const Scrollable = () => {
       return attr != null ? Number(attr) : DEFAULT_EDGE;
     }
 
+    function getEdgeSide(el, side, fallback) {
+      const attr = el.getAttribute(`data-sb-edge-${side}`);
+      return attr != null ? Number(attr) : fallback;
+    }
+
     function getWall(el, edge) {
       const attr = el.getAttribute("data-sb-wall");
       return attr != null ? Number(attr) : edge;
@@ -68,7 +73,7 @@ const Scrollable = () => {
         backgroundColor: COLOR_IDLE,
         opacity: "0",
         pointerEvents: "auto",
-        cursor: "default",
+        cursor: "grab",
         transition:
           "opacity 0.25s ease, " +
           "background-color 0.35s ease, " +
@@ -89,7 +94,14 @@ const Scrollable = () => {
       if (pcs.position === "static") parent.style.position = "relative";
 
       const edge = getEdge(container);
+      const edgeTop = getEdgeSide(container, "top", edge);
+      const edgeBottom = getEdgeSide(container, "bottom", edge);
+      const edgeLeft = getEdgeSide(container, "left", edge);
+      const edgeRight = getEdgeSide(container, "right", edge);
       const wall = getWall(container, edge);
+      /* data-sb-persist — keep the scrollbar permanently visible (never fade). */
+      const persist = container.getAttribute("data-sb-persist") != null;
+      const restOpacity = persist ? "1" : "0";
 
       /* Create overlay — a non-scrolling sibling that sits on top */
       const overlay = document.createElement("div");
@@ -110,6 +122,12 @@ const Scrollable = () => {
       const hThumb = makeThumb();
       overlay.appendChild(vThumb);
       overlay.appendChild(hThumb);
+
+      /* Persistent scrollbars start visible and never fade back to 0. */
+      if (persist) {
+        vThumb.style.opacity = restOpacity;
+        hThumb.style.opacity = restOpacity;
+      }
 
       let fadeTimer = null;
       let rafId = null;
@@ -139,19 +157,22 @@ const Scrollable = () => {
 
         const hasV = sh > clientH + 1;
         const hasH = sw > clientW + 1;
-        const vThick = scrolling || hoveringV ? ACTIVE_THICK : IDLE_THICK;
-        const hThick = scrolling || hoveringH ? ACTIVE_THICK : IDLE_THICK;
+        /* Constant thickness in every state. A hover/active size change shifts
+           the thumb edges, so near a boundary the pointer crosses in and out →
+           enter/leave flicker. Visual feedback comes from colour only. */
+        const vThick = THICK;
+        const hThick = THICK;
 
         /* Vertical thumb */
         if (hasV) {
-          const trackH = ch - edge * 2;
+          const trackH = ch - edgeTop - edgeBottom;
           const ratio = clientH / sh;
           const thumbH = Math.max(MIN_THUMB, ratio * trackH);
           const maxScroll = sh - clientH;
           const pct = maxScroll > 0 ? st / maxScroll : 0;
           Object.assign(vThumb.style, {
             display: "",
-            top: oy + edge + pct * (trackH - thumbH) + "px",
+            top: oy + edgeTop + pct * (trackH - thumbH) + "px",
             left: ox + cw - wall - vThick + "px",
             height: thumbH + "px",
             width: vThick + "px",
@@ -162,7 +183,7 @@ const Scrollable = () => {
 
         /* Horizontal thumb */
         if (hasH) {
-          const trackW = cw - edge * 2;
+          const trackW = cw - edgeLeft - edgeRight;
           const ratio = clientW / sw;
           const thumbW = Math.max(MIN_THUMB, ratio * trackW);
           const maxScroll = sw - clientW;
@@ -170,7 +191,7 @@ const Scrollable = () => {
           Object.assign(hThumb.style, {
             display: "",
             top: oy + ch - wall - hThick + "px",
-            left: ox + edge + pct * (trackW - thumbW) + "px",
+            left: ox + edgeLeft + pct * (trackW - thumbW) + "px",
             width: thumbW + "px",
             height: hThick + "px",
           });
@@ -198,8 +219,8 @@ const Scrollable = () => {
           scrolling = false;
           sync();
           if (!hoveringV && !hoveringH && !mouseInside) {
-            vThumb.style.opacity = "0";
-            hThumb.style.opacity = "0";
+            vThumb.style.opacity = restOpacity;
+            hThumb.style.opacity = restOpacity;
           }
           vThumb.style.backgroundColor = COLOR_IDLE;
           hThumb.style.backgroundColor = COLOR_IDLE;
@@ -231,8 +252,8 @@ const Scrollable = () => {
       function onContainerLeave() {
         mouseInside = false;
         if (!scrolling && !hoveringV && !hoveringH) {
-          vThumb.style.opacity = "0";
-          hThumb.style.opacity = "0";
+          vThumb.style.opacity = restOpacity;
+          hThumb.style.opacity = restOpacity;
         }
       }
 
@@ -247,7 +268,7 @@ const Scrollable = () => {
         if (!scrolling) {
           sync();
           vThumb.style.backgroundColor = COLOR_IDLE;
-          if (!mouseInside) vThumb.style.opacity = "0";
+          if (!mouseInside) vThumb.style.opacity = restOpacity;
           else vThumb.style.opacity = "0.45";
         }
       }
@@ -262,7 +283,7 @@ const Scrollable = () => {
         if (!scrolling) {
           sync();
           hThumb.style.backgroundColor = COLOR_IDLE;
-          if (!mouseInside) hThumb.style.opacity = "0";
+          if (!mouseInside) hThumb.style.opacity = restOpacity;
           else hThumb.style.opacity = "0.45";
         }
       }
@@ -278,6 +299,8 @@ const Scrollable = () => {
           startPos = axis === "v" ? e.clientY : e.clientX;
           startScroll =
             axis === "v" ? container.scrollTop : container.scrollLeft;
+          thumb.style.cursor = "grabbing";
+          document.body.style.cursor = "grabbing";
           document.addEventListener("mousemove", onMove);
           document.addEventListener("mouseup", onUp);
         }
@@ -288,7 +311,9 @@ const Scrollable = () => {
             axis === "v" ? container.clientHeight : container.clientWidth;
           const sSize =
             axis === "v" ? container.scrollHeight : container.scrollWidth;
-          const trackLen = cSize - edge * 2;
+          const startEdge = axis === "v" ? edgeTop : edgeLeft;
+          const endEdge = axis === "v" ? edgeBottom : edgeRight;
+          const trackLen = cSize - startEdge - endEdge;
           const thumbLen = Math.max(MIN_THUMB, (cSize / sSize) * trackLen);
           const ratio = (sSize - cSize) / (trackLen - thumbLen);
           if (axis === "v") container.scrollTop = startScroll + delta * ratio;
@@ -296,12 +321,19 @@ const Scrollable = () => {
         }
 
         function onUp() {
+          thumb.style.cursor = "grab";
+          document.body.style.cursor = "";
           document.removeEventListener("mousemove", onMove);
           document.removeEventListener("mouseup", onUp);
         }
 
         thumb.addEventListener("mousedown", onDown);
-        return () => thumb.removeEventListener("mousedown", onDown);
+        return () => {
+          thumb.removeEventListener("mousedown", onDown);
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          document.body.style.cursor = "";
+        };
       }
 
       const cleanDragV = makeDragger(vThumb, "v");

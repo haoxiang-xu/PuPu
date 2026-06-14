@@ -1,0 +1,1 @@
+- [Team Roster & Handoff Protocol](team_roster_handoff.md) — the 3-agent team (qa-tester/product-ops/mcp-store-curator); who owns what, when to hand off testing & MCP work

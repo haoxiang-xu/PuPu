@@ -1,5 +1,6 @@
 import { useContext } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
 import { readModelProviders } from "../../settings/model_providers/storage";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
@@ -19,6 +20,7 @@ const PROVIDER_ICON = {
 const CompletionStep = ({ selectedProviders, onFinish }) => {
   const { onThemeMode, theme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const highlight = themeHighlightColor(theme);
 
   const headingColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.88)";
   const subColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.38)";
@@ -37,7 +39,7 @@ const CompletionStep = ({ selectedProviders, onFinish }) => {
       {/* Success icon */}
       <Icon
         src="check"
-        color="rgba(10,186,181,1)"
+        color={highlight}
         style={{
           width: 32,
           height: 32,

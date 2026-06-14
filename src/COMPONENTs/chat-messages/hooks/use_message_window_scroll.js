@@ -12,6 +12,20 @@ import {
   TOP_EDGE_THRESHOLD,
 } from "../constants";
 
+const STREAMING_BOTTOM_FOLLOW_MS = 64;
+
+// 跳转落点(content 绝对坐标):top 对齐留 12px 顶边距;center 对齐让目标点落到视口正中。
+// 立即跳转与延迟跳转(目标未渲染先挪窗口)两条路径共用,保证落点一致。
+export function computeLandingTop({
+  offsetTop,
+  within = 0,
+  align = "top",
+  viewportHeight = 0,
+}) {
+  const margin = align === "center" ? viewportHeight / 2 : 12;
+  return Math.max(0, offsetTop + within - margin);
+}
+
 export const useMessageWindowScroll = ({
   chat_id,
   messages,
@@ -33,8 +47,14 @@ export const useMessageWindowScroll = ({
   );
   const prependCompensationRef = useRef(null);
   const pendingScrollToBottomRef = useRef("auto");
+  const pendingStreamingBottomFollowRef = useRef(null);
+  const pendingStreamingBottomFollowTypeRef = useRef(null);
   const pendingJumpActionRef = useRef(null);
+  const bottomSentinelRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
+  const isAtBottomRef = useRef(true);
+  const streamingFollowEnabledRef = useRef(true);
+  const userScrollIntentRef = useRef(false);
 
   const [visibleStartIndex, setVisibleStartIndex] = useState(() =>
     Math.max(0, messages.length - initial_visible_count),
@@ -54,8 +74,32 @@ export const useMessageWindowScroll = ({
 
   const updateIsAtBottom = useCallback((el) => {
     const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
-    setIsAtBottom(distance <= BOTTOM_FOLLOW_THRESHOLD);
+    const nextIsAtBottom = distance <= BOTTOM_FOLLOW_THRESHOLD;
+    isAtBottomRef.current = nextIsAtBottom;
+    if (nextIsAtBottom) {
+      streamingFollowEnabledRef.current = true;
+      userScrollIntentRef.current = false;
+    }
+    setIsAtBottom(nextIsAtBottom);
     setIsAtTop(el.scrollTop <= TOP_EDGE_THRESHOLD);
+    return nextIsAtBottom;
+  }, []);
+
+  const clearScheduledStreamingBottomFollow = useCallback(() => {
+    if (pendingStreamingBottomFollowRef.current == null) {
+      return;
+    }
+    if (
+      pendingStreamingBottomFollowTypeRef.current === "raf" &&
+      typeof window !== "undefined" &&
+      typeof window.cancelAnimationFrame === "function"
+    ) {
+      window.cancelAnimationFrame(pendingStreamingBottomFollowRef.current);
+    } else {
+      clearTimeout(pendingStreamingBottomFollowRef.current);
+    }
+    pendingStreamingBottomFollowRef.current = null;
+    pendingStreamingBottomFollowTypeRef.current = null;
   }, []);
 
   const loadOlderMessages = useCallback(() => {
@@ -92,7 +136,17 @@ export const useMessageWindowScroll = ({
     const isScrollingUp = currentScrollTop < lastScrollTopRef.current - 0.5;
     lastScrollTopRef.current = currentScrollTop;
 
-    updateIsAtBottom(el);
+    const nextIsAtBottom = updateIsAtBottom(el);
+
+    if (
+      is_streaming &&
+      userScrollIntentRef.current &&
+      !nextIsAtBottom &&
+      isScrollingUp
+    ) {
+      streamingFollowEnabledRef.current = false;
+      clearScheduledStreamingBottomFollow();
+    }
 
     if (
       currentScrollTop <= top_load_threshold &&
@@ -102,7 +156,13 @@ export const useMessageWindowScroll = ({
     ) {
       loadOlderMessages();
     }
-  }, [loadOlderMessages, top_load_threshold, updateIsAtBottom]);
+  }, [
+    clearScheduledStreamingBottomFollow,
+    is_streaming,
+    loadOlderMessages,
+    top_load_threshold,
+    updateIsAtBottom,
+  ]);
 
   const scrollToBottom = useCallback((behavior = "auto") => {
     const el = messagesRef.current;
@@ -110,11 +170,67 @@ export const useMessageWindowScroll = ({
       return;
     }
 
-    el.scrollTo({ top: el.scrollHeight, behavior });
-    lastScrollTopRef.current = el.scrollHeight;
+    const scrollHeight = el.scrollHeight;
+    el.scrollTo({ top: scrollHeight, behavior });
+    lastScrollTopRef.current = scrollHeight;
+    isAtBottomRef.current = true;
+    streamingFollowEnabledRef.current = true;
+    userScrollIntentRef.current = false;
     setIsAtBottom(true);
     setIsAtTop(false);
   }, []);
+
+  const handleUserScrollIntent = useCallback(() => {
+    if (!is_streaming) {
+      return;
+    }
+    userScrollIntentRef.current = true;
+  }, [is_streaming]);
+
+  const scheduleStreamingBottomFollow = useCallback(() => {
+    if (pendingStreamingBottomFollowRef.current != null) {
+      return;
+    }
+    const follow = () => {
+      pendingStreamingBottomFollowRef.current = null;
+      pendingStreamingBottomFollowTypeRef.current = null;
+      if (!streamingFollowEnabledRef.current) {
+        return;
+      }
+      const el = messagesRef.current;
+      if (!el) {
+        return;
+      }
+      el.scrollTop = Number.MAX_SAFE_INTEGER;
+      lastScrollTopRef.current = el.scrollTop;
+      isAtBottomRef.current = true;
+      setIsAtBottom(true);
+      setIsAtTop(false);
+    };
+
+    if (
+      typeof window !== "undefined" &&
+      typeof window.requestAnimationFrame === "function"
+    ) {
+      pendingStreamingBottomFollowTypeRef.current = "raf";
+      pendingStreamingBottomFollowRef.current =
+        window.requestAnimationFrame(follow);
+      return;
+    }
+
+    pendingStreamingBottomFollowTypeRef.current = "timeout";
+    pendingStreamingBottomFollowRef.current = setTimeout(
+      follow,
+      STREAMING_BOTTOM_FOLLOW_MS,
+    );
+  }, []);
+
+  const notifyStreamingContentCommitted = useCallback(() => {
+    if (!is_streaming || !streamingFollowEnabledRef.current) {
+      return;
+    }
+    scheduleStreamingBottomFollow();
+  }, [is_streaming, scheduleStreamingBottomFollow]);
 
   const scrollToTop = useCallback(
     (behavior = "smooth") => {
@@ -208,9 +324,52 @@ export const useMessageWindowScroll = ({
     scrollToTop("smooth");
   }, [jumpToPreviousRenderedMessage, loadOlderMessages, scrollToTop]);
 
+  const scrollToMessageIndex = useCallback(
+    (index, behavior = "auto", { within = 0, align = "top" } = {}) => {
+      const el = messagesRef.current;
+      if (!el) {
+        return;
+      }
+      const clamped = Math.max(0, Math.min(index, messages.length - 1));
+
+      if (clamped >= visibleStartRef.current) {
+        const node = messageNodeRefs.current.get(clamped);
+        if (node) {
+          el.scrollTo({
+            top: computeLandingTop({
+              offsetTop: node.offsetTop,
+              within,
+              align,
+              viewportHeight: el.clientHeight,
+            }),
+            behavior,
+          });
+          updateIsAtBottom(el);
+          return;
+        }
+      }
+
+      const nextStart = Math.max(0, clamped - load_batch_size);
+      visibleStartRef.current = nextStart;
+      pendingJumpActionRef.current = {
+        type: "toIndex",
+        index: clamped,
+        behavior,
+        within,
+        align,
+      };
+      setVisibleStartIndex(nextStart);
+    },
+    [messages.length, load_batch_size, updateIsAtBottom],
+  );
+
   useEffect(() => {
     visibleStartRef.current = visibleStartIndex;
   }, [visibleStartIndex]);
+
+  useEffect(() => {
+    return () => clearScheduledStreamingBottomFollow();
+  }, [clearScheduledStreamingBottomFollow]);
 
   useEffect(() => {
     if (activeChatIdRef.current === chat_id) {
@@ -223,6 +382,9 @@ export const useMessageWindowScroll = ({
     const finalStart = Math.max(0, messages.length - initial_visible_count);
     visibleStartRef.current = bootStart;
     setVisibleStartIndex(bootStart);
+    isAtBottomRef.current = true;
+    streamingFollowEnabledRef.current = true;
+    userScrollIntentRef.current = false;
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
@@ -267,6 +429,9 @@ export const useMessageWindowScroll = ({
     visibleStartRef.current = 0;
     lastScrollTopRef.current = 0;
     setVisibleStartIndex(0);
+    isAtBottomRef.current = true;
+    streamingFollowEnabledRef.current = true;
+    userScrollIntentRef.current = false;
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
@@ -303,6 +468,30 @@ export const useMessageWindowScroll = ({
       return;
     }
 
+    if (pendingAction.type === "toIndex") {
+      const targetNode = messageNodeRefs.current.get(pendingAction.index);
+      if (targetNode) {
+        pendingJumpActionRef.current = null;
+        el.scrollTo({
+          top: computeLandingTop({
+            offsetTop: targetNode.offsetTop,
+            within: pendingAction.within ?? 0,
+            align: pendingAction.align ?? "top",
+            viewportHeight: el.clientHeight,
+          }),
+          behavior: pendingAction.behavior || "auto",
+        });
+        updateIsAtBottom(el);
+        return;
+      }
+      if (visibleStartRef.current > 0) {
+        loadOlderMessages();
+        return;
+      }
+      pendingJumpActionRef.current = null;
+      return;
+    }
+
     if (pendingAction.type === "previous") {
       const jumped = jumpToPreviousRenderedMessage(
         pendingAction.behavior || "smooth",
@@ -336,6 +525,18 @@ export const useMessageWindowScroll = ({
       return;
     }
 
+    if (is_streaming) {
+      pendingScrollToBottomRef.current = null;
+      if (streamingFollowEnabledRef.current) {
+        scheduleStreamingBottomFollow();
+      } else {
+        clearScheduledStreamingBottomFollow();
+      }
+      return;
+    }
+
+    clearScheduledStreamingBottomFollow();
+
     if (pendingScrollToBottomRef.current) {
       scrollToBottom(pendingScrollToBottomRef.current);
       pendingScrollToBottomRef.current = null;
@@ -345,11 +546,24 @@ export const useMessageWindowScroll = ({
     if (isAtBottom) {
       scrollToBottom(is_streaming ? "auto" : "smooth");
     }
-  }, [isAtBottom, is_streaming, messages, scrollToBottom, safeVisibleStart]);
+  }, [
+    clearScheduledStreamingBottomFollow,
+    isAtBottom,
+    is_streaming,
+    messages,
+    scheduleStreamingBottomFollow,
+    scrollToBottom,
+    safeVisibleStart,
+  ]);
 
   useEffect(() => {
     const el = messagesRef.current;
-    if (!el || prependCompensationRef.current || messages.length === 0) {
+    if (
+      !el ||
+      is_streaming ||
+      prependCompensationRef.current ||
+      messages.length === 0
+    ) {
       return;
     }
 
@@ -359,19 +573,29 @@ export const useMessageWindowScroll = ({
     ) {
       loadOlderMessages();
     }
-  }, [loadOlderMessages, messages, safeVisibleStart, top_load_threshold]);
+  }, [
+    is_streaming,
+    loadOlderMessages,
+    messages,
+    safeVisibleStart,
+    top_load_threshold,
+  ]);
 
   return {
     messagesRef,
+    bottomSentinelRef,
     messageNodeRefs,
     safeVisibleStart,
     visibleMessages,
     isAtBottom,
     isAtTop,
     handleScroll,
+    handleUserScrollIntent,
+    notifyStreamingContentCommitted,
     handleBackToBottom,
     handleSkipToTop,
     handleJumpToPreviousMessage,
+    scrollToMessageIndex,
   };
 };
 

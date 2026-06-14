@@ -3,7 +3,9 @@ import ChipEditor from "../chip_editor";
 import { compute_variable_scope } from "../variable_scope";
 import Select from "../../../../../BUILTIN_COMPONENTs/select/select";
 import Button from "../../../../../BUILTIN_COMPONENTs/input/button";
+import Switch from "../../../../../BUILTIN_COMPONENTs/input/switch";
 import { Input } from "../../../../../BUILTIN_COMPONENTs/input/input";
+import Icon from "../../../../../BUILTIN_COMPONENTs/icon/icon";
 
 const MODEL_OPTIONS = [
   { value: "", label: "(use recipe default)" },
@@ -21,6 +23,31 @@ const TYPE_OPTIONS = [
   { value: "json", label: "json" },
 ];
 
+const OPTIMIZER_PRESET_OPTIONS = [
+  { value: "default", label: "Default" },
+  { value: "aggressive", label: "Aggressive" },
+  { value: "off", label: "Off" },
+  { value: "custom", label: "Custom" },
+];
+
+const DEFAULT_CUSTOM_OPTIMIZER = {
+  preset: "custom",
+  sliding_window: {
+    enabled: true,
+    max_window_pct: 0.5,
+    max_window_tokens: null,
+  },
+  tool_history_compaction: {
+    enabled: true,
+    keep_completed_turns: 1,
+    max_chars: 1200,
+    preview_chars: 160,
+    hash_payloads: true,
+  },
+  context_usage: { enabled: true },
+  tool_pair_safety: { enabled: true },
+};
+
 const SECTION_LABEL = {
   fontSize: 11,
   fontWeight: 600,
@@ -28,6 +55,39 @@ const SECTION_LABEL = {
   textTransform: "uppercase",
   letterSpacing: 0.4,
 };
+
+function clamp_number(raw, min, max, fallback) {
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+
+function clamp_int(raw, min, max, fallback) {
+  return Math.round(clamp_number(raw, min, max, fallback));
+}
+
+function custom_optimizer_from(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  return {
+    preset: "custom",
+    sliding_window: {
+      ...DEFAULT_CUSTOM_OPTIMIZER.sliding_window,
+      ...(source.sliding_window || {}),
+    },
+    tool_history_compaction: {
+      ...DEFAULT_CUSTOM_OPTIMIZER.tool_history_compaction,
+      ...(source.tool_history_compaction || {}),
+    },
+    context_usage: {
+      ...DEFAULT_CUSTOM_OPTIMIZER.context_usage,
+      ...(source.context_usage || {}),
+    },
+    tool_pair_safety: {
+      ...DEFAULT_CUSTOM_OPTIMIZER.tool_pair_safety,
+      ...(source.tool_pair_safety || {}),
+    },
+  };
+}
 
 export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isDark }) {
   const scope = compute_variable_scope(node.id, recipe.nodes, recipe.edges);
@@ -77,6 +137,61 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
 
   const prompt = node.override?.prompt || "";
   const model = node.override?.model || "";
+  const optimizer = node.override?.optimizer || { preset: "default" };
+  const optimizer_preset =
+    optimizer.enabled === false ? "off" : optimizer.preset || "default";
+  const optimizer_enabled = optimizer_preset !== "off";
+  const custom_optimizer = custom_optimizer_from(optimizer);
+  const muted = isDark ? "#9a9aa3" : "#86868b";
+  const row_bg = isDark ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.025)";
+
+  function set_optimizer(next) {
+    set_override({ optimizer: next });
+  }
+
+  function set_optimizer_preset(next_preset) {
+    if (next_preset === "custom") {
+      set_optimizer(custom_optimizer_from(optimizer));
+      return;
+    }
+    if (next_preset === "aggressive") {
+      set_optimizer({ preset: "aggressive" });
+      return;
+    }
+    if (next_preset === "off") {
+      set_optimizer({ preset: "off", enabled: false });
+      return;
+    }
+    set_optimizer({ preset: "default" });
+  }
+
+  function set_optimizer_enabled(on) {
+    set_optimizer(
+      on ? { preset: "default" } : { preset: "off", enabled: false },
+    );
+  }
+
+  function update_custom_optimizer(section, patch) {
+    set_optimizer({
+      ...custom_optimizer,
+      [section]: {
+        ...custom_optimizer[section],
+        ...patch,
+      },
+    });
+  }
+
+  function update_tool_max_chars(raw) {
+    const current = custom_optimizer.tool_history_compaction;
+    const max_chars = clamp_int(raw, 64, 1000000, current.max_chars);
+    update_custom_optimizer("tool_history_compaction", {
+      max_chars,
+      preview_chars: Math.min(
+        max_chars,
+        clamp_int(current.preview_chars, 32, max_chars, 160),
+      ),
+    });
+  }
 
   return (
     <>
@@ -87,16 +202,13 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             height: 26,
             borderRadius: 7,
             background: "linear-gradient(135deg, #6478f6, #4a5bd8)",
-            color: "#fff",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            fontSize: 13,
-            fontWeight: 700,
             flexShrink: 0,
           }}
         >
-          A
+          <Icon src="bot" color="#fff" style={{ width: 14, height: 14 }} />
         </div>
         <div style={{ minWidth: 0, flex: 1, fontSize: 14, fontWeight: 600 }}>
           {node.id}
@@ -152,6 +264,197 @@ export default function AgentPanel({ node, recipe, onChange, onChangeSilent, isD
             borderRadius: 6,
           }}
         />
+      </div>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <span style={SECTION_LABEL}>Context Optimizer</span>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 10,
+            padding: "6px 8px",
+            borderRadius: 6,
+            background: row_bg,
+          }}
+        >
+          <span style={{ fontSize: 12, fontWeight: 500 }}>Enabled</span>
+          <div data-testid="optimizer-enabled-switch">
+            <Switch
+              on={optimizer_enabled}
+              set_on={set_optimizer_enabled}
+              style={{ width: 32, height: 18 }}
+            />
+          </div>
+        </div>
+        <Select
+          options={OPTIMIZER_PRESET_OPTIONS}
+          value={optimizer_preset}
+          set_value={set_optimizer_preset}
+          filterable={false}
+          style={{
+            fontSize: 12,
+            paddingVertical: 5,
+            paddingHorizontal: 10,
+            borderRadius: 6,
+          }}
+        />
+        {optimizer_preset === "custom" && (
+          <div
+            data-testid="optimizer-custom-fields"
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              padding: "6px 8px",
+              borderRadius: 6,
+              background: row_bg,
+            }}
+          >
+            <Input
+              prefix_label="Window %"
+              value={String(custom_optimizer.sliding_window.max_window_pct)}
+              set_value={(v) =>
+                update_custom_optimizer("sliding_window", {
+                  max_window_pct: clamp_number(
+                    v,
+                    0.05,
+                    1,
+                    custom_optimizer.sliding_window.max_window_pct,
+                  ),
+                })
+              }
+              style={{
+                fontSize: 11.5,
+                paddingVertical: 3,
+                paddingHorizontal: 6,
+                borderRadius: 5,
+              }}
+            />
+            <Input
+              prefix_label="Max tokens"
+              value={
+                custom_optimizer.sliding_window.max_window_tokens == null
+                  ? ""
+                  : String(custom_optimizer.sliding_window.max_window_tokens)
+              }
+              set_value={(v) =>
+                update_custom_optimizer("sliding_window", {
+                  max_window_tokens:
+                    String(v).trim() === ""
+                      ? null
+                      : clamp_int(
+                          v,
+                          1,
+                          1000000,
+                          custom_optimizer.sliding_window.max_window_tokens ||
+                            12000,
+                        ),
+                })
+              }
+              placeholder="none"
+              style={{
+                fontSize: 11.5,
+                paddingVertical: 3,
+                paddingHorizontal: 6,
+                borderRadius: 5,
+              }}
+            />
+            <Input
+              prefix_label="Keep turns"
+              value={String(
+                custom_optimizer.tool_history_compaction.keep_completed_turns,
+              )}
+              set_value={(v) =>
+                update_custom_optimizer("tool_history_compaction", {
+                  keep_completed_turns: clamp_int(
+                    v,
+                    0,
+                    100,
+                    custom_optimizer.tool_history_compaction.keep_completed_turns,
+                  ),
+                })
+              }
+              style={{
+                fontSize: 11.5,
+                paddingVertical: 3,
+                paddingHorizontal: 6,
+                borderRadius: 5,
+              }}
+            />
+            <Input
+              prefix_label="Result chars"
+              value={String(custom_optimizer.tool_history_compaction.max_chars)}
+              set_value={update_tool_max_chars}
+              style={{
+                fontSize: 11.5,
+                paddingVertical: 3,
+                paddingHorizontal: 6,
+                borderRadius: 5,
+              }}
+            />
+            <Input
+              prefix_label="Preview chars"
+              value={String(
+                custom_optimizer.tool_history_compaction.preview_chars,
+              )}
+              set_value={(v) =>
+                update_custom_optimizer("tool_history_compaction", {
+                  preview_chars: clamp_int(
+                    v,
+                    32,
+                    custom_optimizer.tool_history_compaction.max_chars,
+                    custom_optimizer.tool_history_compaction.preview_chars,
+                  ),
+                })
+              }
+              style={{
+                fontSize: 11.5,
+                paddingVertical: 3,
+                paddingHorizontal: 6,
+                borderRadius: 5,
+              }}
+            />
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr auto",
+                alignItems: "center",
+                gap: 8,
+                fontSize: 11.5,
+                color: muted,
+              }}
+            >
+              <span>Hash payloads</span>
+              <Switch
+                on={custom_optimizer.tool_history_compaction.hash_payloads}
+                set_on={(on) =>
+                  update_custom_optimizer("tool_history_compaction", {
+                    hash_payloads: !!on,
+                  })
+                }
+                style={{ width: 30, height: 17 }}
+              />
+              <span>Context usage</span>
+              <Switch
+                on={custom_optimizer.context_usage.enabled}
+                set_on={(on) =>
+                  update_custom_optimizer("context_usage", { enabled: !!on })
+                }
+                style={{ width: 30, height: 17 }}
+              />
+              <span>Pair safety</span>
+              <Switch
+                on={custom_optimizer.tool_pair_safety.enabled}
+                set_on={(on) =>
+                  update_custom_optimizer("tool_pair_safety", { enabled: !!on })
+                }
+                style={{ width: 30, height: 17 }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>

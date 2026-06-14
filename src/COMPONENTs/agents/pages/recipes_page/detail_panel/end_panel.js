@@ -56,18 +56,14 @@ export default function EndPanel({ node, recipe, onChange, isDark }) {
             width: 26,
             height: 26,
             borderRadius: 7,
-            background: "linear-gradient(135deg, #e06a9a, #b64a78)",
+            background: "linear-gradient(135deg, #f0635a, #d23f37)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             flexShrink: 0,
           }}
         >
-          <Icon
-            src="stop_mini_filled"
-            color="#fff"
-            style={{ width: 16, height: 16 }}
-          />
+          <Icon src="target" color="#fff" style={{ width: 14, height: 14 }} />
         </div>
         <div>
           <div style={{ fontSize: 14, fontWeight: 600 }}>End</div>
