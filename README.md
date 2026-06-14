@@ -131,9 +131,7 @@ Manage multiple conversations without losing context or cluttering your workflow
 
 ## Screenshots
 
-!
-[PuPu showcase](./public/
-assets/v0.1.7-release/ui_showcase_1.png)
+![PuPu showcase](./public/assets/v0.1.7-release/ui_showcase_1.png)
 
 ## Roadmap
 
