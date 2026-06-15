@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import Select from "../../BUILTIN_COMPONENTs/select/select";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import ThemeEditor from "./appearance/theme_editor";
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  SettingsRow — label + description + children                                                                               */
@@ -192,6 +193,10 @@ export const AppearanceSettings = () => {
             dropdown_style={selectDropdownStyle}
           />
         </SettingsRow>
+      </SettingsSection>
+
+      <SettingsSection title="Theme colors">
+        <ThemeEditor />
       </SettingsSection>
     </div>
   );
