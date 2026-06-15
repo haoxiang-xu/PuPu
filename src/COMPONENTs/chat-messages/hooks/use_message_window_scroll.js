@@ -13,6 +13,10 @@ import {
 } from "../constants";
 
 const STREAMING_BOTTOM_FOLLOW_MS = 64;
+const LANDING_SETTLE_INTERVAL_MS = 50;
+const LANDING_SETTLE_MAX_ATTEMPTS = 16;
+const LANDING_SETTLE_STABLE_ATTEMPTS = 4;
+const LANDING_TOP_EPSILON = 1;
 
 // 跳转落点(content 绝对坐标):top 对齐留 12px 顶边距;center 对齐让目标点落到视口正中。
 // 立即跳转与延迟跳转(目标未渲染先挪窗口)两条路径共用,保证落点一致。
@@ -50,6 +54,8 @@ export const useMessageWindowScroll = ({
   const pendingStreamingBottomFollowRef = useRef(null);
   const pendingStreamingBottomFollowTypeRef = useRef(null);
   const pendingJumpActionRef = useRef(null);
+  const pendingLandingActionRef = useRef(null);
+  const pendingLandingTimerRef = useRef(null);
   const bottomSentinelRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
   const isAtBottomRef = useRef(true);
@@ -101,6 +107,24 @@ export const useMessageWindowScroll = ({
     pendingStreamingBottomFollowRef.current = null;
     pendingStreamingBottomFollowTypeRef.current = null;
   }, []);
+
+  const clearLandingCorrection = useCallback(() => {
+    if (pendingLandingTimerRef.current != null) {
+      clearTimeout(pendingLandingTimerRef.current);
+      pendingLandingTimerRef.current = null;
+    }
+    pendingLandingActionRef.current = null;
+  }, []);
+
+  const beginExplicitScrollNavigation = useCallback(() => {
+    clearLandingCorrection();
+    clearScheduledStreamingBottomFollow();
+    pendingScrollToBottomRef.current = null;
+    isAtBottomRef.current = false;
+    streamingFollowEnabledRef.current = false;
+    userScrollIntentRef.current = true;
+    setIsAtBottom(false);
+  }, [clearLandingCorrection, clearScheduledStreamingBottomFollow]);
 
   const loadOlderMessages = useCallback(() => {
     const el = messagesRef.current;
@@ -181,11 +205,12 @@ export const useMessageWindowScroll = ({
   }, []);
 
   const handleUserScrollIntent = useCallback(() => {
+    clearLandingCorrection();
     if (!is_streaming) {
       return;
     }
     userScrollIntentRef.current = true;
-  }, [is_streaming]);
+  }, [clearLandingCorrection, is_streaming]);
 
   const scheduleStreamingBottomFollow = useCallback(() => {
     if (pendingStreamingBottomFollowRef.current != null) {
@@ -243,6 +268,95 @@ export const useMessageWindowScroll = ({
       updateIsAtBottom(el);
     },
     [updateIsAtBottom],
+  );
+
+  const scheduleLandingCorrection = useCallback(
+    ({ index, within = 0, align = "top", initialTop }) => {
+      clearLandingCorrection();
+
+      const action = {
+        index,
+        within,
+        align,
+        lastTop: initialTop,
+        attempts: 0,
+        stableAttempts: 0,
+      };
+      pendingLandingActionRef.current = action;
+
+      const tick = () => {
+        const current = pendingLandingActionRef.current;
+        if (!current) {
+          return;
+        }
+
+        const el = messagesRef.current;
+        const targetNode = messageNodeRefs.current.get(current.index);
+        if (!el || !targetNode) {
+          clearLandingCorrection();
+          return;
+        }
+
+        const nextTop = computeLandingTop({
+          offsetTop: targetNode.offsetTop,
+          within: current.within,
+          align: current.align,
+          viewportHeight: el.clientHeight,
+        });
+
+        current.attempts += 1;
+        if (Math.abs(nextTop - current.lastTop) > LANDING_TOP_EPSILON) {
+          current.lastTop = nextTop;
+          current.stableAttempts = 0;
+          el.scrollTo({ top: nextTop, behavior: "auto" });
+          lastScrollTopRef.current = nextTop;
+          updateIsAtBottom(el);
+        } else {
+          current.stableAttempts += 1;
+        }
+
+        if (
+          current.attempts >= LANDING_SETTLE_MAX_ATTEMPTS ||
+          current.stableAttempts >= LANDING_SETTLE_STABLE_ATTEMPTS
+        ) {
+          clearLandingCorrection();
+          return;
+        }
+
+        pendingLandingTimerRef.current = setTimeout(
+          tick,
+          LANDING_SETTLE_INTERVAL_MS,
+        );
+      };
+
+      pendingLandingTimerRef.current = setTimeout(
+        tick,
+        LANDING_SETTLE_INTERVAL_MS,
+      );
+    },
+    [clearLandingCorrection, updateIsAtBottom],
+  );
+
+  const scrollToRenderedMessage = useCallback(
+    ({ index, node, behavior = "auto", within = 0, align = "top" }) => {
+      const el = messagesRef.current;
+      if (!el || !node) {
+        return false;
+      }
+
+      const top = computeLandingTop({
+        offsetTop: node.offsetTop,
+        within,
+        align,
+        viewportHeight: el.clientHeight,
+      });
+      el.scrollTo({ top, behavior });
+      lastScrollTopRef.current = top;
+      updateIsAtBottom(el);
+      scheduleLandingCorrection({ index, within, align, initialTop: top });
+      return true;
+    },
+    [scheduleLandingCorrection, updateIsAtBottom],
   );
 
   const getSortedRenderedEntries = useCallback(() => {
@@ -331,20 +445,19 @@ export const useMessageWindowScroll = ({
         return;
       }
       const clamped = Math.max(0, Math.min(index, messages.length - 1));
+      beginExplicitScrollNavigation();
 
       if (clamped >= visibleStartRef.current) {
         const node = messageNodeRefs.current.get(clamped);
-        if (node) {
-          el.scrollTo({
-            top: computeLandingTop({
-              offsetTop: node.offsetTop,
-              within,
-              align,
-              viewportHeight: el.clientHeight,
-            }),
+        if (
+          scrollToRenderedMessage({
+            index: clamped,
+            node,
             behavior,
-          });
-          updateIsAtBottom(el);
+            within,
+            align,
+          })
+        ) {
           return;
         }
       }
@@ -360,7 +473,12 @@ export const useMessageWindowScroll = ({
       };
       setVisibleStartIndex(nextStart);
     },
-    [messages.length, load_batch_size, updateIsAtBottom],
+    [
+      beginExplicitScrollNavigation,
+      messages.length,
+      load_batch_size,
+      scrollToRenderedMessage,
+    ],
   );
 
   useEffect(() => {
@@ -368,8 +486,11 @@ export const useMessageWindowScroll = ({
   }, [visibleStartIndex]);
 
   useEffect(() => {
-    return () => clearScheduledStreamingBottomFollow();
-  }, [clearScheduledStreamingBottomFollow]);
+    return () => {
+      clearScheduledStreamingBottomFollow();
+      clearLandingCorrection();
+    };
+  }, [clearLandingCorrection, clearScheduledStreamingBottomFollow]);
 
   useEffect(() => {
     if (activeChatIdRef.current === chat_id) {
@@ -378,6 +499,7 @@ export const useMessageWindowScroll = ({
 
     activeChatIdRef.current = chat_id;
     lastScrollTopRef.current = 0;
+    clearLandingCorrection();
     const bootStart = Math.max(0, messages.length - effectiveBootCount);
     const finalStart = Math.max(0, messages.length - initial_visible_count);
     visibleStartRef.current = bootStart;
@@ -419,7 +541,13 @@ export const useMessageWindowScroll = ({
 
     const timerId = setTimeout(expandToFinal, 0);
     return () => clearTimeout(timerId);
-  }, [chat_id, effectiveBootCount, initial_visible_count, messages.length]);
+  }, [
+    chat_id,
+    clearLandingCorrection,
+    effectiveBootCount,
+    initial_visible_count,
+    messages.length,
+  ]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -428,6 +556,7 @@ export const useMessageWindowScroll = ({
 
     visibleStartRef.current = 0;
     lastScrollTopRef.current = 0;
+    clearLandingCorrection();
     setVisibleStartIndex(0);
     isAtBottomRef.current = true;
     streamingFollowEnabledRef.current = true;
@@ -435,7 +564,7 @@ export const useMessageWindowScroll = ({
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
-  }, [messages.length]);
+  }, [clearLandingCorrection, messages.length]);
 
   useLayoutEffect(() => {
     const el = messagesRef.current;
@@ -470,18 +599,16 @@ export const useMessageWindowScroll = ({
 
     if (pendingAction.type === "toIndex") {
       const targetNode = messageNodeRefs.current.get(pendingAction.index);
-      if (targetNode) {
-        pendingJumpActionRef.current = null;
-        el.scrollTo({
-          top: computeLandingTop({
-            offsetTop: targetNode.offsetTop,
-            within: pendingAction.within ?? 0,
-            align: pendingAction.align ?? "top",
-            viewportHeight: el.clientHeight,
-          }),
+      if (
+        scrollToRenderedMessage({
+          index: pendingAction.index,
+          node: targetNode,
           behavior: pendingAction.behavior || "auto",
-        });
-        updateIsAtBottom(el);
+          within: pendingAction.within ?? 0,
+          align: pendingAction.align ?? "top",
+        })
+      ) {
+        pendingJumpActionRef.current = null;
         return;
       }
       if (visibleStartRef.current > 0) {
@@ -515,6 +642,7 @@ export const useMessageWindowScroll = ({
     loadOlderMessages,
     safeVisibleStart,
     scrollToBottom,
+    scrollToRenderedMessage,
     scrollToTop,
     updateIsAtBottom,
   ]);

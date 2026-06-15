@@ -60,6 +60,66 @@ const filterCoveredTurnBucket = (bucket, shouldKeepArtifact) => {
   return { ...bucket, artifacts };
 };
 
+const isFileDiffArtifact = (artifact) => artifact?.kind === "file_diff";
+
+const splitFoldedTurnFileDiffs = (turnEntries) => {
+  const fileDiffBucketCount = turnEntries.filter(
+    ([, bucket]) =>
+      isObject(bucket) &&
+      Array.isArray(bucket.artifacts) &&
+      bucket.artifacts.some(isFileDiffArtifact),
+  ).length;
+  if (fileDiffBucketCount < 2) {
+    return { foldedBucket: null, remainingEntries: turnEntries };
+  }
+
+  const foldedArtifacts = [];
+  const remainingEntries = [];
+  let foldedOrder = null;
+
+  turnEntries.forEach(([turnId, bucket]) => {
+    if (!isObject(bucket) || !Array.isArray(bucket.artifacts)) {
+      remainingEntries.push([turnId, bucket]);
+      return;
+    }
+
+    const fileDiffArtifacts = bucket.artifacts.filter(isFileDiffArtifact);
+    if (fileDiffArtifacts.length === 0) {
+      remainingEntries.push([turnId, bucket]);
+      return;
+    }
+
+    foldedArtifacts.push(...fileDiffArtifacts);
+    const bucketOrder = Number(bucket.order);
+    if (Number.isFinite(bucketOrder)) {
+      foldedOrder =
+        foldedOrder === null ? bucketOrder : Math.min(foldedOrder, bucketOrder);
+    }
+
+    const remainingArtifacts = bucket.artifacts.filter(
+      (artifact) => !isFileDiffArtifact(artifact),
+    );
+    if (remainingArtifacts.length > 0) {
+      remainingEntries.push([
+        turnId,
+        { ...bucket, artifacts: remainingArtifacts },
+      ]);
+    }
+  });
+
+  return {
+    foldedBucket:
+      foldedArtifacts.length > 0
+        ? {
+            order: foldedOrder === null ? 0 : foldedOrder,
+            status: "completed",
+            artifacts: foldedArtifacts,
+          }
+        : null,
+    remainingEntries,
+  };
+};
+
 const ArtifactSummarySections = ({
   runArtifactSummary,
   artifactSummariesByTurnId,
@@ -76,7 +136,17 @@ const ArtifactSummarySections = ({
       filterCoveredTurnBucket(bucket, shouldKeepTurnArtifact),
     ])
     .filter(([, bucket]) => hasCompletedArtifacts(bucket));
-  if (!showRunSummary && turnEntries.length === 0) {
+  const {
+    foldedBucket: foldedTurnFileDiffBucket,
+    remainingEntries: remainingTurnEntries,
+  } = splitFoldedTurnFileDiffs(turnEntries);
+  const showFoldedTurnFileDiffs = hasCompletedArtifacts(foldedTurnFileDiffBucket);
+
+  if (
+    !showRunSummary &&
+    !showFoldedTurnFileDiffs &&
+    remainingTurnEntries.length === 0
+  ) {
     return null;
   }
 
@@ -94,7 +164,19 @@ const ArtifactSummarySections = ({
           />
         </div>
       )}
-      {turnEntries.map(([turnId, bucket]) => (
+      {showFoldedTurnFileDiffs && (
+        <div
+          data-testid="turn-file-diff-summary-section"
+          style={{ width: "100%", maxWidth: "100%", minWidth: 0 }}
+        >
+          <ArtifactSummary
+            bucket={foldedTurnFileDiffBucket}
+            isDark={isDark}
+            artifactKindRegistry={artifactKindRegistry}
+          />
+        </div>
+      )}
+      {remainingTurnEntries.map(([turnId, bucket]) => (
         <div
           data-testid="turn-artifact-summary-section"
           key={turnId}

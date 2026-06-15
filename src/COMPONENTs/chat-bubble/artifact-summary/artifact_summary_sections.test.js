@@ -76,4 +76,48 @@ describe("ArtifactSummarySections", () => {
     expect(screen.queryByText("Initial plan")).not.toBeInTheDocument();
     expect(screen.getAllByTestId("artifact-summary")).toHaveLength(1);
   });
+
+  test("folds file diffs from multiple turn buckets into one files changed card", () => {
+    render(
+      <ArtifactSummarySections
+        isDark={false}
+        artifactKindRegistry={defaultRegistry}
+        artifactSummariesByTurnId={{
+          "run-1:turn-1": {
+            order: 1,
+            status: "completed",
+            artifacts: [
+              {
+                artifact_id: "file_diff:call-1",
+                kind: "file_diff",
+                snapshot: {
+                  path: "src/App.js",
+                  unified_diff: "@@ -1 +1 @@\n-old\n+new\n",
+                },
+              },
+            ],
+          },
+          "run-1:turn-2": {
+            order: 2,
+            status: "completed",
+            artifacts: [
+              {
+                artifact_id: "file_diff:call-2",
+                kind: "file_diff",
+                snapshot: {
+                  path: "src/utils.js",
+                  unified_diff: "@@ -0,0 +1,2 @@\n+one\n+two\n",
+                },
+              },
+            ],
+          },
+        }}
+      />,
+    );
+
+    expect(screen.getAllByTestId("files-changed-card")).toHaveLength(1);
+    expect(screen.getByText("2 files")).toBeInTheDocument();
+    expect(screen.getByText("+3")).toBeInTheDocument();
+    expect(screen.getByText("−1")).toBeInTheDocument();
+  });
 });

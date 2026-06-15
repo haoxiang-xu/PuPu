@@ -374,6 +374,36 @@ describe("useMessageWindowScroll", () => {
     expect(result.current.safeVisibleStart).toBeLessThanOrEqual(2);
   });
 
+  it("scrollToMessageIndex does not bottom-follow after expanding from the bottom", () => {
+    const scrollHost = makeScrollHost();
+    scrollHost.setScrollHeight(2000);
+    scrollHost.host.scrollTop = 1600;
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useScrollWithHost(
+        {
+          chat_id: "chat-explicit-jump",
+          messages,
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      ),
+    );
+    scrollHost.host.scrollTo.mockClear();
+
+    act(() => {
+      result.current.messageNodeRefs.current.set(2, { offsetTop: 500 });
+      result.current.scrollToMessageIndex(2, "auto");
+    });
+
+    const calls = scrollHost.host.scrollTo.mock.calls.map(([opts]) => opts);
+    expect(calls).toEqual([{ top: 488, behavior: "auto" }]);
+  });
+
   it("scrollToMessageIndex 默认 top 对齐:落到 offsetTop - 12", () => {
     const messages = makeMessages(40);
     const { result } = renderHook(() =>
@@ -432,6 +462,47 @@ describe("useMessageWindowScroll", () => {
       result.current.scrollToMessageIndex(38, "auto", { within: 150, align: "center" });
     });
     expect(firstCapture.top).toBe(950); // 1000 + 150 - 200
+  });
+
+  it("scrollToMessageIndex re-aligns when lazy layout shifts the target", () => {
+    const scrollHost = makeScrollHost();
+    scrollHost.setScrollHeight(2600);
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useScrollWithHost(
+        {
+          chat_id: "chat-lazy-layout",
+          messages,
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      ),
+    );
+    scrollHost.host.scrollTo.mockClear();
+
+    const targetNode = { offsetTop: 1000 };
+    act(() => {
+      result.current.messageNodeRefs.current.set(38, targetNode);
+      result.current.scrollToMessageIndex(38, "auto");
+    });
+    expect(scrollHost.host.scrollTo).toHaveBeenLastCalledWith({
+      top: 988,
+      behavior: "auto",
+    });
+
+    act(() => {
+      targetNode.offsetTop = 1160;
+      jest.advanceTimersByTime(50);
+    });
+
+    expect(scrollHost.host.scrollTo).toHaveBeenLastCalledWith({
+      top: 1148,
+      behavior: "auto",
+    });
   });
 });
 

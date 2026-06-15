@@ -179,7 +179,7 @@ describe("ChatBubble artifact summaries", () => {
     ],
   });
 
-  test("renders an ArtifactSummary block per completed turn bucket", () => {
+  test("folds file diff ArtifactSummary blocks across completed turn buckets", () => {
     renderWithConfig(
       <ChatBubble
         message={{
@@ -193,7 +193,9 @@ describe("ChatBubble artifact summaries", () => {
         }}
       />,
     );
-    expect(screen.getAllByTestId("artifact-summary")).toHaveLength(2);
+    expect(screen.getAllByTestId("artifact-summary")).toHaveLength(1);
+    expect(screen.getAllByTestId("files-changed-card")).toHaveLength(1);
+    expect(screen.getByText("2 files")).toBeInTheDocument();
   });
 
   test("renders a run-level ArtifactSummary before turn buckets", () => {
