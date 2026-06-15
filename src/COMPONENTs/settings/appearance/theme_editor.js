@@ -1,6 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
+import Select from "../../../BUILTIN_COMPONENTs/select/select";
 import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_PRESETS,
@@ -29,6 +30,11 @@ const TOKEN_LABELS = {
   danger: "Danger",
 };
 
+const PRESET_OPTIONS = Object.keys(SEMANTIC_PRESETS).map((name) => ({
+  value: name,
+  label: name,
+}));
+
 const ThemeEditor = () => {
   const { onThemeMode, theme, setTheme } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -49,7 +55,24 @@ const ThemeEditor = () => {
     custom: settings.custom,
   });
 
-  const syncLivePreview = (next) => {
+  const previewThemeColor = (mode, key, value) => {
+    if (mode !== activeMode) {
+      return;
+    }
+    const livePalette = resolveSemanticPalette(activeMode, {
+      preset: settings.preset,
+      custom: {
+        ...settings.custom,
+        [mode]: {
+          ...(settings.custom?.[mode] || {}),
+          [key]: value,
+        },
+      },
+    });
+    applySemanticCssVars(livePalette);
+  };
+
+  const syncCommittedSettings = (next) => {
     const livePalette = resolveSemanticPalette(activeMode, {
       preset: next.preset,
       custom: next.custom,
@@ -60,22 +83,24 @@ const ThemeEditor = () => {
     }
   };
 
-  const onColorChange = (key, value) => {
+  const commitThemeColor = (key, value) => {
     const next = writeThemeCustomColor(editMode, key, value);
     setSettings(next);
-    syncLivePreview(next);
+    if (editMode === activeMode) {
+      syncCommittedSettings(next);
+    }
   };
 
   const onPresetChange = (preset) => {
     const next = writeThemePreset(preset);
     setSettings(next);
-    syncLivePreview(next);
+    syncCommittedSettings(next);
   };
 
   const onReset = () => {
     const next = resetThemeSettings();
     setSettings(next);
-    syncLivePreview(next);
+    syncCommittedSettings(next);
   };
 
   const onExport = () => {
@@ -109,7 +134,7 @@ const ThemeEditor = () => {
         }
         const next = readThemeSettings();
         setSettings(next);
-        syncLivePreview(next);
+        syncCommittedSettings(next);
       } catch (_err) {
         /* ignore malformed file */
       }
@@ -143,23 +168,33 @@ const ThemeEditor = () => {
     color: isDark ? "#fff" : "#222",
   };
 
+  const selectStyle = {
+    minWidth: 140,
+    fontSize: 13,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    backgroundColor: isDark
+      ? "rgba(255,255,255,0.08)"
+      : "rgba(0,0,0,0.05)",
+  };
+  const selectOptionStyle = { height: 28, padding: "4px 8px", fontSize: 13 };
+  const selectDropdownStyle = { padding: 4, maxHeight: 220, minWidth: 180 };
+
   return (
     <div style={{ padding: "8px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         <span style={{ fontSize: 12, opacity: 0.6, color: isDark ? "#fff" : "#222" }}>
           Preset
         </span>
-        <select
+        <Select
+          options={PRESET_OPTIONS}
           value={settings.preset}
-          onChange={(e) => onPresetChange(e.target.value)}
-          style={{ ...btnStyle, cursor: "pointer" }}
-        >
-          {Object.keys(SEMANTIC_PRESETS).map((name) => (
-            <option key={name} value={name}>
-              {name}
-            </option>
-          ))}
-        </select>
+          set_value={onPresetChange}
+          filterable={false}
+          style={selectStyle}
+          option_style={selectOptionStyle}
+          dropdown_style={selectDropdownStyle}
+        />
       </div>
 
       <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
@@ -183,7 +218,8 @@ const ThemeEditor = () => {
             <ColorPicker
               label={TOKEN_LABELS[key]}
               value={palette[key]}
-              onChange={(v) => onColorChange(key, v)}
+              onPreview={(v) => previewThemeColor(editMode, key, v)}
+              onCommit={(v) => commitThemeColor(key, v)}
             />
           </div>
         ))}

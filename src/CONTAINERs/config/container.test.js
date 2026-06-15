@@ -59,6 +59,7 @@ const HighlightProbe = () => {
 describe("ConfigContainer side menu persistence", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
   });
 
   test("hydrates side menu state from settings.ui.side_menu_open", () => {
@@ -102,7 +103,16 @@ describe("ConfigContainer side menu persistence", () => {
     });
   });
 
-  test("provides the global theme highlight color", async () => {
+  test("provides the semantic highlight color when theme customization is enabled", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_theme_color_customization: true,
+        },
+      }),
+    );
+
     render(
       <ConfigContainer>
         <HighlightProbe />
@@ -156,10 +166,20 @@ const LegacyThemeProbe = () => {
 describe("ConfigContainer semantic palette", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    document.documentElement.removeAttribute("style");
     themeBridge.setBackgroundColor.mockClear();
   });
 
   test("injects theme.semantic with 8 default keys", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_theme_color_customization: true,
+        },
+      }),
+    );
+
     render(
       <ConfigContainer>
         <SemanticProbe />
@@ -178,6 +198,9 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
+        feature_flags: {
+          enable_theme_color_customization: true,
+        },
         appearance: {
           theme: { preset: "default", custom: { light_mode: { accent: "#abcdef" } } },
         },
@@ -194,6 +217,15 @@ describe("ConfigContainer semantic palette", () => {
   });
 
   test("writes --pupu-accent CSS variable to documentElement", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_theme_color_customization: true,
+        },
+      }),
+    );
+
     render(
       <ConfigContainer>
         <SemanticProbe />
@@ -210,6 +242,59 @@ describe("ConfigContainer semantic palette", () => {
     window.localStorage.setItem(
       "settings",
       JSON.stringify({
+        feature_flags: {
+          enable_theme_color_customization: true,
+        },
+        appearance: {
+          theme: {
+            preset: "default",
+            custom: {
+              light_mode: {
+                accent: "#112233",
+                background: "#abcdef",
+                surface: "#fedcba",
+                text: "#010203",
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    const { container } = render(
+      <ConfigContainer>
+        <LegacyThemeProbe />
+      </ConfigContainer>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("legacy-bg")).toHaveTextContent("#abcdef");
+      expect(screen.getByTestId("legacy-color")).toHaveTextContent("#010203");
+      expect(screen.getByTestId("legacy-highlight")).toHaveTextContent(
+        "#112233",
+      );
+      expect(screen.getByTestId("legacy-modal-bg")).toHaveTextContent(
+        "#fedcba",
+      );
+      expect(themeBridge.setBackgroundColor).toHaveBeenLastCalledWith(
+        "#abcdef",
+      );
+      expect(
+        document.documentElement.style.getPropertyValue("--pupu-background"),
+      ).toBe("#abcdef");
+      expect(container.firstChild.style.getPropertyValue("background-color")).toBe(
+        "rgb(171, 205, 239)",
+      );
+    });
+  });
+
+  test("ignores persisted semantic colors when theme customization is disabled", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        feature_flags: {
+          enable_theme_color_customization: false,
+        },
         appearance: {
           theme: {
             preset: "default",
@@ -229,20 +314,26 @@ describe("ConfigContainer semantic palette", () => {
     render(
       <ConfigContainer>
         <LegacyThemeProbe />
+        <SemanticProbe />
       </ConfigContainer>,
     );
 
     await waitFor(() => {
-      expect(screen.getByTestId("legacy-bg")).toHaveTextContent("#abcdef");
-      expect(screen.getByTestId("legacy-color")).toHaveTextContent("#010203");
+      expect(screen.getByTestId("sem-keys")).toHaveTextContent(
+        SEMANTIC_KEYS.join(","),
+      );
+      expect(screen.getByTestId("sem-accent")).toHaveTextContent("#65c466");
+      expect(screen.getByTestId("sem-bg")).toHaveTextContent("#ffffff");
+      expect(screen.getByTestId("legacy-bg")).toHaveTextContent("#ffffff");
+      expect(screen.getByTestId("legacy-color")).toHaveTextContent("#222222");
       expect(screen.getByTestId("legacy-highlight")).toHaveTextContent(
-        "#112233",
+        "#65c466",
       );
-      expect(screen.getByTestId("legacy-modal-bg")).toHaveTextContent(
-        "#fedcba",
-      );
+      expect(
+        document.documentElement.style.getPropertyValue("--pupu-background"),
+      ).toBe("#ffffff");
       expect(themeBridge.setBackgroundColor).toHaveBeenLastCalledWith(
-        "#abcdef",
+        "#ffffff",
       );
     });
   });

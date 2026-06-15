@@ -12,12 +12,12 @@ const renderWithCtx = (overrides = {}) => {
     setTheme,
     ...overrides,
   };
-  render(
+  const result = render(
     <ConfigContext.Provider value={ctx}>
       <ThemeEditor />
     </ConfigContext.Provider>,
   );
-  return { setTheme };
+  return { ...result, setTheme };
 };
 
 describe("ThemeEditor", () => {
@@ -42,7 +42,7 @@ describe("ThemeEditor", () => {
     }
   });
 
-  test("editing a color persists it and writes CSS var", () => {
+  test("editing a color previews without persisting until commit", () => {
     const { setTheme } = renderWithCtx({
       theme: {
         semantic: {},
@@ -56,10 +56,15 @@ describe("ThemeEditor", () => {
     fireEvent.change(screen.getByDisplayValue("#65c466"), {
       target: { value: "#abcdef" },
     });
-    expect(readThemeSettings().custom.light_mode.accent).toBe("#abcdef");
     expect(
       document.documentElement.style.getPropertyValue("--pupu-accent"),
     ).toBe("#abcdef");
+    expect(readThemeSettings().custom.light_mode.accent).toBeUndefined();
+    expect(setTheme).not.toHaveBeenCalled();
+
+    fireEvent.blur(screen.getByDisplayValue("#abcdef"));
+
+    expect(readThemeSettings().custom.light_mode.accent).toBe("#abcdef");
     expect(setTheme).toHaveBeenLastCalledWith(
       expect.objectContaining({
         highlightColor: "#abcdef",
@@ -84,12 +89,35 @@ describe("ThemeEditor", () => {
       target: { value: "#abcdef" },
     });
 
+    expect(setTheme).not.toHaveBeenCalled();
+
+    fireEvent.blur(screen.getByDisplayValue("#abcdef"));
+
     expect(setTheme).toHaveBeenLastCalledWith(
       expect.objectContaining({
         backgroundColor: "#abcdef",
         semantic: expect.objectContaining({ background: "#abcdef" }),
       }),
     );
+  });
+
+  test("renders preset selector with MiniUI Select instead of native select", () => {
+    const { container } = renderWithCtx();
+
+    expect(container.querySelector("select")).toBeNull();
+    expect(screen.getByRole("combobox")).toBeInTheDocument();
+  });
+
+  test("selecting a preset persists and previews semantic colors", () => {
+    renderWithCtx();
+
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByText("ocean"));
+
+    expect(readThemeSettings().preset).toBe("ocean");
+    expect(
+      document.documentElement.style.getPropertyValue("--pupu-accent"),
+    ).toBe("#0ea5e9");
   });
 
   test("edit mode follows the active app theme mode", () => {
@@ -125,6 +153,7 @@ describe("ThemeEditor", () => {
     fireEvent.change(screen.getByDisplayValue("#65c466"), {
       target: { value: "#abcdef" },
     });
+    fireEvent.blur(screen.getByDisplayValue("#abcdef"));
     fireEvent.click(screen.getByRole("button", { name: /Reset/i }));
     expect(readThemeSettings().custom.light_mode.accent).toBeUndefined();
   });

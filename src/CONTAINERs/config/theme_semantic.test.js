@@ -71,7 +71,16 @@ describe("applySemanticPaletteToTheme", () => {
         backgroundColor: "#ffffff",
         modal: { backgroundColor: "#ffffff" },
         input: { outline: { onBlur: "2px solid transparent" } },
-        select: { option: {} },
+        select: {
+          option: {
+            hoverBackgroundColor: "rgba(0, 0, 0, 0.06)",
+            selectedBackgroundColor: "rgba(0, 0, 0, 0.09)",
+            disabledColor: "rgba(0, 0, 0, 0.35)",
+          },
+        },
+        slider: { activeColor: "#111111" },
+        tooltip: { backgroundColor: "#222222" },
+        flow_editor: { canvasBackground: "#333333" },
       },
       {
         accent: "#112233",
@@ -91,7 +100,17 @@ describe("applySemanticPaletteToTheme", () => {
     expect(themed.modal.backgroundColor).toBe("#fedcba");
     expect(themed.input.outline.onBlur).toBe("2px solid transparent");
     expect(themed.input.outline.onFocus).toBe("2px solid #112233");
+    expect(themed.select.option.hoverBackgroundColor).toBe(
+      "rgba(0, 0, 0, 0.06)",
+    );
+    expect(themed.select.option.selectedBackgroundColor).toBe(
+      "rgba(0, 0, 0, 0.09)",
+    );
+    expect(themed.select.option.disabledColor).toBe("rgba(0, 0, 0, 0.35)");
     expect(themed.modal.errorAccent).toBe("#aa0000");
     expect(themed.modal.successAccent).toBe("#00aa00");
+    expect(themed.slider.activeColor).toBe("#111111");
+    expect(themed.tooltip.backgroundColor).toBe("#222222");
+    expect(themed.flow_editor.canvasBackground).toBe("#333333");
   });
 });

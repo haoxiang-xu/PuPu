@@ -18,7 +18,7 @@ export const normalizeHex = (input) => {
  * <input type="color"> sits in the DOM and interferes with
  * getByDisplayValue queries in tests.
  */
-const openNativeColorPicker = (currentHex, onPick) => {
+const openNativeColorPicker = (currentHex, onPreview, onCommit) => {
   const el = document.createElement("input");
   el.type = "color";
   el.value = currentHex || "#000000";
@@ -26,15 +26,20 @@ const openNativeColorPicker = (currentHex, onPick) => {
   el.style.opacity = "0";
   el.style.pointerEvents = "none";
   document.body.appendChild(el);
-  el.addEventListener("input", (e) => onPick(e.target.value));
+  const remove = () => {
+    if (el.parentNode) {
+      el.parentNode.removeChild(el);
+    }
+  };
+  el.addEventListener("input", (e) => onPreview(e.target.value));
   el.addEventListener("change", (e) => {
-    onPick(e.target.value);
-    document.body.removeChild(el);
+    onCommit(e.target.value);
+    remove();
   });
   el.click();
 };
 
-const ColorPicker = ({ label, value, onChange }) => {
+const ColorPicker = ({ label, value, onChange, onPreview, onCommit }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
   const [open, setOpen] = useState(false);
@@ -54,15 +59,25 @@ const ColorPicker = ({ label, value, onChange }) => {
     return () => document.removeEventListener("mousedown", onDocClick);
   }, [open]);
 
-  const commit = (raw) => {
+  const emitPreview = (raw) => {
     setDraft(raw);
     const hex = normalizeHex(raw);
-    if (hex) onChange(hex);
+    if (hex) {
+      (onPreview || onChange || (() => {}))(hex);
+    }
+  };
+
+  const emitCommit = (raw) => {
+    setDraft(raw);
+    const hex = normalizeHex(raw);
+    if (hex && onCommit) {
+      onCommit(hex);
+    }
   };
 
   const handleSwatchClick = () => {
     const validHex = normalizeHex(draft) || "#000000";
-    openNativeColorPicker(validHex, (picked) => commit(picked));
+    openNativeColorPicker(validHex, emitPreview, emitCommit);
   };
 
   return (
@@ -131,7 +146,15 @@ const ColorPicker = ({ label, value, onChange }) => {
           <input
             type="text"
             value={draft}
-            onChange={(e) => commit(e.target.value)}
+            onChange={(e) => emitPreview(e.target.value)}
+            onBlur={(e) => emitCommit(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                emitCommit(e.currentTarget.value);
+                setOpen(false);
+              }
+            }}
             style={{
               width: 90,
               fontSize: 13,
