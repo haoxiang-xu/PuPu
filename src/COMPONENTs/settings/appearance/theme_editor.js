@@ -8,6 +8,7 @@ import {
 import {
   resolveSemanticPalette,
   applySemanticCssVars,
+  applySemanticPaletteToTheme,
 } from "../../../CONTAINERs/config/theme_semantic";
 import {
   readThemeSettings,
@@ -55,11 +56,7 @@ const ThemeEditor = () => {
     });
     applySemanticCssVars(livePalette);
     if (setTheme && theme) {
-      setTheme({
-        ...theme,
-        semantic: livePalette,
-        highlightColor: livePalette.accent,
-      });
+      setTheme(applySemanticPaletteToTheme(theme, livePalette));
     }
   };
 

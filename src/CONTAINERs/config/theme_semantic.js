@@ -63,6 +63,143 @@ export const semanticCssVars = (palette) => {
   return vars;
 };
 
+const withAlpha = (color, alpha) => {
+  const rgb = hexToRgbTriplet(color);
+  return rgb ? `rgba(${rgb}, ${alpha})` : color;
+};
+
+const merge = (base, overrides) => ({
+  ...(base || {}),
+  ...overrides,
+});
+
+export const applySemanticPaletteToTheme = (base, semantic) => {
+  if (!base || !semantic) return base;
+
+  const {
+    accent,
+    background,
+    surface,
+    text,
+    textMuted,
+    border,
+    success,
+    danger,
+  } = semantic;
+
+  return {
+    ...base,
+    semantic,
+    highlightColor: accent,
+    color: text,
+    backgroundColor: background,
+    foregroundColor: surface,
+    icon: merge(base.icon, { color: text }),
+    font: merge(base.font, { color: text }),
+    spinner: merge(base.spinner, {
+      arcColor: accent,
+    }),
+    switch: merge(base.switch, {
+      backgroundColor_on: accent,
+    }),
+    slider: merge(base.slider, {
+      activeColor: withAlpha(text, 0.55),
+      inactiveColor: withAlpha(border, 0.8),
+      labelColor: text,
+    }),
+    input: merge(base.input, {
+      backgroundColor: withAlpha(surface, 0.9),
+      outline: merge(base.input?.outline, {
+        onFocus: `2px solid ${accent}`,
+      }),
+    }),
+    select: merge(base.select, {
+      color: text,
+      backgroundColor: withAlpha(surface, 0.9),
+      placeholderColor: withAlpha(textMuted, 0.85),
+      outline: merge(base.select?.outline, {
+        onFocus: `2px solid ${accent}`,
+      }),
+      dropdown: merge(base.select?.dropdown, {
+        backgroundColor: surface,
+      }),
+      option: merge(base.select?.option, {
+        hoverBackgroundColor: withAlpha(accent, 0.1),
+        selectedBackgroundColor: withAlpha(accent, 0.16),
+        disabledColor: withAlpha(textMuted, 0.7),
+      }),
+      search: merge(base.select?.search, {
+        backgroundColor: withAlpha(border, 0.35),
+      }),
+      group: merge(base.select?.group, {
+        headerColor: textMuted,
+        headerHoverBackgroundColor: withAlpha(accent, 0.08),
+        accentBarColor: withAlpha(accent, 0.24),
+        separatorColor: withAlpha(border, 0.8),
+      }),
+    }),
+    code: merge(base.code, {
+      backgroundColor: surface,
+      header: merge(base.code?.header, {
+        color: textMuted,
+      }),
+    }),
+    textfield: merge(base.textfield, {
+      backgroundColor: withAlpha(surface, 0.95),
+      border: `1px solid ${withAlpha(border, 0.9)}`,
+      contentSectionColor: withAlpha(textMuted, 0.8),
+      contentSectionActiveColor: withAlpha(text, 0.7),
+    }),
+    button: merge(base.button, {
+      root: merge(base.button?.root, {
+        color: text,
+      }),
+      background: merge(base.button?.background, {
+        hoverBackgroundColor: withAlpha(accent, 0.1),
+        activeBackgroundColor: withAlpha(accent, 0.16),
+      }),
+    }),
+    tooltip: merge(base.tooltip, {
+      color: background,
+      backgroundColor: withAlpha(text, 0.92),
+    }),
+    markdown: merge(base.markdown, {
+      color: text,
+      blockquote: merge(base.markdown?.blockquote, {
+        borderColor: border,
+        color: textMuted,
+      }),
+      link: merge(base.markdown?.link, {
+        color: accent,
+      }),
+      hr: merge(base.markdown?.hr, {
+        borderColor: border,
+      }),
+      table: merge(base.markdown?.table, {
+        borderColor: border,
+        headerBackground: surface,
+      }),
+    }),
+    modal: merge(base.modal, {
+      backgroundColor: surface,
+      border: `1px solid ${withAlpha(border, 0.9)}`,
+      bodyColor: textMuted,
+      closeButtonColor: withAlpha(textMuted, 0.9),
+      closeButtonHoverColor: text,
+      primaryButtonBg: accent,
+      secondaryButtonBg: withAlpha(border, 0.55),
+      secondaryButtonColor: text,
+      errorAccent: danger,
+      successAccent: success,
+    }),
+    flow_editor: merge(base.flow_editor, {
+      canvasBackground: background,
+      nodeBackground: surface,
+      nodeBorder: withAlpha(border, 0.9),
+    }),
+  };
+};
+
 export const applySemanticCssVars = (palette, element) => {
   const el = element || (typeof document !== "undefined" ? document.documentElement : null);
   if (!el) return;

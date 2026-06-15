@@ -43,7 +43,15 @@ describe("ThemeEditor", () => {
   });
 
   test("editing a color persists it and writes CSS var", () => {
-    renderWithCtx();
+    const { setTheme } = renderWithCtx({
+      theme: {
+        semantic: {},
+        font: {},
+        modal: {},
+        input: { outline: {} },
+        select: { outline: {} },
+      },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Accent" }));
     fireEvent.change(screen.getByDisplayValue("#65c466"), {
       target: { value: "#abcdef" },
@@ -52,6 +60,36 @@ describe("ThemeEditor", () => {
     expect(
       document.documentElement.style.getPropertyValue("--pupu-accent"),
     ).toBe("#abcdef");
+    expect(setTheme).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        highlightColor: "#abcdef",
+        semantic: expect.objectContaining({ accent: "#abcdef" }),
+      }),
+    );
+  });
+
+  test("live preview maps edited background onto legacy theme fields", () => {
+    const { setTheme } = renderWithCtx({
+      theme: {
+        semantic: {},
+        font: {},
+        modal: {},
+        input: { outline: {} },
+        select: { outline: {} },
+      },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Background" }));
+    fireEvent.change(screen.getByDisplayValue("#ffffff"), {
+      target: { value: "#abcdef" },
+    });
+
+    expect(setTheme).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        backgroundColor: "#abcdef",
+        semantic: expect.objectContaining({ background: "#abcdef" }),
+      }),
+    );
   });
 
   test("edit mode follows the active app theme mode", () => {

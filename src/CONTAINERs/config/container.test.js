@@ -2,6 +2,7 @@ import { useContext } from "react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ConfigContainer from "./container";
 import { ConfigContext } from "./context";
+import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
 
 jest.mock("../../BUILTIN_COMPONENTs/mini_react/mini_use", () => ({
   useSystemTheme: () => "light_mode",
@@ -140,8 +141,23 @@ const SemanticProbe = () => {
   );
 };
 
+const LegacyThemeProbe = () => {
+  const { theme } = useContext(ConfigContext);
+  return (
+    <>
+      <div data-testid="legacy-bg">{theme?.backgroundColor}</div>
+      <div data-testid="legacy-color">{theme?.color}</div>
+      <div data-testid="legacy-highlight">{theme?.highlightColor}</div>
+      <div data-testid="legacy-modal-bg">{theme?.modal?.backgroundColor}</div>
+    </>
+  );
+};
+
 describe("ConfigContainer semantic palette", () => {
-  beforeEach(() => window.localStorage.clear());
+  beforeEach(() => {
+    window.localStorage.clear();
+    themeBridge.setBackgroundColor.mockClear();
+  });
 
   test("injects theme.semantic with 8 default keys", async () => {
     render(
@@ -187,6 +203,47 @@ describe("ConfigContainer semantic palette", () => {
       expect(
         document.documentElement.style.getPropertyValue("--pupu-accent"),
       ).toBe("#65c466");
+    });
+  });
+
+  test("maps user custom semantic colors onto legacy theme fields", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        appearance: {
+          theme: {
+            preset: "default",
+            custom: {
+              light_mode: {
+                accent: "#112233",
+                background: "#abcdef",
+                surface: "#fedcba",
+                text: "#010203",
+              },
+            },
+          },
+        },
+      }),
+    );
+
+    render(
+      <ConfigContainer>
+        <LegacyThemeProbe />
+      </ConfigContainer>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("legacy-bg")).toHaveTextContent("#abcdef");
+      expect(screen.getByTestId("legacy-color")).toHaveTextContent("#010203");
+      expect(screen.getByTestId("legacy-highlight")).toHaveTextContent(
+        "#112233",
+      );
+      expect(screen.getByTestId("legacy-modal-bg")).toHaveTextContent(
+        "#fedcba",
+      );
+      expect(themeBridge.setBackgroundColor).toHaveBeenLastCalledWith(
+        "#abcdef",
+      );
     });
   });
 });

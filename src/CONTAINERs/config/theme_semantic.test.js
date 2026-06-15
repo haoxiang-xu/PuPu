@@ -3,6 +3,7 @@ import {
   resolveSemanticPalette,
   semanticCssVars,
   applySemanticCssVars,
+  applySemanticPaletteToTheme,
 } from "./theme_semantic";
 import { SEMANTIC_DEFAULTS } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
 
@@ -59,5 +60,38 @@ describe("applySemanticCssVars", () => {
     applySemanticCssVars({ accent: "#65c466" }, el);
     expect(el.style.getPropertyValue("--pupu-accent")).toBe("#65c466");
     expect(el.style.getPropertyValue("--pupu-accent-rgb")).toBe("101,196,102");
+  });
+});
+
+describe("applySemanticPaletteToTheme", () => {
+  test("projects semantic colors onto legacy theme fields", () => {
+    const themed = applySemanticPaletteToTheme(
+      {
+        color: "#000000",
+        backgroundColor: "#ffffff",
+        modal: { backgroundColor: "#ffffff" },
+        input: { outline: { onBlur: "2px solid transparent" } },
+        select: { option: {} },
+      },
+      {
+        accent: "#112233",
+        background: "#abcdef",
+        surface: "#fedcba",
+        text: "#010203",
+        textMuted: "#445566",
+        border: "#778899",
+        success: "#00aa00",
+        danger: "#aa0000",
+      },
+    );
+
+    expect(themed.backgroundColor).toBe("#abcdef");
+    expect(themed.color).toBe("#010203");
+    expect(themed.highlightColor).toBe("#112233");
+    expect(themed.modal.backgroundColor).toBe("#fedcba");
+    expect(themed.input.outline.onBlur).toBe("2px solid transparent");
+    expect(themed.input.outline.onFocus).toBe("2px solid #112233");
+    expect(themed.modal.errorAccent).toBe("#aa0000");
+    expect(themed.modal.successAccent).toBe("#00aa00");
   });
 });

@@ -40,6 +40,7 @@ import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 import {
   resolveSemanticPalette,
   applySemanticCssVars,
+  applySemanticPaletteToTheme,
 } from "./theme_semantic";
 import { readThemeSettings } from "../../COMPONENTs/settings/appearance/storage";
 
@@ -126,12 +127,12 @@ const applyContainerThemeConfig = (base, locale, themeMode) => {
     custom: themeSettings.custom,
   });
 
+  const themedBase = applySemanticPaletteToTheme(base, semantic);
+
   return {
-    ...base,
-    semantic,
-    highlightColor: semantic.accent,
+    ...themedBase,
     font: {
-      ...base.font,
+      ...themedBase.font,
       fontFamily: localeFont.body,
       titleFontFamily: localeFont.title,
       paragraphFontFamily: localeFont.paragraph,
