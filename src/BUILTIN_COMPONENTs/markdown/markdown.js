@@ -20,9 +20,12 @@ const ThinkBlock = ({ children }) => {
 
   if (!hasContent) return null;
 
-  const borderColor = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)";
-  const bgColor = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.02)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.40)" : "rgba(0,0,0,0.40)";
+  /* neutral think-block colors track the text ink at their original alpha
+     (dark default 255,255,255 is lossless; light 34,34,34 vs 0,0,0 is
+     imperceptible at these low alphas) and now follow the custom text color */
+  const borderColor = `rgba(var(--pupu-text-rgb), ${isDark ? 0.1 : 0.08})`;
+  const bgColor = `rgba(var(--pupu-text-rgb), ${isDark ? 0.03 : 0.02})`;
+  const mutedColor = "rgba(var(--pupu-text-rgb), 0.4)";
   const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
 
   return (
