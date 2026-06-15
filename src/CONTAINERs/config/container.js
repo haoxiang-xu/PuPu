@@ -38,6 +38,11 @@ import {
 } from "../../COMPONENTs/settings/dev/storage";
 import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 import { THEME_HIGHLIGHT_COLOR } from "./theme_highlight";
+import {
+  resolveSemanticPalette,
+  applySemanticCssVars,
+} from "./theme_semantic";
+import { readThemeSettings } from "../../COMPONENTs/settings/appearance/storage";
 
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 const SETTINGS_STORAGE_KEY = "settings";
@@ -112,13 +117,20 @@ const resolveThemeDefinition = (themeName, themeMode) => {
   return available_themes?.[themeName]?.[themeMode] || null;
 };
 
-const applyContainerThemeConfig = (base, locale) => {
+const applyContainerThemeConfig = (base, locale, themeMode) => {
   if (!base) return base;
 
   const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
+  const themeSettings = readThemeSettings();
+  const semantic = resolveSemanticPalette(themeMode, {
+    preset: themeSettings.preset,
+    custom: themeSettings.custom,
+  });
+
   return {
     ...base,
-    highlightColor: THEME_HIGHLIGHT_COLOR,
+    semantic,
+    highlightColor: semantic.accent,
     font: {
       ...base.font,
       fontFamily: localeFont.body,
@@ -199,6 +211,25 @@ const applyInitialLocaleFont = () => {
   } catch {}
 };
 applyInitialLocaleFont();
+
+const applyInitialSemanticVars = () => {
+  if (typeof document === "undefined") return;
+  try {
+    const persisted = loadSettingsStorage();
+    const mode = resolveInitialThemeMode(
+      persisted?.appearance?.theme_mode,
+      "light_mode",
+    );
+    const themeSettings = persisted?.appearance?.theme || {};
+    applySemanticCssVars(
+      resolveSemanticPalette(mode, {
+        preset: themeSettings.preset,
+        custom: themeSettings.custom,
+      }),
+    );
+  } catch {}
+};
+applyInitialSemanticVars();
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 
 const ConfigContainer = ({ children }) => {
@@ -222,6 +253,7 @@ const ConfigContainer = ({ children }) => {
     applyContainerThemeConfig(
       resolveThemeDefinition(DEFAULT_THEME_NAME, initialThemeMode),
       _persistedLocale || "en",
+      initialThemeMode,
     ),
   );
   const [onThemeMode, setOnThemeMode] = useState(initialThemeMode);
@@ -233,9 +265,10 @@ const ConfigContainer = ({ children }) => {
   useEffect(() => {
     const base = resolveThemeDefinition(selectedTheme, onThemeMode);
     if (base) {
-      const nextTheme = applyContainerThemeConfig(base, locale);
+      const nextTheme = applyContainerThemeConfig(base, locale, onThemeMode);
       const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
       setTheme(nextTheme);
+      applySemanticCssVars(nextTheme.semantic);
       if (typeof document !== "undefined") {
         document.documentElement.style.setProperty(
           "--pupu-font-family",

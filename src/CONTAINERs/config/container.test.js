@@ -115,3 +115,61 @@ describe("ConfigContainer side menu persistence", () => {
     });
   });
 });
+
+const SemanticProbe = () => {
+  const { theme } = useContext(ConfigContext);
+  return (
+    <>
+      <div data-testid="sem-accent">{theme?.semantic?.accent}</div>
+      <div data-testid="sem-bg">{theme?.semantic?.background}</div>
+    </>
+  );
+};
+
+describe("ConfigContainer semantic palette", () => {
+  beforeEach(() => window.localStorage.clear());
+
+  test("injects theme.semantic with 8 default keys", async () => {
+    render(
+      <ConfigContainer>
+        <SemanticProbe />
+      </ConfigContainer>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("sem-accent")).toHaveTextContent("#65c466");
+      expect(screen.getByTestId("sem-bg")).toHaveTextContent("#ffffff");
+    });
+  });
+
+  test("applies user custom accent from settings", async () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        appearance: {
+          theme: { preset: "default", custom: { light_mode: { accent: "#abcdef" } } },
+        },
+      }),
+    );
+    render(
+      <ConfigContainer>
+        <SemanticProbe />
+      </ConfigContainer>,
+    );
+    await waitFor(() => {
+      expect(screen.getByTestId("sem-accent")).toHaveTextContent("#abcdef");
+    });
+  });
+
+  test("writes --pupu-accent CSS variable to documentElement", async () => {
+    render(
+      <ConfigContainer>
+        <SemanticProbe />
+      </ConfigContainer>,
+    );
+    await waitFor(() => {
+      expect(
+        document.documentElement.style.getPropertyValue("--pupu-accent"),
+      ).toBe("#65c466");
+    });
+  });
+});
