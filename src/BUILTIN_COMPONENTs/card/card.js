@@ -35,13 +35,15 @@ const Card = ({
   const isDark = onThemeMode === "dark_mode";
 
   const colors = useMemo(() => {
+    /* surface token (rgb triplet) preserves the original 0.95 translucency;
+       defaults are lossless: light #ffffff = 255,255,255, dark #1e1e1e = 30,30,30 */
     const bg =
-      style?.backgroundColor ??
-      (isDark ? "rgba(30, 30, 30, 0.95)" : "rgba(255, 255, 255, 0.95)");
+      style?.backgroundColor ?? "rgba(var(--pupu-surface-rgb), 0.95)";
     const color = style?.color ?? theme?.color ?? (isDark ? "#CCC" : "#222");
-    const border = isDark
-      ? "1px solid rgba(255, 255, 255, 0.08)"
-      : "1px solid rgba(0, 0, 0, 0.06)";
+    /* neutral hairline border tracks the text ink at the original low alpha */
+    const border = `1px solid rgba(var(--pupu-text-rgb), ${
+      isDark ? 0.08 : 0.06
+    })`;
     const shadow = isDark
       ? "0 4px 24px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.3)"
       : "0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06)";
@@ -50,7 +52,7 @@ const Card = ({
       : "0 16px 48px rgba(0, 0, 0, 0.12), 0 4px 12px rgba(0, 0, 0, 0.08)";
     const titleColor =
       title_style?.color ??
-      (isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.4)");
+      `rgba(var(--pupu-text-rgb), ${isDark ? 0.5 : 0.4})`;
     return { bg, color, border, shadow, shadowHover, titleColor };
   }, [isDark, theme, style, title_style]);
 
