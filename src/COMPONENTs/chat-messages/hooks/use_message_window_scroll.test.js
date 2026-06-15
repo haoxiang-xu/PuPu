@@ -464,6 +464,36 @@ describe("useMessageWindowScroll", () => {
     expect(firstCapture.top).toBe(950); // 1000 + 150 - 200
   });
 
+  it("scrollToMessageIndex center 对齐 uses the effective viewport after bottom inset", () => {
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useMessageWindowScroll({
+        chat_id: "chat-center-inset",
+        messages,
+        is_streaming: false,
+        initial_visible_count: 12,
+        load_batch_size: 6,
+        top_load_threshold: 80,
+        boot_visible_count: 3,
+        bottom_viewport_inset: 32,
+      }),
+    );
+    let firstCapture = null;
+    act(() => {
+      result.current.messagesRef.current = {
+        scrollTo: (opts) => {
+          if (firstCapture === null) firstCapture = opts;
+        },
+        scrollHeight: 5000,
+        clientHeight: 400,
+        scrollTop: 0,
+      };
+      result.current.messageNodeRefs.current.set(38, { offsetTop: 1000 });
+      result.current.scrollToMessageIndex(38, "auto", { within: 150, align: "center" });
+    });
+    expect(firstCapture.top).toBe(966); // 1000 + 150 - ((400 - 32) / 2)
+  });
+
   it("scrollToMessageIndex re-aligns when lazy layout shifts the target", () => {
     const scrollHost = makeScrollHost();
     scrollHost.setScrollHeight(2600);
@@ -503,6 +533,63 @@ describe("useMessageWindowScroll", () => {
       top: 1148,
       behavior: "auto",
     });
+  });
+
+  it("re-aligns when ResizeObserver reports a late target layout shift", () => {
+    const OriginalResizeObserver = global.ResizeObserver;
+    const resizeObservers = [];
+    global.ResizeObserver = class ResizeObserver {
+      constructor(callback) {
+        this.callback = callback;
+        this.observe = jest.fn();
+        this.disconnect = jest.fn();
+        resizeObservers.push(this);
+      }
+      trigger() {
+        this.callback([]);
+      }
+    };
+    window.ResizeObserver = global.ResizeObserver;
+
+    const scrollHost = makeScrollHost();
+    scrollHost.setScrollHeight(2600);
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useScrollWithHost(
+        {
+          chat_id: "chat-late-layout",
+          messages,
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      ),
+    );
+    scrollHost.host.scrollTo.mockClear();
+
+    const targetNode = { offsetTop: 1000 };
+    act(() => {
+      result.current.messageNodeRefs.current.set(38, targetNode);
+      result.current.scrollToMessageIndex(38, "auto");
+    });
+
+    expect(resizeObservers).toHaveLength(1);
+
+    act(() => {
+      targetNode.offsetTop = 1160;
+      resizeObservers[0].trigger();
+    });
+
+    expect(scrollHost.host.scrollTo).toHaveBeenLastCalledWith({
+      top: 1148,
+      behavior: "auto",
+    });
+
+    global.ResizeObserver = OriginalResizeObserver;
+    window.ResizeObserver = OriginalResizeObserver;
   });
 });
 

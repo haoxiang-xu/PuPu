@@ -28,9 +28,14 @@ const ChatMessages = ({
   loadBatchSize = 6,
   topLoadThreshold = 80,
   bootVisibleCount = 3,
+  bottomViewportInset = 0,
 }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const safeBottomViewportInset =
+    Number.isFinite(bottomViewportInset) && bottomViewportInset > 0
+      ? bottomViewportInset
+      : 0;
 
   const {
     messagesRef,
@@ -50,6 +55,7 @@ const ChatMessages = ({
     load_batch_size: loadBatchSize,
     top_load_threshold: topLoadThreshold,
     boot_visible_count: bootVisibleCount,
+    bottom_viewport_inset: safeBottomViewportInset,
   });
 
   const minimapMessages = isStreaming ? [] : messages;
@@ -82,7 +88,10 @@ const ChatMessages = ({
         style={{
           height: "100%",
           overflowY: "auto",
-          padding: messages.length === 0 ? "0" : "28px 0 64px",
+          padding:
+            messages.length === 0
+              ? "0"
+              : `28px 0 ${64 + safeBottomViewportInset}px`,
           position: "relative",
           boxSizing: "border-box",
           scrollBehavior: "auto",
@@ -195,6 +204,7 @@ const ChatMessages = ({
           safeVisibleStart={safeVisibleStart}
           measure={measure}
           scrollToMessageIndex={scrollToMessageIndex}
+          bottomViewportInset={safeBottomViewportInset}
           isDark={isDark}
         />
       ) : null}

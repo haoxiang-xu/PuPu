@@ -245,6 +245,15 @@ describe("ChatInterface stop flow", () => {
     expect(hasRenderPhaseWarning).toBe(false);
   });
 
+  test("passes the composer gradient inset to ChatMessages", async () => {
+    renderChat();
+    await waitForReady();
+
+    await sendTurn("Hello", "World");
+
+    expect(lastChatMessagesProps?.bottomViewportInset).toBe(32);
+  });
+
   test("animates the chat surface offset when the side menu changes", () => {
     const { container, rerender } = renderChatWithFragment("main");
     const chatSurface = container.querySelector("[data-chat-id]");

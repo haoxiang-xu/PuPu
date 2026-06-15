@@ -11,24 +11,14 @@ import {
   PREVIOUS_MESSAGE_EPSILON,
   TOP_EDGE_THRESHOLD,
 } from "../constants";
+import { computeLandingTop } from "../message_viewport_geometry";
 
 const STREAMING_BOTTOM_FOLLOW_MS = 64;
 const LANDING_SETTLE_INTERVAL_MS = 50;
-const LANDING_SETTLE_MAX_ATTEMPTS = 16;
-const LANDING_SETTLE_STABLE_ATTEMPTS = 4;
+const LANDING_SETTLE_MAX_ATTEMPTS = 40;
 const LANDING_TOP_EPSILON = 1;
 
-// 跳转落点(content 绝对坐标):top 对齐留 12px 顶边距;center 对齐让目标点落到视口正中。
-// 立即跳转与延迟跳转(目标未渲染先挪窗口)两条路径共用,保证落点一致。
-export function computeLandingTop({
-  offsetTop,
-  within = 0,
-  align = "top",
-  viewportHeight = 0,
-}) {
-  const margin = align === "center" ? viewportHeight / 2 : 12;
-  return Math.max(0, offsetTop + within - margin);
-}
+export { computeLandingTop } from "../message_viewport_geometry";
 
 export const useMessageWindowScroll = ({
   chat_id,
@@ -38,6 +28,7 @@ export const useMessageWindowScroll = ({
   load_batch_size,
   top_load_threshold,
   boot_visible_count,
+  bottom_viewport_inset = 0,
 }) => {
   const effectiveBootCount =
     typeof boot_visible_count === "number" && boot_visible_count > 0
@@ -56,6 +47,7 @@ export const useMessageWindowScroll = ({
   const pendingJumpActionRef = useRef(null);
   const pendingLandingActionRef = useRef(null);
   const pendingLandingTimerRef = useRef(null);
+  const pendingLandingObserverRef = useRef(null);
   const bottomSentinelRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
   const isAtBottomRef = useRef(true);
@@ -112,6 +104,10 @@ export const useMessageWindowScroll = ({
     if (pendingLandingTimerRef.current != null) {
       clearTimeout(pendingLandingTimerRef.current);
       pendingLandingTimerRef.current = null;
+    }
+    if (pendingLandingObserverRef.current) {
+      pendingLandingObserverRef.current.disconnect();
+      pendingLandingObserverRef.current = null;
     }
     pendingLandingActionRef.current = null;
   }, []);
@@ -280,11 +276,15 @@ export const useMessageWindowScroll = ({
         align,
         lastTop: initialTop,
         attempts: 0,
-        stableAttempts: 0,
       };
       pendingLandingActionRef.current = action;
 
       const tick = () => {
+        if (pendingLandingTimerRef.current != null) {
+          clearTimeout(pendingLandingTimerRef.current);
+          pendingLandingTimerRef.current = null;
+        }
+
         const current = pendingLandingActionRef.current;
         if (!current) {
           return;
@@ -302,23 +302,18 @@ export const useMessageWindowScroll = ({
           within: current.within,
           align: current.align,
           viewportHeight: el.clientHeight,
+          bottomInset: bottom_viewport_inset,
         });
 
         current.attempts += 1;
         if (Math.abs(nextTop - current.lastTop) > LANDING_TOP_EPSILON) {
           current.lastTop = nextTop;
-          current.stableAttempts = 0;
           el.scrollTo({ top: nextTop, behavior: "auto" });
           lastScrollTopRef.current = nextTop;
           updateIsAtBottom(el);
-        } else {
-          current.stableAttempts += 1;
         }
 
-        if (
-          current.attempts >= LANDING_SETTLE_MAX_ATTEMPTS ||
-          current.stableAttempts >= LANDING_SETTLE_STABLE_ATTEMPTS
-        ) {
+        if (current.attempts >= LANDING_SETTLE_MAX_ATTEMPTS) {
           clearLandingCorrection();
           return;
         }
@@ -329,12 +324,24 @@ export const useMessageWindowScroll = ({
         );
       };
 
+      const el = messagesRef.current;
+      const targetNode = messageNodeRefs.current.get(index);
+      if (
+        typeof ResizeObserver !== "undefined" &&
+        (targetNode || el?.firstElementChild)
+      ) {
+        const observer = new ResizeObserver(tick);
+        if (targetNode) observer.observe(targetNode);
+        if (el?.firstElementChild) observer.observe(el.firstElementChild);
+        pendingLandingObserverRef.current = observer;
+      }
+
       pendingLandingTimerRef.current = setTimeout(
         tick,
         LANDING_SETTLE_INTERVAL_MS,
       );
     },
-    [clearLandingCorrection, updateIsAtBottom],
+    [bottom_viewport_inset, clearLandingCorrection, updateIsAtBottom],
   );
 
   const scrollToRenderedMessage = useCallback(
@@ -349,6 +356,7 @@ export const useMessageWindowScroll = ({
         within,
         align,
         viewportHeight: el.clientHeight,
+        bottomInset: bottom_viewport_inset,
       });
       el.scrollTo({ top, behavior });
       lastScrollTopRef.current = top;
@@ -356,7 +364,7 @@ export const useMessageWindowScroll = ({
       scheduleLandingCorrection({ index, within, align, initialTop: top });
       return true;
     },
-    [scheduleLandingCorrection, updateIsAtBottom],
+    [bottom_viewport_inset, scheduleLandingCorrection, updateIsAtBottom],
   );
 
   const getSortedRenderedEntries = useCallback(() => {

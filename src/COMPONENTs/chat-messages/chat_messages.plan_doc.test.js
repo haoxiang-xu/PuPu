@@ -39,6 +39,13 @@ describe("ChatMessages minimap integration", () => {
     expect(container.querySelector("[data-mm-track]")).not.toBeNull();
   });
 
+  it("adds the bottom viewport inset to the scroll host padding", () => {
+    const { container } = renderCM({ bottomViewportInset: 32 });
+    const scrollHost = container.querySelector(".chat-scroll-host");
+    expect(scrollHost.style.paddingTop).toBe("28px");
+    expect(scrollHost.style.paddingBottom).toBe("96px");
+  });
+
   it("does not render the minimap track while streaming", () => {
     const { container } = renderCM({ isStreaming: true });
     expect(container.querySelector("[data-mm-track]")).toBeNull();

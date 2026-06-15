@@ -38,6 +38,7 @@ import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_st
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
+const CHAT_BOTTOM_VIEWPORT_INSET = 32;
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const UNCHAIN_STATUS_POLL_INTERVAL_STARTING_MS = 1500;
@@ -913,6 +914,7 @@ const ChatInterface = () => {
             initialVisibleCount={12}
             loadBatchSize={6}
             topLoadThreshold={80}
+            bottomViewportInset={CHAT_BOTTOM_VIEWPORT_INSET}
           />
           <div style={{ position: "relative", flexShrink: 0 }}>
             <div
@@ -921,8 +923,8 @@ const ChatInterface = () => {
                 position: "absolute",
                 left: 0,
                 right: 0,
-                top: -32,
-                height: 32,
+                top: -CHAT_BOTTOM_VIEWPORT_INSET,
+                height: CHAT_BOTTOM_VIEWPORT_INSET,
                 pointerEvents: "none",
                 background: isDark
                   ? "linear-gradient(to bottom, rgba(18,18,18,0), rgba(18,18,18,1))"

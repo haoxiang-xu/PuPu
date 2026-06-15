@@ -17,6 +17,10 @@ import {
   absScrollTop,
   dragScrollGeometry,
 } from "../minimap_geometry";
+import {
+  computeMinimapFrame,
+  findCurrentMessageIndex,
+} from "../message_viewport_geometry";
 
 const EASE = "cubic-bezier(.22,.61,.36,1)";
 const TOP_INSET = 38; // 整条 minimap 顶部下移,避开窗口顶部可拖拽标题栏区域(否则 to-top 按钮点不到)
@@ -112,6 +116,7 @@ const MessageMinimap = ({
   safeVisibleStart,
   measure,
   scrollToMessageIndex,
+  bottomViewportInset = 0,
   isDark,
 }) => {
   const { theme } = useContext(ConfigContext);
@@ -234,15 +239,23 @@ const MessageMinimap = ({
     // 纯 DOM 写:给定绝对滚动量 absTop 与滑动偏移 off,渲染框/竖条/计数/pill。
     // 被动滚动与拖动共用(拖动传冻结的 off0,被动传 slideOffset 居中值)。
     const applyLayout = (absTop, off) => {
-      const viewH = el.clientHeight;
-      const boxH = Math.max(20, viewH * scale);
-      const boxTop = Math.min(Math.max(0, absTop * scale), Math.max(0, MH - boxH));
+      const frame = computeMinimapFrame({
+        absTop,
+        viewportHeight: el.clientHeight,
+        bottomInset: bottomViewportInset,
+        scale,
+        mapHeight: MH,
+        usable,
+        offset: off,
+        pad: PAD,
+        gap: GAP,
+      });
       inner.style.transform = `translateY(${-off}px)`;
-      box.style.top = `${PAD + boxTop - GAP}px`;
-      box.style.height = `${boxH + 2 * GAP}px`;
+      box.style.top = `${frame.styleTop}px`;
+      box.style.height = `${frame.visualHeight}px`;
 
-      const vTop = boxTop;
-      const vBtm = vTop + viewH * scale;
+      const vTop = frame.boxTop;
+      const vBtm = vTop + frame.viewportHeight * scale;
       tickRefs.current.forEach((tk, i) => {
         if (!tk) return;
         const s = segments[i];
@@ -278,7 +291,7 @@ const MessageMinimap = ({
       }
 
       const atTop = absTop <= 2;
-      const atBottom = cTotal - (absTop + viewH) <= 24;
+      const atBottom = cTotal - (absTop + el.clientHeight) <= 24;
       const setPill = (ref, hidden) => {
         if (!ref.current) return;
         ref.current.style.opacity = hidden ? "0" : "1";
@@ -292,12 +305,35 @@ const MessageMinimap = ({
 
     // 当前几何快照(供拖动在组件体里读)。off 为被动居中值,拖动按下时取作 off0。
     const getGeom = () => {
-      const viewH = el.clientHeight;
-      const boxH = Math.max(20, viewH * scale);
       const absTop = computeAbsTop();
-      const boxTop = Math.min(Math.max(0, absTop * scale), Math.max(0, MH - boxH));
-      const off = slideOffset({ boxTop, boxHeight: boxH, usable, MH });
-      return { viewH, boxH, absTop, boxTop, off, scale, usable, MH, cTotal };
+      const frame = computeMinimapFrame({
+        absTop,
+        viewportHeight: el.clientHeight,
+        bottomInset: bottomViewportInset,
+        scale,
+        mapHeight: MH,
+        usable,
+        offset: 0,
+        pad: PAD,
+        gap: GAP,
+      });
+      const off = slideOffset({
+        boxTop: frame.boxTop,
+        boxHeight: frame.boxHeight,
+        usable,
+        MH,
+      });
+      return {
+        viewH: frame.viewportHeight,
+        boxH: frame.boxHeight,
+        absTop,
+        boxTop: frame.boxTop,
+        off,
+        scale,
+        usable,
+        MH,
+        cTotal,
+      };
     };
 
     const update = () => {
@@ -308,9 +344,23 @@ const MessageMinimap = ({
       }
       if (!scrollable) return;
       const absTop = computeAbsTop();
-      const boxH = Math.max(20, viewH * scale);
-      const boxTop = Math.min(Math.max(0, absTop * scale), Math.max(0, MH - boxH));
-      const off = slideOffset({ boxTop, boxHeight: boxH, usable, MH });
+      const frame = computeMinimapFrame({
+        absTop,
+        viewportHeight: viewH,
+        bottomInset: bottomViewportInset,
+        scale,
+        mapHeight: MH,
+        usable,
+        offset: 0,
+        pad: PAD,
+        gap: GAP,
+      });
+      const off = slideOffset({
+        boxTop: frame.boxTop,
+        boxHeight: frame.boxHeight,
+        usable,
+        MH,
+      });
       applyLayout(absTop, off);
     };
 
@@ -356,7 +406,16 @@ const MessageMinimap = ({
       if (hideTimer.current) clearTimeout(hideTimer.current);
       minimapApiRef.current = null;
     };
-  }, [segments, total, C, measure, messagesRef, messageNodeRefs, safeVisibleStart]);
+  }, [
+    segments,
+    total,
+    C,
+    measure,
+    messagesRef,
+    messageNodeRefs,
+    safeVisibleStart,
+    bottomViewportInset,
+  ]);
 
   if (!segments.length) return null;
 
@@ -402,8 +461,23 @@ const MessageMinimap = ({
     const usable = g.mini.clientHeight - 2 * PAD;
     const scale = pickScale({ total: g.cTotal, usable, medianHeight: medH, minSeg: MIN_SEG });
     const MH = g.cTotal * scale;
-    const boxH = Math.max(20, g.el.clientHeight * scale);
-    const off = slideOffset({ boxTop: g.absTop * scale, boxHeight: boxH, usable, MH });
+    const frame = computeMinimapFrame({
+      absTop: g.absTop,
+      viewportHeight: g.el.clientHeight,
+      bottomInset: bottomViewportInset,
+      scale,
+      mapHeight: MH,
+      usable,
+      offset: 0,
+      pad: PAD,
+      gap: GAP,
+    });
+    const off = slideOffset({
+      boxTop: frame.boxTop,
+      boxHeight: frame.boxHeight,
+      usable,
+      MH,
+    });
     const rel = Math.min(Math.max(0, clientY - r.top - PAD), usable);
     const contentY = (rel + off) / scale;
     const index = indexAtContentY({ offsets: g.offsets, total: g.cTotal, contentY });
@@ -499,26 +573,16 @@ const MessageMinimap = ({
     }, 200);
   };
 
-  // 上一条 / 下一条:基于「已渲染节点的真实 offsetTop」定位当前视口顶部所在消息,
-  // 再跳到绝对 index ±1。必须用真实 DOM 坐标 —— 估算坐标在虚拟化窗口下会严重偏移
-  // (cOffsets[safeVisibleStart] 与真实 scrollTop 不在同一基准),导致点一下跳飞。
+  // 上一条 / 下一条:用统一的绝对 content 坐标定位当前视口顶部所在消息,
+  // 避免虚拟窗口里只有部分节点已渲染时,按钮卡在半条消息或反复跳同一条。
   const scrollByMessages = (delta) => {
-    const el = messagesRef.current;
-    if (!el) return;
-    const scrollTop = el.scrollTop;
-    // messageNodeRefs: 绝对 index -> 节点。取最后一个 offsetTop <= scrollTop+EPS 的节点 = 当前顶部消息。
-    // EPS 必须 >= scrollToMessageIndex 落点时留的 12px 上边距,否则刚跳到某条后它的
-    // offsetTop 仍 > scrollTop,detection 认不出已到达该条 → 反复跳同一条、卡住。
-    const entries = [...messageNodeRefs.current.entries()]
-      .filter(([, node]) => node)
-      .sort((a, b) => a[0] - b[0]);
-    if (!entries.length) return;
-    const EPS = 16;
-    let currentIdx = entries[0][0];
-    for (const [idx, node] of entries) {
-      if (node.offsetTop <= scrollTop + EPS) currentIdx = idx;
-      else break;
-    }
+    const g = computeContentGeom();
+    if (!g) return;
+    const currentIdx = findCurrentMessageIndex({
+      offsets: g.offsets,
+      total: g.cTotal,
+      contentY: g.absTop,
+    });
     const next = Math.min(Math.max(0, currentIdx + delta), segments.length - 1);
     if (next !== currentIdx) scrollToMessageIndex(next, "smooth");
   };
