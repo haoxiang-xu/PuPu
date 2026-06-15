@@ -37,7 +37,6 @@ import {
   readDevSettings,
 } from "../../COMPONENTs/settings/dev/storage";
 import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
-import { THEME_HIGHLIGHT_COLOR } from "./theme_highlight";
 import {
   resolveSemanticPalette,
   applySemanticCssVars,
