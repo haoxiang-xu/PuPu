@@ -1,0 +1,103 @@
+export const SEMANTIC_TOKEN_KEYS = [
+  "accent",
+  "background",
+  "surface",
+  "text",
+  "textMuted",
+  "border",
+  "success",
+  "danger",
+];
+
+export const SEMANTIC_DEFAULTS = {
+  light_mode: {
+    accent: "#65c466",
+    background: "#ffffff",
+    surface: "#ffffff",
+    text: "#222222",
+    textMuted: "#8c8c8c",
+    border: "#e6e6e6",
+    success: "#22c55e",
+    danger: "#dc3545",
+  },
+  dark_mode: {
+    accent: "#65c466",
+    background: "#121212",
+    surface: "#1e1e1e",
+    text: "#ffffff",
+    textMuted: "#8a8a8a",
+    border: "#2e2e2e",
+    success: "#4ade80",
+    danger: "#f87171",
+  },
+};
+
+export const SEMANTIC_PRESETS = {
+  default: SEMANTIC_DEFAULTS,
+  ocean: {
+    light_mode: {
+      accent: "#0ea5e9",
+      background: "#f7fbfd",
+      surface: "#ffffff",
+      text: "#0f2330",
+      textMuted: "#5b7585",
+      border: "#d8e6ee",
+      success: "#22c55e",
+      danger: "#dc3545",
+    },
+    dark_mode: {
+      accent: "#38bdf8",
+      background: "#0b1620",
+      surface: "#13232f",
+      text: "#e6f2f8",
+      textMuted: "#7d97a6",
+      border: "#233a48",
+      success: "#4ade80",
+      danger: "#f87171",
+    },
+  },
+  warm: {
+    light_mode: {
+      accent: "#f97316",
+      background: "#fffaf5",
+      surface: "#ffffff",
+      text: "#2b1d12",
+      textMuted: "#9c7a60",
+      border: "#f0e2d4",
+      success: "#22c55e",
+      danger: "#dc3545",
+    },
+    dark_mode: {
+      accent: "#fb923c",
+      background: "#1a120b",
+      surface: "#241910",
+      text: "#f7ece1",
+      textMuted: "#b08e72",
+      border: "#3a2a1c",
+      success: "#4ade80",
+      danger: "#f87171",
+    },
+  },
+  high_contrast: {
+    light_mode: {
+      accent: "#0040ff",
+      background: "#ffffff",
+      surface: "#ffffff",
+      text: "#000000",
+      textMuted: "#595959",
+      border: "#000000",
+      success: "#008a00",
+      danger: "#c40000",
+    },
+    dark_mode: {
+      accent: "#5b8cff",
+      background: "#000000",
+      surface: "#0a0a0a",
+      text: "#ffffff",
+      textMuted: "#b3b3b3",
+      border: "#ffffff",
+      success: "#46e046",
+      danger: "#ff5a5a",
+    },
+  },
+};
