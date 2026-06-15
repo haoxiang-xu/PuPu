@@ -116,12 +116,26 @@ describe("ConfigContainer side menu persistence", () => {
   });
 });
 
+const SEMANTIC_KEYS = [
+  "accent",
+  "background",
+  "surface",
+  "text",
+  "textMuted",
+  "border",
+  "success",
+  "danger",
+];
+
 const SemanticProbe = () => {
   const { theme } = useContext(ConfigContext);
   return (
     <>
       <div data-testid="sem-accent">{theme?.semantic?.accent}</div>
       <div data-testid="sem-bg">{theme?.semantic?.background}</div>
+      <div data-testid="sem-keys">
+        {theme?.semantic ? Object.keys(theme.semantic).join(",") : ""}
+      </div>
     </>
   );
 };
@@ -139,6 +153,9 @@ describe("ConfigContainer semantic palette", () => {
       expect(screen.getByTestId("sem-accent")).toHaveTextContent("#65c466");
       expect(screen.getByTestId("sem-bg")).toHaveTextContent("#ffffff");
     });
+    expect(screen.getByTestId("sem-keys")).toHaveTextContent(
+      SEMANTIC_KEYS.join(","),
+    );
   });
 
   test("applies user custom accent from settings", async () => {

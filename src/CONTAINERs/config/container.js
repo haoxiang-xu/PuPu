@@ -263,6 +263,12 @@ const ConfigContainer = ({ children }) => {
   const selectedTheme = DEFAULT_THEME_NAME;
 
   useEffect(() => {
+    /* NOTE: applyContainerThemeConfig reads theme settings (preset/custom)
+       lazily via readThemeSettings(). This effect only re-runs on theme mode /
+       theme / locale changes. When the settings UI lands the live write-side
+       (writeThemePreset / writeThemeCustomColor), this effect must also be
+       driven by a themeSettings state slice (add it to the deps) so preset /
+       custom-color edits re-resolve theme.semantic and re-apply the CSS vars. */
     const base = resolveThemeDefinition(selectedTheme, onThemeMode);
     if (base) {
       const nextTheme = applyContainerThemeConfig(base, locale, onThemeMode);
