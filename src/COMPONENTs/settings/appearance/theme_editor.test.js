@@ -54,6 +54,33 @@ describe("ThemeEditor", () => {
     ).toBe("#abcdef");
   });
 
+  test("edit mode follows the active app theme mode", () => {
+    const ctx = (mode) => ({
+      onThemeMode: mode,
+      theme: { semantic: {}, font: {} },
+      setTheme: jest.fn(),
+    });
+    const { rerender } = render(
+      <ConfigContext.Provider value={ctx("light_mode")}>
+        <ThemeEditor />
+      </ConfigContext.Provider>,
+    );
+    // Light mode → Background swatch shows the light default.
+    expect(
+      screen.getByRole("button", { name: "Background" }),
+    ).toHaveTextContent("#ffffff");
+
+    rerender(
+      <ConfigContext.Provider value={ctx("dark_mode")}>
+        <ThemeEditor />
+      </ConfigContext.Provider>,
+    );
+    // Switching the active mode re-syncs editMode → Background shows dark default.
+    expect(
+      screen.getByRole("button", { name: "Background" }),
+    ).toHaveTextContent("#121212");
+  });
+
   test("reset clears custom colors", () => {
     renderWithCtx();
     fireEvent.click(screen.getByRole("button", { name: "Accent" }));

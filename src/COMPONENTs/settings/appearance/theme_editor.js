@@ -1,4 +1,4 @@
-import { useContext, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import ColorPicker from "../../../BUILTIN_COMPONENTs/color_picker/color_picker";
 import {
@@ -35,6 +35,13 @@ const ThemeEditor = () => {
 
   const [settings, setSettings] = useState(() => readThemeSettings());
   const [editMode, setEditMode] = useState(activeMode);
+
+  /* Keep the edited mode aligned with the active app theme so that, if the user
+     flips light/dark while this editor is open, edits land on the mode they see.
+     Manual tab clicks still work — this only re-syncs when onThemeMode changes. */
+  useEffect(() => {
+    setEditMode(activeMode);
+  }, [activeMode]);
 
   const palette = resolveSemanticPalette(editMode, {
     preset: settings.preset,
@@ -93,7 +100,11 @@ const ThemeEditor = () => {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result));
-        if (parsed && typeof parsed.preset === "string") {
+        if (
+          parsed &&
+          typeof parsed.preset === "string" &&
+          SEMANTIC_PRESETS[parsed.preset]
+        ) {
           writeThemePreset(parsed.preset);
         }
         if (parsed && parsed.custom) {
