@@ -247,10 +247,11 @@ jest.mock("../components/toolkit_detail_panel", () => ({
 
 jest.mock("../components/store_toolkit_detail_panel", () => ({
   __esModule: true,
-  default: ({ entry, onInstall, onApproveEntry, onRevokeApproval }) => (
+  default: ({ entry, installError, onInstall, onApproveEntry, onRevokeApproval }) => (
     <div>
       <span>Store Detail Panel: {entry?.id}</span>
       <span>Store Detail Trust: {entry?.trustLevel}</span>
+      {installError?.message && <span>{installError.message}</span>}
       <button
         onClick={() =>
           onInstall?.(entry, {
@@ -413,6 +414,26 @@ describe("ToolkitsPage", () => {
     );
     // getInstalledMcpIds runs on mount and again after a successful install
     expect(getInstalledMcpIds.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  test("store install failures keep backend error message for rendering", async () => {
+    installMcpEntry.mockRejectedValueOnce(
+      Object.assign(new Error("mcp_runtime_install_failed: Unable to download runtime"), {
+        code: "mcp_runtime_install_failed",
+      }),
+    );
+
+    await renderToolkitsPage();
+
+    fireEvent.click(screen.getByText("toolkit.store"));
+    fireEvent.click(screen.getByText("Open Store Entry"));
+    await act(async () => {
+      fireEvent.click(screen.getByText("Install From Detail"));
+    });
+
+    expect(
+      screen.getByText("Unable to download runtime"),
+    ).toBeInTheDocument();
   });
 
   test("custom MCP tab installs through the shared MCP install flow", async () => {

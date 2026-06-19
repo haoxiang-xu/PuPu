@@ -241,6 +241,26 @@ describe("StoreToolkitCard", () => {
     expect(screen.getByText("toolkit.store_install_error")).toBeInTheDocument();
   });
 
+  test("shows backend install error message when available", () => {
+    render(
+      <StoreToolkitCard
+        entry={entry}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        onClick={() => {}}
+        installError={{
+          entryId: "browser.playwright",
+          code: "mcp_runtime_install_failed",
+          message: "Unable to download PuPu-managed Node runtime",
+        }}
+      />,
+    );
+    expect(
+      screen.getByText("Unable to download PuPu-managed Node runtime"),
+    ).toBeInTheDocument();
+  });
+
   test("shows workspace-required inline error", () => {
     render(
       <StoreToolkitCard

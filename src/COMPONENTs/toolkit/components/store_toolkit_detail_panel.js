@@ -150,6 +150,10 @@ const StoreToolkitDetailPanel = ({
     .filter((secret) => !String(secretValues[secret.key] || "").trim())
     .map((secret) => secret.key)
     .filter(Boolean);
+  const installErrorText =
+    installError?.code === "mcp_workspace_required"
+      ? t("toolkit.store_workspace_required")
+      : installError?.message || t("toolkit.store_install_error");
   const review = entry?.review || {};
   const riskLevel = String(review.riskLevel || "").trim();
   const permissionGroups = Array.isArray(review.permissionGroups)
@@ -601,9 +605,7 @@ const StoreToolkitDetailPanel = ({
                   lineHeight: 1.4,
                 }}
               >
-                {installError.code === "mcp_workspace_required"
-                  ? t("toolkit.store_workspace_required")
-                  : t("toolkit.store_install_error")}
+                {installErrorText}
               </div>
             )}
             {!installError && missingRequiredSecrets && (

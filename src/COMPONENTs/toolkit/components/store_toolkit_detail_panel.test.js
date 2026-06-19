@@ -173,6 +173,25 @@ describe("StoreToolkitDetailPanel", () => {
     ).toBeInTheDocument();
   });
 
+  test("install error shows backend message when available", () => {
+    render(
+      <StoreToolkitDetailPanel
+        entry={entry}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        installError={{
+          code: "mcp_runtime_install_failed",
+          message: "Unable to download PuPu-managed uv runtime",
+        }}
+        onBack={() => {}}
+      />,
+    );
+    expect(
+      screen.getByText("Unable to download PuPu-managed uv runtime"),
+    ).toBeInTheDocument();
+  });
+
   test("renders setup command, tools, permissions and markdown", () => {
     render(
       <StoreToolkitDetailPanel

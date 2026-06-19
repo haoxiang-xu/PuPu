@@ -14,6 +14,13 @@ const theme = {
     boxShadow: "0 8px 32px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)",
     inputBackgroundColor: "rgba(255,255,255,0.08)",
   },
+  select: {
+    dropdown: {
+      backgroundColor: "#151515",
+      borderRadius: 10,
+      boxShadow: "0 14px 24px rgba(0, 0, 0, 0.45)",
+    },
+  },
   input: {
     backgroundColor: "rgba(255,255,255,0.08)",
     borderRadius: 8,
@@ -27,9 +34,12 @@ const theme = {
   },
 };
 
-const renderWithTheme = (node) =>
+const renderWithTheme = (
+  node,
+  { nextTheme = theme, mode = "dark_mode" } = {},
+) =>
   render(
-    <ConfigContext.Provider value={{ theme, onThemeMode: "dark_mode" }}>
+    <ConfigContext.Provider value={{ theme: nextTheme, onThemeMode: mode }}>
       {node}
     </ConfigContext.Provider>,
   );
@@ -60,12 +70,22 @@ describe("ColorPickerPanel", () => {
     renderWithTheme(<ColorPickerPanel value="#3D76C9" set_value={jest.fn()} />);
     await waitForEyedropperIcon();
 
-    expect(screen.getByTestId("color-picker-panel")).toBeInTheDocument();
-    expect(screen.getByText("COLOR")).toBeInTheDocument();
+    const panel = screen.getByTestId("color-picker-panel");
+    expect(panel).toBeInTheDocument();
+    expect(screen.queryByText("COLOR")).not.toBeInTheDocument();
+    expect(panel).toHaveStyle({
+      backgroundColor: "#0A0A0A",
+      border: "1px solid rgba(255,255,255,0.12)",
+      borderRadius: "10px",
+      boxShadow: "0 14px 24px rgba(0, 0, 0, 0.45)",
+    });
+    expect(panel.style.paddingRight).toBe("12px");
+    expect(panel.style.paddingBottom).toBe("2px");
     const sv = screen.getByTestId("color-picker-sv");
     expect(sv).toBeInTheDocument();
     expect(sv).toHaveStyle({ height: "196px" });
     expect(sv).toHaveStyle({ overflow: "visible" });
+    expect(sv).toHaveStyle({ borderRadius: "2px" });
     expect(sv).toHaveStyle({ border: "none" });
     expect(sv.style.boxShadow).toBe("0 0 0 1px rgba(255,255,255,0.09)");
     const hueTrack = within(screen.getByTestId("color-picker-hue")).getByTestId(
@@ -84,6 +104,7 @@ describe("ColorPickerPanel", () => {
       screen.getByRole("button", { name: "Pick color from screen" }).style
         .boxShadow,
     ).toBe("");
+    expect(screen.getByTestId("color-picker-final-swatch")).toBeInTheDocument();
     for (const textbox of screen.getAllByRole("textbox")) {
       expect(textbox.style.position).toBe("relative");
       expect(textbox.style.zIndex).toBe("1");
@@ -176,6 +197,30 @@ describe("ColorPickerPanel", () => {
     expect(screen.getByTestId("color-picker-value-g")).toBeInTheDocument();
     expect(screen.getByTestId("color-picker-value-b")).toBeInTheDocument();
   });
+
+  it("uses white thumb borders in light mode", async () => {
+    renderWithTheme(<ColorPickerPanel value="#3D76C9" set_value={jest.fn()} />, {
+      nextTheme: { ...theme, color: "#222222", backgroundColor: "#FFFFFF" },
+      mode: "light_mode",
+    });
+    await waitForEyedropperIcon();
+
+    expect(
+      screen.getByTestId("color-picker-sv-thumb").style.border.toLowerCase(),
+    ).toBe(
+      "2.5px solid #ffffff",
+    );
+    expect(
+      within(screen.getByTestId("color-picker-hue")).getByTestId(
+        "gradient-slider-thumb",
+      ).style.border.toLowerCase(),
+    ).toBe("2.5px solid #ffffff");
+    expect(
+      within(screen.getByTestId("color-picker-alpha")).getByTestId(
+        "gradient-slider-thumb",
+      ).style.border.toLowerCase(),
+    ).toBe("2.5px solid #ffffff");
+  });
 });
 
 describe("ColorPicker", () => {
@@ -183,10 +228,100 @@ describe("ColorPicker", () => {
     renderWithTheme(<ColorPicker default_value="#E67E22" />);
 
     expect(screen.getByText("#E67E22")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Open color picker" }));
+    const trigger = screen.getByRole("button", { name: "Open color picker" });
+    expect(trigger.style.boxShadow).toBe("");
+    expect(trigger.style.background).toBe("transparent");
+
+    fireEvent.click(trigger);
     await waitForEyedropperIcon();
 
     expect(screen.getByTestId("color-picker-panel")).toBeInTheDocument();
-    expect(screen.getByText("COLOR")).toBeInTheDocument();
+    expect(screen.queryByText("COLOR")).not.toBeInTheDocument();
+    expect(screen.getByTestId("color-picker-final-swatch")).toBeInTheDocument();
+  });
+
+  it("renders the popup in a fixed body portal outside clipped containers", async () => {
+    renderWithTheme(
+      <div
+        data-testid="clipped-color-picker-host"
+        style={{ overflow: "hidden", width: 160, height: 48 }}
+      >
+        <ColorPicker default_value="#E67E22" />
+      </div>,
+    );
+
+    const trigger = screen.getByRole("button", { name: "Open color picker" });
+    setRect(screen.getByTestId("color-picker-trigger-anchor"), {
+      left: 500,
+      top: 100,
+      width: 120,
+      height: 36,
+    });
+
+    fireEvent.click(trigger);
+    await waitForEyedropperIcon();
+
+    const popover = screen.getByTestId("color-picker-popover");
+    expect(
+      within(screen.getByTestId("clipped-color-picker-host")).queryByTestId(
+        "color-picker-popover",
+      ),
+    ).not.toBeInTheDocument();
+    expect(popover).toHaveStyle({
+      position: "fixed",
+      left: "500px",
+      top: "144px",
+    });
+  });
+
+  it("dismisses when the empty popup chrome above the picker content is pressed", async () => {
+    renderWithTheme(<ColorPicker default_value="#E67E22" />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open color picker" }));
+    await waitForEyedropperIcon();
+
+    fireEvent.pointerDown(screen.getByTestId("color-picker-panel"));
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("color-picker-panel")).not.toBeInTheDocument();
+    });
+  });
+
+  it("uses a full-screen blocker to close only the picker above a modal", async () => {
+    const onModalClose = jest.fn();
+
+    renderWithTheme(
+      <div
+        data-testid="modal-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) {
+            onModalClose();
+          }
+        }}
+      >
+        <ColorPicker default_value="#E67E22" />
+      </div>,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Open color picker" }));
+    await waitForEyedropperIcon();
+
+    const blocker = screen.getByTestId("color-picker-event-blocker");
+    expect(blocker).toHaveStyle({
+      position: "fixed",
+      width: "100%",
+      height: "100%",
+    });
+    expect(blocker.style.inset).toBe("0");
+    expect(blocker.style.zIndex).toBe("9999");
+
+    fireEvent.mouseDown(blocker);
+    fireEvent.mouseUp(blocker);
+    fireEvent.click(blocker);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("color-picker-panel")).not.toBeInTheDocument();
+    });
+    expect(onModalClose).not.toHaveBeenCalled();
   });
 });

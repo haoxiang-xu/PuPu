@@ -23,6 +23,16 @@ import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_ref
 
 const SLIDE_DURATION = 260;
 
+const installErrorMessage = (error) => {
+  const raw = typeof error?.message === "string" ? error.message.trim() : "";
+  if (!raw) return "";
+  const code = typeof error?.code === "string" ? error.code.trim() : "";
+  if (code && raw.startsWith(`${code}:`)) {
+    return raw.slice(code.length + 1).trim();
+  }
+  return raw;
+};
+
 const TOOLKIT_SUB_PAGES = [
   { key: "store", icon: "search", labelKey: "toolkit.store" },
   { key: "custom", icon: "mcp", labelKey: "toolkit.custom_mcp" },
@@ -197,6 +207,7 @@ const ToolkitsPage = ({ isDark }) => {
         setInstallError({
           entryId: entry.id,
           code: e?.code || "mcp_install_failed",
+          message: installErrorMessage(e),
         });
       } finally {
         setInstallingId(null);
@@ -217,6 +228,7 @@ const ToolkitsPage = ({ isDark }) => {
         setInstallError({
           entryId: entry.id,
           code: e?.code || "mcp_oauth_start_failed",
+          message: installErrorMessage(e),
         });
       } finally {
         setInstallingId(null);
@@ -241,6 +253,7 @@ const ToolkitsPage = ({ isDark }) => {
         setInstallError({
           entryId: entry.id,
           code: error?.code || "mcp_registry_entry_not_approved",
+          message: installErrorMessage(error),
         });
       } finally {
         setApprovalBusyId(null);
@@ -264,6 +277,7 @@ const ToolkitsPage = ({ isDark }) => {
         setInstallError({
           entryId: entry.id,
           code: error?.code || "mcp_registry_approval_not_found",
+          message: installErrorMessage(error),
         });
       } finally {
         setApprovalBusyId(null);

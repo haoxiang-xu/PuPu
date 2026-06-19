@@ -62,6 +62,10 @@ const StoreToolkitCard = ({
   const warningColor = isDark ? "#fdba74" : "#c2410c";
   const accentColor = isDark ? "#7c8cf8" : "#2563eb";
   const actionBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.055)";
+  const installErrorText =
+    installError?.code === "mcp_workspace_required"
+      ? t("toolkit.store_workspace_required")
+      : installError?.message || t("toolkit.store_install_error");
   const repoMeta = [
     entry.repoFullName,
     entry.repoStars != null ? `${Number(entry.repoStars).toLocaleString()} stars` : "",
@@ -196,9 +200,7 @@ const StoreToolkitCard = ({
               marginTop: 2,
             }}
           >
-            {installError.code === "mcp_workspace_required"
-              ? t("toolkit.store_workspace_required")
-              : t("toolkit.store_install_error")}
+            {installErrorText}
           </div>
         )}
       </div>

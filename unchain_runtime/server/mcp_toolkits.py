@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List
 
 import mcp_registry
+from mcp_managed_runtime import (
+    McpManagedRuntimeError,
+    resolve_managed_stdio_runtime,
+)
 from mcp_registry import oauth_recipe_for_entry
 from mcp_secrets import (
     delete_mcp_secret_values,
@@ -453,17 +457,36 @@ def _resolve_mcp_config(
             text = text.replace(workspace_placeholder, resolved_workspace)
         args.append(text)
 
+    command = str(mcp.get("command") or "").strip()
+    env = dict(secret_values)
+    try:
+        managed = resolve_managed_stdio_runtime(
+            command,
+            env,
+            data_dir=data_dir,
+        )
+    except McpManagedRuntimeError as exc:
+        raise McpToolkitError(exc.code, str(exc), exc.status) from exc
+
+    managed_env = dict(managed.get("managed_env") or {})
+    env = {
+        **env,
+        **managed_env,
+    }
+
     return {
         "transport": "stdio",
-        "command": str(mcp.get("command") or "").strip(),
+        "command": str(managed.get("command") or command).strip(),
         "args": args,
-        "env": secret_values,
+        "env": env,
         "secret_keys": _secret_keys(entry),
         "secret_values": secret_values,
         "workspace_root": resolved_workspace,
         "requires_workspace": workspace_meta["required"],
         "workspace_placeholder": workspace_meta["placeholder"],
         "workspace_binding": workspace_meta["binding"],
+        "managed_env": managed_env,
+        "managed_runtime": dict(managed.get("managed_runtime") or {}),
     }
 
 
@@ -631,6 +654,10 @@ def _record_from_entry(
     if record["transport"] == "stdio":
         record["command"] = resolved_config["command"]
         record["args"] = list(resolved_config.get("args") or [])
+        if resolved_config.get("managed_env"):
+            record["managed_env"] = dict(resolved_config.get("managed_env") or {})
+        if resolved_config.get("managed_runtime"):
+            record["managed_runtime"] = dict(resolved_config.get("managed_runtime") or {})
     else:
         record["url"] = resolved_config.get("url", "")
         record["header_templates"] = list(resolved_config.get("header_templates") or [])
@@ -916,10 +943,14 @@ def build_mcp_runtime_toolkit(
             )
     transport = str(record.get("transport") or "stdio")
     if transport == "stdio":
+        env = {
+            **secret_values,
+            **dict(record.get("managed_env") or {}),
+        }
         toolkit = factory(
             command=str(record.get("command") or ""),
             args=list(record.get("args") or []),
-            env=secret_values,
+            env=env,
             transport="stdio",
         )
     elif transport == "streamable_http":

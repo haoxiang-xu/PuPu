@@ -16,6 +16,8 @@ if str(TESTS_ROOT) not in sys.path:
 import app as miso_app  # noqa: E402
 import routes as miso_routes  # noqa: E402
 import unchain_adapter  # noqa: E402
+import mcp_managed_runtime  # noqa: E402
+from mcp_managed_runtime import McpManagedRuntimeError  # noqa: E402
 from mcp_toolkits import (  # noqa: E402
     McpToolkitError,
     build_mcp_runtime_toolkit,
@@ -97,6 +99,15 @@ class McpToolkitServiceTests(unittest.TestCase):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.data_dir = Path(self.tmpdir.name)
         install_fixture_registry_entries()
+        self.managed_runtime_patch = mock.patch(
+            "mcp_toolkits.resolve_managed_stdio_runtime",
+            side_effect=lambda command, env, data_dir=None: {
+                "command": command,
+                "managed_env": {},
+                "managed_runtime": {},
+            },
+        )
+        self.managed_runtime_patch.start()
         FakeMCPToolkit.instances = []
         FakeMCPToolkit.fail_connect = False
         FakeMCPToolkit.next_tools = {
@@ -111,6 +122,7 @@ class McpToolkitServiceTests(unittest.TestCase):
         }
 
     def tearDown(self):
+        self.managed_runtime_patch.stop()
         remove_fixture_registry_entries()
         self.tmpdir.cleanup()
 
@@ -821,6 +833,80 @@ class McpToolkitServiceTests(unittest.TestCase):
 
         self.assertTrue(toolkit.connected)
         self.assertEqual(toolkit.kwargs["command"], "npx")
+
+    def test_stdio_install_resolves_managed_runtime_and_persists_non_secret_env(self):
+        self.managed_runtime_patch.stop()
+        self.managed_runtime_patch = mock.patch(
+            "mcp_toolkits.resolve_managed_stdio_runtime",
+            return_value={
+                "command": str(self.data_dir / "mcp_runtime" / "runtimes" / "node" / "bin" / "npx"),
+                "managed_env": {
+                    "PATH": str(self.data_dir / "mcp_runtime" / "runtimes" / "node" / "bin"),
+                    "NPM_CONFIG_CACHE": str(self.data_dir / "mcp_runtime" / "cache" / "npm"),
+                    "npm_config_cache": str(self.data_dir / "mcp_runtime" / "cache" / "npm"),
+                },
+                "managed_runtime": {
+                    "kind": "node",
+                    "version": "v24.0.0",
+                    "source_command": "npx",
+                },
+            },
+        )
+        self.managed_runtime_patch.start()
+
+        install_mcp_toolkit(
+            "memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+
+        kwargs = FakeMCPToolkit.instances[-1].kwargs
+        self.assertTrue(kwargs["command"].endswith("/mcp_runtime/runtimes/node/bin/npx"))
+        self.assertEqual(
+            kwargs["env"]["NPM_CONFIG_CACHE"],
+            str(self.data_dir / "mcp_runtime" / "cache" / "npm"),
+        )
+
+        persisted = json.loads((self.data_dir / "mcp_toolkits.json").read_text())
+        record = persisted["toolkits"][0]
+        self.assertEqual(record["managed_runtime"]["kind"], "node")
+        self.assertEqual(
+            record["managed_env"]["npm_config_cache"],
+            str(self.data_dir / "mcp_runtime" / "cache" / "npm"),
+        )
+
+        toolkit = build_mcp_runtime_toolkit(
+            "mcp.memory.memory",
+            data_dir=self.data_dir,
+            toolkit_factory=FakeMCPToolkit,
+        )
+        self.assertTrue(toolkit.kwargs["command"].endswith("/mcp_runtime/runtimes/node/bin/npx"))
+        self.assertEqual(
+            toolkit.kwargs["env"]["NPM_CONFIG_CACHE"],
+            str(self.data_dir / "mcp_runtime" / "cache" / "npm"),
+        )
+
+    def test_managed_runtime_error_does_not_persist_failed_install(self):
+        self.managed_runtime_patch.stop()
+        self.managed_runtime_patch = mock.patch(
+            "mcp_toolkits.resolve_managed_stdio_runtime",
+            side_effect=McpManagedRuntimeError(
+                "mcp_runtime_checksum_failed",
+                "Checksum mismatch for managed Node runtime",
+            ),
+        )
+        self.managed_runtime_patch.start()
+
+        with self.assertRaises(McpToolkitError) as ctx:
+            install_mcp_toolkit(
+                "memory.memory",
+                data_dir=self.data_dir,
+                toolkit_factory=FakeMCPToolkit,
+            )
+
+        self.assertEqual(ctx.exception.code, "mcp_runtime_checksum_failed")
+        self.assertEqual(list_installed_mcp_toolkits(data_dir=self.data_dir), [])
+        self.assertFalse((self.data_dir / "mcp_toolkits.json").exists())
 
     def test_build_runtime_toolkit_resolves_stdio_secret_env(self):
         install_mcp_toolkit(
