@@ -1,0 +1,1 @@
+- [入职契约](onboarding-contract.md) — 架构师=技术权威/CTO=交付;reports to CTO 但技术上 CTO defer;单一指挥链(我设计→CTO派活→我验收);强制走 codex exec -p architect(gpt-5.5/xhigh/read-only)+GitNexus 取证
