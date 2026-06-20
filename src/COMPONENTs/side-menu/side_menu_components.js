@@ -138,7 +138,9 @@ export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
 
   if (!visible) return null;
 
-  const bg = isDark ? "#1e1e1e" : "#ffffff";
+  const bg = isDark
+    ? "var(--pupu-surface, #1e1e1e)"
+    : "var(--pupu-surface, #ffffff)";
   const border = isDark
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.08)";
@@ -255,7 +257,9 @@ export const ConfirmDeleteModal = ({
     style={{
       width: 360,
       padding: "28px 28px 20px",
-      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+      backgroundColor: isDark
+        ? "var(--pupu-surface, #1a1a1a)"
+        : "var(--pupu-surface, #ffffff)",
       display: "flex",
       flexDirection: "column",
       gap: 0,

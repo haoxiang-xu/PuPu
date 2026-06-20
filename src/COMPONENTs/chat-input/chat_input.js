@@ -58,7 +58,9 @@ const ChatInput = ({
     });
 
   const color = theme?.color || "#222";
-  const panelFocusBg = isDark ? "rgba(30, 30, 30, 1)" : "rgba(255,255,255,1)";
+  const panelFocusBg = isDark
+    ? "var(--pupu-surface, rgba(30, 30, 30, 1))"
+    : "var(--pupu-surface, rgba(255,255,255,1))";
   const panelFocusShadow = isDark
     ? "0 4px 24px rgba(0,0,0,0.32), 0 1px 3px rgba(0,0,0,0.16)"
     : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)";
