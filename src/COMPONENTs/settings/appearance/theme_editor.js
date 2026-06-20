@@ -17,11 +17,14 @@ import {
   writeThemeCustomColor,
   writeThemeCustom,
   resetThemeSettings,
+  clearThemeCustomColor,
 } from "./storage";
+import { ADVANCED_TIERS, advancedTokenState } from "./advanced_state";
 
 const TOKEN_LABELS = {
   accent: "Accent",
   background: "Background",
+  sidebar: "Sidebar",
   surface: "Surface",
   text: "Text",
   textMuted: "Muted text",
@@ -95,6 +98,17 @@ const ThemeEditor = () => {
     const next = writeThemePreset(preset);
     setSettings(next);
     syncCommittedSettings(next);
+  };
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const advState = advancedTokenState(settings, editMode, palette);
+
+  const onResetTier = (key) => {
+    const next = clearThemeCustomColor(editMode, key);
+    setSettings(next);
+    if (editMode === activeMode) {
+      syncCommittedSettings(next);
+    }
   };
 
   const onReset = () => {
@@ -207,7 +221,7 @@ const ThemeEditor = () => {
       </div>
 
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {SEMANTIC_TOKEN_KEYS.map((key) => (
+        {SEMANTIC_TOKEN_KEYS.filter((k) => !ADVANCED_TIERS.includes(k)).map((key) => (
           <div
             key={key}
             style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
@@ -223,6 +237,46 @@ const ThemeEditor = () => {
             />
           </div>
         ))}
+      </div>
+
+      <div style={{ marginTop: 12 }}>
+        <button
+          type="button"
+          style={btnStyle}
+          onClick={() => setAdvancedOpen((o) => !o)}
+        >
+          {advancedOpen ? "Hide advanced" : "Advanced background"}
+        </button>
+        {advancedOpen && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
+            {ADVANCED_TIERS.map((key) => (
+              <div
+                key={key}
+                style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
+              >
+                <span style={{ fontSize: 13, color: isDark ? "#fff" : "#222" }}>
+                  {TOKEN_LABELS[key]}
+                  {advState[key].isAuto && (
+                    <span style={{ fontSize: 11, opacity: 0.5, marginLeft: 6 }}>auto</span>
+                  )}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  {!advState[key].isAuto && (
+                    <button type="button" style={btnStyle} onClick={() => onResetTier(key)}>
+                      Auto
+                    </button>
+                  )}
+                  <ColorPicker
+                    label={TOKEN_LABELS[key]}
+                    value={advState[key].value}
+                    onPreview={(v) => previewThemeColor(editMode, key, v)}
+                    onCommit={(v) => commitThemeColor(key, v)}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 14 }}>

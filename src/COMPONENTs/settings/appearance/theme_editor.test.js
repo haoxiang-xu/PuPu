@@ -26,12 +26,11 @@ describe("ThemeEditor", () => {
     document.documentElement.removeAttribute("style");
   });
 
-  test("renders all 8 semantic swatches", () => {
+  test("renders the 7 main semantic swatches; sidebar/surface live under Advanced", () => {
     renderWithCtx();
     for (const label of [
       "Accent",
       "Background",
-      "Surface",
       "Text",
       "Muted text",
       "Border",
@@ -40,6 +39,22 @@ describe("ThemeEditor", () => {
     ]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
+    // The two background-family tiers are hidden until the disclosure opens.
+    expect(
+      screen.queryByRole("button", { name: "Surface" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Sidebar" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Advanced background" }));
+
+    expect(
+      screen.getByRole("button", { name: "Sidebar" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Surface" }),
+    ).toBeInTheDocument();
   });
 
   test("editing a color previews without persisting until commit", () => {
