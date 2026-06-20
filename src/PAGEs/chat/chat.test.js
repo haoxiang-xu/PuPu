@@ -83,7 +83,6 @@ describe("ChatInterface stop flow", () => {
   let cancelSpy;
   let consoleErrorSpy;
   let streamHandlers;
-  let streamV3Handlers;
   let streamV4Handlers;
 
   beforeEach(() => {
@@ -92,7 +91,6 @@ describe("ChatInterface stop flow", () => {
     lastChatInputProps = null;
     cancelSpy = jest.fn();
     streamHandlers = null;
-    streamV3Handlers = null;
     streamV4Handlers = null;
     consoleErrorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
     mockScopedLogger.log.mockClear();
@@ -1327,94 +1325,7 @@ describe("ChatInterface stop flow", () => {
     });
   });
 
-  test("uses runtime event stream v3 when the bridge is available", async () => {
-    window.unchainAPI.startStreamV3 = jest.fn((_payload, handlers = {}) => {
-      streamV3Handlers = handlers;
-      return {
-        cancel: cancelSpy,
-      };
-    });
-
-    renderChat();
-    await waitForReady();
-
-    fireEvent.change(screen.getByTestId("chat-input"), {
-      target: { value: "Hello v3" },
-    });
-    fireEvent.click(screen.getByTestId("send-button"));
-
-    await waitFor(() => {
-      expect(window.unchainAPI.startStreamV3).toHaveBeenCalledTimes(1);
-      expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
-      expect(streamV3Handlers).toBeTruthy();
-    });
-
-    const baseEvent = {
-      schema_version: "v3",
-      timestamp: "2026-04-25T12:00:00.000Z",
-      session_id: "thread-v3",
-      run_id: "run-root",
-      agent_id: "developer",
-      turn_id: "run-root:turn-1",
-      links: {},
-      visibility: "user",
-      metadata: {},
-    };
-
-    act(() => {
-      streamV3Handlers.onRuntimeEvent({
-        ...baseEvent,
-        event_id: "evt-session",
-        type: "session.started",
-        run_id: "",
-        turn_id: null,
-        payload: { thread_id: "thread-v3", model: "openai:gpt-5" },
-      });
-      streamV3Handlers.onRuntimeEvent({
-        ...baseEvent,
-        event_id: "evt-run",
-        type: "run.started",
-        payload: { provider: "openai", model: "gpt-5" },
-      });
-      streamV3Handlers.onRuntimeEvent({
-        ...baseEvent,
-        event_id: "evt-delta",
-        type: "model.delta",
-        payload: { kind: "text", delta: "Hello from v3" },
-      });
-      streamV3Handlers.onRuntimeEvent({
-        ...baseEvent,
-        event_id: "evt-final",
-        type: "model.completed",
-        payload: { status: "completed", final_text: "Hello from v3" },
-      });
-      streamV3Handlers.onRuntimeEvent({
-        ...baseEvent,
-        event_id: "evt-completed",
-        type: "run.completed",
-        payload: {
-          status: "completed",
-          usage: { consumed_tokens: 9, model: "openai:gpt-5" },
-        },
-      });
-      streamV3Handlers.onDone({ finished_at: 123 });
-    });
-
-    await waitFor(() => {
-      const assistantMessage = [...(lastChatMessagesProps?.messages || [])]
-        .reverse()
-        .find((message) => message.role === "assistant");
-      expect(assistantMessage?.status).toBe("done");
-      expect(assistantMessage?.content).toBe("Hello from v3");
-      expect(assistantMessage?.traceFrames?.some((frame) => frame.type === "done")).toBe(
-        true,
-      );
-      expect(assistantMessage?.meta?.bundle?.consumed_tokens).toBe(9);
-    });
-  });
-
   test("prefers runtime event stream v4 and stores run-level artifact summaries", async () => {
-    window.unchainAPI.startStreamV3 = jest.fn();
     window.unchainAPI.startStreamV4 = jest.fn((_payload, handlers = {}) => {
       streamV4Handlers = handlers;
       return {
@@ -1432,7 +1343,7 @@ describe("ChatInterface stop flow", () => {
 
     await waitFor(() => {
       expect(window.unchainAPI.startStreamV4).toHaveBeenCalledTimes(1);
-      expect(window.unchainAPI.startStreamV3).not.toHaveBeenCalled();
+      expect(window.unchainAPI.startStreamV3).toBeUndefined();
       expect(window.unchainAPI.startStreamV2).not.toHaveBeenCalled();
       expect(streamV4Handlers).toBeTruthy();
     });

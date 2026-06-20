@@ -53,7 +53,22 @@ const MyComponent = () => {
 - Theme object available for `backgroundColor` via `theme` from ConfigContext
 - Window size available via `window_size` from ConfigContext
 
-### ConfigContext Shape
+### Context Providers
+
+ConfigContext has been split into fine-grained contexts to avoid re-rendering on
+unrelated state changes (e.g. window resize). Defined in
+`src/CONTAINERs/config/context.js`:
+
+- `ThemeContext` — `syncWithSystemTheme`, `setSyncWithSystemTheme`, `availableThemes`, `theme`, `setTheme`, `onThemeMode`, `setOnThemeMode`
+- `LocaleContext` — `locale`, `setLocale`
+- `EnvironmentContext` — `window_size`, `env_browser`, `device_type`
+- `NavigationContext` — `onFragment`, `setOnFragment`
+- `ConfigContext` — backward-compatible merged view of all of the above
+
+> New code should subscribe to the granular context it needs; `ConfigContext`
+> remains a compatibility merged view (it re-renders on any sub-context change).
+
+### ConfigContext Shape (merged view)
 
 ```javascript
 {
@@ -64,6 +79,8 @@ const MyComponent = () => {
   setTheme: (theme) => void,
   onThemeMode: "dark_mode" | "light_mode",
   setOnThemeMode: (mode) => void,
+  locale: string,
+  setLocale: (locale) => void,
   window_size: { width, height },
   env_browser: string,
   device_type: string,

@@ -45,6 +45,14 @@ class ChatStreamV4RouteTests(unittest.TestCase):
         payload = response.get_json()
         self.assertEqual(payload["error"]["code"], "invalid_request")
 
+    def test_chat_stream_v3_route_is_not_registered(self) -> None:
+        response = self.client.post(
+            "/chat/stream/v3",
+            json={"message": "hello"},
+        )
+
+        self.assertEqual(response.status_code, 404)
+
     def test_chat_stream_v4_emits_v4_runtime_events_and_done(self) -> None:
         mocked_events = iter(
             [

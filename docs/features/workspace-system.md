@@ -15,7 +15,7 @@ Workspaces let users attach local folders as context for AI conversations. The a
 | Concept | Description |
 |---------|-------------|
 | **Default workspace root** | Global setting, primary workspace path |
-| **Named workspaces** | User-defined workspace entries with ID, label, and path |
+| **Named workspaces** | User-defined workspace entries with ID, optional name, and path |
 | **Per-chat workspace selection** | Each chat selects which workspaces to include |
 | **Path resolution** | Workspace IDs → absolute paths at stream time |
 
@@ -31,7 +31,7 @@ Stored in `localStorage.settings.runtime`:
   workspaces: [
     {
       id: string,       // unique ID (generated)
-      label: string,    // display name
+      name: string,     // optional display name
       path: string,     // absolute path
     },
   ],
@@ -63,12 +63,58 @@ These reference workspace IDs from settings, **not** raw paths.
 4. At stream time:
    api.unchain.startStreamV2(payload, ...)
      → injectWorkspaceRootIntoPayload(payload)
-       → Resolves IDs to absolute paths from settings
-       → Injects: workspaceRoot, workspace_root, workspace_roots
+       → Resolves selectedWorkspaceIds to absolute paths from settings
+       → Builds allRoots: selected paths first, then the global default
+         root appended as fallback if distinct
+       → Injects the multi-root trio into options:
+           workspace_roots[]   (array — the source of truth, multi-root)
+           workspace_root      (allRoots[0] — back-compat single root)
+           workspaceRoot       (allRoots[0] — back-compat single root)
+       → Strips internal selectedWorkspaceIds from options
 5. Backend receives resolved paths (not IDs)
-6. unchain_adapter.py attaches workspace tools
-   (multi_workspace_toolkit or python_workspace_toolkit)
+6. unchain_adapter.py attaches the single workspace toolkit
+   (see Backend Toolkit Resolution below)
 ```
+
+### Injection short-circuit branches
+
+`injectWorkspaceRootIntoPayload` returns early (without injecting the
+trio) in these cases — `selectedWorkspaceIds` is still stripped from
+options in every branch:
+
+| Condition (on `payload.options`) | Behavior |
+|----------------------------------|----------|
+| `disable_workspace_root === true` (or camel `disableWorkspaceRoot`) | Skip injection entirely |
+| `explicitWorkspaceRoot` — caller already set `workspaceRoot`/`workspace_root` | Respect caller's root, skip injection |
+| `allRoots.length === 0` (no selected paths, no default root) | Nothing to inject |
+
+---
+
+## Backend Toolkit Resolution
+
+The backend exposes a **single** workspace toolkit, id `workspace_toolkit`
+(frontend alias `access_workspace_toolkit`; `workspace` and the class name
+`WorkspaceToolkit` also alias to it). There is **no** `multi_workspace_toolkit`
+or `python_workspace_toolkit` — multi-root is handled internally, not via a
+separate toolkit id.
+
+`_build_workspace_toolkits(options)` in `unchain_adapter.py` resolves the
+roots from the injected `workspace_roots` and builds one toolkit:
+
+1. **Native multi-root** — if `unchain.toolkits.WorkspaceToolkit` accepts
+   `workspace_roots=[...]` and there is more than one root, construct it
+   directly with all roots.
+2. **Single root** — when exactly one resolved root, build a single-root
+   `WorkspaceToolkit` for that path.
+3. **Multi-root fallback** — when the native constructor does not accept
+   multiple roots, try `_try_build_workspace_toolkit_for_roots`, then fall
+   back to `_build_multi_workspace_proxy_toolkit`, which aggregates per-root
+   single-root toolkits behind a proxy.
+
+In every branch the result is tagged `toolkit_id="workspace_toolkit"` and its
+tools are marked for confirmation. A `LegacyWorkspaceToolkit` shim
+(`adapter_workspace_tools.py`) provides the single-root toolkit when the
+unchain core constructor is unavailable.
 
 ---
 

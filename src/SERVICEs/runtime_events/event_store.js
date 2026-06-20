@@ -5,14 +5,11 @@ export const RUNTIME_EVENT_TYPES = new Set([
   "run.failed",
   "turn.started",
   "turn.completed",
-  "model.started",
-  "model.delta",
-  "model.completed",
-  "tool.started",
-  "tool.delta",
-  "tool.completed",
-  "input.requested",
-  "input.resolved",
+  "step.started",
+  "step.delta",
+  "step.completed",
+  "interaction.requested",
+  "interaction.resolved",
   "artifact.created",
   "artifact.updated",
 ]);
@@ -49,11 +46,16 @@ const snapshotState = (state) => ({
   diagnostics: clone(state.diagnostics) || createDiagnostics(),
 });
 
+const normalizeSurface = (surface) =>
+  isObject(surface)
+    ? surface
+    : { slot: "trace_inline", scope: "turn", group: "" };
+
 const normalizeRuntimeEvent = (event) => {
   if (!isObject(event)) {
     return null;
   }
-  if (event.schema_version !== "v3") {
+  if (event.schema_version !== "v4") {
     return null;
   }
   if (typeof event.event_id !== "string" || !event.event_id.trim()) {
@@ -67,6 +69,7 @@ const normalizeRuntimeEvent = (event) => {
     event_id: event.event_id.trim(),
     type: event.type.trim(),
     links: isObject(event.links) ? event.links : {},
+    surface: normalizeSurface(event.surface),
     payload: isObject(event.payload) ? event.payload : {},
     metadata: isObject(event.metadata) ? event.metadata : {},
   };
@@ -76,12 +79,12 @@ export const isRuntimeEvent = (event) => Boolean(normalizeRuntimeEvent(event));
 
 const numericOrderValue = (event) => {
   const candidates = [
-    event?.sequence,
     event?.seq,
-    event?.payload?.sequence,
+    event?.sequence,
     event?.payload?.seq,
-    event?.metadata?.sequence,
+    event?.payload?.sequence,
     event?.metadata?.seq,
+    event?.metadata?.sequence,
   ];
   for (const candidate of candidates) {
     if (typeof candidate === "number" && Number.isFinite(candidate)) {
@@ -108,19 +111,13 @@ const sortOrderedEventIds = (state) => {
     const leftOrder = numericOrderValue(left);
     const rightOrder = numericOrderValue(right);
     if (leftOrder !== null || rightOrder !== null) {
-      if (leftOrder === null) {
-        return 1;
-      }
-      if (rightOrder === null) {
-        return -1;
-      }
-      if (leftOrder !== rightOrder) {
-        return leftOrder - rightOrder;
-      }
+      if (leftOrder === null) return 1;
+      if (rightOrder === null) return -1;
+      if (leftOrder !== rightOrder) return leftOrder - rightOrder;
     }
-
     return (
-      (originalIndexById.get(leftId) ?? 0) - (originalIndexById.get(rightId) ?? 0)
+      (originalIndexById.get(leftId) ?? 0) -
+      (originalIndexById.get(rightId) ?? 0)
     );
   });
 };
@@ -129,7 +126,7 @@ const appendRuntimeEventToSnapshot = (next, event) => {
   const normalized = normalizeRuntimeEvent(event);
   if (!normalized) {
     next.diagnostics.droppedEvents.push({
-      reason: "invalid_runtime_event",
+      reason: "invalid_runtime_event_v4",
       event: clone(event),
     });
     return false;

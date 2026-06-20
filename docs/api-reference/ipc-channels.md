@@ -31,7 +31,7 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `chat-storage:bootstrap-read` | invoke/handle | Reads chat storage during startup |
 | `chat-storage:write` | invoke/handle | Persists chat storage updates |
 
-### UPDATE (4 channels)
+### UPDATE (6 channels)
 
 | Channel | Pattern | Handler |
 |---------|---------|---------|
@@ -39,6 +39,8 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `update:check-and-download` | invoke/handle | Triggers update check + download |
 | `update:install-now` | invoke/handle | Installs downloaded update + restart |
 | `update:state-changed` | main→renderer | Broadcasts update state changes |
+| `update:get-auto-update` | invoke/handle | Returns whether auto-update is enabled |
+| `update:set-auto-update` | invoke/handle | Sets the auto-update enabled preference |
 
 ### OLLAMA (6 channels)
 
@@ -51,7 +53,11 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `ollama:install-progress` | main→renderer | Broadcasts install progress |
 | `ollama:library-search` | invoke/handle | Searches ollama.com model library |
 
-### UNCHAIN (45 channels)
+### UNCHAIN (67 channels)
+
+> `unchain:validate-api-key` is defined as a constant in `channels.js` but has no
+> registered handler and is not exposed through any preload bridge. It is a dead
+> channel and is intentionally omitted from this registry.
 
 **Status & Config (7):**
 
@@ -64,6 +70,43 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 | `unchain:get-toolkit-detail` | invoke/handle |
 | `unchain:set-chrome-terminal-open` | invoke/handle |
 | `unchain:sync-build-feature-flags-snapshot` | invoke/handle |
+
+**MCP Toolkits (6):**
+
+| Channel | Pattern |
+|---------|---------|
+| `unchain:list-mcp-toolkits` | invoke/handle |
+| `unchain:install-mcp-toolkit` | invoke/handle |
+| `unchain:delete-mcp-toolkit` | invoke/handle |
+| `unchain:reload-mcp-toolkits` | invoke/handle |
+| `unchain:check-mcp-toolkit-health` | invoke/handle |
+| `unchain:configure-mcp-toolkit` | invoke/handle |
+
+**MCP OAuth (6):**
+
+| Channel | Pattern |
+|---------|---------|
+| `unchain:start-mcp-oauth` | invoke/handle |
+| `unchain:get-mcp-oauth-status` | invoke/handle |
+| `unchain:disconnect-mcp-oauth` | invoke/handle |
+| `unchain:list-mcp-oauth-apps` | invoke/handle |
+| `unchain:configure-mcp-oauth-app` | invoke/handle |
+| `unchain:delete-mcp-oauth-app` | invoke/handle |
+
+**MCP Store (10):**
+
+| Channel | Pattern |
+|---------|---------|
+| `unchain:list-mcp-store-metadata` | invoke/handle |
+| `unchain:reload-mcp-store-metadata` | invoke/handle |
+| `unchain:list-mcp-store-entries` | invoke/handle |
+| `unchain:list-mcp-store-registries` | invoke/handle |
+| `unchain:import-mcp-store-registry` | invoke/handle |
+| `unchain:validate-mcp-store-registry` | invoke/handle |
+| `unchain:refresh-mcp-store-registry` | invoke/handle |
+| `unchain:delete-mcp-store-registry` | invoke/handle |
+| `unchain:approve-mcp-store-entry` | invoke/handle |
+| `unchain:revoke-mcp-store-entry-approval` | invoke/handle |
 
 **Tool (1):**
 
@@ -143,7 +186,7 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 |---------|---------|
 | `unchain:stream:start` | renderer→main (send) |
 | `unchain:stream:start-v2` | renderer→main (send) |
-| `unchain:stream:start-v3` | renderer→main (send) |
+| `unchain:stream:start-v4` | renderer→main (send) |
 | `unchain:stream:cancel` | renderer→main (send) |
 | `unchain:stream:event` | main→renderer (event) |
 
@@ -186,15 +229,19 @@ See [IPC Boundary](../architecture/ipc-boundary.md) for the architecture overvie
 
 ---
 
-## Total: 69 channels
+## Total: 93 channels
+
+Counts reflect documented channels enumerated against `electron/shared/channels.js`.
+The `unchain:validate-api-key` constant is a dead channel (no handler, not exposed
+in preload) and is excluded from the UNCHAIN count.
 
 | Group | Count |
 |-------|-------|
 | APP | 1 |
 | CHAT_STORAGE | 2 |
-| UPDATE | 4 |
+| UPDATE | 6 |
 | OLLAMA | 6 |
-| UNCHAIN | 45 |
+| UNCHAIN | 67 |
 | THEME | 2 |
 | WINDOW STATE | 2 |
 | SCREENSHOT | 2 |

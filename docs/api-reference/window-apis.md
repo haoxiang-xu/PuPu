@@ -108,8 +108,14 @@ The largest API surface. Organized by domain:
 |--------|---------|
 | `startStream(payload, handlers)` | `{ requestId, cancel }` (V1 legacy) |
 | `startStreamV2(payload, handlers)` | `{ requestId, cancel }` (V2 frame protocol) |
-| `startStreamV3(payload, handlers)` | `{ requestId, cancel }` (V3 RuntimeEvent protocol) |
+| `startStreamV4(payload, handlers)` | `{ requestId, cancel }` (V4 RuntimeEvent protocol, current default) |
 | `cancelStream(requestId)` | `void` |
+
+The preload bridge exposes `startStream`, `startStreamV2`, and `startStreamV4`.
+There is no separate `startStreamV3` bridge method; the renderer's V3 fallback
+path (see [../architecture/runtime-events-v3.md](../architecture/runtime-events-v3.md))
+is selected in `use_chat_stream.js`. Stream-path selection priority is
+**V4 > V3 > V2**.
 
 ### Tool Confirmation
 

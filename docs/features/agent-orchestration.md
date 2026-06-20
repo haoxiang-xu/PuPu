@@ -48,10 +48,13 @@ delegation → style → output_format → context → constraints → fallback
 
 ### Merge Strategies
 
-Each section can use one of three merge strategies:
-- **replace** — overwrites the existing value
-- **prepend** — adds before the existing value
-- **append** — adds after the existing value
+The per-module merge strategy is a **fixed mapping** (`PROMPT_MODULE_MERGE` in `prompts/module_config.py`), not chosen per request. Only two modules are non-`replace`:
+
+- `rules` → **prepend** (builtin → user → agent)
+- `constraints` → **append** (agent → user)
+- the other 9 modules → **replace** (first non-empty wins, preference user > agent > builtin)
+
+The module order and merge map are sourced from the `unchain_runtime/server/prompts/` package, the same source as [System Prompt V2](../architecture/system-prompt-v2.md#backend-compilation). Composition runs through `_build_modular_prompt()` in `unchain_adapter.py`.
 
 ### Prompt Section Template
 
@@ -81,12 +84,15 @@ prompt = _compose_agent_prompt(_MY_AGENT_PROMPT_SECTIONS)
 
 ### Stream Models
 
-PuPu supports two stream models for sub-agent activity:
+PuPu supports several stream models for sub-agent activity:
 
-| Protocol | Shape | Frontend path |
-|----------|-------|---------------|
-| V3 | `run.started` with `links.parent_run_id`, then typed child-run events | RuntimeEventStore -> ActivityTree -> TraceChain adapter |
-| V2 | Legacy TraceFrames with child `run_id` and lifecycle frames | Direct frame handling in `use_chat_stream.js` |
+| Protocol | Endpoint | Shape | Frontend path |
+|----------|----------|-------|---------------|
+| V4 | `POST /chat/stream/v4` | Normalized runtime events via `RuntimeEventBridge` (from `unchain.events`): `emit_session_started()` → `normalize(raw_event)` → `diagnostics()`; transport errors via `emit_transport_failure()` | RuntimeEventStore -> ActivityTree -> TraceChain adapter |
+| V3 | (frame protocol) | `run.started` with `links.parent_run_id`, then typed child-run events | RuntimeEventStore -> ActivityTree -> TraceChain adapter |
+| V2 | `POST /chat/stream/v2` | Legacy TraceFrames built manually (`_build_trace_frame()`) with child `run_id` and lifecycle frames | Direct frame handling in `use_chat_stream.js` |
+
+> V4 is driven server-side by `chat_stream_v4()` in `route_chat.py`. The bridge (`RuntimeEventBridge`) is imported from the unchain core library; if it is unavailable the route returns `500` with error code `runtime_events_unavailable`. There is no `/chat/stream/v3` HTTP route — V3 refers to the runtime-event frame protocol consumed by the frontend, served over the V4 transport.
 
 ### Run ID Semantics
 
@@ -150,6 +156,42 @@ Sub-agent frames are stored separately from the main message's trace frames:
 
 ---
 
+## Subagent & Recipe Loading (Backend)
+
+Subagents and recipes are loaded from disk at chat-session start, on the backend.
+
+### Subagents (`subagent_loader.py`)
+
+`load_templates()` scans `.soul` and `.skeleton` files in the user dir (`~/.pupu/subagents/`) and the workspace dir, parses them, validates, applies precedence, and returns ready-to-register `SubagentTemplate` instances.
+
+| File format | Parser | Carries |
+|-------------|--------|---------|
+| `.soul` | `parse_soul()` | YAML frontmatter (`name`, `description`, `tools`, `model`) + body instructions |
+| `.skeleton` | `parse_skeleton()` | Full JSON config (`allowed_modes`, `output_mode`, `memory_policy`, `parallel_safe`, `allowed_tools`, `model`) |
+
+Precedence on name conflict (`_dedupe_by_precedence()`): `user.skeleton` > `user.soul` > `workspace.skeleton` > `workspace.soul`. A subagent's declared `allowed_tools` is intersected against the main agent's toolset (`_compute_effective_tools()`) so a subagent can never exceed the parent's tools.
+
+### Recipes (`recipe_loader.py`)
+
+Recipes live as `<Name>.recipe` JSON files under `~/.pupu/agent_recipes/`. Invalid files are skipped with warnings, never raised.
+
+| Function | Purpose |
+|----------|---------|
+| `list_recipes()` | List recipe metadata (name, description, model, toolkit_ids, subagent_count) |
+| `load_recipe(name)` | Load a single recipe (or `None`) |
+| `save_recipe(data)` | Validate + write a recipe |
+| `delete_recipe(name)` | Delete a recipe file (the `Default` recipe is protected) |
+| `list_subagent_refs()` | Enumerate available subagent source files for referencing |
+
+A recipe carries a `subagent_pool` (see `recipe.py`) — a tuple whose entries are one of:
+- `SubagentRef` (`kind="ref"`) — references a `.soul`/`.skeleton` template by `template_name`
+- `RecipeSubagentRef` (`kind="recipe_ref"`) — references another recipe by `recipe_name`
+- `InlineSubagent` (`kind="inline"`) — defines a subagent inline
+
+Each pool entry supports `disabled_tools` to selectively restrict tool access. These backend loaders serve the `/agent_recipes/*` routes (see [Flask Endpoints](../api-reference/flask-endpoints.md#agent-recipes)).
+
+---
+
 ## Trace Chain Rendering
 
 The chat bubble renders trace frames as a "trace chain" — a visual timeline of tool calls, reasoning steps, memory operations, and sub-agent activities.
@@ -184,6 +226,9 @@ The side-menu entry appears whenever **either** flag is enabled. When only one i
 | File | Role |
 |------|------|
 | `unchain_runtime/server/unchain_adapter.py` | Agent creation, prompt composition, sub-agent delegation |
+| `unchain_runtime/server/prompts/` | Prompt module config + agent sections (`module_config.py`, `agents/developer.py`) |
+| `unchain_runtime/server/subagent_loader.py` | Loads `.soul`/`.skeleton` subagent templates |
+| `unchain_runtime/server/recipe_loader.py` | Loads `.recipe` agent recipes + subagent refs |
 | `src/PAGEs/chat/hooks/use_chat_stream.js` | Sub-agent frame handling |
 | `src/SERVICEs/runtime_events/` | V3 RuntimeEvent store, ActivityTree reducer, and TraceChain adapter |
 | `src/COMPONENTs/chat-bubble/trace_chain.js` | Trace rendering |

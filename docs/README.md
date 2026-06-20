@@ -45,6 +45,10 @@ Project documentation lives in this folder. Start with the **Developer Guide** f
 - [Project Conventions](./conventions/project-conventions.md) — Naming, styling, file org, component patterns, pitfalls
 - [Build & Testing](./conventions/build-and-testing.md) — Build pipeline, test commands, CI setup
 
+### Contributing
+
+- [MCP Store Submission](./contributing/mcp-store-submission.md) — How to submit an entry to the PuPu MCP store
+
 ## Legal
 
 - [Contributor License Agreement](./CLA.md)

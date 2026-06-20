@@ -1,1 +1,1 @@
-export const isRuntimeEventStreamV3Enabled = () => true;
+export const isRuntimeEventStreamEnabled = () => true;

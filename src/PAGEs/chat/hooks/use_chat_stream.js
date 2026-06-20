@@ -13,11 +13,7 @@ import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_
 import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
-import { isRuntimeEventStreamV3Enabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
-import { createRuntimeEventStoreV4 } from "../../../SERVICEs/runtime_events_v4/event_store";
-import { reduceActivityTreeV4 } from "../../../SERVICEs/runtime_events_v4/activity_tree";
-import { adaptActivityTreeToTraceChainV4 } from "../../../SERVICEs/runtime_events_v4/trace_chain_adapter";
-import { isRuntimeEventStreamV4Enabled } from "../../../SERVICEs/runtime_events_v4/runtime_event_stream_gate";
+import { isRuntimeEventStreamEnabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
 import { isToolAutoApproved } from "../../../SERVICEs/toolkit_auto_approve_store";
 import {
   clearStreamingMessageText,
@@ -2030,36 +2026,22 @@ export const useChatStream = ({
         return streamHandle;
         };
 
-        const shouldUseRuntimeEventsV4 =
-          isRuntimeEventStreamV4Enabled() &&
+        const shouldUseRuntimeEvents =
+          isRuntimeEventStreamEnabled() &&
           typeof api.unchain.isRuntimeEventStreamV4Available === "function" &&
           api.unchain.isRuntimeEventStreamV4Available();
-        if (shouldUseRuntimeEventsV4) {
+        if (shouldUseRuntimeEvents) {
           return startRuntimeEventStream({
-            createStore: createRuntimeEventStoreV4,
-            reduceTree: reduceActivityTreeV4,
-            adaptTree: adaptActivityTreeToTraceChainV4,
+            createStore: createRuntimeEventStore,
+            reduceTree: reduceActivityTree,
+            adaptTree: adaptActivityTreeToTraceChain,
             startStream: api.unchain.startStreamV4,
             batchRuntimeEvents: true,
             batchFlushMs: RUNTIME_EVENT_BATCH_FLUSH_MS,
           });
         }
 
-        const shouldUseRuntimeEventsV3 =
-          isRuntimeEventStreamV3Enabled() &&
-          typeof api.unchain.isRuntimeEventStreamV3Available === "function" &&
-          api.unchain.isRuntimeEventStreamV3Available();
-        if (!shouldUseRuntimeEventsV3) {
-          return api.unchain.startStreamV2(payload, handlers);
-        }
-
-        return startRuntimeEventStream({
-          createStore: createRuntimeEventStore,
-          reduceTree: reduceActivityTree,
-          adaptTree: adaptActivityTreeToTraceChain,
-          startStream: api.unchain.startStreamV3,
-          batchRuntimeEvents: false,
-        });
+        return api.unchain.startStreamV2(payload, handlers);
       };
 
       let streamHandle = null;

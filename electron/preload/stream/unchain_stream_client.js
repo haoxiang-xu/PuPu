@@ -155,7 +155,7 @@ const createMisoStreamClient = (ipcRenderer) => {
     activeMisoStreamCleanups.set(requestId, cleanup);
   };
 
-  const registerMisoStreamV3Listener = (requestId, handlers = {}) => {
+  const registerRuntimeEventStreamListener = (requestId, handlers = {}) => {
     const listener = (_event, envelope = {}) => {
       if (envelope.requestId !== requestId) {
         return;
@@ -207,7 +207,7 @@ const createMisoStreamClient = (ipcRenderer) => {
   };
 
   const registerMisoStreamV4Listener = (requestId, handlers = {}) => {
-    registerMisoStreamV3Listener(requestId, handlers);
+    registerRuntimeEventStreamListener(requestId, handlers);
   };
 
   const startStream = (payload, handlers = {}) => {
@@ -254,24 +254,6 @@ const createMisoStreamClient = (ipcRenderer) => {
     };
   };
 
-  const startStreamV3 = (payload, handlers = {}) => {
-    const requestId = createRequestId();
-    registerMisoStreamV3Listener(requestId, handlers);
-
-    ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_START_V3, {
-      requestId,
-      payload,
-    });
-
-    return {
-      requestId,
-      cancel: () => {
-        ipcRenderer.send(CHANNELS.UNCHAIN.STREAM_CANCEL, { requestId });
-        cleanupMisoStreamListener(requestId);
-      },
-    };
-  };
-
   const startStreamV4 = (payload, handlers = {}) => {
     const requestId = createRequestId();
     registerMisoStreamV4Listener(requestId, handlers);
@@ -294,7 +276,6 @@ const createMisoStreamClient = (ipcRenderer) => {
     startStream,
     cancelStream,
     startStreamV2,
-    startStreamV3,
     startStreamV4,
     __debug: {
       getActiveListenerCount: () => activeMisoStreamCleanups.size,

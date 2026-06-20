@@ -4,9 +4,9 @@ import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tr
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 
 describe("TraceChain UI testing scenarios", () => {
-  test("includes a Runtime Events v3 scenario replayed through the service adapter", () => {
+  test("includes a Runtime Events scenario replayed through the service adapter", () => {
     const scenario = TRACE_CHAIN_SCENARIOS.find(
-      (item) => item.name === "Runtime Events v3",
+      (item) => item.name === "Runtime Events",
     );
 
     expect(scenario).toBeTruthy();
@@ -14,10 +14,10 @@ describe("TraceChain UI testing scenarios", () => {
     expect(scenario.events.map((event) => event.type)).toEqual([
       "session.started",
       "run.started",
-      "model.delta",
-      "tool.started",
-      "tool.completed",
-      "model.completed",
+      "step.delta",
+      "step.started",
+      "step.completed",
+      "step.completed",
       "run.completed",
     ]);
 

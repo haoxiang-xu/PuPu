@@ -1,7 +1,7 @@
 # PuPu Developer Guide
 
 > Unified developer reference for the PuPu desktop AI client.
-> Last verified against codebase: 2026-05-08
+> Last verified against codebase: 2026-06-19
 
 ---
 
@@ -40,25 +40,21 @@ PuPu/
 │   ├── PAGEs/                    # Route-level pages
 │   │   ├── chat/                 # Main chat interface
 │   │   │   └── hooks/            # Core hooks (use_chat_stream.js)
-│   │   └── chat_page/            # Alternative chat layout
-│   ├── COMPONENTs/               # Domain feature components (19 dirs)
+│   │   └── demo/                 # Demo / mini route
+│   ├── COMPONENTs/               # Domain feature components (13 dirs)
 │   │   ├── agents/               # Agent orchestration UI
-│   │   ├── chat/                 # Core chat logic
 │   │   ├── chat-bubble/          # Message rendering
 │   │   ├── chat-header/          # Chat controls
 │   │   ├── chat-input/           # Message input + attachments
 │   │   ├── chat-messages/        # Message list container
+│   │   ├── diff/                 # Diff views
+│   │   ├── init-setup/           # First-run wizard
+│   │   ├── memory-inspect/       # Memory debug inspector
 │   │   ├── settings/             # Global settings UI
 │   │   ├── side-menu/            # Conversation tree sidebar
 │   │   ├── toolkit/              # Toolkit selection modal
-│   │   ├── workspace/            # Workspace folder selection
-│   │   ├── memory-inspect/       # Memory debug inspector
-│   │   ├── init-setup/           # First-run wizard
-│   │   ├── title_bar/            # Electron title bar
-│   │   ├── terminal/             # Terminal output
-│   │   ├── dialog/               # Dialog primitives
-│   │   ├── context_menu/         # Context menus
-│   │   └── file_drop_zone/       # File drag-and-drop
+│   │   ├── ui-testing/           # UI testing surface
+│   │   └── workspace/            # Workspace folder selection
 │   ├── BUILTIN_COMPONENTs/       # Reusable UI primitives (32 dirs)
 │   │   ├── mini_react/           # Custom router, storage, hooks
 │   │   ├── icon/                 # SVG icon system
@@ -82,7 +78,8 @@ PuPu/
 │   │   ├── feature_flags.js
 │   │   └── ...
 │   ├── CONTAINERs/               # Context providers
-│   │   └── config/               # ConfigContext (isDark, theme, fonts)
+│   │   └── config/               # ThemeContext/LocaleContext/EnvironmentContext/
+│   │                             #   NavigationContext + merged ConfigContext
 │   └── App.js                    # Root + route definitions
 ├── electron/                     # Electron desktop layer
 │   ├── main/                     # Main process
@@ -92,7 +89,9 @@ PuPu/
 │   │   └── services/             # Runtime, Unchain, Ollama, Update
 │   ├── preload/                  # Renderer bridge
 │   │   ├── index.js              # contextBridge.exposeInMainWorld
-│   │   ├── bridges/              # 7 bridge factories
+│   │   ├── bridges/              # 9 bridge factories (app_info, app_update,
+│   │   │                         #   chat_storage, ollama, ollama_library,
+│   │   │                         #   screenshot, theme, unchain, window_state)
 │   │   └── stream/               # SSE stream client
 │   └── shared/                   # IPC channel constants
 ├── unchain_runtime/              # Python Flask backend

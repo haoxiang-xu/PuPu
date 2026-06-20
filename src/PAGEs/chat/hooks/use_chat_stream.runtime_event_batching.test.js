@@ -15,23 +15,20 @@ describe("use_chat_stream runtime event batching", () => {
     expect(source).toMatch(/\.\/runtime_event_batcher/);
   });
 
-  test("V4 stream path enables runtime event batching while V3 remains unbatched", () => {
+  test("canonical runtime event stream uses v4 with batching and no v3 fallback", () => {
     expect(source).toMatch(/RUNTIME_EVENT_BATCH_FLUSH_MS\s*=\s*64/);
     expect(source).toMatch(/batchRuntimeEvents:\s*true/);
-    expect(source).toMatch(/batchRuntimeEvents:\s*false/);
     expect(source).toMatch(/batchFlushMs:\s*RUNTIME_EVENT_BATCH_FLUSH_MS/);
+    expect(source).not.toMatch(/startStreamV3/);
+    expect(source).not.toMatch(/shouldUseRuntimeEventsV3/);
+    expect(source).not.toMatch(/runtime_events_v4/);
 
     const v4Branch = source.match(
-      /if \(shouldUseRuntimeEventsV4\)[\s\S]*?startStream:\s*api\.unchain\.startStreamV4[\s\S]*?\}\);/,
-    );
-    const v3Branch = source.match(
-      /if \(!shouldUseRuntimeEventsV3\)[\s\S]*?return api\.unchain\.startStreamV2\(payload, handlers\);\s*\}\s*return startRuntimeEventStream\(\{[\s\S]*?startStream:\s*api\.unchain\.startStreamV3[\s\S]*?\}\);/,
+      /if \(shouldUseRuntimeEvents\)[\s\S]*?startStream:\s*api\.unchain\.startStreamV4[\s\S]*?\}\);/,
     );
 
     expect(v4Branch?.[0]).toMatch(/batchRuntimeEvents:\s*true/);
     expect(v4Branch?.[0]).toMatch(/batchFlushMs:\s*RUNTIME_EVENT_BATCH_FLUSH_MS/);
-    expect(v3Branch?.[0]).toMatch(/batchRuntimeEvents:\s*false/);
-    expect(v3Branch?.[0]).not.toMatch(/batchFlushMs/);
   });
 
   test("batched runtime event flush appends many events before one reduce pass", () => {

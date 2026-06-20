@@ -1049,9 +1049,8 @@ describe("unchain service session memory replacement", () => {
     ]);
   });
 
-  test("handleStreamStartV3 uses v3 endpoint and forwards runtime events", async () => {
-    const fakeProcess = createFakeSpawnProcess();
-    const spawn = jest.fn(() => fakeProcess);
+  test("does not expose handleStreamStartV3", () => {
+    const spawn = jest.fn(() => createFakeSpawnProcess());
     const spawnSync = jest.fn(() => ({
       status: 0,
       stdout: JSON.stringify({
@@ -1061,41 +1060,6 @@ describe("unchain service session memory replacement", () => {
         missing: [],
       }),
     }));
-
-    const encoder = new TextEncoder();
-    const reader = {
-      read: jest
-        .fn()
-        .mockResolvedValueOnce({
-          done: false,
-          value: encoder.encode(
-            'event: runtime_event\ndata: {"schema_version":"v3","event_id":"evt-1","type":"model.delta"}\n\n',
-          ),
-        })
-        .mockResolvedValueOnce({
-          done: false,
-          value: encoder.encode('event: done\ndata: {"ok":true}\n\n'),
-        })
-        .mockResolvedValueOnce({ done: true }),
-    };
-
-    global.fetch = jest
-      .fn()
-      .mockResolvedValueOnce({ ok: true })
-      .mockResolvedValueOnce({
-        ok: true,
-        body: {
-          getReader: () => reader,
-        },
-      });
-
-    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
-
-    const target = {
-      send: jest.fn(),
-      isDestroyed: jest.fn(() => false),
-      getType: jest.fn(() => "window"),
-    };
 
     const service = createUnchainService({
       app: {
@@ -1115,44 +1079,14 @@ describe("unchain service session memory replacement", () => {
       },
       net: createAvailableNet(),
       webContents: {
-        fromId: jest.fn(() => target),
-        getAllWebContents: jest.fn(() => [target]),
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
       },
       runtimeService: {},
       getAppIsQuitting: () => false,
     });
 
-    await service.startMiso();
-
-    service.handleStreamStartV3(
-      { sender: { id: 91 } },
-      {
-        requestId: "req-v3-1",
-        payload: {
-          message: "hello",
-          options: {},
-        },
-      },
-    );
-
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
-
-    expect(global.fetch.mock.calls[1][0]).toContain("/chat/stream/v3");
-    expect(target.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
-      requestId: "req-v3-1",
-      event: "runtime_event",
-      data: {
-        schema_version: "v3",
-        event_id: "evt-1",
-        type: "model.delta",
-      },
-    });
-    expect(target.send).toHaveBeenCalledWith(CHANNELS.UNCHAIN.STREAM_EVENT, {
-      requestId: "req-v3-1",
-      event: "done",
-      data: { ok: true },
-    });
+    expect(service.handleStreamStartV3).toBeUndefined();
   });
 
   test("handleStreamStartV4 uses v4 endpoint and forwards runtime events", async () => {

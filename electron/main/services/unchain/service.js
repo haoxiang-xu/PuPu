@@ -9,7 +9,6 @@ const UNCHAIN_HEALTH_RETRY_MS = 250;
 const UNCHAIN_RESTART_DELAY_MS = 1500;
 const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
-const UNCHAIN_STREAM_V3_ENDPOINT = "/chat/stream/v3";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
@@ -2387,9 +2386,6 @@ const createUnchainService = ({
   const startMisoStreamV2 = (args) =>
     startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V2_ENDPOINT });
 
-  const startMisoStreamV3 = (args) =>
-    startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V3_ENDPOINT });
-
   const startMisoStreamV4 = (args) =>
     startMisoStream({ ...args, endpoint: UNCHAIN_STREAM_V4_ENDPOINT });
 
@@ -2416,16 +2412,6 @@ const createUnchainService = ({
     const requestId = payload?.requestId;
     const requestPayload = payload?.payload || {};
     void startMisoStreamV2({
-      requestId,
-      payload: requestPayload,
-      sender: event.sender,
-    });
-  };
-
-  const handleStreamStartV3 = (event, payload) => {
-    const requestId = payload?.requestId;
-    const requestPayload = payload?.payload || {};
-    void startMisoStreamV3({
       requestId,
       payload: requestPayload,
       sender: event.sender,
@@ -2501,7 +2487,6 @@ const createUnchainService = ({
     submitMisoToolConfirmation,
     handleStreamStart,
     handleStreamStartV2,
-    handleStreamStartV3,
     handleStreamStartV4,
     handleStreamCancel,
   };

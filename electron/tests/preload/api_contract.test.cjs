@@ -103,12 +103,12 @@ describe("preload API contract", () => {
       "replaceSessionMemory",
       "startStream",
       "startStreamV2",
-      "startStreamV3",
       "startStreamV4",
       "cancelStream",
     ].forEach((method) => {
       expect(typeof unchain[method]).toBe("function");
     });
+    expect(unchain.startStreamV3).toBeUndefined();
   });
 
   test("bridges call expected channels", () => {
