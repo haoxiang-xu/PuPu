@@ -4,6 +4,7 @@ import {
   writeThemeCustomColor,
   writeThemeCustom,
   resetThemeSettings,
+  clearThemeCustomColor,
 } from "./storage";
 
 describe("appearance theme storage", () => {
@@ -72,5 +73,25 @@ describe("appearance theme storage", () => {
       preset: "default",
       custom: { light_mode: {}, dark_mode: {} },
     });
+  });
+
+  test("clearThemeCustomColor removes the key (back to auto)", () => {
+    writeThemeCustomColor("dark_mode", "surface", "#333333");
+    const after = clearThemeCustomColor("dark_mode", "surface");
+    expect(after.custom.dark_mode.surface).toBeUndefined();
+  });
+
+  test("readThemeSettings strips a tier equal to its preset default (auto normalize)", () => {
+    resetThemeSettings(); // preset default
+    writeThemeCustomColor("dark_mode", "surface", "#1e1e1e"); // == default dark surface
+    const read = readThemeSettings();
+    expect(read.custom.dark_mode.surface).toBeUndefined();
+  });
+
+  test("readThemeSettings keeps a genuinely overridden tier", () => {
+    resetThemeSettings();
+    writeThemeCustomColor("dark_mode", "surface", "#334455");
+    const read = readThemeSettings();
+    expect(read.custom.dark_mode.surface).toBe("#334455");
   });
 });
