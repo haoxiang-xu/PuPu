@@ -130,6 +130,7 @@ describe("ConfigContainer side menu persistence", () => {
 const SEMANTIC_KEYS = [
   "accent",
   "background",
+  "sidebar",
   "surface",
   "text",
   "textMuted",
