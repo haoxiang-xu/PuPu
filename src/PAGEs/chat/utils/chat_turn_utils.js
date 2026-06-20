@@ -2,6 +2,10 @@ import {
   finalizeStreamingMessage,
   getStreamingMessageText,
 } from "../../../SERVICEs/streaming_message_chunks";
+import {
+  getLatestFinalMessageText,
+  hasMeaningfulContent,
+} from "./message_finality";
 
 export const settleStreamingAssistantMessages = (messages) => {
   if (!Array.isArray(messages)) {
@@ -21,8 +25,15 @@ export const settleStreamingAssistantMessages = (messages) => {
     }
 
     changed = true;
-    const content = getStreamingMessageText(message);
-    if (!content) {
+    // #66-D: value-resolution order — store/streaming text first, then fall back
+    // to the latest non-empty trace `final_message` so a cancelled turn never drops
+    // already-generated assistant text. Tool frames are never used as body, and a
+    // half-finished cancel is never fabricated into tool success or promoted to terminal.
+    const streamingText = getStreamingMessageText(message);
+    const content = hasMeaningfulContent(streamingText)
+      ? streamingText
+      : getLatestFinalMessageText(message?.traceFrames);
+    if (!hasMeaningfulContent(content)) {
       continue;
     }
 

@@ -9,6 +9,7 @@ import {
   settleStreamingAssistantMessages,
 } from "../utils/chat_turn_utils";
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
+import { FINALITY } from "../utils/message_finality";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
 import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
@@ -2774,10 +2775,24 @@ export const useChatStream = ({
                     });
                   }
 
+                  // #155-A: a real backend final_message is the model's canonical
+                  // answer for this turn — stamp it `terminal` so the bubble reads an
+                  // explicit ownership flag instead of inferring it from the frame list.
+                  // (The renderer takes the latest terminal as the answer; any earlier
+                  //  terminal/draft segments fall to the timeline.)
                   return {
                     ...message,
                     updatedAt: patchTime,
-                    traceFrames: [...(message.traceFrames || []), frame],
+                    traceFrames: [
+                      ...(message.traceFrames || []),
+                      {
+                        ...frame,
+                        payload: {
+                          ...(frame.payload || {}),
+                          finality: FINALITY.TERMINAL,
+                        },
+                      },
+                    ],
                   };
                 });
                 syncStreamMessages(nextStreamMessages);
@@ -2805,6 +2820,10 @@ export const useChatStream = ({
                           currentContentTrimmed,
                     );
 
+                  // #155-A: the pre-tool-call accumulated text is an intermediate
+                  // draft, not the turn's final answer — mark it `draft` so the bubble
+                  // never renders it as the canonical answer (the bug in #155 where a
+                  // no-tool answer showed up as both a tool-call draft and a final).
                   const syntheticFrame = alreadyCaptured
                     ? []
                     : [
@@ -2816,7 +2835,10 @@ export const useChatStream = ({
                           ts: patchTime,
                           type: "final_message",
                           stage: "model",
-                          payload: { content: currentContent },
+                          payload: {
+                            content: currentContent,
+                            finality: FINALITY.DRAFT,
+                          },
                         },
                       ];
 

@@ -16,6 +16,10 @@ import {
 } from "./components/streaming_message_store_context";
 import InteractWrapper from "./interact/interact_wrapper";
 import { normalizeStreamingChunks } from "../../SERVICEs/streaming_message_chunks";
+import {
+  FINALITY,
+  getFrameFinality,
+} from "../../PAGEs/chat/utils/message_finality";
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
@@ -724,22 +728,45 @@ const TraceChain = ({
       );
     }
 
-    const hasToolCall = frames.some((frame) => frame?.type === "tool_call");
-    if (!hasToolCall) {
-      return new Set();
+    // bubbleOwnsFinalMessage === true: decide which final_message frames go to the
+    // timeline as drafts vs. which one the bubble renders as its body. Ownership is
+    // read from the explicit segment-level `finality` flag (#155-B) — NOT inferred
+    // from the presence of a tool_call anywhere in the turn, which was the #155 bug.
+    //
+    //   - The latest non-empty `terminal` final_message = bubble body → NOT in timeline.
+    //   - Every other final_message (drafts, and any earlier terminals) = timeline draft.
+    //   - Legacy frames (missing finality) fall back to the old "last non-empty wins"
+    //     behavior so historical conversations render unchanged.
+    const finalities = finalMessageFrames.map((f) => getFrameFinality(f));
+    const allLegacy = finalities.every((fin) => fin === FINALITY.LEGACY);
+
+    if (allLegacy) {
+      // Legacy history: bubble owns the last non-empty final_message; rest are drafts.
+      // While streaming we have no committed body yet, so every frame is a draft.
+      const legacyIncluded = isStreaming
+        ? finalMessageFrames
+        : finalMessageFrames.slice(0, -1);
+      return new Set(
+        legacyIncluded.map((f) => Number(f.seq)).filter(Number.isFinite),
+      );
     }
 
-    // While streaming, show ALL final_messages in the timeline (more may come).
-    // Once done, keep all except the very last one (which lives in the bubble).
-    const included = isStreaming
-      ? finalMessageFrames
-      : finalMessageFrames.slice(0, -1);
+    // Finality-aware path. The bubble body = the LAST non-empty terminal frame
+    // (finalMessageFrames is already sorted seq-then-ts, empties already filtered).
+    // While streaming, bubbleBodyIndex stays -1: nothing is committed to the bubble
+    // yet, so every final_message (drafts + any premature terminal) is a timeline draft.
+    let bubbleBodyIndex = -1;
+    if (!isStreaming) {
+      for (let i = finalMessageFrames.length - 1; i >= 0; i -= 1) {
+        if (finalities[i] === FINALITY.TERMINAL) {
+          bubbleBodyIndex = i;
+          break;
+        }
+      }
+    }
 
-    return new Set(
-      included
-        .map((frame) => Number(frame.seq))
-        .filter((seq) => Number.isFinite(seq)),
-    );
+    const included = finalMessageFrames.filter((_, i) => i !== bubbleBodyIndex);
+    return new Set(included.map((f) => Number(f.seq)).filter(Number.isFinite));
   }, [bubbleOwnsFinalMessage, frames, isStreaming]);
 
   const displayFrames = useMemo(

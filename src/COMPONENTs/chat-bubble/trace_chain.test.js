@@ -133,26 +133,29 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.queryByText("single final content")).not.toBeInTheDocument();
   });
 
-  test("does not show draft when no tool_call exists", () => {
+  test("routes draft to timeline and terminal to bubble by finality, with no tool_call", () => {
+    // #155-B: ownership is gated by finality, not by tool presence. A no-tool turn
+    // with an explicit draft + terminal must render the draft in the timeline and
+    // the terminal as the bubble body (never both), so the answer is not duplicated.
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
         seq: 2,
         type: "final_message",
-        payload: { content: "candidate draft" },
+        payload: { content: "candidate draft", finality: "draft" },
       }),
       frame({
         seq: 3,
         type: "final_message",
-        payload: { content: "final answer" },
+        payload: { content: "final answer", finality: "terminal" },
       }),
       frame({ seq: 4, type: "done", payload: {} }),
     ];
 
     renderTraceChain({ frames, status: "done" });
 
-    expect(screen.queryByText("Assistant Draft")).not.toBeInTheDocument();
-    expect(screen.queryByText("candidate draft")).not.toBeInTheDocument();
+    expect(screen.getByText("candidate draft")).toBeInTheDocument();
+    expect(screen.queryByText("final answer")).not.toBeInTheDocument();
   });
 
   test("keeps existing reasoning/tool/error items while inserting draft in sequence", () => {
