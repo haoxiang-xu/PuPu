@@ -1,1 +1,2 @@
 - [入职契约](onboarding-contract.md) — 架构师=技术权威/CTO=交付;reports to CTO 但技术上 CTO defer;单一指挥链(我设计→CTO派活→我验收);强制走 codex exec -p architect(gpt-5.5/xhigh/read-only)+GitNexus 取证
+- [hybrid 执行分层政策](hybrid-codex-policy.md) — A/B/C 三模式;我=Mode A 且是这条标准 owner;dev-backend=B 仅试点、过指标才扩;B 永不进 chat-core/electron

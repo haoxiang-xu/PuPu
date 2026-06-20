@@ -18,6 +18,8 @@
 - [ADR：SEC-001 仲裁裁决](adr-sec-001-arbitration.md) — Critical×1+High×6 逐条处置；P0=RC-5/RC-3 quick win，P1=SEAM-B/markdown清洗/确认门控，P2=key keychain；RC-1默认翻转=单向门；M-10接线硬门/RC-6过渡accepted risk
 - [Accepted risk：Fetch SSRF = markitdown 同形](accepted-risk-fetch-ssrf.md) — 2026-06-12 CEO 接受；confirmation-gated/off-by-default/verified/无secret/README带SSRF警告；不做硬阻，未来 SSRF 收口须与 markitdown 一并处理
 - [ADR：MCP 版本钉死策略](adr-mcp-version-pinning.md) — 第三方低信任 stdio 条目必须钉版本(needs_review/community)；只有 verified 一方可吃 @latest；钉版=升级即重审的控制点
+- [hybrid 执行分层政策](hybrid-codex-policy.md) — 2026-06-19 三方收敛;A/B/C 三模式(policy 在 .claude/agents/HYBRID_CODEX_POLICY.md);CTO 自身不用 Codex,推理移交 pupu-architect;dev-backend=B 仅试点
+- [pupu-architect 入职](../pupu-architect/onboarding-contract.md) — 新设 chief architect=技术权威,CTO 技术上 defer;架构推理/code-health/refactor 移交它,CTO 转为交付/派活/守约定
 - [铁律：全账号 MCP 禁入商店](invariant-no-mtproto-userauth-mcp.md) — 全用户账号鉴权(Telegram MTProto/Telethon 类)禁入 curated store；读即外泄→门控失效；只收 bot/app-scoped token；FORWARD_MESSAGE 须门控
 - [决策：DB MCP — SQLite收/Postgres延](decision-db-mcp-sqlite-yes-postgres-deferred.md) — SQLite(本地文件,community,钉版,write门控)已收；Postgres延期=网络凭证DB属MTProto外泄类+DSN是SSRF,待CTO定只读角色/host白名单架构问题
 - [License 姿态：MCP 商店指向非捆绑](license-posture-mcp-store.md) — 商店只存元数据+sourceRepo+npx/uvx recipe，第三方server运行时拉取执行于用户机，我们不redistribute；GPL-3.0(netdata)是hosted无command；预捆绑=单向门license变更
