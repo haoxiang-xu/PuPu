@@ -114,3 +114,32 @@ describe("applySemanticPaletteToTheme", () => {
     expect(themed.flow_editor.canvasBackground).toBe("#333333");
   });
 });
+
+describe("resolveSemanticPalette auto-derivation", () => {
+  test("auto sidebar/surface derive from a custom background", () => {
+    const p = resolveSemanticPalette("dark_mode", {
+      preset: "default",
+      custom: { dark_mode: { background: "#202028" } },
+    });
+    // derived, not the static defaults
+    expect(p.surface).not.toBe("#1e1e1e");
+    expect(p.sidebar).not.toBe("#151515");
+    // surface sits above (lighter than) base in dark mode
+    expect(p.surface).not.toBe(p.background);
+  });
+
+  test("default base reproduces default tiers (zero regression)", () => {
+    const p = resolveSemanticPalette("dark_mode", { preset: "default", custom: {} });
+    expect(p.background).toBe("#121212");
+    expect(p.surface).toBe("#1e1e1e");
+    expect(p.sidebar).toBe("#151515");
+  });
+
+  test("explicit override wins over derivation", () => {
+    const p = resolveSemanticPalette("dark_mode", {
+      preset: "default",
+      custom: { dark_mode: { background: "#202028", surface: "#333333" } },
+    });
+    expect(p.surface).toBe("#333333");
+  });
+});

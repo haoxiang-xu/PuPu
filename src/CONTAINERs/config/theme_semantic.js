@@ -1,8 +1,11 @@
+import { deriveTier } from "../../BUILTIN_COMPONENTs/theme/color_derive";
 import {
   SEMANTIC_TOKEN_KEYS,
   SEMANTIC_DEFAULTS,
   SEMANTIC_PRESETS,
 } from "../../BUILTIN_COMPONENTs/theme/semantic_tokens";
+
+const DERIVED_TIERS = ["sidebar", "surface"];
 
 export const hexToRgbTriplet = (color) => {
   const trimmed = String(color || "").trim();
@@ -47,6 +50,17 @@ export const resolveSemanticPalette = (mode, options = {}) => {
   const result = {};
   for (const key of SEMANTIC_TOKEN_KEYS) {
     result[key] = customPalette[key] || presetPalette[key] || base[key];
+  }
+  const refBase = presetPalette.background || base.background;
+  // Only derive sidebar/surface if the background was explicitly customized
+  const backgroundWasCustomized = customPalette.background != null;
+  if (backgroundWasCustomized) {
+    for (const tier of DERIVED_TIERS) {
+      if (!customPalette[tier]) {
+        const refTier = presetPalette[tier] || base[tier];
+        result[tier] = deriveTier(result.background, refBase, refTier);
+      }
+    }
   }
   return result;
 };
