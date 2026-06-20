@@ -41,3 +41,30 @@ This project is indexed by GitNexus as **PuPu** (16264 symbols, 25027 relationsh
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
 
 <!-- gitnexus:end -->
+
+<!-- The section below is hand-maintained. Keep it OUTSIDE the gitnexus block so `npx gitnexus analyze` does not overwrite it. -->
+
+## PuPu Conventions (for Codex and any agent writing code here)
+
+These are load-bearing — violating them breaks the build or the architecture. Canonical source: `CLAUDE.md` and `.claude/CLAUDE.md`.
+
+**Frontend (`src/`, `electron/`):**
+- JavaScript only — no TypeScript, no PropTypes. Never create `.ts` / `.tsx` files.
+- Inline styles only — no CSS modules, no styled-components. Theme via `isDark` from ConfigContext.
+- All function components — no class components.
+- Custom router `BUILTIN_COMPONENTs/mini_react/mini_router.js` for internal routing — not react-router-dom.
+- React never touches `ipcRenderer`. System access goes through preload bridges (`window.unchainAPI`, `ollamaAPI`, `themeAPI`, etc.). IPC channel constants in `electron/shared/` must match both ends.
+- localStorage writes go only through helpers in `src/SERVICEs/`, never directly from components.
+- Electron tests have both `.js` and `.cjs` variants — keep them in sync.
+
+**Backend (`unchain_runtime/server/`):**
+- Python Flask sidecar. Key files: `routes.py` / `route_chat.py`, `unchain_adapter.py`, `memory_factory.py`, `character_store.py`. Tests in `unchain_runtime/server/tests/`.
+- Run unchain tests with its own pytest (`run_tests.sh`) — do NOT use `npx jest`. Run PuPu/JS tests with `react-scripts test`.
+- After changing unchain `.py`, the sidecar must be restarted to take effect — note this in your report.
+
+**General:**
+- Run GitNexus impact analysis before editing any symbol (see the GitNexus block above). Warn on HIGH / CRITICAL.
+- Match the surrounding code's style and idiom. No unrelated refactoring.
+- Do NOT `git commit` — leave the dirty tree for the CEO to commit.
+
+**Mode B pilot (Codex-primary writing):** When Codex writes code here under the `pupu-dev-backend` Mode B pilot, a Claude agent reviews the diff and reruns the relevant tests before acceptance. Do NOT change model-visible behavior (`pupu-llm-expert` holds veto) or security-sensitive code (MCP OAuth / secrets — `pupu-security-expert`) without sign-off. See `.claude/agents/HYBRID_CODEX_POLICY.md`.
