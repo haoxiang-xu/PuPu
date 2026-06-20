@@ -1,6 +1,7 @@
 export const SEMANTIC_TOKEN_KEYS = [
   "accent",
   "background",
+  "sidebar",
   "surface",
   "text",
   "textMuted",
@@ -13,6 +14,7 @@ export const SEMANTIC_DEFAULTS = {
   light_mode: {
     accent: "#65c466",
     background: "#ffffff",
+    sidebar: "#f5f5f5",
     surface: "#ffffff",
     text: "#222222",
     textMuted: "#8c8c8c",
@@ -23,6 +25,7 @@ export const SEMANTIC_DEFAULTS = {
   dark_mode: {
     accent: "#65c466",
     background: "#121212",
+    sidebar: "#151515",
     surface: "#1e1e1e",
     text: "#ffffff",
     textMuted: "#8a8a8a",
@@ -38,6 +41,7 @@ export const SEMANTIC_PRESETS = {
     light_mode: {
       accent: "#0ea5e9",
       background: "#f7fbfd",
+      sidebar: "#eef5f9",
       surface: "#ffffff",
       text: "#0f2330",
       textMuted: "#5b7585",
@@ -48,6 +52,7 @@ export const SEMANTIC_PRESETS = {
     dark_mode: {
       accent: "#38bdf8",
       background: "#0b1620",
+      sidebar: "#0f1d28",
       surface: "#13232f",
       text: "#e6f2f8",
       textMuted: "#7d97a6",
@@ -60,6 +65,7 @@ export const SEMANTIC_PRESETS = {
     light_mode: {
       accent: "#f97316",
       background: "#fffaf5",
+      sidebar: "#f6efe7",
       surface: "#ffffff",
       text: "#2b1d12",
       textMuted: "#9c7a60",
@@ -70,6 +76,7 @@ export const SEMANTIC_PRESETS = {
     dark_mode: {
       accent: "#fb923c",
       background: "#1a120b",
+      sidebar: "#1f160d",
       surface: "#241910",
       text: "#f7ece1",
       textMuted: "#b08e72",
@@ -82,6 +89,7 @@ export const SEMANTIC_PRESETS = {
     light_mode: {
       accent: "#0040ff",
       background: "#ffffff",
+      sidebar: "#f0f0f0",
       surface: "#ffffff",
       text: "#000000",
       textMuted: "#595959",
@@ -92,6 +100,7 @@ export const SEMANTIC_PRESETS = {
     dark_mode: {
       accent: "#5b8cff",
       background: "#000000",
+      sidebar: "#050505",
       surface: "#0a0a0a",
       text: "#ffffff",
       textMuted: "#b3b3b3",

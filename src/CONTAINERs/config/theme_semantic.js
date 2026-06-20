@@ -29,6 +29,7 @@ export const hexToRgbTriplet = (color) => {
 const VAR_NAME = {
   accent: "accent",
   background: "background",
+  sidebar: "sidebar",
   surface: "surface",
   text: "text",
   textMuted: "text-muted",
@@ -79,6 +80,7 @@ export const applySemanticPaletteToTheme = (base, semantic) => {
   const {
     accent,
     background,
+    sidebar,
     surface,
     text,
     textMuted,
