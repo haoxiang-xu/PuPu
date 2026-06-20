@@ -248,7 +248,9 @@ const SideMenu = () => {
 
   const platform = getRuntimePlatform();
   const isDarwin = platform === "darwin";
-  const sideMenuBackgroundColor = isDark ? "#151515" : "rgb(245, 245, 245)";
+  const sideMenuBackgroundColor = isDark
+    ? "var(--pupu-sidebar, #151515)"
+    : "var(--pupu-sidebar, rgb(245, 245, 245))";
   const isAgentsEnabled = featureFlags.enable_user_access_to_agents === true;
   const isCharactersEnabled =
     featureFlags.enable_user_access_to_characters === true;
