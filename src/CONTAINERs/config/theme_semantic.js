@@ -80,7 +80,6 @@ export const applySemanticPaletteToTheme = (base, semantic) => {
   const {
     accent,
     background,
-    sidebar,
     surface,
     text,
     textMuted,
