@@ -130,3 +130,4 @@ All detailed developer documentation lives in `docs/`. Start with `docs/DEV_GUID
 - Do NOT run `react-scripts build` without `version:prepare-build` first
 - Electron tests have both `.js` and `.cjs` variants — keep them in sync
 - localStorage writes must go through dedicated helpers in SERVICEs, never direct from components
+- 外壳/背景颜色禁止裸 hex —— 用 `var(--pupu-background|sidebar|surface)`；受 shell_background_guard 测试约束，owner 为 pupu-ux-designer
