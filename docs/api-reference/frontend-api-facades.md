@@ -28,13 +28,13 @@ unchainApi.isBridgeAvailable()  // → boolean
 
 | Method | Timeout | Description |
 |--------|---------|-------------|
-| `getStatus()` | 5s | Unchain sidecar status |
-| `getModelCatalog()` | 5s | All providers + capabilities |
-| `getToolkitCatalog()` | 5s | Toolkit list |
-| `listToolModalCatalog()` | 5s | Toolkit list for modal |
-| `getToolkitDetail(toolkitId, toolName)` | 5s | Individual toolkit detail |
-| `listModels(provider?)` | 5s | Model list (optionally filtered) |
-| `retrieveModelList(provider?)` | 5s | Alias for listModels |
+| `getStatus()` | 4s | Unchain sidecar status |
+| `getModelCatalog()` | 6s | All providers + capabilities |
+| `getToolkitCatalog()` | 6s | Toolkit list |
+| `listToolModalCatalog()` | 8s | Toolkit list for modal |
+| `getToolkitDetail(toolkitId, toolName)` | 6s | Individual toolkit detail |
+| `listModels(provider?)` | — | Model list (optionally filtered, no timeout) |
+| `retrieveModelList(provider?)` | — | Alias for listModels (no timeout) |
 
 ### Streaming
 
@@ -44,10 +44,14 @@ unchainApi.isBridgeAvailable()  // → boolean
 | `startStreamV2(payload, handlers)` | V2 frame-based stream |
 | `isRuntimeEventStreamV3Available()` | Returns true when the bridge exposes V3 streaming |
 | `startStreamV3(payload, handlers)` | V3 RuntimeEvent stream |
+| `isRuntimeEventStreamV4Available()` | Returns true when the bridge exposes V4 streaming |
+| `startStreamV4(payload, handlers)` | V4 RuntimeEvent stream (current default) |
 | `cancelStream(requestId)` | Cancel active stream |
 | `respondToolConfirmation(payload)` | Submit tool confirmation |
 
-`startStreamV2` and `startStreamV3` both apply `normalizeUnchainV2Payload(payload)` before sending, which chains:
+> ⚠️ V4 streaming is live and is the **current default** (selection priority **V4 > V3 > V2**). Full event contract is documented in [`../architecture/runtime-events-v4.md`](../architecture/runtime-events-v4.md).
+
+`startStreamV2`, `startStreamV3`, and `startStreamV4` all apply `normalizeUnchainV2Payload(payload)` before sending, which chains:
 1. `injectWorkspaceRootIntoPayload`
 2. `injectSystemPromptV2IntoPayload`
 3. `injectMemoryIntoPayload`

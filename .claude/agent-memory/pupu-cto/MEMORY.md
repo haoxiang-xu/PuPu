@@ -21,3 +21,4 @@
 - [铁律：全账号 MCP 禁入商店](invariant-no-mtproto-userauth-mcp.md) — 全用户账号鉴权(Telegram MTProto/Telethon 类)禁入 curated store；读即外泄→门控失效；只收 bot/app-scoped token；FORWARD_MESSAGE 须门控
 - [决策：DB MCP — SQLite收/Postgres延](decision-db-mcp-sqlite-yes-postgres-deferred.md) — SQLite(本地文件,community,钉版,write门控)已收；Postgres延期=网络凭证DB属MTProto外泄类+DSN是SSRF,待CTO定只读角色/host白名单架构问题
 - [License 姿态：MCP 商店指向非捆绑](license-posture-mcp-store.md) — 商店只存元数据+sourceRepo+npx/uvx recipe，第三方server运行时拉取执行于用户机，我们不redistribute；GPL-3.0(netdata)是hosted无command；预捆绑=单向门license变更
+- [ADR：V4 文档化与跨仓契约](adr-v4-doc-and-cross-repo-contract.md) — doc sync 2026-06-19；建 runtime-events-v4.md(electron 主笔+渲染方双签)、v3 文件不重命名、core events_v4 API 双签另立、channel/team/plan_id 标注"暂未启用"

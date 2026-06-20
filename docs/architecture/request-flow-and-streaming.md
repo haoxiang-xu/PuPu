@@ -205,7 +205,7 @@ The V1 protocol uses simple event types:
 | `done` | `{ result, ... }` |
 | `error` | `{ code, message }` |
 
-> V1 is maintained for backward compatibility. New stream work should use the V3 runtime-event path when possible, with V2 as the compatibility fallback.
+> V1 is maintained for backward compatibility. New stream work should use the V4 runtime-event path (selection priority **V4 → V3 → V2**); see [runtime-events-v4.md](./runtime-events-v4.md). V2 remains the compatibility fallback.
 
 ---
 
@@ -215,11 +215,11 @@ The `use_chat_stream.js` hook manages the streaming lifecycle:
 
 ### Key State
 
-- `streamHandleRef` — reference to the active stream (cancel function)
+- `streamHandlesRef` — `Map` of active stream handles keyed by request id (for cancellation)
 - `toolConfirmationUiStateById` — pending tool confirmations
 - `pendingContinuationRequest` — pending continuation request
 - `subagentFramesByRunIdRef` — nested frames keyed by child run id
-- `currentStreamingMessageId` — ID of the message being streamed
+- `assistantMessageId` — local variable holding the id of the message currently being streamed (no dedicated ref)
 
 ### V3 Handler Pipeline
 

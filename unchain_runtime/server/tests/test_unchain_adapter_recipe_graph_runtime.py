@@ -152,6 +152,42 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
             ],
         )
 
+    def test_stream_recipe_graph_uses_global_optimizer_when_node_has_no_override(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        captured = []
+
+        def fake_build(**kwargs):
+            captured.append(kwargs.get("optimizer_config"))
+            return FakeAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            list(
+                ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="Hello",
+                    history=[],
+                    attachments=[],
+                    options={
+                        "modelId": "ollama:test",
+                        "optimizer": {"preset": "aggressive"},
+                    },
+                    session_id="s",
+                )
+            )
+
+        self.assertEqual(
+            captured,
+            [
+                {"preset": "aggressive"},
+                {"preset": "aggressive"},
+            ],
+        )
+
     def test_stream_recipe_graph_emits_ask_user_question_from_human_input_callback(self):
         import unchain_adapter as ua
 

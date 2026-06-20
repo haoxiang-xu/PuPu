@@ -2661,6 +2661,50 @@ class MaterializeRecipeSubagentsTests(unittest.TestCase):
                 self.assertEqual(templates[0].kw["name"], "Explore")
                 self.assertTrue(hasattr(templates[0].kw["agent"], "fork_for_subagent"))
 
+    def test_recipe_ref_preserves_parent_optimizer_config_for_nested_recipe(self):
+        from unchain_adapter import _materialize_recipe_subagents
+        from recipe import Recipe, RecipeAgent, RecipeSubagentRef
+        UA, TM, PM, ST = self._fake_modules()
+        optimizer_config = {"preset": "aggressive"}
+        with tempfile.TemporaryDirectory() as tmp:
+            with mock.patch("pathlib.Path.home", return_value=Path(tmp)):
+                from recipe_loader import save_recipe
+
+                save_recipe({
+                    "name": "Explore",
+                    "description": "scout",
+                    "model": None,
+                    "max_iterations": None,
+                    "agent": {"prompt_format": "soul", "prompt": "look"},
+                    "toolkits": [],
+                    "subagent_pool": [],
+                })
+                recipe = Recipe(
+                    name="Default", description="", model=None, max_iterations=None,
+                    agent=RecipeAgent(prompt_format="soul", prompt="x"),
+                    toolkits=(),
+                    subagent_pool=(
+                        RecipeSubagentRef(
+                            kind="recipe_ref",
+                            recipe_name="Explore",
+                            disabled_tools=(),
+                        ),
+                    ),
+                )
+                templates = _materialize_recipe_subagents(
+                    recipe=recipe, toolkits=[],
+                    provider="anthropic", model="m", api_key="k", max_iterations=5,
+                    UnchainAgent=UA, ToolsModule=TM, PoliciesModule=PM,
+                    SubagentTemplate=ST,
+                    options={},
+                    optimizer_config=optimizer_config,
+                )
+
+        self.assertEqual(
+            templates[0].kw["agent"].options.get("_inherited_optimizer_config"),
+            optimizer_config,
+        )
+
     def test_recipe_ref_cycle_skips(self):
         from unchain_adapter import _materialize_recipe_subagents
         from recipe import Recipe, RecipeAgent, RecipeSubagentRef

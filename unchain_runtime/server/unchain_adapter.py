@@ -3572,6 +3572,7 @@ def _materialize_recipe_subagents(
     SubagentTemplate,
     options: Dict[str, object] | None = None,
     optimizer_module_factory=None,
+    optimizer_config: Any | None = None,
 ) -> tuple:
     """Build SubagentTemplate instances from a Recipe's subagent_pool.
 
@@ -3649,13 +3650,16 @@ def _materialize_recipe_subagents(
                 effective = tuple(
                     name for name in sorted(main_tool_names) if name not in disabled
                 )
+            child_options = {
+                **(dict(options) if isinstance(options, dict) else {}),
+                "_recipe_ref_stack": list(current_stack),
+                "_recipe_subagent_run": True,
+            }
+            if isinstance(optimizer_config, dict):
+                child_options[_INHERITED_CONTEXT_OPTIMIZER_OPTION] = optimizer_config
             child_agent = _WorkflowRecipeSubagentAgent(
                 recipe=child_recipe,
-                options={
-                    **(dict(options) if isinstance(options, dict) else {}),
-                    "_recipe_ref_stack": list(current_stack),
-                    "_recipe_subagent_run": True,
-                },
+                options=child_options,
                 name=recipe_name,
             )
             built.append(
@@ -3781,6 +3785,29 @@ _AGGRESSIVE_CONTEXT_OPTIMIZER_CONFIG = {
     "context_usage": {"enabled": True},
     "tool_pair_safety": {"enabled": True},
 }
+
+
+_INHERITED_CONTEXT_OPTIMIZER_OPTION = "_inherited_optimizer_config"
+_CONTEXT_OPTIMIZER_OPTION_KEYS = (
+    _INHERITED_CONTEXT_OPTIMIZER_OPTION,
+    "optimizer",
+    "context_optimizer",
+    "contextOptimizer",
+)
+
+
+def _select_agent_optimizer_config(
+    options: Dict[str, object] | None = None,
+    explicit_config: Any | None = None,
+) -> Any | None:
+    if isinstance(explicit_config, dict):
+        return explicit_config
+    raw_options = options if isinstance(options, dict) else {}
+    for key in _CONTEXT_OPTIMIZER_OPTION_KEYS:
+        candidate = raw_options.get(key)
+        if isinstance(candidate, dict):
+            return candidate
+    return None
 
 
 def _optimizer_bool(value: Any, default: bool = True) -> bool:
@@ -4467,13 +4494,18 @@ def _build_developer_agent(
         modules.append(MemoryModule(memory=memory_manager))
     modules.append(PoliciesModule(max_iterations=max_iterations))
 
+    selected_optimizer_config = _select_agent_optimizer_config(
+        options,
+        optimizer_config,
+    )
+
     # ── Context window optimizers ──
-    optimizer_module = _build_context_optimizer_module(optimizer_config)
+    optimizer_module = _build_context_optimizer_module(selected_optimizer_config)
     if optimizer_module is not None:
         modules.append(optimizer_module)
 
     def optimizer_module_factory():
-        return _build_context_optimizer_module(optimizer_config)
+        return _build_context_optimizer_module(selected_optimizer_config)
 
     templates: tuple = ()
     if (
@@ -4497,6 +4529,7 @@ def _build_developer_agent(
                     SubagentTemplate=SubagentTemplate,
                     options=options,
                     optimizer_module_factory=optimizer_module_factory,
+                    optimizer_config=selected_optimizer_config,
                 )
             except Exception as exc:
                 _subagent_logger.warning(
@@ -4945,10 +4978,14 @@ def _stream_recipe_graph_events(
                     if isinstance(agent_node.get("override"), dict)
                     else {}
                 )
-                step_optimizer_config = (
+                raw_step_optimizer_config = (
                     override.get("optimizer")
                     if isinstance(override.get("optimizer"), dict)
                     else None
+                )
+                step_optimizer_config = _select_agent_optimizer_config(
+                    options,
+                    raw_step_optimizer_config,
                 )
                 step_config = dict(selected_config)
                 raw_model = str(
