@@ -90,7 +90,7 @@ const ConfirmDeleteModal = ({ open, onClose, onConfirm, label, isDark }) => (
     style={{
       width: 340,
       padding: "24px 24px 18px",
-      backgroundColor: isDark ? "#1a1a1a" : "#ffffff",
+      backgroundColor: isDark ? "var(--pupu-surface, #1a1a1a)" : "var(--pupu-surface, #ffffff)",
       display: "flex",
       flexDirection: "column",
       borderRadius: 12,

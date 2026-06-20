@@ -692,7 +692,7 @@ const SwipeCardContent = ({ character, isDark, dragX }) => {
         display: "flex",
         borderRadius: 7,
         overflow: "hidden",
-        background: isDark ? "#1a1a1a" : "#ffffff",
+        background: isDark ? "var(--pupu-surface, #1a1a1a)" : "var(--pupu-surface, #ffffff)",
         boxShadow: "0 18px 50px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.15)",
         position: "relative",
         userSelect: "none",
