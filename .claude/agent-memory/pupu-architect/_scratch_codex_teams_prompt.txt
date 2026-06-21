@@ -1,0 +1,52 @@
+You are PuPu's architecture reasoning engine (cross-model check for the chief architect). Read-only; produce judgment, not edits. Be decisive, take a position, do not just list options.
+
+# GROUNDED CODE FACTS (verified first-hand by the architect via file reads; treat as ground truth)
+
+PuPu = React19/Electron desktop AI client + Python Flask sidecar (unchain_runtime) wrapping a private "unchain" agent library shipped as an opaque wheel.
+
+AGENT: unchain Agent (in the wheel) = modular composition: ToolsModule/MemoryModule/PoliciesModule/OptimizersModule/SubagentModule. PuPu composes modules + prompt + model in unchain_adapter.py. PuPu does NOT own the agent run loop.
+
+SUBAGENT (closest thing to a "team" today):
+- Loaded from disk (.soul/.skeleton) at session start, or materialized from a recipe.
+- Shape: name, description, instructions, allowed_modes, output_mode(summary|last_message|full_trace), memory_policy(ephemeral|scoped_persistent), parallel_safe, allowed_tools, model.
+- Invocation = TOOL CALL on the parent. Exactly 3 modes: delegate / handoff / worker (reserved tool names delegate_to_subagent / handoff_to_subagent / spawn_worker_batch).
+- Topology = STRICT HIERARCHY: parent calls tool -> child Agent.run in isolation -> returns output shaped by output_mode. NO peer-to-peer, NO shared channel, NO blackboard.
+- Content isolation ALREADY exists (memory_policy ephemeral vs scoped_persistent). Tool isolation already exists (child tools = strict subset of parent, can never exceed).
+
+KEYSTONE CONSTRAINT: the ENTIRE multi-agent runtime (orchestration loop, delegation, parallel worker fan-out, depth/fanout limits) lives in SubagentModule + SubagentPolicy, BOTH imported from the private wheel:
+SubagentPolicy(max_depth=6, max_children_per_parent=10, max_total_subagents=50, max_parallel_workers=4, worker_timeout_seconds=60, allow_dynamic_workers=False, allow_dynamic_delegate=False, handoff_requires_template=True).
+PuPu CONFIGURES this policy but does NOT own the runtime. PuPu's only injection points into the wheel are two edge hooks (a read-side rerank, a write-side memory extractor); unknown kwargs are silently dropped. => PuPu CANNOT add a new inter-agent communication primitive INSIDE the wheel's agent loop. It can only compose at the edges (tool layer, prompt layer, module config, recipe authoring).
+
+RECIPE (authoring model for multi-agent):
+- Recipe = single root agent prompt + toolkits[] + subagent_pool[] + a graph (nodes/edges).
+- Graph is a LINEAR PIPELINE, not a team topology: exactly 1 start, 1 end, >=1 agent; each agent has exactly one flow-in + one flow-out; NO cycles; single ordered chain.
+- TWO edge kinds only: flow (control, out->in between start/agent/end) and attach (binds a tool_pool/subagent_pool to ONE agent). There is NO agent<->agent communication edge.
+- Inter-agent data passing = upstream->downstream variable injection {{#nodeId.field#}} only. DAG data flow, NOT message passing. No sibling content sync.
+- recipe_ref allows nesting a whole recipe as a subagent (still strictly hierarchical).
+
+ABSENT TODAY (verified): no channel, no ownership table, no message bus, no peer routing, no shared blackboard, anywhere. Only two "communication" primitives exist: (a) parent->child tool-call delegation, (b) upstream->downstream variable injection in a linear recipe.
+
+USER SURFACE: Agents/recipe UI is feature-flagged OFF by default. From user POV today it's "single agent + optional subagent pool"; no "team" concept is exposed.
+
+ADJACENT IN-FLIGHT (same CEO arc, already designed by this architect):
+- pseudo-presence/always-on program: a normalized event envelope pupu.flow_event.v1, event-ledger-first runtime, job store separate from memory, two gates (admission + interruption). This is about WAKING a flow on events; orthogonal but composable.
+- a generative-UI contract ui_surface.v1 in flight.
+
+# CEO'S ARCHITECTURE CONSTRAINTS (the actual ask)
+1. "Teams" must be INVISIBLE to the user. Never make the user choose which agent. The AI should: understand intent well -> minimal prompting/clicks -> minimal mid-task involvement -> finish the task.
+2. The design CORE = solving inter-agent COMMUNICATION: clear ownership, when to communicate vs not, task allocation, and isolating content when syncing is unnecessary.
+3. CEO's literal question: "look at unchain, then decide whether we need to build a dedicated 'Team' abstraction, instead of continuing to stack on the agent — give the agent an extra module."
+
+# THE DECISION (one-way-door level). Evaluate THREE options:
+
+A — KEEP STACKING ON THE AGENT: an agent holds subagents + one communication/orchestration module bolted on. Give costs, when it suffices, when it breaks down.
+
+B — INTRODUCE A FIRST-CLASS "TEAM" ABSTRACTION: a Team owns members, channels, an ownership table, a reporting contract, decoupled from any single agent. Give the boundary, how it coexists with existing agent/subagent/recipe/memory, migration cost, and whether it threatens the "invisible to user" goal.
+
+C — MIDDLE STATE: do NOT build Team now; first extract a reusable "communication-contract layer" as a module (a normalized inter-agent message/handoff/ownership envelope), with Team later as a thin orchestration on top of that layer.
+
+# PRODUCE (be concrete, tie everything to the facts above, especially the private-wheel keystone constraint):
+1. For A/B/C: boundary sketch, coupling points to recipe/subagent/memory/the wheel, migration cost, impact on the "invisible to user" goal, and reversible-vs-one-way-door classification.
+2. A SINGLE clear recommendation with reasoning. Decide.
+3. The FIRST slice to cut: minimal, reversible, not throwaway, with the named seam/interface between slices.
+4. Explicitly reason about: given the wheel owns the orchestration loop and only allows edge composition, WHERE can an inter-agent "communication/ownership" layer even physically live in PuPu's process? (edge tool-layer? a PuPu-side orchestrator wrapping multiple Agent.run calls? recipe-graph semantics? the flow_event envelope?) This physical-placement question is the crux — answer it.

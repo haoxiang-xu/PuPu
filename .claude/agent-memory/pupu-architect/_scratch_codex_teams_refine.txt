@@ -1,0 +1,11 @@
+Follow-up to your A/B/C analysis (you recommended C-now-B-destination with a TeamCommPort + pupu.team_comm.v1 envelope placed PuPu-side, sidecar, over the wheel). Two tightening questions. Be concrete and brief. Hold your prior position unless these change it.
+
+CONTEXT YOU NEED:
+- Prior architect decision (in flight): pupu.flow_event.v1 normalized event envelope + event-ledger-first runtime + a JOB STORE that is explicitly SEPARATE from long-term MEMORY (memory = user/project semantic knowledge; job store = execution truth: events/runs/cursors/checkpoints). Two gates exist: admission (should this event trigger/resume a flow) and interruption (should we interrupt the user).
+- CEO hard constraint: teams INVISIBLE; the user must NEVER pick an agent or a team. The system decides single-vs-team itself.
+
+Q1 — THE INVISIBILITY DECISION POINT. You said "the intent layer chooses whether a task needs single-agent or team execution." Name WHERE that router physically lives and what it keys off. Candidates: (a) inside the root agent's prompt/tool reasoning (LLM decides by calling a 'form_team' tool), (b) a deterministic PuPu-side pre-router before any Agent.run, (c) the recipe author pre-declares it. Which one preserves "invisible to user" AND avoids a one-way door, given the wheel already owns delegation? Is "team" just an execution strategy the existing root agent escalates INTO via a tool, rather than a thing the user or author ever names? Decide.
+
+Q2 — LEDGER UNIFICATION. Does pupu.team_comm.v1 get its OWN store, or is it a record TYPE inside the existing event/job ledger from the flow_event work? I want to avoid two parallel ledgers. Reconcile: should team_comm records (claim/handoff/report/blocker) be persisted as typed entries in the SAME job-store ledger that flow_event/job_runs/checkpoints already use (correlated by correlation_id), or kept physically separate? Give the rule for what belongs in job-store vs team_comm vs memory so the three don't blur.
+
+Also confirm or revise: is the very FIRST cuttable slice the envelope schema + an in-process append-only recorder with pass-through semantics (no behavior change, just observability of ownership/handoff over the EXISTING linear recipe + subagent delegation), exactly mirroring how flow_event was sliced (contract + ledger first, UI/runtime later)? Yes/no and why.

@@ -1,2 +1,7 @@
 - [入职契约](onboarding-contract.md) — 架构师=技术权威/CTO=交付;reports to CTO 但技术上 CTO defer;单一指挥链(我设计→CTO派活→我验收);强制走 codex exec -p architect(gpt-5.5/xhigh/read-only)+GitNexus 取证
 - [hybrid 执行分层政策](hybrid-codex-policy.md) — A/B/C 三模式;我=Mode A 且是这条标准 owner;dev-backend=B 仅试点、过指标才扩;B 永不进 chat-core/electron
+- [常驻 agent 愿景(心跳/记忆/感知/缓存)](always-on-agent-vision.md) — 2026-06-20 CEO 愿景会取证+立场;sidecar 绑前台GUI而死、记忆只在turn-end提交、无scheduler;one-way-door=PuPu是前台chat app还是常驻daemon
+- [trace #155/#66 finality 重评定案](trace-finality-decision.md) — 2026-06-20 partial-yes:NOW finality 字段是重构真子集(保留~90-95%,CEO白烧token前提不成立);typed-tree+后端snapshot押后;后端OWN terminal=单向门
+- [listener node + 三块石头定案](listener-node-and-boulders.md) — 2026-06-20 常驻agent三件架构事:start_node→typed listener_node+flow_event.v1 envelope;三石头落位(寄生sidecar+memory≠job store+C拆成两个gate);单向门=event-ledger-first+归一化envelope;立场=UI晚做但运行时契约M0就定
+- [生成式UI(ultra app)契约定案](generative-ui-contract.md) — 2026-06-20 ui_surface.v1声明契约+ui_edit_event.v1回流(走onToolConfirmationDecision血管→flow_event.v1);落位=第三契约面非第三条腿;加判=fail-closed校验+snapshot→operable才是真单向门;单向门=词汇表append-only+安全边界
+- [Agent teams 战略定案](agent-teams-decision.md) — 2026-06-20 C now/B destination;整套多agent runtime在私有wheel(只配policy不own loop)→A死路;team=root agent经tool升级进的执行策略(对用户+recipe都不可见);team_comm.v1是job-store内record族非独立ledger;第一刀=envelope+append-only recorder pass-through镜像flow_event切法

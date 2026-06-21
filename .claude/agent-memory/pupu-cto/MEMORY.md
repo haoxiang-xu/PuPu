@@ -1,8 +1,10 @@
+- [项目：agent teams 治理研究](project-agent-teams-governance-research.md) — 2026-06-20 CEO 战略讨论；CTO 线把人类组织治理经验→agent teams 通信治理原则/判定表/反臃肿红线；3 researcher 已派
 - [团队花名册（组织真相源）](team_roster.md) — 2026-06-10 两层结构：CEO→CTO/COO/智；CTO 线内 3 sub-team(chat/配置扩展/平台安全)+横向直挂验造策擎(4)；含 agent 文件目录布局
 - [backend dev「擎」入职契约](backend-dev-onboarding.md) — 擎(2026-06-10)横向直挂 CTO，拥后端唯一真实副本+unchain core 库；三权边界(智定spec/守定级/验端到端)、跨repo双边impact+接口双签、第二人触发条件
 - [Reorg 2026-06-10（已批准并落地）](reorg-proposal-2026-06-10.md) — 顶层收成 3 线(CTO/COO=发收编巡/智平级) + CTO 线内 3 sub-team 各设 lead + 验造策横向直挂；权威以 team-roster 为准
 - [security-expert 入职契约](security-expert-onboarding.md) — 守（2026-06-10 加入）挂平台安全组但安全裁量权越级；安全 ADR 须守 review、HIGH/CRITICAL 上报 CTO 仲裁、发版 sign-off 对 COO
 - [架构工作准则](architecture-operating-principles.md) — 改结构前强制 GitNexus impact、决策标注可逆性、重大决策写 ADR、守护承重铁律
+- [ADR：Trace Chain #155/#66 派发](adr-trace-chain-155-66-dispatch.md) — NOW 修 bug(共享 ownership 标记一条交付线)/LATER 结构改造灰度;关键路径 llm命名→chat-core→bubble;#66 触持久化 MED-HIGH;LATER 门=v4 finality 契约
 - [Dev team + 上线前同步会](dev-team-and-prelaunch-review.md) — 上线前 CTO 召集影响面同步会；reorg 后改 3 sub-team lead 代表各组出席 + 横向验造策 + COO 列席发版会
 - [Dev 花名册招募方案](dev-team-roster-plan.md) — 6 位 pupu-dev-* 分入 3 sub-team(各设 lead) + 功能面 ownership 不变 + 公共区守门权仍留 CTO 不下放
 - [边界：PuPu server vs unchain repo](boundary-pupu-server-vs-unchain.md) — 库消费非镜像；editable 链接 sibling repo；events_v4 跨 repo 契约；unchain 内 unchain_runtime 是空壳

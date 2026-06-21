@@ -12,6 +12,9 @@
 - **Mode C - Codex runs/writes tests and verifies.**
   Tests carry their own pass/fail, so Codex has little room to cut corners. Claude/QA still owns test strategy and the `.js`/`.cjs` parity. Risk: MEDIUM.
 
+- **Mode R - Codex-autonomous read-only investigation; output is a report.**
+  Codex (the `researcher` profile) investigates a target on its own - reads code, traces flows, clones OSS repos into a scratch dir, runs read-only commands - and returns an evidence-driven, falsification-refined report. No code lands in any repo of record; the Claude shell only writes the charter and relays. Because nothing is written to a repo of record, risk is LOW even though Codex is autonomous. Cross-model value: a heterogeneous investigator with zero shared priors. Risk: LOW.
+
 - **Mode B - Codex-primary writes feature code.**
   Codex edits with a workspace-write profile. Highest value on large or less-convention-bound code, highest risk. Guardrails are MANDATORY:
   1. PuPu conventions fed via `AGENTS.md` (JS-only, inline-style, IPC boundary, no ipcRenderer in renderer, localStorage only through SERVICEs helpers, `.js`/`.cjs` test parity).
@@ -24,6 +27,7 @@
 | Role | Mode | Who writes code | Review / sign-off |
 |------|------|-----------------|-------------------|
 | pupu-architect | A | Claude (CTO dispatches devs) | architect |
+| pupu-ai-researcher | **R** | none (report only, no code) | dispatcher (pupu-llm-expert) consolidates |
 | pupu-security-expert | A | Claude | security expert holds severity + sign-off |
 | pupu-llm-expert | A | Claude | llm-expert; model facts from docs, not Codex memory |
 | pupu-qa-tester | C | Codex (tests) | QA owns strategy; Claude reviews |
