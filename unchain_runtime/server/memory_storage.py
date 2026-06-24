@@ -14,7 +14,7 @@ def _root():
 
 def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
     root = _root()
-    from unchain.memory.qdrant import JsonFileSessionStore
+    from unchain.memory import JsonFileSessionStore
 
     store = JsonFileSessionStore(base_dir=root._sessions_dir(data_dir))
     try:
@@ -26,7 +26,7 @@ def _load_session_state(data_dir: str, session_id: str) -> dict[str, Any]:
 
 def _load_long_term_profile(data_dir: str, namespace: str) -> dict[str, Any]:
     root = _root()
-    from unchain.memory.manager import JsonFileLongTermProfileStore
+    from unchain.memory import JsonFileLongTermProfileStore
 
     store = JsonFileLongTermProfileStore(base_dir=root._long_term_profiles_dir(data_dir))
     try:

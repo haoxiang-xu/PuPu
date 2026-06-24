@@ -351,6 +351,16 @@ class MemoryFactoryTests(unittest.TestCase):
         fake_memory_module.MemoryConfig = FakeMemoryConfig
         fake_memory_module.LongTermMemoryConfig = FakeLongTermMemoryConfig
         fake_memory_module.MemoryManager = FakeMemoryManager
+        fake_memory_module.collect_complete_turns_for_vector_index = (
+            fake_collect_complete_turns_for_vector_index
+        )
+        fake_memory_module.JsonFileLongTermProfileStore = type(
+            "JsonFileLongTermProfileStore", (), {"__init__": lambda self, **kw: None}
+        )
+        fake_memory_module.JsonFileSessionStore = FakeJsonFileSessionStore
+        fake_memory_module.QdrantVectorAdapter = FakeQdrantVectorAdapter
+        fake_memory_module.QdrantLongTermVectorAdapter = FakeQdrantVectorAdapter
+        fake_memory_module.build_openai_embed_fn = build_openai_embed_fn
         fake_memory_manager_module = types.ModuleType("miso.memory.manager")
         fake_memory_manager_module._collect_complete_turns_for_vector_index = (
             fake_collect_complete_turns_for_vector_index

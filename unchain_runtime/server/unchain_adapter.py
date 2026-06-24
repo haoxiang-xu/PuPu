@@ -222,7 +222,10 @@ _DEVELOPER_SUBAGENT_TEMPLATE = "developer"
 # depends on this list via `_should_force_legacy_confirmation`.
 _LEGACY_CONFIRMATION_REQUIRED_TOOL_NAMES = {
     "write",
+    "write_file",
     "edit",
+    "delete_file",
+    "move_file",
     "terminal_exec",
 }
 _WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR = "_pupu_original_tool_name"

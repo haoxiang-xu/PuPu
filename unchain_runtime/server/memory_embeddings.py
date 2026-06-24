@@ -188,7 +188,7 @@ def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], 
     provider = config["provider"]
 
     if provider == "openai":
-        from unchain.memory.qdrant import build_openai_embed_fn
+        from unchain.memory import build_openai_embed_fn
 
         broth_instance = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
         return build_openai_embed_fn(

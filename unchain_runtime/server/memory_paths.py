@@ -65,7 +65,7 @@ def _qdrant_meta_path(data_dir: str) -> str:
 
 
 def _session_store_path(data_dir: str, session_id: str) -> str:
-    from unchain.memory.qdrant import JsonFileSessionStore
+    from unchain.memory import JsonFileSessionStore
 
     store = JsonFileSessionStore(base_dir=_sessions_dir(data_dir))
     path_getter = getattr(store, "_path", None)
@@ -75,7 +75,7 @@ def _session_store_path(data_dir: str, session_id: str) -> str:
 
 
 def _long_term_profile_path(data_dir: str, namespace: str) -> str:
-    from unchain.memory.manager import JsonFileLongTermProfileStore
+    from unchain.memory import JsonFileLongTermProfileStore
 
     store = JsonFileLongTermProfileStore(base_dir=_long_term_profiles_dir(data_dir))
     path_getter = getattr(store, "_path", None)
