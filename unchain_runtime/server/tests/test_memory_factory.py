@@ -239,7 +239,7 @@ class MemoryFactoryTests(unittest.TestCase):
             },
         )
 
-    def _install_fake_miso_modules_for_manager(
+    def _install_fake_unchain_memory_modules_for_manager(
         self,
         *,
         build_openai_embed_fn,
@@ -344,10 +344,7 @@ class MemoryFactoryTests(unittest.TestCase):
 
             return texts, metadatas, next_indexed_until, len(texts)
 
-        fake_pkg = types.ModuleType("miso")
-        fake_pkg.__path__ = []  # type: ignore[attr-defined]
-
-        fake_memory_module = types.ModuleType("miso.memory")
+        fake_memory_module = types.ModuleType("unchain.memory")
         fake_memory_module.MemoryConfig = FakeMemoryConfig
         fake_memory_module.LongTermMemoryConfig = FakeLongTermMemoryConfig
         fake_memory_module.MemoryManager = FakeMemoryManager
@@ -361,7 +358,7 @@ class MemoryFactoryTests(unittest.TestCase):
         fake_memory_module.QdrantVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_module.QdrantLongTermVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_module.build_openai_embed_fn = build_openai_embed_fn
-        fake_memory_manager_module = types.ModuleType("miso.memory.manager")
+        fake_memory_manager_module = types.ModuleType("unchain.memory.manager")
         fake_memory_manager_module._collect_complete_turns_for_vector_index = (
             fake_collect_complete_turns_for_vector_index
         )
@@ -369,17 +366,14 @@ class MemoryFactoryTests(unittest.TestCase):
             "JsonFileLongTermProfileStore", (), {"__init__": lambda self, **kw: None}
         )
 
-        fake_memory_qdrant_module = types.ModuleType("miso.memory.qdrant")
+        fake_memory_qdrant_module = types.ModuleType("unchain.memory.qdrant")
         fake_memory_qdrant_module.JsonFileSessionStore = FakeJsonFileSessionStore
         fake_memory_qdrant_module.QdrantVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_qdrant_module.QdrantLongTermVectorAdapter = FakeQdrantVectorAdapter
         fake_memory_qdrant_module.build_openai_embed_fn = build_openai_embed_fn
 
-        fake_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
         fake_memory_module.qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
-        fake_pkg.memory_qdrant = fake_memory_qdrant_module  # type: ignore[attr-defined]
 
-        # unchain.* aliases — memory_factory.py imports from unchain.memory.*
         fake_unchain_pkg = types.ModuleType("unchain")
         fake_unchain_pkg.__path__ = []  # type: ignore[attr-defined]
         fake_unchain_pkg.memory = fake_memory_module  # type: ignore[attr-defined]
@@ -391,10 +385,6 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
         modules = {
-            "miso": fake_pkg,
-            "miso.memory": fake_memory_module,
-            "miso.memory.manager": fake_memory_manager_module,
-            "miso.memory.qdrant": fake_memory_qdrant_module,
             "unchain": fake_unchain_pkg,
             "unchain.memory": fake_memory_module,
             "unchain.memory.manager": fake_memory_manager_module,
@@ -406,14 +396,14 @@ class MemoryFactoryTests(unittest.TestCase):
     def test_create_memory_manager_uses_dynamic_openai_vector_size(self) -> None:
         openai_embed_calls: dict[str, str] = {}
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
             del payload
             openai_embed_calls["model"] = model
-            openai_embed_calls["api_key"] = getattr(broth_instance, "api_key", "")
+            openai_embed_calls["api_key"] = getattr(api_key_source, "api_key", "")
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, _delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
             )
         )
@@ -466,12 +456,12 @@ class MemoryFactoryTests(unittest.TestCase):
         )
 
     def test_create_memory_manager_can_enable_long_term_memory(self) -> None:
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 1536 for _ in texts], 1536)
 
         modules, _fake_store_cls, fake_client, _delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
             )
         )
@@ -565,12 +555,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=old_state,
             )
@@ -633,12 +623,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )
@@ -699,12 +689,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )
@@ -815,12 +805,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )
@@ -884,12 +874,12 @@ class MemoryFactoryTests(unittest.TestCase):
             }
         }
 
-        def fake_build_openai_embed_fn(*, model, broth_instance=None, payload=None):
-            del model, broth_instance, payload
+        def fake_build_openai_embed_fn(*, model, api_key_source=None, payload=None):
+            del model, api_key_source, payload
             return (lambda texts: [[0.0] * 3072 for _ in texts], 3072)
 
         modules, fake_store_cls, _fake_client, delete_calls = (
-            self._install_fake_miso_modules_for_manager(
+            self._install_fake_unchain_memory_modules_for_manager(
                 build_openai_embed_fn=fake_build_openai_embed_fn,
                 initial_state_by_session=previous_state,
             )

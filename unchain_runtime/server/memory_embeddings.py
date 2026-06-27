@@ -190,10 +190,10 @@ def _build_embed_runtime(config: dict[str, Any]) -> tuple[Callable[[list[str]], 
     if provider == "openai":
         from unchain.memory import build_openai_embed_fn
 
-        broth_instance = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
+        api_key_source = SimpleNamespace(api_key=str(config.get("api_key", "") or "").strip())
         return build_openai_embed_fn(
             model=str(config.get("model", "") or "").strip(),
-            broth_instance=broth_instance,
+            api_key_source=api_key_source,
         )
 
     if provider == "ollama":
