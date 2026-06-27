@@ -79,6 +79,19 @@ export const setCatalogCounts = (counts) => {
 
 const refreshCatalogCounts = async (unchainAPI) => {
   if (!unchainAPI) return;
+  if (typeof unchainAPI.getStatus === "function") {
+    try {
+      const status = await unchainAPI.getStatus();
+      if (!status?.ready) {
+        setCatalogCounts({ models: 0, toolkits: 0, characters: 0 });
+        return;
+      }
+    } catch (_) {
+      setCatalogCounts({ models: 0, toolkits: 0, characters: 0 });
+      return;
+    }
+  }
+
   const safe = async (fn, key) => {
     try {
       const raw = await fn();

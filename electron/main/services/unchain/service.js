@@ -572,6 +572,10 @@ const createUnchainService = ({
   };
 
   const getMisoModelCatalogPayload = async () => {
+    if (unchainStatus === "starting") {
+      return {};
+    }
+
     ensureMisoReady();
 
     const response = await fetch(
@@ -591,6 +595,10 @@ const createUnchainService = ({
   };
 
   const getMisoToolkitCatalogPayload = async () => {
+    if (unchainStatus === "starting") {
+      return { toolkits: [], artifactKinds: [], count: 0, source: "" };
+    }
+
     ensureMisoReady();
 
     const response = await fetch(
@@ -1379,6 +1387,10 @@ const createUnchainService = ({
   };
 
   const listMisoCharacters = async () => {
+    if (unchainStatus === "starting") {
+      return { characters: [], count: 0 };
+    }
+
     ensureMisoReady();
 
     const response = await fetch(

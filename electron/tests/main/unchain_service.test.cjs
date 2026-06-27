@@ -165,6 +165,72 @@ describe("unchain service session memory replacement", () => {
     );
   });
 
+  test("startup catalog reads return empty payloads while Miso is starting", async () => {
+    const fakeProcess = createFakeSpawnProcess();
+    const spawn = jest.fn(() => fakeProcess);
+    const spawnSync = jest.fn(() => ({
+      status: 0,
+      stdout: JSON.stringify({
+        version: "3.12.2",
+        major: 3,
+        minor: 12,
+        missing: [],
+      }),
+    }));
+    let resolveHealth;
+    const healthPromise = new Promise((resolve) => {
+      resolveHealth = resolve;
+    });
+    global.fetch = jest.fn(() => healthPromise);
+
+    process.env.UNCHAIN_PYTHON_BIN = "/usr/bin/python3.12";
+
+    const service = createUnchainService({
+      app: {
+        isPackaged: false,
+        getAppPath: jest.fn(() => "/app"),
+        getPath: jest.fn(() => "/tmp/pupu"),
+        getVersion: jest.fn(() => "0.1.1"),
+      },
+      fs: {
+        existsSync: jest.fn(() => true),
+      },
+      path,
+      spawn,
+      spawnSync,
+      crypto: {
+        randomBytes: jest.fn(() => ({ toString: () => "auth-token-123" })),
+      },
+      net: createAvailableNet(),
+      webContents: {
+        fromId: jest.fn(() => null),
+        getAllWebContents: jest.fn(() => []),
+      },
+      runtimeService: {},
+      getAppIsQuitting: () => false,
+    });
+
+    const startPromise = service.startMiso();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    await expect(service.getMisoModelCatalogPayload()).resolves.toEqual({});
+    await expect(service.getMisoToolkitCatalogPayload()).resolves.toEqual({
+      artifactKinds: [],
+      count: 0,
+      source: "",
+      toolkits: [],
+    });
+    await expect(service.listMisoCharacters()).resolves.toEqual({
+      characters: [],
+      count: 0,
+    });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+
+    resolveHealth({ ok: true });
+    await startPromise;
+  });
+
   test("MCP toolkit methods proxy to unchain MCP endpoints", async () => {
     const fakeProcess = createFakeSpawnProcess();
     const spawn = jest.fn(() => fakeProcess);
