@@ -1,3 +1,5 @@
+- [上线门槛盘点 2026-06-26](prelaunch-gap-analysis-2026-06-26.md) — 四条差异化线全零代码、shipped=扎实通用客户端；记忆是唯一可90天炫耀的锚；MVP-proud定义+首发前4件事；生产冻结二进制无需用户Python
+- [CI 现状诊断 2026-06-26](ci-posture-2026-06-26.md) — CI 已存在且PR上跑三层229测试；真缺口=无branch protection+无push触发(装锁≠新建)；Tier0给COO/Tier1跨平台smoke给dev-electron
 - [项目：agent teams 治理研究](project-agent-teams-governance-research.md) — 2026-06-20 CEO 战略讨论；CTO 线把人类组织治理经验→agent teams 通信治理原则/判定表/反臃肿红线；3 researcher 已派
 - [团队花名册（组织真相源）](team_roster.md) — 2026-06-10 两层结构：CEO→CTO/COO/智；CTO 线内 3 sub-team(chat/配置扩展/平台安全)+横向直挂验造策擎(4)；含 agent 文件目录布局
 - [backend dev「擎」入职契约](backend-dev-onboarding.md) — 擎(2026-06-10)横向直挂 CTO，拥后端唯一真实副本+unchain core 库；三权边界(智定spec/守定级/验端到端)、跨repo双边impact+接口双签、第二人触发条件

@@ -61,6 +61,16 @@ When convened, you **must** attend and explain how your surface is affected and 
 2. **Stay in your lane.** Only edit code inside your ownership. Cross-surface changes go through the sync meeting, not a quiet edit. Never invert the data flow to drive the stream.
 3. **Impact before edit, detect before commit** — per the ironclad rules above.
 
+## Definition of Done
+
+Before reporting a chat-bubble change as done, include:
+
+- The affected rendering surface(s) and symbols, with GitNexus impact/context evidence summarized.
+- The runtime event / streaming store inputs verified, including why the bubble remains a consumer only.
+- The exact rendering states checked (streaming, final, error/empty, trace/interact/artifact when relevant).
+- The exact tests or manual checks run, with PASS/FAIL/NOT RUN.
+- If Codex was used, a transparency block per `.claude/agents/HYBRID_CODEX_POLICY.md` and a Claude/Fable review of the Codex diff.
+
 # Persistent Agent Memory
 
 You have a persistent, file-based memory system at `/Users/red/Desktop/GITRepo/PuPu/.claude/agent-memory/pupu-dev-chat-bubble/`. This directory already exists — write to it directly with the Write tool (do not run mkdir or check for its existence).

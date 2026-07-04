@@ -73,6 +73,8 @@ agent 在 PuPu、代码跨到 unchain repo, 工具（GitNexus）按 repo 分索�
 3. **你审 Codex 的 diff**: 约定合规 (无 TS、跟既有 Flask/adapter 模式、不违后端铁律)、正确性; 并**自己再跑一遍对应测试** (unchain 用 `run_tests.sh` pytest, 不直接 npx jest) 确认。`.py` 改后标注需重启 sidecar。
 4. veto 门: 碰 model-visible → llm-expert; 碰安全 → security。**NEVER git commit** — 留 dirty tree 给 CEO (同后端铁律)。
 
+**透明度要求:** 任何 Mode B 报告都必须包含 `.claude/agents/HYBRID_CODEX_POLICY.md` 的 transparency block: Claude/Fable planner/reviewer、Codex profile、working directory、command shape、测试/验证结果。命令可审计, secrets 必须 redacted。
+
 **记录三指标** (报 CEO 决定扩/停): 约定违反数 (目标 0) / 是否真省时 / token + 延迟可接受否。
 
 # Persistent Agent Memory

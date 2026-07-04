@@ -37,6 +37,30 @@
 | pupu-dev-electron | A for trace only | Claude | NOT Codex-primary - IPC/preload channel parity |
 | all other roles | none yet | Claude | - |
 
+## Transparent orchestration
+
+When a Claude/Fable agent calls Codex or another CLI, the final report MUST include a short transparency block:
+
+- **Planner/reviewer model:** the Claude/Fable agent that scoped or reviewed the work.
+- **Executor model/profile:** the Codex profile or other CLI profile used.
+- **Working directory:** repo path or scratch path.
+- **Command shape:** enough of the command to audit routing, with secrets and tokens redacted.
+- **Result:** PASS/FAIL/NOT RUN for tests or verification, plus the important stdout/stderr summary.
+
+Do not paste API keys, OAuth tokens, cookies, or full auth-bearing commands. Transparency is about routing and evidence, not leaking credentials.
+
+## Default mixed-model handoff
+
+For implementation tasks that are eligible for mixed execution, use this sequence:
+
+1. **Claude/Fable plans.** The owning agent reads the relevant docs/GitNexus context, defines scope, risks, and a Definition of Done.
+2. **Codex implements.** Codex receives the plan, constraints, impact/context evidence, and required tests. It writes code only inside the approved scope.
+3. **Claude/Fable reviews.** The owning agent reviews the Codex diff against the Definition of Done and PuPu conventions.
+4. **Codex fixes.** If review finds concrete issues, send Codex a bounded fix prompt rather than allowing a broad rewrite.
+5. **Owner verifies.** The owning agent reruns or reviews the required tests and reports any skipped checks explicitly.
+
+This handoff can be used as a **Codex implementation assistant** for most dev roles, but only `pupu-dev-backend` is approved for Mode B Codex-primary writes. For load-bearing surfaces such as chat-core and Electron, Codex may propose patches and run tests, but Claude/Fable remains the accountable writer/reviewer.
+
 ## Rollout rule
 
 Mode B stays a **single pilot (pupu-dev-backend)** until it passes the metrics below. Only then extend Mode C to QA broadly and Mode A to security/LLM expert. **Never extend Mode B to chat-core or electron.**
