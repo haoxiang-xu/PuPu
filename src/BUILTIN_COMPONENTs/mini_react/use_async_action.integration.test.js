@@ -27,7 +27,8 @@ describe("useAsyncAction + ToastHost integration", () => {
       </ConfigContext.Provider>
     );
     await act(async () => { screen.getByText("go").click(); });
-    expect(screen.getByText(/任务.*boom/)).toBeInTheDocument();
+    expect(screen.getByText("任务")).toBeInTheDocument();
+    expect(screen.getByText("boom")).toBeInTheDocument();
     expect(screen.getByText("pending:no")).toBeInTheDocument();
   });
 });

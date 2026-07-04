@@ -6,6 +6,7 @@ import Button from "../../BUILTIN_COMPONENTs/input/button";
 import TraceChainRunner from "./runners/trace_chain_runner";
 import CodeDiffInteractRunner from "./runners/code_diff_runner";
 import ArtifactSummaryRunner from "./runners/artifact_summary_runner";
+import ToastRunner from "./runners/toast_runner";
 
 /* ── test component registry ── */
 const COMPONENTS = [
@@ -19,6 +20,11 @@ const COMPONENTS = [
     key: "artifact_summary",
     label: "ArtifactSummary",
     runner: ArtifactSummaryRunner,
+  },
+  {
+    key: "toast",
+    label: "Toast",
+    runner: ToastRunner,
   },
 ];
 

@@ -1,8 +1,15 @@
-import { useContext, useMemo, useRef, useState } from "react";
+import {
+  useContext,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import ReactShowdown from "react-showdown";
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 import MarkdownCodeBlock from "./code";
+import { acquireMarkdownStyle } from "./markdown_style_registry";
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
 
 /* { Contexts } -------------------------------------------------------------------------------------------------------------- */
@@ -182,6 +189,10 @@ const Markdown = ({
   const idRef = useRef(
     `mini-ui-markdown-${Math.random().toString(36).slice(2, 10)}`,
   );
+  // 共享样式表的 sid:由注册表按 cssText 分配,相同主题/字号的实例复用同一 sid。
+  // 首帧 sid 为 null(选择器不匹配),但 useLayoutEffect 在 paint 前同步 acquire + setSid,
+  // 触发 paint 前的二次渲染 → 首帧即带 sid,无样式闪烁。
+  const [styleSid, setStyleSid] = useState(null);
   const markdownText =
     typeof markdown === "string"
       ? markdown
@@ -199,7 +210,6 @@ const Markdown = ({
     [theme, markdownStyle],
   );
   const css = useMemo(() => {
-    const id = idRef.current;
     const markdownTheme = mergedMarkdownTheme;
     const baseFontFamily =
       markdownTheme.fontFamily ||
@@ -225,51 +235,51 @@ const Markdown = ({
     const codeTheme = theme?.code || {};
 
     return `
-      [data-markdown-id="${id}"] {
+      [data-markdown-sid="__SID__"] {
         font-family: ${baseFontFamily};
         font-size: ${baseFontSize};
         line-height: ${baseLineHeight};
         color: ${baseColor};
         background-color: ${baseBackground};
       }
-      [data-markdown-id="${id}"] p {
+      [data-markdown-sid="__SID__"] p {
         margin: ${paragraphMargin || "0 0 0.85em 0"};
       }
-      [data-markdown-id="${id}"] h1 {
+      [data-markdown-sid="__SID__"] h1 {
         font-size: ${toPx(heading.h1?.fontSize, "28px")};
         font-weight: ${heading.h1?.fontWeight || 700};
         margin: ${heading.h1?.margin || "1.2em 0 0.4em"};
       }
-      [data-markdown-id="${id}"] h2 {
+      [data-markdown-sid="__SID__"] h2 {
         font-size: ${toPx(heading.h2?.fontSize, "24px")};
         font-weight: ${heading.h2?.fontWeight || 700};
         margin: ${heading.h2?.margin || "1.1em 0 0.35em"};
       }
-      [data-markdown-id="${id}"] h3 {
+      [data-markdown-sid="__SID__"] h3 {
         font-size: ${toPx(heading.h3?.fontSize, "20px")};
         font-weight: ${heading.h3?.fontWeight || 600};
         margin: ${heading.h3?.margin || "1.0em 0 0.3em"};
       }
-      [data-markdown-id="${id}"] h4 {
+      [data-markdown-sid="__SID__"] h4 {
         font-size: ${toPx(heading.h4?.fontSize, "18px")};
         font-weight: ${heading.h4?.fontWeight || 600};
         margin: ${heading.h4?.margin || "0.9em 0 0.3em"};
       }
-      [data-markdown-id="${id}"] ul,
-      [data-markdown-id="${id}"] ol {
+      [data-markdown-sid="__SID__"] ul,
+      [data-markdown-sid="__SID__"] ol {
         padding-left: ${toPx(list.paddingLeft, "24px")};
         margin: ${list.margin || "0 0 0.85em 0"};
       }
-      [data-markdown-id="${id}"] li {
+      [data-markdown-sid="__SID__"] li {
         margin: ${list.itemMargin || "0.25em 0"};
       }
-      [data-markdown-id="${id}"] blockquote {
+      [data-markdown-sid="__SID__"] blockquote {
         margin: ${blockquote.margin || "0 0 0.85em 0"};
         padding-left: ${toPx(blockquote.paddingLeft, "12px")};
         border-left: 3px solid ${blockquote.borderColor || "#E0E0E0"};
         color: ${blockquote.color || "#555555"};
       }
-      [data-markdown-id="${id}"] code {
+      [data-markdown-sid="__SID__"] code {
         font-family: ${code.fontFamily || codeTheme.fontFamily || "Menlo, Monaco, Consolas, monospace"};
         font-size: ${toPx(code.fontSize || codeTheme.fontSize, "13px")};
         background: ${code.backgroundColor || codeTheme.backgroundColor || "#F2F2F2"};
@@ -277,55 +287,55 @@ const Markdown = ({
         border-radius: ${toPx(code.borderRadius || codeTheme.borderRadius, "4px")};
         color: ${code.color || codeTheme.color || "inherit"};
       }
-      [data-markdown-id="${id}"] pre {
+      [data-markdown-sid="__SID__"] pre {
         background: transparent;
         padding: 0;
         margin: 0;
         border: none;
       }
-      [data-markdown-id="${id}"] pre code {
+      [data-markdown-sid="__SID__"] pre code {
         background: transparent;
         padding: 0;
         border-radius: 0;
       }
-      [data-markdown-id="${id}"] a {
+      [data-markdown-sid="__SID__"] a {
         color: ${link.color || "#0B5FFF"};
         text-decoration: ${link.underline || "none"};
       }
-      [data-markdown-id="${id}"] a:hover {
+      [data-markdown-sid="__SID__"] a:hover {
         text-decoration: underline;
       }
-      [data-markdown-id="${id}"] hr {
+      [data-markdown-sid="__SID__"] hr {
         border: none;
         border-top: 1px solid ${hr.borderColor || "#E0E0E0"};
         margin: ${hr.margin || "1.2em 0"};
       }
-      [data-markdown-id="${id}"] table {
+      [data-markdown-sid="__SID__"] table {
         width: 100%;
         border-collapse: collapse;
         margin: ${table.margin || "0 0 0.85em 0"};
       }
-      [data-markdown-id="${id}"] th,
-      [data-markdown-id="${id}"] td {
+      [data-markdown-sid="__SID__"] th,
+      [data-markdown-sid="__SID__"] td {
         border: 1px solid ${table.borderColor || "#E0E0E0"};
         padding: ${table.cellPadding || "6px 10px"};
         text-align: left;
       }
-      [data-markdown-id="${id}"] thead th {
+      [data-markdown-sid="__SID__"] thead th {
         background: ${table.headerBackground || "#F7F7F7"};
       }
-      [data-markdown-id="${id}"] img {
+      [data-markdown-sid="__SID__"] img {
         max-width: ${image.maxWidth || "100%"};
         border-radius: ${toPx(image.borderRadius, "6px")};
       }
       ${
         hasBlockGap
           ? `
-      [data-markdown-id="${id}"] > * {
+      [data-markdown-sid="__SID__"] > * {
         margin-top: 0 !important;
         margin-bottom: 0 !important;
       }
-      [data-markdown-id="${id}"] > * + * {
+      [data-markdown-sid="__SID__"] > * + * {
         margin-top: ${toPx(blockGap, "12px")};
       }
       `
@@ -333,6 +343,15 @@ const Markdown = ({
       }
     `;
   }, [mergedMarkdownTheme, theme]);
+  // 用 layoutEffect 在 paint 前 acquire 共享 <style>;cssText 变化(主题/字号切换)时
+  // React 先跑上一次的 cleanup(release 旧)再跑本次(acquire 新)。归零的样式表被移除。
+  useLayoutEffect(() => {
+    const handle = acquireMarkdownStyle(css);
+    setStyleSid(handle.sid);
+    return () => {
+      handle.release();
+    };
+  }, [css]);
   const mergedOptions = useMemo(
     () => ({
       tables: true,
@@ -372,13 +391,13 @@ const Markdown = ({
   return (
     <div
       data-markdown-id={idRef.current}
+      data-markdown-sid={styleSid || undefined}
       className={className}
       style={{
         ...(hasHeight ? { display: "flex", flexDirection: "column" } : {}),
         ...containerStyle,
       }}
     >
-      <style>{css}</style>
       <ReactShowdown
         markdown={markdownText}
         options={mergedOptions}

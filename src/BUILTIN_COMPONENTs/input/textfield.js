@@ -68,6 +68,7 @@ const FloatingTextField = ({
       : "0 12px 36px rgba(0,0,0,0.10), 0 3px 8px rgba(0,0,0,0.06)");
   const padding = style?.padding ?? tf.padding ?? 12;
   const baseColor = style?.color || theme?.color || (isDark ? "#CCC" : "#222");
+  const backdropFilter = style?.backdropFilter || tf.backdropFilter || null;
 
   /* ---- parse border width so we can flush the scrollbar to the outer edge ---- */
   const borderWidth = parseInt(border, 10) || 1;
@@ -200,6 +201,12 @@ const FloatingTextField = ({
           position: "relative",
           boxSizing: "border-box",
           backgroundColor: bg,
+          ...(backdropFilter
+            ? {
+                backdropFilter,
+                WebkitBackdropFilter: backdropFilter,
+              }
+            : {}),
           border,
           borderRadius,
           boxShadow: hovered || focused ? shadowFocus : shadow,

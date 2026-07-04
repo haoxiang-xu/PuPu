@@ -14,6 +14,7 @@ import Input from "../input/input";
 import Button from "../input/button";
 import { GradientSlider } from "../input/slider";
 import SegmentedButton from "../input/segmented_button";
+import { NordicColorPickerPanel } from "./nordic_color_picker";
 /* { Utils } ----------------------------------------------------------------- */
 import {
   clamp,
@@ -588,9 +589,13 @@ const ColorPicker = ({
   const popoverRef = useRef(null);
   const panelContentRef = useRef(null);
   const [popoverPosition, setPopoverPosition] = useState(null);
+  /* the Nordic panel only emits a single set_value (live); we preview on every
+   * change and commit the latest colour once the popover dismisses. */
+  const lastHexRef = useRef(null);
 
   const handlePreview = useCallback(
     (h) => {
+      lastHexRef.current = h;
       if (!isControlled) setInternal(h);
       if (set_value) set_value(h);
       if (onPreview) onPreview(h);
@@ -606,6 +611,13 @@ const ColorPicker = ({
     [isControlled, onCommit],
   );
 
+  const commitLatest = useCallback(() => {
+    if (lastHexRef.current != null) {
+      handleCommit(lastHexRef.current);
+      lastHexRef.current = null;
+    }
+  }, [handleCommit]);
+
   const stopPickerEvent = useCallback((event) => {
     event.stopPropagation();
   }, []);
@@ -618,18 +630,20 @@ const ColorPicker = ({
   const closeFromBlocker = useCallback(
     (event) => {
       blockPickerEvent(event);
+      commitLatest();
       setOpen(false);
     },
-    [blockPickerEvent],
+    [blockPickerEvent, commitLatest],
   );
 
   const closeFromPopoverChrome = useCallback(
     (event) => {
       if (panelContentRef.current?.contains(event.target)) return;
       blockPickerEvent(event);
+      commitLatest();
       setOpen(false);
     },
-    [blockPickerEvent],
+    [blockPickerEvent, commitLatest],
   );
 
   const updatePopoverPosition = useCallback(() => {
@@ -662,7 +676,6 @@ const ColorPicker = ({
 
   const pickerTheme = theme?.colorPicker || {};
   const text = theme?.color || (isDark ? "#D6D6D6" : "#222222");
-  const defaultPanelFormat = onPreview || onCommit ? "HEX" : "HSL";
 
   const popover =
     open && typeof document !== "undefined"
@@ -705,13 +718,10 @@ const ColorPicker = ({
                 visibility: popoverPosition ? "visible" : "hidden",
               }}
             >
-              <ColorPickerPanel
+              <NordicColorPickerPanel
                 value={hex}
                 set_value={handlePreview}
                 default_value={default_value}
-                default_format={defaultPanelFormat}
-                on_preview={handlePreview}
-                on_commit={handleCommit}
                 content_ref={panelContentRef}
               />
             </div>
@@ -777,4 +787,9 @@ const ColorPicker = ({
   );
 };
 
-export { ColorPicker as default, ColorPicker, ColorPickerPanel };
+export {
+  ColorPicker as default,
+  ColorPicker,
+  ColorPickerPanel,
+  NordicColorPickerPanel,
+};

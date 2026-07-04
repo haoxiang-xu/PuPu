@@ -1,1 +1,6 @@
-export { default, ColorPicker, ColorPickerPanel } from "./color_picker";
+export {
+  default,
+  ColorPicker,
+  ColorPickerPanel,
+  NordicColorPickerPanel,
+} from "./color_picker";

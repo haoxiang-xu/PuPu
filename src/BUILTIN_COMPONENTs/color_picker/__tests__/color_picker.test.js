@@ -224,7 +224,7 @@ describe("ColorPickerPanel", () => {
 });
 
 describe("ColorPicker", () => {
-  it("opens the redesigned popover from the trigger", async () => {
+  it("opens the Nordic Rail popover from the trigger", async () => {
     renderWithTheme(<ColorPicker default_value="#E67E22" />);
 
     expect(screen.getByText("#E67E22")).toBeInTheDocument();
@@ -233,11 +233,16 @@ describe("ColorPicker", () => {
     expect(trigger.style.background).toBe("transparent");
 
     fireEvent.click(trigger);
-    await waitForEyedropperIcon();
+    // the Nordic panel is rendered into a body portal; wait for it to mount
+    await screen.findByTestId("color-picker-panel");
 
     expect(screen.getByTestId("color-picker-panel")).toBeInTheDocument();
     expect(screen.queryByText("COLOR")).not.toBeInTheDocument();
+    // Nordic readout swatch + CUSTOM disclosure are the panel's anchors
     expect(screen.getByTestId("color-picker-final-swatch")).toBeInTheDocument();
+    expect(screen.getByText("CUSTOM")).toBeInTheDocument();
+    // the old rectangular panel's SV field / format segments are gone
+    expect(screen.queryByTestId("color-picker-sv")).not.toBeInTheDocument();
   });
 
   it("renders the popup in a fixed body portal outside clipped containers", async () => {
@@ -259,7 +264,7 @@ describe("ColorPicker", () => {
     });
 
     fireEvent.click(trigger);
-    await waitForEyedropperIcon();
+    await screen.findByTestId("color-picker-panel");
 
     const popover = screen.getByTestId("color-picker-popover");
     expect(
@@ -274,17 +279,17 @@ describe("ColorPicker", () => {
     });
   });
 
-  it("dismisses when the empty popup chrome above the picker content is pressed", async () => {
+  it("stays open when the panel content itself is pressed", async () => {
     renderWithTheme(<ColorPicker default_value="#E67E22" />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open color picker" }));
-    await waitForEyedropperIcon();
+    const panel = await screen.findByTestId("color-picker-panel");
 
-    fireEvent.pointerDown(screen.getByTestId("color-picker-panel"));
+    // the whole Nordic panel is content (content_ref wraps the root), so
+    // pressing it must NOT dismiss — only an outside / blocker press does
+    fireEvent.pointerDown(panel);
 
-    await waitFor(() => {
-      expect(screen.queryByTestId("color-picker-panel")).not.toBeInTheDocument();
-    });
+    expect(screen.getByTestId("color-picker-panel")).toBeInTheDocument();
   });
 
   it("uses a full-screen blocker to close only the picker above a modal", async () => {
@@ -304,7 +309,7 @@ describe("ColorPicker", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Open color picker" }));
-    await waitForEyedropperIcon();
+    await screen.findByTestId("color-picker-panel");
 
     const blocker = screen.getByTestId("color-picker-event-blocker");
     expect(blocker).toHaveStyle({

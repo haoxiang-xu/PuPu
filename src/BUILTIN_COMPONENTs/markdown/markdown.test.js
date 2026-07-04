@@ -101,3 +101,34 @@ describe("Markdown fenced code blocks", () => {
     expect(hljs.highlight).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("Markdown shared <style> registry", () => {
+  afterEach(() => {
+    document.head
+      .querySelectorAll("style[data-markdown-shared]")
+      .forEach((el) => el.remove());
+  });
+
+  test("三个相同主题的 Markdown 实例只产生一张共享 <style>", () => {
+    render(
+      <ConfigContext.Provider value={createConfigValue()}>
+        <div>
+          <Markdown markdown="# hello" />
+          <Markdown markdown={"world **bold**"} />
+          <Markdown markdown={"a paragraph of text"} />
+        </div>
+      </ConfigContext.Provider>,
+    );
+
+    expect(
+      document.head.querySelectorAll("style[data-markdown-shared]").length,
+    ).toBe(1);
+    // 每个实例仍带 data-markdown-id(别处测试依赖),并共享同一 sid
+    const roots = document.querySelectorAll("[data-markdown-id]");
+    expect(roots.length).toBe(3);
+    const sids = new Set(
+      [...roots].map((el) => el.getAttribute("data-markdown-sid")),
+    );
+    expect(sids.size).toBe(1);
+  });
+});
