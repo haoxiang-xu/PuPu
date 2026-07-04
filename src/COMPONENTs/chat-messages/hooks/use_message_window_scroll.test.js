@@ -593,6 +593,253 @@ describe("useMessageWindowScroll", () => {
   });
 });
 
+describe("streaming keep-at-bottom stability (ChatGPT-style)", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+  });
+
+  const streamingProps = (host, over = {}) => ({
+    chat_id: "chat-stream",
+    messages: makeMessages(20),
+    is_streaming: true,
+    initial_visible_count: 12,
+    load_batch_size: 6,
+    top_load_threshold: 80,
+    boot_visible_count: 3,
+    ...over,
+  });
+
+  it("wheel-up during streaming detaches follow immediately and cancels the pending bottom-follow", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(streamingProps(scrollHost.host), scrollHost.host),
+    );
+
+    act(() => {
+      result.current.notifyStreamingContentCommitted();
+    });
+
+    // 用户在吸底 rAF 落地前上滚 → wheel 处理器应立即关跟随 + 取消 pending
+    act(() => {
+      result.current.handleWheel({ deltaY: -20 });
+    });
+
+    scrollHost.host.scrollTop = 300;
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+    // 被取消,不再吸底
+    expect(scrollHost.host.scrollTop).toBe(300);
+
+    // 关跟随后,后续 chunk 提交也不再吸底
+    act(() => {
+      result.current.notifyStreamingContentCommitted();
+      jest.advanceTimersByTime(64);
+    });
+    expect(scrollHost.host.scrollTop).toBe(300);
+  });
+
+  it("a programmatic bottom-pin scroll event does not clear user intent or reopen follow", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(streamingProps(scrollHost.host), scrollHost.host),
+    );
+
+    // mount 调度的吸底 rAF 落地:scrollTop → MAX(这是一次程序性写)
+    act(() => {
+      jest.advanceTimersByTime(64);
+    });
+    expect(scrollHost.host.scrollTop).toBe(Number.MAX_SAFE_INTEGER);
+
+    // 用户上滚脱离(DOM 位置还没来得及更新,仍在底部)
+    act(() => {
+      result.current.handleWheel({ deltaY: -30 });
+    });
+
+    // 迟到的程序性吸底 scroll 事件到达(位置仍在底部)→ 必须被当作程序性忽略,
+    // 不能因"落在底部阈值内"就重开跟随
+    act(() => {
+      result.current.handleScroll();
+    });
+
+    // 跟随必须保持关闭:换到较高位置再提交 → 不吸底
+    scrollHost.host.scrollTop = 350;
+    act(() => {
+      result.current.notifyStreamingContentCommitted();
+      jest.advanceTimersByTime(64);
+    });
+    expect(scrollHost.host.scrollTop).toBe(350);
+  });
+
+  it("scrolling back to the bottom (user-driven) re-enables streaming follow", () => {
+    const scrollHost = makeScrollHost(); // scrollHeight 1000, clientHeight 400
+    const { result } = renderHook(() =>
+      useScrollWithHost(streamingProps(scrollHost.host), scrollHost.host),
+    );
+
+    act(() => {
+      jest.advanceTimersByTime(64); // 吸底 pin,scrollTop → MAX
+    });
+
+    act(() => {
+      result.current.handleWheel({ deltaY: -10 }); // 脱离
+    });
+    act(() => {
+      result.current.handleScroll(); // 消费迟到的程序性 pin 事件(scrollTop 仍 MAX)
+    });
+
+    // 用户主动滚回底部(distance = 1000 - (600 + 400) = 0 → 在阈值内)
+    scrollHost.host.scrollTop = 600;
+    act(() => {
+      result.current.handleScroll();
+    });
+
+    // 跟随恢复:再提交一次 → 吸底
+    scrollHost.host.scrollTop = 500;
+    act(() => {
+      result.current.notifyStreamingContentCommitted();
+      jest.advanceTimersByTime(64);
+    });
+    expect(scrollHost.host.scrollTop).toBe(Number.MAX_SAFE_INTEGER);
+  });
+
+  it("scrollToBottom records the real clamped scrollTop so later downward scrolls are not misread as up", () => {
+    // scrollTo 会把 top clamp 到 scrollHeight-clientHeight(真实 DOM 行为)
+    const host = {
+      __scrollHeight: 1000,
+      clientHeight: 400,
+      scrollTop: 600, // 已在 clamp 后的底部
+      scrollTo: jest.fn(({ top }) => {
+        host.scrollTop = Math.min(top, host.__scrollHeight - host.clientHeight);
+      }),
+      get scrollHeight() {
+        return host.__scrollHeight;
+      },
+    };
+    const messages = makeMessages(20);
+    const { result, rerender } = renderHook(
+      ({ streaming }) =>
+        useScrollWithHost(
+          {
+            chat_id: "clamp",
+            messages,
+            is_streaming: streaming,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+          },
+          host,
+        ),
+      { initialProps: { streaming: false } },
+    );
+
+    // 已在底部:scrollToBottom 是一次 no-op 滚动(top=1000 clamp 到 600,位置不变、不发事件)
+    act(() => {
+      result.current.handleBackToBottom(); // → scrollToBottom("auto")
+    });
+
+    // 切到流式,并让内容变高,使 600 不再是底部
+    host.__scrollHeight = 2000;
+    rerender({ streaming: true });
+
+    // 用户向下滚(向新底部)。若 lastScrollTop 被错记成 scrollHeight(1000),
+    // 650 < 1000 会被误判为"上滚"而错误脱离跟随。
+    host.scrollTop = 650;
+    act(() => {
+      result.current.handleScroll();
+    });
+
+    host.scrollTop = 650;
+    act(() => {
+      result.current.notifyStreamingContentCommitted();
+      jest.advanceTimersByTime(64);
+    });
+    expect(host.scrollTop).toBe(Number.MAX_SAFE_INTEGER);
+  });
+});
+
+describe("scrollToMessageIndex settle option and sync-completion contract", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+  });
+
+  const baseProps = (over = {}) => ({
+    chat_id: "chat-settle",
+    messages: makeMessages(40),
+    is_streaming: false,
+    initial_visible_count: 12,
+    load_batch_size: 6,
+    top_load_threshold: 80,
+    boot_visible_count: 3,
+    ...over,
+  });
+
+  it("settle:false skips the landing-correction re-align; default keeps it (drag vs click)", () => {
+    const scrollHost = makeScrollHost();
+    scrollHost.setScrollHeight(2600);
+    const { result } = renderHook(() =>
+      useScrollWithHost(baseProps(), scrollHost.host),
+    );
+    scrollHost.host.scrollTo.mockClear();
+
+    const targetNode = { offsetTop: 1000 };
+    act(() => {
+      result.current.messageNodeRefs.current.set(38, targetNode);
+      // 拖动路径:settle:false
+      result.current.scrollToMessageIndex(38, "auto", { settle: false });
+    });
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledTimes(1);
+
+    // 目标布局漂移 + 推进结算周期:settle:false 不应产生二次对齐
+    act(() => {
+      targetNode.offsetTop = 1160;
+      jest.advanceTimersByTime(50);
+    });
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns true when the target is in the window (sync), false when it must defer to a window expand", () => {
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useMessageWindowScroll(baseProps({ messages })),
+    );
+
+    let syncResult = null;
+    let deferredResult = null;
+    act(() => {
+      result.current.messagesRef.current = {
+        scrollTo: () => {},
+        scrollHeight: 5000,
+        clientHeight: 400,
+        scrollTop: 0,
+      };
+      // index 38 在初始/展开窗口内(final start=28),节点已渲染 → 同步落位
+      result.current.messageNodeRefs.current.set(38, { offsetTop: 1000 });
+      syncResult = result.current.scrollToMessageIndex(38, "auto");
+      // index 2 在窗口外 → 需异步扩窗
+      deferredResult = result.current.scrollToMessageIndex(2, "auto");
+    });
+
+    expect(syncResult).toBe(true);
+    expect(deferredResult).toBe(false);
+  });
+});
+
 describe("computeLandingTop", () => {
   it("top 对齐:offsetTop 减 12px 顶边距", () => {
     expect(

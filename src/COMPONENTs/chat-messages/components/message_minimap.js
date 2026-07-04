@@ -376,21 +376,62 @@ const MessageMinimap = ({
         box.style.opacity = "0.6";
       }, 1200);
     };
-    const onScroll = () => {
+    // measure 移出滚动热路径:~120ms(或 rAF)节流,合并突发 scroll。
+    // 拖动/松手归中期间冻结 measure —— 保证 segments 稳定、拖动坐标系不中途漂移。
+    let measureScheduled = null;
+    let measureScheduledType = null;
+    const runMeasure = () => {
+      measureScheduled = null;
+      measureScheduledType = null;
+      if (draggingRef.current || settlingRef.current) return;
       measure();
+    };
+    const scheduleMeasure = () => {
+      if (draggingRef.current || settlingRef.current) return;
+      if (measureScheduled != null) return;
+      if (
+        typeof window !== "undefined" &&
+        typeof window.requestAnimationFrame === "function"
+      ) {
+        measureScheduledType = "raf";
+        measureScheduled = window.requestAnimationFrame(runMeasure);
+      } else {
+        measureScheduledType = "timeout";
+        measureScheduled = setTimeout(runMeasure, 120);
+      }
+    };
+    const cancelMeasure = () => {
+      if (measureScheduled == null) return;
+      if (
+        measureScheduledType === "raf" &&
+        typeof window !== "undefined" &&
+        typeof window.cancelAnimationFrame === "function"
+      ) {
+        window.cancelAnimationFrame(measureScheduled);
+      } else {
+        clearTimeout(measureScheduled);
+      }
+      measureScheduled = null;
+      measureScheduledType = null;
+    };
+
+    const onScroll = () => {
+      scheduleMeasure();
       showActive();
       if (!draggingRef.current && !settlingRef.current) update();
       scheduleHide();
     };
 
     recalcGeometry();
-    update();
-    minimapApiRef.current = { applyLayout, getGeom };
+    // effect 重跑时:拖动中不 update(),避免"被动布局"抢掉拖动帧。
+    if (!draggingRef.current) update();
+    minimapApiRef.current = { applyLayout, getGeom, update, measure };
 
     el.addEventListener("scroll", onScroll, { passive: true });
     const ro =
       typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(() => {
+            if (draggingRef.current || settlingRef.current) return;
             measure();
             recalcGeometry();
             update();
@@ -402,6 +443,7 @@ const MessageMinimap = ({
     }
     return () => {
       el.removeEventListener("scroll", onScroll);
+      cancelMeasure();
       if (ro) ro.disconnect();
       if (hideTimer.current) clearTimeout(hideTimer.current);
       minimapApiRef.current = null;
@@ -454,7 +496,7 @@ const MessageMinimap = ({
 
   const jumpToRatio = (clientY) => {
     const g = computeContentGeom();
-    if (!g) return;
+    if (!g) return false;
     const heights = segments.map((s) => s.height);
     const medH = median(heights);
     const r = g.mini.getBoundingClientRect();
@@ -485,7 +527,8 @@ const MessageMinimap = ({
     // 同为 content 绝对坐标,故落点 = node.offsetTop + within - 视口高/2 = contentY - 视口高/2,
     // 正好让手指点中的像素落到视口正中(贴顶/贴底时由 computeLandingTop 与 scrollTo 自身 clamp 兜住)。
     const within = contentY - g.offsets[index];
-    scrollToMessageIndex(index, "auto", { within, align: "center" });
+    // 点击跳转:保留 settle(结算落位);返回是否同步完成滚动(供 pointerdown 判定拖动态)
+    return scrollToMessageIndex(index, "auto", { within, align: "center" });
   };
 
   // 拖动按下:捕获冻结 off0 与抓取偏移,使拖动起步框不跳(手指停在框上原位)。
@@ -541,7 +584,9 @@ const MessageMinimap = ({
       contentY: absTop,
     });
     const within = absTop - st.offsets[index];
-    scrollToMessageIndex(index, "auto", { within, align: "top" });
+    // 拖动路径:settle:false —— 跳过 landing correction 结算循环,否则松手后残留的
+    // 校正会在内容高度变化时把滚动位置拽回(最长 2s),与拖动竞态。
+    scrollToMessageIndex(index, "auto", { within, align: "top", settle: false });
     api.applyLayout(absTop, st.off0); // 用冻结 off0 同步渲染,框跟手指
   };
 
@@ -570,6 +615,13 @@ const MessageMinimap = ({
     window.setTimeout(() => {
       settlingRef.current = false;
       if (innerRef.current) innerRef.current.style.transition = "";
+      // 归中结束:补一次 measure + update,吸收拖动/归中期间被冻结的高度变化,
+      // segments 与框回到最新真实几何。
+      const api2 = minimapApiRef.current;
+      if (api2) {
+        if (api2.measure) api2.measure();
+        if (api2.update) api2.update();
+      }
     }, 200);
   };
 
@@ -650,8 +702,14 @@ const MessageMinimap = ({
           draggingRef.current = false;
           movedRef.current = false;
           dragStartYRef.current = e.clientY;
-          jumpToRatio(e.clientY); // 按下即精确居中(恢复 issue#1 手感)
-          if (!beginDrag(e.clientY)) dragStateRef.current = null; // 捕获居中后几何,供可能的拖动
+          const landedSync = jumpToRatio(e.clientY); // 按下即精确居中(恢复 issue#1 手感)
+          // 仅当同步落位(目标在虚拟窗口内)才进入可拖动态;若为异步 deferred 扩窗跳转,
+          // beginDrag 会捕获跳转前的旧几何 → 拖动起步瞬移,故此时按纯点击语义处理,不进入拖动。
+          if (landedSync && beginDrag(e.clientY)) {
+            // 捕获居中后几何,供可能的拖动
+          } else {
+            dragStateRef.current = null;
+          }
         }}
         onPointerMove={(e) => {
           if (!dragStateRef.current) return;

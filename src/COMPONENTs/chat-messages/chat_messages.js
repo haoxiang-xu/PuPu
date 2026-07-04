@@ -45,6 +45,7 @@ const ChatMessages = ({
     visibleMessages,
     handleScroll,
     handleUserScrollIntent,
+    handleWheel,
     notifyStreamingContentCommitted,
     scrollToMessageIndex,
   } = useMessageWindowScroll({
@@ -78,7 +79,7 @@ const ChatMessages = ({
         ref={messagesRef}
         className="chat-scroll-host"
         onScroll={handleScroll}
-        onWheel={handleUserScrollIntent}
+        onWheel={handleWheel}
         onTouchMove={handleUserScrollIntent}
         onPointerDown={(event) => {
           if (event.target === event.currentTarget) {
