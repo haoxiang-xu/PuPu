@@ -15,13 +15,22 @@ const AnimatedChildren = ({ open, skipAnimation, children }) => {
   const contentRef = useRef(null);
   const [height, setHeight] = useState(open ? "auto" : 0);
   const [overflow, setOverflow] = useState(open ? "visible" : "hidden");
-  const isFirstRender = useRef(true);
+  const prevOpenRef = useRef(open);
 
   useEffect(() => {
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
+    /* only a real open/close transition may animate — a skipAnimation
+       flip alone (e.g. drag end) must not replay the collapse animation
+       on an already-closed container */
+    if (prevOpenRef.current === open) {
+      if (skipAnimation) {
+        /* snap to the final state in case an animation was interrupted
+           (the cleanup below cancels a pending expand timer) */
+        setHeight(open ? "auto" : 0);
+        setOverflow(open ? "visible" : "hidden");
+      }
       return;
     }
+    prevOpenRef.current = open;
 
     if (skipAnimation) {
       setHeight(open ? "auto" : 0);
