@@ -175,6 +175,7 @@ const CharacterChatBubble = ({
           frames={[]}
           status={message.status}
           messageId={message.id}
+          bubbleOwnsLiveText={true}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
           pendingContinuationRequest={pendingContinuationRequest}

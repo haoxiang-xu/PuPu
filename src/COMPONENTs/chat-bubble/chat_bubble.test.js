@@ -1,6 +1,8 @@
 import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
+import { StreamingMessageStoreContext } from "./components/streaming_message_store_context";
 import ChatBubble from "./chat_bubble";
 import CharacterChatBubble from "./character_chat_bubble";
 
@@ -15,6 +17,26 @@ const renderWithConfig = (ui) =>
       }}
     >
       {ui}
+    </ConfigContext.Provider>,
+  );
+
+const renderWithStore = (ui, { chatId = "chat", store = null } = {}) =>
+  render(
+    <ConfigContext.Provider
+      value={{
+        theme: { color: "#222", font: { fontFamily: "sans-serif" } },
+        onThemeMode: "light_mode",
+      }}
+    >
+      <StreamingMessageStoreContext.Provider
+        value={{
+          chatId,
+          store,
+          notifyStreamingContentCommitted: jest.fn(),
+        }}
+      >
+        {ui}
+      </StreamingMessageStoreContext.Provider>
     </ConfigContext.Provider>,
   );
 
@@ -265,5 +287,107 @@ describe("ChatBubble artifact summaries", () => {
     const summaries = screen.getAllByTestId("files-changed-card");
     // The first rendered summary should correspond to turn-1 (order: 1).
     expect(summaries[0].textContent).toMatch(/Files changed/);
+  });
+});
+
+describe("ChatBubble streaming live-text ownership", () => {
+  // Regression (c417d9c): the no-tool placeholder TraceChain subscribes to the
+  // same streaming store as the bubble body, so a live turn rendered the answer
+  // twice (once as a trace "Response" node, once as the bubble body). The bubble
+  // body is the sole owner of live text — the placeholder must only show
+  // "Thinking…" before the first token and render nothing once text arrives.
+  const seededStore = (text) => {
+    const store = createStreamingMessageStore();
+    store.begin({ chatId: "chat", messageId: "assistant-1" });
+    if (text) {
+      store.append({ chatId: "chat", messageId: "assistant-1", delta: text });
+    }
+    store.flushNow({ chatId: "chat", messageId: "assistant-1" });
+    return store;
+  };
+
+  test("no-tool streaming renders live store text once, not as a trace Response node", () => {
+    const store = seededStore("live streaming answer");
+
+    const { container } = renderWithStore(
+      <ChatBubble message={streamingAssistantMessage} traceFrames={[]} />,
+      { store },
+    );
+
+    const occurrences = (
+      (container.textContent || "").match(/live streaming answer/g) || []
+    ).length;
+    expect(occurrences).toBe(1);
+    expect(screen.queryByText("Response")).not.toBeInTheDocument();
+  });
+
+  test("CharacterChatBubble no-tool streaming renders live store text once", () => {
+    const store = seededStore("live streaming answer");
+
+    const { container } = renderWithStore(
+      <CharacterChatBubble
+        message={streamingAssistantMessage}
+        traceFrames={[]}
+        characterName="Lena"
+      />,
+      { store },
+    );
+
+    const occurrences = (
+      (container.textContent || "").match(/live streaming answer/g) || []
+    ).length;
+    expect(occurrences).toBe(1);
+    expect(screen.queryByText("Response")).not.toBeInTheDocument();
+  });
+
+  test("no-tool streaming without live text still shows Thinking…", () => {
+    const store = seededStore("");
+
+    renderWithStore(
+      <ChatBubble message={streamingAssistantMessage} traceFrames={[]} />,
+      { store },
+    );
+
+    expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
+  });
+});
+
+describe("ChatBubble done trace header", () => {
+  // A finished no-tool message that carries a token bundle mounts a TraceChain
+  // with empty frames (token-summary path). stepCount === 0 must NOT read as
+  // "Processing" on an already-done message.
+  const doneWithBundle = {
+    id: "assistant-done",
+    role: "assistant",
+    content: "final answer",
+    status: "done",
+    meta: {
+      bundle: { input_tokens: 4, output_tokens: 6, consumed_tokens: 10 },
+    },
+  };
+
+  test("done no-tool message with token bundle does not show Processing", async () => {
+    const originalIdle = window.requestIdleCallback;
+    const originalCancelIdle = window.cancelIdleCallback;
+    window.requestIdleCallback = (callback) => {
+      callback();
+      return 1;
+    };
+    window.cancelIdleCallback = jest.fn();
+
+    try {
+      renderWithConfig(
+        <ChatBubble message={doneWithBundle} traceFrames={[]} />,
+      );
+
+      // token summary confirms the trace header rendered at all
+      expect(
+        await screen.findByText(/4 in\s+·\s+6 out\s+·\s+10 total/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Processing/)).not.toBeInTheDocument();
+    } finally {
+      window.requestIdleCallback = originalIdle;
+      window.cancelIdleCallback = originalCancelIdle;
+    }
   });
 });

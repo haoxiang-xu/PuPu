@@ -603,6 +603,7 @@ const TraceChain = ({
   subagentMetaByRunId,
   showContainerHeader = true,
   bubbleOwnsFinalMessage = true,
+  bubbleOwnsLiveText = false,
   compact = false,
   hideTrack = false,
   _depth = 0,
@@ -1546,26 +1547,33 @@ const TraceChain = ({
 
     if (isStreaming) {
       if (hasLiveContent) {
-        items.push({
-          key: "__streaming_content__",
-          title: "Response",
-          span: null,
-          status: "active",
-          point: "loading",
-          body: (
-            <div style={{ fontFamily: "inherit" }}>
-              <StreamingMarkdownView
-                messageId={messageId}
-                fallbackContent={liveContent}
-                fallbackChunks={liveChunks}
-                fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
-                lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
-                style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
-                priority="high"
-              />
-            </div>
-          ),
-        });
+        // When the bubble body is the sole owner of live text (the no-tool
+        // placeholder case), the timeline must NOT mirror the streaming
+        // response — that double-rendered the answer (regression c417d9c).
+        // Pushing nothing here leaves timelineItems empty once text arrives,
+        // so the placeholder returns null and the bubble body owns the text.
+        if (!bubbleOwnsLiveText) {
+          items.push({
+            key: "__streaming_content__",
+            title: "Response",
+            span: null,
+            status: "active",
+            point: "loading",
+            body: (
+              <div style={{ fontFamily: "inherit" }}>
+                <StreamingMarkdownView
+                  messageId={messageId}
+                  fallbackContent={liveContent}
+                  fallbackChunks={liveChunks}
+                  fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
+                  lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
+                  style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
+                  priority="high"
+                />
+              </div>
+            ),
+          });
+        }
       } else {
         items.push({
           key: "__streaming__",
@@ -1652,6 +1660,7 @@ const TraceChain = ({
   }, [
     displayFrames,
     isStreaming,
+    bubbleOwnsLiveText,
     messageId,
     streamingContent,
     streamingChunks,
@@ -1757,7 +1766,7 @@ const TraceChain = ({
                     : "Failed") + (duration ? ` · ${formatDelta(duration)}` : "")
                 : (stepCount > 0
                     ? `Used ${stepCount} step${stepCount !== 1 ? "s" : ""}`
-                    : "Processing") +
+                    : "Done") +
                   (duration ? ` · ${formatDelta(duration)}` : "")}
           </span>
         </div>
