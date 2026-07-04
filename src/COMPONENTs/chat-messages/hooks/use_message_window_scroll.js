@@ -17,6 +17,14 @@ const STREAMING_BOTTOM_FOLLOW_MS = 64;
 const LANDING_SETTLE_INTERVAL_MS = 50;
 const LANDING_SETTLE_MAX_ATTEMPTS = 40;
 const LANDING_TOP_EPSILON = 1;
+// 分批扩窗:目标与当前窗口差距超过阈值时,不一帧扩到位,而是每个 idle(无则
+// setTimeout 0)步进约 CHUNK_EXPAND_STEP 条,消灭"一帧挂载全部消息"的爆发。
+// 阈值取 (3×load_batch_size) 与单步条数的较大者 —— 差距若不足一步,分批只会多一次
+// idle 延迟、无批处理收益,直接一步扩窗即可。
+const CHUNK_EXPAND_STEP = 40;
+const CHUNK_EXPAND_THRESHOLD_MULT = 3;
+const chunkExpandThreshold = (load_batch_size) =>
+  Math.max(CHUNK_EXPAND_THRESHOLD_MULT * load_batch_size, CHUNK_EXPAND_STEP);
 
 export { computeLandingTop } from "../message_viewport_geometry";
 
@@ -48,6 +56,7 @@ export const useMessageWindowScroll = ({
   const pendingLandingActionRef = useRef(null);
   const pendingLandingTimerRef = useRef(null);
   const pendingLandingObserverRef = useRef(null);
+  const chunkedExpandRef = useRef(null);
   const bottomSentinelRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
   const isAtBottomRef = useRef(true);
@@ -127,15 +136,115 @@ export const useMessageWindowScroll = ({
     pendingLandingActionRef.current = null;
   }, []);
 
+  // 取消进行中的分批扩窗(像 pendingLandingTimerRef 一样清理定时器 + 置空状态)。
+  const clearChunkedExpand = useCallback(() => {
+    const state = chunkedExpandRef.current;
+    if (!state) {
+      return;
+    }
+    chunkedExpandRef.current = null;
+    if (state.timerId == null) {
+      return;
+    }
+    if (
+      state.idleType === "idle" &&
+      typeof window !== "undefined" &&
+      typeof window.cancelIdleCallback === "function"
+    ) {
+      window.cancelIdleCallback(state.timerId);
+    } else {
+      clearTimeout(state.timerId);
+    }
+  }, []);
+
+  // 分批扩窗:从当前 visibleStart 逐步(每拍约 CHUNK_EXPAND_STEP 条)扩到 targetStart,
+  // 每步设 prependCompensation 稳住视口;走到目标后挂上 landingAction 交回既有
+  // pendingJumpAction 机制落位(type 保持 toIndex/top)。无 host 时退化为一步扩窗。
+  const beginChunkedExpand = useCallback(
+    (targetStart, landingAction) => {
+      clearChunkedExpand();
+      const el = messagesRef.current;
+      if (!el) {
+        visibleStartRef.current = targetStart;
+        pendingJumpActionRef.current = landingAction;
+        setVisibleStartIndex(targetStart);
+        return;
+      }
+
+      const state = {
+        targetStart,
+        landingAction,
+        timerId: null,
+        idleType: null,
+      };
+      chunkedExpandRef.current = state;
+
+      const step = () => {
+        // 已被取消 / 被新跳转替换:忽略这一拍
+        if (chunkedExpandRef.current !== state) {
+          return;
+        }
+        state.timerId = null;
+        const host = messagesRef.current;
+        if (!host) {
+          chunkedExpandRef.current = null;
+          return;
+        }
+        const currentStart = visibleStartRef.current;
+        const nextStart = Math.max(targetStart, currentStart - CHUNK_EXPAND_STEP);
+        // 每步 prepend 补偿:补偿写 scrollTop 走 layoutEffect 的 writeProgrammaticScroll
+        // 路径(计数为程序性滚动),视口稳定。
+        prependCompensationRef.current = {
+          previousScrollHeight: host.scrollHeight,
+          previousScrollTop: host.scrollTop,
+        };
+        visibleStartRef.current = nextStart;
+        const isFinal = nextStart <= targetStart;
+        if (isFinal) {
+          pendingJumpActionRef.current = landingAction;
+          chunkedExpandRef.current = null;
+        }
+        setVisibleStartIndex(nextStart);
+        if (!isFinal) {
+          scheduleStep();
+        }
+      };
+
+      const scheduleStep = () => {
+        if (chunkedExpandRef.current !== state) {
+          return;
+        }
+        if (
+          typeof window !== "undefined" &&
+          typeof window.requestIdleCallback === "function"
+        ) {
+          state.idleType = "idle";
+          state.timerId = window.requestIdleCallback(step, { timeout: 240 });
+        } else {
+          state.idleType = "timeout";
+          state.timerId = setTimeout(step, 0);
+        }
+      };
+
+      scheduleStep();
+    },
+    [clearChunkedExpand],
+  );
+
   const beginExplicitScrollNavigation = useCallback(() => {
     clearLandingCorrection();
     clearScheduledStreamingBottomFollow();
+    clearChunkedExpand();
     pendingScrollToBottomRef.current = null;
     isAtBottomRef.current = false;
     streamingFollowEnabledRef.current = false;
     userScrollIntentRef.current = true;
     setIsAtBottom(false);
-  }, [clearLandingCorrection, clearScheduledStreamingBottomFollow]);
+  }, [
+    clearChunkedExpand,
+    clearLandingCorrection,
+    clearScheduledStreamingBottomFollow,
+  ]);
 
   const loadOlderMessages = useCallback(() => {
     const el = messagesRef.current;
@@ -233,17 +342,19 @@ export const useMessageWindowScroll = ({
 
   const handleUserScrollIntent = useCallback(() => {
     clearLandingCorrection();
+    clearChunkedExpand();
     if (!is_streaming) {
       return;
     }
     userScrollIntentRef.current = true;
-  }, [clearLandingCorrection, is_streaming]);
+  }, [clearChunkedExpand, clearLandingCorrection, is_streaming]);
 
   // 滚轮处理器:流式期间上滚(deltaY<0)立即脱离 —— 关跟随 + 取消 pending 吸底 rAF +
   // 置意图,不等 scroll 事件、不看 24px 阈值带(rAF 会在事件到达前把位置拍回底部)。
   const handleWheel = useCallback(
     (event) => {
       clearLandingCorrection();
+      clearChunkedExpand();
       if (!is_streaming) {
         return;
       }
@@ -255,7 +366,12 @@ export const useMessageWindowScroll = ({
         clearScheduledStreamingBottomFollow();
       }
     },
-    [clearLandingCorrection, clearScheduledStreamingBottomFollow, is_streaming],
+    [
+      clearChunkedExpand,
+      clearLandingCorrection,
+      clearScheduledStreamingBottomFollow,
+      is_streaming,
+    ],
   );
 
   const scheduleStreamingBottomFollow = useCallback(() => {
@@ -495,17 +611,23 @@ export const useMessageWindowScroll = ({
 
   const handleSkipToTop = useCallback(() => {
     pendingJumpActionRef.current = null;
-    const shouldExpandWindow = visibleStartRef.current !== 0;
-    visibleStartRef.current = 0;
-
-    if (shouldExpandWindow) {
-      pendingJumpActionRef.current = { type: "top", behavior: "smooth" };
-      setVisibleStartIndex(0);
+    const currentStart = visibleStartRef.current;
+    if (currentStart === 0) {
+      scrollToTop("smooth");
       return;
     }
 
-    scrollToTop("smooth");
-  }, [scrollToTop]);
+    const landingAction = { type: "top", behavior: "smooth" };
+    // 长会话到顶:差距超阈值时分批扩窗(每拍约 40 条),否则保持原一步扩窗。
+    if (currentStart > chunkExpandThreshold(load_batch_size)) {
+      beginChunkedExpand(0, landingAction);
+      return;
+    }
+
+    visibleStartRef.current = 0;
+    pendingJumpActionRef.current = landingAction;
+    setVisibleStartIndex(0);
+  }, [beginChunkedExpand, load_batch_size, scrollToTop]);
 
   const handleJumpToPreviousMessage = useCallback(() => {
     if (jumpToPreviousRenderedMessage("smooth")) {
@@ -549,8 +671,7 @@ export const useMessageWindowScroll = ({
       }
 
       const nextStart = Math.max(0, clamped - load_batch_size);
-      visibleStartRef.current = nextStart;
-      pendingJumpActionRef.current = {
+      const landingAction = {
         type: "toIndex",
         index: clamped,
         behavior,
@@ -558,10 +679,22 @@ export const useMessageWindowScroll = ({
         align,
         settle,
       };
+      // 远距离跳转:差距超阈值时分批扩窗,避免一帧渲染爆发;否则一步扩窗落位。
+      if (
+        visibleStartRef.current - nextStart >
+        chunkExpandThreshold(load_batch_size)
+      ) {
+        beginChunkedExpand(nextStart, landingAction);
+        return false;
+      }
+
+      visibleStartRef.current = nextStart;
+      pendingJumpActionRef.current = landingAction;
       setVisibleStartIndex(nextStart);
       return false;
     },
     [
+      beginChunkedExpand,
       beginExplicitScrollNavigation,
       messages.length,
       load_batch_size,
@@ -577,8 +710,13 @@ export const useMessageWindowScroll = ({
     return () => {
       clearScheduledStreamingBottomFollow();
       clearLandingCorrection();
+      clearChunkedExpand();
     };
-  }, [clearLandingCorrection, clearScheduledStreamingBottomFollow]);
+  }, [
+    clearChunkedExpand,
+    clearLandingCorrection,
+    clearScheduledStreamingBottomFollow,
+  ]);
 
   useEffect(() => {
     if (activeChatIdRef.current === chat_id) {
@@ -588,6 +726,7 @@ export const useMessageWindowScroll = ({
     activeChatIdRef.current = chat_id;
     lastScrollTopRef.current = 0;
     clearLandingCorrection();
+    clearChunkedExpand();
     const bootStart = Math.max(0, messages.length - effectiveBootCount);
     const finalStart = Math.max(0, messages.length - initial_visible_count);
     visibleStartRef.current = bootStart;
@@ -606,6 +745,17 @@ export const useMessageWindowScroll = ({
     const expandToFinal = () => {
       if (activeChatIdRef.current !== chat_id) {
         return;
+      }
+      // boot(3 条)→ final(12 条)的扩窗是一次 prepend(旧消息补到顶部)。设
+      // prependCompensation,让既有 layoutEffect 补偿路径在 paint 前处理:开会话时
+      // isAtBottom 为 true → 走 scrollToBottom("auto") 钉底,消除 post-paint smooth 闪动。
+      // messagesRef 为空时跳过(容错),交回浏览器 scroll anchoring。
+      const el = messagesRef.current;
+      if (el) {
+        prependCompensationRef.current = {
+          previousScrollHeight: el.scrollHeight,
+          previousScrollTop: el.scrollTop,
+        };
       }
       visibleStartRef.current = finalStart;
       setVisibleStartIndex(finalStart);
@@ -631,6 +781,7 @@ export const useMessageWindowScroll = ({
     return () => clearTimeout(timerId);
   }, [
     chat_id,
+    clearChunkedExpand,
     clearLandingCorrection,
     effectiveBootCount,
     initial_visible_count,
@@ -645,6 +796,7 @@ export const useMessageWindowScroll = ({
     visibleStartRef.current = 0;
     lastScrollTopRef.current = 0;
     clearLandingCorrection();
+    clearChunkedExpand();
     setVisibleStartIndex(0);
     isAtBottomRef.current = true;
     streamingFollowEnabledRef.current = true;
@@ -652,7 +804,7 @@ export const useMessageWindowScroll = ({
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
-  }, [clearLandingCorrection, messages.length]);
+  }, [clearChunkedExpand, clearLandingCorrection, messages.length]);
 
   useLayoutEffect(() => {
     const el = messagesRef.current;

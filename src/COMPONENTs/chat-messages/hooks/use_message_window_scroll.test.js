@@ -96,6 +96,43 @@ describe("boot visible window", () => {
     expect(result.current.visibleMessages.length).toBe(12);
   });
 
+  test("boot expand pins the bottom in the layoutEffect (auto) via prepend compensation, not a post-paint smooth", () => {
+    const scrollHost = makeScrollHost();
+    scrollHost.setScrollHeight(2000);
+    scrollHost.host.scrollTop = 1600;
+    const messages = makeMessages(20);
+    const { rerender } = renderHook(
+      ({ chat_id }) =>
+        useScrollWithHost(
+          {
+            chat_id,
+            messages,
+            is_streaming: false,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+          },
+          scrollHost.host,
+        ),
+      { initialProps: { chat_id: "a" } },
+    );
+
+    // 切会话 → boot 3 条,expand 排入 idle 队列
+    rerender({ chat_id: "b" });
+    scrollHost.host.scrollTo.mockClear();
+
+    // idle 触发 expandToFinal:应在 setVisibleStartIndex 前设 prependCompensation,
+    // 让 layoutEffect 补偿路径在 paint 前用 "auto" 钉底,而不是留给 post-paint smooth。
+    act(() => {
+      idleQueue.forEach((cb) => cb());
+    });
+
+    const calls = scrollHost.host.scrollTo.mock.calls.map(([opts]) => opts);
+    // layoutEffect 补偿路径的 auto 钉底必须发生
+    expect(calls.some((o) => o && o.behavior === "auto")).toBe(true);
+  });
+
   test("defaults boot_visible_count to initial_visible_count when unset (backward compatible)", () => {
     const messages = makeMessages(20);
     const { result, rerender } = renderHook(
@@ -837,6 +874,154 @@ describe("scrollToMessageIndex settle option and sync-completion contract", () =
 
     expect(syncResult).toBe(true);
     expect(deferredResult).toBe(false);
+  });
+});
+
+describe("chunked window expansion (skip-to-top / far jumps)", () => {
+  const originalIdle = window.requestIdleCallback;
+  const originalCancel = window.cancelIdleCallback;
+  let idleQueue;
+  const drainIdle = () => {
+    const q = idleQueue.splice(0);
+    q.forEach((cb) => cb());
+  };
+
+  beforeEach(() => {
+    idleQueue = [];
+    window.requestIdleCallback = (cb) => {
+      idleQueue.push(cb);
+      return idleQueue.length;
+    };
+    window.cancelIdleCallback = () => {};
+  });
+
+  afterEach(() => {
+    window.requestIdleCallback = originalIdle;
+    window.cancelIdleCallback = originalCancel;
+  });
+
+  const chunkProps = (host, over = {}) => ({
+    chat_id: "chunk",
+    messages: makeMessages(200),
+    is_streaming: false,
+    initial_visible_count: 12,
+    load_batch_size: 6,
+    top_load_threshold: 80,
+    boot_visible_count: 3,
+    ...over,
+  });
+
+  it("a large-gap skip-to-top expands in chunks (~40/step), not a single visibleStart=0 frame", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(chunkProps(scrollHost.host), scrollHost.host),
+    );
+    // 初始窗口 start = 200 - 12 = 188
+    expect(result.current.safeVisibleStart).toBe(188);
+
+    act(() => {
+      result.current.handleSkipToTop();
+    });
+    // 分批:首步排入 idle,尚未一步改窗口
+    expect(result.current.safeVisibleStart).toBe(188);
+
+    act(() => {
+      drainIdle();
+    });
+    // 每步约 40 条:188 → 148,绝不一步到 0
+    expect(result.current.safeVisibleStart).toBe(148);
+
+    act(() => {
+      drainIdle();
+    });
+    expect(result.current.safeVisibleStart).toBe(108);
+  });
+
+  it("each chunk step goes through prepend compensation (auto bottom-pin); final step lands at top", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(chunkProps(scrollHost.host, { messages: makeMessages(120) }), scrollHost.host),
+    );
+    // start = 120 - 12 = 108
+    act(() => {
+      result.current.handleSkipToTop();
+    });
+    scrollHost.host.scrollTo.mockClear();
+
+    act(() => {
+      drainIdle(); // 108 → 68(中途)
+    });
+    const calls = scrollHost.host.scrollTo.mock.calls.map(([o]) => o);
+    // 补偿:isAtBottom(默认 true)→ 每步 layoutEffect 走 scrollToBottom("auto") 钉底,
+    // 证明该步确实设了 prependCompensation 并被消费(而非裸 setVisibleStart 无补偿)。
+    expect(calls.some((o) => o && o.behavior === "auto")).toBe(true);
+
+    act(() => {
+      drainIdle(); // 68 → 28
+    });
+    act(() => {
+      drainIdle(); // 28 → 0(final)
+    });
+    expect(result.current.safeVisibleStart).toBe(0);
+  });
+
+  it("a user wheel scroll mid-expansion cancels the in-progress chunked expand", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(chunkProps(scrollHost.host), scrollHost.host),
+    );
+    act(() => {
+      result.current.handleSkipToTop();
+    });
+    act(() => {
+      drainIdle(); // 188 → 148
+    });
+    expect(result.current.safeVisibleStart).toBe(148);
+
+    // 用户中途主动滚动 → 取消
+    act(() => {
+      result.current.handleWheel({ deltaY: -20 });
+    });
+
+    // 后续 idle 拍不再推进窗口
+    act(() => {
+      drainIdle();
+      drainIdle();
+    });
+    expect(result.current.safeVisibleStart).toBe(148);
+  });
+
+  it("a small-gap skip-to-top keeps one-step behavior (immediate visibleStart=0, no idle)", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(chunkProps(scrollHost.host, { messages: makeMessages(20) }), scrollHost.host),
+    );
+    // start = 20 - 12 = 8;gap 8 <= 3×6=18 → 一步
+    expect(result.current.safeVisibleStart).toBe(8);
+
+    act(() => {
+      result.current.handleSkipToTop();
+    });
+    expect(result.current.safeVisibleStart).toBe(0);
+    expect(idleQueue.length).toBe(0);
+  });
+
+  it("scrollToMessageIndex to a far-above target also expands in chunks (deferred path)", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(chunkProps(scrollHost.host), scrollHost.host),
+    );
+    // start = 188;跳到 index 2(远在窗口上方)
+    act(() => {
+      result.current.scrollToMessageIndex(2, "auto");
+    });
+    // nextStart = max(0, 2-6) = 0;gap 188 远超阈值 → 分批,不一步到 0
+    expect(result.current.safeVisibleStart).toBe(188);
+
+    act(() => {
+      drainIdle();
+    });
+    expect(result.current.safeVisibleStart).toBe(148);
   });
 });
 
