@@ -243,13 +243,15 @@ describe("ChatInterface stop flow", () => {
     expect(hasRenderPhaseWarning).toBe(false);
   });
 
-  test("passes the composer gradient inset to ChatMessages", async () => {
+  test("passes the floating input height to ChatMessages as bottom inset", async () => {
     renderChat();
     await waitForReady();
 
     await sendTurn("Hello", "World");
 
-    expect(lastChatMessagesProps?.bottomViewportInset).toBe(32);
+    /* jsdom has no layout: the inset stays at the pre-measure fallback;
+       in the app a ResizeObserver keeps it synced to the input height */
+    expect(lastChatMessagesProps?.bottomViewportInset).toBe(160);
   });
 
   test("animates the chat surface offset when the side menu changes", () => {
@@ -817,19 +819,25 @@ describe("ChatInterface stop flow", () => {
     });
 
     await waitFor(() => {
-      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(1);
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledTimes(2);
+      expect(window.unchainAPI.respondToolConfirmation).toHaveBeenCalledWith({
+        confirmation_id: "confirm-2",
+        approved: true,
+        reason: "",
+      });
       expect(
         lastChatMessagesProps?.pendingToolConfirmationRequests?.["confirm-2"],
+      ).toBeUndefined();
+      expect(
+        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-2"],
       ).toEqual(
         expect.objectContaining({
-          confirmationId: "confirm-2",
-          callId: "call-2",
-          toolName: "write",
+          status: "submitted",
+          error: "",
+          resolved: true,
+          decision: "approved",
         }),
       );
-      expect(
-        lastChatMessagesProps?.toolConfirmationUiStateById?.["confirm-2"]?.status,
-      ).toBe("idle");
     });
   });
 

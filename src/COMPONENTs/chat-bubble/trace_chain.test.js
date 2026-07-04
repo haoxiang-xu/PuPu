@@ -393,7 +393,11 @@ describe("TraceChain final_message draft timeline", () => {
     const markdownRoot = container.querySelector("[data-markdown-id]");
     expect(markdownRoot).toBeInTheDocument();
 
-    const styleTag = markdownRoot.querySelector("style");
+    // markdown 的 <style> 现在是全局共享注册表(document.head),按 sid 定位。
+    const sid = markdownRoot.getAttribute("data-markdown-sid");
+    const styleTag = document.head.querySelector(
+      `style[data-markdown-shared="${sid}"]`,
+    );
     expect(styleTag?.textContent).toContain("margin-top: 6px;");
     expect(styleTag?.textContent).toContain("padding-left: 18px;");
     expect(styleTag?.textContent).toContain("margin: 0;");

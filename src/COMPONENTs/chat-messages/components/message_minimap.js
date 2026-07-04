@@ -715,7 +715,9 @@ const MessageMinimap = ({
         position: "absolute",
         right: 0,
         top: TOP_INSET,
-        bottom: 0,
+        /* the list now runs behind the floating input — keep the minimap
+           track above it, like when the input was in-flow */
+        bottom: bottomViewportInset,
         width: 22,
         zIndex: 2,
       }}

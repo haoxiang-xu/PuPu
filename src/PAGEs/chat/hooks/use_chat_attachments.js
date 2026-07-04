@@ -515,10 +515,10 @@ export const useChatAttachments = ({
       );
       removeAttachmentPayload(chatId, normalizedAttachmentId);
       deleteAttachmentPayload(normalizedAttachmentId).catch((err) => {
-        toast.error(
-          `Attachment storage cleanup failed: ${err?.message || "unknown error"}`,
-          { dedupeKey: "attachment_delete_failed" },
-        );
+        toast.reportError(err, {
+          title: "Attachment storage cleanup failed",
+          dedupeKey: "attachment_delete_failed",
+        });
       });
     },
     [chatId, removeAttachmentPayload, setDraftAttachments],

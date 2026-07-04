@@ -38,7 +38,8 @@ import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_st
 
 const DEFAULT_DISCLAIMER =
   "AI can make mistakes, please double-check critical information.";
-const CHAT_BOTTOM_VIEWPORT_INSET = 32;
+/* fallback viewport inset before the floating input is first measured */
+const CHAT_BOTTOM_VIEWPORT_INSET = 160;
 const MAX_ATTACHMENT_COUNT = 5;
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 const UNCHAIN_STATUS_POLL_INTERVAL_STARTING_MS = 1500;
@@ -642,6 +643,25 @@ const ChatInterface = () => {
     return () => clearTimeout(timer);
   }, [onFragment, refreshSmoothResizeFrame]);
 
+  /* the input floats over the message list, so the list needs a live
+     bottom inset matching the input's current height to scroll clear */
+  const inputOverlayRef = useRef(null);
+  const [inputOverlayHeight, setInputOverlayHeight] = useState(
+    CHAT_BOTTOM_VIEWPORT_INSET,
+  );
+  useEffect(() => {
+    const el = inputOverlayRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const next = Math.ceil(entry.contentRect.height);
+        if (next > 0) setInputOverlayHeight(next);
+      }
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [isEmpty]);
+
   const sharedChatInputProps = useMemo(
     () => ({
       value: session.inputValue,
@@ -914,24 +934,38 @@ const ChatInterface = () => {
             initialVisibleCount={12}
             loadBatchSize={6}
             topLoadThreshold={80}
-            bottomViewportInset={CHAT_BOTTOM_VIEWPORT_INSET}
+            bottomViewportInset={inputOverlayHeight}
           />
-          <div style={{ position: "relative", flexShrink: 0 }}>
+          {/* floating frosted input — the message list scrolls underneath */}
+          <div
+            ref={inputOverlayRef}
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 5,
+            }}
+          >
+            {/* below the input card everything is covered; across the input's
+               own band the cover fades out, so wider list content (narrow
+               windows) dissolves instead of hitting a hard edge */}
             <div
               aria-hidden
               style={{
                 position: "absolute",
-                left: 0,
-                right: 0,
-                top: -CHAT_BOTTOM_VIEWPORT_INSET,
-                height: CHAT_BOTTOM_VIEWPORT_INSET,
+                inset: 0,
                 pointerEvents: "none",
-                background: isDark
-                  ? "linear-gradient(to bottom, rgba(18,18,18,0), rgba(18,18,18,1))"
-                  : "linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,1))",
+                background: `linear-gradient(to top, var(--pupu-background, ${
+                  isDark ? "rgb(18,18,18)" : "rgb(255,255,255)"
+                }) 0px, var(--pupu-background, ${
+                  isDark ? "rgb(18,18,18)" : "rgb(255,255,255)"
+                }) 44px, transparent 100%)`,
               }}
             />
-            <ChatInput {...sharedChatInputProps} />
+            <div style={{ position: "relative" }}>
+              <ChatInput {...sharedChatInputProps} />
+            </div>
           </div>
         </>
       )}

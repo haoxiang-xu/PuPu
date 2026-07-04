@@ -200,7 +200,17 @@ const ChatInput = ({
                 onStop={onStop}
               />
             }
-            style={{ width: "100%", margin: 0, borderRadius: 22 }}
+            style={{
+              width: "100%",
+              margin: 0,
+              borderRadius: 22,
+              /* frosted surface, same recipe as the toast cards — the
+                 message list scrolls past underneath and reads through */
+              backgroundColor: isDark
+                ? "rgba(30,30,30,0.72)"
+                : "rgba(255,255,255,0.62)",
+              backdropFilter: "blur(20px) saturate(180%)",
+            }}
           />
         </div>
 

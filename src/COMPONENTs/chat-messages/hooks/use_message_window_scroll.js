@@ -26,6 +26,14 @@ const CHUNK_EXPAND_THRESHOLD_MULT = 3;
 const chunkExpandThreshold = (load_batch_size) =>
   Math.max(CHUNK_EXPAND_THRESHOLD_MULT * load_batch_size, CHUNK_EXPAND_STEP);
 
+// 双向窗口上限:窗口原本只增不减(loadOlderMessages 只减小 visibleStart,无对称卸载),
+// 长会话滚到顶后 N 条全挂载、滚回底不释放 → "越用越卡"。收缩把 visibleStart 抬回
+// messages.length - max_mounted_count,但只在「贴底跟随」时做(视口内容在窗口尾部,
+// 抬起窗口头部不影响可见区),且经 trailing debounce 触发(滚动停止后 / 流式吸底落地后),
+// 绝不在每个 scroll 事件里同步收缩。
+const DEFAULT_MAX_MOUNTED_COUNT = 40;
+const WINDOW_TRIM_DEBOUNCE_MS = 200;
+
 export { computeLandingTop } from "../message_viewport_geometry";
 
 export const useMessageWindowScroll = ({
@@ -37,6 +45,7 @@ export const useMessageWindowScroll = ({
   top_load_threshold,
   boot_visible_count,
   bottom_viewport_inset = 0,
+  max_mounted_count = DEFAULT_MAX_MOUNTED_COUNT,
 }) => {
   const effectiveBootCount =
     typeof boot_visible_count === "number" && boot_visible_count > 0
@@ -57,6 +66,11 @@ export const useMessageWindowScroll = ({
   const pendingLandingTimerRef = useRef(null);
   const pendingLandingObserverRef = useRef(null);
   const chunkedExpandRef = useRef(null);
+  const trimDebounceTimerRef = useRef(null);
+  // 收缩读的是「最新」消息长度:吸底 follow 的 rAF/timer 回调可能在一次 append 之后才落地,
+  // 若闭包捕获旧长度会漏收缩。用 ref 承载最新长度,让收缩逻辑与调度时机解耦。
+  const messagesLengthRef = useRef(messages.length);
+  messagesLengthRef.current = messages.length;
   const bottomSentinelRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
   const isAtBottomRef = useRef(true);
@@ -76,6 +90,13 @@ export const useMessageWindowScroll = ({
   const safeVisibleStart = Math.max(
     0,
     Math.min(visibleStartIndex, messages.length),
+  );
+
+  // 收缩上限有下限保护:不得小于 initial_visible_count + load_batch_size,否则收缩后
+  // 一次 loadOlderMessages 就把窗口顶回上限、来回抖动。
+  const resolvedMaxMountedCount = Math.max(
+    max_mounted_count,
+    initial_visible_count + load_batch_size,
   );
 
   const visibleMessages = useMemo(
@@ -270,6 +291,63 @@ export const useMessageWindowScroll = ({
     });
   }, [load_batch_size]);
 
+  const clearTrimDebounce = useCallback(() => {
+    if (trimDebounceTimerRef.current != null) {
+      clearTimeout(trimDebounceTimerRef.current);
+      trimDebounceTimerRef.current = null;
+    }
+  }, []);
+
+  // 向下收缩:只在贴底跟随时把 visibleStart 抬回 messages.length - 上限,复用既有
+  // prependCompensation → layoutEffect 补偿路径(贴底时走 scrollToBottom("auto") 重新钉底,
+  // 维持程序性滚动计数不变量)。任何可能与其它精密状态机竞态的时机(进行中的分批扩窗 /
+  // landing 结算 / 待落位跳转 / 未消费的 prepend 补偿 / 用户已表达脱离意图 / 不在底部)
+  // 一律跳过本轮收缩,存疑宁可不收。
+  const trimMountedWindowToBottom = useCallback(() => {
+    const el = messagesRef.current;
+    if (!el) {
+      return;
+    }
+    if (!isAtBottomRef.current) {
+      return;
+    }
+    if (
+      userScrollIntentRef.current ||
+      prependCompensationRef.current ||
+      chunkedExpandRef.current ||
+      pendingLandingActionRef.current ||
+      pendingJumpActionRef.current
+    ) {
+      return;
+    }
+    const currentLength = messagesLengthRef.current;
+    const currentStart = visibleStartRef.current;
+    const mountedCount = currentLength - currentStart;
+    if (mountedCount <= resolvedMaxMountedCount) {
+      return;
+    }
+    const targetStart = currentLength - resolvedMaxMountedCount;
+    if (targetStart <= currentStart) {
+      return;
+    }
+    // 记录收缩前 scrollHeight/scrollTop,交给 layoutEffect 的补偿路径:贴底时重新钉底,
+    // 补偿写通过 writeProgrammaticScroll(计入程序性滚动)不会误触发用户脱离。
+    prependCompensationRef.current = {
+      previousScrollHeight: el.scrollHeight,
+      previousScrollTop: el.scrollTop,
+    };
+    visibleStartRef.current = targetStart;
+    setVisibleStartIndex(targetStart);
+  }, [resolvedMaxMountedCount]);
+
+  const scheduleWindowTrim = useCallback(() => {
+    clearTrimDebounce();
+    trimDebounceTimerRef.current = setTimeout(() => {
+      trimDebounceTimerRef.current = null;
+      trimMountedWindowToBottom();
+    }, WINDOW_TRIM_DEBOUNCE_MS);
+  }, [clearTrimDebounce, trimMountedWindowToBottom]);
+
   const handleScroll = useCallback(() => {
     const el = messagesRef.current;
     if (!el) {
@@ -310,10 +388,14 @@ export const useMessageWindowScroll = ({
     ) {
       loadOlderMessages();
     }
+
+    // 滚动停止后(trailing debounce)再考虑向下收缩 —— 不在每个 scroll 事件里同步收缩。
+    scheduleWindowTrim();
   }, [
     clearScheduledStreamingBottomFollow,
     is_streaming,
     loadOlderMessages,
+    scheduleWindowTrim,
     top_load_threshold,
     updateIsAtBottom,
   ]);
@@ -395,6 +477,9 @@ export const useMessageWindowScroll = ({
       isAtBottomRef.current = true;
       setIsAtBottom(true);
       setIsAtTop(false);
+      // 流式 append 把窗口撑过上限后,吸底落地的这一刻正好是安全收缩点(已贴底、
+      // 已钉底),顺手收缩一次,避免流式期间挂载数单调增长。
+      trimMountedWindowToBottom();
     };
 
     if (
@@ -412,7 +497,7 @@ export const useMessageWindowScroll = ({
       follow,
       STREAMING_BOTTOM_FOLLOW_MS,
     );
-  }, [writeProgrammaticScroll]);
+  }, [trimMountedWindowToBottom, writeProgrammaticScroll]);
 
   const notifyStreamingContentCommitted = useCallback(() => {
     if (!is_streaming || !streamingFollowEnabledRef.current) {
@@ -711,11 +796,13 @@ export const useMessageWindowScroll = ({
       clearScheduledStreamingBottomFollow();
       clearLandingCorrection();
       clearChunkedExpand();
+      clearTrimDebounce();
     };
   }, [
     clearChunkedExpand,
     clearLandingCorrection,
     clearScheduledStreamingBottomFollow,
+    clearTrimDebounce,
   ]);
 
   useEffect(() => {

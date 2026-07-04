@@ -29,6 +29,7 @@ const ChatMessages = ({
   topLoadThreshold = 80,
   bootVisibleCount = 3,
   bottomViewportInset = 0,
+  maxMountedCount = 40,
 }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -57,6 +58,7 @@ const ChatMessages = ({
     top_load_threshold: topLoadThreshold,
     boot_visible_count: bootVisibleCount,
     bottom_viewport_inset: safeBottomViewportInset,
+    max_mounted_count: maxMountedCount,
   });
 
   // minimap 永远拿真实 messages、永远挂载:流式期间进入 lite 模式(定时 measure),
@@ -75,6 +77,10 @@ const ChatMessages = ({
         flex: 1,
         minHeight: 0,
         position: "relative",
+        /* own stacking context: content z-indexes (e.g. the custom
+           scrollbar overlay at 9999) must not escape and paint over
+           the floating input, which sits at zIndex 5 beside us */
+        isolation: "isolate",
       }}
     >
       <div
