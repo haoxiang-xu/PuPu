@@ -59,10 +59,11 @@ const ChatMessages = ({
     bottom_viewport_inset: safeBottomViewportInset,
   });
 
-  const minimapMessages = isStreaming ? [] : messages;
+  // minimap 永远拿真实 messages、永远挂载:流式期间进入 lite 模式(定时 measure),
+  // 不再整条 rail 闪没→闪现,用户上拉脱离吸底后仍有导航。
   const { segments, total, measure } = useMessageMinimap({
     chatId,
-    messages: minimapMessages,
+    messages,
     messageNodeRefs,
     safeVisibleStart,
   });
@@ -196,19 +197,18 @@ const ChatMessages = ({
         </div>
       </div>
 
-      {!isStreaming ? (
-        <MessageMinimap
-          messagesRef={messagesRef}
-          messageNodeRefs={messageNodeRefs}
-          segments={segments}
-          total={total}
-          safeVisibleStart={safeVisibleStart}
-          measure={measure}
-          scrollToMessageIndex={scrollToMessageIndex}
-          bottomViewportInset={safeBottomViewportInset}
-          isDark={isDark}
-        />
-      ) : null}
+      <MessageMinimap
+        messagesRef={messagesRef}
+        messageNodeRefs={messageNodeRefs}
+        segments={segments}
+        total={total}
+        safeVisibleStart={safeVisibleStart}
+        measure={measure}
+        scrollToMessageIndex={scrollToMessageIndex}
+        bottomViewportInset={safeBottomViewportInset}
+        isDark={isDark}
+        isStreaming={isStreaming}
+      />
     </div>
   );
 };

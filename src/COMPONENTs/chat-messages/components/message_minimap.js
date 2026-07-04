@@ -23,6 +23,7 @@ import {
 } from "../message_viewport_geometry";
 
 const EASE = "cubic-bezier(.22,.61,.36,1)";
+const LITE_MEASURE_INTERVAL_MS = 400; // 流式 lite 模式:定时 measure→recalc→update 的节拍
 const TOP_INSET = 38; // 整条 minimap 顶部下移,避开窗口顶部可拖拽标题栏区域(否则 to-top 按钮点不到)
 const INSET_BASE = 74; // 轨道上/下内边距:给两颗 pill(to-top/到底 + up1/down1,各高 24)让位
 const INSET_COUNTS = 90; // 溢出时额外给计数标签让位
@@ -118,6 +119,7 @@ const MessageMinimap = ({
   scrollToMessageIndex,
   bottomViewportInset = 0,
   isDark,
+  isStreaming = false,
 }) => {
   const { theme } = useContext(ConfigContext);
   const highlightColor = themeHighlightColor(theme);
@@ -416,12 +418,21 @@ const MessageMinimap = ({
     };
 
     const onScroll = () => {
-      scheduleMeasure();
       showActive();
+      // lite 模式:流式期间只跳过昂贵的 scheduleMeasure —— measure 是 offsetHeight 全量读
+      // → setVersion → React 重渲 → effect 重初始化风暴,必须移出热路径,交给下面的
+      // ~400ms 定时器(直播文本膨胀不改 messages,靠定时器用真实高度覆盖缓存)。
+      // update() 只是从既有几何做样式写(applyLayout),per-scroll 跑没问题:保留它让
+      // 视口框/tick 高亮随手动滚动实时跟手,而不是随定时器跳格(2.5fps 卡顿)。
+      if (!isStreaming) scheduleMeasure();
       if (!draggingRef.current && !settlingRef.current) update();
       scheduleHide();
     };
 
+    // isStreaming 从 true 翻 false 时 effect 依赖变化重跑,这里立即收敛一次全量
+    // measure —— 吸收 lite 期间(定时器节拍之间)残留的高度漂移。流式中不在此测量,
+    // 由定时器负责。
+    if (!isStreaming) measure();
     recalcGeometry();
     // effect 重跑时:拖动中不 update(),避免"被动布局"抢掉拖动帧。
     if (!draggingRef.current) update();
@@ -432,6 +443,8 @@ const MessageMinimap = ({
       typeof ResizeObserver !== "undefined"
         ? new ResizeObserver(() => {
             if (draggingRef.current || settlingRef.current) return;
+            // lite:流式期间 RO 不参与,几何由定时器驱动(避免直播膨胀触发的 RO 抖动)
+            if (isStreaming) return;
             measure();
             recalcGeometry();
             update();
@@ -441,9 +454,21 @@ const MessageMinimap = ({
       ro.observe(el);
       if (el.firstElementChild) ro.observe(el.firstElementChild);
     }
+    // lite 模式定时器:流式期间用真实 offsetHeight 定时覆盖高度缓存并重算几何,
+    // 让 rail/框在正在生成的那条消息膨胀时持续跟上(scroll 热路径此时静默)。
+    let liteMeasureTimer = null;
+    if (isStreaming) {
+      liteMeasureTimer = setInterval(() => {
+        if (draggingRef.current || settlingRef.current) return;
+        measure();
+        recalcGeometry();
+        update();
+      }, LITE_MEASURE_INTERVAL_MS);
+    }
     return () => {
       el.removeEventListener("scroll", onScroll);
       cancelMeasure();
+      if (liteMeasureTimer != null) clearInterval(liteMeasureTimer);
       if (ro) ro.disconnect();
       if (hideTimer.current) clearTimeout(hideTimer.current);
       minimapApiRef.current = null;
@@ -457,6 +482,7 @@ const MessageMinimap = ({
     messageNodeRefs,
     safeVisibleStart,
     bottomViewportInset,
+    isStreaming,
   ]);
 
   if (!segments.length) return null;

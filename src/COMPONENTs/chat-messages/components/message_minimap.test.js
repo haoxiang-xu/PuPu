@@ -99,6 +99,120 @@ describe("measure is off the scroll hot path", () => {
   });
 });
 
+describe("lite mode while streaming (minimap stays mounted)", () => {
+  let originalRaf;
+  let originalCancelRaf;
+  beforeEach(() => {
+    jest.useFakeTimers();
+    // 强制走 setTimeout 节流分支,保证 fake timers 可确定性推进
+    originalRaf = window.requestAnimationFrame;
+    originalCancelRaf = window.cancelAnimationFrame;
+    window.requestAnimationFrame = undefined;
+    window.cancelAnimationFrame = undefined;
+  });
+  afterEach(() => {
+    act(() => {
+      jest.runOnlyPendingTimers();
+    });
+    jest.useRealTimers();
+    window.requestAnimationFrame = originalRaf;
+    window.cancelAnimationFrame = originalCancelRaf;
+    document.body.innerHTML = "";
+  });
+
+  test("scroll during streaming does not schedule measure; a ~400ms timer measures without any scroll", () => {
+    const el = makeScrollHost();
+    const measure = jest.fn();
+    render(
+      <MessageMinimap
+        {...baseProps({
+          messagesRef: { current: el },
+          measure,
+          isStreaming: true,
+        })}
+      />,
+    );
+    measure.mockClear();
+
+    // lite 模式:scroll 事件不再排程昂贵的 measure(热路径静默)
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+      el.dispatchEvent(new Event("scroll"));
+    });
+    act(() => {
+      jest.advanceTimersByTime(120);
+    });
+    expect(measure).not.toHaveBeenCalled();
+
+    // 即便没有 scroll,~400ms 定时器也会驱动一次 measure
+    act(() => {
+      jest.advanceTimersByTime(400);
+    });
+    expect(measure).toHaveBeenCalled();
+  });
+
+  test("scroll during streaming still drives a layout update (box/inner reposition), not just the timer", () => {
+    const el = makeScrollHost();
+    const measure = jest.fn();
+    const { container } = render(
+      <MessageMinimap
+        {...baseProps({
+          messagesRef: { current: el },
+          measure,
+          isStreaming: true,
+        })}
+      />,
+    );
+    measure.mockClear();
+
+    const track = container.querySelector("[data-mm-track]");
+    const inner = track.querySelector("div"); // innerRef:applyLayout 会写 transform
+    // 哨兵:若 onScroll 跑了 update()→applyLayout,transform 会被计算值覆盖
+    inner.style.transform = "translateY(999px)";
+
+    // 用户手动滚动到新位置(120ms < 400ms 定时器周期,排除定时器影响)
+    act(() => {
+      el.scrollTop = 1500;
+      el.dispatchEvent(new Event("scroll"));
+    });
+    act(() => {
+      jest.advanceTimersByTime(120);
+    });
+
+    // measure 仍不在 scroll 上排程(移出热路径)
+    expect(measure).not.toHaveBeenCalled();
+    // 但 update() 在 scroll 上照跑:视口框/tick 实时跟手,而非随定时器跳格
+    expect(inner.style.transform).not.toBe("translateY(999px)");
+  });
+
+  test("ending streaming triggers a convergence measure", () => {
+    const el = makeScrollHost();
+    const measure = jest.fn();
+    const { rerender } = render(
+      <MessageMinimap
+        {...baseProps({
+          messagesRef: { current: el },
+          measure,
+          isStreaming: true,
+        })}
+      />,
+    );
+    measure.mockClear();
+
+    // 流式结束:effect 依赖变化重跑 → 立即收敛一次 measure
+    rerender(
+      <MessageMinimap
+        {...baseProps({
+          messagesRef: { current: el },
+          measure,
+          isStreaming: false,
+        })}
+      />,
+    );
+    expect(measure).toHaveBeenCalled();
+  });
+});
+
 describe("drag vs click semantics", () => {
   // jsdom 未实现 pointer capture,补一层 no-op,让 onPointerDown/Up 不抛
   let hadSet;
