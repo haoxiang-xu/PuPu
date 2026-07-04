@@ -23,7 +23,7 @@ import {
 
 /* ─── constants & helpers ────────────────────────────────────────────────── */
 
-const DISPLAY_FRAME_TYPES = new Set([
+export const DISPLAY_FRAME_TYPES = new Set([
   "reasoning",
   "observation",
   "tool_call",
