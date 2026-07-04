@@ -318,7 +318,7 @@ export const useChatSessionState = ({
         draftPersistTimerRef.current = null;
       }
     };
-  }, [draftAttachments, inputValue]);
+  }, [activeStreamsRef, draftAttachments, inputValue]);
 
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;

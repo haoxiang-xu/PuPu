@@ -1,4 +1,11 @@
-import { useContext, useEffect, useLayoutEffect, useMemo, useRef } from "react";
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import {
   colorWithAlpha,
@@ -157,11 +164,11 @@ const MessageMinimap = ({
   // 有效高度:流式期间 segments 高度被冻结(use_message_minimap lite 模式不 bump),
   // 已渲染节点用真实 offsetHeight 覆盖过期值,让 box/tick/计数不漂 —— 全程不碰 React。
   // 段索引 i === 绝对消息索引 i(segments 覆盖全量 messages;messageNodeRefs 亦按绝对索引存)。
-  const effectiveHeight = (i) => {
+  const effectiveHeight = useCallback((i) => {
     const node = messageNodeRefs.current.get(i);
     const real = node ? node.offsetHeight : 0;
     return real > 0 ? real : segments[i].height;
-  };
+  }, [messageNodeRefs, segments]);
 
   // 命令式更新:scale/off/box/highlight/counts/pill。不触发 React re-render。
   useLayoutEffect(() => {
@@ -521,6 +528,7 @@ const MessageMinimap = ({
     total,
     C,
     measure,
+    effectiveHeight,
     messagesRef,
     messageNodeRefs,
     safeVisibleStart,
