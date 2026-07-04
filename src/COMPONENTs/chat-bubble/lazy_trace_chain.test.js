@@ -168,4 +168,100 @@ describe("LazyTraceChain", () => {
       heightSpy.mockRestore();
     }
   });
+
+  describe("streaming measurement gating (perf regression guard)", () => {
+    // Reading offsetHeight forces a synchronous reflow. During streaming, a
+    // trace_chain frame is appended frequently; if the measurement effect
+    // fires on every frameCount change it reads offsetHeight on a hot path
+    // that is already full of streaming-store DOM writes. The measurement
+    // must be skipped entirely while status === "streaming", and only run
+    // once when the message settles (done/error).
+
+    test("does not read offsetHeight while streaming, even as frames keep arriving", () => {
+      const heightSpy = jest
+        .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+        .mockReturnValue(150);
+
+      try {
+        const { rerender } = render(
+          <LazyTraceChain
+            messageId="stream-perf"
+            frames={[{ seq: 1, type: "reasoning" }]}
+            status="streaming"
+          />,
+        );
+        expect(screen.getByTestId("real-trace-chain")).toBeInTheDocument();
+
+        for (let i = 2; i <= 5; i += 1) {
+          const frames = Array.from({ length: i }, (_, idx) => ({
+            seq: idx + 1,
+            type: "reasoning",
+          }));
+          act(() => {
+            rerender(
+              <LazyTraceChain
+                messageId="stream-perf"
+                frames={frames}
+                status="streaming"
+              />,
+            );
+          });
+        }
+
+        expect(heightSpy).not.toHaveBeenCalled();
+      } finally {
+        heightSpy.mockRestore();
+      }
+    });
+
+    test("measures exactly once when status flips from streaming to done, and caches the result", () => {
+      const heightSpy = jest
+        .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+        .mockReturnValue(222);
+
+      try {
+        const { rerender } = render(
+          <LazyTraceChain
+            messageId="stream-to-done"
+            frames={[{ seq: 1, type: "reasoning" }]}
+            status="streaming"
+          />,
+        );
+        expect(heightSpy).not.toHaveBeenCalled();
+
+        act(() => {
+          rerender(
+            <LazyTraceChain
+              messageId="stream-to-done"
+              frames={[
+                { seq: 1, type: "reasoning" },
+                { seq: 2, type: "final_message" },
+              ]}
+              status="done"
+            />,
+          );
+        });
+
+        expect(heightSpy).toHaveBeenCalledTimes(1);
+
+        // The cached height (not the 2-frame estimate of 76px) must be reused
+        // on a fresh remount that hasn't flushed idle yet.
+        idleQueue = [];
+        render(
+          <LazyTraceChain
+            messageId="stream-to-done"
+            frames={[
+              { seq: 1, type: "reasoning" },
+              { seq: 2, type: "final_message" },
+            ]}
+            status="done"
+          />,
+        );
+        const placeholder = screen.getByTestId("lazy-trace-placeholder");
+        expect(placeholder.style.minHeight).toBe("222px");
+      } finally {
+        heightSpy.mockRestore();
+      }
+    });
+  });
 });

@@ -122,14 +122,20 @@ const LazyTraceChain = (props) => {
   }, [isStreaming, mounted]);
 
   // Measure the real TraceChain once it's mounted so a later re-open restores
-  // the exact height. Runs after the content has actually rendered; re-runs if
-  // the frame set grows (streaming) so the cached height tracks the final size.
+  // the exact height. Skipped entirely while streaming: offsetHeight forces a
+  // synchronous reflow, and re-running this on every appended frame (frameCount
+  // dep) interleaves that reflow with the streaming store's high-frequency DOM
+  // writes, causing jank that gets worse the longer the stream runs. Instead we
+  // measure once the message settles (status flips to done/error). Non-streaming
+  // frameCount changes (e.g. reopening a historical message) keep re-measuring
+  // as before.
   useEffect(() => {
     if (!mounted) return;
+    if (isStreaming) return;
     const node = measureRef.current;
     if (!node) return;
     rememberTraceHeight(messageId, node.offsetHeight);
-  }, [mounted, messageId, frameCount]);
+  }, [mounted, messageId, frameCount, isStreaming]);
 
   if (!mounted) {
     return (
