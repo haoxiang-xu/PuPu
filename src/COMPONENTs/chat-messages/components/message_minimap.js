@@ -154,6 +154,15 @@ const MessageMinimap = ({
     ensureStyle();
   }, []);
 
+  // 有效高度:流式期间 segments 高度被冻结(use_message_minimap lite 模式不 bump),
+  // 已渲染节点用真实 offsetHeight 覆盖过期值,让 box/tick/计数不漂 —— 全程不碰 React。
+  // 段索引 i === 绝对消息索引 i(segments 覆盖全量 messages;messageNodeRefs 亦按绝对索引存)。
+  const effectiveHeight = (i) => {
+    const node = messageNodeRefs.current.get(i);
+    const real = node ? node.offsetHeight : 0;
+    return real > 0 ? real : segments[i].height;
+  };
+
   // 命令式更新:scale/off/box/highlight/counts/pill。不触发 React re-render。
   useLayoutEffect(() => {
     const el = messagesRef.current;
@@ -162,8 +171,9 @@ const MessageMinimap = ({
     const box = boxRef.current;
     if (!el || !mini || !inner || !box || !segments.length) return undefined;
 
-    const heights = segments.map((s) => s.height);
-    const medH = median(heights);
+    // effH/medH 会在每次 recalcGeometry 里用真实高度刷新(流式膨胀时滚动跟上)
+    let effH = segments.map((s) => s.height);
+    let medH = median(effH);
 
     // 关键:聊天容器的滚动坐标含 padding(上/下)与消息间 gap,而 segments 的
     // top 只是「高度累加」,两者差 padTop+padBottom+(n-1)*gap。必须把布局量量进来,
@@ -172,6 +182,9 @@ const MessageMinimap = ({
     let cOffsets = [];
     let cTotal = total;
     const measureLayout = () => {
+      // 每轮刷新有效高度:流式中直播那条已膨胀,靠真实 offsetHeight 覆盖冻结值
+      effH = segments.map((s, i) => effectiveHeight(i));
+      medH = median(effH);
       const cs = window.getComputedStyle(el);
       const padTop = parseFloat(cs.paddingTop) || 0;
       const padBottom = parseFloat(cs.paddingBottom) || 0;
@@ -185,7 +198,7 @@ const MessageMinimap = ({
       let acc = padTop;
       for (let i = 0; i < segments.length; i++) {
         cOffsets[i] = acc;
-        acc += segments[i].height + gap;
+        acc += effH[i] + gap;
       }
       cTotal = segments.length
         ? acc - gap + padBottom
@@ -229,12 +242,11 @@ const MessageMinimap = ({
       scale = pickScale({ total: cTotal, usable, medianHeight: medH, minSeg: MIN_SEG });
       MH = cTotal * scale;
       overflow = MH > usable + 1;
-      // 定位 ticks(真实 content 坐标 → minimap)
+      // 定位 ticks(真实 content 坐标 → minimap;高度用有效值,流式膨胀不漂)
       tickRefs.current.forEach((tk, i) => {
         if (!tk) return;
-        const s = segments[i];
         tk.style.top = `${PAD + cOffsets[i] * scale}px`;
-        tk.style.height = `${Math.max(3, s.height * scale - 3)}px`;
+        tk.style.height = `${Math.max(3, effH[i] * scale - 3)}px`;
       });
     };
 
@@ -262,7 +274,7 @@ const MessageMinimap = ({
         if (!tk) return;
         const s = segments[i];
         const y = cOffsets[i] * scale;
-        const yEnd = y + s.height * scale;
+        const yEnd = y + effH[i] * scale;
         const inView = yEnd > vTop && y < vBtm;
         tk.style.background = inView
           ? s.role === "user"
@@ -278,7 +290,7 @@ const MessageMinimap = ({
       if (overflow) {
         const { above, below } = visibleCounts({
           offsets: cOffsets,
-          heights,
+          heights: effH,
           scale,
           off,
           usable,
@@ -366,6 +378,36 @@ const MessageMinimap = ({
       applyLayout(absTop, off);
     };
 
+    // per-scroll 的 update 走 rAF 合并:一帧内多次 scroll 只跑一次 update(避免
+    // 布局读被塞进 streaming store 的 DOM 写之后触发强制 reflow)。无 rAF 时退化为同步。
+    let updateScheduled = null;
+    const runScheduledUpdate = () => {
+      updateScheduled = null;
+      if (draggingRef.current || settlingRef.current) return;
+      update();
+    };
+    const scheduleUpdate = () => {
+      if (
+        typeof window !== "undefined" &&
+        typeof window.requestAnimationFrame === "function"
+      ) {
+        if (updateScheduled != null) return;
+        updateScheduled = window.requestAnimationFrame(runScheduledUpdate);
+      } else {
+        update();
+      }
+    };
+    const cancelScheduledUpdate = () => {
+      if (updateScheduled == null) return;
+      if (
+        typeof window !== "undefined" &&
+        typeof window.cancelAnimationFrame === "function"
+      ) {
+        window.cancelAnimationFrame(updateScheduled);
+      }
+      updateScheduled = null;
+    };
+
     const showActive = () => {
       box.style.borderColor = C.box;
       box.style.opacity = "1";
@@ -425,7 +467,7 @@ const MessageMinimap = ({
       // update() 只是从既有几何做样式写(applyLayout),per-scroll 跑没问题:保留它让
       // 视口框/tick 高亮随手动滚动实时跟手,而不是随定时器跳格(2.5fps 卡顿)。
       if (!isStreaming) scheduleMeasure();
-      if (!draggingRef.current && !settlingRef.current) update();
+      if (!draggingRef.current && !settlingRef.current) scheduleUpdate();
       scheduleHide();
     };
 
@@ -468,6 +510,7 @@ const MessageMinimap = ({
     return () => {
       el.removeEventListener("scroll", onScroll);
       cancelMeasure();
+      cancelScheduledUpdate();
       if (liteMeasureTimer != null) clearInterval(liteMeasureTimer);
       if (ro) ro.disconnect();
       if (hideTimer.current) clearTimeout(hideTimer.current);
@@ -506,7 +549,7 @@ const MessageMinimap = ({
     let acc = padTop;
     for (let i = 0; i < segments.length; i++) {
       offsets[i] = acc;
-      acc += segments[i].height + gap;
+      acc += effectiveHeight(i) + gap; // 流式膨胀:真实高度覆盖冻结值,拖动/点击落点不漂
     }
     const cTotal = segments.length ? acc - gap + padBottom : padTop + padBottom;
     const firstNode = messageNodeRefs.current.get(safeVisibleStart);
@@ -523,7 +566,7 @@ const MessageMinimap = ({
   const jumpToRatio = (clientY) => {
     const g = computeContentGeom();
     if (!g) return false;
-    const heights = segments.map((s) => s.height);
+    const heights = segments.map((s, i) => effectiveHeight(i));
     const medH = median(heights);
     const r = g.mini.getBoundingClientRect();
     const usable = g.mini.clientHeight - 2 * PAD;

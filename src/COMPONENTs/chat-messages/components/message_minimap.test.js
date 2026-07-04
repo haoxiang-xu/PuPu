@@ -213,6 +213,65 @@ describe("lite mode while streaming (minimap stays mounted)", () => {
   });
 });
 
+describe("lite mode v2 — 命令式几何补偿 + rAF 合并", () => {
+  let originalRaf;
+  let originalCancelRaf;
+  afterEach(() => {
+    window.requestAnimationFrame = originalRaf;
+    window.cancelAnimationFrame = originalCancelRaf;
+    document.body.innerHTML = "";
+  });
+
+  test("一帧内多次 scroll 只排一次 rAF(update 合并)", () => {
+    originalRaf = window.requestAnimationFrame;
+    originalCancelRaf = window.cancelAnimationFrame;
+    const rafSpy = jest.fn(() => 1);
+    window.requestAnimationFrame = rafSpy;
+    window.cancelAnimationFrame = jest.fn();
+
+    const el = makeScrollHost();
+    render(
+      <MessageMinimap
+        {...baseProps({ messagesRef: { current: el }, isStreaming: true })}
+      />,
+    );
+    rafSpy.mockClear(); // 挂载时的直接 update() 不走 rAF,清掉噪声
+
+    act(() => {
+      el.dispatchEvent(new Event("scroll"));
+      el.dispatchEvent(new Event("scroll"));
+      el.dispatchEvent(new Event("scroll"));
+    });
+    // 三次 scroll 合并成一次 rAF 调度
+    expect(rafSpy).toHaveBeenCalledTimes(1);
+  });
+
+  test("recalcGeometry 用已渲染节点的真实 offsetHeight 覆盖冻结的 segment 高度", () => {
+    originalRaf = window.requestAnimationFrame;
+    originalCancelRaf = window.cancelAnimationFrame;
+
+    const el = makeScrollHost();
+    const nodeRefs = { current: new Map() };
+    // 段 0 冻结高度 100,但真实节点已长到 300(流式膨胀)
+    nodeRefs.current.set(0, { offsetHeight: 300, offsetTop: 0 });
+    const { container } = render(
+      <MessageMinimap
+        {...baseProps({
+          messagesRef: { current: el },
+          messageNodeRefs: nodeRefs,
+          segments: [seg("a", "user", 0, 100), seg("b", "assistant", 100, 100)],
+          total: 200,
+        })}
+      />,
+    );
+    const ticks = container.querySelectorAll("[data-mm-tick]");
+    // jsdom 下 padding/gap=0、scale=1(track clientHeight=0 → usable<=0 → scale 1)。
+    // 段 1 顶部 = PAD(8) + cOffsets[1]。用真实高度覆盖后 cOffsets[1]=300 → top=308px
+    // (未覆盖则用冻结值 100 → 108px)。
+    expect(ticks[1].style.top).toBe("308px");
+  });
+});
+
 describe("drag vs click semantics", () => {
   // jsdom 未实现 pointer capture,补一层 no-op,让 onPointerDown/Up 不抛
   let hadSet;

@@ -66,6 +66,7 @@ const ChatMessages = ({
     messages,
     messageNodeRefs,
     safeVisibleStart,
+    isStreaming,
   });
 
   return (
