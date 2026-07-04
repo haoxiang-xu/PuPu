@@ -11,7 +11,7 @@ import {
 } from "./components/assistant_markdown_metrics";
 import {
   StreamingMarkdownView,
-  useStreamingMessageSnapshot,
+  useStreamingHasLiveText,
   useStreamingMessageStoreContext,
 } from "./components/streaming_message_store_context";
 import InteractWrapper from "./interact/interact_wrapper";
@@ -609,11 +609,12 @@ const TraceChain = ({
   _depth = 0,
 }) => {
   const { chatId, store } = useStreamingMessageStoreContext();
-  const streamingStoreSnapshot = useStreamingMessageSnapshot(
-    store,
-    chatId,
-    messageId,
-  );
+  // Subscribe only to the boolean "has (non-whitespace) live text" — this flips
+  // ~once per tool turn, so per-chunk commits no longer re-render TraceChain or
+  // rebuild timelineItems. The per-chunk text upload is consumed inside the
+  // self-subscribed StreamingMarkdownView. Dedup text is read imperatively via
+  // store.getText() inside the memo (see below).
+  const storeHasLiveText = useStreamingHasLiveText(store, chatId, messageId);
   const handleInteractSubmit = useCallback(
     (confirmationId, interactType, responseData) => {
       if (typeof onToolConfirmationDecision !== "function") return;
@@ -901,20 +902,25 @@ const TraceChain = ({
     const renderedCallIds = new Set();
     const usedRunIds = new Set();
     let prevTs = startFrame?.ts ?? null;
-    const liveChunks =
-      isStreaming &&
-      (streamingStoreSnapshot.textLength > 0 || streamingStoreSnapshot.version > 0)
-        ? streamingStoreSnapshot.chunks
-        : isStreaming
-          ? normalizeStreamingChunks(streamingChunks)
-          : [];
-    const liveContent =
+    const fallbackChunks = isStreaming
+      ? normalizeStreamingChunks(streamingChunks)
+      : [];
+    const fallbackContent =
       isStreaming && typeof streamingContent === "string" ? streamingContent : "";
     const hasLiveContent =
-      liveChunks.some((chunk) => chunk.trim().length > 0) ||
-      liveContent.trim().length > 0;
-    const liveText = liveChunks.length > 0 ? liveChunks.join("") : liveContent;
-    const normalizedLiveText = hasLiveContent ? liveText.trim() : "";
+      (isStreaming && storeHasLiveText) ||
+      fallbackChunks.some((chunk) => chunk.trim().length > 0) ||
+      fallbackContent.trim().length > 0;
+    // Dedup text: read imperatively once. This memo only recomputes on frames
+    // change / boolean flip, and a final_message frame arriving always coincides
+    // with a frames change — so the text read here is the latest live text.
+    const liveTextNow = !isStreaming
+      ? ""
+      : (store && typeof store.getText === "function"
+          ? store.getText({ chatId, messageId })
+          : "") ||
+        (fallbackChunks.length > 0 ? fallbackChunks.join("") : fallbackContent);
+    const normalizedLiveText = hasLiveContent ? liveTextNow.trim() : "";
 
     for (const frame of displayFrames) {
       const delta =
@@ -1563,8 +1569,8 @@ const TraceChain = ({
               <div style={{ fontFamily: "inherit" }}>
                 <StreamingMarkdownView
                   messageId={messageId}
-                  fallbackContent={liveContent}
-                  fallbackChunks={liveChunks}
+                  fallbackContent={fallbackContent}
+                  fallbackChunks={streamingChunks}
                   fontSize={compact ? 12 : ASSISTANT_MARKDOWN_FONT_SIZE}
                   lineHeight={compact ? 1.5 : ASSISTANT_MARKDOWN_LINE_HEIGHT}
                   style={compact ? COMPACT_RESPONSE_MARKDOWN_STYLE : undefined}
@@ -1664,7 +1670,9 @@ const TraceChain = ({
     messageId,
     streamingContent,
     streamingChunks,
-    streamingStoreSnapshot,
+    storeHasLiveText,
+    store,
+    chatId,
     startFrame,
     toolResultByCallId,
     confirmationStatusByCallId,
