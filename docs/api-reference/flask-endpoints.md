@@ -60,7 +60,7 @@ Auth is enforced in **two distinct layers**:
   ],
   "threadId": "thread-123",
   "attachments": [],
-  "selectedToolkits": ["workspace_toolkit"],
+  "selectedToolkits": ["core"],
   "workspace_roots": ["/path/to/workspace"],
   "options": {
     "model": "gpt-4.1",

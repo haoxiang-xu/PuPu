@@ -1,4 +1,5 @@
 import { getDefaultToolkitSelection } from "../default_toolkit_store";
+import { normalizeToolkitIdAlias } from "../toolkit_id_aliases";
 import {
   DEFAULT_CHAT_TITLE,
   DEFAULT_MODEL_ID,
@@ -236,56 +237,12 @@ export const sanitizeAgentOrchestration = (agentOrchestration) => {
   return { mode };
 };
 
-const TOOLKIT_ID_ALIASES = Object.freeze({
-  workspace: "workspace_toolkit",
-  workspace_toolkit: "workspace_toolkit",
-  access_workspace_toolkit: "workspace_toolkit",
-  workspacetoolkit: "workspace_toolkit",
-  WorkspaceToolkit: "workspace_toolkit",
-  terminal: "terminal_toolkit",
-  terminal_toolkit: "terminal_toolkit",
-  run_terminal_toolkit: "terminal_toolkit",
-  terminaltoolkit: "terminal_toolkit",
-  TerminalToolkit: "terminal_toolkit",
-  core: "core",
-  core_toolkit: "core",
-  coretoolkit: "core",
-  CoreToolkit: "core",
-  code: "core",
-  code_toolkit: "core",
-  codetoolkit: "core",
-  CodeToolkit: "core",
-  ask_user: "core",
-  ask_user_toolkit: "core",
-  "ask-user-toolkit": "core",
-  interaction_toolkit: "core",
-  "interaction-toolkit": "core",
-  askusertoolkit: "core",
-  AskUserToolkit: "core",
-  external_api: "external_api",
-  external_api_toolkit: "external_api",
-  externalapitoolkit: "external_api",
-  ExternalAPIToolkit: "external_api",
-});
-
-const REMOVED_TOOLKIT_IDS = new Set(["mcp", "mcptoolkit"]);
-
 const normalizeSelectedToolkitId = (value) => {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  const trimmed = trimText(value.trim(), MAX_TOOLKIT_ID_CHARS);
-  if (!trimmed) {
-    return "";
-  }
-
-  const lowered = trimmed.toLowerCase();
-  if (REMOVED_TOOLKIT_IDS.has(lowered)) {
-    return "";
-  }
-
-  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[lowered] || trimmed;
+  return normalizeToolkitIdAlias(value, {
+    maxLength: MAX_TOOLKIT_ID_CHARS,
+    truncate: true,
+    removedIds: ["mcp", "mcptoolkit"],
+  });
 };
 
 export const sanitizeSelectedToolkits = (selectedToolkits) => {

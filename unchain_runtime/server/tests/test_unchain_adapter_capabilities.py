@@ -388,14 +388,24 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         class FakeToolkitBase:
             pass
 
+        class FakeCoreToolkit(FakeToolkitBase):
+            pass
+
         class FakePythonWorkspaceToolkit(FakeToolkitBase):
+            pass
+
+        class FakeWebToolkit(FakeToolkitBase):
             pass
 
         def import_module_side_effect(module_name: str):
             if module_name == "unchain.tools":
                 return SimpleNamespace(Toolkit=FakeToolkitBase)
             if module_name == "unchain.toolkits":
-                return SimpleNamespace(WorkspaceToolkit=FakePythonWorkspaceToolkit)
+                return SimpleNamespace(
+                    CoreToolkit=FakeCoreToolkit,
+                    WorkspaceToolkit=FakePythonWorkspaceToolkit,
+                    WebToolkit=FakeWebToolkit,
+                )
             raise ImportError(module_name)
 
         with mock.patch.object(
@@ -409,10 +419,20 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(
             names,
             [
-                "workspace_toolkit",
+                "core",
             ],
         )
         self.assertEqual(catalog["count"], 1)
+
+    def test_known_toolkit_exports_only_lists_current_public_exports(self) -> None:
+        self.assertEqual(
+            set(unchain_adapter._KNOWN_TOOLKIT_EXPORTS),
+            {
+                "CoreToolkit",
+                "PlanToolkit",
+                "AgentReachToolkit",
+            },
+        )
 
     def test_get_toolkit_catalog_returns_empty_when_toolkit_base_unavailable(self) -> None:
         with mock.patch.object(unchain_adapter, "_resolve_toolkit_base", return_value=None):
@@ -616,7 +636,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit
+                    CoreToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -656,7 +676,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit
+                    CoreToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = unchain_adapter._create_agent(
@@ -701,7 +721,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit
+                    CoreToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = unchain_adapter._create_agent(
@@ -714,7 +734,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(len(agent._toolkits), 1)
         self.assertEqual(captured["workspace_root"], str(Path(tmp).resolve()))
 
-    def test_create_agent_attaches_workspace_toolkit_with_workspace_roots_fallback(self) -> None:
+    def test_create_agent_passes_workspace_roots_to_core_toolkit(self) -> None:
         class FakeAgent:
             def __init__(self, **kwargs):
                 self.toolkits = []
@@ -731,10 +751,12 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         captured = {}
 
-        def fake_workspace_toolkit(*, workspace_roots=None):
+        def fake_workspace_toolkit(*, workspace_roots=None, workspace_root=None):
             captured["workspace_roots"] = workspace_roots
+            captured["workspace_root"] = workspace_root
             return {
                 "workspace_roots": workspace_roots,
+                "workspace_root": workspace_root,
             }
 
         with tempfile.TemporaryDirectory() as tmp_a, tempfile.TemporaryDirectory() as tmp_b:
@@ -746,7 +768,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit
+                    CoreToolkit=fake_workspace_toolkit
                 ),
             ):
                 agent = unchain_adapter._create_agent(
@@ -761,8 +783,9 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             captured["workspace_roots"],
             [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
         )
+        self.assertIsNone(captured["workspace_root"])
 
-    def test_create_agent_builds_multi_workspace_proxy_toolkit_when_workspace_roots_are_unsupported(self) -> None:
+    def test_create_agent_falls_back_to_primary_workspace_root_when_workspace_roots_are_unsupported(self) -> None:
         class FakeAgent:
             def __init__(self, **kwargs):
                 self.toolkits = []
@@ -881,7 +904,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit,
+                    CoreToolkit=fake_workspace_toolkit,
                     Toolkit=FakeToolkit,
                     Tool=FakeTool,
                 ),
@@ -896,30 +919,14 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
         self.assertEqual(len(agent._toolkits), 1)
         self.assertEqual(
             captured["workspace_roots"],
-            [str(Path(tmp_a).resolve()), str(Path(tmp_b).resolve())],
+            [str(Path(tmp_a).resolve())],
         )
         merged_toolkit = agent._toolkits[0]
         self.assertIn("read_file", merged_toolkit.tools)
         self.assertIn("write_file", merged_toolkit.tools)
-        self.assertIn("workspace_2_extra_root_read_file", merged_toolkit.tools)
-        self.assertIn("workspace_2_extra_root_write_file", merged_toolkit.tools)
-        self.assertEqual(
-            getattr(
-                merged_toolkit.tools["workspace_2_extra_root_read_file"],
-                unchain_adapter._WORKSPACE_PROXY_ORIGINAL_TOOL_NAME_ATTR,
-                "",
-            ),
-            "read_file",
-        )
-        self.assertIn("list_available_workspaces", merged_toolkit.tools)
-
-        second_workspace_read = merged_toolkit.execute(
-            "workspace_2_extra_root_read_file",
-            {"path": "hello.txt"},
-        )
-        self.assertEqual(second_workspace_read["workspace_root"], str(Path(tmp_b).resolve()))
-        self.assertEqual(second_workspace_read["path"], "hello.txt")
-        self.assertTrue(merged_toolkit.tools["workspace_2_extra_root_write_file"].requires_confirmation)
+        self.assertNotIn("workspace_2_extra_root_read_file", merged_toolkit.tools)
+        self.assertNotIn("workspace_2_extra_root_write_file", merged_toolkit.tools)
+        self.assertNotIn("list_available_workspaces", merged_toolkit.tools)
 
     def test_create_agent_does_not_attach_workspace_tools_when_workspace_toolkit_is_not_selected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -937,32 +944,11 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             any(type(module).__name__ == "ToolsModule" for module in agent.spec.modules)
         )
 
-    def test_build_workspace_toolkits_requires_explicit_workspace_toolkit_selection(self) -> None:
-        class FakeWorkspaceToolkit:
-            def __init__(self, *, workspace_root=None):
-                self.workspace_root = workspace_root
-                self.tools = {}
+    def test_legacy_workspace_adapter_path_is_removed(self) -> None:
+        legacy_adapter = SERVER_ROOT / "adapter_workspace_tools.py"
 
-        with tempfile.TemporaryDirectory() as tmp:
-            with mock.patch.object(
-                unchain_adapter.importlib,
-                "import_module",
-                return_value=SimpleNamespace(WorkspaceToolkit=FakeWorkspaceToolkit),
-            ):
-                omitted = unchain_adapter._build_workspace_toolkits(
-                    {"workspace_root": tmp}
-                )
-                selected = unchain_adapter._build_workspace_toolkits(
-                    {"workspace_root": tmp, "toolkits": ["workspace_toolkit"]}
-                )
-                other_toolkit = unchain_adapter._build_workspace_toolkits(
-                    {"workspace_root": tmp, "toolkits": ["core"]}
-                )
-
-        self.assertEqual(omitted, [])
-        self.assertEqual(other_toolkit, [])
-        self.assertEqual(len(selected), 1)
-        self.assertEqual(selected[0].workspace_root, str(Path(tmp).resolve()))
+        self.assertFalse(hasattr(unchain_adapter, "_build_workspace_toolkits"))
+        self.assertFalse(legacy_adapter.exists())
 
     def test_create_agent_marks_selected_workspace_tools_requires_confirmation(self) -> None:
         class FakeAgent:
@@ -1003,15 +989,15 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit
+                    CoreToolkit=fake_workspace_toolkit
                 ),
             ):
                 _agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
 
-        self.assertTrue(toolkit_instance.tools["write_file"].requires_confirmation)
-        self.assertTrue(toolkit_instance.tools["delete_file"].requires_confirmation)
-        self.assertTrue(toolkit_instance.tools["move_file"].requires_confirmation)
-        self.assertTrue(toolkit_instance.tools["terminal_exec"].requires_confirmation)
+        self.assertFalse(toolkit_instance.tools["write_file"].requires_confirmation)
+        self.assertFalse(toolkit_instance.tools["delete_file"].requires_confirmation)
+        self.assertFalse(toolkit_instance.tools["move_file"].requires_confirmation)
+        self.assertFalse(toolkit_instance.tools["terminal_exec"].requires_confirmation)
         self.assertFalse(toolkit_instance.tools["read_file"].requires_confirmation)
 
     def test_create_agent_rejects_invalid_workspace_root(self) -> None:
@@ -1073,7 +1059,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
                 unchain_adapter.importlib,
                 "import_module",
                 return_value=SimpleNamespace(
-                    WorkspaceToolkit=fake_workspace_toolkit
+                    CoreToolkit=fake_workspace_toolkit
                 ),
             ), mock.patch.dict(unchain_adapter.os.environ, {"UNCHAIN_MAX_ITERATIONS": "1"}, clear=False):
                 agent = unchain_adapter._create_agent({"workspace_root": tmp, "toolkits": ["workspace_toolkit"]})
@@ -1210,7 +1196,7 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         self.assertEqual(agent._max_iterations, 5)
 
-    def test_create_agent_preserves_workspace_pin_execution_context(self) -> None:
+    def test_create_agent_maps_workspace_alias_to_core_toolkit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             workspace_root = Path(tmp)
             target = workspace_root / "notes.txt"
@@ -1227,8 +1213,14 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
             self.assertIsInstance(agent, unchain_adapter._UnchainAgent)
             self.assertEqual(len(agent._toolkits), 1)
 
-            workspace_toolkit = agent._toolkits[0]
-            self.assertIn("pin_file_context", workspace_toolkit.tools)
+            core_toolkit = agent._toolkits[0]
+            self.assertEqual(
+                getattr(core_toolkit, unchain_adapter._RUNTIME_TOOLKIT_ID_ATTR, ""),
+                "core",
+            )
+            self.assertIn("read", core_toolkit.tools)
+            self.assertIn("write", core_toolkit.tools)
+            self.assertNotIn("pin_file_context", core_toolkit.tools)
 
     def test_create_agent_mounts_memory_module_when_memory_is_available(self) -> None:
         from unchain.memory import MemoryManager
@@ -1919,10 +1911,6 @@ class MisoAdapterCapabilityCatalogTests(unittest.TestCase):
 
         with mock.patch.object(
             unchain_adapter,
-            "_build_workspace_toolkits",
-            return_value=[],
-        ), mock.patch.object(
-            unchain_adapter,
             "_build_selected_toolkits",
             return_value=[toolkit_a, toolkit_b],
         ):
@@ -2234,6 +2222,17 @@ requires_confirmation = true
         self.assertEqual(entry["tools"][1]["name"], "write")
         self.assertTrue(entry["tools"][1]["requiresConfirmation"])
 
+    def test_get_toolkit_catalog_v2_lists_only_public_builtin_toolkits(self) -> None:
+        payload = unchain_adapter.get_toolkit_catalog_v2()
+
+        builtin_ids = [
+            entry["toolkitId"]
+            for entry in payload["toolkits"]
+            if entry.get("source") == "builtin"
+        ]
+
+        self.assertEqual(builtin_ids, ["core", "plan", "agent_reach"])
+
     def test_get_toolkit_catalog_v2_exposes_artifact_kind_metadata(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
             icon_value="terminal",
@@ -2362,13 +2361,30 @@ fallback_renderer = "markdown"
             payload_from_id = unchain_adapter.get_toolkit_metadata("core")
             payload_from_class = unchain_adapter.get_toolkit_metadata("CoreToolkit")
             payload_from_code_alias = unchain_adapter.get_toolkit_metadata("code_toolkit")
-            payload_from_ask_user_alias = unchain_adapter.get_toolkit_metadata("ask-user-toolkit")
 
         self.assertEqual(payload_from_id["toolkitId"], "core")
         self.assertEqual(payload_from_class["toolkitId"], "core")
         self.assertEqual(payload_from_code_alias["toolkitId"], "core")
-        self.assertEqual(payload_from_ask_user_alias["toolkitId"], "core")
         self.assertEqual(payload_from_code_alias["toolkitName"], "Core")
+
+    def test_get_toolkit_metadata_maps_legacy_builtin_aliases_to_core(self) -> None:
+        interaction_payload = unchain_adapter.get_toolkit_metadata("interaction_toolkit")
+        ask_user_payload = unchain_adapter.get_toolkit_metadata("ask-user-toolkit")
+        web_payload = unchain_adapter.get_toolkit_metadata("web_toolkit")
+        web_class_payload = unchain_adapter.get_toolkit_metadata("WebToolkit")
+        workspace_payload = unchain_adapter.get_toolkit_metadata("workspace_toolkit")
+        terminal_payload = unchain_adapter.get_toolkit_metadata("TerminalToolkit")
+        external_api_payload = unchain_adapter.get_toolkit_metadata("external_api")
+
+        self.assertEqual(interaction_payload["toolkitId"], "core")
+        self.assertEqual(ask_user_payload["toolkitId"], "core")
+        self.assertEqual(web_payload["toolkitId"], "core")
+        self.assertEqual(web_class_payload["toolkitId"], "core")
+        self.assertEqual(workspace_payload["toolkitId"], "core")
+        self.assertEqual(terminal_payload["toolkitId"], "core")
+        self.assertEqual(external_api_payload["toolkitId"], "core")
+        self.assertIn("Core", interaction_payload["toolkitName"])
+        self.assertIn("Core", web_payload["toolkitName"])
 
     def test_invalid_builtin_toolkit_icon_returns_empty_payload(self) -> None:
         toolkit_base, module_name, toolkit_module = self._build_toolkit_fixture(
@@ -2802,8 +2818,7 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                 self.tools = {n: _FakeTool(n) for n in names}
 
         toolkits = [
-            _FakeTK("core", ["read", "grep"]),
-            _FakeTK("workspace", ["write", "edit"]),
+            _FakeTK("core", ["read", "grep", "write", "edit"]),
         ]
         return dict(
             UnchainAgent=_FakeAgent,
@@ -2833,7 +2848,7 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                 tool_modules = [m for m in modules if hasattr(m, "kw") and "tools" in m.kw]
                 self.assertEqual(len(tool_modules), 1)
                 tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
-                self.assertEqual(tool_ids, {"core", "workspace"})
+                self.assertEqual(tool_ids, {"core"})
 
     def test_optimizer_config_is_used_for_parent_and_file_subagents(self):
         import unchain_adapter as ua
@@ -2906,7 +2921,7 @@ class BuildDeveloperAgentRecipeBranchTests(unittest.TestCase):
                 modules = agent.kw.get("modules", ())
                 tool_modules = [m for m in modules if hasattr(m, "kw") and "tools" in m.kw]
                 tool_ids = {getattr(t, "id", None) for t in tool_modules[0].kw["tools"]}
-                self.assertEqual(tool_ids, {"core", "workspace"})
+                self.assertEqual(tool_ids, {"core"})
 
     def test_recipe_soul_prompt_used_as_instructions(self):
         from unchain_adapter import _build_developer_agent

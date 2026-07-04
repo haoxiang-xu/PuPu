@@ -37,34 +37,34 @@ describe("default_toolkit_store", () => {
     expect(getDefaultToolkitSelection("global")).toEqual([]);
   });
 
-  test("normalizes legacy toolkit ids to canonical toolkitId values", () => {
+  test("normalizes legacy builtin toolkit ids to core", () => {
     window.localStorage.setItem(
       "default_toolkits",
       JSON.stringify({
         version: 1,
         scopes: {
-          global: ["WorkspaceToolkit", "CodeToolkit", "ask_user_toolkit"],
+          global: [
+            "WorkspaceToolkit",
+            "CodeToolkit",
+            "ask_user_toolkit",
+            "GitToolkit",
+            "git_toolkit",
+          ],
         },
       }),
     );
 
-    expect(getDefaultToolkitSelection("global")).toEqual([
-      "workspace_toolkit",
-      "core",
-    ]);
+    expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
   });
 
   test("updates and prunes canonical toolkit ids", () => {
     setDefaultToolkitEnabled("global", "WorkspaceToolkit", true);
     setDefaultToolkitEnabled("global", "code", true);
 
-    expect(getDefaultToolkitSelection("global")).toEqual([
-      "core",
-      "workspace_toolkit",
-    ]);
+    expect(getDefaultToolkitSelection("global")).toEqual(["core"]);
 
-    expect(
-      removeInvalidToolkitIds("global", ["workspace_toolkit"]),
-    ).toEqual(["workspace_toolkit"]);
+    expect(removeInvalidToolkitIds("global", ["workspace_toolkit"])).toEqual([
+      "core",
+    ]);
   });
 });

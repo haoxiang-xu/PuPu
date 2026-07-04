@@ -6,7 +6,7 @@
 
 ## Overview
 
-Workspaces let users attach local folders as context for AI conversations. The agent can read/write files within selected workspace directories.
+Workspaces let users attach local folders as context for AI conversations. The selected paths are passed to Unchain's `core` toolkit so the agent can use file, search, edit, shell, and LSP tools inside the chosen project.
 
 ---
 
@@ -72,7 +72,7 @@ These reference workspace IDs from settings, **not** raw paths.
            workspaceRoot       (allRoots[0] — back-compat single root)
        → Strips internal selectedWorkspaceIds from options
 5. Backend receives resolved paths (not IDs)
-6. unchain_adapter.py attaches the single workspace toolkit
+6. unchain_adapter.py attaches the `core` toolkit when selected
    (see Backend Toolkit Resolution below)
 ```
 
@@ -92,29 +92,20 @@ options in every branch:
 
 ## Backend Toolkit Resolution
 
-The backend exposes a **single** workspace toolkit, id `workspace_toolkit`
-(frontend alias `access_workspace_toolkit`; `workspace` and the class name
-`WorkspaceToolkit` also alias to it). There is **no** `multi_workspace_toolkit`
-or `python_workspace_toolkit` — multi-root is handled internally, not via a
-separate toolkit id.
+The backend no longer exposes a public Workspace Toolkit. The active built-in
+for code and project operations is `core`.
 
-`_build_workspace_toolkits(options)` in `unchain_adapter.py` resolves the
-roots from the injected `workspace_roots` and builds one toolkit:
+Legacy selections such as `workspace`, `workspace_toolkit`,
+`access_workspace_toolkit`, and `WorkspaceToolkit` are compatibility aliases
+that normalize to `core` before the backend constructs toolkits. The backend
+resolves `workspace_roots`, passes the first resolved root as `workspace_root`
+to `CoreToolkit`, and leaves confirmation behavior to the toolkit's own tool
+metadata (`write`, `edit`, and `shell` require confirmation).
 
-1. **Native multi-root** — if `unchain.toolkits.WorkspaceToolkit` accepts
-   `workspace_roots=[...]` and there is more than one root, construct it
-   directly with all roots.
-2. **Single root** — when exactly one resolved root, build a single-root
-   `WorkspaceToolkit` for that path.
-3. **Multi-root fallback** — when the native constructor does not accept
-   multiple roots, try `_try_build_workspace_toolkit_for_roots`, then fall
-   back to `_build_multi_workspace_proxy_toolkit`, which aggregates per-root
-   single-root toolkits behind a proxy.
-
-In every branch the result is tagged `toolkit_id="workspace_toolkit"` and its
-tools are marked for confirmation. A `LegacyWorkspaceToolkit` shim
-(`adapter_workspace_tools.py`) provides the single-root toolkit when the
-unchain core constructor is unavailable.
+Multi-root selection remains part of the UI/storage model, but PuPu no longer
+builds a Workspace proxy toolkit. Additional roots are preserved in the
+payload for compatibility and future runtime/toolkit support; current Core
+construction uses the primary resolved root.
 
 ---
 
@@ -162,5 +153,4 @@ Implemented in `electron/main/services/runtime/service.js`.
 | `src/SERVICEs/api.unchain.js` | `injectWorkspaceRootIntoPayload()` |
 | `src/SERVICEs/bridges/unchain_bridge.js` | Runtime bridge methods |
 | `electron/main/services/runtime/service.js` | Path validation, folder picker |
-| `unchain_runtime/server/unchain_adapter.py` | Workspace tool attachment |
-| `unchain_runtime/server/adapter_workspace_tools.py` | Workspace tool definitions |
+| `unchain_runtime/server/unchain_adapter.py` | Toolkit alias normalization and CoreToolkit construction |

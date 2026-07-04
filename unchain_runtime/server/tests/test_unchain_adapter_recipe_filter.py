@@ -31,33 +31,32 @@ def _make_recipe(refs, *, merge=True):
 
 
 class ResolveRecipeToolkitsTests(unittest.TestCase):
-    def test_merge_off_returns_only_recipe_toolkits_already_in_user_selection(self):
+    def test_merge_off_maps_legacy_recipe_toolkit_id_to_core(self):
         from unchain_adapter import _resolve_recipe_toolkits
 
         user = [
-            _tk("core", {"read": object(), "write": object()}),
-            _tk("external_api", {"fetch": object()}),
+            _tk("core", {"read": object(), "http_get": object()}),
         ]
         recipe = _make_recipe(
             [ToolkitRef(id="external_api", enabled_tools=None)], merge=False
         )
 
         out = _resolve_recipe_toolkits(user, recipe, options=None)
-        self.assertEqual([tk.id for tk in out], ["external_api"])
+        self.assertEqual([tk.id for tk in out], ["core"])
 
-    def test_merge_on_unions_user_with_recipe_already_in_user(self):
+    def test_merge_on_narrows_core_when_recipe_uses_legacy_toolkit_id(self):
         from unchain_adapter import _resolve_recipe_toolkits
 
         user = [
-            _tk("core", {"read": object()}),
-            _tk("external_api", {"fetch": object()}),
+            _tk("core", {"read": object(), "http_get": object()}),
         ]
         recipe = _make_recipe(
-            [ToolkitRef(id="external_api", enabled_tools=None)], merge=True
+            [ToolkitRef(id="external_api", enabled_tools=("http_get",))], merge=True
         )
 
         out = _resolve_recipe_toolkits(user, recipe, options=None)
-        self.assertEqual(sorted(tk.id for tk in out), ["core", "external_api"])
+        self.assertEqual([tk.id for tk in out], ["core"])
+        self.assertEqual(set(out[0].tools.keys()), {"http_get"})
 
     def test_recipe_narrowing_applies_in_merge_on(self):
         from unchain_adapter import _resolve_recipe_toolkits
@@ -91,7 +90,7 @@ class ResolveRecipeToolkitsTests(unittest.TestCase):
     def test_unknown_toolkit_is_skipped_with_warning(self):
         from unchain_adapter import _resolve_recipe_toolkits
 
-        user = [_tk("core", {"read": object()})]
+        user = []
         recipe = _make_recipe(
             [ToolkitRef(id="ghost", enabled_tools=None)], merge=False
         )
@@ -99,45 +98,42 @@ class ResolveRecipeToolkitsTests(unittest.TestCase):
         out = _resolve_recipe_toolkits(user, recipe, options=None)
         self.assertEqual(out, [])
 
-    def test_merge_on_builds_recipe_toolkit_missing_from_user(self):
+    def test_merge_on_does_not_build_legacy_recipe_toolkit_when_core_is_selected(self):
         """When merge=True and recipe references a toolkit not in user
         selection, _resolve_recipe_toolkits asks _build_toolkits_by_ids to
         synthesize it."""
         import unchain_adapter as ua
 
-        user = [_tk("core", {"read": object()})]
+        user = [_tk("core", {"read": object(), "http_get": object()})]
         recipe = _make_recipe(
             [ToolkitRef(id="external_api", enabled_tools=None)], merge=True
         )
 
-        synth = _tk("external_api", {"fetch": object()})
-
-        with mock.patch.object(
-            ua, "_build_toolkits_by_ids", return_value=[synth]
-        ) as m:
+        with mock.patch.object(ua, "_build_toolkits_by_ids", return_value=[]) as m:
             out = ua._resolve_recipe_toolkits(user, recipe, options={"x": 1})
 
-        m.assert_called_once_with(["external_api"], {"x": 1})
-        self.assertEqual(sorted(tk.id for tk in out), ["core", "external_api"])
+        m.assert_not_called()
+        self.assertEqual([tk.id for tk in out], ["core"])
 
-    def test_merge_off_builds_recipe_only_toolkit(self):
+    def test_merge_off_builds_core_for_legacy_recipe_toolkit_id(self):
         """When merge=False and recipe references a toolkit not in user
         selection, the toolkit is still built; user toolkits are dropped."""
         import unchain_adapter as ua
 
-        user = [_tk("core", {"read": object()})]
+        user = []
         recipe = _make_recipe(
             [ToolkitRef(id="external_api", enabled_tools=None)], merge=False
         )
 
-        synth = _tk("external_api", {"fetch": object()})
+        synth = _tk("core", {"http_get": object()})
 
         with mock.patch.object(
             ua, "_build_toolkits_by_ids", return_value=[synth]
-        ):
+        ) as m:
             out = ua._resolve_recipe_toolkits(user, recipe, options=None)
 
-        self.assertEqual([tk.id for tk in out], ["external_api"])
+        m.assert_called_once_with(["core"], None)
+        self.assertEqual([tk.id for tk in out], ["core"])
 
 
 class BuildToolkitsByIdsTests(unittest.TestCase):
@@ -146,24 +142,27 @@ class BuildToolkitsByIdsTests(unittest.TestCase):
 
         self.assertEqual(_build_toolkits_by_ids([], None), [])
 
-    def test_calls_build_selected_toolkits_per_id_and_collects(self):
+    def test_calls_build_selected_toolkits_per_canonical_id_and_collects(self):
         import unchain_adapter as ua
 
         synth_a = _tk("a", {"x": object()})
-        synth_b = _tk("b", {"y": object()})
+        synth_core = _tk("core", {"y": object()})
+        seen_names = []
 
         def fake_build(opts):
             name = opts.get("toolkits", [None])[0]
+            seen_names.append(name)
             if name == "a":
                 return [synth_a]
-            if name == "b":
-                return [synth_b]
+            if name == "core":
+                return [synth_core]
             return []
 
         with mock.patch.object(ua, "_build_selected_toolkits", side_effect=fake_build):
-            out = ua._build_toolkits_by_ids(["a", "b"], {"workspaceRoot": "/w"})
+            out = ua._build_toolkits_by_ids(["a", "external_api"], {"workspaceRoot": "/w"})
 
-        self.assertEqual([t.id for t in out], ["a", "b"])
+        self.assertEqual(seen_names, ["a", "core"])
+        self.assertEqual([t.id for t in out], ["a", "core"])
 
     def test_runtime_error_for_one_id_does_not_break_others(self):
         import unchain_adapter as ua

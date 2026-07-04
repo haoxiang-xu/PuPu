@@ -15,6 +15,27 @@ describe("migrate_recipe", () => {
     expect(migrate_recipe(recipe)).toBe(recipe);
   });
 
+  test("canonicalizes toolkit ids in already-migrated graph recipes", () => {
+    const recipe = {
+      name: "x",
+      nodes: [
+        {
+          id: "tp",
+          type: "toolkit_pool",
+          toolkits: [
+            { id: "external_api", config: {}, enabled_tools: ["fetch"] },
+          ],
+        },
+      ],
+      edges: [],
+    };
+    const out = migrate_recipe(recipe);
+    expect(out).not.toBe(recipe);
+    expect(out.nodes[0].toolkits).toEqual([
+      { id: "core", config: {}, enabled_tools: ["fetch"] },
+    ]);
+  });
+
   test("creates start / agent_main / end from legacy minimal recipe", () => {
     const legacy = {
       name: "x",
@@ -97,7 +118,7 @@ describe("migrate_recipe", () => {
 });
 
 describe("migrate_recipe — toolkits schema", () => {
-  test("legacy top-level toolkits become node.toolkits with whole-toolkit refs", () => {
+  test("legacy top-level toolkits become canonical node.toolkits", () => {
     const legacy = {
       name: "X",
       agent: { model: "gpt", prompt: "" },
@@ -111,9 +132,21 @@ describe("migrate_recipe — toolkits schema", () => {
     expect(tp).toBeTruthy();
     expect(tp.toolkits).toEqual([
       { id: "core", config: {} },
-      { id: "external_api", config: {}, enabled_tools: ["fetch"] },
     ]);
     expect(tp.tools).toBeUndefined();
+  });
+
+  test("legacy-only toolkit ids preserve enabled_tools after canonicalization", () => {
+    const legacy = {
+      name: "X",
+      agent: { model: "gpt", prompt: "" },
+      toolkits: [{ id: "external_api", enabled_tools: ["fetch"] }],
+    };
+    const out = migrate_recipe(legacy);
+    const tp = out.nodes.find((n) => n.type === "toolkit_pool");
+    expect(tp.toolkits).toEqual([
+      { id: "core", config: {}, enabled_tools: ["fetch"] },
+    ]);
   });
 
   test("ToolkitPool merge_with_user_selected defaults to true on migration", () => {

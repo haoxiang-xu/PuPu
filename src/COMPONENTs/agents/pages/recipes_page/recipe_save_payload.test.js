@@ -42,7 +42,7 @@ function graphRecipe(extraNodes = [], extraEdges = []) {
   };
 }
 
-test("converts node.toolkits to legacy whole-toolkit refs", () => {
+test("converts node.toolkits to canonical whole-toolkit refs", () => {
   const recipe = graphRecipe(
     [
       {
@@ -66,18 +66,17 @@ test("converts node.toolkits to legacy whole-toolkit refs", () => {
     ],
   );
   const out = to_save_payload(recipe);
-  expect(out.toolkits).toEqual([{ id: "core" }, { id: "external_api" }]);
+  expect(out.toolkits).toEqual([{ id: "core" }]);
 });
 
-test("preserves enabled_tools in projection when present, drops key when absent", () => {
+test("preserves enabled_tools after canonicalizing legacy toolkit ids", () => {
   const recipe = graphRecipe(
     [
       {
         id: "tp_1",
         type: "toolkit_pool",
         toolkits: [
-          { id: "core", config: {}, enabled_tools: ["read_file"] },
-          { id: "external_api", config: {} },
+          { id: "external_api", config: {}, enabled_tools: ["fetch"] },
         ],
       },
     ],
@@ -93,8 +92,7 @@ test("preserves enabled_tools in projection when present, drops key when absent"
     ],
   );
   const out = to_save_payload(recipe);
-  expect(out.toolkits[0]).toEqual({ id: "core", enabled_tools: ["read_file"] });
-  expect("enabled_tools" in out.toolkits[1]).toBe(false);
+  expect(out.toolkits).toEqual([{ id: "core", enabled_tools: ["fetch"] }]);
 });
 
 test("dedupes duplicate toolkit ids", () => {

@@ -33,7 +33,7 @@ describe("chat_storage setter no-op guards", () => {
   test("setChatSelectedToolkits with identical array is a no-op (no persist, no emit)", async () => {
     const store = require("./chat_storage_store");
     const chatId = createChat(store);
-    store.setChatSelectedToolkits(chatId, ["core", "workspace_toolkit"], {
+    store.setChatSelectedToolkits(chatId, ["core", "mcp.dev.github-remote"], {
       source: "test",
     });
     await Promise.resolve();
@@ -41,7 +41,7 @@ describe("chat_storage setter no-op guards", () => {
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
-    store.setChatSelectedToolkits(chatId, ["core", "workspace_toolkit"], {
+    store.setChatSelectedToolkits(chatId, ["core", "mcp.dev.github-remote"], {
       source: "test",
     });
 
@@ -59,7 +59,7 @@ describe("chat_storage setter no-op guards", () => {
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
-    store.setChatSelectedToolkits(chatId, ["core", "workspace_toolkit"], {
+    store.setChatSelectedToolkits(chatId, ["core", "mcp.dev.github-remote"], {
       source: "test",
     });
 
@@ -69,7 +69,7 @@ describe("chat_storage setter no-op guards", () => {
     const snapshot = store.getChatsStore();
     expect(snapshot.chatsById[chatId].selectedToolkits).toEqual([
       "core",
-      "workspace_toolkit",
+      "mcp.dev.github-remote",
     ]);
   });
 
@@ -219,7 +219,7 @@ describe("chat_storage setter no-op guards", () => {
     store.setChatSessionBundle(
       chatId,
       {
-        selectedToolkits: ["core", "workspace_toolkit"],
+        selectedToolkits: ["core", "mcp.dev.github-remote"],
         agentOrchestration: { mode: "default" },
         selectedWorkspaceIds: ["ws-a"],
       },
@@ -232,7 +232,7 @@ describe("chat_storage setter no-op guards", () => {
     const snapshot = store.getChatsStore();
     expect(snapshot.chatsById[chatId].selectedToolkits).toEqual([
       "core",
-      "workspace_toolkit",
+      "mcp.dev.github-remote",
     ]);
   });
 

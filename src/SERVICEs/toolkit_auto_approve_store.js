@@ -1,53 +1,19 @@
+import { normalizeToolkitIdAlias } from "./toolkit_id_aliases";
+
 const STORAGE_KEY = "toolkit_auto_approve";
 const MAX_IDS = 100;
 const MAX_ID_LENGTH = 200;
 const SCHEMA_VERSION = 2;
 
-const TOOLKIT_ID_ALIASES = Object.freeze({
-  workspace: "workspace_toolkit",
-  workspace_toolkit: "workspace_toolkit",
-  access_workspace_toolkit: "workspace_toolkit",
-  workspacetoolkit: "workspace_toolkit",
-  WorkspaceToolkit: "workspace_toolkit",
-  terminal: "terminal_toolkit",
-  terminal_toolkit: "terminal_toolkit",
-  run_terminal_toolkit: "terminal_toolkit",
-  terminaltoolkit: "terminal_toolkit",
-  TerminalToolkit: "terminal_toolkit",
-  core: "core",
-  core_toolkit: "core",
-  coretoolkit: "core",
-  CoreToolkit: "core",
-  code: "core",
-  code_toolkit: "core",
-  codetoolkit: "core",
-  CodeToolkit: "core",
-  ask_user: "core",
-  ask_user_toolkit: "core",
-  "ask-user-toolkit": "core",
-  interaction_toolkit: "core",
-  "interaction-toolkit": "core",
-  askusertoolkit: "core",
-  AskUserToolkit: "core",
-  external_api: "external_api",
-  external_api_toolkit: "external_api",
-  externalapitoolkit: "external_api",
-  ExternalAPIToolkit: "external_api",
-});
-
 const LEGACY_TOOL_NAME_TO_TOOLKIT_ID = Object.freeze({
-  write_file: "workspace_toolkit",
-  delete_file: "workspace_toolkit",
-  move_file: "workspace_toolkit",
-  terminal_exec: "terminal_toolkit",
+  write_file: "core",
+  delete_file: "core",
+  move_file: "core",
+  terminal_exec: "core",
 });
 
-const normalizeToolkitId = (value) => {
-  if (typeof value !== "string") return "";
-  const trimmed = value.trim();
-  if (!trimmed || trimmed.length > MAX_ID_LENGTH) return "";
-  return TOOLKIT_ID_ALIASES[trimmed] || TOOLKIT_ID_ALIASES[trimmed.toLowerCase()] || trimmed;
-};
+const normalizeToolkitId = (value) =>
+  normalizeToolkitIdAlias(value, { maxLength: MAX_ID_LENGTH });
 
 const buildToolKey = (toolkitId, toolName) => {
   const normalizedToolkitId = normalizeToolkitId(toolkitId);

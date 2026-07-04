@@ -427,24 +427,26 @@ class RecipeGraphRuntimeTests(unittest.TestCase):
         recipe = parse_recipe_json(data)
         compiled = ua._compile_recipe_graph_for_runtime(recipe)
 
-        with mock.patch.object(ua, "_build_toolkits_by_ids", return_value=[_tk("external_api")]):
+        with mock.patch.object(ua, "_build_toolkits_by_ids", return_value=[]) as build_missing:
             merged = ua._resolve_graph_agent_toolkits(
                 compiled["agents"][0],
                 compiled,
                 [_tk("core")],
                 options={},
             )
-        self.assertEqual([tk.id for tk in merged], ["core", "external_api"])
+        build_missing.assert_not_called()
+        self.assertEqual([tk.id for tk in merged], ["core"])
 
         compiled["attach_by_agent"]["a1"][0]["merge_with_user_selected"] = False
-        with mock.patch.object(ua, "_build_toolkits_by_ids", return_value=[_tk("external_api")]):
+        with mock.patch.object(ua, "_build_toolkits_by_ids", return_value=[_tk("core")]) as build_missing:
             isolated = ua._resolve_graph_agent_toolkits(
                 compiled["agents"][0],
                 compiled,
                 [_tk("core")],
                 options={},
             )
-        self.assertEqual([tk.id for tk in isolated], ["external_api"])
+        build_missing.assert_called_once_with(["core"], {})
+        self.assertEqual([tk.id for tk in isolated], ["core"])
 
 
 if __name__ == "__main__":

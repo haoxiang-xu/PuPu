@@ -1,6 +1,10 @@
 /* Recipe schema migration: legacy single-agent shape -> node/edge graph. */
 
 import { TOOLKIT_POOL_TYPE, normalize_node_type } from "./recipe_graph";
+import {
+  normalize_recipe_toolkit_entries,
+  recipe_toolkit_entries_equal,
+} from "./recipe_toolkit_ids";
 
 export function is_legacy_recipe(recipe) {
   return !!recipe && !Array.isArray(recipe.nodes);
@@ -49,18 +53,9 @@ function make_agent_node(legacy_agent) {
 }
 
 function make_toolkit_pool_node(legacy_toolkits, merge_with_user_selected) {
-  const seen = new Set();
-  const toolkits = [];
-  for (const tk of legacy_toolkits) {
-    if (!tk || typeof tk.id !== "string") continue;
-    if (seen.has(tk.id)) continue;
-    seen.add(tk.id);
-    const entry = { id: tk.id, config: {} };
-    if (Array.isArray(tk.enabled_tools)) {
-      entry.enabled_tools = [...tk.enabled_tools];
-    }
-    toolkits.push(entry);
-  }
+  const toolkits = normalize_recipe_toolkit_entries(legacy_toolkits, {
+    includeConfig: true,
+  });
   return {
     id: "tp_1",
     type: TOOLKIT_POOL_TYPE,
@@ -75,16 +70,25 @@ function make_toolkit_pool_node(legacy_toolkits, merge_with_user_selected) {
 
 function migrate_existing_graph(recipe) {
   let changed = false;
-  const nodes = recipe.nodes.map((node) =>
-    node && typeof node === "object"
-      ? (() => {
-          const type = normalize_node_type(node.type);
-          if (type === node.type) return node;
-          changed = true;
-          return { ...node, type };
-        })()
-      : node,
-  );
+  const nodes = recipe.nodes.map((node) => {
+    if (!node || typeof node !== "object") return node;
+    const type = normalize_node_type(node.type);
+    const normalizedToolkits =
+      type === TOOLKIT_POOL_TYPE
+        ? normalize_recipe_toolkit_entries(node.toolkits, { includeConfig: true })
+        : null;
+    const typeChanged = type !== node.type;
+    const toolkitsChanged =
+      normalizedToolkits !== null &&
+      !recipe_toolkit_entries_equal(node.toolkits, normalizedToolkits);
+    if (!typeChanged && !toolkitsChanged) return node;
+    changed = true;
+    return {
+      ...node,
+      type,
+      ...(normalizedToolkits !== null ? { toolkits: normalizedToolkits } : {}),
+    };
+  });
   return changed ? { ...recipe, nodes } : recipe;
 }
 
