@@ -233,30 +233,37 @@ describe("TraceChain final_message draft timeline", () => {
     expect(screen.getAllByText("Thinking…").length).toBeGreaterThan(0);
   });
 
-  test("renders leading whitespace streaming content as plain text", () => {
+  test("renders the live tail through markdown and keeps the content visible", () => {
+    // New contract: the in-progress tail renders through the same Markdown
+    // component as the stable blocks (no plain-text swap on promotion).
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "    const x = 1;\n",
     });
 
-    expect(container.querySelector("code.hljs")).not.toBeInTheDocument();
     expect(
       container.querySelector("[data-streaming-plain-text]"),
-    ).toBeInTheDocument();
+    ).not.toBeInTheDocument();
+    expect(container.querySelector("[data-markdown-id]")).toBeInTheDocument();
     expect(container).toHaveTextContent("const x = 1;");
   });
 
-  test("uses the same text metrics as the final assistant response while streaming", () => {
+  test("carries the same text metrics as the final assistant response while streaming", () => {
+    // Metrics parity now lives on the streaming markdown root, which passes the
+    // same markdownStyle (fontSize/lineHeight) into every stable + live block.
     const { container } = renderTraceChain({
       frames: [frame({ seq: 1, type: "stream_started", payload: {} })],
       status: "streaming",
       streamingContent: "Paragraph one.\n\nParagraph two.",
     });
 
-    const streamingText = container.querySelector("[data-streaming-plain-text]");
-    expect(streamingText).toBeInTheDocument();
-    expect(streamingText).toHaveStyle({ fontSize: "14px", lineHeight: "1.6" });
+    const streamingRoot = container.querySelector(
+      "[data-streaming-markdown-root]",
+    );
+    expect(streamingRoot).toBeInTheDocument();
+    expect(streamingRoot).toHaveStyle({ fontSize: "14px", lineHeight: "1.6" });
+    expect(container).toHaveTextContent("Paragraph two.");
   });
 
   test("reads active streaming response text from the external store", () => {
