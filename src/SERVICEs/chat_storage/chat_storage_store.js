@@ -319,10 +319,19 @@ const writeStore = (store, options = {}) => {
 // 从 writeStore 热路径移除，改为 idle 触发。
 // 调用点：setChatMessages / createChatWithMessagesInSelectedContext / duplicateTreeNodeSubtree
 // (所有"可能新增数据"的 mutation)。热路径 (selectTreeNode / updateChatDraft / renameTreeNode) 不触发。
+//
+// 最小间隔门槛(2026-07 B 批性能):GC 是整库 clone+normalize+LRU(实测 ~40ms),
+// 流式期间周期性 setChatMessages 若每次都触发,同一 chat 被反复 GC、结果不变。
+// 距上次 GC 不足 STORE_GC_MIN_INTERVAL_MS 时,转为 trailing 定时器在到期时恰好补跑
+// 一次(不丢 GC,只去重)。冷启动后的首次 GC 不受门槛影响、仍然立即(idle)跑。
 let gcScheduled = false;
+let gcTrailingTimerId = null;
+let lastStoreGCAt = 0;
+const STORE_GC_MIN_INTERVAL_MS = 30_000;
 
 const runStoreGCNow = () => {
   gcScheduled = false;
+  lastStoreGCAt = now();
   const current = memoryStore || readStore();
   if (!current) return;
   const working = clone(current) || current;
@@ -337,7 +346,7 @@ const runStoreGCNow = () => {
   });
 };
 
-const scheduleStoreGC = () => {
+const scheduleIdleStoreGC = () => {
   if (gcScheduled) return;
   gcScheduled = true;
   const schedule =
@@ -346,6 +355,29 @@ const scheduleStoreGC = () => {
       ? (cb) => window.requestIdleCallback(cb, { timeout: 2000 })
       : (cb) => setTimeout(cb, 500);
   schedule(runStoreGCNow);
+};
+
+const scheduleStoreGC = () => {
+  const elapsedSinceLastGC = now() - lastStoreGCAt;
+  const remaining = STORE_GC_MIN_INTERVAL_MS - elapsedSinceLastGC;
+  if (lastStoreGCAt === 0 || remaining <= 0) {
+    if (gcTrailingTimerId !== null) {
+      clearTimeout(gcTrailingTimerId);
+      gcTrailingTimerId = null;
+    }
+    scheduleIdleStoreGC();
+    return;
+  }
+
+  if (gcScheduled || gcTrailingTimerId !== null) {
+    return;
+  }
+
+  // 门槛内:trailing 到期后再进入 idle GC,避免把整库 GC 放回热路径。
+  gcTrailingTimerId = setTimeout(() => {
+    gcTrailingTimerId = null;
+    scheduleIdleStoreGC();
+  }, Math.max(0, remaining));
 };
 
 // 页面关闭前强制 flush pending microtask：保证最后一次 writeStore 的

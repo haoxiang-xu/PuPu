@@ -286,7 +286,17 @@ export const useChatSessionState = ({
       clearTimeout(draftPersistTimerRef.current);
     }
 
-    draftPersistTimerRef.current = setTimeout(() => {
+    // 流式期间 defer(2026-07 B 批性能):draft 落盘 = 整库 persist(实测 53–80ms),
+    // 会顶在流式帧上形成长任务。任何流在跑时置后重查(每 250ms),流结束后的第一拍
+    // 落盘。React 内存态(inputValue)始终即时更新,draft 零丢失,只是落盘时机推迟。
+    const persistDraft = () => {
+      if (activeStreamsRef?.current?.size > 0) {
+        draftPersistTimerRef.current = setTimeout(
+          persistDraft,
+          DRAFT_PERSIST_DELAY_MS,
+        );
+        return;
+      }
       draftPersistTimerRef.current = null;
       updateChatDraft(
         currentChatId,
@@ -296,7 +306,11 @@ export const useChatSessionState = ({
         },
         { source: "chat-page" },
       );
-    }, DRAFT_PERSIST_DELAY_MS);
+    };
+    draftPersistTimerRef.current = setTimeout(
+      persistDraft,
+      DRAFT_PERSIST_DELAY_MS,
+    );
 
     return () => {
       if (draftPersistTimerRef.current) {
