@@ -128,6 +128,32 @@ def test_interaction_module_appended(monkeypatch):
     assert interaction_modules[0].fyi_channel is captured["registry_fyi"]
 
 
+def test_stream_chat_events_snapshots_options_into_channels(monkeypatch):
+    seen = {}
+
+    class FakeAgent:
+        provider = "openai"
+
+        def run(self, **kwargs):
+            ch = get_interject_channels("thread-options-snapshot-test")
+            seen["options"] = ch.options if ch else None
+            kwargs["callback"]({"type": "iteration_started", "iteration": 0})
+            return FakeResult()
+
+    monkeypatch.setattr(adapter, "_create_agent", lambda *a, **k: FakeAgent())
+
+    run_options = {"provider": "anthropic", "modelId": "claude-x"}
+    with _no_recipe_patch():
+        list(adapter.stream_chat_events(
+            message="hello",
+            history=[],
+            options=run_options,
+            session_id="thread-options-snapshot-test",
+        ))
+
+    assert seen["options"] == run_options
+
+
 def test_setup_failure_before_worker_start_releases_registry(monkeypatch):
     # Regression test: if anything in the setup span between
     # register_interject_channels() and worker.start() raises (agent

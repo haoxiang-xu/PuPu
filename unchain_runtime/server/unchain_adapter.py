@@ -5151,7 +5151,9 @@ def stream_chat_events(
     event_queue: "queue.Queue[object]" = queue.Queue()
     done_marker = object()
     interject_key = session_id or f"session-{id(event_queue)}"
-    interject_channels = register_interject_channels(interject_key, str(message or ""))
+    interject_channels = register_interject_channels(
+        interject_key, str(message or ""), options=options
+    )
 
     try:
         agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)

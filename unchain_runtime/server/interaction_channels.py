@@ -7,7 +7,7 @@ unchain kernel and is not reliably known client-side.
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from unchain.interaction import FyiChannel, ProgressDigest
 
@@ -17,15 +17,21 @@ class InterjectChannels:
     fyi: FyiChannel
     digest: ProgressDigest
     original_task: str
+    options: dict = field(default_factory=dict)
 
 
 _registry: dict[str, InterjectChannels] = {}
 _registry_lock = threading.Lock()
 
 
-def register_interject_channels(session_id: str, original_task: str) -> InterjectChannels:
+def register_interject_channels(
+    session_id: str, original_task: str, options: dict | None = None
+) -> InterjectChannels:
     channels = InterjectChannels(
-        fyi=FyiChannel(), digest=ProgressDigest(), original_task=original_task
+        fyi=FyiChannel(),
+        digest=ProgressDigest(),
+        original_task=original_task,
+        options=dict(options) if options else {},
     )
     with _registry_lock:
         _registry[session_id] = channels

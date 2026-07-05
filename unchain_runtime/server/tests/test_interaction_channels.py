@@ -47,6 +47,19 @@ def test_channels_have_working_fyi_and_digest():
     release_interject_channels("thread-3")
 
 
+def test_options_snapshot_defaults_to_empty_and_is_copied():
+    ch = register_interject_channels("thread-4", "t")
+    assert ch.options == {}
+    release_interject_channels("thread-4")
+
+    source = {"modelId": "gpt-5", "provider": "openai"}
+    ch2 = register_interject_channels("thread-5", "t", options=source)
+    assert ch2.options == source
+    source["modelId"] = "mutated"  # must be a shallow copy, not the same dict
+    assert ch2.options["modelId"] == "gpt-5"
+    release_interject_channels("thread-5")
+
+
 def test_thread_safety_smoke():
     def worker(i):
         register_interject_channels(f"t-{i}", "x")
