@@ -105,6 +105,108 @@ describe("AnimatedChildren", () => {
     jest.useRealTimers();
   });
 
+  describe("unmountWhenClosed(opt-in 懒挂载)", () => {
+    test("初始收起时 children 完全不挂载", () => {
+      const { queryByText } = render(
+        <AnimatedChildren open={false} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      expect(queryByText("lazy child")).toBeNull();
+    });
+
+    test("展开时先挂载 children 再做高度动画(同一提交内可测量)", () => {
+      const { queryByText, rerender } = render(
+        <AnimatedChildren open={false} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      rerender(
+        <AnimatedChildren open={true} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      expect(queryByText("lazy child")).toBeInTheDocument();
+    });
+
+    test("收起后等动画播完才卸载", () => {
+      jest.useFakeTimers();
+      const { container, queryByText, rerender } = render(
+        <AnimatedChildren open={true} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      rerender(
+        <AnimatedChildren open={false} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      /* 动画进行中仍挂载(收起动画需要内容在场) */
+      expect(queryByText("lazy child")).toBeInTheDocument();
+      act(() => {
+        jest.advanceTimersByTime(400);
+      });
+      expect(queryByText("lazy child")).toBeNull();
+      expect(container.firstChild.style.height).toBe("0px");
+      jest.useRealTimers();
+    });
+
+    test("skipAnimation 收起时立即卸载", () => {
+      jest.useFakeTimers();
+      const { queryByText, rerender } = render(
+        <AnimatedChildren open={true} skipAnimation unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      rerender(
+        <AnimatedChildren open={false} skipAnimation unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      act(() => {
+        jest.advanceTimersByTime(1);
+      });
+      expect(queryByText("lazy child")).toBeNull();
+      jest.useRealTimers();
+    });
+
+    test("默认(不传)保持既有行为:收起时 children 仍挂载", () => {
+      const { getByText } = render(
+        <AnimatedChildren open={false}>
+          <div>always mounted</div>
+        </AnimatedChildren>,
+      );
+      expect(getByText("always mounted")).toBeInTheDocument();
+    });
+
+    test("收起动画中途重新展开,取消卸载", () => {
+      jest.useFakeTimers();
+      const { queryByText, rerender } = render(
+        <AnimatedChildren open={true} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      rerender(
+        <AnimatedChildren open={false} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      act(() => {
+        jest.advanceTimersByTime(100);
+      });
+      rerender(
+        <AnimatedChildren open={true} unmountWhenClosed>
+          <div>lazy child</div>
+        </AnimatedChildren>,
+      );
+      act(() => {
+        jest.advanceTimersByTime(1000);
+      });
+      expect(queryByText("lazy child")).toBeInTheDocument();
+      jest.useRealTimers();
+    });
+  });
+
   test("still closes instantly when skipAnimation is on and open turns false", () => {
     const { container, rerender } = render(
       <AnimatedChildren open={true} skipAnimation={true}>
