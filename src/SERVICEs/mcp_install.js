@@ -1,5 +1,9 @@
 import api from "./api";
-import { readWorkspaceRoot } from "../COMPONENTs/settings/runtime";
+import { runtimeBridge } from "./bridges/unchain_bridge";
+import {
+  readWorkspaceRoot,
+  writeWorkspaceRoot,
+} from "../COMPONENTs/settings/runtime";
 import { setDefaultToolkitEnabled } from "./default_toolkit_store";
 import { emitToolkitCatalogRefresh } from "./toolkit_catalog_refresh";
 import {
@@ -62,6 +66,25 @@ export function resolveInstallWorkspace(entry, workspaceRoot) {
     return { ok: true, workspaceRoot: wr };
   }
   return { ok: true, workspaceRoot: (workspaceRoot || "").trim() };
+}
+
+/* Workspace-required entries: if no agent workspace is configured, ask the
+   user to pick a directory right in the install flow and persist it as the
+   workspace root (same storage the settings workspace editor writes). */
+export async function ensureWorkspaceForEntry(entry) {
+  const current = readWorkspaceRoot();
+  const resolved = resolveInstallWorkspace(entry, current);
+  if (resolved.ok) return { ok: true, workspaceRoot: resolved.workspaceRoot };
+
+  const dialogResult = await runtimeBridge.showOpenDialog({
+    properties: ["openDirectory", "createDirectory"],
+  });
+  const picked = String(dialogResult?.filePaths?.[0] || "").trim();
+  if (dialogResult?.canceled || !picked) {
+    return { ok: false, canceled: true };
+  }
+  writeWorkspaceRoot(picked);
+  return { ok: true, workspaceRoot: picked };
 }
 
 export function parseCustomMcpArgs(argsText = "") {
@@ -206,12 +229,29 @@ export async function installMcpEntry(
   return { ok: true, toolkitId };
 }
 
-const delay = (ms) =>
-  ms > 0 ? new Promise((resolve) => setTimeout(resolve, ms)) : Promise.resolve();
+const delay = (ms, signal) =>
+  new Promise((resolve) => {
+    if (!(ms > 0)) return resolve();
+    const timer = setTimeout(done, ms);
+    function done() {
+      signal?.removeEventListener?.("abort", done);
+      clearTimeout(timer);
+      resolve();
+    }
+    signal?.addEventListener?.("abort", done, { once: true });
+  });
+
+const throwIfAborted = (signal) => {
+  if (signal?.aborted) {
+    const err = new Error("OAuth connection cancelled");
+    err.code = "mcp_oauth_cancelled";
+    throw err;
+  }
+};
 
 export async function connectMcpOAuthEntry(
   entry,
-  { maxAttempts = 300, pollDelayMs = 2000 } = {},
+  { maxAttempts = 60, pollDelayMs = 2000, signal } = {},
 ) {
   if (!isEntryOAuthConnectable(entry)) {
     const err = new Error("Entry does not support OAuth");
@@ -219,11 +259,14 @@ export async function connectMcpOAuthEntry(
     throw err;
   }
 
+  throwIfAborted(signal);
   await api.unchain.startMcpOAuth(entry.id);
   let lastStatus = null;
   const attempts = Math.max(1, Number(maxAttempts) || 1);
   for (let i = 0; i < attempts; i += 1) {
+    throwIfAborted(signal);
     lastStatus = await api.unchain.getMcpOAuthStatus(entry.id);
+    throwIfAborted(signal);
     if (lastStatus?.authStatus === "connected") {
       const toolkitId = lastStatus.toolkitId || entry.toolkitId;
       setDefaultToolkitEnabled("global", toolkitId, true);
@@ -239,7 +282,8 @@ export async function connectMcpOAuthEntry(
       throw err;
     }
     if (i < attempts - 1) {
-      await delay(pollDelayMs);
+      await delay(pollDelayMs, signal);
+      throwIfAborted(signal);
     }
   }
 

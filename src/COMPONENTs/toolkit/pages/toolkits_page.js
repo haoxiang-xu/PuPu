@@ -15,11 +15,12 @@ import {
 } from "../../../SERVICEs/mcp_toolkit_store";
 import {
   connectMcpOAuthEntry,
+  ensureWorkspaceForEntry,
   getInstalledMcpIds,
   installMcpEntry,
 } from "../../../SERVICEs/mcp_install";
-import { readWorkspaceRoot } from "../../settings/runtime";
 import { emitToolkitCatalogRefresh } from "../../../SERVICEs/toolkit_catalog_refresh";
+import { toast } from "../../../SERVICEs/toast";
 
 const SLIDE_DURATION = 260;
 
@@ -94,7 +95,20 @@ const ToolkitsPage = ({ isDark }) => {
 
   /* ── Installed MCP set + install flow ── */
   const [installedMcpIds, setInstalledMcpIds] = useState(() => new Set());
-  const [installingId, setInstallingId] = useState(null);
+  const [installingIds, setInstallingIds] = useState(() => new Set());
+  const addInstalling = useCallback(
+    (id) => setInstallingIds((prev) => new Set(prev).add(id)),
+    [],
+  );
+  const removeInstalling = useCallback(
+    (id) =>
+      setInstallingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      }),
+    [],
+  );
   const [installError, setInstallError] = useState(null);
   const [metadataRevision, setMetadataRevision] = useState(0);
   const [metadataRefreshing, setMetadataRefreshing] = useState(false);
@@ -194,15 +208,22 @@ const ToolkitsPage = ({ isDark }) => {
 
   const handleInstall = useCallback(
     async (entry, setupOptions = {}) => {
-      setInstallingId(entry.id);
+      addInstalling(entry.id);
       setInstallError(null);
       try {
+        const workspace = await ensureWorkspaceForEntry(entry);
+        if (!workspace.ok) return; // user dismissed the picker — not an error
         await installMcpEntry(entry, {
-          workspaceRoot: readWorkspaceRoot(),
+          workspaceRoot: workspace.workspaceRoot,
           ...setupOptions,
         });
         await loadInstalledMcpIds();
         installedHandlersRef.current?.reload?.();
+        toast.success(
+          t("toolkit.store_install_success", {
+            name: entry.toolkitName || entry.id,
+          }),
+        );
       } catch (e) {
         setInstallError({
           entryId: entry.id,
@@ -210,31 +231,54 @@ const ToolkitsPage = ({ isDark }) => {
           message: installErrorMessage(e),
         });
       } finally {
-        setInstallingId(null);
+        removeInstalling(entry.id);
       }
     },
-    [loadInstalledMcpIds],
+    [loadInstalledMcpIds, addInstalling, removeInstalling, t],
   );
+
+  const oauthControllersRef = useRef(new Map());
 
   const handleOAuthConnect = useCallback(
     async (entry) => {
-      setInstallingId(entry.id);
+      const controller = new AbortController();
+      oauthControllersRef.current.set(entry.id, controller);
+      addInstalling(entry.id);
       setInstallError(null);
       try {
-        await connectMcpOAuthEntry(entry);
+        await connectMcpOAuthEntry(entry, { signal: controller.signal });
         await loadInstalledMcpIds();
         installedHandlersRef.current?.reload?.();
+        toast.success(
+          t("toolkit.store_connect_success", {
+            name: entry.toolkitName || entry.id,
+          }),
+        );
       } catch (e) {
-        setInstallError({
-          entryId: entry.id,
-          code: e?.code || "mcp_oauth_start_failed",
-          message: installErrorMessage(e),
-        });
+        if (e?.code !== "mcp_oauth_cancelled") {
+          setInstallError({
+            entryId: entry.id,
+            code: e?.code || "mcp_oauth_start_failed",
+            message: installErrorMessage(e),
+          });
+        }
       } finally {
-        setInstallingId(null);
+        oauthControllersRef.current.delete(entry.id);
+        removeInstalling(entry.id);
       }
     },
-    [loadInstalledMcpIds],
+    [loadInstalledMcpIds, addInstalling, removeInstalling, t],
+  );
+
+  const handleCancelOAuth = useCallback((entry) => {
+    oauthControllersRef.current.get(entry.id)?.abort();
+  }, []);
+
+  useEffect(
+    () => () => {
+      for (const c of oauthControllersRef.current.values()) c.abort();
+    },
+    [],
   );
 
   const handleApproveStoreEntry = useCallback(
@@ -298,6 +342,7 @@ const ToolkitsPage = ({ isDark }) => {
         label={t(item.labelKey)}
         onClick={() => {
           setActiveTab(item.key);
+          setInstallError(null);
           if (detailMounted) closeDetail();
         }}
         style={{
@@ -327,7 +372,8 @@ const ToolkitsPage = ({ isDark }) => {
             installedIds={installedMcpIds}
             onInstall={handleInstall}
             onOAuthConnect={handleOAuthConnect}
-            installingId={installingId}
+            onCancelOAuth={handleCancelOAuth}
+            installingIds={installingIds}
             installError={installError}
             metadataRevision={metadataRevision}
             metadataRefreshing={metadataRefreshing}
@@ -348,7 +394,7 @@ const ToolkitsPage = ({ isDark }) => {
           <CustomMcpPage
             isDark={isDark}
             onInstall={handleInstall}
-            installing={installingId === "custom"}
+            installing={installingIds.has("custom")}
             installError={
               installError?.entryId === "custom" ? installError : null
             }
@@ -418,9 +464,10 @@ const ToolkitsPage = ({ isDark }) => {
                 installedIds={installedMcpIds}
                 onInstall={handleInstall}
                 onOAuthConnect={handleOAuthConnect}
+                onCancelOAuth={handleCancelOAuth}
                 onApproveEntry={handleApproveStoreEntry}
                 onRevokeApproval={handleRevokeStoreEntryApproval}
-                installing={installingId === selectedToolkit.entry?.id}
+                installing={installingIds.has(selectedToolkit.entry?.id)}
                 approvalBusy={approvalBusyId === selectedToolkit.entry?.id}
                 installError={
                   installError?.entryId === selectedToolkit.entry?.id

@@ -101,6 +101,7 @@ const StoreToolkitDetailPanel = ({
   installedIds,
   onInstall,
   onOAuthConnect,
+  onCancelOAuth,
   onApproveEntry,
   onRevokeApproval,
   installing = false,
@@ -490,6 +491,23 @@ const StoreToolkitDetailPanel = ({
                 },
               }}
             />
+            {installing && installState === "oauth" && (
+              <div style={{ marginTop: 6 }}>
+                <Button
+                  label={t("toolkit.store_cancel")}
+                  onClick={() => onCancelOAuth?.(entry)}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: 500,
+                    color: mutedColor,
+                    paddingVertical: 4,
+                    paddingHorizontal: 12,
+                    borderRadius: 999,
+                    root: { background: "transparent", border: "none" },
+                  }}
+                />
+              </div>
+            )}
             {showSecondaryOAuthAction && (
               <div style={{ marginTop: 6 }}>
                 <Button

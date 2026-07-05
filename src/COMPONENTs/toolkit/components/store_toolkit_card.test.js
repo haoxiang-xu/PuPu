@@ -206,6 +206,66 @@ describe("StoreToolkitCard", () => {
     );
   });
 
+  test("oauth entry while installing shows a Cancel button that calls onCancelOAuth", () => {
+    const onCancelOAuth = jest.fn();
+    render(
+      <StoreToolkitCard
+        entry={{
+          ...entry,
+          id: "productivity.notion-remote",
+          toolkitId: "mcp.productivity.notion-remote",
+          mcp: { transport: "http" },
+          secrets: [],
+        }}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        onOAuthConnect={() => {}}
+        onCancelOAuth={onCancelOAuth}
+        installing={true}
+        onClick={() => {}}
+      />,
+    );
+
+    const cancelBtn = screen.getByRole("button", {
+      name: "toolkit.store_cancel",
+    });
+    fireEvent.click(cancelBtn);
+    expect(onCancelOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "productivity.notion-remote" }),
+    );
+  });
+
+  test("shows a spinner while installing, hidden otherwise", () => {
+    const { rerender } = render(
+      <StoreToolkitCard
+        entry={entry}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        onClick={() => {}}
+        installing={false}
+      />,
+    );
+    expect(
+      screen.queryByTestId("store-card-installing-spinner"),
+    ).toBeNull();
+
+    rerender(
+      <StoreToolkitCard
+        entry={entry}
+        isDark={false}
+        installedIds={new Set()}
+        onInstall={() => {}}
+        onClick={() => {}}
+        installing={true}
+      />,
+    );
+    expect(
+      screen.getByTestId("store-card-installing-spinner"),
+    ).toBeInTheDocument();
+  });
+
   test("needs_review entry shows Needs review", () => {
     render(
       <StoreToolkitCard

@@ -1,16 +1,3 @@
-jest.mock("./api", () => ({
-  __esModule: true,
-  default: { unchain: {} },
-}));
-jest.mock("../COMPONENTs/settings/runtime", () => ({
-  __esModule: true,
-  readWorkspaceRoot: () => "",
-}));
-jest.mock("./default_toolkit_store", () => ({
-  __esModule: true,
-  setDefaultToolkitEnabled: jest.fn(() => []),
-}));
-
 import {
   normalizeCustomMcpRecipe,
   parseCustomMcpEnvSecrets,
@@ -21,10 +8,34 @@ import {
   resolveInstallWorkspace,
   installMcpEntry,
   connectMcpOAuthEntry,
+  ensureWorkspaceForEntry,
 } from "./mcp_install";
 import api from "./api";
 import { setDefaultToolkitEnabled } from "./default_toolkit_store";
 import { getMcpStoreEntry } from "./mcp_toolkit_store";
+import {
+  readWorkspaceRoot,
+  writeWorkspaceRoot,
+} from "../COMPONENTs/settings/runtime";
+import { runtimeBridge } from "./bridges/unchain_bridge";
+
+jest.mock("./api", () => ({
+  __esModule: true,
+  default: { unchain: {} },
+}));
+jest.mock("../COMPONENTs/settings/runtime", () => ({
+  __esModule: true,
+  readWorkspaceRoot: jest.fn(() => ""),
+  writeWorkspaceRoot: jest.fn(),
+}));
+jest.mock("./bridges/unchain_bridge", () => ({
+  __esModule: true,
+  runtimeBridge: { showOpenDialog: jest.fn() },
+}));
+jest.mock("./default_toolkit_store", () => ({
+  __esModule: true,
+  setDefaultToolkitEnabled: jest.fn(() => []),
+}));
 
 describe("mcp_install helpers", () => {
   test("installability is derived from registry metadata", () => {
@@ -234,6 +245,151 @@ describe("mcp_install helpers", () => {
     expect(result).toEqual({
       ok: true,
       toolkitId: "mcp.productivity.notion-remote",
+    });
+  });
+
+  test("connectMcpOAuthEntry aborts with mcp_oauth_cancelled", async () => {
+    const oauthEntry = {
+      id: "productivity.notion-remote",
+      toolkitId: "mcp.productivity.notion-remote",
+      mcp: { transport: "http" },
+    };
+    api.unchain.startMcpOAuth = jest.fn().mockResolvedValue({ ok: true });
+    api.unchain.getMcpOAuthStatus = jest
+      .fn()
+      .mockResolvedValue({ authStatus: "pending" });
+    const controller = new AbortController();
+    const promise = connectMcpOAuthEntry(oauthEntry, {
+      maxAttempts: 5,
+      pollDelayMs: 1,
+      signal: controller.signal,
+    });
+    controller.abort();
+    await expect(promise).rejects.toMatchObject({
+      code: "mcp_oauth_cancelled",
+    });
+  });
+
+  test("connectMcpOAuthEntry ignores a status that resolves after abort", async () => {
+    setDefaultToolkitEnabled.mockClear();
+    const oauthEntry = {
+      id: "productivity.notion-remote",
+      toolkitId: "mcp.productivity.notion-remote",
+      mcp: { transport: "http" },
+    };
+    api.unchain.startMcpOAuth = jest.fn().mockResolvedValue({ ok: true });
+    let resolveStatus;
+    api.unchain.getMcpOAuthStatus = jest.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveStatus = resolve;
+        }),
+    );
+    const controller = new AbortController();
+    const promise = connectMcpOAuthEntry(oauthEntry, {
+      maxAttempts: 5,
+      pollDelayMs: 1,
+      signal: controller.signal,
+    });
+    // Let the poll loop reach the pending getMcpOAuthStatus await.
+    while (!api.unchain.getMcpOAuthStatus.mock.calls.length) {
+      await Promise.resolve();
+    }
+    // User cancels while the status call is in flight, then a stale
+    // "connected" status resolves afterwards.
+    controller.abort();
+    resolveStatus({
+      authStatus: "connected",
+      toolkitId: "mcp.productivity.notion-remote",
+    });
+    await expect(promise).rejects.toMatchObject({
+      code: "mcp_oauth_cancelled",
+    });
+    expect(setDefaultToolkitEnabled).not.toHaveBeenCalled();
+  });
+
+  test("connectMcpOAuthEntry defaults to 60 attempts", async () => {
+    const oauthEntry = {
+      id: "productivity.notion-remote",
+      toolkitId: "mcp.productivity.notion-remote",
+      mcp: { transport: "http" },
+    };
+    api.unchain.startMcpOAuth = jest.fn().mockResolvedValue({ ok: true });
+    api.unchain.getMcpOAuthStatus = jest
+      .fn()
+      .mockResolvedValue({ authStatus: "pending" });
+    await expect(
+      connectMcpOAuthEntry(oauthEntry, { pollDelayMs: 0 }),
+    ).rejects.toMatchObject({ code: "mcp_oauth_pending" });
+    expect(api.unchain.getMcpOAuthStatus).toHaveBeenCalledTimes(60);
+  });
+
+  describe("ensureWorkspaceForEntry", () => {
+    const workspaceEntry = {
+      workspace: { required: true, binding: "agent_workspace_root" },
+    };
+    const directEntry = { id: "browser.playwright" };
+
+    beforeEach(() => {
+      readWorkspaceRoot.mockReset();
+      writeWorkspaceRoot.mockReset();
+      runtimeBridge.showOpenDialog.mockReset();
+    });
+
+    test("ensureWorkspaceForEntry passes through when workspace already set", async () => {
+      readWorkspaceRoot.mockReturnValue("/Users/me/ws");
+      const result = await ensureWorkspaceForEntry(workspaceEntry);
+      expect(result).toEqual({ ok: true, workspaceRoot: "/Users/me/ws" });
+      expect(runtimeBridge.showOpenDialog).not.toHaveBeenCalled();
+    });
+
+    test("ensureWorkspaceForEntry opens picker and persists choice", async () => {
+      readWorkspaceRoot.mockReturnValue("");
+      runtimeBridge.showOpenDialog.mockResolvedValue({
+        canceled: false,
+        filePaths: ["/Users/me/picked"],
+      });
+      const result = await ensureWorkspaceForEntry(workspaceEntry);
+      expect(runtimeBridge.showOpenDialog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          properties: expect.arrayContaining(["openDirectory"]),
+        }),
+      );
+      expect(writeWorkspaceRoot).toHaveBeenCalledWith("/Users/me/picked");
+      expect(result).toEqual({ ok: true, workspaceRoot: "/Users/me/picked" });
+    });
+
+    test("ensureWorkspaceForEntry returns canceled when user dismisses", async () => {
+      readWorkspaceRoot.mockReturnValue("");
+      runtimeBridge.showOpenDialog.mockResolvedValue({
+        canceled: true,
+        filePaths: [],
+      });
+      await expect(ensureWorkspaceForEntry(workspaceEntry)).resolves.toEqual({
+        ok: false,
+        canceled: true,
+      });
+      expect(writeWorkspaceRoot).not.toHaveBeenCalled();
+    });
+
+    test("ensureWorkspaceForEntry treats a whitespace-only pick as canceled", async () => {
+      readWorkspaceRoot.mockReturnValue("");
+      runtimeBridge.showOpenDialog.mockResolvedValue({
+        canceled: false,
+        filePaths: ["   "],
+      });
+      await expect(ensureWorkspaceForEntry(workspaceEntry)).resolves.toEqual({
+        ok: false,
+        canceled: true,
+      });
+      expect(writeWorkspaceRoot).not.toHaveBeenCalled();
+    });
+
+    test("ensureWorkspaceForEntry is a no-op for non-workspace entries", async () => {
+      readWorkspaceRoot.mockReturnValue("");
+      const result = await ensureWorkspaceForEntry(directEntry);
+      expect(result.ok).toBe(true);
+      expect(runtimeBridge.showOpenDialog).not.toHaveBeenCalled();
     });
   });
 

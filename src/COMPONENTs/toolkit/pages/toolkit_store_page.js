@@ -17,7 +17,9 @@ const ToolkitStorePage = ({
   onEntryClick,
   installedIds,
   onInstall,
-  installingId,
+  onOAuthConnect,
+  onCancelOAuth,
+  installingIds,
   installError,
   metadataRefreshing = false,
   metadataError = null,
@@ -185,7 +187,9 @@ const ToolkitStorePage = ({
               onClick={onEntryClick}
               installedIds={installedIds}
               onInstall={onInstall}
-              installing={installingId === entry.id}
+              onOAuthConnect={onOAuthConnect}
+              onCancelOAuth={onCancelOAuth}
+              installing={installingIds?.has(entry.id) || false}
               installError={
                 installError?.entryId === entry.id ? installError : null
               }
