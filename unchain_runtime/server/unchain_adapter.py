@@ -5300,7 +5300,7 @@ def stream_chat_events(
 
         worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
         worker.start()
-    except Exception:
+    except BaseException:  # BaseException: also catch GeneratorExit when the SSE consumer abandons us mid-setup
         release_interject_channels(interject_key, interject_channels)
         raise
 
