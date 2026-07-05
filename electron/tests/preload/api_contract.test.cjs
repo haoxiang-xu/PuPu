@@ -85,6 +85,7 @@ describe("preload API contract", () => {
       "approveMcpStoreEntry",
       "revokeMcpStoreEntryApproval",
       "respondToolConfirmation",
+      "interject",
       "setChromeTerminalOpen",
       "syncBuildFeatureFlagsSnapshot",
       "pickWorkspaceRoot",

@@ -11,6 +11,7 @@ const UNCHAIN_STREAM_ENDPOINT = "/chat/stream";
 const UNCHAIN_STREAM_V2_ENDPOINT = "/chat/stream/v2";
 const UNCHAIN_STREAM_V4_ENDPOINT = "/chat/stream/v4";
 const UNCHAIN_TOOL_CONFIRMATION_ENDPOINT = "/chat/tool/confirmation";
+const UNCHAIN_INTERJECT_ENDPOINT = "/chat/interject";
 const UNCHAIN_HEALTH_ENDPOINT = "/health";
 const UNCHAIN_MODELS_CATALOG_ENDPOINT = "/models/catalog";
 const UNCHAIN_TOOLKIT_CATALOG_ENDPOINT = "/toolkits/catalog";
@@ -731,6 +732,27 @@ const createUnchainService = ({
       "Miso MCP toolkit install request failed",
       {},
       "Invalid Miso MCP toolkit install response",
+    );
+  };
+
+  const submitMisoInterject = async (payload = {}) => {
+    ensureMisoReady();
+
+    const source = payload && typeof payload === "object" ? payload : {};
+    const response = await fetch(buildMisoUrl(UNCHAIN_INTERJECT_ENDPOINT), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(unchainAuthToken ? { "x-unchain-auth": unchainAuthToken } : {}),
+      },
+      body: JSON.stringify({ ...source }),
+    });
+
+    return readJsonResponse(
+      response,
+      "Miso interject request failed",
+      {},
+      "Invalid Miso interject response",
     );
   };
 
@@ -2497,6 +2519,7 @@ const createUnchainService = ({
     exportMisoCharacter,
     importMisoCharacter,
     submitMisoToolConfirmation,
+    submitMisoInterject,
     handleStreamStart,
     handleStreamStartV2,
     handleStreamStartV4,

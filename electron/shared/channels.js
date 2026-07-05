@@ -51,6 +51,7 @@ const CHANNELS = Object.freeze({
     APPROVE_MCP_STORE_ENTRY: "unchain:approve-mcp-store-entry",
     REVOKE_MCP_STORE_ENTRY_APPROVAL: "unchain:revoke-mcp-store-entry-approval",
     TOOL_CONFIRMATION: "unchain:tool-confirmation",
+    INTERJECT: "unchain:interject",
     SET_CHROME_TERMINAL_OPEN: "unchain:set-chrome-terminal-open",
     SYNC_BUILD_FEATURE_FLAGS_SNAPSHOT: "unchain:sync-build-feature-flags-snapshot",
     PICK_WORKSPACE_ROOT: "unchain:pick-workspace-root",
