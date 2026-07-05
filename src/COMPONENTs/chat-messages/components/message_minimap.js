@@ -31,6 +31,13 @@ import {
 
 const EASE = "cubic-bezier(.22,.61,.36,1)";
 const LITE_MEASURE_INTERVAL_MS = 400; // 流式 lite 模式:定时 measure→recalc→update 的节拍
+// tick DOM 上限(2026-07 C 批性能):超过时相邻消息按等量切分合并进同一 bucket,
+// recalcGeometry/applyLayout 遍历 bucket 而非全量消息(长会话滚动帧成本不再随
+// 消息总数线性涨)。N ≤ MAX_TICKS 时 bucket 退化为一消息一 tick,行为逐像素不变。
+// 注意交互(点击/拖动)语义与 tick DOM 无关 —— 一直走 indexAtContentY 的逐消息
+// content 坐标,不受 bucket 化影响。按消息数等量切分而非按内容坐标切分:后者会在
+// 流式高度变化时反复重分桶,tick DOM 不稳定,违背 lite 模式的静默原则。
+const MAX_TICKS = 100;
 const TOP_INSET = 38; // 整条 minimap 顶部下移,避开窗口顶部可拖拽标题栏区域(否则 to-top 按钮点不到)
 const INSET_BASE = 74; // 轨道上/下内边距:给两颗 pill(to-top/到底 + up1/down1,各高 24)让位
 const INSET_COUNTS = 90; // 溢出时额外给计数标签让位
@@ -138,6 +145,30 @@ const MessageMinimap = ({
       aOn: colorWithAlpha(highlightColor, isDark ? 0.95 : 1),
     };
   }, [highlightColor, isDark]);
+  // bucket 化:k → { id, start, end, role }。N ≤ MAX_TICKS 时 start === end === k。
+  // role 取 bucket 内(冻结)高度占比最大的角色,只影响 tick 配色。
+  const buckets = useMemo(() => {
+    const n = segments.length;
+    const count = Math.min(n, MAX_TICKS);
+    const out = new Array(count);
+    for (let k = 0; k < count; k++) {
+      const start = Math.floor((k * n) / count);
+      const end = Math.floor(((k + 1) * n) / count) - 1;
+      let role = segments[start].role;
+      if (end > start) {
+        let userH = 0;
+        let otherH = 0;
+        for (let i = start; i <= end; i++) {
+          const h = segments[i].height || 1;
+          if (segments[i].role === "user") userH += h;
+          else otherH += h;
+        }
+        role = userH > otherH ? "user" : "assistant";
+      }
+      out[k] = { id: segments[start].id, start, end, role };
+    }
+    return out;
+  }, [segments]);
   const stackRef = useRef(null);
   const miniRef = useRef(null);
   const innerRef = useRef(null);
@@ -249,11 +280,15 @@ const MessageMinimap = ({
       scale = pickScale({ total: cTotal, usable, medianHeight: medH, minSeg: MIN_SEG });
       MH = cTotal * scale;
       overflow = MH > usable + 1;
-      // 定位 ticks(真实 content 坐标 → minimap;高度用有效值,流式膨胀不漂)
-      tickRefs.current.forEach((tk, i) => {
+      // 定位 ticks(真实 content 坐标 → minimap;高度用有效值,流式膨胀不漂)。
+      // 遍历 bucket 而非全量消息;单消息 bucket 时 span === effH[i],逐像素同旧行为。
+      tickRefs.current.forEach((tk, k) => {
         if (!tk) return;
-        tk.style.top = `${PAD + cOffsets[i] * scale}px`;
-        tk.style.height = `${Math.max(3, effH[i] * scale - 3)}px`;
+        const b = buckets[k];
+        if (!b) return;
+        const span = cOffsets[b.end] + effH[b.end] - cOffsets[b.start];
+        tk.style.top = `${PAD + cOffsets[b.start] * scale}px`;
+        tk.style.height = `${Math.max(3, span * scale - 3)}px`;
       });
     };
 
@@ -277,17 +312,19 @@ const MessageMinimap = ({
 
       const vTop = frame.boxTop;
       const vBtm = vTop + frame.viewportHeight * scale;
-      tickRefs.current.forEach((tk, i) => {
+      // 高亮遍历 bucket:单消息 bucket 时 y/yEnd 与旧的逐消息公式完全一致。
+      tickRefs.current.forEach((tk, k) => {
         if (!tk) return;
-        const s = segments[i];
-        const y = cOffsets[i] * scale;
-        const yEnd = y + effH[i] * scale;
+        const b = buckets[k];
+        if (!b) return;
+        const y = cOffsets[b.start] * scale;
+        const yEnd = (cOffsets[b.end] + effH[b.end]) * scale;
         const inView = yEnd > vTop && y < vBtm;
         tk.style.background = inView
-          ? s.role === "user"
+          ? b.role === "user"
             ? C.uOn
             : C.aOn
-          : s.role === "user"
+          : b.role === "user"
           ? C.uOff
           : C.aOff;
       });
@@ -525,6 +562,7 @@ const MessageMinimap = ({
     };
   }, [
     segments,
+    buckets,
     total,
     C,
     measure,
@@ -841,13 +879,15 @@ const MessageMinimap = ({
               transition: `top .14s ${EASE}, height .14s ${EASE}, border-color .25s, opacity .3s`,
             }}
           />
-          {segments.map((s, i) => (
+          {buckets.map((b, k) => (
             <div
-              key={s.id}
+              key={b.id}
               data-mm-tick
-              data-mm-role={s.role}
+              data-mm-role={b.role}
+              data-mm-b0={b.start}
+              data-mm-b1={b.end}
               ref={(n) => {
-                tickRefs.current[i] = n;
+                tickRefs.current[k] = n;
               }}
               style={{
                 position: "absolute",
@@ -855,7 +895,7 @@ const MessageMinimap = ({
                 width: 4,
                 transform: "translateX(-50%)",
                 borderRadius: 100,
-                background: s.role === "user" ? C.uOff : C.aOff,
+                background: b.role === "user" ? C.uOff : C.aOff,
                 transition: `background .25s ${EASE}`,
               }}
             />

@@ -31,7 +31,10 @@ const chunkExpandThreshold = (load_batch_size) =>
 // messages.length - max_mounted_count,但只在「贴底跟随」时做(视口内容在窗口尾部,
 // 抬起窗口头部不影响可见区),且经 trailing debounce 触发(滚动停止后 / 流式吸底落地后),
 // 绝不在每个 scroll 事件里同步收缩。
-const DEFAULT_MAX_MOUNTED_COUNT = 40;
+// 12 = 与初始窗口一致:贴底常驻的就是开屏那一窗,视口一次只显 2-5 条已够回看;
+// 重内容单条可达数百 DOM 节点 + 每代码块一套滚动条实例,上限每多 1 条都是常驻成本。
+// 更早的历史靠向上翻页按批加载(每批 ~27ms),回底后收缩回来。
+const DEFAULT_MAX_MOUNTED_COUNT = 12;
 const WINDOW_TRIM_DEBOUNCE_MS = 200;
 
 export { computeLandingTop } from "../message_viewport_geometry";
@@ -92,11 +95,12 @@ export const useMessageWindowScroll = ({
     Math.min(visibleStartIndex, messages.length),
   );
 
-  // 收缩上限有下限保护:不得小于 initial_visible_count + load_batch_size,否则收缩后
-  // 一次 loadOlderMessages 就把窗口顶回上限、来回抖动。
+  // 收缩上限有下限保护:不得小于 initial_visible_count —— 收缩到比初始窗口还小
+  // 会跟开屏窗口语义打架(刚打开就收缩)。向上翻页把窗口顶过上限后滚回底再收缩
+  // 属正常节奏(贴底 + 防抖才发生),不算抖动。
   const resolvedMaxMountedCount = Math.max(
     max_mounted_count,
-    initial_visible_count + load_batch_size,
+    initial_visible_count,
   );
 
   const visibleMessages = useMemo(

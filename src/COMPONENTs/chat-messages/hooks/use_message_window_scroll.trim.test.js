@@ -134,7 +134,7 @@ describe("window trim (max_mounted_count)", () => {
 
   test("收缩下限受 max_mounted_count 约束,不会把窗口缩到比 initial_visible_count 小", () => {
     const host = makeScrollHost();
-    // max_mounted_count=5 低于 initial_visible_count(12)+load_batch_size(6)=18 → 抬到 18
+    // max_mounted_count=5 低于 initial_visible_count(12)→ 抬到 12(开屏窗口语义优先)
     const { result } = renderHook(() =>
       useScrollWithHost(baseProps({ max_mounted_count: 5 }), host),
     );
@@ -147,10 +147,10 @@ describe("window trim (max_mounted_count)", () => {
       jest.advanceTimersByTime(200);
     });
 
-    // 收缩到下限 18(而非 5),挂载数 >= initial_visible_count
-    expect(result.current.visibleMessages.length).toBe(18);
+    // 收缩到下限 12(而非 5),挂载数 >= initial_visible_count
+    expect(result.current.visibleMessages.length).toBe(12);
     expect(result.current.visibleMessages.length).toBeGreaterThanOrEqual(12);
-    expect(result.current.safeVisibleStart).toBe(82); // 100 - 18
+    expect(result.current.safeVisibleStart).toBe(88); // 100 - 12
   });
 
   test("流式 append 且贴底时,挂载数维持在上限而不是单调增长", () => {

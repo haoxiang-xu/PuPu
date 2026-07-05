@@ -272,6 +272,135 @@ describe("lite mode v2 — 命令式几何补偿 + rAF 合并", () => {
   });
 });
 
+describe("tick downsampling (MAX_TICKS bucket 化)", () => {
+  // jsdom 无 pointer capture,补 no-op
+  let hadSet;
+  let hadHas;
+  let hadRelease;
+  beforeAll(() => {
+    hadSet = Element.prototype.setPointerCapture;
+    hadHas = Element.prototype.hasPointerCapture;
+    hadRelease = Element.prototype.releasePointerCapture;
+    Element.prototype.setPointerCapture = function () {};
+    Element.prototype.hasPointerCapture = function () {
+      return false;
+    };
+    Element.prototype.releasePointerCapture = function () {};
+  });
+  afterAll(() => {
+    Element.prototype.setPointerCapture = hadSet;
+    Element.prototype.hasPointerCapture = hadHas;
+    Element.prototype.releasePointerCapture = hadRelease;
+  });
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  const manySegments = (n) =>
+    Array.from({ length: n }, (_, i) =>
+      seg(`m-${i}`, i % 2 ? "assistant" : "user", i * 10, 10),
+    );
+
+  test("250 条消息时 tick DOM 数量 ≤ 100,且每个 tick 暴露其消息区间", () => {
+    const el = makeScrollHost();
+    const { container } = render(
+      <MessageMinimap
+        {...baseProps({
+          messagesRef: { current: el },
+          segments: manySegments(250),
+          total: 2500,
+        })}
+      />,
+    );
+    const ticks = container.querySelectorAll("[data-mm-tick]");
+    expect(ticks.length).toBeLessThanOrEqual(100);
+    expect(ticks.length).toBeGreaterThan(0);
+
+    // bucket 区间连续覆盖 [0, 249],无缝无重叠
+    let expectedStart = 0;
+    ticks.forEach((tk) => {
+      const b0 = Number(tk.getAttribute("data-mm-b0"));
+      const b1 = Number(tk.getAttribute("data-mm-b1"));
+      expect(b0).toBe(expectedStart);
+      expect(b1).toBeGreaterThanOrEqual(b0);
+      expectedStart = b1 + 1;
+    });
+    expect(expectedStart).toBe(250);
+  });
+
+  test("N ≤ MAX_TICKS 时仍是一消息一 tick(行为不变)", () => {
+    const el = makeScrollHost();
+    const { container } = render(
+      <MessageMinimap
+        {...baseProps({
+          messagesRef: { current: el },
+          segments: manySegments(40),
+          total: 400,
+        })}
+      />,
+    );
+    const ticks = container.querySelectorAll("[data-mm-tick]");
+    expect(ticks.length).toBe(40);
+    ticks.forEach((tk, i) => {
+      expect(Number(tk.getAttribute("data-mm-b0"))).toBe(i);
+      expect(Number(tk.getAttribute("data-mm-b1"))).toBe(i);
+    });
+  });
+
+  test("点击某 bucket:scrollToMessageIndex 的 index 落在该 bucket 的消息区间内", () => {
+    const el = makeScrollHost();
+    const scrollToMessageIndex = jest.fn(() => true);
+    const props = (segs) =>
+      baseProps({
+        messagesRef: { current: el },
+        segments: segs,
+        total: 2500,
+        scrollToMessageIndex,
+      });
+    const segsA = manySegments(250);
+    const { container, rerender } = render(<MessageMinimap {...props(segsA)} />);
+    const track = container.querySelector("[data-mm-track]");
+    // 给轨道一个真实高度,再用新 segments 数组触发 effect 重跑,让 recalcGeometry
+    // 用与点击路径相同的几何(usable/scale)重排 tick(mount 时 clientHeight 还是 0)
+    Object.defineProperty(track, "clientHeight", {
+      value: 516,
+      configurable: true,
+    });
+    act(() => {
+      rerender(<MessageMinimap {...props(manySegments(250))} />);
+    });
+    scrollToMessageIndex.mockClear();
+
+    // 溢出时 off=0 只露出轨道前段 —— 选一个「可见区内」的 bucket 点它的视觉中心
+    // (真实 UI 也只能点到可见的 tick;scrollTop=0 → off=0,r.top=0)
+    const ticks = container.querySelectorAll("[data-mm-tick]");
+    const target = [...ticks].find(
+      (tk) =>
+        parseFloat(tk.style.top) > 100 &&
+        parseFloat(tk.style.top) + parseFloat(tk.style.height) < 480,
+    );
+    expect(target).toBeTruthy();
+    const b0 = Number(target.getAttribute("data-mm-b0"));
+    const b1 = Number(target.getAttribute("data-mm-b1"));
+    const top = parseFloat(target.style.top);
+    const height = parseFloat(target.style.height);
+    // jsdom 的 PointerEvent 不携带 clientY,手工派发带坐标的 MouseEvent
+    act(() => {
+      track.dispatchEvent(
+        new MouseEvent("pointerdown", {
+          bubbles: true,
+          clientY: top + height / 2,
+        }),
+      );
+    });
+
+    expect(scrollToMessageIndex).toHaveBeenCalled();
+    const index = scrollToMessageIndex.mock.calls[0][0];
+    expect(index).toBeGreaterThanOrEqual(b0);
+    expect(index).toBeLessThanOrEqual(b1);
+  });
+});
+
 describe("drag vs click semantics", () => {
   // jsdom 未实现 pointer capture,补一层 no-op,让 onPointerDown/Up 不抛
   let hadSet;

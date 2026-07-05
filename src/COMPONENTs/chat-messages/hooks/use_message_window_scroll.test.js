@@ -258,6 +258,9 @@ describe("useMessageWindowScroll", () => {
             load_batch_size: 6,
             top_load_threshold: 80,
             boot_visible_count: 3,
+            /* 这些用例验证吸底跟随语义;上限给大,避免窗口收缩介入
+               重新钉底路径干扰断言(收缩行为由 .trim.test.js 专门覆盖) */
+            max_mounted_count: 100,
           },
           scrollHost.host,
         ),
@@ -301,6 +304,9 @@ describe("useMessageWindowScroll", () => {
             load_batch_size: 6,
             top_load_threshold: 80,
             boot_visible_count: 3,
+            /* 这些用例验证吸底跟随语义;上限给大,避免窗口收缩介入
+               重新钉底路径干扰断言(收缩行为由 .trim.test.js 专门覆盖) */
+            max_mounted_count: 100,
           },
           scrollHost.host,
         ),
@@ -348,6 +354,9 @@ describe("useMessageWindowScroll", () => {
             load_batch_size: 6,
             top_load_threshold: 80,
             boot_visible_count: 3,
+            /* 这些用例验证吸底跟随语义;上限给大,避免窗口收缩介入
+               重新钉底路径干扰断言(收缩行为由 .trim.test.js 专门覆盖) */
+            max_mounted_count: 100,
           },
           scrollHost.host,
         ),

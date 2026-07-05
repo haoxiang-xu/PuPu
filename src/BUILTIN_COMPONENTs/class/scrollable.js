@@ -50,6 +50,40 @@ const Scrollable = () => {
     /* ---- 2. Per-element management ---- */
     const managed = new Map();
 
+    /* 共享 ResizeObserver(2026-07 C 批性能):全模块 1 个实例,回调按 target 分发。
+       此前每个容器各建 1 个(observe container+parent),几十个滚动容器 = 几十个
+       observer。target → Set<fn>,同一 target 可被多个订阅者共享(如共享 parent)。 */
+    const resizeSubscribers = new Map();
+    const sharedResizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver((entries) => {
+            for (const entry of entries) {
+              const subs = resizeSubscribers.get(entry.target);
+              if (subs) subs.forEach((fn) => fn());
+            }
+          })
+        : null;
+    const observeResize = (target, fn) => {
+      if (!sharedResizeObserver || !target) return;
+      let subs = resizeSubscribers.get(target);
+      if (!subs) {
+        subs = new Set();
+        resizeSubscribers.set(target, subs);
+        sharedResizeObserver.observe(target);
+      }
+      subs.add(fn);
+    };
+    const unobserveResize = (target, fn) => {
+      if (!sharedResizeObserver || !target) return;
+      const subs = resizeSubscribers.get(target);
+      if (!subs) return;
+      subs.delete(fn);
+      if (subs.size === 0) {
+        resizeSubscribers.delete(target);
+        sharedResizeObserver.unobserve(target);
+      }
+    };
+
     function getEdge(el) {
       const attr = el.getAttribute("data-sb-edge");
       return attr != null ? Number(attr) : DEFAULT_EDGE;
@@ -354,12 +388,12 @@ const Scrollable = () => {
       settleTimerA = setTimeout(scheduleSync, 64);
       settleTimerB = setTimeout(scheduleSync, 180);
 
-      const ro = new ResizeObserver(() => {
-        scheduleSync();
-      });
-      ro.observe(container);
-      ro.observe(parent);
+      /* resize 监听走模块级共享 ResizeObserver(按 target 分发) */
+      observeResize(container, scheduleSync);
+      observeResize(parent, scheduleSync);
 
+      /* 内容变更 → scheduleSync:cancelAnimationFrame + rAF 天然把同一帧内的
+         多次 MutationObserver 回调合并成 1 次 sync(契约由 scrollable.test.js 锁死) */
       const contentMo = new MutationObserver(() => {
         scheduleSync();
       });
@@ -388,7 +422,8 @@ const Scrollable = () => {
           clearTimeout(settleTimerA);
           clearTimeout(settleTimerB);
           cancelAnimationFrame(rafId);
-          ro.disconnect();
+          unobserveResize(container, scheduleSync);
+          unobserveResize(parent, scheduleSync);
           contentMo.disconnect();
           window.removeEventListener("resize", scheduleSync);
           overlay.remove();
@@ -441,6 +476,8 @@ const Scrollable = () => {
       mo.disconnect();
       managed.forEach((e) => e.cleanup());
       managed.clear();
+      if (sharedResizeObserver) sharedResizeObserver.disconnect();
+      resizeSubscribers.clear();
     };
   }, [theme, onThemeMode]);
 };

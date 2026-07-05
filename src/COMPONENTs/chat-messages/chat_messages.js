@@ -1,4 +1,4 @@
-import { memo, useContext } from "react";
+import { memo, useContext, useMemo } from "react";
 import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
@@ -29,7 +29,7 @@ const ChatMessages = ({
   topLoadThreshold = 80,
   bootVisibleCount = 3,
   bottomViewportInset = 0,
-  maxMountedCount = 40,
+  maxMountedCount = 12,
 }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -70,6 +70,17 @@ const ChatMessages = ({
     safeVisibleStart,
     isStreaming,
   });
+
+  // Provider value memo(2026-07 C 批性能):此前每次重渲染新建对象,所有订阅
+  // StreamingMessageStoreContext 的 bubble 都被迫重渲染。依赖不变则引用稳定。
+  const streamingStoreContextValue = useMemo(
+    () => ({
+      chatId,
+      store: streamingMessageStore,
+      notifyStreamingContentCommitted,
+    }),
+    [chatId, streamingMessageStore, notifyStreamingContentCommitted],
+  );
 
   return (
     <div
@@ -117,11 +128,7 @@ const ChatMessages = ({
           }}
         >
           <StreamingMessageStoreContext.Provider
-            value={{
-              chatId,
-              store: streamingMessageStore,
-              notifyStreamingContentCommitted,
-            }}
+            value={streamingStoreContextValue}
           >
             {visibleMessages.map((msg, index) => {
               const messageIndex = safeVisibleStart + index;
