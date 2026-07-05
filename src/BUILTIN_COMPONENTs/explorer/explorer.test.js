@@ -5,7 +5,14 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 
 jest.mock("../icon/icon", () => () => <span data-testid="icon" />);
 jest.mock("../spinner/arc_spinner", () => () => <span data-testid="spinner" />);
-jest.mock("../class/animated_children", () => ({ children }) => children);
+/* mock 尊重懒挂载契约:unmountWhenClosed 且收起时不渲染 children,
+   与真实 AnimatedChildren 的稳态行为一致(动画时序由其自身单测覆盖) */
+jest.mock(
+  "../class/animated_children",
+  () =>
+    ({ open, unmountWhenClosed, children }) =>
+      unmountWhenClosed && !open ? null : children,
+);
 
 const renderExplorer = (props = {}) =>
   render(

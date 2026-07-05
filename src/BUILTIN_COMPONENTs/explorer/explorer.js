@@ -1119,7 +1119,13 @@ const ExplorerBranch = ({
           highlightColor={highlightColor}
         />
         {isFolder && (
-          <AnimatedChildren open={isOpen} skipAnimation={isDragging}>
+          <AnimatedChildren
+            open={isOpen}
+            skipAnimation={isDragging}
+            /* 收起的 folder 子树不再常驻 DOM(实测占过半页面节点),
+               收起动画播完即卸载,展开时先挂载再做高度动画 */
+            unmountWhenClosed
+          >
             <div style={{ position: "relative" }}>
               {hasChildren && (
                 <span
