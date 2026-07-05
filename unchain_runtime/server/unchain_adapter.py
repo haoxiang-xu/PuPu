@@ -5153,152 +5153,156 @@ def stream_chat_events(
     interject_key = session_id or f"session-{id(event_queue)}"
     interject_channels = register_interject_channels(interject_key, str(message or ""))
 
-    agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)
-    messages = _normalize_messages(history, message, attachments)
-    payload = _build_payload(agent.provider, options)
-    memory_runtime = _memory_runtime_from_agent(agent)
-    if memory_runtime["requested"] and not memory_runtime["available"]:
-        fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
-        yield {
-            "type": "memory_prepare",
-            "run_id": "",
-            "iteration": 0,
-            "timestamp": time.time(),
-            "session_id": session_id,
-            "applied": False,
-            "fallback_reason": fallback_reason,
-        }
-        if not history:
+    try:
+        agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)
+        messages = _normalize_messages(history, message, attachments)
+        payload = _build_payload(agent.provider, options)
+        memory_runtime = _memory_runtime_from_agent(agent)
+        if memory_runtime["requested"] and not memory_runtime["available"]:
+            fallback_reason = memory_runtime["reason"] or "memory_manager_unavailable"
             yield {
-                "type": "error",
+                "type": "memory_prepare",
                 "run_id": "",
                 "iteration": 0,
                 "timestamp": time.time(),
-                "code": _MEMORY_UNAVAILABLE_CODE,
-                "message": "Memory is enabled but unavailable for this request",
+                "session_id": session_id,
+                "applied": False,
                 "fallback_reason": fallback_reason,
             }
-            release_interject_channels(interject_key, interject_channels)
-            return
+            if not history:
+                yield {
+                    "type": "error",
+                    "run_id": "",
+                    "iteration": 0,
+                    "timestamp": time.time(),
+                    "code": _MEMORY_UNAVAILABLE_CODE,
+                    "message": "Memory is enabled but unavailable for this request",
+                    "fallback_reason": fallback_reason,
+                }
+                release_interject_channels(interject_key, interject_channels)
+                return
 
-    output_holder: Dict[str, object] = {
-        "error": None,
-        "messages": None,
-        "seen_final_message": False,
-        "last_run_id": "",
-        "last_iteration": 0,
-        "bundle": None,
-        "developer_handoff": False,  # deprecated: kept for compat, always False in v1
-    }
+        output_holder: Dict[str, object] = {
+            "error": None,
+            "messages": None,
+            "seen_final_message": False,
+            "last_run_id": "",
+            "last_iteration": 0,
+            "bundle": None,
+            "developer_handoff": False,  # deprecated: kept for compat, always False in v1
+        }
 
-    _toolkit_meta_by_tool_name = _build_toolkit_tool_index(
-        getattr(agent, "_toolkits", []),
-    )
-
-    def on_event(event: Dict[str, Any]) -> None:
-        if not isinstance(event, dict):
-            return
-        event = _enrich_tool_event_with_toolkit_metadata(
-            event,
-            _toolkit_meta_by_tool_name,
+        _toolkit_meta_by_tool_name = _build_toolkit_tool_index(
+            getattr(agent, "_toolkits", []),
         )
-        event_type = event.get("type")
-        # Suppress unchain-native events that are replaced by our callbacks
-        if event_type == "human_input_requested":
-            return
-        if event_type == "run_max_iterations":
-            return
-        # Suppress the bare tool_call for ask_user_question — our on_human_input
-        # callback emits the proper PuPu-format tool_call with interact_config
-        if _is_bare_ask_user_question_tool_call(event):
-            return
-        if event_type == "final_message":
-            output_holder["seen_final_message"] = True
-        run_id = event.get("run_id")
-        if isinstance(run_id, str):
-            output_holder["last_run_id"] = run_id
-        iteration = event.get("iteration")
-        if isinstance(iteration, int):
-            output_holder["last_iteration"] = iteration
-        try:
-            interject_channels.digest(event)
-        except Exception:
-            pass
-        event_queue.put(event)
 
-    confirm_cb = _make_tool_confirm_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
-    )
-    human_input_cb = _make_human_input_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-        toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
-    )
-    max_iterations_cb = _make_continuation_callback(
-        lambda event: event_queue.put(event),
-        cancel_event=cancel_event,
-    )
-    if isinstance(cancel_event, threading.Event):
-        def watch_stream_cancel() -> None:
-            cancel_event.wait()
-            cancel_tool_confirmations(cancel_event)
+        def on_event(event: Dict[str, Any]) -> None:
+            if not isinstance(event, dict):
+                return
+            event = _enrich_tool_event_with_toolkit_metadata(
+                event,
+                _toolkit_meta_by_tool_name,
+            )
+            event_type = event.get("type")
+            # Suppress unchain-native events that are replaced by our callbacks
+            if event_type == "human_input_requested":
+                return
+            if event_type == "run_max_iterations":
+                return
+            # Suppress the bare tool_call for ask_user_question — our on_human_input
+            # callback emits the proper PuPu-format tool_call with interact_config
+            if _is_bare_ask_user_question_tool_call(event):
+                return
+            if event_type == "final_message":
+                output_holder["seen_final_message"] = True
+            run_id = event.get("run_id")
+            if isinstance(run_id, str):
+                output_holder["last_run_id"] = run_id
+            iteration = event.get("iteration")
+            if isinstance(iteration, int):
+                output_holder["last_iteration"] = iteration
+            try:
+                interject_channels.digest(event)
+            except Exception:
+                pass
+            event_queue.put(event)
 
-        cancel_watcher = threading.Thread(
-            target=watch_stream_cancel,
-            name="unchain-stream-confirm-cancel",
-            daemon=True,
+        confirm_cb = _make_tool_confirm_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+            toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
         )
-        cancel_watcher.start()
+        human_input_cb = _make_human_input_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+            toolkit_meta_by_tool_name=_toolkit_meta_by_tool_name,
+        )
+        max_iterations_cb = _make_continuation_callback(
+            lambda event: event_queue.put(event),
+            cancel_event=cancel_event,
+        )
+        if isinstance(cancel_event, threading.Event):
+            def watch_stream_cancel() -> None:
+                cancel_event.wait()
+                cancel_tool_confirmations(cancel_event)
 
-    def run_agent() -> None:
-        try:
-            memory_namespace = str(options.get("memory_namespace") or "").strip()
-            resolved_max_iterations = int(
-                getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
-                or _DEFAULT_MAX_ITERATIONS
+            cancel_watcher = threading.Thread(
+                target=watch_stream_cancel,
+                name="unchain-stream-confirm-cancel",
+                daemon=True,
             )
-            resolved_max_ctx = int(
-                getattr(agent, "_max_context_window_tokens", 0) or 0
-            )
-            result = agent.run(
-                messages=messages,
-                payload=payload,
-                callback=on_event,
-                max_iterations=resolved_max_iterations,
-                max_context_window_tokens=resolved_max_ctx or None,
-                on_tool_confirm=confirm_cb,
-                on_human_input=human_input_cb,
-                on_max_iterations=max_iterations_cb,
-                **({"session_id": session_id} if session_id else {}),
-                **({"memory_namespace": memory_namespace} if memory_namespace else {}),
-            )
-            output_holder["messages"] = result.messages
-            bundle_model = str(
-                getattr(agent, "_display_model", "")
-                or _format_model_id(getattr(agent, "provider", ""), getattr(agent, "model", ""))
-            )
-            bundle = _build_bundle_from_result(
-                result,
-                agent,
-                model=bundle_model,
-                active_agent="developer",
-                orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
-            )
-            if bundle:
-                output_holder["bundle"] = bundle
-        except Exception as run_error:
-            import traceback as _tb
-            output_holder["error_traceback"] = _tb.format_exc()
-            output_holder["error"] = run_error
-        finally:
-            _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
-            release_interject_channels(interject_key, interject_channels)
-            event_queue.put(done_marker)
+            cancel_watcher.start()
 
-    worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
-    worker.start()
+        def run_agent() -> None:
+            try:
+                memory_namespace = str(options.get("memory_namespace") or "").strip()
+                resolved_max_iterations = int(
+                    getattr(agent, "_max_iterations", getattr(agent, "max_iterations", _DEFAULT_MAX_ITERATIONS))
+                    or _DEFAULT_MAX_ITERATIONS
+                )
+                resolved_max_ctx = int(
+                    getattr(agent, "_max_context_window_tokens", 0) or 0
+                )
+                result = agent.run(
+                    messages=messages,
+                    payload=payload,
+                    callback=on_event,
+                    max_iterations=resolved_max_iterations,
+                    max_context_window_tokens=resolved_max_ctx or None,
+                    on_tool_confirm=confirm_cb,
+                    on_human_input=human_input_cb,
+                    on_max_iterations=max_iterations_cb,
+                    **({"session_id": session_id} if session_id else {}),
+                    **({"memory_namespace": memory_namespace} if memory_namespace else {}),
+                )
+                output_holder["messages"] = result.messages
+                bundle_model = str(
+                    getattr(agent, "_display_model", "")
+                    or _format_model_id(getattr(agent, "provider", ""), getattr(agent, "model", ""))
+                )
+                bundle = _build_bundle_from_result(
+                    result,
+                    agent,
+                    model=bundle_model,
+                    active_agent="developer",
+                    orchestration_mode=_AGENT_ORCHESTRATION_DEFAULT,
+                )
+                if bundle:
+                    output_holder["bundle"] = bundle
+            except Exception as run_error:
+                import traceback as _tb
+                output_holder["error_traceback"] = _tb.format_exc()
+                output_holder["error"] = run_error
+            finally:
+                _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
+                release_interject_channels(interject_key, interject_channels)
+                event_queue.put(done_marker)
+
+        worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
+        worker.start()
+    except Exception:
+        release_interject_channels(interject_key, interject_channels)
+        raise
 
     while True:
         item = event_queue.get()

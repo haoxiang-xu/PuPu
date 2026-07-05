@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import pytest
+
 SERVER_ROOT = Path(__file__).resolve().parents[1]
 if str(SERVER_ROOT) not in sys.path:
     sys.path.insert(0, str(SERVER_ROOT))
@@ -124,3 +126,28 @@ def test_interaction_module_appended(monkeypatch):
     assert len(interaction_modules) == 1
     assert captured.get("registry_fyi") is not None
     assert interaction_modules[0].fyi_channel is captured["registry_fyi"]
+
+
+def test_setup_failure_before_worker_start_releases_registry(monkeypatch):
+    # Regression test: if anything in the setup span between
+    # register_interject_channels() and worker.start() raises (agent
+    # creation, payload building, toolkit indexing, etc.), the registry
+    # entry must not leak — no zombie InterjectChannels, no permanently
+    # leaked anonymous fallback key. Simulate the failure at _create_agent,
+    # the earliest step in that span.
+    monkeypatch.setattr(
+        adapter,
+        "_create_agent",
+        mock.Mock(side_effect=RuntimeError("boom during agent creation")),
+    )
+
+    with _no_recipe_patch():
+        with pytest.raises(RuntimeError, match="boom during agent creation"):
+            list(adapter.stream_chat_events(
+                message="hello",
+                history=[],
+                options={},
+                session_id="thread-setup-failure-test",
+            ))
+
+    assert get_interject_channels("thread-setup-failure-test") is None
