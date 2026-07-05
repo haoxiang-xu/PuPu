@@ -33,6 +33,7 @@ import { LogoSVGs } from "../../BUILTIN_COMPONENTs/icon/icon_manifest.js";
 import { useChatAttachments } from "./hooks/use_chat_attachments";
 import { useChatSessionState } from "./hooks/use_chat_session_state";
 import { useChatStream } from "./hooks/use_chat_stream";
+import { consumeStreamFinalizedPersist } from "./hooks/stream_persist_dedupe";
 import useSmoothResizeFrame from "./hooks/use_smooth_resize_frame";
 import { createStreamingMessageStore } from "../../SERVICEs/streaming_message_store";
 
@@ -366,7 +367,11 @@ const ChatInterface = () => {
       messagePersistTimerRef.current = null;
     }
 
-    const delay = streamIsStreaming ? 250 : 0;
+    // T4(B 批性能):流式 lull-persist 节奏 250ms → 2000ms(对齐 background
+    // persister)。每次落盘是整库写(实测 48–68ms 长任务),250ms 会在每个 token
+    // 间歇反复触发;2s 窗口内的崩溃丢失量与后台会话一致,done 边沿仍由
+    // finalizeStreamPersist 同步兜底(见 use_chat_stream onDone)。
+    const delay = streamIsStreaming ? 2000 : 0;
     messagePersistTimerRef.current = setTimeout(() => {
       messagePersistTimerRef.current = null;
       const messagesToPersist = streamIsStreaming
@@ -375,6 +380,12 @@ const ChatInterface = () => {
             messages: session.messages,
           })
         : session.messages;
+      // T3(B 批性能):done 边沿 finalizeStreamPersist 已同步写过同一数组引用
+      // (flushSync → setMessages 传递的就是 finalize 那份),这里跳过重复的整库写
+      // (实测 ~47ms 长任务)。引用不匹配(subagent 链路/后续真实变更)照常落盘。
+      if (consumeStreamFinalizedPersist(currentChatId, messagesToPersist)) {
+        return;
+      }
       storageApi.setChatMessages(currentChatId, messagesToPersist, {
         source: "chat-page",
       });

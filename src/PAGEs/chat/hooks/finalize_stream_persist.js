@@ -10,6 +10,8 @@
  * Side-effecting only through the injected `storageApi` /
  * `flushBackgroundPersist`, so it is unit-testable without mounting the hook.
  */
+import { markStreamFinalizedPersist } from "./stream_persist_dedupe";
+
 export const finalizeStreamPersist = ({
   storageApi,
   chatId,
@@ -32,5 +34,8 @@ export const finalizeStreamPersist = ({
   }
 
   storageApi.setChatMessages(chatId, messages, { source: "chat-page" });
+  // T3(B 批性能):打标,让 chat.js 的防抖持久化 effect 对同一 (chatId, 数组引用)
+  // 的 done 后重复整库写(实测 ~47ms)去重。引用不匹配时 effect 照常落盘(fail-open)。
+  markStreamFinalizedPersist(chatId, messages);
   return true;
 };
