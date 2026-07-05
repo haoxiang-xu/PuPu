@@ -138,3 +138,81 @@ describe("sanitizeMessage assistant artifactSummariesByTurnId", () => {
     ).toBeUndefined();
   });
 });
+
+describe("sanitizeMessage assistant interjections", () => {
+  test("keeps valid interjections on assistant messages", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "done",
+      interjections: [
+        { id: "i1", type: "fyi", text: "also in Chinese", origin: "user", ts: 100 },
+        { id: "i2", type: "btw", text: "eta?", origin: "system", answer: "soon" },
+      ],
+    });
+    expect(cleaned.interjections).toEqual([
+      { id: "i1", type: "fyi", text: "also in Chinese", origin: "user", ts: 100 },
+      { id: "i2", type: "btw", text: "eta?", origin: "system", answer: "soon" },
+    ]);
+  });
+
+  test("strips illegal type and extra fields", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "done",
+      interjections: [
+        { id: "i1", type: "unknown", text: "should be dropped" },
+        {
+          id: "i2",
+          type: "fyi",
+          text: "kept",
+          origin: "user",
+          extraField: "should not survive",
+        },
+      ],
+    });
+    expect(cleaned.interjections).toEqual([
+      { id: "i2", type: "fyi", text: "kept", origin: "user" },
+    ]);
+  });
+
+  test("drops entries with empty text", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "done",
+      interjections: [{ id: "i1", type: "fyi", text: "" }],
+    });
+    expect(cleaned.interjections).toBeUndefined();
+  });
+
+  test("caps interjections at 20 entries", () => {
+    const many = Array.from({ length: 25 }, (_, index) => ({
+      id: `i${index}`,
+      type: "fyi",
+      text: `msg ${index}`,
+    }));
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "done",
+      interjections: many,
+    });
+    expect(cleaned.interjections).toHaveLength(20);
+  });
+
+  test("drops interjections on user messages", () => {
+    const cleaned = sanitizeMessage({
+      role: "user",
+      content: "hi",
+      interjections: [{ id: "i1", type: "fyi", text: "should be dropped" }],
+    });
+    expect(cleaned.interjections).toBeUndefined();
+  });
+
+  test("drops non-array interjections", () => {
+    const cleaned = sanitizeMessage({
+      role: "assistant",
+      content: "done",
+      interjections: "not-an-array",
+    });
+    expect(cleaned.interjections).toBeUndefined();
+  });
+});

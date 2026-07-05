@@ -458,6 +458,28 @@ const sanitizeTraceFrames = (frames) => {
   return frames.map((frame) => sanitizeTraceFrame(frame)).filter(Boolean);
 };
 
+const INTERJECTION_TYPES = new Set(["fyi", "btw"]);
+
+export const sanitizeInterjections = (value) => {
+  if (!Array.isArray(value)) return undefined;
+  const cleaned = value
+    .filter(
+      (item) =>
+        item && typeof item === "object" && INTERJECTION_TYPES.has(item.type),
+    )
+    .slice(0, 20)
+    .map((item) => ({
+      id: typeof item.id === "string" ? item.id : "",
+      type: item.type,
+      text: trimText(item.text),
+      origin: item.origin === "system" ? "system" : "user",
+      ...(typeof item.answer === "string" ? { answer: trimText(item.answer) } : {}),
+      ...(Number.isFinite(item.ts) ? { ts: item.ts } : {}),
+    }))
+    .filter((item) => item.text);
+  return cleaned.length ? cleaned : undefined;
+};
+
 const sanitizeSubagentMeta = (meta) => {
   if (!isObject(meta)) {
     return null;
@@ -586,6 +608,11 @@ export const sanitizeMessage = (message) => {
     );
     if (cleanedRunArtifactSummary) {
       cleaned.runArtifactSummary = cleanedRunArtifactSummary;
+    }
+
+    const interjections = sanitizeInterjections(message.interjections);
+    if (interjections) {
+      cleaned.interjections = interjections;
     }
   }
 
