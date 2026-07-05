@@ -54,6 +54,7 @@ _ensure_unchain_on_path()
 # Import unchain agent modules
 try:
     from unchain.agent import Agent as _UnchainAgent
+    from unchain.agent import InteractionModule as _InteractionModule
     from unchain.agent.modules import ToolsModule as _ToolsModule
     from unchain.agent.modules import MemoryModule as _MemoryModule
     from unchain.agent.modules import PoliciesModule as _PoliciesModule
@@ -73,6 +74,7 @@ try:
     )
 except ImportError:
     _UnchainAgent = None  # type: ignore
+    _InteractionModule = None  # type: ignore
     _ToolsModule = None  # type: ignore
     _MemoryModule = None  # type: ignore
     _PoliciesModule = None  # type: ignore
@@ -88,6 +90,11 @@ except ImportError:
     _ToolHistoryCompactionOptimizer = None  # type: ignore
     _ToolHistoryCompactionOptimizerConfig = None  # type: ignore
     _ToolPairSafetyOptimizer = None  # type: ignore
+
+from interaction_channels import (
+    register_interject_channels,
+    release_interject_channels,
+)
 
 _SUPPORTED_PROVIDERS = {"openai", "anthropic", "ollama"}
 _ALLOWED_INPUT_MODALITIES = ("text", "image", "pdf")
@@ -4240,6 +4247,7 @@ def _build_developer_agent(
     options: Dict[str, object] | None = None,
     recipe=None,
     optimizer_config: Any | None = None,
+    fyi_channel: Any | None = None,
 ):
     if recipe is not None:
         toolkits = _resolve_recipe_toolkits(toolkits, recipe, options=options)
@@ -4336,6 +4344,9 @@ def _build_developer_agent(
                 )
             )
 
+    if fyi_channel is not None:
+        modules.append(_InteractionModule(fyi_channel=fyi_channel))
+
     if recipe is not None:
         instructions = _resolve_recipe_prompt(recipe)
     else:
@@ -4359,7 +4370,11 @@ def _build_developer_agent(
     )
 
 
-def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""):
+def _create_agent(
+    options: Dict[str, object] | None = None,
+    session_id: str = "",
+    fyi_channel: Any | None = None,
+):
     UnchainAgent = _UnchainAgent
     ToolsModule = _ToolsModule
     MemoryModule = _MemoryModule
@@ -4413,6 +4428,7 @@ def _create_agent(options: Dict[str, object] | None = None, session_id: str = ""
         memory_manager=memory_manager,
         options=options,
         recipe=recipe,
+        fyi_channel=fyi_channel,
     )
     agent._orchestration_role = "developer"
     agent._orchestration_mode = _AGENT_ORCHESTRATION_DEFAULT
@@ -5132,7 +5148,12 @@ def stream_chat_events(
         )
         return
 
-    agent = _create_agent(options, session_id=session_id)
+    event_queue: "queue.Queue[object]" = queue.Queue()
+    done_marker = object()
+    interject_key = session_id or f"session-{id(event_queue)}"
+    interject_channels = register_interject_channels(interject_key, str(message or ""))
+
+    agent = _create_agent(options, session_id=session_id, fyi_channel=interject_channels.fyi)
     messages = _normalize_messages(history, message, attachments)
     payload = _build_payload(agent.provider, options)
     memory_runtime = _memory_runtime_from_agent(agent)
@@ -5157,10 +5178,9 @@ def stream_chat_events(
                 "message": "Memory is enabled but unavailable for this request",
                 "fallback_reason": fallback_reason,
             }
+            release_interject_channels(interject_key, interject_channels)
             return
 
-    event_queue: "queue.Queue[object]" = queue.Queue()
-    done_marker = object()
     output_holder: Dict[str, object] = {
         "error": None,
         "messages": None,
@@ -5200,6 +5220,10 @@ def stream_chat_events(
         iteration = event.get("iteration")
         if isinstance(iteration, int):
             output_holder["last_iteration"] = iteration
+        try:
+            interject_channels.digest(event)
+        except Exception:
+            pass
         event_queue.put(event)
 
     confirm_cb = _make_tool_confirm_callback(
@@ -5270,6 +5294,7 @@ def stream_chat_events(
             output_holder["error"] = run_error
         finally:
             _disconnect_runtime_toolkits(getattr(agent, "_toolkits", []))
+            release_interject_channels(interject_key, interject_channels)
             event_queue.put(done_marker)
 
     worker = threading.Thread(target=run_agent, name="unchain-runner-events", daemon=True)
