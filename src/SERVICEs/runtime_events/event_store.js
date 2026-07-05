@@ -10,6 +10,7 @@ export const RUNTIME_EVENT_TYPES = new Set([
   "step.completed",
   "interaction.requested",
   "interaction.resolved",
+  "interaction.fyi_injected",
   "artifact.created",
   "artifact.updated",
 ]);

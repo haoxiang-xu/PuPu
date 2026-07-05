@@ -597,6 +597,11 @@ const applyEvent = (state, event) => {
     return;
   }
 
+  if (eventType === "interaction.fyi_injected") {
+    routeFrame(state, event, createFrame(state, event, "fyi_injected", payload));
+    return;
+  }
+
   if (eventType === "model.delta") {
     const kind = stringValue(payload.kind, "text");
     const delta = rawStringValue(payload.delta);
@@ -948,7 +953,8 @@ const toProjectedEvent = (event) => {
     type === "run.completed" ||
     type === "run.failed" ||
     type === "turn.started" ||
-    type === "turn.completed"
+    type === "turn.completed" ||
+    type === "interaction.fyi_injected"
   ) {
     return baseProjectedEvent(event, type);
   }
