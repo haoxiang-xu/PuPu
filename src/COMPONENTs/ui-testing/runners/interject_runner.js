@@ -1,5 +1,6 @@
 import { useContext, useMemo, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
+import { toast } from "../../../SERVICEs/toast";
 import TraceChain from "../../chat-bubble/trace_chain";
 import ChatInput from "../../chat-input/chat_input";
 
@@ -117,7 +118,6 @@ const InterjectRunner = () => {
 
   const [value, setValue] = useState("");
   const [isStreaming, setIsStreaming] = useState(true);
-  const [pendingFyiCount, setPendingFyiCount] = useState(0);
   const [steerItems, setSteerItems] = useState([]);
   const [showFyi, setShowFyi] = useState(true);
   const [showSide, setShowSide] = useState(true);
@@ -144,8 +144,8 @@ const InterjectRunner = () => {
   }, [showFyi, showSide, clarifyStatus]);
 
   const interjectState = useMemo(
-    () => ({ pendingFyiCount, steerItems }),
-    [pendingFyiCount, steerItems],
+    () => ({ steerItems }),
+    [steerItems],
   );
 
   const addSteer = () =>
@@ -175,9 +175,13 @@ const InterjectRunner = () => {
         isDark={isDark}
       />
       <Chip
-        label={`fyi pill (${pendingFyiCount})`}
-        active={pendingFyiCount > 0}
-        onClick={() => setPendingFyiCount((c) => (c > 0 ? 0 : 1))}
+        label="fyi toast"
+        active={false}
+        onClick={() =>
+          toast.success("Queued — will be injected next step", {
+            dedupeKey: "interject-fyi-queued",
+          })
+        }
         isDark={isDark}
       />
       <Chip label="+ steer" active={false} onClick={addSteer} isDark={isDark} />

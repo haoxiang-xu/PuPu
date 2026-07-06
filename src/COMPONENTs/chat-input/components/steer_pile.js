@@ -18,8 +18,9 @@ import { useState } from "react";
  */
 
 const MAX_VISIBLE = 3;
-const COLLAPSE_OVERLAP = 13; // px the stack sinks into the input's top edge
+const COLLAPSE_OVERLAP = 10; // px the stack sinks into the input's top edge
 const EXPAND_GAP = 10; // px gap above the input once expanded
+const PEEK = 6; // px each card behind the front peeks upward (deck look)
 
 const prefersReducedMotion = () =>
   typeof window !== "undefined" &&
@@ -114,6 +115,9 @@ const SteerCard = ({
     ? "0 6px 18px rgba(0,0,0,0.4)"
     : "0 6px 18px rgba(0,0,0,0.08)";
 
+  // Collapsed: front card (index 0) sits in-flow at the bottom; cards behind
+  // are absolutely aligned to that bottom edge and shifted UPWARD a few px each,
+  // peeking their top edges like a fanned deck so 3 layers read at a glance.
   const depthStyle = expanded
     ? {
         position: "relative",
@@ -122,11 +126,11 @@ const SteerCard = ({
       }
     : {
         position: index === 0 ? "relative" : "absolute",
-        top: index === 0 ? undefined : 0,
         left: 0,
         right: 0,
-        transform: `translateY(${index * 8}px) scale(${1 - index * 0.045})`,
-        opacity: Math.max(0.3, 1 - index * 0.22),
+        bottom: index === 0 ? undefined : 0,
+        transform: `translateY(${-index * PEEK}px) scale(${1 - index * 0.04})`,
+        opacity: Math.max(0.55, 1 - index * 0.16),
       };
 
   return (
@@ -137,8 +141,8 @@ const SteerCard = ({
         boxSizing: "border-box",
         backgroundColor: surfaceBg,
         border: relayed ? relayedBorder : defaultBorder,
-        borderRadius: 12,
-        padding: "8px 12px",
+        borderRadius: 10,
+        padding: "5px 10px",
         boxShadow: shadow,
         zIndex: expanded ? undefined : MAX_VISIBLE - index,
         transition,
@@ -155,43 +159,44 @@ const SteerCard = ({
       >
         <span
           style={{
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: 500,
+            letterSpacing: 0.2,
             color: relayed ? relayedColor : labelColor,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
           }}
         >
-          {relayed ? "✓ 已并入下一轮" : "已排队 · 本轮结束后执行"}
+          {relayed ? "✓ Merged into next turn" : "Queued · runs after this turn"}
           {hiddenCount > 0 ? ` +${hiddenCount}` : ""}
         </span>
         {!relayed && (
           <button
             type="button"
-            aria-label="撤回"
+            aria-label="Undo"
             onClick={() => onUndo(item.id)}
             style={{
               flexShrink: 0,
               border: "none",
               background: "transparent",
-              padding: "2px 4px",
+              padding: "1px 3px",
               margin: 0,
-              fontSize: 11,
+              fontSize: 10,
               fontWeight: 500,
               color: undoColor,
               cursor: "pointer",
             }}
           >
-            撤回
+            Undo
           </button>
         )}
       </div>
       <div
         style={{
-          marginTop: 4,
-          fontSize: 13,
-          lineHeight: 1.4,
+          marginTop: 2,
+          fontSize: 12,
+          lineHeight: 1.35,
           color: textColor,
           overflow: "hidden",
           display: "-webkit-box",

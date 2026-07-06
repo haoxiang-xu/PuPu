@@ -4,7 +4,6 @@ import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
 import CommandMenu from "./components/command_menu";
 import InputActionButtons from "./components/input_action_buttons";
-import InterjectHint from "./components/interject_hint";
 import SteerPile from "./components/steer_pile";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
 import { useFileDropOverlay } from "./hooks/use_file_drop_overlay";
@@ -185,11 +184,6 @@ const ChatInput = ({
           boxSizing: "border-box",
         }}
       >
-        <InterjectHint
-          interjectState={interjectState}
-          isStreaming={isStreaming}
-          isDark={isDark}
-        />
         <div
           style={{ position: "relative" }}
           onDragOver={handleDragOver}

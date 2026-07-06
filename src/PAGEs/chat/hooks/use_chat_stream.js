@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
+import { toast } from "../../../SERVICEs/toast";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
 import { createLogger } from "../../../SERVICEs/console_logger";
@@ -3844,6 +3845,9 @@ export const useChatStream = ({
               (pendingFyiCountByChatIdRef.current.get(targetChatId) || 0) + 1,
             );
             syncInterjectStateForChat(targetChatId);
+            toast.success("Queued — will be injected next step", {
+              dedupeKey: "interject-fyi-queued",
+            });
             return;
           }
 

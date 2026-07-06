@@ -31,7 +31,7 @@ describe("SteerPile", () => {
     const onUndo = jest.fn();
     render(<SteerPile items={makeItems()} onUndo={onUndo} isDark={false} />);
 
-    const undoButtons = screen.getAllByRole("button", { name: "撤回" });
+    const undoButtons = screen.getAllByRole("button", { name: "Undo" });
     fireEvent.click(undoButtons[0]);
 
     expect(onUndo).toHaveBeenCalledWith("s1");
@@ -40,7 +40,7 @@ describe("SteerPile", () => {
   test("relayed items show the success label instead of an undo button", () => {
     render(<SteerPile items={makeItems()} onUndo={() => {}} isDark={false} />);
 
-    expect(screen.getByText("✓ 已并入下一轮")).toBeInTheDocument();
+    expect(screen.getByText("✓ Merged into next turn")).toBeInTheDocument();
     expect(screen.getByText("second item text")).toBeInTheDocument();
   });
 });
