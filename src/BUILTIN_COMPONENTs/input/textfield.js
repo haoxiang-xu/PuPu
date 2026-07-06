@@ -272,10 +272,11 @@ const FloatingTextField = ({
             top: 0,
             left: 0,
             right: shouldScroll ? -borderWidth : 0,
-            bottom:
-              shouldScroll && functional_section && funcHeight > 0
-                ? padding + funcHeight
-                : 0,
+            /* No bottom reserve in EITHER state: paddingRight already keeps
+             * every text line clear of the functional section horizontally,
+             * so lifting the textarea above it when scrollable (as this used
+             * to do) only created an inconsistent bottom padding (#161). */
+            bottom: 0,
             boxSizing: "border-box",
             fontFamily,
             fontSize,
@@ -616,10 +617,11 @@ const TextField = ({
             top: 0,
             left: 0,
             right: 0,
-            bottom:
-              shouldScroll && functional_section && funcHeight > 0
-                ? padding + funcHeight + 4
-                : 0,
+            /* Same as FloatingTextField: paddingRight already clears the
+             * functional section on every line, so no bottom reserve when
+             * scrollable — a reserve here made the two states' bottom
+             * padding inconsistent (#161). */
+            bottom: 0,
             boxSizing: "border-box",
             fontFamily,
             fontSize,
