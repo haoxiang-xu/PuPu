@@ -1,6 +1,7 @@
 import { useContext, useMemo, useState } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
 import CodeDiffInteract from "../../chat-bubble/interact/code_diff_interact";
+import TestControls from "../test_controls";
 
 /* ── sample unified diffs ─────────────────────────────────────────── */
 
@@ -211,73 +212,70 @@ const CodeDiffInteractRunner = () => {
         position: "absolute",
         inset: 0,
         overflowY: "auto",
-        padding: "48px 40px 40px 232px",
+        padding: "48px 40px 40px 32px",
         color: isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.8)",
         fontFamily: "Jost, sans-serif",
       }}
     >
-      <div
-        style={{
-          fontSize: 11,
-          letterSpacing: 0.8,
-          textTransform: "uppercase",
-          color: sectionHeader,
-          marginBottom: 8,
-        }}
-      >
-        Scenario
-      </div>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: 6,
-          marginBottom: 18,
-        }}
-      >
-        {SCENARIOS.map((s) => {
-          const active = s.key === selectedKey;
-          return (
-            <button
-              key={s.key}
-              type="button"
-              onClick={() => {
-                setSelectedKey(s.key);
-                setLastSubmit(null);
-              }}
-              style={{
-                appearance: "none",
-                border: `1px solid ${
-                  active
-                    ? isDark
-                      ? "rgba(255,255,255,0.35)"
-                      : "rgba(0,0,0,0.4)"
-                    : isDark
-                      ? "rgba(255,255,255,0.12)"
-                      : "rgba(0,0,0,0.12)"
-                }`,
-                background: active
-                  ? isDark
-                    ? "rgba(255,255,255,0.08)"
-                    : "rgba(0,0,0,0.06)"
-                  : "transparent",
-                color: active
-                  ? isDark
-                    ? "rgba(255,255,255,0.9)"
-                    : "rgba(0,0,0,0.85)"
-                  : mutedLabel,
-                padding: "5px 10px",
-                borderRadius: 6,
-                fontSize: 11.5,
-                fontFamily: "Menlo, Monaco, Consolas, monospace",
-                cursor: "pointer",
-              }}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
+      <TestControls>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span
+            style={{
+              fontSize: 10.5,
+              letterSpacing: 0.8,
+              textTransform: "uppercase",
+              color: sectionHeader,
+              userSelect: "none",
+            }}
+          >
+            Scenario
+          </span>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {SCENARIOS.map((s) => {
+              const active = s.key === selectedKey;
+              return (
+                <button
+                  key={s.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedKey(s.key);
+                    setLastSubmit(null);
+                  }}
+                  style={{
+                    appearance: "none",
+                    border: `1px solid ${
+                      active
+                        ? isDark
+                          ? "rgba(255,255,255,0.35)"
+                          : "rgba(0,0,0,0.4)"
+                        : isDark
+                          ? "rgba(255,255,255,0.12)"
+                          : "rgba(0,0,0,0.12)"
+                    }`,
+                    background: active
+                      ? isDark
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(0,0,0,0.06)"
+                      : "transparent",
+                    color: active
+                      ? isDark
+                        ? "rgba(255,255,255,0.9)"
+                        : "rgba(0,0,0,0.85)"
+                      : mutedLabel,
+                    padding: "5px 10px",
+                    borderRadius: 6,
+                    fontSize: 11.5,
+                    fontFamily: "Menlo, Monaco, Consolas, monospace",
+                    cursor: "pointer",
+                  }}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </TestControls>
 
       <div
         style={{
