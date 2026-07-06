@@ -1,25 +1,22 @@
 import { useEffect, useRef, useState } from "react";
 
 /**
- * SteerPile — input-anchored stack of queued /steer interjections.
+ * SteerPile — a compact stack of queued /steer interjections that floats just
+ * above the chat input.
  *
- * Default state: collapsed and tucked BEHIND the input (z-index below the
- * input, bottom edge overlapping the input's top edge by ~13px) — like a
- * stack of notes sitting in an outbox, only the front card's label row
- * peeking above the input. Cards behind the front one peek only their top
- * edge (translateY increasing, scale decreasing, opacity fading, z-index
- * descending); the 4th+ item is hidden and folded into a "+N" badge on the
- * front card's label.
- *
- * On hover/focus-within: the whole pile lifts above the input (z-index
- * raised above it) and expands into a vertical list with full cards.
+ * The front card is anchored at a FIXED position just above the input in both
+ * states, so it never moves out from under the cursor on expand (which would
+ * otherwise flicker expand↔collapse). Collapsed: a tight deck — front card
+ * full, the cards behind it peek only their top edge upward (scale + opacity
+ * fading); the 4th+ item folds into a "+N" badge on the front card's label.
+ * On hover/focus-within: the deck expands upward into a vertical list of
+ * translucent, backdrop-blurred cards.
  *
  * Renders nothing when `items` is empty.
  */
 
 const MAX_VISIBLE = 3;
-const COLLAPSE_OVERLAP = 10; // px the stack sinks into the input's top edge
-const EXPAND_GAP = 10; // px gap above the input once expanded
+const ABOVE_GAP = 6; // px the front card floats above the input's top edge
 const PEEK = 6; // px each card behind the front peeks upward (deck look)
 
 const prefersReducedMotion = () =>
@@ -68,7 +65,7 @@ const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
 
   const transition = reducedMotion
     ? "none"
-    : "transform 180ms cubic-bezier(0.2,0.8,0.3,1), opacity 180ms ease, bottom 180ms cubic-bezier(0.2,0.8,0.3,1)";
+    : "transform 180ms cubic-bezier(0.2,0.8,0.3,1), opacity 180ms ease";
 
   return (
     <div
@@ -89,14 +86,14 @@ const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
         transform: "translateX(-50%)",
         width: "calc(100% - 48px)",
         maxWidth: 560,
-        // Bottom anchor is FIXED across states: the front card stays put and
-        // only the stack grows upward on expand, so the cursor never falls off
-        // the element mid-animation (which would flicker expand/collapse).
-        bottom: `calc(100% - ${COLLAPSE_OVERLAP}px)`,
-        paddingTop: expanded ? EXPAND_GAP : 0,
-        zIndex: expanded ? 30 : 1,
+        // Fixed anchor just above the input in BOTH states: the front card
+        // never moves, so the cursor can't fall off it mid-expand (which would
+        // flicker expand↔collapse). The stack only grows upward on expand.
+        bottom: `calc(100% + ${ABOVE_GAP}px)`,
+        zIndex: 30,
         display: "flex",
         flexDirection: "column",
+        justifyContent: "flex-end",
         gap: expanded ? 8 : 0,
         transition,
       }}
