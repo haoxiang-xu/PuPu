@@ -237,7 +237,7 @@ const ToastRunner = () => {
         position: "absolute",
         inset: 0,
         overflowY: "auto",
-        padding: "52px 44px 40px 244px",
+        padding: "52px 44px 40px 32px",
         color: tokens.text,
         fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
       }}
