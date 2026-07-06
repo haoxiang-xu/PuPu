@@ -31,12 +31,14 @@ const FloatingTextField = ({
   content_section,
   functional_section,
   force_content_active = false,
-  /* Optional inline chip rendered at the first line's start (e.g. a slash
-   * command tag). `leading_indent` shifts the first text line right so the
-   * text flows after the chip; applied to the measure div too so the
-   * auto-expand height stays correct. */
-  leading_component = null,
-  leading_indent = 0,
+  /* Optional text-mirror overlay: when provided, the textarea's own text is
+   * rendered transparent (caret/selection stay native) and a pixel-synced
+   * mirror div renders `overlay_render(value)` instead — letting callers dye
+   * arbitrary inline ranges (e.g. slash-command tokens) as pills without
+   * giving up the native textarea (IME, undo, selection, auto-height).
+   * During IME composition the mirror hides and the textarea text is
+   * restored, so composing text is always natively visible. */
+  overlay_render = null,
   on_focus = () => {},
   on_blur = () => {},
   on_key_down = () => {},
@@ -85,8 +87,10 @@ const FloatingTextField = ({
   const [internalValue, setInternalValue] = useState("");
   const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const [composing, setComposing] = useState(false);
   const defaultRef = useRef(null);
   const taRef = textarea_ref || defaultRef;
+  const overlayRef = useRef(null);
   const funcRef = useRef(null);
   const [funcWidth, setFuncWidth] = useState(0);
   const [funcHeight, setFuncHeight] = useState(0);
@@ -180,6 +184,8 @@ const FloatingTextField = ({
   const contentRestLeft =
     contentSectionH > 0 ? contentRestTop - contentSectionH / 2 : padding;
 
+  const overlayActive = typeof overlay_render === "function" && !composing;
+
   /* `padding` in `style` is meant for the textarea's inner padding (already applied
    * via the resolved `padding` token below). Strip it from the outer-wrapper spread
    * so it doesn't double-up as an outer indent that pushes the visible field inward. */
@@ -237,7 +243,6 @@ const FloatingTextField = ({
             lineHeight,
             padding,
             paddingRight: padding + funcWidth + 8,
-            textIndent: leading_indent || 0,
             width: "100%",
             pointerEvents: "none",
           }}
@@ -265,8 +270,20 @@ const FloatingTextField = ({
             on_blur();
           }}
           onKeyDown={on_key_down}
+          onCompositionStart={() => setComposing(true)}
+          onCompositionEnd={() => setComposing(false)}
+          onScroll={(e) => {
+            if (overlayRef.current)
+              overlayRef.current.scrollTop = e.target.scrollTop;
+          }}
           className={shouldScroll ? "scrollable" : undefined}
           data-sb-edge={Math.max(6, borderRadius)}
+          data-sb-wall={2}
+          data-sb-edge-top={Math.max(6, borderRadius)}
+          data-sb-edge-bottom={Math.max(
+            Math.max(6, borderRadius),
+            funcHeight > 0 ? funcHeight + padding : 0,
+          )}
           style={{
             position: "absolute",
             top: 0,
@@ -284,7 +301,7 @@ const FloatingTextField = ({
               contentHeight <= minH && min_rows === 1
                 ? contentHeight - 2 + "px"
                 : lineHeight,
-            color: baseColor,
+            color: overlayActive ? "transparent" : baseColor,
             caretColor: baseColor,
             background: "transparent",
             border: "none",
@@ -295,27 +312,50 @@ const FloatingTextField = ({
               contentHeight <= minH && min_rows === 1 ? 0 : padding,
             paddingLeft: padding,
             paddingRight: padding + funcWidth + 8,
-            textIndent: leading_indent || 0,
             margin: 0,
             overflow: shouldScroll ? "auto" : "hidden",
+            /* keep the caret/selection layer above the mirror */
+            zIndex: 1,
           }}
         />
 
-        {/* ── Leading inline chip (first-line start, e.g. slash command tag) ── */}
-        {leading_component && (
+        {/* ── Text-mirror overlay (dyed inline ranges; behind the textarea) ── */}
+        {overlayActive && (
           <div
+            ref={overlayRef}
+            aria-hidden="true"
+            data-textfield-overlay=""
             style={{
               position: "absolute",
-              left: padding,
-              top: contentHeight <= minH && min_rows === 1 ? 0 : padding,
-              display: "flex",
-              alignItems: "center",
-              height: lineHeightPx,
-              pointerEvents: "auto",
-              zIndex: 1,
+              top: 0,
+              left: 0,
+              right: shouldScroll ? -borderWidth : 0,
+              bottom: 0,
+              boxSizing: "border-box",
+              /* pixel-sync with the textarea — same tokens, same box */
+              fontFamily,
+              fontSize,
+              lineHeight:
+                contentHeight <= minH && min_rows === 1
+                  ? contentHeight - 2 + "px"
+                  : lineHeight,
+              color: baseColor,
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              overflowWrap: "break-word",
+              paddingTop:
+                contentHeight <= minH && min_rows === 1 ? 0 : padding,
+              paddingBottom:
+                contentHeight <= minH && min_rows === 1 ? 0 : padding,
+              paddingLeft: padding,
+              paddingRight: padding + funcWidth + 8,
+              margin: 0,
+              overflow: "hidden",
+              pointerEvents: "none",
+              zIndex: 0,
             }}
           >
-            {leading_component}
+            {overlay_render(currentValue)}
           </div>
         )}
 
@@ -612,6 +652,12 @@ const TextField = ({
           onKeyDown={on_key_down}
           className={shouldScroll ? "scrollable" : undefined}
           data-sb-edge={Math.max(6, borderRadius)}
+          data-sb-wall={2}
+          data-sb-edge-top={Math.max(6, borderRadius)}
+          data-sb-edge-bottom={Math.max(
+            Math.max(6, borderRadius),
+            funcHeight > 0 ? funcHeight + padding : 0,
+          )}
           style={{
             position: "absolute",
             top: 0,
