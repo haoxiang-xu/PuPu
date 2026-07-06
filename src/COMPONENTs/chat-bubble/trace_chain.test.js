@@ -1391,7 +1391,7 @@ describe("TraceChain interject frames", () => {
 
     renderTraceChain({ frames, status: "done" });
 
-    expect(screen.getByText("用户插话已加入")).toBeInTheDocument();
+    expect(screen.getByText("User note added")).toBeInTheDocument();
     expect(screen.getByText("also check the logs")).toBeInTheDocument();
     expect(screen.queryByText("btw back-note")).not.toBeInTheDocument();
   });
@@ -1413,7 +1413,7 @@ describe("TraceChain interject frames", () => {
 
     renderTraceChain({ frames, status: "done" });
 
-    expect(screen.queryByText("用户插话已加入")).not.toBeInTheDocument();
+    expect(screen.queryByText("User note added")).not.toBeInTheDocument();
   });
 
   test("renders side_answer with collapsible question/answer body", () => {
@@ -1431,7 +1431,7 @@ describe("TraceChain interject frames", () => {
 
     renderTraceChain({ frames, status: "done" });
 
-    expect(screen.getByText("旁路回答")).toBeInTheDocument();
+    expect(screen.getByText("Side answer")).toBeInTheDocument();
     // details start collapsed — the "detail" toggle is present (distinct
     // from tool rows, which use "details"/KVPanel the same way).
     expect(screen.getByRole("button", { name: "detail" })).toBeInTheDocument();

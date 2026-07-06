@@ -1,131 +1,141 @@
-import { useEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 /**
- * SteerPile — a compact stack of queued /steer interjections that floats just
- * above the chat input.
+ * SteerPile — a stack of queued /steer interjections anchored above the chat
+ * input. The stacking + expand animation mirrors the app's toast pile
+ * (BUILTIN_COMPONENTs/toast/toast_host.js) exactly:
  *
- * The front card is anchored at a FIXED position just above the input in both
- * states, so it never moves out from under the cursor on expand (which would
- * otherwise flicker expand↔collapse). Collapsed: a tight deck — front card
- * full, the cards behind it peek only their top edge upward (scale + opacity
- * fading); the 4th+ item folds into a "+N" badge on the front card's label.
- * On hover/focus-within: the deck expands upward into a vertical list of
- * translucent, backdrop-blurred cards.
+ * - Newest item is at the FRONT (index 0) of the collapsed deck; cards behind
+ *   peek upward (translateY + scale-down). The 4th+ item folds into a "+N".
+ * - On hover the deck expands into a vertical list with the newest at the
+ *   BOTTOM (closest to the input) and older ones fanning upward.
+ * - The whole pile is ONE contiguous hit region (an inner block whose height
+ *   animates), so hovering the gaps between expanded cards never fires a
+ *   spurious mouseleave — no expand/collapse flicker.
  *
- * Renders nothing when `items` is empty.
+ * Collapsed the pile sits at z-index 1, BEHIND the input (which is z-index 2
+ * with an opaque surface), so the input occludes its lower part. On hover it
+ * lifts to z-index 30, above the input. Renders nothing when `items` is empty.
  */
 
 const MAX_VISIBLE = 3;
-const ABOVE_GAP = 6; // px the front card floats above the input's top edge
-const PEEK = 6; // px each card behind the front peeks upward (deck look)
-
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" &&
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+const ANIM_MS = 260;
+const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
+const PEEK = 10; // collapsed: how far each card behind peeks up
+const GAP = 8; // expanded: gap between cards
+const SCALE_STEP = 0.05; // collapsed: scale-down per depth
+const FALLBACK_H = 44; // height fallback before measurement
+const OVERLAP = 10; // px the collapsed deck sinks behind the input's top edge
 
 const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
-  const [hovered, setHovered] = useState(false);
-  const [focusWithin, setFocusWithin] = useState(false);
-  // Expanding moves the cards up/out from under the cursor, which fires a
-  // spurious mouseleave; a short close delay (cancelled by the immediate
-  // re-enter over the moved card) stops the expand/collapse flicker loop.
-  const leaveTimerRef = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const wrapRefs = useRef({});
+  const [heights, setHeights] = useState({});
 
-  useEffect(
-    () => () => {
-      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
-    },
-    [],
-  );
+  const ordered = [...items].reverse(); // newest first (front = index 0)
+  const visible = ordered.slice(0, MAX_VISIBLE);
+  const overflow = Math.max(0, ordered.length - visible.length);
 
-  const cancelLeave = () => {
-    if (leaveTimerRef.current) {
-      clearTimeout(leaveTimerRef.current);
-      leaveTimerRef.current = null;
-    }
-  };
-
-  const handleEnter = () => {
-    cancelLeave();
-    setHovered(true);
-  };
-
-  const handleLeave = () => {
-    cancelLeave();
-    leaveTimerRef.current = setTimeout(() => setHovered(false), 140);
-  };
+  const idKey = visible.map((item) => item.id).join(",");
+  useLayoutEffect(() => {
+    const next = {};
+    visible.forEach((item) => {
+      const el = wrapRefs.current[item.id];
+      if (el) next[item.id] = el.offsetHeight;
+    });
+    setHeights(next);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idKey]);
 
   if (!Array.isArray(items) || items.length === 0) return null;
 
-  const expanded = hovered || focusWithin;
-  const visible = items.slice(0, MAX_VISIBLE);
-  const hiddenCount = Math.max(0, items.length - MAX_VISIBLE);
-  const reducedMotion = prefersReducedMotion();
+  const heightOf = (item) => heights[item.id] || FALLBACK_H;
+  const count = visible.length;
 
-  const transition = reducedMotion
-    ? "none"
-    : "transform 180ms cubic-bezier(0.2,0.8,0.3,1), opacity 180ms ease";
+  const expandedOffset = (index) => {
+    let sum = 0;
+    for (let k = 0; k < index; k += 1) sum += heightOf(visible[k]) + GAP;
+    return sum;
+  };
+
+  const frontH = count ? heightOf(visible[0]) : 0;
+  const collapsedTotal = frontH + Math.max(0, count - 1) * PEEK;
+  const expandedTotal = count
+    ? visible.reduce((sum, item) => sum + heightOf(item), 0) + (count - 1) * GAP
+    : 0;
+  const pileHeight = expanded ? expandedTotal : collapsedTotal;
 
   return (
     <div
       role="group"
-      aria-label="已排队的引导消息"
+      aria-label="Queued steer messages"
       data-expanded={expanded}
-      onMouseEnter={handleEnter}
-      onMouseLeave={handleLeave}
-      onFocus={() => setFocusWithin(true)}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) {
-          setFocusWithin(false);
-        }
-      }}
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
       style={{
         position: "absolute",
         left: "50%",
         transform: "translateX(-50%)",
+        // Fixed anchor: sinks OVERLAP px behind the input's top edge so the
+        // input occludes the deck's lower part when collapsed. The anchor never
+        // moves; only the inner height animates — so no hover flicker.
+        bottom: `calc(100% - ${OVERLAP}px)`,
         width: "calc(100% - 48px)",
         maxWidth: 560,
-        // Fixed anchor just above the input in BOTH states: the front card
-        // never moves, so the cursor can't fall off it mid-expand (which would
-        // flicker expand↔collapse). The stack only grows upward on expand.
-        bottom: `calc(100% + ${ABOVE_GAP}px)`,
-        zIndex: 30,
-        display: "flex",
-        flexDirection: "column",
-        justifyContent: "flex-end",
-        gap: expanded ? 8 : 0,
-        transition,
+        zIndex: expanded ? 30 : 1,
+        // ONE contiguous hit region across the whole (incl. expanded gaps) pile.
+        pointerEvents: "auto",
       }}
     >
-      {visible.map((item, index) => (
-        <SteerCard
-          key={item.id}
-          item={item}
-          index={index}
-          expanded={expanded}
-          isDark={isDark}
-          onUndo={onUndo}
-          hiddenCount={index === 0 ? hiddenCount : 0}
-          transition={transition}
-        />
-      ))}
+      <div
+        style={{
+          position: "relative",
+          width: "100%",
+          height: pileHeight,
+          transition: `height ${ANIM_MS}ms ${EASE}`,
+        }}
+      >
+        {visible.map((item, index) => {
+          const y = expanded ? -expandedOffset(index) : -index * PEEK;
+          const scale = expanded ? 1 : 1 - index * SCALE_STEP;
+          const hiddenCount = index === 0 ? overflow : 0;
+          return (
+            <div
+              key={item.id}
+              ref={(el) => {
+                if (el) wrapRefs.current[item.id] = el;
+                else delete wrapRefs.current[item.id];
+              }}
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 100 - index,
+                transformOrigin: "bottom center",
+                transform: `translateY(${y}px) scale(${scale})`,
+                transition: `transform ${ANIM_MS}ms ${EASE}`,
+              }}
+            >
+              <SteerCard
+                item={item}
+                expanded={expanded}
+                isDark={isDark}
+                onUndo={onUndo}
+                hiddenCount={hiddenCount}
+              />
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 };
 
-const SteerCard = ({
-  item,
-  index,
-  expanded,
-  isDark,
-  onUndo,
-  hiddenCount,
-  transition,
-}) => {
+const SteerCard = ({ item, expanded, isDark, onUndo, hiddenCount }) => {
   const relayed = item?.status === "relayed";
 
-  // Collapsed cards must be opaque so the tuck-behind-input deck reads; once
+  // Collapsed cards are opaque so the deck reads as tucked behind the input;
   // expanded they float above content as a translucent, backdrop-blurred panel.
   const surfaceBg = expanded
     ? isDark
@@ -134,7 +144,7 @@ const SteerCard = ({
     : isDark
       ? "var(--pupu-surface, rgba(30,30,30,0.98))"
       : "var(--pupu-surface, rgba(255,255,255,0.98))";
-  const backdrop = expanded ? "blur(14px) saturate(1.3)" : "none";
+  const backdrop = expanded ? "blur(20px) saturate(180%)" : "none";
   const defaultBorder = isDark
     ? "1px solid rgba(255,255,255,0.10)"
     : "1px solid rgba(0,0,0,0.08)";
@@ -149,30 +159,13 @@ const SteerCard = ({
     ? "0 6px 18px rgba(0,0,0,0.4)"
     : "0 6px 18px rgba(0,0,0,0.08)";
 
-  // Collapsed: front card (index 0) sits in-flow at the bottom; cards behind
-  // are absolutely aligned to that bottom edge and shifted UPWARD a few px each,
-  // peeking their top edges like a fanned deck so 3 layers read at a glance.
-  const depthStyle = expanded
-    ? {
-        position: "relative",
-        transform: "none",
-        opacity: 1,
-      }
-    : {
-        position: index === 0 ? "relative" : "absolute",
-        left: 0,
-        right: 0,
-        bottom: index === 0 ? undefined : 0,
-        transform: `translateY(${-index * PEEK}px) scale(${1 - index * 0.04})`,
-        opacity: Math.max(0.55, 1 - index * 0.16),
-      };
-
   return (
     <div
       data-steer-card
       data-status={relayed ? "relayed" : "queued"}
       style={{
         boxSizing: "border-box",
+        width: "100%",
         backgroundColor: surfaceBg,
         backdropFilter: backdrop,
         WebkitBackdropFilter: backdrop,
@@ -180,9 +173,6 @@ const SteerCard = ({
         borderRadius: 10,
         padding: "5px 10px",
         boxShadow: shadow,
-        zIndex: expanded ? undefined : MAX_VISIBLE - index,
-        transition,
-        ...depthStyle,
       }}
     >
       <div

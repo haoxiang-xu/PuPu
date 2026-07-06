@@ -2,11 +2,12 @@ import React from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import SteerPile from "./steer_pile";
 
+// queue order: oldest first, newest last (as items accumulate)
 const makeItems = () => [
-  { id: "s1", text: "front item text", status: "queued" },
+  { id: "s1", text: "oldest item text", status: "queued" },
   { id: "s2", text: "second item text", status: "relayed" },
   { id: "s3", text: "third item text", status: "queued" },
-  { id: "s4", text: "fourth item text (hidden)", status: "queued" },
+  { id: "s4", text: "newest item text", status: "queued" },
 ];
 
 describe("SteerPile", () => {
@@ -15,26 +16,25 @@ describe("SteerPile", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  test("collapsed: front card is fully readable and +N counts hidden items beyond 3", () => {
+  test("collapsed: newest is the front card and +N counts the oldest hidden items", () => {
     render(<SteerPile items={makeItems()} onUndo={() => {}} isDark={false} />);
 
-    // Front card readable
-    expect(screen.getByText("front item text")).toBeInTheDocument();
+    // Newest item is at the front of the deck, fully readable.
+    expect(screen.getByText("newest item text")).toBeInTheDocument();
 
-    // Only the first 3 items are represented; the 4th is hidden and folded
-    // into the "+N" badge on the front card's label.
-    expect(screen.queryByText(/fourth item text/)).not.toBeInTheDocument();
+    // Only the newest 3 are represented; the oldest (s1) is folded into "+N".
+    expect(screen.queryByText(/oldest item text/)).not.toBeInTheDocument();
     expect(screen.getByText(/\+1/)).toBeInTheDocument();
   });
 
-  test("onUndo fires with the correct id when the front card's undo is clicked", () => {
+  test("onUndo fires with the newest id when the front card's undo is clicked", () => {
     const onUndo = jest.fn();
     render(<SteerPile items={makeItems()} onUndo={onUndo} isDark={false} />);
 
     const undoButtons = screen.getAllByRole("button", { name: "Undo" });
     fireEvent.click(undoButtons[0]);
 
-    expect(onUndo).toHaveBeenCalledWith("s1");
+    expect(onUndo).toHaveBeenCalledWith("s4");
   });
 
   test("relayed items show the success label instead of an undo button", () => {

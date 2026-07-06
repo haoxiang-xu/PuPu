@@ -989,7 +989,7 @@ const TraceChain = ({
         const accent = colorWithAlpha(themeHighlightColor(theme), 0.55);
         items.push({
           key: `${frame.seq}-fyi-injected`,
-          title: "用户插话已加入",
+          title: "User note added",
           span: spanText,
           status: "done",
           body: (
@@ -1036,7 +1036,7 @@ const TraceChain = ({
 
         items.push({
           key: `${frame.seq}-side-answer`,
-          title: "旁路回答",
+          title: "Side answer",
           span: spanText,
           status: "done",
           point: <AccentPoint color={themeHighlightColor(theme)} />,
@@ -1109,7 +1109,7 @@ const TraceChain = ({
 
         items.push({
           key: `${frame.seq}-clarify`,
-          title: "需要澄清",
+          title: "Needs clarification",
           span: spanText,
           status: "done",
           point: <HammerPoint isDark={isDark} />,
