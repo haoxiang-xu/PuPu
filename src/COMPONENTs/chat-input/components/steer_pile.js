@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * SteerPile — input-anchored stack of queued /steer interjections.
@@ -30,6 +30,34 @@ const prefersReducedMotion = () =>
 const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
   const [hovered, setHovered] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
+  // Expanding moves the cards up/out from under the cursor, which fires a
+  // spurious mouseleave; a short close delay (cancelled by the immediate
+  // re-enter over the moved card) stops the expand/collapse flicker loop.
+  const leaveTimerRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      if (leaveTimerRef.current) clearTimeout(leaveTimerRef.current);
+    },
+    [],
+  );
+
+  const cancelLeave = () => {
+    if (leaveTimerRef.current) {
+      clearTimeout(leaveTimerRef.current);
+      leaveTimerRef.current = null;
+    }
+  };
+
+  const handleEnter = () => {
+    cancelLeave();
+    setHovered(true);
+  };
+
+  const handleLeave = () => {
+    cancelLeave();
+    leaveTimerRef.current = setTimeout(() => setHovered(false), 140);
+  };
 
   if (!Array.isArray(items) || items.length === 0) return null;
 
@@ -47,8 +75,8 @@ const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
       role="group"
       aria-label="已排队的引导消息"
       data-expanded={expanded}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      onMouseEnter={handleEnter}
+      onMouseLeave={handleLeave}
       onFocus={() => setFocusWithin(true)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) {
@@ -61,9 +89,11 @@ const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
         transform: "translateX(-50%)",
         width: "calc(100% - 48px)",
         maxWidth: 560,
-        bottom: expanded
-          ? `calc(100% + ${EXPAND_GAP}px)`
-          : `calc(100% - ${COLLAPSE_OVERLAP}px)`,
+        // Bottom anchor is FIXED across states: the front card stays put and
+        // only the stack grows upward on expand, so the cursor never falls off
+        // the element mid-animation (which would flicker expand/collapse).
+        bottom: `calc(100% - ${COLLAPSE_OVERLAP}px)`,
+        paddingTop: expanded ? EXPAND_GAP : 0,
         zIndex: expanded ? 30 : 1,
         display: "flex",
         flexDirection: "column",
@@ -98,9 +128,16 @@ const SteerCard = ({
 }) => {
   const relayed = item?.status === "relayed";
 
-  const surfaceBg = isDark
-    ? "var(--pupu-surface, rgba(30,30,30,0.98))"
-    : "var(--pupu-surface, rgba(255,255,255,0.98))";
+  // Collapsed cards must be opaque so the tuck-behind-input deck reads; once
+  // expanded they float above content as a translucent, backdrop-blurred panel.
+  const surfaceBg = expanded
+    ? isDark
+      ? "rgba(28,28,28,0.62)"
+      : "rgba(255,255,255,0.66)"
+    : isDark
+      ? "var(--pupu-surface, rgba(30,30,30,0.98))"
+      : "var(--pupu-surface, rgba(255,255,255,0.98))";
+  const backdrop = expanded ? "blur(14px) saturate(1.3)" : "none";
   const defaultBorder = isDark
     ? "1px solid rgba(255,255,255,0.10)"
     : "1px solid rgba(0,0,0,0.08)";
@@ -140,6 +177,8 @@ const SteerCard = ({
       style={{
         boxSizing: "border-box",
         backgroundColor: surfaceBg,
+        backdropFilter: backdrop,
+        WebkitBackdropFilter: backdrop,
         border: relayed ? relayedBorder : defaultBorder,
         borderRadius: 10,
         padding: "5px 10px",
