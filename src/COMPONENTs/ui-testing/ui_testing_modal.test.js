@@ -22,10 +22,26 @@ jest.mock("../../BUILTIN_COMPONENTs/input/button", () => ({
   ),
 }));
 
-jest.mock("./runners/interject_runner", () => ({
-  __esModule: true,
-  default: () => <div>Interject runner</div>,
-}));
+// interject's mock portals a marker INTO the real ControlDock (via the real
+// TestControls), so tests can prove the dock hosts a runner's controls and
+// auto-hides when a content-only runner (Toast) declares none.
+jest.mock("./runners/interject_runner", () => {
+  const React = require("react");
+  const TestControls = require("./test_controls").default;
+  return {
+    __esModule: true,
+    default: () =>
+      React.createElement(
+        TestControls,
+        null,
+        React.createElement(
+          "span",
+          { "data-testid": "interject-dock-control" },
+          "Interject runner",
+        ),
+      ),
+  };
+});
 
 jest.mock("./runners/trace_chain_runner", () => ({
   __esModule: true,
@@ -154,5 +170,14 @@ describe("UITestingModal chrome", () => {
     renderModal();
     fireEvent.click(screen.getByText("CodeDiffInteract"));
     expect(screen.getByText("Code diff runner")).toBeInTheDocument();
+  });
+
+  test("dock hosts a runner's controls, then auto-hides for content-only Toast", () => {
+    renderModal();
+    // Interject (default) portals a control into the shared ControlDock.
+    expect(screen.getByTestId("interject-dock-control")).toBeInTheDocument();
+    // Toast declares no dock controls → the dock's hosted content is gone.
+    fireEvent.click(screen.getByText("Toast"));
+    expect(screen.queryByTestId("interject-dock-control")).toBeNull();
   });
 });
