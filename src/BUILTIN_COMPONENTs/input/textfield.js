@@ -278,11 +278,11 @@ const FloatingTextField = ({
           }}
           className={shouldScroll ? "scrollable" : undefined}
           data-sb-edge={Math.max(6, borderRadius)}
-          data-sb-wall={2}
+          data-sb-wall={4}
           data-sb-edge-top={Math.max(6, borderRadius)}
           data-sb-edge-bottom={Math.max(
             Math.max(6, borderRadius),
-            funcHeight > 0 ? funcHeight + padding : 0,
+            funcHeight > 0 ? funcHeight + padding + 12 : 0,
           )}
           style={{
             position: "absolute",
@@ -652,11 +652,11 @@ const TextField = ({
           onKeyDown={on_key_down}
           className={shouldScroll ? "scrollable" : undefined}
           data-sb-edge={Math.max(6, borderRadius)}
-          data-sb-wall={2}
+          data-sb-wall={4}
           data-sb-edge-top={Math.max(6, borderRadius)}
           data-sb-edge-bottom={Math.max(
             Math.max(6, borderRadius),
-            funcHeight > 0 ? funcHeight + padding : 0,
+            funcHeight > 0 ? funcHeight + padding + 12 : 0,
           )}
           style={{
             position: "absolute",
