@@ -1,13 +1,19 @@
-import { memo, useContext, useRef, useState, useCallback } from "react";
+import { memo, useContext, useEffect, useRef, useState, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
+import CommandMenu from "./components/command_menu";
 import InputActionButtons from "./components/input_action_buttons";
 import InterjectHint from "./components/interject_hint";
 import SteerPile from "./components/steer_pile";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
 import { useFileDropOverlay } from "./hooks/use_file_drop_overlay";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
+import { listCommands } from "../../SERVICEs/command_registry";
+
+// input value starts with "/" with no whitespace yet (single-token command prefix)
+const isSlashCommandPrefix = (value) =>
+  typeof value === "string" && value.startsWith("/") && !/\s/.test(value);
 
 const ChatInput = ({
   value,
@@ -72,8 +78,71 @@ const ChatInput = ({
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
   const chatActive = value.length > 0 || focused || hasAttachments;
 
+  /* ── Slash-command autocomplete menu (seed of PuPu's main command system) ── */
+  const [commandMenuActiveIndex, setCommandMenuActiveIndex] = useState(0);
+  const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
+  const prevValueRef = useRef(value);
+
+  const commandItems = isSlashCommandPrefix(value)
+    ? listCommands({ isStreaming }, value)
+    : [];
+  const commandMenuOpen =
+    !commandMenuDismissed &&
+    isSlashCommandPrefix(value) &&
+    commandItems.length > 0;
+
+  // any edit to the input value re-arms the menu (clears a prior Escape
+  // dismissal) and resets the highlighted row back to the top
+  useEffect(() => {
+    if (prevValueRef.current !== value) {
+      prevValueRef.current = value;
+      setCommandMenuDismissed(false);
+      setCommandMenuActiveIndex(0);
+    }
+  }, [value]);
+
+  const handleCommandPick = useCallback(
+    (item) => {
+      if (!item) return;
+      if (onChange) onChange(item.insertText ?? `${item.name} `);
+      setCommandMenuDismissed(true);
+      setCommandMenuActiveIndex(0);
+    },
+    [onChange],
+  );
+
   const handleKeyDown = useCallback(
     (e) => {
+      if (commandMenuOpen) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setCommandMenuActiveIndex(
+            (i) => (i + 1) % commandItems.length,
+          );
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setCommandMenuActiveIndex(
+            (i) => (i - 1 + commandItems.length) % commandItems.length,
+          );
+          return;
+        }
+        if (e.key === "Enter" || e.key === "Tab") {
+          if (e.nativeEvent?.isComposing || e.isComposing) return;
+          e.preventDefault();
+          handleCommandPick(
+            commandItems[commandMenuActiveIndex] || commandItems[0],
+          );
+          return;
+        }
+        if (e.key === "Escape") {
+          e.preventDefault();
+          setCommandMenuDismissed(true);
+          return;
+        }
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
         if (e.nativeEvent?.isComposing || e.isComposing) return;
         e.preventDefault();
@@ -82,7 +151,14 @@ const ChatInput = ({
         }
       }
     },
-    [onSend, sendDisabled],
+    [
+      onSend,
+      sendDisabled,
+      commandMenuOpen,
+      commandItems,
+      commandMenuActiveIndex,
+      handleCommandPick,
+    ],
   );
 
   const handleClear = () => {
@@ -125,6 +201,24 @@ const ChatInput = ({
             onUndo={onSteerUndo}
             isDark={isDark}
           />
+          {commandMenuOpen && (
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: "calc(100% + 8px)",
+                zIndex: 40,
+              }}
+            >
+              <CommandMenu
+                items={commandItems}
+                activeIndex={commandMenuActiveIndex}
+                onPick={handleCommandPick}
+                isDark={isDark}
+              />
+            </div>
+          )}
           {isDragging && (
             <div
               style={{
