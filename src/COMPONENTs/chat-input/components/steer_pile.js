@@ -25,7 +25,7 @@ const PEEK = 10; // collapsed: how far each card behind peeks up
 const GAP = 8; // expanded: gap between cards
 const SCALE_STEP = 0.05; // collapsed: scale-down per depth
 const FALLBACK_H = 44; // height fallback before measurement
-const OVERLAP = 10; // px the collapsed deck sinks behind the input's top edge
+const LIFT = 8; // px gap between the bottom (front) card and the input's top
 
 const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
   const [expanded, setExpanded] = useState(false);
@@ -76,10 +76,10 @@ const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
         position: "absolute",
         left: "50%",
         transform: "translateX(-50%)",
-        // Fixed anchor: sinks OVERLAP px behind the input's top edge so the
-        // input occludes the deck's lower part when collapsed. The anchor never
-        // moves; only the inner height animates — so no hover flicker.
-        bottom: `calc(100% - ${OVERLAP}px)`,
+        // Fixed anchor a small gap above the input's top edge, so the bottom
+        // (front) card never touches the input. The anchor never moves; only
+        // the inner height animates — so no hover flicker.
+        bottom: `calc(100% + ${LIFT}px)`,
         width: "calc(100% - 48px)",
         maxWidth: 560,
         zIndex: expanded ? 30 : 1,
