@@ -166,139 +166,154 @@ const InterjectRunner = () => {
     ? "1px solid rgba(255,255,255,0.08)"
     : "1px solid rgba(0,0,0,0.08)";
 
+  const chips = (
+    <>
+      <Chip
+        label={isStreaming ? "流式中 ✓" : "非流式"}
+        active={isStreaming}
+        onClick={() => setIsStreaming((s) => !s)}
+        isDark={isDark}
+      />
+      <Chip
+        label={`fyi pill (${pendingFyiCount})`}
+        active={pendingFyiCount > 0}
+        onClick={() => setPendingFyiCount((c) => (c > 0 ? 0 : 1))}
+        isDark={isDark}
+      />
+      <Chip label="+ steer" active={false} onClick={addSteer} isDark={isDark} />
+      <Chip
+        label="steer 接力"
+        active={steerItems.some((it) => it.status === "relayed")}
+        onClick={relaySteer}
+        isDark={isDark}
+      />
+      <Chip
+        label="清空 steer"
+        active={false}
+        onClick={() => setSteerItems([])}
+        isDark={isDark}
+      />
+      <Chip
+        label="trace: fyi 帧"
+        active={showFyi}
+        onClick={() => setShowFyi((v) => !v)}
+        isDark={isDark}
+      />
+      <Chip
+        label="trace: 旁路帧"
+        active={showSide}
+        onClick={() => setShowSide((v) => !v)}
+        isDark={isDark}
+      />
+      <Chip
+        label={`clarify: ${clarifyStatus}`}
+        active={clarifyStatus !== "off"}
+        onClick={() =>
+          setClarifyStatus((s) =>
+            s === "off" ? "pending" : s === "pending" ? "resolved_default" : "off",
+          )
+        }
+        isDark={isDark}
+      />
+      <Chip
+        label="输入框打 /"
+        active={value.startsWith("/")}
+        onClick={() => setValue("/")}
+        isDark={isDark}
+      />
+    </>
+  );
+
+  /* left gutter reserves room for the modal's Components side menu so the
+     message list + input are never covered by it */
+  const LEFT_GUTTER = 232;
+
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
-      {/* trace chain (scrollable) */}
+      {/* content column, pushed right past the side menu */}
       <div
-        className="scrollable"
         style={{
           position: "absolute",
           top: 0,
-          left: 0,
+          left: LEFT_GUTTER,
           right: 0,
-          bottom: 210,
-          overflowY: "auto",
-          overflowX: "hidden",
-          padding: "48px 40px 24px 200px",
-        }}
-      >
-        <TraceChain
-          frames={frames}
-          status={isStreaming ? "streaming" : "done"}
-          messageId="interject-preview-msg"
-          bubbleOwnsFinalMessage={false}
-          onClarifyResolve={(v) => {
-            setClarifyStatus("resolved_default");
-            // eslint-disable-next-line no-console
-            console.log("[InterjectRunner] clarify resolved →", v);
-          }}
-        />
-      </div>
-
-      {/* control bar */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 150,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 3,
+          bottom: 0,
           display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          gap: 7,
-          maxWidth: "calc(100% - 80px)",
-          padding: "8px 10px",
-          borderRadius: 12,
-          background: overlayBg,
-          border: overlayBorder,
-          backdropFilter: "blur(16px) saturate(1.4)",
-          WebkitBackdropFilter: "blur(16px) saturate(1.4)",
+          flexDirection: "column",
         }}
       >
-        <Chip
-          label={isStreaming ? "流式中 ✓" : "非流式"}
-          active={isStreaming}
-          onClick={() => setIsStreaming((s) => !s)}
-          isDark={isDark}
-        />
-        <Chip
-          label={`fyi pill (${pendingFyiCount})`}
-          active={pendingFyiCount > 0}
-          onClick={() => setPendingFyiCount((c) => (c > 0 ? 0 : 1))}
-          isDark={isDark}
-        />
-        <Chip label="+ steer" active={false} onClick={addSteer} isDark={isDark} />
-        <Chip
-          label="steer 接力"
-          active={steerItems.some((it) => it.status === "relayed")}
-          onClick={relaySteer}
-          isDark={isDark}
-        />
-        <Chip
-          label="清空 steer"
-          active={false}
-          onClick={() => setSteerItems([])}
-          isDark={isDark}
-        />
-        <Chip
-          label="trace: fyi 帧"
-          active={showFyi}
-          onClick={() => setShowFyi((v) => !v)}
-          isDark={isDark}
-        />
-        <Chip
-          label="trace: 旁路帧"
-          active={showSide}
-          onClick={() => setShowSide((v) => !v)}
-          isDark={isDark}
-        />
-        <Chip
-          label={`clarify: ${clarifyStatus}`}
-          active={clarifyStatus !== "off"}
-          onClick={() =>
-            setClarifyStatus((s) =>
-              s === "off" ? "pending" : s === "pending" ? "resolved_default" : "off",
-            )
-          }
-          isDark={isDark}
-        />
-        <Chip
-          label="输入框打 /"
-          active={value.startsWith("/")}
-          onClick={() => setValue("/")}
-          isDark={isDark}
-        />
-      </div>
-
-      {/* real chat input */}
-      <div
-        style={{
-          position: "absolute",
-          bottom: 20,
-          left: "50%",
-          transform: "translateX(-50%)",
-          width: "min(760px, calc(100% - 64px))",
-        }}
-      >
-        <ChatInput
-          value={value}
-          onChange={setValue}
-          onSend={() => {
-            // eslint-disable-next-line no-console
-            console.log("[InterjectRunner] send/interject →", value);
-            setValue("");
+        {/* trace chain (scrollable, takes remaining height) */}
+        <div
+          className="scrollable"
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflowY: "auto",
+            overflowX: "hidden",
+            padding: "40px 40px 16px 24px",
           }}
-          onStop={() => setIsStreaming(false)}
-          isStreaming={isStreaming}
-          showAttachments={false}
-          showModelSelector={false}
-          showToolSelector={false}
-          showWorkspaceSelector={false}
-          interjectState={interjectState}
-          onSteerUndo={undoSteer}
-          placeholder="插一句话…(试试 / 唤起命令菜单)"
-        />
+        >
+          <TraceChain
+            frames={frames}
+            status={isStreaming ? "streaming" : "done"}
+            messageId="interject-preview-msg"
+            bubbleOwnsFinalMessage={false}
+            onClarifyResolve={(v) => {
+              setClarifyStatus("resolved_default");
+              // eslint-disable-next-line no-console
+              console.log("[InterjectRunner] clarify resolved →", v);
+            }}
+          />
+        </div>
+
+        {/* real chat input */}
+        <div
+          style={{
+            flexShrink: 0,
+            padding: "0 40px",
+            display: "flex",
+            justifyContent: "center",
+          }}
+        >
+          <div style={{ width: "min(760px, 100%)" }}>
+            <ChatInput
+              value={value}
+              onChange={setValue}
+              onSend={() => {
+                // eslint-disable-next-line no-console
+                console.log("[InterjectRunner] send/interject →", value);
+                setValue("");
+              }}
+              onStop={() => setIsStreaming(false)}
+              isStreaming={isStreaming}
+              showAttachments={false}
+              showModelSelector={false}
+              showToolSelector={false}
+              showWorkspaceSelector={false}
+              interjectState={interjectState}
+              onSteerUndo={undoSteer}
+              placeholder="插一句话…(试试 / 唤起命令菜单)"
+            />
+          </div>
+        </div>
+
+        {/* control bar — BELOW the input so it never covers the interject UI */}
+        <div
+          style={{
+            flexShrink: 0,
+            margin: "12px 40px 16px",
+            display: "flex",
+            flexWrap: "wrap",
+            justifyContent: "center",
+            gap: 7,
+            padding: "8px 10px",
+            borderRadius: 12,
+            background: overlayBg,
+            border: overlayBorder,
+          }}
+        >
+          {chips}
+        </div>
       </div>
     </div>
   );
