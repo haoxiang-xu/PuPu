@@ -3,6 +3,8 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
 import InputActionButtons from "./components/input_action_buttons";
+import InterjectHint from "./components/interject_hint";
+import SteerPile from "./components/steer_pile";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
 import { useFileDropOverlay } from "./hooks/use_file_drop_overlay";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -39,6 +41,8 @@ const ChatInput = ({
   selectedRecipeName = "Default",
   onSelectRecipe,
   recipeOptions = [],
+  interjectState,
+  onSteerUndo,
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
@@ -105,12 +109,22 @@ const ChatInput = ({
           boxSizing: "border-box",
         }}
       >
+        <InterjectHint
+          interjectState={interjectState}
+          isStreaming={isStreaming}
+          isDark={isDark}
+        />
         <div
           style={{ position: "relative" }}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
+          <SteerPile
+            items={interjectState?.steerItems || []}
+            onUndo={onSteerUndo}
+            isDark={isDark}
+          />
           {isDragging && (
             <div
               style={{
@@ -204,11 +218,15 @@ const ChatInput = ({
               width: "100%",
               margin: 0,
               borderRadius: 22,
-              /* frosted surface, same recipe as the toast cards — the
-                 message list scrolls past underneath and reads through */
+              position: "relative",
+              /* sits above the collapsed SteerPile (tucked behind, z-index 1)
+                 but below it once it expands on hover (z-index 30) */
+              zIndex: 2,
+              /* opaque surface so the collapsed SteerPile reads as tucked
+                 BEHIND the input rather than showing through it */
               backgroundColor: isDark
-                ? "rgba(30,30,30,0.72)"
-                : "rgba(255,255,255,0.62)",
+                ? "var(--pupu-surface, rgba(30, 30, 30, 1))"
+                : "var(--pupu-surface, rgba(255,255,255,1))",
               backdropFilter: "blur(20px) saturate(180%)",
             }}
           />
