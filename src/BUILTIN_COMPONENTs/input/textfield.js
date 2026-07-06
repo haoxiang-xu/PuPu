@@ -31,6 +31,12 @@ const FloatingTextField = ({
   content_section,
   functional_section,
   force_content_active = false,
+  /* Optional inline chip rendered at the first line's start (e.g. a slash
+   * command tag). `leading_indent` shifts the first text line right so the
+   * text flows after the chip; applied to the measure div too so the
+   * auto-expand height stays correct. */
+  leading_component = null,
+  leading_indent = 0,
   on_focus = () => {},
   on_blur = () => {},
   on_key_down = () => {},
@@ -231,6 +237,7 @@ const FloatingTextField = ({
             lineHeight,
             padding,
             paddingRight: padding + funcWidth + 8,
+            textIndent: leading_indent || 0,
             width: "100%",
             pointerEvents: "none",
           }}
@@ -287,10 +294,29 @@ const FloatingTextField = ({
               contentHeight <= minH && min_rows === 1 ? 0 : padding,
             paddingLeft: padding,
             paddingRight: padding + funcWidth + 8,
+            textIndent: leading_indent || 0,
             margin: 0,
             overflow: shouldScroll ? "auto" : "hidden",
           }}
         />
+
+        {/* ── Leading inline chip (first-line start, e.g. slash command tag) ── */}
+        {leading_component && (
+          <div
+            style={{
+              position: "absolute",
+              left: padding,
+              top: contentHeight <= minH && min_rows === 1 ? 0 : padding,
+              display: "flex",
+              alignItems: "center",
+              height: lineHeightPx,
+              pointerEvents: "auto",
+              zIndex: 1,
+            }}
+          >
+            {leading_component}
+          </div>
+        )}
 
         {/* ── Functional section (bottom-right) ── */}
         {functional_section && (

@@ -59,23 +59,29 @@ describe("ChatInput slash-command menu wiring", () => {
     expect(screen.queryByText("/steer")).not.toBeInTheDocument();
   });
 
-  test("Enter picks the active command instead of sending, when the menu is open", () => {
+  test("Enter picks the active command instead of sending; the command renders as an inline tag", () => {
     const onSend = jest.fn();
-    render(<ControlledChatInput isStreaming onSend={onSend} />);
+    const { container } = render(
+      <ControlledChatInput isStreaming onSend={onSend} />,
+    );
     const textarea = getTextarea();
 
     fireEvent.change(textarea, { target: { value: "/" } });
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(onSend).not.toHaveBeenCalled();
-    expect(textarea).toHaveValue("/btw ");
-    // menu closes after picking (trailing space breaks the slash-prefix match)
-    expect(screen.queryByText("/fyi")).not.toBeInTheDocument();
+    // the "/btw " prefix now renders as a chip; the textarea only holds the body
+    expect(container.querySelector('[data-command-tag="/btw"]')).toBeTruthy();
+    expect(container.querySelector("textarea")).toHaveValue("");
+    // menu closed after picking
+    expect(screen.queryByText("补充给当前任务")).not.toBeInTheDocument();
   });
 
   test("ArrowDown/ArrowUp move the active row, and Enter picks the highlighted one", () => {
     const onSend = jest.fn();
-    render(<ControlledChatInput isStreaming onSend={onSend} />);
+    const { container } = render(
+      <ControlledChatInput isStreaming onSend={onSend} />,
+    );
     const textarea = getTextarea();
 
     fireEvent.change(textarea, { target: { value: "/" } });
@@ -83,17 +89,54 @@ describe("ChatInput slash-command menu wiring", () => {
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(onSend).not.toHaveBeenCalled();
-    expect(textarea).toHaveValue("/fyi ");
+    expect(container.querySelector('[data-command-tag="/fyi"]')).toBeTruthy();
+    expect(container.querySelector("textarea")).toHaveValue("");
   });
 
   test("Tab also picks the active command", () => {
-    render(<ControlledChatInput isStreaming />);
+    const { container } = render(<ControlledChatInput isStreaming />);
     const textarea = getTextarea();
 
     fireEvent.change(textarea, { target: { value: "/" } });
     fireEvent.keyDown(textarea, { key: "Tab" });
 
-    expect(textarea).toHaveValue("/btw ");
+    expect(container.querySelector('[data-command-tag="/btw"]')).toBeTruthy();
+    expect(container.querySelector("textarea")).toHaveValue("");
+  });
+
+  test("Backspace at the start removes the command tag and keeps the body", () => {
+    const { container } = render(
+      <ControlledChatInput isStreaming initialValue="/btw hello there" />,
+    );
+    const textarea = container.querySelector("textarea");
+    expect(container.querySelector('[data-command-tag="/btw"]')).toBeTruthy();
+    expect(textarea).toHaveValue("hello there");
+
+    textarea.setSelectionRange(0, 0);
+    fireEvent.keyDown(textarea, { key: "Backspace" });
+
+    expect(container.querySelector('[data-command-tag="/btw"]')).toBeNull();
+    expect(container.querySelector("textarea")).toHaveValue("hello there");
+  });
+
+  test("clicking the tag's × removes the command", () => {
+    const { container } = render(
+      <ControlledChatInput isStreaming initialValue="/steer wrap it up" />,
+    );
+    expect(container.querySelector('[data-command-tag="/steer"]')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove /steer" }));
+
+    expect(container.querySelector('[data-command-tag="/steer"]')).toBeNull();
+    expect(container.querySelector("textarea")).toHaveValue("wrap it up");
+  });
+
+  test("no tag when not streaming — the prefix stays plain text", () => {
+    const { container } = render(
+      <ControlledChatInput isStreaming={false} initialValue="/btw hello" />,
+    );
+    expect(container.querySelector('[data-command-tag="/btw"]')).toBeNull();
+    expect(container.querySelector("textarea")).toHaveValue("/btw hello");
   });
 
   test("Escape closes the menu without changing the input, and a plain Enter then sends", () => {

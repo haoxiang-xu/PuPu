@@ -3,6 +3,7 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
 import CommandMenu from "./components/command_menu";
+import CommandTag from "./components/command_tag";
 import InputActionButtons from "./components/input_action_buttons";
 import SteerPile from "./components/steer_pile";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
@@ -13,6 +14,28 @@ import { listCommands } from "../../SERVICEs/command_registry";
 // input value starts with "/" with no whitespace yet (single-token command prefix)
 const isSlashCommandPrefix = (value) =>
   typeof value === "string" && value.startsWith("/") && !/\s/.test(value);
+
+/**
+ * When the value starts with a completed slash command ("/btw <body>") that is
+ * available in the current context, split it so the command renders as an
+ * inline tag and the textarea only shows the body. The value string stays the
+ * single source of truth — the tag is just how the prefix is displayed, so the
+ * send/routing path never changes.
+ *
+ * Returns { command, body } where command is the registry item or null.
+ */
+export const splitCommandPrefix = (value, ctx) => {
+  if (typeof value !== "string") return { command: null, body: value ?? "" };
+  const match = value.match(/^(\/[a-zA-Z0-9_-]+) /);
+  if (!match) return { command: null, body: value };
+  const token = match[1].toLowerCase();
+  const command =
+    listCommands(ctx || {}, token).find(
+      (item) => item.name.toLowerCase() === token,
+    ) || null;
+  if (!command) return { command: null, body: value };
+  return { command, body: value.slice(match[0].length) };
+};
 
 const ChatInput = ({
   value,
@@ -82,6 +105,45 @@ const ChatInput = ({
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const prevValueRef = useRef(value);
 
+  /* ── Inline command tag: a completed "/cmd " prefix renders as a chip and the
+     textarea only shows the body; `value` stays the source of truth ── */
+  const { command: activeCommand, body: displayValue } = splitCommandPrefix(
+    value,
+    { isStreaming },
+  );
+  const commandPrefix = activeCommand ? `${activeCommand.name} ` : "";
+  const tagWrapRef = useRef(null);
+  const [tagIndent, setTagIndent] = useState(0);
+  useEffect(() => {
+    if (!activeCommand) {
+      setTagIndent(0);
+      return;
+    }
+    const el = tagWrapRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries)
+        setTagIndent(Math.ceil(entry.contentRect.width) + 8);
+    });
+    ro.observe(el);
+    setTagIndent(Math.ceil(el.offsetWidth) + 8);
+    return () => ro.disconnect();
+  }, [activeCommand?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleDisplayChange = useCallback(
+    (nextBody) => {
+      if (!onChange) return;
+      onChange(commandPrefix ? commandPrefix + nextBody : nextBody);
+    },
+    [onChange, commandPrefix],
+  );
+
+  const removeCommandTag = useCallback(() => {
+    if (!onChange) return;
+    onChange(displayValue);
+    if (inputRef.current) inputRef.current.focus();
+  }, [onChange, displayValue]);
+
   const commandItems = isSlashCommandPrefix(value)
     ? listCommands({ isStreaming }, value)
     : [];
@@ -142,6 +204,20 @@ const ChatInput = ({
         }
       }
 
+      // Backspace with the caret at the very start deletes the command tag,
+      // mirroring how chip inputs behave.
+      if (
+        e.key === "Backspace" &&
+        activeCommand &&
+        e.target &&
+        e.target.selectionStart === 0 &&
+        e.target.selectionEnd === 0
+      ) {
+        e.preventDefault();
+        removeCommandTag();
+        return;
+      }
+
       if (e.key === "Enter" && !e.shiftKey) {
         if (e.nativeEvent?.isComposing || e.isComposing) return;
         e.preventDefault();
@@ -157,6 +233,8 @@ const ChatInput = ({
       commandItems,
       commandMenuActiveIndex,
       handleCommandPick,
+      activeCommand,
+      removeCommandTag,
     ],
   );
 
@@ -246,11 +324,24 @@ const ChatInput = ({
           )}
           <FloatingTextField
             textarea_ref={inputRef}
-            value={value}
+            value={displayValue}
             min_rows={5}
             max_display_rows={9}
-            set_value={onChange}
-            placeholder={placeholder}
+            set_value={handleDisplayChange}
+            placeholder={activeCommand ? "" : placeholder}
+            leading_component={
+              activeCommand ? (
+                <span ref={tagWrapRef} style={{ display: "inline-flex" }}>
+                  <CommandTag
+                    name={activeCommand.name}
+                    icon={activeCommand.icon}
+                    onRemove={removeCommandTag}
+                    isDark={isDark}
+                  />
+                </span>
+              ) : null
+            }
+            leading_indent={activeCommand ? tagIndent : 0}
             on_focus={() => setFocused(true)}
             on_blur={() => setFocused(false)}
             on_key_down={handleKeyDown}
@@ -292,7 +383,7 @@ const ChatInput = ({
             force_content_active={chatActive}
             functional_section={
               <InputActionButtons
-                value={value}
+                value={displayValue}
                 color={color}
                 isDark={isDark}
                 isStreaming={isStreaming}
