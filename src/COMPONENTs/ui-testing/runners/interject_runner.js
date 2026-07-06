@@ -3,6 +3,7 @@ import { ConfigContext } from "../../../CONTAINERs/config/context";
 import { toast } from "../../../SERVICEs/toast";
 import TraceChain from "../../chat-bubble/trace_chain";
 import ChatInput from "../../chat-input/chat_input";
+import TestControls from "../test_controls";
 
 /**
  * InterjectRunner — UI test bench for the run-in interject surface.
@@ -159,13 +160,6 @@ const InterjectRunner = () => {
   const undoSteer = (id) =>
     setSteerItems((prev) => prev.filter((it) => it.id !== id));
 
-  const overlayBg = isDark
-    ? "rgba(20,20,20,0.72)"
-    : "rgba(255,255,255,0.82)";
-  const overlayBorder = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
-
   const chips = (
     <>
       <Chip
@@ -228,10 +222,6 @@ const InterjectRunner = () => {
     </>
   );
 
-  /* left gutter reserves room for the modal's Components side menu so the
-     message list + input are never covered by it */
-  const LEFT_GUTTER = 232;
-
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
       {/* content column, pushed right past the side menu */}
@@ -239,7 +229,7 @@ const InterjectRunner = () => {
         style={{
           position: "absolute",
           top: 0,
-          left: LEFT_GUTTER,
+          left: 0,
           right: 0,
           bottom: 0,
           display: "flex",
@@ -301,23 +291,11 @@ const InterjectRunner = () => {
           </div>
         </div>
 
-        {/* control bar — BELOW the input so it never covers the interject UI */}
-        <div
-          style={{
-            flexShrink: 0,
-            margin: "12px 40px 16px",
-            display: "flex",
-            flexWrap: "wrap",
-            justifyContent: "center",
-            gap: 7,
-            padding: "8px 10px",
-            borderRadius: 12,
-            background: overlayBg,
-            border: overlayBorder,
-          }}
-        >
-          {chips}
-        </div>
+        <TestControls>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+            {chips}
+          </div>
+        </TestControls>
       </div>
     </div>
   );
