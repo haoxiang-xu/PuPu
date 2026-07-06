@@ -42,6 +42,17 @@ jest.mock("./runners/artifact_summary_runner", () => ({
   default: () => <div>Artifact summary runner</div>,
 }));
 
+jest.mock("../side-menu/side_menu_utils", () => ({
+  getRuntimePlatform: () => "darwin",
+}));
+
+jest.mock("../../SERVICEs/bridges/window_state_bridge", () => ({
+  windowStateBridge: {
+    isListenerAvailable: () => false,
+    onWindowStateChange: () => () => {},
+  },
+}));
+
 describe("UITestingModal toast runner", () => {
   afterEach(() => {
     jest.restoreAllMocks();
@@ -106,5 +117,42 @@ describe("UITestingModal toast runner", () => {
     });
 
     expect(reportSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("UITestingModal chrome", () => {
+  const renderModal = () =>
+    render(
+      <ConfigContext.Provider value={{ onThemeMode: "light_mode", theme: {} }}>
+        <UITestingModal open onClose={() => {}} />
+      </ConfigContext.Provider>,
+    );
+
+  test("toggles fullscreen icon", () => {
+    renderModal();
+    const btn = screen.getByRole("button", { name: "fullscreen" });
+    fireEvent.click(btn);
+    expect(
+      screen.getByRole("button", { name: "fullscreen_exit" }),
+    ).toBeInTheDocument();
+  });
+
+  test("collapsing the nav reveals the expand button", () => {
+    renderModal();
+    expect(
+      screen.queryByRole("button", { name: "Expand components" }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse components" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Expand components" }),
+    ).toBeInTheDocument();
+  });
+
+  test("still switches runners from the nav", () => {
+    renderModal();
+    fireEvent.click(screen.getByText("CodeDiffInteract"));
+    expect(screen.getByText("Code diff runner")).toBeInTheDocument();
   });
 });
