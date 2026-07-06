@@ -16,6 +16,7 @@ describe("command_registry", () => {
     expect(whileStreaming[0]).toEqual({
       name: "/btw",
       description: "立即回答,不打断当前任务",
+      icon: "chat",
       insertText: "/btw ",
     });
 

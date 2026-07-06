@@ -7,8 +7,10 @@
  * search, no categories, no param hints — those are explicitly out of scope
  * for this seed.
  */
-const ROW_HEIGHT = 40;
-const MAX_VISIBLE_ROWS = 5; // ~200px at ROW_HEIGHT=40
+import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+
+const ROW_HEIGHT = 38;
+const MAX_VISIBLE_ROWS = 6;
 
 const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = false }) => {
   if (!Array.isArray(items) || items.length === 0) return null;
@@ -57,9 +59,10 @@ const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = 
 };
 
 const CommandRow = ({ item, active, isDark, onPick }) => {
-  const activeBg = isDark ? "rgba(255,255,255,0.09)" : "rgba(0,0,0,0.055)";
+  const activeBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
-  const descColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
+  const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.44)";
+  const iconColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
 
   return (
     <div
@@ -75,7 +78,7 @@ const CommandRow = ({ item, active, isDark, onPick }) => {
       style={{
         boxSizing: "border-box",
         display: "flex",
-        alignItems: "baseline",
+        alignItems: "center",
         gap: 10,
         height: ROW_HEIGHT,
         padding: "0 10px",
@@ -84,13 +87,29 @@ const CommandRow = ({ item, active, isDark, onPick }) => {
         cursor: "pointer",
       }}
     >
+      {item.icon ? (
+        <span
+          style={{
+            flexShrink: 0,
+            width: 16,
+            height: 16,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Icon
+            src={item.icon}
+            color={iconColor}
+            style={{ width: 16, height: 16 }}
+          />
+        </span>
+      ) : null}
       <span
         style={{
           flexShrink: 0,
-          fontFamily:
-            "ui-monospace, SFMono-Regular, Menlo, Monaco, monospace",
-          fontWeight: 700,
           fontSize: 13,
+          fontWeight: 500,
           color: nameColor,
         }}
       >

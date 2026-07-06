@@ -26,6 +26,7 @@ const registry = new Map();
 export const registerCommand = ({
   name,
   description = "",
+  icon = "",
   availability = () => true,
   insertText,
 }) => {
@@ -37,6 +38,7 @@ export const registerCommand = ({
   registry.set(name, {
     name,
     description,
+    icon,
     availability: typeof availability === "function" ? availability : () => true,
     insertText: insertText ?? `${name} `,
   });
@@ -63,9 +65,10 @@ export const listCommands = (ctx = {}, prefix = "") => {
         return false;
       }
     })
-    .map(({ name, description, insertText }) => ({
+    .map(({ name, description, icon, insertText }) => ({
       name,
       description,
+      icon,
       insertText,
     }));
 };
@@ -82,17 +85,20 @@ const interjectAvailability = (ctx) => !!ctx?.isStreaming;
 registerCommand({
   name: "/btw",
   description: "立即回答,不打断当前任务",
+  icon: "chat",
   availability: interjectAvailability,
 });
 
 registerCommand({
   name: "/fyi",
   description: "补充给当前任务",
+  icon: "information",
   availability: interjectAvailability,
 });
 
 registerCommand({
   name: "/steer",
   description: "本轮结束后执行",
+  icon: "skip_right",
   availability: interjectAvailability,
 });
