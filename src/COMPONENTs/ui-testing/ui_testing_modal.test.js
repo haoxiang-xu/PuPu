@@ -22,6 +22,11 @@ jest.mock("../../BUILTIN_COMPONENTs/input/button", () => ({
   ),
 }));
 
+jest.mock("./runners/interject_runner", () => ({
+  __esModule: true,
+  default: () => <div>Interject runner</div>,
+}));
+
 jest.mock("./runners/trace_chain_runner", () => ({
   __esModule: true,
   default: () => <div>Trace runner</div>,
