@@ -936,6 +936,7 @@ const ChatInterface = () => {
             onEditMessage={stream.editTurn}
             onToolConfirmationDecision={stream.handleToolConfirmationDecision}
             toolConfirmationUiStateById={stream.toolConfirmationUiStateById}
+            onClarifyResolve={stream.onClarifyResolve}
             pendingToolConfirmationRequests={
               stream.pendingToolConfirmationRequests
             }
