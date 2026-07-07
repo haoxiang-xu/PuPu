@@ -348,6 +348,7 @@ const ChatInput = ({
             items={interjectState?.steerItems || []}
             onUndo={onSteerUndo}
             isDark={isDark}
+            attachPanelOpen={chatActive}
           />
           {commandMenuOpen && (
             <div

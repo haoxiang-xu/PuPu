@@ -18,7 +18,12 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 const OVERLAP = 10; // collapsed: px the deck sinks behind the input's top edge
 const LIFT = 8; // expanded: px gap between the bottom card and the input's top
 
-const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
+const SteerPile = ({
+  items = [],
+  onUndo = () => {},
+  isDark = false,
+  attachPanelOpen = false,
+}) => {
   const [expanded, setExpanded] = useState(false);
 
   if (!Array.isArray(items) || items.length === 0) return null;
@@ -34,15 +39,23 @@ const SteerPile = ({ items = [], onUndo = () => {}, isDark = false }) => {
       on_expand_change={setExpanded}
       style={{
         position: "absolute",
-        left: "50%",
-        transform: "translateX(-50%)",
-        // Fixed anchor sunk OVERLAP px behind the input's top edge: collapsed,
-        // the input (z-index 2, opaque) occludes the deck's lower part. The
-        // anchor NEVER moves — CardStack lifts the cards on expand instead,
-        // so hovering never flickers.
+        // Anchored by left+right insets (not left:50% + transform), so the RIGHT
+        // edge stays pinned to its centered position while the LEFT edge can be
+        // pushed in. Closed: equal insets reproduce the old centered layout
+        // exactly (width caps at 560 on its own, since the insets grow on wide
+        // viewports). Open: the left inset clears the left-anchored attach panel
+        // so the deck and the attach controls never overlap — only the left edge
+        // moves (the right edge stays put), and it slides rather than jumps.
+        right: "max(24px, calc((100% - 560px) / 2))",
+        left: attachPanelOpen
+          ? "max(344px, calc((100% - 560px) / 2))"
+          : "max(24px, calc((100% - 560px) / 2))",
+        transition: "left 0.22s cubic-bezier(0.32, 1, 0.32, 1)",
+        // Fixed vertical anchor sunk OVERLAP px behind the input's top edge:
+        // collapsed, the input (z-index 2, opaque) occludes the deck's lower
+        // part. The anchor NEVER moves vertically — CardStack lifts the cards on
+        // expand instead, so hovering never flickers.
         bottom: `calc(100% - ${OVERLAP}px)`,
-        width: "calc(100% - 48px)",
-        maxWidth: 560,
         zIndex: expanded ? 30 : 1,
       }}
       render_card={({ item, expanded: isExpanded, overflow }) => (
