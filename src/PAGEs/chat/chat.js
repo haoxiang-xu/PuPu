@@ -707,6 +707,8 @@ const ChatInterface = () => {
       selectedRecipeName: session.selectedRecipeName,
       onSelectRecipe: session.setSelectedRecipeName,
       recipeOptions,
+      interjectState: stream.interjectState,
+      onSteerUndo: stream.onSteerUndo,
     }),
     [
       session.inputValue, session.setInputValue, session.selectedModelId,
@@ -714,6 +716,7 @@ const ChatInterface = () => {
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.isStreaming,
+      stream.interjectState, stream.onSteerUndo,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,
@@ -936,6 +939,7 @@ const ChatInterface = () => {
             onEditMessage={stream.editTurn}
             onToolConfirmationDecision={stream.handleToolConfirmationDecision}
             toolConfirmationUiStateById={stream.toolConfirmationUiStateById}
+            onClarifyResolve={stream.onClarifyResolve}
             pendingToolConfirmationRequests={
               stream.pendingToolConfirmationRequests
             }

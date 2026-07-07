@@ -20,6 +20,7 @@ const ChatMessages = ({
   onEditMessage,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  onClarifyResolve,
   pendingToolConfirmationRequests = {},
   pendingContinuationRequest,
   onContinuationDecision,
@@ -162,6 +163,7 @@ const ChatMessages = ({
                       onEditMessage={onEditMessage}
                       onToolConfirmationDecision={onToolConfirmationDecision}
                       toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      onClarifyResolve={onClarifyResolve}
                       pendingToolConfirmationRequests={
                         pendingToolConfirmationRequests
                       }
@@ -186,6 +188,7 @@ const ChatMessages = ({
                       onEditMessage={onEditMessage}
                       onToolConfirmationDecision={onToolConfirmationDecision}
                       toolConfirmationUiStateById={toolConfirmationUiStateById}
+                      onClarifyResolve={onClarifyResolve}
                       pendingToolConfirmationRequests={
                         pendingToolConfirmationRequests
                       }

@@ -191,7 +191,6 @@ const ToastCard = ({ item, onDismiss }) => {
           width: 20,
           height: 20,
           borderRadius: 6,
-          marginTop: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -202,7 +201,19 @@ const ToastCard = ({ item, onDismiss }) => {
       </span>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, lineHeight: 1.4 }}>
+        {/* 标题行与图标盒/关闭按钮同为 20px 高的行:三者在 alignItems:flex-start 下
+            中心对齐到同一水平线。18.2px 的单行文字(lineHeight 1.4)在 20px 带内居中,
+            否则 flex-start 会让偏矮的标题行比 20px 的图标/关闭盒略高 ~1-2px。 */}
+        <div
+          style={{
+            minHeight: 20,
+            display: "flex",
+            alignItems: "center",
+            fontSize: 13,
+            fontWeight: 600,
+            lineHeight: 1.4,
+          }}
+        >
           {item.title || item.message}
         </div>
         {item.description ? (

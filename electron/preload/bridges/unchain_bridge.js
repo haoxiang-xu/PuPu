@@ -70,6 +70,8 @@ const createMisoBridge = (ipcRenderer, streamClient) => ({
     }),
   respondToolConfirmation: (payload = {}) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.TOOL_CONFIRMATION, payload),
+  interject: (payload = {}) =>
+    ipcRenderer.invoke(CHANNELS.UNCHAIN.INTERJECT, payload),
   setChromeTerminalOpen: (open = false) =>
     ipcRenderer.invoke(CHANNELS.UNCHAIN.SET_CHROME_TERMINAL_OPEN, {
       open: Boolean(open),

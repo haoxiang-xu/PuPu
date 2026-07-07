@@ -22,6 +22,27 @@ jest.mock("../../BUILTIN_COMPONENTs/input/button", () => ({
   ),
 }));
 
+// interject's mock portals a marker INTO the real ControlDock (via the real
+// TestControls), so tests can prove the dock hosts a runner's controls and
+// auto-hides when a content-only runner (Toast) declares none.
+jest.mock("./runners/interject_runner", () => {
+  const React = require("react");
+  const TestControls = require("./test_controls").default;
+  return {
+    __esModule: true,
+    default: () =>
+      React.createElement(
+        TestControls,
+        null,
+        React.createElement(
+          "span",
+          { "data-testid": "interject-dock-control" },
+          "Interject runner",
+        ),
+      ),
+  };
+});
+
 jest.mock("./runners/trace_chain_runner", () => ({
   __esModule: true,
   default: () => <div>Trace runner</div>,
@@ -35,6 +56,17 @@ jest.mock("./runners/code_diff_runner", () => ({
 jest.mock("./runners/artifact_summary_runner", () => ({
   __esModule: true,
   default: () => <div>Artifact summary runner</div>,
+}));
+
+jest.mock("../side-menu/side_menu_utils", () => ({
+  getRuntimePlatform: () => "darwin",
+}));
+
+jest.mock("../../SERVICEs/bridges/window_state_bridge", () => ({
+  windowStateBridge: {
+    isListenerAvailable: () => false,
+    onWindowStateChange: () => () => {},
+  },
 }));
 
 describe("UITestingModal toast runner", () => {
@@ -101,5 +133,51 @@ describe("UITestingModal toast runner", () => {
     });
 
     expect(reportSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe("UITestingModal chrome", () => {
+  const renderModal = () =>
+    render(
+      <ConfigContext.Provider value={{ onThemeMode: "light_mode", theme: {} }}>
+        <UITestingModal open onClose={() => {}} />
+      </ConfigContext.Provider>,
+    );
+
+  test("toggles fullscreen icon", () => {
+    renderModal();
+    const btn = screen.getByRole("button", { name: "fullscreen" });
+    fireEvent.click(btn);
+    expect(
+      screen.getByRole("button", { name: "fullscreen_exit" }),
+    ).toBeInTheDocument();
+  });
+
+  test("collapsing the nav reveals the expand button", () => {
+    renderModal();
+    expect(
+      screen.queryByRole("button", { name: "Expand components" }),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse components" }),
+    );
+    expect(
+      screen.getByRole("button", { name: "Expand components" }),
+    ).toBeInTheDocument();
+  });
+
+  test("still switches runners from the nav", () => {
+    renderModal();
+    fireEvent.click(screen.getByText("CodeDiffInteract"));
+    expect(screen.getByText("Code diff runner")).toBeInTheDocument();
+  });
+
+  test("dock hosts a runner's controls, then auto-hides for content-only Toast", () => {
+    renderModal();
+    // Interject (default) portals a control into the shared ControlDock.
+    expect(screen.getByTestId("interject-dock-control")).toBeInTheDocument();
+    // Toast declares no dock controls → the dock's hosted content is gone.
+    fireEvent.click(screen.getByText("Toast"));
+    expect(screen.queryByTestId("interject-dock-control")).toBeNull();
   });
 });

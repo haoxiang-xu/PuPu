@@ -10,6 +10,45 @@ const InputActionButtons = ({
   onSend,
   onStop,
 }) => {
+  const hasText = value.length > 0;
+  // During streaming the send button interjects the typed text; it only
+  // appears once there is something to send, and Stop stays available.
+  const showSend = !isStreaming || hasText;
+  const primaryStyle = {
+    root: {
+      background: isDark ? "rgba(255,255,255,0.88)" : "rgba(28,28,28,0.86)",
+      color: isDark ? "#111" : "#eee",
+      padding: 6,
+      fontSize: 18,
+      borderRadius: 22,
+      iconOnlyPaddingVertical: 4,
+      iconOnlyPaddingHorizontal: 4,
+    },
+    hoverBackgroundColor: isDark
+      ? "rgba(0,0,0,0.07)"
+      : "rgba(255,255,255,0.09)",
+    activeBackgroundColor: isDark
+      ? "rgba(0,0,0,0.14)"
+      : "rgba(255,255,255,0.18)",
+  };
+  // Stop is a quieter secondary control when it sits next to Send.
+  const stopStyle = {
+    root: {
+      color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.75)",
+      padding: 6,
+      fontSize: 18,
+      borderRadius: 22,
+      iconOnlyPaddingVertical: 4,
+      iconOnlyPaddingHorizontal: 4,
+    },
+    hoverBackgroundColor: isDark
+      ? "rgba(255,255,255,0.18)"
+      : "rgba(0,0,0,0.14)",
+    activeBackgroundColor: isDark
+      ? "rgba(255,255,255,0.24)"
+      : "rgba(0,0,0,0.2)",
+  };
+
   return (
     <div
       style={{
@@ -19,7 +58,7 @@ const InputActionButtons = ({
         gap: 8,
       }}
     >
-      {value.length > 0 && !isStreaming && (
+      {hasText && (
         <Button
           prefix_icon="close"
           style={{
@@ -33,54 +72,21 @@ const InputActionButtons = ({
           onClick={onClear}
         />
       )}
-      {isStreaming ? (
+      {isStreaming && (
         <Button
           prefix_icon="stop_mini_filled"
           onClick={onStop}
-          style={{
-            root: {
-              background: isDark
-                ? "rgba(255,255,255,0.88)"
-                : "rgba(28,28,28,0.86)",
-              color: isDark ? "#111" : "#eee",
-              padding: 6,
-              fontSize: 18,
-              borderRadius: 22,
-              iconOnlyPaddingVertical: 4,
-              iconOnlyPaddingHorizontal: 4,
-            },
-            hoverBackgroundColor: isDark
-              ? "rgba(0,0,0,0.07)"
-              : "rgba(255,255,255,0.09)",
-            activeBackgroundColor: isDark
-              ? "rgba(0,0,0,0.14)"
-              : "rgba(255,255,255,0.18)",
-          }}
+          style={showSend ? stopStyle : primaryStyle}
         />
-      ) : (
+      )}
+      {showSend && (
         <Button
           prefix_icon="arrow_up"
           onClick={onSend}
           disabled={sendDisabled}
           style={{
-            root: {
-              background: isDark
-                ? "rgba(255,255,255,0.88)"
-                : "rgba(28,28,28,0.86)",
-              color: isDark ? "#111" : "#eee",
-              padding: 6,
-              fontSize: 18,
-              borderRadius: 22,
-              opacity: sendDisabled ? 0.35 : 1,
-              iconOnlyPaddingVertical: 4,
-              iconOnlyPaddingHorizontal: 4,
-            },
-            hoverBackgroundColor: isDark
-              ? "rgba(0,0,0,0.07)"
-              : "rgba(255,255,255,0.09)",
-            activeBackgroundColor: isDark
-              ? "rgba(0,0,0,0.14)"
-              : "rgba(255,255,255,0.18)",
+            ...primaryStyle,
+            root: { ...primaryStyle.root, opacity: sendDisabled ? 0.35 : 1 },
           }}
         />
       )}

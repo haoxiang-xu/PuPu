@@ -18,6 +18,7 @@ const renderTraceChain = ({
   notifyStreamingContentCommitted = jest.fn(),
   onToolConfirmationDecision = null,
   toolConfirmationUiStateById = {},
+  onClarifyResolve = undefined,
   subagentFrames = undefined,
   subagentMetaByRunId = undefined,
 }) =>
@@ -42,6 +43,7 @@ const renderTraceChain = ({
           streamingContent={streamingContent}
           onToolConfirmationDecision={onToolConfirmationDecision}
           toolConfirmationUiStateById={toolConfirmationUiStateById}
+          onClarifyResolve={onClarifyResolve}
           subagentFrames={subagentFrames}
           subagentMetaByRunId={subagentMetaByRunId}
         />
@@ -1367,5 +1369,156 @@ describe("TraceChain final_message draft timeline", () => {
     expect(
       screen.getByText("This should stay on the main output path."),
     ).toBeInTheDocument();
+  });
+});
+
+describe("TraceChain interject frames", () => {
+  test("renders fyi_injected user messages and skips system back-notes", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "fyi_injected",
+        payload: {
+          count: 2,
+          messages: [
+            { message_id: "m1", origin: "user", text: "also check the logs" },
+            { message_id: "m2", origin: "system", text: "btw back-note" },
+          ],
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("User note added")).toBeInTheDocument();
+    expect(screen.getByText("also check the logs")).toBeInTheDocument();
+    expect(screen.queryByText("btw back-note")).not.toBeInTheDocument();
+  });
+
+  test("does not render a fyi_injected item when every message is a system back-note", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "fyi_injected",
+        payload: {
+          count: 1,
+          messages: [
+            { message_id: "m1", origin: "system", text: "btw back-note only" },
+          ],
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.queryByText("User note added")).not.toBeInTheDocument();
+  });
+
+  test("renders side_answer with collapsible question/answer body", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "side_answer",
+        payload: {
+          question: "what timezone is the server in",
+          answer: "UTC",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Side answer")).toBeInTheDocument();
+    // details start collapsed — the "detail" toggle is present (distinct
+    // from tool rows, which use "details"/KVPanel the same way).
+    expect(screen.getByRole("button", { name: "detail" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /detail/i }));
+
+    expect(screen.getByRole("button", { name: "hide" })).toBeInTheDocument();
+    expect(screen.getByText("what timezone is the server in")).toBeInTheDocument();
+    expect(screen.getByText("UTC")).toBeInTheDocument();
+  });
+
+  test("renders a pending clarify_request via the ask_user_question visual and resolves it", () => {
+    const onClarifyResolve = jest.fn();
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "steer" },
+            { label: "只是问一嘴", value: "btw" },
+          ],
+          status: "pending",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "streaming", onClarifyResolve });
+
+    expect(screen.getByText("顺手研究一下这个吗？")).toBeInTheDocument();
+    expect(screen.getByText("加进当前任务")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("做完再研究"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
+
+    expect(onClarifyResolve).toHaveBeenCalledWith("steer");
+  });
+
+  test("shows a resolved clarify_request without submit controls", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "steer" },
+          ],
+          status: "resolved",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+  });
+
+  test("defaults a resolved_default clarify_request to the steer option", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "steer" },
+          ],
+          status: "resolved_default",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
   });
 });

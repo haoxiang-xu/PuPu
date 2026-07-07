@@ -1,5 +1,9 @@
 import { memo, useState, useContext, useMemo, useCallback } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import {
+  colorWithAlpha,
+  themeHighlightColor,
+} from "../../CONTAINERs/config/theme_highlight";
 import AnimatedChildren from "../../BUILTIN_COMPONENTs/class/animated_children";
 import Timeline from "../../BUILTIN_COMPONENTs/timeline/timeline";
 import BranchGraph from "../../BUILTIN_COMPONENTs/branch_graph/branch_graph";
@@ -30,6 +34,9 @@ export const DISPLAY_FRAME_TYPES = new Set([
   "tool_result",
   "final_message",
   "error",
+  "fyi_injected",
+  "side_answer",
+  "clarify_request",
 ]);
 
 const CONFIRMATION_DECISION_INTERACT_TYPES = new Set([
@@ -548,6 +555,23 @@ const ErrorPoint = () => (
   </div>
 );
 
+/* ─── AccentPoint ────────────────────────────────────────────────────────── */
+
+/* filled dot in the theme highlight color — marks side_answer (btw) rows so
+   they read as visually distinct from tool rows (hollow HammerPoint). */
+const AccentPoint = ({ color }) => (
+  <div
+    style={{
+      width: 10,
+      height: 10,
+      borderRadius: "50%",
+      background: color,
+      flexShrink: 0,
+      boxSizing: "border-box",
+    }}
+  />
+);
+
 /* ─── TokenSummary ───────────────────────────────────────────────────────── */
 
 const TokenSummary = ({ input, output, total, cacheRead, cacheCreation, isDark }) => {
@@ -598,6 +622,7 @@ const TraceChain = ({
   streamingChunks,
   onToolConfirmationDecision,
   toolConfirmationUiStateById = {},
+  onClarifyResolve,
   bundle,
   subagentFrames,
   subagentMetaByRunId,
@@ -952,6 +977,178 @@ const TraceChain = ({
               />
             ) : undefined,
         });
+      } else if (frame.type === "fyi_injected") {
+        // btw-channel back-notes (origin "system") are already surfaced by
+        // their own side_answer frame — skip them here to avoid showing the
+        // same Q&A twice.
+        const userMessages = Array.isArray(frame.payload?.messages)
+          ? frame.payload.messages.filter((m) => m?.origin === "user")
+          : [];
+        if (userMessages.length === 0) continue;
+
+        const accent = colorWithAlpha(themeHighlightColor(theme), 0.55);
+        items.push({
+          key: `${frame.seq}-fyi-injected`,
+          title: "User note added",
+          span: spanText,
+          status: "done",
+          body: (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 5,
+                marginTop: 3,
+              }}
+            >
+              {userMessages.map((m, idx) => (
+                <div
+                  key={m?.message_id || idx}
+                  style={{
+                    borderLeft: `2px solid ${accent}`,
+                    paddingLeft: 8,
+                    fontSize: 12,
+                    lineHeight: 1.55,
+                    fontFamily: "inherit",
+                    whiteSpace: "pre-wrap",
+                    wordBreak: "break-word",
+                    color: isDark
+                      ? "rgba(255,255,255,0.68)"
+                      : "rgba(0,0,0,0.62)",
+                  }}
+                >
+                  {typeof m?.text === "string" ? m.text : ""}
+                </div>
+              ))}
+            </div>
+          ),
+        });
+      } else if (frame.type === "side_answer") {
+        const question =
+          typeof frame.payload?.question === "string"
+            ? frame.payload.question
+            : "";
+        const answer =
+          typeof frame.payload?.answer === "string"
+            ? frame.payload.answer
+            : "";
+        if (!question && !answer) continue;
+
+        items.push({
+          key: `${frame.seq}-side-answer`,
+          title: "Side answer",
+          span: spanText,
+          status: "done",
+          point: <AccentPoint color={themeHighlightColor(theme)} />,
+          details: (
+            <div
+              style={{ display: "flex", flexDirection: "column", gap: 6 }}
+            >
+              {question && (
+                <div
+                  style={{
+                    fontSize: 11.5,
+                    lineHeight: 1.55,
+                    color: isDark
+                      ? "rgba(255,255,255,0.42)"
+                      : "rgba(0,0,0,0.4)",
+                  }}
+                >
+                  {question}
+                </div>
+              )}
+              {answer && (
+                <SeamlessMarkdown
+                  content={answer}
+                  status="done"
+                  fontSize={12}
+                  lineHeight={1.65}
+                  style={{
+                    ...TRACE_DETAIL_MARKDOWN_STYLE,
+                    color: isDark
+                      ? "rgba(255,255,255,0.75)"
+                      : "rgba(0,0,0,0.7)",
+                  }}
+                />
+              )}
+            </div>
+          ),
+        });
+      } else if (frame.type === "clarify_request") {
+        const clarifyStatus =
+          typeof frame.payload?.status === "string"
+            ? frame.payload.status
+            : "pending";
+        const clarifyQuestion =
+          typeof frame.payload?.question === "string"
+            ? frame.payload.question
+            : "";
+        const clarifyOptions = Array.isArray(frame.payload?.options)
+          ? frame.payload.options
+          : [];
+        const isClarifyResolved =
+          clarifyStatus === "resolved" || clarifyStatus === "resolved_default";
+        const canResolveClarify =
+          !isClarifyResolved && typeof onClarifyResolve === "function";
+        // "resolved_default" always means the run ended before the user
+        // picked a channel, and the pending clarify falls back to steer
+        // (see use_chat_stream.js dispatchInterjectChannel) — reflect that
+        // known outcome in the UI instead of leaving nothing selected.
+        const defaultClarifyResponse =
+          clarifyStatus === "resolved_default" &&
+          clarifyOptions.some((opt) => opt?.value === "steer")
+            ? { value: "steer" }
+            : undefined;
+        const clarifyStatusColor = isClarifyResolved
+          ? isDark
+            ? "rgba(110,231,183,0.95)"
+            : "rgba(5,150,105,0.95)"
+          : isDark
+            ? "rgba(255,255,255,0.6)"
+            : "rgba(0,0,0,0.52)";
+
+        items.push({
+          key: `${frame.seq}-clarify`,
+          title: "Needs clarification",
+          span: spanText,
+          status: "done",
+          point: <HammerPoint isDark={isDark} />,
+          body: (
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+                marginTop: 4,
+              }}
+            >
+              <span
+                style={{
+                  fontSize: 11.5,
+                  color: clarifyStatusColor,
+                  fontFamily: "Menlo, Monaco, Consolas, monospace",
+                }}
+              >
+                {isClarifyResolved ? "Selected" : "Pending"}
+              </span>
+              <InteractWrapper
+                type="single"
+                config={{ question: clarifyQuestion, options: clarifyOptions }}
+                onSubmit={(data) => {
+                  if (typeof onClarifyResolve === "function") {
+                    onClarifyResolve(data?.value);
+                  }
+                }}
+                uiState={{
+                  resolved: isClarifyResolved,
+                  userResponse: defaultClarifyResponse,
+                }}
+                isDark={isDark}
+                disabled={!canResolveClarify}
+              />
+            </div>
+          ),
+        });
       } else if (frame.type === "tool_call") {
         const callId = frame.payload?.call_id;
         if (callId && renderedCallIds.has(callId)) continue;
@@ -1248,6 +1445,7 @@ const TraceChain = ({
                   subagentMetaByRunId={effectiveSubagentMetaByRunId}
                   onToolConfirmationDecision={onToolConfirmationDecision}
                   toolConfirmationUiStateById={toolConfirmationUiStateById}
+                  onClarifyResolve={onClarifyResolve}
                   _depth={_depth + 1}
                 />
               ) : hasWFrames ? (
@@ -1681,8 +1879,10 @@ const TraceChain = ({
     handleInteractSubmit,
     onToolConfirmationDecision,
     toolConfirmationUiStateById,
+    onClarifyResolve,
     isDark,
     color,
+    theme,
     status,
     bundle,
     compact,

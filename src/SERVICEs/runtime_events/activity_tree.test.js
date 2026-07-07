@@ -361,4 +361,36 @@ describe("runtime events activity tree", () => {
       ]),
     );
   });
+
+  test("maps interaction.fyi_injected events to fyi_injected frames", () => {
+    const state = reduceEvents([
+      event({ id: "evt-run", type: "run.started", seq: 1 }),
+      event({
+        id: "evt-fyi",
+        type: "interaction.fyi_injected",
+        seq: 2,
+        payload: {
+          count: 1,
+          messages: [
+            { message_id: "msg-1", origin: "user", text: "heads up" },
+          ],
+        },
+      }),
+    ]);
+
+    const fyiFrame = state.frames.find((frame) => frame.type === "fyi_injected");
+    expect(fyiFrame).toBeDefined();
+    expect(fyiFrame.payload.count).toBe(1);
+    expect(fyiFrame.payload.messages[0].text).toBe("heads up");
+
+    expect(state.effects).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "frame",
+          eventId: "evt-fyi",
+          frame: fyiFrame,
+        }),
+      ]),
+    );
+  });
 });

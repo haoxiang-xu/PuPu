@@ -1193,6 +1193,27 @@ export const createUnchainApi = () => {
       }
     },
 
+    interject: async (payload = {}) => {
+      try {
+        const method = assertBridgeMethod("unchainAPI", "interject");
+        const threadId = typeof payload.threadId === "string" ? payload.threadId.trim() : "";
+        const text = typeof payload.text === "string" ? payload.text.trim() : "";
+        if (!threadId || !text) {
+          throw new FrontendApiError("invalid_interject_payload", "threadId and text are required");
+        }
+        const requestPayload = {
+          thread_id: threadId,
+          text,
+          channel: typeof payload.channel === "string" && payload.channel ? payload.channel : "auto",
+          ...(isObject(payload.options) ? { options: payload.options } : {}),
+        };
+        const response = await method(requestPayload);
+        return isObject(response) ? response : { resolved_channel: "new_run" };
+      } catch (error) {
+        throw toFrontendApiError(error, "unchain_interject_failed", "Failed to send interject message");
+      }
+    },
+
     startStream: (payload, handlers = {}) => {
       try {
         const method = assertBridgeMethod("unchainAPI", "startStream");
