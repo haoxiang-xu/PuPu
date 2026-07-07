@@ -127,12 +127,15 @@ const Scrollable = () => {
       const pcs = getComputedStyle(parent);
       if (pcs.position === "static") parent.style.position = "relative";
 
-      const edge = getEdge(container);
-      const edgeTop = getEdgeSide(container, "top", edge);
-      const edgeBottom = getEdgeSide(container, "bottom", edge);
-      const edgeLeft = getEdgeSide(container, "left", edge);
-      const edgeRight = getEdgeSide(container, "right", edge);
-      const wall = getWall(container, edge);
+      /* Geometry attributes are re-read on every sync() so React can update
+       * data-sb-* after mount (e.g. reserving space for a functional panel
+       * whose height is only measured post-attach). */
+      let edge = getEdge(container);
+      let edgeTop = getEdgeSide(container, "top", edge);
+      let edgeBottom = getEdgeSide(container, "bottom", edge);
+      let edgeLeft = getEdgeSide(container, "left", edge);
+      let edgeRight = getEdgeSide(container, "right", edge);
+      let wall = getWall(container, edge);
       /* data-sb-persist — keep the scrollbar permanently visible (never fade). */
       const persist = container.getAttribute("data-sb-persist") != null;
       const restOpacity = persist ? "1" : "0";
@@ -174,6 +177,14 @@ const Scrollable = () => {
 
       /* ---- Positioning ---- */
       function sync() {
+        /* refresh geometry attrs — cheap, and keeps late attribute updates live */
+        edge = getEdge(container);
+        edgeTop = getEdgeSide(container, "top", edge);
+        edgeBottom = getEdgeSide(container, "bottom", edge);
+        edgeLeft = getEdgeSide(container, "left", edge);
+        edgeRight = getEdgeSide(container, "right", edge);
+        wall = getWall(container, edge);
+
         /* Get container bounds relative to parent */
         const pRect = parent.getBoundingClientRect();
         const cRect = container.getBoundingClientRect();
