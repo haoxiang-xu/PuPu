@@ -38,6 +38,7 @@ const CardStack = ({
   peek = 10,
   gap = 8,
   scale_step = 0.05,
+  collapse_origin = "bottom center",
   anim_ms = 260,
   ease = DEFAULT_EASE,
   expand_lift = 0,
@@ -199,7 +200,7 @@ const CardStack = ({
                 right: 0,
                 bottom: 0,
                 zIndex: 100 - index,
-                transformOrigin: "bottom center",
+                transformOrigin: collapse_origin,
                 transform: `translateY(${y}px) scale(${scale})`,
                 transition: `transform ${animMs}ms ${ease}`,
               }}

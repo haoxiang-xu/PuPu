@@ -39,6 +39,9 @@ const SteerPile = ({
       expand_lift={OVERLAP + LIFT}
       collapse_delay_ms={180}
       expand_delay_ms={EXPAND_DELAY}
+      // shortened (right-half) deck: the collapsed cards left-align and recede
+      // on the right only, instead of shrinking symmetrically from the center
+      collapse_origin={attachPanelOpen ? "bottom left" : "bottom center"}
       on_expand_change={setExpanded}
       style={{
         position: "absolute",
