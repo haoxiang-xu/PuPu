@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../../../SERVICEs/api";
 import { toast } from "../../../SERVICEs/toast";
+import { extractCommands } from "../../../SERVICEs/command_registry";
 import { readMemorySettings } from "../../../COMPONENTs/settings/memory/storage";
 import { appendTokenUsageRecord } from "../../../COMPONENTs/settings/token_usage/storage";
 import { createLogger } from "../../../SERVICEs/console_logger";
@@ -33,7 +34,6 @@ import { createRuntimeEventBatcher } from "./runtime_event_batcher";
 import {
   buildInterjectionRecord,
   createSteerQueue,
-  parseInterjectPrefix,
 } from "./interject_controller";
 import {
   start as progressStart,
@@ -3956,11 +3956,22 @@ export const useChatStream = ({
 
   const handleInterject = useCallback(
     (targetChatId, rawText) => {
-      const { channel, body } = parseInterjectPrefix(rawText);
-      if (channel === "empty") {
-        return;
-      }
-      dispatchInterjectChannel(targetChatId, body, channel);
+      // Inline command tokens can sit anywhere in the text now. extractCommands
+      // pulls the ACTIVE tokens (exclusive-group rule: first per group wins)
+      // out of the text; the interject-channel command decides the channel and
+      // the stripped remainder is the body. No command -> auto routing.
+      const { commands, body } = extractCommands(rawText ?? "", {
+        isStreaming: true,
+      });
+      const channelCommand = commands.find((name) =>
+        ["/btw", "/fyi", "/steer"].includes(name.toLowerCase()),
+      );
+      const channel = channelCommand
+        ? channelCommand.slice(1).toLowerCase()
+        : "auto";
+      const trimmedBody = (body || "").trim();
+      if (!trimmedBody) return;
+      dispatchInterjectChannel(targetChatId, trimmedBody, channel);
     },
     [dispatchInterjectChannel],
   );

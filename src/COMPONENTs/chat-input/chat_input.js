@@ -3,38 +3,32 @@ import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
 import CommandMenu from "./components/command_menu";
-import CommandTag from "./components/command_tag";
 import InputActionButtons from "./components/input_action_buttons";
 import SteerPile from "./components/steer_pile";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
 import { useFileDropOverlay } from "./hooks/use_file_drop_overlay";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
-import { listCommands } from "../../SERVICEs/command_registry";
-
-// input value starts with "/" with no whitespace yet (single-token command prefix)
-const isSlashCommandPrefix = (value) =>
-  typeof value === "string" && value.startsWith("/") && !/\s/.test(value);
+import {
+  extractCommands,
+  findCommandTokens,
+  listCommands,
+} from "../../SERVICEs/command_registry";
 
 /**
- * When the value starts with a completed slash command ("/btw <body>") that is
- * available in the current context, split it so the command renders as an
- * inline tag and the textarea only shows the body. The value string stays the
- * single source of truth — the tag is just how the prefix is displayed, so the
- * send/routing path never changes.
- *
- * Returns { command, body } where command is the registry item or null.
+ * Detect an in-progress slash token at the caret: a "/" at the input start or
+ * after whitespace, with no whitespace between it and the caret. Returns
+ * { start, query } (query includes the leading "/") or null. This is what
+ * opens the command menu — anywhere in the text, not just at the start.
  */
-export const splitCommandPrefix = (value, ctx) => {
-  if (typeof value !== "string") return { command: null, body: value ?? "" };
-  const match = value.match(/^(\/[a-zA-Z0-9_-]+) /);
-  if (!match) return { command: null, body: value };
-  const token = match[1].toLowerCase();
-  const command =
-    listCommands(ctx || {}, token).find(
-      (item) => item.name.toLowerCase() === token,
-    ) || null;
-  if (!command) return { command: null, body: value };
-  return { command, body: value.slice(match[0].length) };
+export const detectSlashTrigger = (text, caret) => {
+  if (typeof text !== "string") return null;
+  const at = Number.isFinite(caret) ? caret : text.length;
+  const idx = text.lastIndexOf("/", at - 1);
+  if (idx === -1) return null;
+  if (idx > 0 && !/\s/.test(text[idx - 1])) return null;
+  const between = text.slice(idx + 1, at);
+  if (/\s/.test(between)) return null;
+  return { start: idx, query: text.slice(idx, at) };
 };
 
 const ChatInput = ({
@@ -105,52 +99,97 @@ const ChatInput = ({
   const [commandMenuDismissed, setCommandMenuDismissed] = useState(false);
   const prevValueRef = useRef(value);
 
-  /* ── Inline command tag: a completed "/cmd " prefix renders as a chip and the
-     textarea only shows the body; `value` stays the source of truth ── */
-  const { command: activeCommand, body: displayValue } = splitCommandPrefix(
-    value,
-    { isStreaming },
-  );
-  const commandPrefix = activeCommand ? `${activeCommand.name} ` : "";
-  const tagWrapRef = useRef(null);
-  const [tagIndent, setTagIndent] = useState(0);
-  useEffect(() => {
-    if (!activeCommand) {
-      setTagIndent(0);
-      return;
-    }
-    const el = tagWrapRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      for (const entry of entries)
-        setTagIndent(Math.ceil(entry.contentRect.width) + 8);
-    });
-    ro.observe(el);
-    setTagIndent(Math.ceil(el.offsetWidth) + 8);
-    return () => ro.disconnect();
-  }, [activeCommand?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* ── Inline command tokens (overlay-dyed; the value string is untouched) ── */
+  const commandTokens = findCommandTokens(value, { isStreaming });
+  const activeTokens = commandTokens.filter((t) => t.active);
+  const activeCommandNames = activeTokens.map((t) => t.name);
+  const { body: strippedBody } = extractCommands(value, { isStreaming });
 
-  const handleDisplayChange = useCallback(
-    (nextBody) => {
+  /* Slash trigger at the caret (anywhere in the text) */
+  const [slashTrigger, setSlashTrigger] = useState(null);
+  const pendingCaretRef = useRef(null);
+
+  const handleValueChange = useCallback(
+    (nextValue, event) => {
       if (!onChange) return;
-      onChange(commandPrefix ? commandPrefix + nextBody : nextBody);
+      const caret =
+        event?.target && Number.isFinite(event.target.selectionStart)
+          ? event.target.selectionStart
+          : nextValue.length;
+      setSlashTrigger(detectSlashTrigger(nextValue, caret));
+      onChange(nextValue);
     },
-    [onChange, commandPrefix],
+    [onChange],
   );
 
-  const removeCommandTag = useCallback(() => {
-    if (!onChange) return;
-    onChange(displayValue);
-    if (inputRef.current) inputRef.current.focus();
-  }, [onChange, displayValue]);
+  // restore the caret after a pick rewrote the value
+  useEffect(() => {
+    if (pendingCaretRef.current == null) return;
+    const caret = pendingCaretRef.current;
+    pendingCaretRef.current = null;
+    const el = inputRef.current;
+    if (el) {
+      el.focus();
+      try {
+        el.setSelectionRange(caret, caret);
+      } catch {
+        /* detached or non-text state — ignore */
+      }
+    }
+  }, [value]);
 
-  const commandItems = isSlashCommandPrefix(value)
-    ? listCommands({ isStreaming }, value)
+  /* dye active tokens as pills in the FloatingTextField mirror overlay —
+     zero layout impact (boxShadow halo, no padding), so wrapping matches
+     the transparent textarea text exactly */
+  const renderCommandOverlay = useCallback(
+    (text) => {
+      const tokens = findCommandTokens(text, { isStreaming });
+      if (tokens.length === 0) return text;
+      const pillBg = isDark ? "rgba(120,200,150,0.16)" : "rgba(40,150,80,0.13)";
+      const pillColor = isDark
+        ? "rgba(160,230,180,0.98)"
+        : "rgba(25,125,65,0.98)";
+      const parts = [];
+      let cursor = 0;
+      tokens.forEach((token, index) => {
+        if (token.start > cursor) parts.push(text.slice(cursor, token.start));
+        parts.push(
+          <span
+            key={`${token.name}-${index}`}
+            data-command-token={token.name}
+            data-active={token.active}
+            style={
+              token.active
+                ? {
+                    color: pillColor,
+                    backgroundColor: pillBg,
+                    borderRadius: 4,
+                    boxShadow: `0 0 0 3px ${pillBg}`,
+                    boxDecorationBreak: "clone",
+                    WebkitBoxDecorationBreak: "clone",
+                  }
+                : undefined
+            }
+          >
+            {text.slice(token.start, token.end)}
+          </span>,
+        );
+        cursor = token.end;
+      });
+      parts.push(text.slice(cursor));
+      return parts;
+    },
+    [isStreaming, isDark],
+  );
+
+  const commandItems = slashTrigger
+    ? listCommands(
+        { isStreaming, activeCommands: activeCommandNames },
+        slashTrigger.query,
+      )
     : [];
   const commandMenuOpen =
-    !commandMenuDismissed &&
-    isSlashCommandPrefix(value) &&
-    commandItems.length > 0;
+    !commandMenuDismissed && !!slashTrigger && commandItems.length > 0;
 
   // any edit to the input value re-arms the menu (clears a prior Escape
   // dismissal) and resets the highlighted row back to the top
@@ -162,14 +201,40 @@ const ChatInput = ({
     }
   }, [value]);
 
+  // drop a stale trigger when the body no longer contains the typed token at
+  // that position (e.g. the value was cleared externally after a send)
+  useEffect(() => {
+    if (!slashTrigger) return;
+    const tokenInText = value.slice(
+      slashTrigger.start,
+      slashTrigger.start + slashTrigger.query.length,
+    );
+    if (tokenInText !== slashTrigger.query) setSlashTrigger(null);
+  }, [value, slashTrigger]);
+
   const handleCommandPick = useCallback(
     (item) => {
       if (!item) return;
-      if (onChange) onChange(item.insertText ?? `${item.name} `);
+      if (onChange) {
+        if (slashTrigger) {
+          // replace the typed "/tok" IN PLACE with the canonical command +
+          // a trailing space; the token dyes inline right where it stands
+          const inserted = `${item.name} `;
+          const nextValue =
+            value.slice(0, slashTrigger.start) +
+            inserted +
+            value.slice(slashTrigger.start + slashTrigger.query.length);
+          pendingCaretRef.current = slashTrigger.start + inserted.length;
+          onChange(nextValue);
+        } else {
+          onChange(item.insertText ?? `${item.name} `);
+        }
+      }
+      setSlashTrigger(null);
       setCommandMenuDismissed(true);
       setCommandMenuActiveIndex(0);
     },
-    [onChange],
+    [onChange, slashTrigger, value],
   );
 
   const handleKeyDown = useCallback(
@@ -204,18 +269,28 @@ const ChatInput = ({
         }
       }
 
-      // Backspace with the caret at the very start deletes the command tag,
-      // mirroring how chip inputs behave.
+      // Backspace right after an active token (or its trailing space)
+      // deletes the whole token atomically, like a chip.
       if (
         e.key === "Backspace" &&
-        activeCommand &&
+        activeTokens.length > 0 &&
         e.target &&
-        e.target.selectionStart === 0 &&
-        e.target.selectionEnd === 0
+        e.target.selectionStart === e.target.selectionEnd
       ) {
-        e.preventDefault();
-        removeCommandTag();
-        return;
+        const caret = e.target.selectionStart;
+        const hit = activeTokens.find(
+          (token) =>
+            caret === token.end ||
+            (caret === token.end + 1 && /\s/.test(value[token.end] || "")),
+        );
+        if (hit) {
+          e.preventDefault();
+          const cutEnd = caret; // token end, or end+1 including the space
+          if (onChange)
+            onChange(value.slice(0, hit.start) + value.slice(cutEnd));
+          pendingCaretRef.current = hit.start;
+          return;
+        }
       }
 
       if (e.key === "Enter" && !e.shiftKey) {
@@ -233,8 +308,9 @@ const ChatInput = ({
       commandItems,
       commandMenuActiveIndex,
       handleCommandPick,
-      activeCommand,
-      removeCommandTag,
+      activeTokens,
+      value,
+      onChange,
     ],
   );
 
@@ -324,26 +400,17 @@ const ChatInput = ({
           )}
           <FloatingTextField
             textarea_ref={inputRef}
-            value={displayValue}
+            value={value}
             min_rows={5}
             max_display_rows={9}
-            set_value={handleDisplayChange}
-            placeholder={activeCommand ? "" : placeholder}
-            leading_component={
-              activeCommand ? (
-                <span ref={tagWrapRef} style={{ display: "inline-flex" }}>
-                  <CommandTag
-                    name={activeCommand.name}
-                    icon={activeCommand.icon}
-                    onRemove={removeCommandTag}
-                    isDark={isDark}
-                  />
-                </span>
-              ) : null
-            }
-            leading_indent={activeCommand ? tagIndent : 0}
+            set_value={handleValueChange}
+            placeholder={placeholder}
+            overlay_render={renderCommandOverlay}
             on_focus={() => setFocused(true)}
-            on_blur={() => setFocused(false)}
+            on_blur={() => {
+              setFocused(false);
+              setSlashTrigger(null);
+            }}
             on_key_down={handleKeyDown}
             content_section={
               showAttachments ? (
@@ -383,7 +450,7 @@ const ChatInput = ({
             force_content_active={chatActive}
             functional_section={
               <InputActionButtons
-                value={displayValue}
+                value={strippedBody}
                 color={color}
                 isDark={isDark}
                 isStreaming={isStreaming}

@@ -70,9 +70,11 @@ describe("ChatInput slash-command menu wiring", () => {
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(onSend).not.toHaveBeenCalled();
-    // the "/btw " prefix now renders as a chip; the textarea only holds the body
-    expect(container.querySelector('[data-command-tag="/btw"]')).toBeTruthy();
-    expect(container.querySelector("textarea")).toHaveValue("");
+    // the command text stays in the value, dyed inline by the mirror overlay
+    expect(container.querySelector("textarea")).toHaveValue("/btw ");
+    const token = container.querySelector('[data-command-token="/btw"]');
+    expect(token).toBeTruthy();
+    expect(token.getAttribute("data-active")).toBe("true");
     // menu closed after picking
     expect(screen.queryByText("补充给当前任务")).not.toBeInTheDocument();
   });
@@ -89,8 +91,10 @@ describe("ChatInput slash-command menu wiring", () => {
     fireEvent.keyDown(textarea, { key: "Enter" });
 
     expect(onSend).not.toHaveBeenCalled();
-    expect(container.querySelector('[data-command-tag="/fyi"]')).toBeTruthy();
-    expect(container.querySelector("textarea")).toHaveValue("");
+    expect(container.querySelector("textarea")).toHaveValue("/fyi ");
+    expect(
+      container.querySelector('[data-command-token="/fyi"]'),
+    ).toBeTruthy();
   });
 
   test("Tab also picks the active command", () => {
@@ -100,42 +104,95 @@ describe("ChatInput slash-command menu wiring", () => {
     fireEvent.change(textarea, { target: { value: "/" } });
     fireEvent.keyDown(textarea, { key: "Tab" });
 
-    expect(container.querySelector('[data-command-tag="/btw"]')).toBeTruthy();
-    expect(container.querySelector("textarea")).toHaveValue("");
+    expect(container.querySelector("textarea")).toHaveValue("/btw ");
+    expect(
+      container.querySelector('[data-command-token="/btw"]'),
+    ).toBeTruthy();
   });
 
-  test("Backspace at the start removes the command tag and keeps the body", () => {
+  test("Backspace right after the token deletes it atomically", () => {
     const { container } = render(
       <ControlledChatInput isStreaming initialValue="/btw hello there" />,
     );
     const textarea = container.querySelector("textarea");
-    expect(container.querySelector('[data-command-tag="/btw"]')).toBeTruthy();
-    expect(textarea).toHaveValue("hello there");
+    expect(
+      container.querySelector('[data-command-token="/btw"]'),
+    ).toBeTruthy();
 
-    textarea.setSelectionRange(0, 0);
+    // caret right after "/btw" (before the space) → atomic delete
+    textarea.setSelectionRange(4, 4);
     fireEvent.keyDown(textarea, { key: "Backspace" });
 
-    expect(container.querySelector('[data-command-tag="/btw"]')).toBeNull();
-    expect(container.querySelector("textarea")).toHaveValue("hello there");
+    expect(container.querySelector('[data-command-token="/btw"]')).toBeNull();
+    expect(container.querySelector("textarea")).toHaveValue(" hello there");
   });
 
-  test("clicking the tag's × removes the command", () => {
-    const { container } = render(
-      <ControlledChatInput isStreaming initialValue="/steer wrap it up" />,
+  test("typing '/' mid-text opens the menu; picking moves the command to the front tag", () => {
+    const { container } = render(<ControlledChatInput isStreaming />);
+    const textarea = getTextarea();
+
+    // user typed some text first, then a slash token at the end (caret at end)
+    fireEvent.change(textarea, { target: { value: "check the budget /f" } });
+    expect(screen.getByText("/fyi")).toBeInTheDocument();
+
+    fireEvent.keyDown(textarea, { key: "Enter" });
+
+    // the command lands IN PLACE where the token was typed
+    expect(container.querySelector("textarea")).toHaveValue(
+      "check the budget /fyi ",
     );
-    expect(container.querySelector('[data-command-tag="/steer"]')).toBeTruthy();
+    const token = container.querySelector('[data-command-token="/fyi"]');
+    expect(token).toBeTruthy();
+    expect(token.getAttribute("data-active")).toBe("true");
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "Remove /steer" }));
+  test("mid-text token narrows the menu and requires a word boundary", () => {
+    render(<ControlledChatInput isStreaming />);
+    const textarea = getTextarea();
 
-    expect(container.querySelector('[data-command-tag="/steer"]')).toBeNull();
-    expect(container.querySelector("textarea")).toHaveValue("wrap it up");
+    // no word boundary before "/" → no menu
+    fireEvent.change(textarea, { target: { value: "path/to" } });
+    expect(screen.queryByText("/btw")).not.toBeInTheDocument();
+
+    // boundary + token → narrowed menu
+    fireEvent.change(textarea, { target: { value: "see /st" } });
+    expect(screen.getByText("/steer")).toBeInTheDocument();
+    expect(screen.queryByText("/btw")).not.toBeInTheDocument();
+  });
+
+  test("conflicting commands are filtered from the menu once one is active", () => {
+    const { container } = render(
+      <ControlledChatInput isStreaming initialValue="/btw hello " />,
+    );
+    const textarea = container.querySelector("textarea");
+    expect(
+      container.querySelector('[data-command-token="/btw"]'),
+    ).toBeTruthy();
+
+    // typing another slash token: all three share "interject-channel", so
+    // the menu offers nothing
+    fireEvent.change(textarea, { target: { value: "/btw hello /st" } });
+    expect(screen.queryByText("/steer")).not.toBeInTheDocument();
+  });
+
+  test("a hand-typed conflicting token stays plain text (inactive)", () => {
+    const { container } = render(
+      <ControlledChatInput
+        isStreaming
+        initialValue="/btw hello /steer world"
+      />,
+    );
+    const btw = container.querySelector('[data-command-token="/btw"]');
+    const steer = container.querySelector('[data-command-token="/steer"]');
+    expect(btw.getAttribute("data-active")).toBe("true");
+    expect(steer.getAttribute("data-active")).toBe("false");
   });
 
   test("no tag when not streaming — the prefix stays plain text", () => {
     const { container } = render(
       <ControlledChatInput isStreaming={false} initialValue="/btw hello" />,
     );
-    expect(container.querySelector('[data-command-tag="/btw"]')).toBeNull();
+    expect(container.querySelector('[data-command-token="/btw"]')).toBeNull();
     expect(container.querySelector("textarea")).toHaveValue("/btw hello");
   });
 

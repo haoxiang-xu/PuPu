@@ -637,6 +637,83 @@ describe("useMessageWindowScroll", () => {
     global.ResizeObserver = OriginalResizeObserver;
     window.ResizeObserver = OriginalResizeObserver;
   });
+
+  it("a genuine user scroll cancels an in-flight landing correction (no re-land teleport)", () => {
+    const OriginalResizeObserver = global.ResizeObserver;
+    const resizeObservers = [];
+    global.ResizeObserver = class ResizeObserver {
+      constructor(callback) {
+        this.callback = callback;
+        this.observe = jest.fn();
+        this.disconnect = jest.fn();
+        resizeObservers.push(this);
+      }
+      trigger() {
+        this.callback([]);
+      }
+    };
+    window.ResizeObserver = global.ResizeObserver;
+
+    const scrollHost = makeScrollHost();
+    scrollHost.setScrollHeight(2600);
+    const messages = makeMessages(40);
+    const { result } = renderHook(() =>
+      useScrollWithHost(
+        {
+          chat_id: "chat-user-scroll-cancels-landing",
+          messages,
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      ),
+    );
+
+    // 挂载时 effect 会 scrollToBottom("auto") 钉底(一次程序性写)。真实浏览器里它派发的
+    // scroll 事件会被 handleScroll 当程序性消费;测试环境不自动派发,先手动排掉,让计数归零。
+    act(() => {
+      result.current.handleScroll();
+    });
+
+    // 显式跳转武装 landing correction(settle:true),落点 offsetTop-12 = 988;
+    // 跳转自身又是一次程序性写。
+    const targetNode = { offsetTop: 1000 };
+    act(() => {
+      result.current.messageNodeRefs.current.set(38, targetNode);
+      result.current.scrollToMessageIndex(38, "auto");
+    });
+
+    // 排掉跳转那次程序性写的 scroll 回声(模拟真实时序:该事件被当程序性消费,不清 landing)。
+    act(() => {
+      result.current.handleScroll();
+    });
+
+    scrollHost.host.scrollTo.mockClear();
+
+    // 现在是一次真正的用户上滚(非程序性,programmaticScrollDepth 已归零):用户已接管视口,
+    // 在飞的 landing correction 必须被取消。
+    scrollHost.host.scrollTop = 400;
+    act(() => {
+      result.current.handleScroll();
+    });
+
+    // 之后目标因异步布局(prepend / 懒渲染 settle)下移,landing ResizeObserver 触发、
+    // 结算定时器到点——绝不能再有 scrollTo 把视口一跳拽回旧跳转目标(即用户观察到的瞬移)。
+    scrollHost.host.scrollTo.mockClear();
+    act(() => {
+      targetNode.offsetTop = 1160;
+      resizeObservers[0].trigger();
+      jest.advanceTimersByTime(50);
+    });
+
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+
+    global.ResizeObserver = OriginalResizeObserver;
+    window.ResizeObserver = OriginalResizeObserver;
+  });
 });
 
 describe("streaming keep-at-bottom stability (ChatGPT-style)", () => {

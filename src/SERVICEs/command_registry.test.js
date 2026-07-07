@@ -16,9 +16,12 @@ describe("command_registry", () => {
     expect(whileStreaming[0]).toEqual({
       name: "/btw",
       description: "立即回答,不打断当前任务",
-      icon: "chat",
+      icon: "btw",
       insertText: "/btw ",
+      exclusiveGroup: "interject-channel",
     });
+    expect(whileStreaming[1].icon).toBe("fyi");
+    expect(whileStreaming[2].icon).toBe("steer_arrow");
 
     const notStreaming = listCommands({ isStreaming: false }, "");
     expect(notStreaming).toEqual([]);
@@ -117,5 +120,54 @@ describe("command_registry", () => {
     const { registerCommand } = loadCommandRegistryModule();
 
     expect(() => registerCommand({ name: "bad", description: "x" })).toThrow();
+  });
+});
+
+describe("exclusive groups & token scanning", () => {
+  const ctx = { isStreaming: true };
+  let listCommands, findCommandTokens, extractCommands;
+  beforeEach(() => {
+    ({ listCommands, findCommandTokens, extractCommands } =
+      loadCommandRegistryModule());
+  });
+
+  test("listCommands filters out commands conflicting with activeCommands", () => {
+    const withActive = listCommands(
+      { isStreaming: true, activeCommands: ["/fyi"] },
+      "",
+    );
+    // fyi/btw/steer share "interject-channel" — all gone once one is active
+    expect(withActive.map((c) => c.name)).toEqual([]);
+  });
+
+  test("findCommandTokens: first token takes the group, later same-group tokens stay inactive", () => {
+    const tokens = findCommandTokens("check this /fyi and then /steer after", ctx);
+    expect(tokens).toHaveLength(2);
+    expect(tokens[0]).toMatchObject({ name: "/fyi", active: true });
+    expect(tokens[1]).toMatchObject({ name: "/steer", active: false });
+  });
+
+  test("findCommandTokens: word boundary + availability required", () => {
+    expect(findCommandTokens("path/fyi none", ctx)).toEqual([]); // no boundary
+    expect(findCommandTokens("/fyi hi", { isStreaming: false })).toEqual([]); // unavailable
+    const atEnd = findCommandTokens("note /btw", ctx); // end-of-text counts
+    expect(atEnd).toHaveLength(1);
+    expect(atEnd[0]).toMatchObject({ name: "/btw", active: true });
+  });
+
+  test("extractCommands strips active tokens (plus one space) and keeps inactive ones", () => {
+    const { commands, body } = extractCommands(
+      "check this /fyi and then /steer after",
+      ctx,
+    );
+    expect(commands).toEqual(["/fyi"]);
+    expect(body).toBe("check this and then /steer after");
+  });
+
+  test("extractCommands with no tokens returns text unchanged", () => {
+    expect(extractCommands("plain text", ctx)).toEqual({
+      commands: [],
+      body: "plain text",
+    });
   });
 });

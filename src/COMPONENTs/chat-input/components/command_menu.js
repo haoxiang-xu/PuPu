@@ -9,21 +9,21 @@
  */
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
-const ROW_HEIGHT = 38;
+const ROW_HEIGHT = 32;
 const MAX_VISIBLE_ROWS = 6;
 
 const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = false }) => {
   if (!Array.isArray(items) || items.length === 0) return null;
 
   const surfaceBg = isDark
-    ? "var(--pupu-surface, rgba(30,30,30,0.98))"
-    : "var(--pupu-surface, rgba(255,255,255,0.98))";
+    ? "rgba(24, 24, 26, 0.66)"
+    : "rgba(255, 255, 255, 0.72)";
   const border = isDark
-    ? "1px solid rgba(255,255,255,0.10)"
-    : "1px solid rgba(0,0,0,0.08)";
+    ? "1px solid rgba(255,255,255,0.12)"
+    : "1px solid rgba(0,0,0,0.10)";
   const shadow = isDark
-    ? "0 8px 32px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.35)"
-    : "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)";
+    ? "0 10px 30px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.22)"
+    : "0 10px 30px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)";
 
   return (
     <div
@@ -34,15 +34,17 @@ const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = 
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
-        gap: 2,
+        gap: 1,
         maxHeight: MAX_VISIBLE_ROWS * ROW_HEIGHT,
         overflowY: "auto",
         overscrollBehavior: "contain",
         backgroundColor: surfaceBg,
+        backdropFilter: "blur(18px) saturate(1.4)",
+        WebkitBackdropFilter: "blur(18px) saturate(1.4)",
         border,
-        borderRadius: 12,
+        borderRadius: 10,
         boxShadow: shadow,
-        padding: 4,
+        padding: 3,
       }}
     >
       {items.map((item, index) => (
@@ -59,7 +61,7 @@ const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = 
 };
 
 const CommandRow = ({ item, active, isDark, onPick }) => {
-  const activeBg = isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.05)";
+  const activeBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
   const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.44)";
   const iconColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
@@ -79,10 +81,10 @@ const CommandRow = ({ item, active, isDark, onPick }) => {
         boxSizing: "border-box",
         display: "flex",
         alignItems: "center",
-        gap: 10,
+        gap: 8,
         height: ROW_HEIGHT,
-        padding: "0 10px",
-        borderRadius: 8,
+        padding: "0 8px",
+        borderRadius: 7,
         backgroundColor: active ? activeBg : "transparent",
         cursor: "pointer",
       }}
@@ -91,8 +93,8 @@ const CommandRow = ({ item, active, isDark, onPick }) => {
         <span
           style={{
             flexShrink: 0,
-            width: 16,
-            height: 16,
+            width: 14,
+            height: 14,
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -101,14 +103,15 @@ const CommandRow = ({ item, active, isDark, onPick }) => {
           <Icon
             src={item.icon}
             color={iconColor}
-            style={{ width: 16, height: 16 }}
+            style={{ width: 14, height: 14 }}
           />
         </span>
       ) : null}
       <span
         style={{
           flexShrink: 0,
-          fontSize: 13,
+          fontSize: 12.5,
+          lineHeight: "16px",
           fontWeight: 500,
           color: nameColor,
         }}
@@ -119,7 +122,8 @@ const CommandRow = ({ item, active, isDark, onPick }) => {
         style={{
           flex: 1,
           minWidth: 0,
-          fontSize: 12,
+          fontSize: 11.5,
+          lineHeight: "16px",
           color: descColor,
           overflow: "hidden",
           textOverflow: "ellipsis",

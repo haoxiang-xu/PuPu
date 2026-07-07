@@ -372,6 +372,15 @@ export const useMessageWindowScroll = ({
     const nextIsAtBottom = updateIsAtBottom(el);
 
     if (!isProgrammatic) {
+      // 真实用户滚动 = 用户已接管视口:取消在飞的落位结算循环(scheduleLandingCorrection)。
+      // 否则它盯着 firstElementChild 的 ResizeObserver 会在随后的 prepend / 懒渲染 settle
+      // 触发时,按已下移的 targetNode.offsetTop 重算落点并 scrollTo,把 scrollTop 一跳拽回
+      // 旧跳转目标 —— 即用户上滚时偶发看到的"瞬移一段距离"。落位自身的 scrollTo 走
+      // writeProgrammaticScroll(isProgrammatic=true),不会命中这里自取消;与 handleWheel /
+      // handleUserScrollIntent 已有的清除保持一致,只是补上键盘/拖选等不经它们的上滚路径。
+      if (pendingLandingActionRef.current) {
+        clearLandingCorrection();
+      }
       if (is_streaming && isScrollingUp && !nextIsAtBottom) {
         // 用户非程序性上滚(键盘翻页/拖选/触摸/滚轮补充)→ 流式期间立即脱离
         streamingFollowEnabledRef.current = false;
@@ -396,6 +405,7 @@ export const useMessageWindowScroll = ({
     // 滚动停止后(trailing debounce)再考虑向下收缩 —— 不在每个 scroll 事件里同步收缩。
     scheduleWindowTrim();
   }, [
+    clearLandingCorrection,
     clearScheduledStreamingBottomFollow,
     is_streaming,
     loadOlderMessages,

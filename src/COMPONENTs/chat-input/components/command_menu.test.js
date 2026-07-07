@@ -40,6 +40,22 @@ describe("CommandMenu", () => {
     expect(options[2]).toHaveAttribute("aria-selected", "false");
   });
 
+  test("uses a compact translucent blurred surface", () => {
+    render(
+      <CommandMenu items={makeItems()} activeIndex={0} onPick={() => {}} isDark={false} />,
+    );
+
+    const menu = screen.getByRole("listbox", { name: "斜杠命令" });
+    const options = screen.getAllByRole("option");
+
+    expect(menu.style.backgroundColor).toBe("rgba(255, 255, 255, 0.72)");
+    expect(menu.style.backdropFilter).toBe("blur(18px) saturate(1.4)");
+    expect(menu.style.maxHeight).toBe("192px");
+    expect(menu.style.padding).toBe("3px");
+    expect(options[0].style.height).toBe("32px");
+    expect(options[0].style.padding).toBe("0px 8px");
+  });
+
   test("onPick fires with the picked item when a row is clicked", () => {
     const onPick = jest.fn();
     render(

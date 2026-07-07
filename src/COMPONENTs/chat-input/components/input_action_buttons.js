@@ -34,7 +34,6 @@ const InputActionButtons = ({
   // Stop is a quieter secondary control when it sits next to Send.
   const stopStyle = {
     root: {
-      background: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.08)",
       color: isDark ? "rgba(255,255,255,0.9)" : "rgba(0,0,0,0.75)",
       padding: 6,
       fontSize: 18,
