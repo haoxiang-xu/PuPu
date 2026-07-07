@@ -42,6 +42,7 @@ const CardStack = ({
   ease = DEFAULT_EASE,
   expand_lift = 0,
   collapse_delay_ms = 0,
+  expand_delay_ms = 0,
   fallback_height = 44,
   aria_label,
   style,
@@ -51,10 +52,12 @@ const CardStack = ({
   const wrapRefs = useRef({});
   const [heights, setHeights] = useState({});
   const collapseTimerRef = useRef(null);
+  const expandTimerRef = useRef(null);
 
   useEffect(
     () => () => {
       if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current);
+      if (expandTimerRef.current) clearTimeout(expandTimerRef.current);
     },
     [],
   );
@@ -108,14 +111,38 @@ const CardStack = ({
     }
   };
 
+  const cancelPendingExpand = () => {
+    if (expandTimerRef.current) {
+      clearTimeout(expandTimerRef.current);
+      expandTimerRef.current = null;
+    }
+  };
+
   const expandNow = () => {
     cancelPendingCollapse();
+    cancelPendingExpand();
     setExpandedBoth(true);
+  };
+
+  /* hovering in expands after a short intent delay, so a quick graze across the
+     pile doesn't pop the fan open; focus expands immediately (deliberate) */
+  const expandSoon = () => {
+    cancelPendingCollapse();
+    if (expand_delay_ms > 0 && !expanded) {
+      cancelPendingExpand();
+      expandTimerRef.current = setTimeout(() => {
+        expandTimerRef.current = null;
+        setExpandedBoth(true);
+      }, expand_delay_ms);
+    } else {
+      setExpandedBoth(true);
+    }
   };
 
   /* leaving collapses after a short grace period (cancelled on re-enter),
      so grazing the pile's edge doesn't snap it shut */
   const collapseSoon = () => {
+    cancelPendingExpand();
     cancelPendingCollapse();
     if (collapse_delay_ms > 0) {
       collapseTimerRef.current = setTimeout(() => {
@@ -133,7 +160,7 @@ const CardStack = ({
       aria-label={aria_label}
       data-card-stack=""
       data-expanded={expanded}
-      onMouseEnter={expandNow}
+      onMouseEnter={expandSoon}
       onMouseLeave={collapseSoon}
       onFocus={expandNow}
       onBlur={(e) => {

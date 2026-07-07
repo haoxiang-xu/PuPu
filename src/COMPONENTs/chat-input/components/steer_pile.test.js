@@ -68,15 +68,23 @@ describe("SteerPile", () => {
     expect(onUndo).toHaveBeenCalledWith("s4");
   });
 
-  test("mouseleave keeps the stack expanded briefly before collapsing", () => {
+  test("hover expands after an intent delay, then mouseleave collapses after a grace period", () => {
     jest.useFakeTimers();
     render(<SteerPile items={makeItems()} onUndo={() => {}} isDark={false} />);
 
     const pile = screen.getByRole("group", { name: "Queued steer messages" });
 
+    // hover-in is delayed (intent) — not expanded immediately
     fireEvent.mouseEnter(pile);
+    expect(pile).toHaveAttribute("data-expanded", "false");
+
+    // after the ~120ms expand delay it opens
+    act(() => {
+      jest.advanceTimersByTime(120);
+    });
     expect(pile).toHaveAttribute("data-expanded", "true");
 
+    // leaving keeps it open through the collapse grace period, then collapses
     fireEvent.mouseLeave(pile);
     expect(pile).toHaveAttribute("data-expanded", "true");
 
@@ -87,6 +95,21 @@ describe("SteerPile", () => {
 
     act(() => {
       jest.advanceTimersByTime(1);
+    });
+    expect(pile).toHaveAttribute("data-expanded", "false");
+  });
+
+  test("a quick graze (leaving before the intent delay) never expands", () => {
+    jest.useFakeTimers();
+    render(<SteerPile items={makeItems()} onUndo={() => {}} isDark={false} />);
+
+    const pile = screen.getByRole("group", { name: "Queued steer messages" });
+
+    fireEvent.mouseEnter(pile);
+    fireEvent.mouseLeave(pile); // leave well before the expand delay elapses
+
+    act(() => {
+      jest.advanceTimersByTime(300);
     });
     expect(pile).toHaveAttribute("data-expanded", "false");
   });

@@ -17,6 +17,8 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 const OVERLAP = 10; // collapsed: px the deck sinks behind the input's top edge
 const LIFT = 8; // expanded: px gap between the bottom card and the input's top
+const RADIUS = 22; // side inset = the chat input's border radius (chat_input.js)
+const EXPAND_DELAY = 120; // hover-intent: brief delay before the fan opens
 
 const SteerPile = ({
   items = [],
@@ -36,20 +38,18 @@ const SteerPile = ({
       aria_label="Queued steer messages"
       expand_lift={OVERLAP + LIFT}
       collapse_delay_ms={180}
+      expand_delay_ms={EXPAND_DELAY}
       on_expand_change={setExpanded}
       style={{
         position: "absolute",
-        // Anchored by left+right insets (not left:50% + transform), so the RIGHT
-        // edge stays pinned to its centered position while the LEFT edge can be
-        // pushed in. Closed: equal insets reproduce the old centered layout
-        // exactly (width caps at 560 on its own, since the insets grow on wide
-        // viewports). Open: the left inset clears the left-anchored attach panel
-        // so the deck and the attach controls never overlap — only the left edge
-        // moves (the right edge stays put), and it slides rather than jumps.
-        right: "max(24px, calc((100% - 560px) / 2))",
-        left: attachPanelOpen
-          ? "max(344px, calc((100% - 560px) / 2))"
-          : "max(24px, calc((100% - 560px) / 2))",
+        // Anchored by left+right insets = the input's border radius (RADIUS),
+        // so closed the deck spans the input's FULL width edge-to-edge, its
+        // sides landing exactly where the input's rounded corners straighten
+        // out. Open (composer active): the left inset jumps to 50% so the deck
+        // shrinks to the input's RIGHT HALF, clearing the left-anchored attach
+        // panel; the right edge never moves and the left edge slides.
+        right: RADIUS,
+        left: attachPanelOpen ? "50%" : RADIUS,
         transition: "left 0.22s cubic-bezier(0.32, 1, 0.32, 1)",
         // Fixed vertical anchor sunk OVERLAP px behind the input's top edge:
         // collapsed, the input (z-index 2, opaque) occludes the deck's lower
