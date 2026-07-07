@@ -89,6 +89,23 @@ const makeSteerItem = (text) => ({
   status: "queued",
 });
 
+/* mock model catalog — mirrors the shape api.unchain.getModelCatalog()
+   normalizes to (see EMPTY_MODEL_CATALOG in SERVICEs/api.shared.js), so
+   useChatInputModels/build_model_options read it exactly like the real
+   chat page's live catalog. Only `.providers.{ollama,openai,anthropic}`
+   (arrays of model-name strings) are actually consumed downstream. */
+const MOCK_MODEL_CATALOG = {
+  activeModel: "ollama:llama3.1:8b",
+  activeCapabilities: { text: true, image: true },
+  modelCapabilities: {},
+  providers: {
+    ollama: ["llama3.1:8b", "qwen2.5:7b"],
+    openai: ["gpt-4.1-mini", "gpt-4o"],
+    anthropic: ["claude-sonnet-4-5", "claude-haiku-4-5"],
+  },
+  embeddingProviders: { openai: [] },
+};
+
 const Chip = ({ label, active, onClick, isDark }) => (
   <button
     onClick={onClick}
@@ -123,6 +140,38 @@ const InterjectRunner = () => {
   const [showFyi, setShowFyi] = useState(true);
   const [showSide, setShowSide] = useState(true);
   const [clarifyStatus, setClarifyStatus] = useState("off");
+
+  /* composer chrome (attach panel) — bench-local state/stubs mirroring
+     chat.js's sharedChatInputProps; no real upload/screenshot capture. */
+  const [selectedModelId, setSelectedModelId] = useState(
+    MOCK_MODEL_CATALOG.activeModel,
+  );
+  const [selectedToolkits, setSelectedToolkits] = useState([]);
+  const [selectedWorkspaceIds, setSelectedWorkspaceIds] = useState([]);
+  const [mockAttachments, setMockAttachments] = useState([]);
+
+  const addMockAttachment = (prefix) =>
+    setMockAttachments((prev) => [
+      ...prev,
+      { id: `${prefix}-${prev.length}-${Date.now()}`, name: `${prefix}-${prev.length + 1}` },
+    ]);
+
+  const handleAttachFile = () => {
+    // eslint-disable-next-line no-console
+    console.log("[InterjectRunner] attach file → stub, no real upload wired");
+    addMockAttachment("mock-file");
+  };
+
+  const handleAttachScreenshot = () => {
+    // eslint-disable-next-line no-console
+    console.log(
+      "[InterjectRunner] attach screenshot → stub, no real capture wired",
+    );
+    addMockAttachment("mock-screenshot");
+  };
+
+  const handleRemoveAttachment = (id) =>
+    setMockAttachments((prev) => prev.filter((att) => att.id !== id));
 
   const frames = useMemo(() => {
     const fs = [...BASE_FRAMES];
@@ -280,10 +329,24 @@ const InterjectRunner = () => {
               }}
               onStop={() => setIsStreaming(false)}
               isStreaming={isStreaming}
-              showAttachments={false}
-              showModelSelector={false}
-              showToolSelector={false}
-              showWorkspaceSelector={false}
+              showAttachments={true}
+              onAttachFile={handleAttachFile}
+              onAttachScreenshot={handleAttachScreenshot}
+              attachments={mockAttachments}
+              onRemoveAttachment={handleRemoveAttachment}
+              attachmentsEnabled={true}
+              attachmentsDisabledReason=""
+              modelCatalog={MOCK_MODEL_CATALOG}
+              selectedModelId={selectedModelId}
+              onSelectModel={setSelectedModelId}
+              modelSelectDisabled={isStreaming}
+              showModelSelector={true}
+              showToolSelector={true}
+              selectedToolkits={selectedToolkits}
+              onToolkitsChange={setSelectedToolkits}
+              showWorkspaceSelector={true}
+              selectedWorkspaceIds={selectedWorkspaceIds}
+              onWorkspaceIdsChange={setSelectedWorkspaceIds}
               interjectState={interjectState}
               onSteerUndo={undoSteer}
               placeholder="插一句话…(试试 / 唤起命令菜单)"
