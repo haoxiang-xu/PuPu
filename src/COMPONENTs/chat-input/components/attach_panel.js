@@ -10,6 +10,7 @@ import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight"
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
+import { SteerAttachSection } from "./steer_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
@@ -158,6 +159,8 @@ const AttachPanel = ({
   onWorkspaceIdsChange,
   selectedRecipeName = "Default",
   onSelectRecipe,
+  steerItems = [],
+  onSteerUndo,
 }) => {
   const { theme } = useContext(ConfigContext);
   const highlight = themeHighlightColor(theme);
@@ -247,6 +250,18 @@ const AttachPanel = ({
     padding: "0 10px",
   };
 
+  /* icon-only buttons: every box is exactly PILL_HEIGHT square so the row's
+     inner ring is a uniform 4px — hover circles (r16) + 4px inset = 20, the
+     row's rendered corner radius (22 clamped at 40px height). Concentric. */
+  const iconBtnStyle = {
+    color,
+    fontSize: 14,
+    iconSize: 16,
+    iconOnlyPaddingVertical: (PILL_HEIGHT - 16) / 2,
+    iconOnlyPaddingHorizontal: (PILL_HEIGHT - 16) / 2,
+    borderRadius: floating ? 999 : 16,
+  };
+
   /* badge overlay for icon buttons */
   const Badge = ({ count }) =>
     count > 0 ? (
@@ -314,7 +329,7 @@ const AttachPanel = ({
           display: "flex",
           alignItems: "center",
           gap: 6,
-          padding: "4px 4px 4px 6px",
+          padding: 4,
           borderRadius: 22,
           backgroundColor: panelBg,
           ...(floating
@@ -370,11 +385,7 @@ const AttachPanel = ({
                 prefix_icon="attachment"
                 onClick={onAttachFile}
                 disabled={!attachmentsEnabled}
-                style={{
-                  color,
-                  fontSize: 14,
-                  borderRadius: floating ? 22 : 16,
-                }}
+                style={iconBtnStyle}
               />
             </div>
 
@@ -392,11 +403,7 @@ const AttachPanel = ({
                   prefix_icon="screenshot"
                   onClick={onAttachScreenshot}
                   disabled={!attachmentsEnabled}
-                  style={{
-                    color,
-                    fontSize: 14,
-                    borderRadius: floating ? 22 : 16,
-                  }}
+                  style={iconBtnStyle}
                 />
               </div>
             )}
@@ -435,13 +442,16 @@ const AttachPanel = ({
                         prefix_icon="tool"
                         title="Select toolkits"
                         style={{
+                          ...iconBtnStyle,
                           color:
                             selectedToolkits.length > 0
                               ? highlight
                               : color,
-                          fontSize: 14,
                           iconSize: TOOL_SELECTOR_TRIGGER_ICON_SIZE,
-                          borderRadius: floating ? 22 : 16,
+                          iconOnlyPaddingVertical:
+                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
+                          iconOnlyPaddingHorizontal:
+                            (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
                         }}
                       />
                       <Badge count={selectedToolkits.length} />
@@ -490,12 +500,11 @@ const AttachPanel = ({
                         prefix_icon="folder_2"
                         title="Select workspaces"
                         style={{
+                          ...iconBtnStyle,
                           color:
                             selectedWorkspaceIds.length > 0
                               ? highlight
                               : color,
-                          fontSize: 14,
-                          borderRadius: floating ? 22 : 16,
                         }}
                       />
                       <Badge count={selectedWorkspaceIds.length} />
@@ -512,9 +521,18 @@ const AttachPanel = ({
           <Button
             prefix_icon="link"
             onClick={onAttachLink}
-            style={{ color, fontSize: 14, borderRadius: floating ? 22 : 16 }}
+            style={iconBtnStyle}
           />
         )}
+
+        {/* ── Steer queue segment — the steer queue's one and only home ── */}
+        {steerItems.length > 0 ? (
+          <SteerAttachSection
+            items={steerItems}
+            onUndo={onSteerUndo}
+            isDark={isDark}
+          />
+        ) : null}
       </div>
 
       <WorkspaceModal

@@ -1,211 +1,299 @@
-import { useState } from "react";
-import CardStack from "../../../BUILTIN_COMPONENTs/stack/card_stack";
+import { useEffect, useRef, useState } from "react";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 /**
- * SteerPile — queued /steer interjections, rendered as a CardStack anchored
- * above the chat input.
+ * Steer queue UI — a compact segment that lives INSIDE the attach panel row.
  *
- * This is a thin wrapper: all stacking math (collapsed deck, hover fan,
- * contiguous hit region, expand lift) lives in the generic CardStack
- * primitive. This file only owns the steer semantics — newest-first display
- * order, the input anchoring (collapsed deck tucked behind the input,
- * lifting clear of it on expand), and the card visuals/labels.
+ * The segment reads: [steer icon] ×N [latest message text]. Hovering it pops
+ * the full queue above the panel as a fan of cards, each with Undo. Relayed
+ * items (merged into the next turn) render green with a ✓ and no Undo.
  *
- * Renders nothing when `items` is empty.
+ * attach_panel.js renders <SteerAttachSection> whenever the queue is
+ * non-empty; there is no other home for the steer queue.
  */
 
-const OVERLAP = 10; // collapsed: px the deck sinks behind the input's top edge
-const LIFT = 8; // expanded: px gap between the bottom card and the input's top
-const RADIUS = 22; // side inset = the chat input's border radius (chat_input.js)
+const CARD_W = 300;
+const ROW_H = 32; // matches the attach panel's sub-pill height
+const CARD_R = 12;
+const CARD_GAP = 8;
+const MS = 240;
+const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
 const EXPAND_DELAY = 120; // hover-intent: brief delay before the fan opens
+const COLLAPSE_DELAY = 180; // grace period before it closes
 
-const SteerPile = ({
-  items = [],
-  onUndo = () => {},
-  isDark = false,
-  attachPanelOpen = false,
-}) => {
-  const [expanded, setExpanded] = useState(false);
+const surfaceOf = (isDark) =>
+  isDark
+    ? "var(--pupu-surface, rgba(30, 30, 30, 1))"
+    : "var(--pupu-surface, rgba(255,255,255,1))";
+const edgeOf = (isDark) =>
+  isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
 
-  if (!Array.isArray(items) || items.length === 0) return null;
+/* ── hover-intent hook: delayed expand, grace-period collapse ── */
+const useHoverIntent = () => {
+  const [hover, setHover] = useState(false);
+  const timerRef = useRef(null);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+  const onMouseEnter = () => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setHover(true), EXPAND_DELAY);
+  };
+  const onMouseLeave = () => {
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setHover(false), COLLAPSE_DELAY);
+  };
+  return [hover, { onMouseEnter, onMouseLeave }];
+};
 
-  const ordered = [...items].reverse(); // newest first (front card)
+/* double-rAF latch so the fan mounted-on-hover still animates in */
+const useEnteredLatch = (active) => {
+  const [entered, setEntered] = useState(false);
+  useEffect(() => {
+    if (!active) {
+      setEntered(false);
+      return undefined;
+    }
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setEntered(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, [active]);
+  return entered;
+};
 
+/* ── summary content: [icon] ×N [latest text] ── */
+export const SteerSummaryInline = ({ items = [], isDark = false }) => {
+  const latest = items[items.length - 1];
   return (
-    <CardStack
-      items={ordered}
-      aria_label="Queued steer messages"
-      expand_lift={OVERLAP + LIFT}
-      collapse_delay_ms={180}
-      expand_delay_ms={EXPAND_DELAY}
-      // shortened (right-half) deck: the collapsed cards left-align and recede
-      // on the right only, instead of shrinking symmetrically from the center
-      collapse_origin={attachPanelOpen ? "bottom left" : "bottom center"}
-      on_expand_change={setExpanded}
-      style={{
-        position: "absolute",
-        // Anchored by left+right insets = the input's border radius (RADIUS),
-        // so closed the deck spans the input's FULL width edge-to-edge, its
-        // sides landing exactly where the input's rounded corners straighten
-        // out. Open (composer active): the left inset jumps to 50% so the deck
-        // shrinks to the input's RIGHT HALF, clearing the left-anchored attach
-        // panel; the right edge never moves and the left edge slides.
-        right: RADIUS,
-        left: attachPanelOpen ? "50%" : RADIUS,
-        transition: "left 0.22s cubic-bezier(0.32, 1, 0.32, 1)",
-        // Fixed vertical anchor sunk OVERLAP px behind the input's top edge:
-        // collapsed, the input (z-index 2, opaque) occludes the deck's lower
-        // part. The anchor NEVER moves vertically — CardStack lifts the cards on
-        // expand instead, so hovering never flickers.
-        bottom: `calc(100% - ${OVERLAP}px)`,
-        zIndex: expanded ? 30 : 1,
-      }}
-      render_card={({ item, expanded: isExpanded, overflow }) => (
-        <SteerCard
-          item={item}
-          expanded={isExpanded}
-          isDark={isDark}
-          onUndo={onUndo}
-          hiddenCount={overflow}
+    <>
+      <span
+        style={{
+          flexShrink: 0,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon
+          src="steer_arrow"
+          color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
+          style={{ width: 14, height: 14 }}
         />
+      </span>
+      {items.length > 1 && (
+        <span
+          data-steer-count=""
+          style={{
+            flexShrink: 0,
+            fontSize: 10,
+            fontWeight: 700,
+            color: isDark ? "rgba(150,225,170,0.95)" : "rgba(25,130,70,0.9)",
+          }}
+        >
+          ×{items.length}
+        </span>
       )}
-    />
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontSize: 12,
+          color: isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.8)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {latest?.text}
+      </span>
+    </>
   );
 };
 
-const SteerCard = ({ item, expanded, isDark, onUndo, hiddenCount }) => {
+/* ── one full card in the fan ── */
+const SteerFanCard = ({ item, isDark, onUndo, entered, delayMs }) => {
   const relayed = item?.status === "relayed";
-
-  // Collapsed cards are opaque so the deck reads as tucked behind the input;
-  // expanded they float above content as a translucent, backdrop-blurred panel.
-  const surfaceBg = expanded
-    ? isDark
-      ? "rgba(28,28,28,0.62)"
-      : "rgba(255,255,255,0.66)"
-    : isDark
-      ? "var(--pupu-surface, rgba(30,30,30,0.98))"
-      : "var(--pupu-surface, rgba(255,255,255,0.98))";
-  const backdrop = expanded ? "blur(20px) saturate(180%)" : "none";
-  const defaultBorder = isDark
-    ? "1px solid rgba(255,255,255,0.10)"
-    : "1px solid rgba(0,0,0,0.08)";
-  const relayedBorder = isDark
-    ? "1px solid rgba(120,210,150,0.6)"
-    : "1px solid rgba(35,150,85,0.5)";
-  const labelColor = isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.45)";
-  const relayedColor = isDark ? "rgba(150,225,170,0.95)" : "rgba(25,130,70,0.9)";
-  const textColor = isDark ? "rgba(255,255,255,0.86)" : "rgba(0,0,0,0.82)";
-  const iconColor = relayed
-    ? relayedColor
-    : isDark
-      ? "rgba(255,255,255,0.55)"
-      : "rgba(0,0,0,0.5)";
-  const undoColor = "rgba(20, 110, 220, 0.9)";
-  const shadow = isDark
-    ? "0 6px 18px rgba(0,0,0,0.4)"
-    : "0 6px 18px rgba(0,0,0,0.08)";
-
+  const relayedColor = isDark
+    ? "rgba(150,225,170,0.95)"
+    : "rgba(25,130,70,0.9)";
   return (
     <div
       data-steer-card
       data-status={relayed ? "relayed" : "queued"}
       style={{
         boxSizing: "border-box",
-        width: "100%",
-        backgroundColor: surfaceBg,
-        backdropFilter: backdrop,
-        WebkitBackdropFilter: backdrop,
-        border: relayed ? relayedBorder : defaultBorder,
-        borderRadius: 10,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        minHeight: ROW_H,
         padding: "5px 5px 5px 10px",
-        boxShadow: shadow,
+        backgroundColor: surfaceOf(isDark),
+        border: relayed
+          ? isDark
+            ? "1px solid rgba(120,210,150,0.6)"
+            : "1px solid rgba(35,150,85,0.5)"
+          : `1px solid ${edgeOf(isDark)}`,
+        borderRadius: CARD_R,
+        boxShadow: isDark
+          ? "0 6px 18px rgba(0,0,0,0.4)"
+          : "0 6px 18px rgba(0,0,0,0.08)",
+        opacity: entered ? 1 : 0,
+        transform: entered ? "none" : "translateY(8px) scale(0.97)",
+        transition: `opacity ${MS}ms ${EASE} ${delayMs}ms, transform ${MS}ms ${EASE} ${delayMs}ms`,
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <span
+      <span
+        style={{
+          flexShrink: 0,
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Icon
+          src="steer_arrow"
+          color={
+            relayed
+              ? relayedColor
+              : isDark
+                ? "rgba(255,255,255,0.45)"
+                : "rgba(0,0,0,0.4)"
+          }
+          style={{ width: 13, height: 13 }}
+        />
+      </span>
+      <span
+        style={{
+          flex: 1,
+          minWidth: 0,
+          fontSize: 12,
+          lineHeight: 1.35,
+          color: relayed
+            ? relayedColor
+            : isDark
+              ? "rgba(255,255,255,0.86)"
+              : "rgba(0,0,0,0.82)",
+          whiteSpace: "nowrap",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+        }}
+      >
+        {relayed ? `✓ ${item?.text}` : item?.text}
+      </span>
+      {!relayed && (
+        <button
+          type="button"
+          aria-label="Undo"
+          onClick={() => onUndo(item.id)}
           style={{
             flexShrink: 0,
-            marginTop: 0,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
+            border: "none",
+            background: "transparent",
+            padding: "3px 7px",
+            margin: 0,
+            fontSize: 10,
+            fontWeight: 600,
+            lineHeight: 1,
+            borderRadius: 6,
+            color: "rgba(20, 110, 220, 0.9)",
+            cursor: "pointer",
           }}
         >
-          <Icon
-            src="steer_arrow"
-            color={iconColor}
-            style={{ width: 18, height: 18 }}
-          />
-        </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 8,
-            }}
-          >
-            <span
-              style={{
-                fontSize: 10,
-                fontWeight: 500,
-                letterSpacing: 0.2,
-                color: relayed ? relayedColor : labelColor,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {relayed
-                ? "✓ Merged into next turn"
-                : "Queued · runs after this turn"}
-              {hiddenCount > 0 ? ` +${hiddenCount}` : ""}
-            </span>
-            {!relayed && (
-              <button
-                type="button"
-                aria-label="Undo"
-                onClick={() => onUndo(item.id)}
-                style={{
-                  flexShrink: 0,
-                  border: "none",
-                  background: "transparent",
-                  padding: "3px 7px",
-                  margin: 0,
-                  fontSize: 10,
-                  fontWeight: 500,
-                  lineHeight: 1,
-                  borderRadius: 6,
-                  color: undoColor,
-                  cursor: "pointer",
-                }}
-              >
-                Undo
-              </button>
-            )}
-          </div>
-          <div
-            style={{
-              marginTop: 2,
-              fontSize: 12,
-              lineHeight: 1.35,
-              color: textColor,
-              overflow: "hidden",
-              display: "-webkit-box",
-              WebkitBoxOrient: "vertical",
-              WebkitLineClamp: expanded ? 3 : 1,
-              whiteSpace: expanded ? "normal" : "nowrap",
-              textOverflow: "ellipsis",
-            }}
-          >
-            {item?.text}
-          </div>
-        </div>
-      </div>
+          Undo
+        </button>
+      )}
     </div>
   );
 };
 
-export default SteerPile;
+/* ── the fan: a column of cards, oldest on top / newest at the bottom ── */
+export const SteerFan = ({
+  items = [],
+  onUndo = () => {},
+  isDark = false,
+  entered = true,
+}) => (
+  <div
+    data-steer-fan=""
+    style={{ display: "flex", flexDirection: "column", gap: CARD_GAP }}
+  >
+    {items.map((item, index) => (
+      <SteerFanCard
+        key={item.id}
+        item={item}
+        isDark={isDark}
+        onUndo={onUndo}
+        entered={entered}
+        /* stagger from the bottom (newest) upward */
+        delayMs={40 + (items.length - 1 - index) * 35}
+      />
+    ))}
+  </div>
+);
+
+/* ── the attach panel segment ── */
+export const SteerAttachSection = ({
+  items = [],
+  onUndo = () => {},
+  isDark = false,
+}) => {
+  const [hover, hoverHandlers] = useHoverIntent();
+  const entered = useEnteredLatch(hover);
+
+  if (!Array.isArray(items) || items.length === 0) return null;
+
+  return (
+    <div
+      data-steer-attach-section=""
+      data-expanded={hover}
+      role="group"
+      aria-label="Queued steer messages"
+      {...hoverHandlers}
+      style={{ position: "relative", display: "flex", alignItems: "center" }}
+    >
+      {/* the segment — sub-pill, same language as the model selector pill */}
+      <div
+        style={{
+          boxSizing: "border-box",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          height: ROW_H,
+          maxWidth: 200,
+          padding: "0 10px",
+          borderRadius: 999,
+          backgroundColor: isDark
+            ? "rgba(255,255,255,0.07)"
+            : "rgba(0,0,0,0.05)",
+        }}
+      >
+        <SteerSummaryInline items={items} isDark={isDark} />
+      </div>
+
+      {/* hover: full fan above the panel; paddingBottom keeps the hover
+          region contiguous across the visual gap */}
+      {hover && (
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            bottom: "100%",
+            width: CARD_W,
+            paddingBottom: 10,
+            zIndex: 40,
+          }}
+        >
+          <SteerFan
+            items={items}
+            onUndo={onUndo}
+            isDark={isDark}
+            entered={entered}
+          />
+        </div>
+      )}
+    </div>
+  );
+};

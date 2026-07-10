@@ -4,7 +4,6 @@ import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
 import CommandPalettePanel from "./components/command_palette_panel";
 import InputActionButtons from "./components/input_action_buttons";
-import SteerPile from "./components/steer_pile";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
 import { useFileDropOverlay } from "./hooks/use_file_drop_overlay";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
@@ -349,12 +348,6 @@ const ChatInput = ({
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
         >
-          <SteerPile
-            items={interjectState?.steerItems || []}
-            onUndo={onSteerUndo}
-            isDark={isDark}
-            attachPanelOpen={chatActive}
-          />
           {isDragging && (
             <div
               style={{
@@ -442,6 +435,8 @@ const ChatInput = ({
                       selectedRecipeName={selectedRecipeName}
                       onSelectRecipe={onSelectRecipe}
                       recipeOptions={recipeOptions}
+                      steerItems={interjectState?.steerItems || []}
+                      onSteerUndo={onSteerUndo}
                     />
                   ) : null}
                 </CommandPalettePanel>
@@ -465,11 +460,7 @@ const ChatInput = ({
               margin: 0,
               borderRadius: 22,
               position: "relative",
-              /* sits above the collapsed SteerPile (tucked behind, z-index 1)
-                 but below it once it expands on hover (z-index 30) */
               zIndex: 2,
-              /* opaque surface so the collapsed SteerPile reads as tucked
-                 BEHIND the input rather than showing through it */
               backgroundColor: isDark
                 ? "var(--pupu-surface, rgba(30, 30, 30, 1))"
                 : "var(--pupu-surface, rgba(255,255,255,1))",

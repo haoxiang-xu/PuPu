@@ -9,7 +9,7 @@ import TestControls from "../test_controls";
  * InterjectRunner — UI test bench for the run-in interject surface.
  *
  * Mounts the REAL TraceChain (fed with mock interject frames) above the REAL
- * ChatInput (slash command menu, SteerPile, hint pill, send/stop button trio),
+ * ChatInput (slash command menu, steer attach section, hint pill, send/stop button trio),
  * with a control bar to flip every interject state — so the whole surface can
  * be eyeballed without driving a live streaming run.
  */
