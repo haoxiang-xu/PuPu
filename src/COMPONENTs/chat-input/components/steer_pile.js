@@ -275,27 +275,32 @@ export const SteerPanel = ({
         />
       ))}
 
-      {/* header slot at the bottom — the palette's chip + hint, steer-dyed */}
+      {/* header slot at the bottom — the palette's chip + hint, steer-dyed.
+          chip corner is concentric with the panel's bottom-left: the chip is
+          an 18px pill (r9) inset 13px from the panel edge on both axes
+          (8 panel pad + 5 header pad), and 9 + 13 = 22, the panel radius */}
       <div
         data-steer-panel-header=""
         style={{
           display: "flex",
           alignItems: "center",
           gap: 8,
-          padding: "7px 6px 3px",
+          padding: "7px 6px 5px 5px",
         }}
       >
         <span
           style={{
+            boxSizing: "border-box",
             display: "inline-flex",
             alignItems: "center",
             gap: 5,
+            height: 18,
             fontSize: 11.5,
             fontWeight: 600,
             color: chipColor,
             backgroundColor: chipBg,
-            borderRadius: 6,
-            padding: "1px 8px",
+            borderRadius: 9,
+            padding: "0 8px",
             whiteSpace: "nowrap",
           }}
         >

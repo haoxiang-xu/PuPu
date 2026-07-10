@@ -163,7 +163,9 @@ const CommandPalettePanel = ({
               display: "flex",
               alignItems: "flex-end",
               gap: 8,
-              padding: "0 12px 13px",
+              /* 13px insets so the 18px query chip (r9) nests concentric
+                 inside the panel's 22px bottom-left corner: 9 + 13 = 22 */
+              padding: "0 13px 13px",
               transform: on ? "translateY(0)" : "translateY(-11px)",
               opacity: on ? 1 : 0,
               pointerEvents: "none",
@@ -175,12 +177,16 @@ const CommandPalettePanel = ({
             <span
               data-palette-query=""
               style={{
+                boxSizing: "border-box",
+                display: "inline-flex",
+                alignItems: "center",
+                height: 18,
                 fontSize: 12.5,
                 fontWeight: 600,
                 color: chipColor,
                 backgroundColor: chipBg,
-                borderRadius: 6,
-                padding: "1px 8px",
+                borderRadius: 9,
+                padding: "0 8px",
                 whiteSpace: "nowrap",
                 transform: on ? "scale(1)" : "scale(0.85)",
                 transition: on
