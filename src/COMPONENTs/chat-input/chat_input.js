@@ -459,11 +459,8 @@ const ChatInput = ({
               width: "100%",
               margin: 0,
               borderRadius: 22,
-              /* standard 1px hairline (textfield default tokens); the
-                 softness comes from the wider, lower-alpha shadow */
-              border: isDark
-                ? "1px solid rgba(255,255,255,0.08)"
-                : "1px solid rgba(0,0,0,0.06)",
+              /* border: textfield's own default (theme-aware); softness
+                 comes from the wider, lower-alpha shadow */
               boxShadow: isDark
                 ? "0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.18)"
                 : "0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)",
