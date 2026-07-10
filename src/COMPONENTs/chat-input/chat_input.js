@@ -404,6 +404,7 @@ const ChatInput = ({
                   activeIndex={commandMenuActiveIndex}
                   onPick={handleCommandPick}
                   isDark={isDark}
+                  surfaceBg={panelFocusBg}
                 >
                   {showAttachments ? (
                     <AttachPanel

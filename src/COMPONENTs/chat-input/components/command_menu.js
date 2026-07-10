@@ -38,8 +38,10 @@ const CommandMenu = ({
     ? "0 10px 30px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.22)"
     : "0 10px 30px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)";
 
+  /* bare mode lives inside the palette panel (radius 22): 6px inset with
+     16px rows keeps the corners concentric (22 - 6 = 16) */
   const chrome = bare
-    ? { padding: "5px 5px 0" }
+    ? { padding: "6px 6px 0" }
     : {
         backgroundColor: surfaceBg,
         backdropFilter: "blur(18px) saturate(1.4)",
@@ -73,6 +75,7 @@ const CommandMenu = ({
           active={index === activeIndex}
           isDark={isDark}
           onPick={onPick}
+          rowRadius={bare ? 16 : 7}
           entrance={
             bare
               ? {
@@ -87,7 +90,14 @@ const CommandMenu = ({
   );
 };
 
-const CommandRow = ({ item, active, isDark, onPick, entrance = null }) => {
+const CommandRow = ({
+  item,
+  active,
+  isDark,
+  onPick,
+  entrance = null,
+  rowRadius = 7,
+}) => {
   const activeBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
   const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.44)";
@@ -126,7 +136,7 @@ const CommandRow = ({ item, active, isDark, onPick, entrance = null }) => {
         gap: 8,
         height: ROW_HEIGHT,
         padding: "0 8px",
-        borderRadius: 7,
+        borderRadius: rowRadius,
         backgroundColor: active ? activeBg : "transparent",
         cursor: "pointer",
         ...(entranceStyle || {}),
