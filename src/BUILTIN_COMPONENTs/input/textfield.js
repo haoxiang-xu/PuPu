@@ -53,7 +53,7 @@ const FloatingTextField = ({
   const lineHeight = style?.lineHeight || tf.lineHeight || 1.5;
   const fontFamily =
     style?.fontFamily || theme?.font?.fontFamily || "Jost, sans-serif";
-  const borderRadius = style?.borderRadius || tf.borderRadius || 7;
+  const borderRadius = style?.borderRadius ?? tf.borderRadius ?? 7;
   const bg =
     style?.backgroundColor ??
     tf.backgroundColor ??

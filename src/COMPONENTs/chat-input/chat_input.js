@@ -459,11 +459,15 @@ const ChatInput = ({
               width: "100%",
               margin: 0,
               borderRadius: 22,
+              border: "none",
               position: "relative",
               zIndex: 2,
+              /* frosted: the themed surface at ~palette-family alpha, with
+                 the same blur the palette panels use */
               backgroundColor: isDark
-                ? "var(--pupu-surface, rgba(30, 30, 30, 1))"
-                : "var(--pupu-surface, rgba(255,255,255,1))",
+                ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
+                : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)",
+              backdropFilter: "blur(20px) saturate(130%)",
             }}
           />
         </div>
