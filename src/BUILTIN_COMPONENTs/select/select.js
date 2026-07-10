@@ -747,7 +747,10 @@ const Select = ({
         iconGap: 5,
         separatorColor: "transparent",
         separatorMargin: "1px 0",
-        childIndent: 0,
+        /* indent option rows under their group: 33 + the row's own 8px
+           padding lands the option text at 41px — exactly where the group
+           label starts (8 pad + 10 chevron + 5 + 13 icon + 5) */
+        childIndent: 33,
         accentBarWidth: 0,
         childBarGap: 0,
         childPaddingTop: 1,
