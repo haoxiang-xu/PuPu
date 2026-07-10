@@ -403,6 +403,7 @@ const ChatInput = ({
                   items={commandItems}
                   activeIndex={commandMenuActiveIndex}
                   onPick={handleCommandPick}
+                  onHover={setCommandMenuActiveIndex}
                   isDark={isDark}
                   surfaceBg={panelFocusBg}
                 >

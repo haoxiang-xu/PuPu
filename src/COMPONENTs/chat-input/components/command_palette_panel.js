@@ -19,7 +19,7 @@ import CommandMenu from "./command_menu";
 const FALLBACK_H = 40; // pill row height fallback before measurement
 const PAD = 6; // panel inner padding around the list (concentric inset)
 const PANEL_RADIUS = 22; // matches the attach pill container
-const ROW_STRIDE = 33; // CommandMenu row 32 + 1 gap
+const ROW_STRIDE = 29; // CommandMenu bare row 28 + 1 gap
 const MAX_ROWS = 6;
 const MIN_PANEL_W = 340;
 const BLEED = 6; // how far the panel extends past the pill bounds
@@ -34,6 +34,7 @@ const CommandPalettePanel = ({
   items = [],
   activeIndex = 0,
   onPick = () => {},
+  onHover = null,
   isDark = false,
   surfaceBg,
   children,
@@ -87,9 +88,6 @@ const CommandPalettePanel = ({
     (isDark
       ? "var(--pupu-surface, rgba(30,30,30,1))"
       : "var(--pupu-surface, rgba(255,255,255,1))");
-  const panelBorder = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
   const hintColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
   const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
   const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
@@ -116,15 +114,14 @@ const CommandPalettePanel = ({
           overflow: "hidden",
           borderRadius: PANEL_RADIUS,
           backgroundColor: on ? panelBg : "transparent",
-          border: on ? panelBorder : "1px solid transparent",
           boxShadow: on
             ? isDark
               ? "0 10px 34px rgba(0,0,0,0.5)"
               : "0 10px 34px rgba(0,0,0,0.12)"
             : "none",
           transition: on
-            ? "height 210ms cubic-bezier(0.3,1,0.35,1) 40ms, background-color 180ms ease, border-color 180ms ease, box-shadow 210ms ease"
-            : "height 150ms cubic-bezier(0.4,0,0.6,1), background-color 130ms ease 40ms, border-color 130ms ease 40ms, box-shadow 130ms ease",
+            ? "height 210ms cubic-bezier(0.3,1,0.35,1) 40ms, background-color 180ms ease, box-shadow 210ms ease"
+            : "height 150ms cubic-bezier(0.4,0,0.6,1), background-color 130ms ease 40ms, box-shadow 130ms ease",
           zIndex: 1,
           pointerEvents: on ? "auto" : "none",
         }}
@@ -136,6 +133,7 @@ const CommandPalettePanel = ({
               items={items}
               activeIndex={activeIndex}
               onPick={onPick}
+              onHover={onHover}
               isDark={isDark}
               bare
               visible={on}
@@ -151,15 +149,15 @@ const CommandPalettePanel = ({
             flex: "none",
           }}
         >
-          {/* palette header — drops in from above */}
+          {/* palette header — drops in from above, pinned to the bottom-left */}
           <div
             style={{
               position: "absolute",
               inset: 0,
               display: "flex",
-              alignItems: "center",
+              alignItems: "flex-end",
               gap: 8,
-              padding: `0 ${BLEED + 10}px`,
+              padding: `0 ${BLEED + 6}px 13px`,
               transform: on ? "translateY(0)" : "translateY(-11px)",
               opacity: on ? 1 : 0,
               pointerEvents: "none",

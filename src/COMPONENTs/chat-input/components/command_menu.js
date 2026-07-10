@@ -10,6 +10,7 @@
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 
 const ROW_HEIGHT = 32;
+const BARE_ROW_HEIGHT = 28;
 const MAX_VISIBLE_ROWS = 6;
 
 /**
@@ -22,6 +23,7 @@ const CommandMenu = ({
   items = [],
   activeIndex = 0,
   onPick = () => {},
+  onHover = null,
   isDark = false,
   bare = false,
   visible = true,
@@ -41,7 +43,7 @@ const CommandMenu = ({
   /* bare mode lives inside the palette panel (radius 22): 6px inset with
      16px rows keeps the corners concentric (22 - 6 = 16) */
   const chrome = bare
-    ? { padding: "6px 6px 0" }
+    ? { padding: "5px 6px 0" }
     : {
         backgroundColor: surfaceBg,
         backdropFilter: "blur(18px) saturate(1.4)",
@@ -75,7 +77,9 @@ const CommandMenu = ({
           active={index === activeIndex}
           isDark={isDark}
           onPick={onPick}
+          onHover={onHover ? () => onHover(index) : null}
           rowRadius={bare ? 16 : 7}
+          rowHeight={bare ? BARE_ROW_HEIGHT : ROW_HEIGHT}
           entrance={
             bare
               ? {
@@ -95,8 +99,10 @@ const CommandRow = ({
   active,
   isDark,
   onPick,
+  onHover = null,
   entrance = null,
   rowRadius = 7,
+  rowHeight = ROW_HEIGHT,
 }) => {
   const activeBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
@@ -129,12 +135,13 @@ const CommandRow = ({
         e.preventDefault();
         onPick(item);
       }}
+      onMouseEnter={onHover || undefined}
       style={{
         boxSizing: "border-box",
         display: "flex",
         alignItems: "center",
         gap: 8,
-        height: ROW_HEIGHT,
+        height: rowHeight,
         padding: "0 8px",
         borderRadius: rowRadius,
         backgroundColor: active ? activeBg : "transparent",
