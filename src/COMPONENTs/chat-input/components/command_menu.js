@@ -40,10 +40,12 @@ const CommandMenu = ({
     ? "0 10px 30px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.22)"
     : "0 10px 30px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)";
 
-  /* bare mode lives inside the palette panel (radius 22): 6px inset with
-     16px rows keeps the corners concentric (22 - 6 = 16) */
+  /* bare mode lives inside the palette panel (radius 22): 8px inset with
+     14px rows keeps the corners truly concentric — 22 - 8 = 14, which is
+     also the max radius a 28px-tall row can render (half its height), so
+     nothing gets silently clamped */
   const chrome = bare
-    ? { padding: "5px 6px 0" }
+    ? { padding: "8px 8px 0" }
     : {
         backgroundColor: surfaceBg,
         backdropFilter: "blur(18px) saturate(1.4)",
@@ -78,7 +80,7 @@ const CommandMenu = ({
           isDark={isDark}
           onPick={onPick}
           onHover={onHover ? () => onHover(index) : null}
-          rowRadius={bare ? 16 : 7}
+          rowRadius={bare ? 14 : 7}
           rowHeight={bare ? BARE_ROW_HEIGHT : ROW_HEIGHT}
           entrance={
             bare

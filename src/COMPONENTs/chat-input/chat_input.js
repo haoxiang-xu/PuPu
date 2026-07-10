@@ -410,7 +410,6 @@ const ChatInput = ({
                   onPick={handleCommandPick}
                   onHover={setCommandMenuActiveIndex}
                   isDark={isDark}
-                  surfaceBg={panelFocusBg}
                 >
                   {showAttachments ? (
                     <AttachPanel

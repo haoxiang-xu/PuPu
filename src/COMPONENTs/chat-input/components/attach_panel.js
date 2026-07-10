@@ -231,7 +231,8 @@ const AttachPanel = ({
 
   const floating = active || focused;
   let panelBg = "transparent";
-  if (floating) panelBg = focusBg || "rgba(255,255,255,0.95)";
+  if (floating)
+    panelBg = isDark ? "rgba(28,29,27,0.68)" : "rgba(252,252,250,0.72)";
 
   const selectBg = isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.05)";
 
@@ -316,6 +317,12 @@ const AttachPanel = ({
           padding: "4px 4px 4px 6px",
           borderRadius: 22,
           backgroundColor: panelBg,
+          ...(floating
+            ? {
+                backdropFilter: "blur(20px) saturate(180%)",
+                WebkitBackdropFilter: "blur(20px) saturate(180%)",
+              }
+            : {}),
           boxShadow: floating ? focusShadow : "none",
           transition: "background-color 0.22s ease, box-shadow 0.22s ease",
         }}

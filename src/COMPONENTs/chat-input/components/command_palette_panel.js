@@ -80,17 +80,19 @@ const CommandPalettePanel = ({
   }, []);
 
   const headerH = pillBox.h || FALLBACK_H;
-  const listH = on ? Math.min(items.length, MAX_ROWS) * ROW_STRIDE + PAD : 0;
+  const listH = on ? Math.min(items.length, MAX_ROWS) * ROW_STRIDE + 8 : 0;
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
      is exiting during the morph anyway */
   const panelW = PANEL_W;
 
+  /* translucent so the backdrop blur reads; alpha tuned to match the
+     floating attach pill so open still reads as the same object */
   const panelBg =
-    surfaceBg ||
-    (isDark
-      ? "var(--pupu-surface, rgba(30,30,30,1))"
-      : "var(--pupu-surface, rgba(255,255,255,1))");
+    surfaceBg || (isDark ? "rgba(28,29,27,0.68)" : "rgba(252,252,250,0.72)");
+  const panelBorder = isDark
+    ? "1px solid rgba(255,255,255,0.10)"
+    : "1px solid rgba(0,0,0,0.09)";
   const hintColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
   const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
   const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
@@ -117,14 +119,21 @@ const CommandPalettePanel = ({
           overflow: "hidden",
           borderRadius: PANEL_RADIUS,
           backgroundColor: on ? panelBg : "transparent",
+          border: on ? panelBorder : "1px solid transparent",
+          ...(on
+            ? {
+                backdropFilter: "blur(20px) saturate(180%)",
+                WebkitBackdropFilter: "blur(20px) saturate(180%)",
+              }
+            : {}),
           boxShadow: on
             ? isDark
               ? "0 10px 34px rgba(0,0,0,0.5)"
               : "0 10px 34px rgba(0,0,0,0.12)"
             : "none",
           transition: on
-            ? "height 210ms cubic-bezier(0.3,1,0.35,1) 40ms, background-color 180ms ease, box-shadow 210ms ease"
-            : "height 150ms cubic-bezier(0.4,0,0.6,1), background-color 130ms ease 40ms, box-shadow 130ms ease",
+            ? "height 210ms cubic-bezier(0.3,1,0.35,1) 40ms, background-color 180ms ease, border-color 180ms ease, box-shadow 210ms ease"
+            : "height 150ms cubic-bezier(0.4,0,0.6,1), background-color 130ms ease 40ms, border-color 130ms ease 40ms, box-shadow 130ms ease",
           zIndex: 1,
           pointerEvents: on ? "auto" : "none",
         }}
