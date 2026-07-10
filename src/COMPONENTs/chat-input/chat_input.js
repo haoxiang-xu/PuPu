@@ -459,7 +459,17 @@ const ChatInput = ({
               width: "100%",
               margin: 0,
               borderRadius: 22,
-              border: "none",
+              /* soft edge: a quieter hairline than the old 0.08/0.06, and a
+                 wider, lower-alpha shadow — defined but not hard */
+              border: isDark
+                ? "1px solid rgba(255,255,255,0.055)"
+                : "1px solid rgba(0,0,0,0.04)",
+              boxShadow: isDark
+                ? "0 8px 32px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.18)"
+                : "0 8px 32px rgba(0,0,0,0.06), 0 2px 8px rgba(0,0,0,0.04)",
+              boxShadowFocus: isDark
+                ? "0 14px 44px rgba(0,0,0,0.4), 0 4px 12px rgba(0,0,0,0.2)"
+                : "0 14px 44px rgba(0,0,0,0.08), 0 4px 10px rgba(0,0,0,0.05)",
               position: "relative",
               zIndex: 2,
               /* frosted: the themed surface at ~palette-family alpha, with

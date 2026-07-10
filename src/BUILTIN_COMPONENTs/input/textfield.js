@@ -65,11 +65,13 @@ const FloatingTextField = ({
       ? "1px solid rgba(255,255,255,0.08)"
       : "1px solid rgba(0,0,0,0.06)");
   const shadow =
+    style?.boxShadow ||
     tf.boxShadow ||
     (isDark
       ? "0 4px 24px rgba(0,0,0,0.5), 0 1px 3px rgba(0,0,0,0.3)"
       : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)");
   const shadowFocus =
+    style?.boxShadowFocus ||
     tf.boxShadowFocus ||
     (isDark
       ? "0 12px 36px rgba(0,0,0,0.55), 0 3px 8px rgba(0,0,0,0.35)"
@@ -197,6 +199,8 @@ const FloatingTextField = ({
   const {
     padding: _outer_padding_ignored,
     backdropFilter: _outer_backdrop_ignored,
+    boxShadow: _outer_shadow_ignored,
+    boxShadowFocus: _outer_shadow_focus_ignored,
     ...outer_style
   } = style || {};
 
