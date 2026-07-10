@@ -89,7 +89,7 @@ const CommandPalettePanel = ({
   /* translucent so the backdrop blur reads; alpha tuned to match the
      floating attach pill so open still reads as the same object */
   const panelBg =
-    surfaceBg || (isDark ? "rgba(28,29,27,0.68)" : "rgba(252,252,250,0.72)");
+    surfaceBg || (isDark ? "rgba(28,29,27,0.85)" : "rgba(252,252,250,0.9)");
   const panelBorder = isDark
     ? "1px solid rgba(255,255,255,0.10)"
     : "1px solid rgba(0,0,0,0.09)";
