@@ -34,97 +34,53 @@ const isTextEntryTarget = (target) =>
     ),
   );
 
-/* ── shared footer helpers ── */
+/* ── palette header action — small uppercase button in the dropdown's
+   bottom header (CLEAR / + ADD), faint at rest, brightens on hover ── */
 
-const ClearAllFooter = ({ onClear, isDark, theme }) => (
-  <button
-    onMouseDown={(e) => {
-      e.preventDefault();
-      onClear();
-    }}
-    style={{
-      background: "none",
-      border: "none",
-      padding: "2px 4px",
-      cursor: "pointer",
-      fontSize: 11,
-      color: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-    }}
-  >
-    clear all
-  </button>
-);
-
-const WorkspaceFooter = ({ onClear, hasSelection, onAdd, isDark, theme }) => {
-  const textColor = isDark ? "rgba(255,255,255,0.85)" : "rgba(0,0,0,0.78)";
-  const mutedColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)";
-
+const HeaderAction = ({ children, onAct, accent = false, isDark, theme }) => {
+  const restColor = accent
+    ? isDark
+      ? "#9ad9a0"
+      : "rgba(25,125,65,0.95)"
+    : isDark
+      ? "rgba(255,255,255,0.35)"
+      : "rgba(0,0,0,0.38)";
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      {hasSelection && (
-        <button
-          onMouseDown={(e) => {
-            e.preventDefault();
-            onClear();
-          }}
-          style={{
-            background: "none",
-            border: "none",
-            padding: "2px 4px",
-            cursor: "pointer",
-            fontSize: 11,
-            color: mutedColor,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            textAlign: "left",
-          }}
-        >
-          clear all
-        </button>
-      )}
-      <div
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onAdd();
-        }}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 6,
-          cursor: "pointer",
-          padding: "3px 4px",
-          opacity: 0.55,
-          borderRadius: 4,
-        }}
-        onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-        onMouseLeave={(e) => (e.currentTarget.style.opacity = "0.55")}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          style={{ flexShrink: 0 }}
-        >
-          <path
-            d="M7 2.5V11.5M2.5 7H11.5"
-            stroke={textColor}
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        </svg>
-        <span
-          style={{
-            fontSize: 12,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            color: textColor,
-            fontWeight: 500,
-          }}
-        >
-          Add Workspace
-        </span>
-      </div>
-    </div>
+    <button
+      type="button"
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onAct();
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.backgroundColor = isDark
+          ? "rgba(255,255,255,0.08)"
+          : "rgba(0,0,0,0.06)";
+        if (!accent)
+          e.currentTarget.style.color = isDark
+            ? "rgba(255,255,255,0.7)"
+            : "rgba(0,0,0,0.7)";
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.backgroundColor = "transparent";
+        e.currentTarget.style.color = restColor;
+      }}
+      style={{
+        flexShrink: 0,
+        border: "none",
+        background: "transparent",
+        cursor: "pointer",
+        fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
+        fontSize: 10,
+        letterSpacing: "0.05em",
+        color: restColor,
+        padding: "2px 6px",
+        borderRadius: 7,
+        transition: "background-color 0.13s ease, color 0.13s ease",
+      }}
+    >
+      {children}
+    </button>
   );
 };
 
@@ -362,11 +318,9 @@ const AttachPanel = ({
               on_open_change={handleModelSelectorOpenChange}
               dropdown_position="top"
               style={{ ...pillStyle, maxWidth: 180 }}
-              dropdown_style={{
-                maxWidth: 260,
-                minWidth: 180,
-                maxHeight: 240,
-              }}
+              variant="palette"
+              palette_chip="model"
+              dropdown_style={{ maxHeight: 268 }}
             />,
           )}
 
@@ -422,20 +376,24 @@ const AttachPanel = ({
                   open={openSelector === "tools"}
                   on_open_change={handleToolsOpenChange}
                   dropdown_position="top"
-                  dropdown_style={{
-                    maxWidth: 300,
-                    minWidth: 220,
-                    maxHeight: 280,
-                  }}
-                  dropdown_footer={
+                  variant="palette"
+                  palette_chip={
+                    selectedToolkits.length > 0
+                      ? `tools ×${selectedToolkits.length}`
+                      : "tools"
+                  }
+                  palette_actions={
                     selectedToolkits.length > 0 ? (
-                      <ClearAllFooter
-                        onClear={() => (onToolkitsChange || (() => {}))([])}
+                      <HeaderAction
+                        onAct={() => (onToolkitsChange || (() => {}))([])}
                         isDark={isDark}
                         theme={theme}
-                      />
+                      >
+                        CLEAR
+                      </HeaderAction>
                     ) : null
                   }
+                  dropdown_style={{ maxHeight: 280 }}
                   custom_trigger={
                     <div style={{ position: "relative" }}>
                       <Button
@@ -477,23 +435,39 @@ const AttachPanel = ({
                     setOpenSelector(next ? "workspace" : null)
                   }
                   dropdown_position="top"
-                  dropdown_style={{
-                    maxWidth: 300,
-                    minWidth: 220,
-                    maxHeight: 260,
-                  }}
-                  dropdown_footer={
-                    <WorkspaceFooter
-                      hasSelection={selectedWorkspaceIds.length > 0}
-                      onClear={() => (onWorkspaceIdsChange || (() => {}))([])}
-                      onAdd={() => {
-                        setOpenSelector(null);
-                        setWorkspaceModalOpen(true);
-                      }}
-                      isDark={isDark}
-                      theme={theme}
-                    />
+                  variant="palette"
+                  palette_chip={
+                    selectedWorkspaceIds.length > 0
+                      ? `workspace ×${selectedWorkspaceIds.length}`
+                      : "workspace"
                   }
+                  palette_actions={
+                    <>
+                      <HeaderAction
+                        accent
+                        onAct={() => {
+                          setOpenSelector(null);
+                          setWorkspaceModalOpen(true);
+                        }}
+                        isDark={isDark}
+                        theme={theme}
+                      >
+                        + ADD
+                      </HeaderAction>
+                      {selectedWorkspaceIds.length > 0 ? (
+                        <HeaderAction
+                          onAct={() =>
+                            (onWorkspaceIdsChange || (() => {}))([])
+                          }
+                          isDark={isDark}
+                          theme={theme}
+                        >
+                          CLEAR
+                        </HeaderAction>
+                      ) : null}
+                    </>
+                  }
+                  dropdown_style={{ maxHeight: 260 }}
                   custom_trigger={
                     <div style={{ position: "relative" }}>
                       <Button

@@ -1,5 +1,6 @@
 import { isValidElement, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
+import { themeHighlightRgba } from "../../CONTAINERs/config/theme_highlight";
 import Tooltip from "../tooltip/tooltip";
 import Icon from "../icon/icon";
 import useSelect, { render_icon } from "./use_select";
@@ -701,14 +702,61 @@ const Select = ({
   open,
   on_open_change = () => {},
   on_group_toggle = () => {},
+  variant,
+  palette_chip,
+  palette_actions,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
+  const isPalette = variant === "palette";
   const tf = theme?.textfield || {};
   const dropdown_theme = theme?.select?.dropdown || {};
-  const option_theme = theme?.select?.option || {};
+  const base_option_theme = theme?.select?.option || {};
   const search_theme = theme?.select?.search || {};
-  const group_theme = theme?.select?.group || {};
+  const base_group_theme = theme?.select?.group || {};
+
+  /* ── palette variant: the command-palette family look ──
+     Same language as CommandPalettePanel / SteerPanel: translucent
+     blur(20px) surface, radius 22, 8px inset, 28px rows at radius 14
+     (concentric), theme-highlight selected rows, mini group headers with
+     spring chevron + staggered row entrance, and the search living in the
+     bottom header row next to an 18px r9 chip (inset 13 = concentric). */
+  const option_theme = isPalette
+    ? {
+        ...base_option_theme,
+        height: 28,
+        borderRadius: 14,
+        padding: "0 8px",
+        paddingWithDesc: "5px 8px",
+        gap: 8,
+        hoverBackgroundColor: isDark
+          ? "rgba(255,255,255,0.10)"
+          : "rgba(0,0,0,0.06)",
+        selectedBackgroundColor: themeHighlightRgba(theme, 0.14),
+        selectedHighlightedBackgroundColor: themeHighlightRgba(theme, 0.22),
+      }
+    : base_option_theme;
+  const group_theme = isPalette
+    ? {
+        ...base_group_theme,
+        headerHeight: 24,
+        headerFontSize: 9.5,
+        headerPadding: "0 8px",
+        headerBorderRadius: 12,
+        expandIconSize: 10,
+        iconGap: 5,
+        separatorColor: "transparent",
+        separatorMargin: "1px 0",
+        childIndent: 0,
+        accentBarWidth: 0,
+        childBarGap: 0,
+        childPaddingTop: 1,
+        showCount: true,
+        rowStagger: true,
+        expandIconTransition:
+          "transform 320ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+      }
+    : base_group_theme;
 
   const [hovered, setHovered] = useState(false);
   const [pressed, setPressed] = useState(false);
@@ -926,29 +974,87 @@ const Select = ({
   );
 
   /* ── dropdown ── */
+  const paletteChipEl =
+    isPalette && palette_chip != null ? (
+      <span
+        style={{
+          boxSizing: "border-box",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 5,
+          height: 18,
+          padding: "0 8px",
+          borderRadius: 9,
+          fontSize: 11.5,
+          fontWeight: 600,
+          fontFamily,
+          color: isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)",
+          backgroundColor: isDark
+            ? "rgba(120,200,150,0.14)"
+            : "rgba(40,150,80,0.12)",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+        }}
+      >
+        {palette_chip}
+      </span>
+    ) : null;
+
   const dropdownContent = (
     <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 6,
-        minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
-        padding: dropdown_theme?.padding ?? 6,
-        backgroundColor:
-          dropdown_style?.backgroundColor ??
-          dropdown_theme?.backgroundColor ??
-          (isDark ? "rgba(30,30,30,0.95)" : "rgba(255,255,255,0.95)"),
-        borderRadius:
-          dropdown_style?.borderRadius ?? dropdown_theme?.borderRadius ?? 10,
-        boxShadow:
-          dropdown_style?.boxShadow ??
-          dropdown_theme?.boxShadow ??
-          "0 12px 20px rgba(0,0,0,0.12)",
-        ...dropdown_style,
-      }}
+      style={
+        isPalette
+          ? {
+              boxSizing: "border-box",
+              display: "flex",
+              flexDirection: "column",
+              gap: 1,
+              width: 280,
+              maxWidth: "calc(100vw - 40px)",
+              padding: 8,
+              backgroundColor: isDark
+                ? "rgba(28,28,28,0.85)"
+                : "rgba(252,252,252,0.9)",
+              border: isDark
+                ? "1px solid rgba(255,255,255,0.10)"
+                : "1px solid rgba(0,0,0,0.09)",
+              borderRadius: 22,
+              backdropFilter: "blur(20px) saturate(130%)",
+              WebkitBackdropFilter: "blur(20px) saturate(130%)",
+              boxShadow: isDark
+                ? "0 10px 34px rgba(0,0,0,0.5)"
+                : "0 10px 34px rgba(0,0,0,0.12)",
+              /* maxHeight belongs to the listbox (dropdownMaxHeight), not
+                 the panel — the panel must keep room for its header */
+              ...(dropdown_style
+                ? { ...dropdown_style, maxHeight: undefined }
+                : {}),
+            }
+          : {
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              minWidth: dropdownMinWidth ? dropdownMinWidth - 12 : undefined,
+              padding: dropdown_theme?.padding ?? 6,
+              backgroundColor:
+                dropdown_style?.backgroundColor ??
+                dropdown_theme?.backgroundColor ??
+                (isDark ? "rgba(30,30,30,0.95)" : "rgba(255,255,255,0.95)"),
+              borderRadius:
+                dropdown_style?.borderRadius ??
+                dropdown_theme?.borderRadius ??
+                10,
+              boxShadow:
+                dropdown_style?.boxShadow ??
+                dropdown_theme?.boxShadow ??
+                "0 12px 20px rgba(0,0,0,0.12)",
+              ...dropdown_style,
+            }
+      }
       onKeyDown={handle_key_down}
     >
-      {filterable ? (
+      {/* default variant: search on top */}
+      {filterable && !isPalette ? (
         <input
           ref={searchInputRef}
           type="text"
@@ -973,14 +1079,16 @@ const Select = ({
         id={listboxIdRef.current}
         role="listbox"
         className="scrollable"
+        data-sb-wall={isPalette ? 2 : undefined}
+        data-sb-edge={isPalette ? 12 : undefined}
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: 4,
+          gap: isPalette ? 1 : 4,
           overflowY: "auto",
           overscrollBehavior: "contain",
           maxHeight: dropdownMaxHeight,
-          padding: 2,
+          padding: isPalette ? 0 : 2,
         }}
       >
         <OptionList
@@ -1007,8 +1115,48 @@ const Select = ({
           isDark={isDark}
         />
       </div>
+      {/* palette variant: bottom header — chip + search + actions, the
+          command palette's header slot (chip inset 13 = concentric r9+13=22) */}
+      {isPalette ? (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "7px 6px 5px 5px",
+            flexShrink: 0,
+          }}
+        >
+          {paletteChipEl}
+          {filterable ? (
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={query}
+              placeholder={search_placeholder}
+              onChange={(e) => handle_query_change(e.target.value)}
+              onKeyDown={handle_key_down}
+              style={{
+                flex: 1,
+                minWidth: 40,
+                border: "none",
+                outline: "none",
+                backgroundColor: "transparent",
+                fontFamily,
+                fontSize: 11.5,
+                color: baseColor,
+                padding: 0,
+              }}
+            />
+          ) : (
+            <span style={{ flex: 1 }} />
+          )}
+          {palette_actions}
+        </div>
+      ) : null}
+
       {/* optional footer (e.g. clear all, add workspace) */}
-      {dropdown_footer != null && (
+      {!isPalette && dropdown_footer != null && (
         <div
           style={{
             borderTop: `1px solid ${

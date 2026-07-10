@@ -1085,7 +1085,10 @@ const Tooltip = ({
                 opacity: isReady ? 1 : 0,
                 visibility: isReady ? "visible" : "hidden",
                 transition: "opacity 120ms ease",
-                willChange: "transform, opacity",
+                /* will-change: opacity forms a backdrop root even at
+                   opacity 1, which kills any descendant backdrop-filter
+                   (e.g. the palette dropdown) — hint only while animating */
+                willChange: isReady ? "auto" : "transform, opacity",
               }}
               onMouseEnter={handle_tooltip_mouse_enter}
               onFocus={handle_tooltip_focus}
@@ -1099,11 +1102,11 @@ const Tooltip = ({
                   left: 0,
                   width: tooltipWidth,
                   height: tooltipHeight,
-                  transform: `scale(${isReady ? 1 : 0.9})`,
+                  transform: isReady ? "none" : "scale(0.9)",
                   transformOrigin: transformOrigin,
                   transition:
                     "transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1)",
-                  willChange: "transform",
+                  willChange: isReady ? "auto" : "transform",
                 }}
               >
                 {tooltipPath ? (

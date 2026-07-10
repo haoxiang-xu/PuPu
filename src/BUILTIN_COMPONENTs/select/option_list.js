@@ -63,6 +63,7 @@ const OptionItem = ({
   option_theme,
   option_style,
   checkColor,
+  extra_style,
 }) => {
   const isDisabled = !!option?.disabled;
   const optionColor = isDisabled
@@ -101,13 +102,18 @@ const OptionItem = ({
         cursor: isDisabled ? "not-allowed" : "pointer",
         color: optionColor,
         backgroundColor: isHighlighted
-          ? (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
+          ? isSelected && !multi
+            ? (option_theme?.selectedHighlightedBackgroundColor ??
+              option_theme?.hoverBackgroundColor ??
+              "rgba(0, 0, 0, 0.06)")
+            : (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
           : isSelected && !multi
             ? (option_theme?.selectedBackgroundColor ??
               "rgba(10, 133, 255, 0.14)")
             : "transparent",
         ...option_style,
         gap: showIcon ? (option_theme?.gap ?? 6) : multi ? 8 : 0,
+        ...extra_style,
       }}
     >
       {/* checkbox for multi-select */}
@@ -167,6 +173,7 @@ const GroupHeader = ({
   baseColor,
   group_theme,
   isDark,
+  count,
 }) => {
   const [hovered, setHovered] = useState(false);
 
@@ -204,7 +211,7 @@ const GroupHeader = ({
         gap: showGroupIcon ? iconGap : 2,
         height: headerHeight,
         padding: headerPadding,
-        borderRadius: 5,
+        borderRadius: group_theme?.headerBorderRadius ?? 5,
         cursor: "pointer",
         backgroundColor: hovered ? hoverBg : "transparent",
         transition: "background-color 0.15s ease",
@@ -219,7 +226,9 @@ const GroupHeader = ({
         style={{
           width: expandIconSize,
           height: expandIconSize,
-          transition: "transform 0.2s cubic-bezier(0.32, 1, 0.32, 1)",
+          transition:
+            group_theme?.expandIconTransition ??
+            "transform 0.2s cubic-bezier(0.32, 1, 0.32, 1)",
           transform: collapsed ? "rotate(-90deg)" : "rotate(0deg)",
           flex: "none",
           opacity: 0.7,
@@ -257,6 +266,25 @@ const GroupHeader = ({
       >
         {group.group}
       </span>
+
+      {/* option count — dyed when collapsed to hint "N items live here" */}
+      {group_theme?.showCount && typeof count === "number" ? (
+        <span
+          style={{
+            flex: "none",
+            fontFamily,
+            fontSize: headerFontSize,
+            color: collapsed
+              ? (group_theme?.countCollapsedColor ??
+                (isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)"))
+              : (group_theme?.countColor ??
+                (isDark ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.25)")),
+            transition: "color 200ms ease",
+          }}
+        >
+          {count}
+        </span>
+      ) : null}
     </div>
   );
 };
@@ -412,6 +440,7 @@ const OptionList = ({
               baseColor={baseColor}
               group_theme={group_theme}
               isDark={isDark}
+              count={g.options.length}
             />
             <AnimatedChildren open={!isCollapsed}>
               <div
@@ -427,12 +456,29 @@ const OptionList = ({
                       : "rgba(0, 0, 0, 0.07)")
                   }`,
                   paddingLeft: group_theme?.childBarGap ?? 6,
-                  paddingTop: 3,
+                  paddingTop: group_theme?.childPaddingTop ?? 3,
                   paddingBottom: 0,
                 }}
               >
-                {g.options.map((option) => {
+                {g.options.map((option, oi) => {
                   const fi = optionToFlatIndex.get(option) ?? -1;
+                  /* rowStagger: rows cascade in top-down on expand (the
+                     height morph is AnimatedChildren's), slip up + fade
+                     together on collapse */
+                  const entranceStyle = group_theme?.rowStagger
+                    ? isCollapsed
+                      ? {
+                          opacity: 0,
+                          transform: "translateY(-8px)",
+                          transition:
+                            "transform 160ms cubic-bezier(0.4,0,1,1), opacity 130ms cubic-bezier(0.4,0,1,1)",
+                        }
+                      : {
+                          opacity: 1,
+                          transform: "translateY(0)",
+                          transition: `transform 200ms cubic-bezier(0.22,1,0.36,1) ${60 + oi * 30}ms, opacity 180ms linear ${60 + oi * 30}ms, background-color 0.13s ease`,
+                        }
+                    : null;
                   return (
                     <OptionItem
                       key={`${option?.value ?? fi}`}
@@ -442,6 +488,7 @@ const OptionList = ({
                       isHighlighted={fi === highlightedIndex}
                       multi={multi}
                       isDark={isDark}
+                      extra_style={entranceStyle}
                       onMouseEnter={() => {
                         if (!option?.disabled && fi >= 0)
                           setHighlightedIndexFromHover(fi);
