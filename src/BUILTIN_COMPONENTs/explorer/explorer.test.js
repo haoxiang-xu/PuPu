@@ -84,4 +84,23 @@ describe("Explorer", () => {
     expect(screen.queryByText("Rename ghost")).not.toBeInTheDocument();
     expect(document.body.style.userSelect).toBe("");
   });
+
+  test("收起 folder 的子节点不挂载,点击展开后才挂载", () => {
+    renderExplorer({
+      data: {
+        folder1: { label: "My folder", children: ["chat1"] },
+        chat1: { label: "Hidden chat" },
+      },
+      root: ["folder1"],
+    });
+
+    /* 收起态:子节点完全不在 DOM(懒挂载,unmountWhenClosed) */
+    expect(screen.queryByText("Hidden chat")).toBeNull();
+
+    fireEvent.click(screen.getByText("My folder"));
+    expect(screen.getByText("Hidden chat")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("My folder"));
+    expect(screen.queryByText("Hidden chat")).toBeNull();
+  });
 });
