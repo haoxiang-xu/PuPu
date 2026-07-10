@@ -739,10 +739,13 @@ const Select = ({
   const group_theme = isPalette
     ? {
         ...base_group_theme,
-        headerHeight: 24,
-        headerFontSize: 11,
+        headerHeight: 26,
+        /* group name matches the option rows: same 13px, same base color */
+        headerFontSize: 13,
+        headerColor:
+          style?.color || theme?.color || (isDark ? "#CCC" : "#222"),
         headerPadding: "0 8px",
-        headerBorderRadius: 12,
+        headerBorderRadius: 13,
         expandIconSize: 10,
         iconGap: 5,
         separatorColor: "transparent",
