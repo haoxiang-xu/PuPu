@@ -81,7 +81,9 @@ const CommandPalettePanel = ({
 
   const headerH = pillBox.h || FALLBACK_H;
   const listH = on ? Math.min(items.length, MAX_ROWS) * ROW_STRIDE + PAD : 0;
-  const panelW = Math.max(MIN_PANEL_W, pillBox.w + BLEED * 2);
+  /* left edge sits flush with the input/attach-panel left edge (left: 0);
+     only the right side bleeds past the pill */
+  const panelW = Math.max(MIN_PANEL_W, pillBox.w + BLEED);
 
   const panelBg =
     surfaceBg ||
@@ -103,7 +105,7 @@ const CommandPalettePanel = ({
         aria-hidden={!on}
         style={{
           position: "absolute",
-          left: -BLEED,
+          left: 0,
           bottom: -BLEED,
           width: panelW,
           maxWidth: "calc(100vw - 40px)",
@@ -157,7 +159,7 @@ const CommandPalettePanel = ({
               display: "flex",
               alignItems: "flex-end",
               gap: 8,
-              padding: `0 ${BLEED + 6}px 13px`,
+              padding: "0 12px 13px",
               transform: on ? "translateY(0)" : "translateY(-11px)",
               opacity: on ? 1 : 0,
               pointerEvents: "none",
