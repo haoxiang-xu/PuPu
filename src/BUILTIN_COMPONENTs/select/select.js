@@ -740,10 +740,8 @@ const Select = ({
     ? {
         ...base_group_theme,
         headerHeight: 26,
-        /* group name matches the option rows: same 13px, same base color */
+        /* group name matches the option rows' 13px, but stays faint */
         headerFontSize: 13,
-        headerColor:
-          style?.color || theme?.color || (isDark ? "#CCC" : "#222"),
         headerPadding: "0 8px",
         headerBorderRadius: 13,
         expandIconSize: 10,
