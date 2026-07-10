@@ -4,29 +4,30 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 /**
  * Steer queue UI — a compact segment that lives INSIDE the attach panel row.
  *
- * The segment reads: [steer icon] ×N [latest message text]. Hovering it pops
- * the full queue above the panel as a fan of cards, each with Undo. Relayed
- * items (merged into the next turn) render green with a ✓ and no Undo.
+ * The segment reads: [steer icon] ×N [latest message text]. It carries NO
+ * resting highlight — the sub-pill background appears on hover only.
+ *
+ * Hovering opens the steer panel above the row: a clone of the command
+ * palette's language (design B) — same translucent blur(20px) surface,
+ * radius 22, 8px inset, 28px rows with radius 14 (concentric), row-level
+ * hover highlight, Elevator Push entrance (rows cascade at 130+i×35ms) —
+ * plus the palette's bottom header slot: a green chip (steer ×N) and a
+ * QUEUED hint. Undo is row-hover-revealed; relayed rows render green with a
+ * ✓ in the icon slot and no Undo.
  *
  * attach_panel.js renders <SteerAttachSection> whenever the queue is
  * non-empty; there is no other home for the steer queue.
  */
 
-const CARD_W = 300;
-const ROW_H = 32; // matches the attach panel's sub-pill height
-const CARD_R = 12;
-const CARD_GAP = 8;
-const MS = 240;
-const EASE = "cubic-bezier(0.32, 0.72, 0, 1)";
-const EXPAND_DELAY = 120; // hover-intent: brief delay before the fan opens
+const PANEL_W = 300;
+const PANEL_RADIUS = 22; // matches the command palette panel
+const PANEL_PAD = 8; // inset → row radius 14 keeps corners concentric
+const ROW_H = 28;
+const ROW_RADIUS = 14;
+const SEG_H = 32; // matches the attach panel's sub-pill height
+const EXPAND_DELAY = 120; // hover-intent: brief delay before the panel opens
 const COLLAPSE_DELAY = 180; // grace period before it closes
-
-const surfaceOf = (isDark) =>
-  isDark
-    ? "var(--pupu-surface, rgba(30, 30, 30, 1))"
-    : "var(--pupu-surface, rgba(255,255,255,1))";
-const edgeOf = (isDark) =>
-  isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 /* ── hover-intent hook: delayed expand, grace-period collapse ── */
 const useHoverIntent = () => {
@@ -44,7 +45,7 @@ const useHoverIntent = () => {
   return [hover, { onMouseEnter, onMouseLeave }];
 };
 
-/* double-rAF latch so the fan mounted-on-hover still animates in */
+/* double-rAF latch so the panel mounted-on-hover still animates in */
 const useEnteredLatch = (active) => {
   const [entered, setEntered] = useState(false);
   useEffect(() => {
@@ -113,64 +114,70 @@ export const SteerSummaryInline = ({ items = [], isDark = false }) => {
   );
 };
 
-/* ── one full card in the fan ── */
-const SteerFanCard = ({ item, isDark, onUndo, entered, delayMs }) => {
+/* ── one row in the panel (command-menu row language) ── */
+const SteerRow = ({ item, isDark, onUndo, entered, delayMs }) => {
+  const [rowHover, setRowHover] = useState(false);
   const relayed = item?.status === "relayed";
   const relayedColor = isDark
     ? "rgba(150,225,170,0.95)"
     : "rgba(25,130,70,0.9)";
+  const undoColor = isDark
+    ? "rgba(90, 160, 255, 0.95)"
+    : "rgba(20, 110, 220, 0.9)";
+
   return (
     <div
-      data-steer-card
+      data-steer-row
       data-status={relayed ? "relayed" : "queued"}
+      onMouseEnter={() => setRowHover(true)}
+      onMouseLeave={() => setRowHover(false)}
       style={{
         boxSizing: "border-box",
         display: "flex",
         alignItems: "center",
         gap: 8,
-        minHeight: ROW_H,
-        padding: "5px 5px 5px 10px",
-        backgroundColor: surfaceOf(isDark),
-        border: relayed
+        height: ROW_H,
+        padding: "0 8px",
+        borderRadius: ROW_RADIUS,
+        backgroundColor: rowHover
           ? isDark
-            ? "1px solid rgba(120,210,150,0.6)"
-            : "1px solid rgba(35,150,85,0.5)"
-          : `1px solid ${edgeOf(isDark)}`,
-        borderRadius: CARD_R,
-        boxShadow: isDark
-          ? "0 6px 18px rgba(0,0,0,0.4)"
-          : "0 6px 18px rgba(0,0,0,0.08)",
+            ? "rgba(255,255,255,0.10)"
+            : "rgba(0,0,0,0.06)"
+          : "transparent",
         opacity: entered ? 1 : 0,
-        transform: entered ? "none" : "translateY(8px) scale(0.97)",
-        transition: `opacity ${MS}ms ${EASE} ${delayMs}ms, transform ${MS}ms ${EASE} ${delayMs}ms`,
+        transform: entered ? "translateY(0)" : "translateY(-9px)",
+        transition: entered
+          ? `transform 160ms ${EASE_OUT} ${delayMs}ms, opacity 160ms linear ${delayMs}ms, background-color 130ms ease`
+          : "transform 110ms cubic-bezier(0.4,0,1,1), opacity 110ms cubic-bezier(0.4,0,1,1)",
       }}
     >
       <span
         style={{
           flexShrink: 0,
+          width: 14,
           display: "inline-flex",
           alignItems: "center",
           justifyContent: "center",
         }}
       >
-        <Icon
-          src="steer_arrow"
-          color={
-            relayed
-              ? relayedColor
-              : isDark
-                ? "rgba(255,255,255,0.45)"
-                : "rgba(0,0,0,0.4)"
-          }
-          style={{ width: 13, height: 13 }}
-        />
+        {relayed ? (
+          <span style={{ fontSize: 11, lineHeight: 1, color: relayedColor }}>
+            ✓
+          </span>
+        ) : (
+          <Icon
+            src="steer_arrow"
+            color={isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)"}
+            style={{ width: 13, height: 13 }}
+          />
+        )}
       </span>
       <span
         style={{
           flex: 1,
           minWidth: 0,
           fontSize: 12,
-          lineHeight: 1.35,
+          lineHeight: "16px",
           color: relayed
             ? relayedColor
             : isDark
@@ -181,7 +188,7 @@ const SteerFanCard = ({ item, isDark, onUndo, entered, delayMs }) => {
           textOverflow: "ellipsis",
         }}
       >
-        {relayed ? `✓ ${item?.text}` : item?.text}
+        {item?.text}
       </span>
       {!relayed && (
         <button
@@ -192,14 +199,18 @@ const SteerFanCard = ({ item, isDark, onUndo, entered, delayMs }) => {
             flexShrink: 0,
             border: "none",
             background: "transparent",
-            padding: "3px 7px",
+            padding: "2px 7px",
             margin: 0,
-            fontSize: 10,
+            fontSize: 10.5,
             fontWeight: 600,
             lineHeight: 1,
-            borderRadius: 6,
-            color: "rgba(20, 110, 220, 0.9)",
+            borderRadius: 8,
+            color: undoColor,
             cursor: "pointer",
+            /* row-hover-revealed, like the mock — still clickable the moment
+               the row is hovered, and always present for a11y */
+            opacity: rowHover ? 1 : 0,
+            transition: "opacity 130ms ease",
           }}
         >
           Undo
@@ -209,30 +220,108 @@ const SteerFanCard = ({ item, isDark, onUndo, entered, delayMs }) => {
   );
 };
 
-/* ── the fan: a column of cards, oldest on top / newest at the bottom ── */
-export const SteerFan = ({
+/* ── the steer panel: palette clone, header pinned at the bottom ── */
+export const SteerPanel = ({
   items = [],
   onUndo = () => {},
   isDark = false,
   entered = true,
-}) => (
-  <div
-    data-steer-fan=""
-    style={{ display: "flex", flexDirection: "column", gap: CARD_GAP }}
-  >
-    {items.map((item, index) => (
-      <SteerFanCard
-        key={item.id}
-        item={item}
-        isDark={isDark}
-        onUndo={onUndo}
-        entered={entered}
-        /* stagger from the bottom (newest) upward */
-        delayMs={40 + (items.length - 1 - index) * 35}
-      />
-    ))}
-  </div>
-);
+}) => {
+  const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
+  const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
+  const hintColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+
+  return (
+    <div
+      data-steer-panel=""
+      style={{
+        boxSizing: "border-box",
+        width: PANEL_W,
+        display: "flex",
+        flexDirection: "column",
+        gap: 1,
+        padding: PANEL_PAD,
+        borderRadius: PANEL_RADIUS,
+        backgroundColor: isDark
+          ? "rgba(28,28,28,0.85)"
+          : "rgba(252,252,252,0.9)",
+        border: isDark
+          ? "1px solid rgba(255,255,255,0.10)"
+          : "1px solid rgba(0,0,0,0.09)",
+        backdropFilter: "blur(20px) saturate(130%)",
+        WebkitBackdropFilter: "blur(20px) saturate(130%)",
+        boxShadow: isDark
+          ? "0 10px 34px rgba(0,0,0,0.5)"
+          : "0 10px 34px rgba(0,0,0,0.12)",
+        opacity: entered ? 1 : 0,
+        transform: entered
+          ? "translateY(0) scale(1)"
+          : "translateY(6px) scale(0.985)",
+        transformOrigin: "bottom left",
+        transition: entered
+          ? "opacity 210ms cubic-bezier(0.3,1,0.35,1), transform 210ms cubic-bezier(0.3,1,0.35,1)"
+          : "opacity 150ms cubic-bezier(0.4,0,0.6,1), transform 150ms cubic-bezier(0.4,0,0.6,1)",
+      }}
+    >
+      {/* rows: oldest → newest, top-down cascade */}
+      {items.map((item, index) => (
+        <SteerRow
+          key={item.id}
+          item={item}
+          isDark={isDark}
+          onUndo={onUndo}
+          entered={entered}
+          delayMs={130 + index * 35}
+        />
+      ))}
+
+      {/* header slot at the bottom — the palette's chip + hint, steer-dyed */}
+      <div
+        data-steer-panel-header=""
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "7px 6px 3px",
+        }}
+      >
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 11.5,
+            fontWeight: 600,
+            color: chipColor,
+            backgroundColor: chipBg,
+            borderRadius: 6,
+            padding: "1px 8px",
+            whiteSpace: "nowrap",
+          }}
+        >
+          <Icon
+            src="steer_arrow"
+            color={chipColor}
+            style={{ width: 11, height: 11 }}
+          />
+          steer ×{items.length}
+        </span>
+        <span
+          style={{
+            fontSize: 10,
+            letterSpacing: "0.05em",
+            color: hintColor,
+            whiteSpace: "nowrap",
+            userSelect: "none",
+            WebkitUserSelect: "none",
+          }}
+        >
+          QUEUED · RUNS AFTER THIS TURN
+        </span>
+      </div>
+    </div>
+  );
+};
 
 /* ── the attach panel segment ── */
 export const SteerAttachSection = ({
@@ -240,53 +329,60 @@ export const SteerAttachSection = ({
   onUndo = () => {},
   isDark = false,
 }) => {
-  const [hover, hoverHandlers] = useHoverIntent();
-  const entered = useEnteredLatch(hover);
+  const [open, hoverHandlers] = useHoverIntent();
+  const [segHover, setSegHover] = useState(false); // instant highlight
+  const entered = useEnteredLatch(open);
 
   if (!Array.isArray(items) || items.length === 0) return null;
 
   return (
     <div
       data-steer-attach-section=""
-      data-expanded={hover}
+      data-expanded={open}
       role="group"
       aria-label="Queued steer messages"
       {...hoverHandlers}
       style={{ position: "relative", display: "flex", alignItems: "center" }}
     >
-      {/* the segment — sub-pill, same language as the model selector pill */}
+      {/* the segment — NO resting highlight; sub-pill bg on hover only */}
       <div
+        onMouseEnter={() => setSegHover(true)}
+        onMouseLeave={() => setSegHover(false)}
         style={{
           boxSizing: "border-box",
           display: "flex",
           alignItems: "center",
           gap: 6,
-          height: ROW_H,
+          height: SEG_H,
           maxWidth: 200,
           padding: "0 10px",
           borderRadius: 999,
-          backgroundColor: isDark
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(0,0,0,0.05)",
+          backgroundColor:
+            segHover || open
+              ? isDark
+                ? "rgba(255,255,255,0.07)"
+                : "rgba(0,0,0,0.05)"
+              : "transparent",
+          transition: "background-color 160ms ease",
         }}
       >
         <SteerSummaryInline items={items} isDark={isDark} />
       </div>
 
-      {/* hover: full fan above the panel; paddingBottom keeps the hover
-          region contiguous across the visual gap */}
-      {hover && (
+      {/* hover: the palette-clone panel above the row; paddingBottom keeps
+          the hover region contiguous across the visual gap */}
+      {open && (
         <div
           style={{
             position: "absolute",
             left: 0,
             bottom: "100%",
-            width: CARD_W,
-            paddingBottom: 10,
+            width: PANEL_W,
+            paddingBottom: 8,
             zIndex: 40,
           }}
         >
-          <SteerFan
+          <SteerPanel
             items={items}
             onUndo={onUndo}
             isDark={isDark}

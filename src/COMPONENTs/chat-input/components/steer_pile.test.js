@@ -36,7 +36,7 @@ describe("SteerAttachSection", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  test("segment shows icon + ×N + only the LATEST message; no fan at rest", () => {
+  test("segment shows icon + ×N + only the LATEST message; no panel at rest", () => {
     const { container } = render(
       <SteerAttachSection
         items={makeItems()}
@@ -53,8 +53,31 @@ describe("SteerAttachSection", () => {
     expect(screen.getByText("×4")).toBeInTheDocument();
     expect(screen.getByText("newest item text")).toBeInTheDocument();
     expect(screen.queryByText("oldest item text")).not.toBeInTheDocument();
-    expect(container.querySelector("[data-steer-fan]")).not.toBeInTheDocument();
+    expect(
+      container.querySelector("[data-steer-panel]"),
+    ).not.toBeInTheDocument();
     expect(section).toHaveAttribute("data-expanded", "false");
+  });
+
+  test("segment has NO resting highlight; it appears on hover", () => {
+    const { container } = render(
+      <SteerAttachSection
+        items={makeItems()}
+        onUndo={() => {}}
+        isDark={false}
+      />,
+    );
+
+    const segment = container.querySelector(
+      "[data-steer-attach-section] > div",
+    );
+    expect(segment).toHaveStyle({ backgroundColor: "transparent" });
+
+    fireEvent.mouseEnter(segment);
+    expect(segment).toHaveStyle({ backgroundColor: "rgba(0,0,0,0.05)" });
+
+    fireEvent.mouseLeave(segment);
+    expect(segment).toHaveStyle({ backgroundColor: "transparent" });
   });
 
   test("a single item shows no ×N counter", () => {
@@ -69,7 +92,7 @@ describe("SteerAttachSection", () => {
     expect(screen.getByText("only item")).toBeInTheDocument();
   });
 
-  test("hover expands after the intent delay: fan shows ALL items", () => {
+  test("hover expands after the intent delay: panel lists ALL items + header", () => {
     jest.useFakeTimers();
     const { container } = render(
       <SteerAttachSection
@@ -88,14 +111,20 @@ describe("SteerAttachSection", () => {
     hoverOpen(zone);
     expect(zone).toHaveAttribute("data-expanded", "true");
 
-    const fan = container.querySelector("[data-steer-fan]");
-    expect(fan).toBeInTheDocument();
-    expect(fan.querySelectorAll("[data-steer-card]")).toHaveLength(4);
+    const panel = container.querySelector("[data-steer-panel]");
+    expect(panel).toBeInTheDocument();
+    expect(panel.querySelectorAll("[data-steer-row]")).toHaveLength(4);
     expect(screen.getByText("oldest item text")).toBeInTheDocument();
-    // relayed items render green ✓ text and no Undo
-    expect(screen.getByText("✓ second item text")).toBeInTheDocument();
-    const relayedCard = container.querySelector('[data-status="relayed"]');
-    expect(relayedCard.querySelector("button")).toBeNull();
+
+    // relayed row renders green text and no Undo button
+    const relayedRow = panel.querySelector('[data-status="relayed"]');
+    expect(relayedRow).toHaveTextContent("second item text");
+    expect(relayedRow.querySelector("button")).toBeNull();
+
+    // bottom header: steer chip + QUEUED hint
+    const header = panel.querySelector("[data-steer-panel-header]");
+    expect(header).toHaveTextContent("steer ×4");
+    expect(header).toHaveTextContent("QUEUED · RUNS AFTER THIS TURN");
   });
 
   test("mouseleave collapses only after the grace period", () => {
@@ -147,10 +176,10 @@ describe("SteerAttachSection", () => {
     expect(zone).toHaveAttribute("data-expanded", "false");
   });
 
-  test("fan cards: blue builtin Undo reports the card id", () => {
+  test("row Undo is hover-revealed and reports the card id", () => {
     jest.useFakeTimers();
     const onUndo = jest.fn();
-    render(
+    const { container } = render(
       <SteerAttachSection
         items={makeItems()}
         onUndo={onUndo}
@@ -160,17 +189,21 @@ describe("SteerAttachSection", () => {
 
     hoverOpen(screen.getByRole("group", { name: "Queued steer messages" }));
 
-    // 4 cards, of which s2 is relayed → 3 undo buttons
+    // 4 rows, of which s2 is relayed → 3 undo buttons (hidden until row hover)
     const undoButtons = screen.getAllByRole("button", { name: "Undo" });
     expect(undoButtons).toHaveLength(3);
     expect(undoButtons[0]).toHaveStyle({
       color: "rgba(20, 110, 220, 0.9)",
-      padding: "3px 7px",
-      lineHeight: "1",
+      opacity: "0",
     });
 
-    // newest is the bottom card of the fan
-    fireEvent.click(undoButtons[undoButtons.length - 1]);
+    // hovering the last row (newest item) reveals its Undo
+    const rows = container.querySelectorAll("[data-steer-row]");
+    fireEvent.mouseEnter(rows[rows.length - 1]);
+    const newestUndo = rows[rows.length - 1].querySelector("button");
+    expect(newestUndo).toHaveStyle({ opacity: "1" });
+
+    fireEvent.click(newestUndo);
     expect(onUndo).toHaveBeenCalledWith("s4");
   });
 });
