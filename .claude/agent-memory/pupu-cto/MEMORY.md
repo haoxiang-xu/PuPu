@@ -1,3 +1,5 @@
+- [后端量级评估 2026-07-05](backend-sizing-2026-07-05.md) — 排序可吸收不招人；delta-persist 不在擎路径(纯前端+Electron)；复评触发器=0.1.10 结束
+- [路线图 0.1.9→0.2.0 评审 2026-07-05](roadmap-019-020-review.md) — 隐性前置=command registry/delta-persist/agent-runner 抽象；thread 建议后移；agent 装 MCP=CRITICAL 硬门
 - [上线门槛盘点 2026-06-26](prelaunch-gap-analysis-2026-06-26.md) — 四条差异化线全零代码、shipped=扎实通用客户端；记忆是唯一可90天炫耀的锚；MVP-proud定义+首发前4件事；生产冻结二进制无需用户Python
 - [CI 现状诊断 2026-06-26](ci-posture-2026-06-26.md) — CI 已存在且PR上跑三层229测试；真缺口=无branch protection+无push触发(装锁≠新建)；Tier0给COO/Tier1跨平台smoke给dev-electron
 - [项目：agent teams 治理研究](project-agent-teams-governance-research.md) — 2026-06-20 CEO 战略讨论；CTO 线把人类组织治理经验→agent teams 通信治理原则/判定表/反臃肿红线；3 researcher 已派
