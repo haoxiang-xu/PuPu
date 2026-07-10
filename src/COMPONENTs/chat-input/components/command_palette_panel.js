@@ -21,7 +21,7 @@ const PAD = 6; // panel inner padding around the list (concentric inset)
 const PANEL_RADIUS = 22; // matches the attach pill container
 const ROW_STRIDE = 29; // CommandMenu bare row 28 + 1 gap
 const MAX_ROWS = 6;
-const MIN_PANEL_W = 340;
+const PANEL_W = 280;
 const BLEED = 6; // how far the panel extends past the pill bounds
 
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
@@ -81,9 +81,10 @@ const CommandPalettePanel = ({
 
   const headerH = pillBox.h || FALLBACK_H;
   const listH = on ? Math.min(items.length, MAX_ROWS) * ROW_STRIDE + PAD : 0;
-  /* left edge sits flush with the input/attach-panel left edge (left: 0);
-     only the right side bleeds past the pill */
-  const panelW = Math.max(MIN_PANEL_W, pillBox.w + BLEED);
+  /* left edge sits flush with the input/attach-panel left edge; width is
+     content-driven (narrow), independent of the pill row's width — the pill
+     is exiting during the morph anyway */
+  const panelW = PANEL_W;
 
   const panelBg =
     surfaceBg ||
