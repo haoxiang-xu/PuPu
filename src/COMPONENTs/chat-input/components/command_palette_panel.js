@@ -57,29 +57,23 @@ const CommandPalettePanel = ({
   }, [open]);
   const on = open && entered;
 
-  /* measure the pill row so the panel hugs its true bounds */
+  /* measure the pill row's height so the header slot hugs its true bounds */
   const pillRef = useRef(null);
-  const [pillBox, setPillBox] = useState({ w: 0, h: FALLBACK_H });
+  const [pillH, setPillH] = useState(FALLBACK_H);
   useEffect(() => {
     const el = pillRef.current;
     if (!el) return undefined;
     const ro = new ResizeObserver((entries) => {
       for (const entry of entries) {
-        setPillBox({
-          w: Math.ceil(entry.contentRect.width),
-          h: Math.ceil(entry.contentRect.height) || FALLBACK_H,
-        });
+        setPillH(Math.ceil(entry.contentRect.height) || FALLBACK_H);
       }
     });
     ro.observe(el);
-    setPillBox({
-      w: Math.ceil(el.offsetWidth),
-      h: Math.ceil(el.offsetHeight) || FALLBACK_H,
-    });
+    setPillH(Math.ceil(el.offsetHeight) || FALLBACK_H);
     return () => ro.disconnect();
   }, []);
 
-  const headerH = pillBox.h || FALLBACK_H;
+  const headerH = pillH || FALLBACK_H;
   const listH = on ? Math.min(items.length, MAX_ROWS) * ROW_STRIDE + 8 : 0;
   /* left edge sits flush with the input/attach-panel left edge; width is
      content-driven (narrow), independent of the pill row's width — the pill
@@ -89,7 +83,7 @@ const CommandPalettePanel = ({
   /* translucent so the backdrop blur reads; alpha tuned to match the
      floating attach pill so open still reads as the same object */
   const panelBg =
-    surfaceBg || (isDark ? "rgba(28,29,27,0.85)" : "rgba(252,252,250,0.9)");
+    surfaceBg || (isDark ? "rgba(28,28,28,0.85)" : "rgba(252,252,252,0.9)");
   const panelBorder = isDark
     ? "1px solid rgba(255,255,255,0.10)"
     : "1px solid rgba(0,0,0,0.09)";
@@ -122,8 +116,8 @@ const CommandPalettePanel = ({
           border: on ? panelBorder : "1px solid transparent",
           ...(on
             ? {
-                backdropFilter: "blur(20px) saturate(180%)",
-                WebkitBackdropFilter: "blur(20px) saturate(180%)",
+                backdropFilter: "blur(20px) saturate(130%)",
+                WebkitBackdropFilter: "blur(20px) saturate(130%)",
               }
             : {}),
           boxShadow: on
