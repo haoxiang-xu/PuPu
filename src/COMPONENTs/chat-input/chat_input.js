@@ -473,7 +473,6 @@ const ChatInput = ({
               backgroundColor: isDark
                 ? "var(--pupu-surface, rgba(30, 30, 30, 1))"
                 : "var(--pupu-surface, rgba(255,255,255,1))",
-              backdropFilter: "blur(20px) saturate(180%)",
             }}
           />
         </div>

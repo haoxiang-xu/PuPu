@@ -189,7 +189,16 @@ const FloatingTextField = ({
   /* `padding` in `style` is meant for the textarea's inner padding (already applied
    * via the resolved `padding` token below). Strip it from the outer-wrapper spread
    * so it doesn't double-up as an outer indent that pushes the visible field inward. */
-  const { padding: _outer_padding_ignored, ...outer_style } = style || {};
+  /* strip tokens that are consumed by inner elements: `padding` becomes the
+   * textarea's inner padding, and `backdropFilter` belongs to the main
+   * container only — leaking it onto this outer wrapper would make it a
+   * backdrop root, silently breaking backdrop-filter on anything rendered
+   * in content_section (e.g. the frosted attach pill). */
+  const {
+    padding: _outer_padding_ignored,
+    backdropFilter: _outer_backdrop_ignored,
+    ...outer_style
+  } = style || {};
 
   return (
     <div
