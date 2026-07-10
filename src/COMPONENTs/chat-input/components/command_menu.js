@@ -12,7 +12,20 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 const ROW_HEIGHT = 32;
 const MAX_VISIBLE_ROWS = 6;
 
-const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = false }) => {
+/**
+ * `bare` strips the floating-card chrome so the list can live inside another
+ * surface (the command palette panel). `visible` drives the Elevator Push
+ * row entrance there: rows start hidden (translateY(-9px), transparent) and
+ * cascade in top-down once visible flips true.
+ */
+const CommandMenu = ({
+  items = [],
+  activeIndex = 0,
+  onPick = () => {},
+  isDark = false,
+  bare = false,
+  visible = true,
+}) => {
   if (!Array.isArray(items) || items.length === 0) return null;
 
   const surfaceBg = isDark
@@ -24,6 +37,18 @@ const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = 
   const shadow = isDark
     ? "0 10px 30px rgba(0,0,0,0.36), 0 2px 8px rgba(0,0,0,0.22)"
     : "0 10px 30px rgba(0,0,0,0.14), 0 2px 8px rgba(0,0,0,0.06)";
+
+  const chrome = bare
+    ? { padding: "5px 5px 0" }
+    : {
+        backgroundColor: surfaceBg,
+        backdropFilter: "blur(18px) saturate(1.4)",
+        WebkitBackdropFilter: "blur(18px) saturate(1.4)",
+        border,
+        borderRadius: 10,
+        boxShadow: shadow,
+        padding: 3,
+      };
 
   return (
     <div
@@ -38,13 +63,7 @@ const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = 
         maxHeight: MAX_VISIBLE_ROWS * ROW_HEIGHT,
         overflowY: "auto",
         overscrollBehavior: "contain",
-        backgroundColor: surfaceBg,
-        backdropFilter: "blur(18px) saturate(1.4)",
-        WebkitBackdropFilter: "blur(18px) saturate(1.4)",
-        border,
-        borderRadius: 10,
-        boxShadow: shadow,
-        padding: 3,
+        ...chrome,
       }}
     >
       {items.map((item, index) => (
@@ -54,17 +73,40 @@ const CommandMenu = ({ items = [], activeIndex = 0, onPick = () => {}, isDark = 
           active={index === activeIndex}
           isDark={isDark}
           onPick={onPick}
+          entrance={
+            bare
+              ? {
+                  visible,
+                  delayMs: 130 + Math.min(index, MAX_VISIBLE_ROWS) * 35,
+                }
+              : null
+          }
         />
       ))}
     </div>
   );
 };
 
-const CommandRow = ({ item, active, isDark, onPick }) => {
+const CommandRow = ({ item, active, isDark, onPick, entrance = null }) => {
   const activeBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
   const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.44)";
   const iconColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
+
+  /* Elevator Push entrance (bare/palette mode only) */
+  const entranceStyle = entrance
+    ? entrance.visible
+      ? {
+          opacity: 1,
+          transform: "translateY(0)",
+          transition: `transform 160ms cubic-bezier(0.22,1,0.36,1) ${entrance.delayMs}ms, opacity 160ms linear ${entrance.delayMs}ms`,
+        }
+      : {
+          opacity: 0,
+          transform: "translateY(-9px)",
+          transition: "transform 110ms cubic-bezier(0.4,0,1,1), opacity 110ms cubic-bezier(0.4,0,1,1)",
+        }
+    : null;
 
   return (
     <div
@@ -87,6 +129,7 @@ const CommandRow = ({ item, active, isDark, onPick }) => {
         borderRadius: 7,
         backgroundColor: active ? activeBg : "transparent",
         cursor: "pointer",
+        ...(entranceStyle || {}),
       }}
     >
       {item.icon ? (

@@ -2,7 +2,7 @@ import { memo, useContext, useEffect, useRef, useState, useCallback } from "reac
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { FloatingTextField } from "../../BUILTIN_COMPONENTs/input/textfield";
 import AttachPanel from "./components/attach_panel";
-import CommandMenu from "./components/command_menu";
+import CommandPalettePanel from "./components/command_palette_panel";
 import InputActionButtons from "./components/input_action_buttons";
 import SteerPile from "./components/steer_pile";
 import { useChatInputModels } from "./hooks/use_chat_input_models";
@@ -350,24 +350,6 @@ const ChatInput = ({
             isDark={isDark}
             attachPanelOpen={chatActive}
           />
-          {commandMenuOpen && (
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: "calc(100% + 8px)",
-                zIndex: 40,
-              }}
-            >
-              <CommandMenu
-                items={commandItems}
-                activeIndex={commandMenuActiveIndex}
-                onPick={handleCommandPick}
-                isDark={isDark}
-              />
-            </div>
-          )}
           {isDragging && (
             <div
               style={{
@@ -414,38 +396,49 @@ const ChatInput = ({
             }}
             on_key_down={handleKeyDown}
             content_section={
-              showAttachments ? (
-                <AttachPanel
-                  color={color}
-                  active={chatActive}
-                  focused={focused}
-                  focusBg={panelFocusBg}
-                  focusShadow={panelFocusShadow}
-                  onAttachFile={onAttachFile}
-                  onAttachLink={onAttachLink}
-                  onAttachScreenshot={onAttachScreenshot}
-                  modelOptions={modelOptions}
-                  showModelSelector={showModelSelector}
-                  selectedModelId={selectedModelId}
-                  onSelectModel={onSelectModel}
-                  onGroupToggle={handleGroupToggle}
-                  modelSelectDisabled={modelSelectDisabled}
+              showAttachments || commandMenuOpen ? (
+                <CommandPalettePanel
+                  open={commandMenuOpen}
+                  query={slashTrigger?.query || "/"}
+                  items={commandItems}
+                  activeIndex={commandMenuActiveIndex}
+                  onPick={handleCommandPick}
                   isDark={isDark}
-                  attachmentsEnabled={attachmentsEnabled}
-                  attachmentsDisabledReason={attachmentsDisabledReason}
-                  attachments={attachments}
-                  onRemoveAttachment={onRemoveAttachment}
-                  isStreaming={isStreaming}
-                  showToolSelector={showToolSelector}
-                  selectedToolkits={selectedToolkits}
-                  onToolkitsChange={onToolkitsChange}
-                  showWorkspaceSelector={showWorkspaceSelector}
-                  selectedWorkspaceIds={selectedWorkspaceIds}
-                  onWorkspaceIdsChange={onWorkspaceIdsChange}
-                  selectedRecipeName={selectedRecipeName}
-                  onSelectRecipe={onSelectRecipe}
-                  recipeOptions={recipeOptions}
-                />
+                >
+                  {showAttachments ? (
+                    <AttachPanel
+                      color={color}
+                      active={chatActive}
+                      focused={focused}
+                      focusBg={panelFocusBg}
+                      focusShadow={panelFocusShadow}
+                      onAttachFile={onAttachFile}
+                      onAttachLink={onAttachLink}
+                      onAttachScreenshot={onAttachScreenshot}
+                      modelOptions={modelOptions}
+                      showModelSelector={showModelSelector}
+                      selectedModelId={selectedModelId}
+                      onSelectModel={onSelectModel}
+                      onGroupToggle={handleGroupToggle}
+                      modelSelectDisabled={modelSelectDisabled}
+                      isDark={isDark}
+                      attachmentsEnabled={attachmentsEnabled}
+                      attachmentsDisabledReason={attachmentsDisabledReason}
+                      attachments={attachments}
+                      onRemoveAttachment={onRemoveAttachment}
+                      isStreaming={isStreaming}
+                      showToolSelector={showToolSelector}
+                      selectedToolkits={selectedToolkits}
+                      onToolkitsChange={onToolkitsChange}
+                      showWorkspaceSelector={showWorkspaceSelector}
+                      selectedWorkspaceIds={selectedWorkspaceIds}
+                      onWorkspaceIdsChange={onWorkspaceIdsChange}
+                      selectedRecipeName={selectedRecipeName}
+                      onSelectRecipe={onSelectRecipe}
+                      recipeOptions={recipeOptions}
+                    />
+                  ) : null}
+                </CommandPalettePanel>
               ) : null
             }
             force_content_active={chatActive}
