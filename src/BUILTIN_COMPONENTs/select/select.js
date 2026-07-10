@@ -740,7 +740,7 @@ const Select = ({
     ? {
         ...base_group_theme,
         headerHeight: 24,
-        headerFontSize: 10,
+        headerFontSize: 11,
         headerPadding: "0 8px",
         headerBorderRadius: 12,
         expandIconSize: 10,
