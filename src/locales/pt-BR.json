@@ -279,5 +279,10 @@
     "delete_label": "Excluir toolkit",
     "delete_desc": "Remova este toolkit da sua instalação",
     "delete_desc_builtin": "Os toolkits integrados não podem ser removidos"
+  },
+  "commands": {
+    "btw": "Responde agora, sem interromper a tarefa",
+    "fyi": "Adiciona informações à tarefa atual",
+    "steer": "Executa após este turno"
   }
 }

@@ -76,7 +76,7 @@ describe("ChatInput slash-command menu wiring", () => {
     expect(token).toBeTruthy();
     expect(token.getAttribute("data-active")).toBe("true");
     // menu closed after picking
-    expect(screen.queryByText("补充给当前任务")).not.toBeInTheDocument();
+    expect(screen.queryByText("Add info to the current task")).not.toBeInTheDocument();
   });
 
   test("ArrowDown/ArrowUp move the active row, and Enter picks the highlighted one", () => {

@@ -422,5 +422,10 @@
     "delete_label": "Delete Toolkit",
     "delete_desc": "Remove this toolkit from your installation",
     "delete_desc_builtin": "Built-in toolkits cannot be removed"
+  },
+  "commands": {
+    "btw": "Answer now, without interrupting the task",
+    "fyi": "Add info to the current task",
+    "steer": "Runs after this turn"
   }
 }

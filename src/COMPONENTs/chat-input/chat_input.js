@@ -182,12 +182,17 @@ const ChatInput = ({
     [isStreaming, isDark],
   );
 
-  const commandItems = slashTrigger
-    ? listCommands(
-        { isStreaming, activeCommands: activeCommandNames },
-        slashTrigger.query,
-      )
-    : [];
+  /* descriptions are i18n keys (default English; t() passes unknown raw
+     strings through unchanged, so custom commands with literal text still
+     render as-is) */
+  const commandItems = (
+    slashTrigger
+      ? listCommands(
+          { isStreaming, activeCommands: activeCommandNames },
+          slashTrigger.query,
+        )
+      : []
+  ).map((item) => ({ ...item, description: t(item.description) }));
   const commandMenuOpen =
     !commandMenuDismissed && !!slashTrigger && commandItems.length > 0;
 

@@ -279,5 +279,10 @@
     "delete_label": "刪除工具組",
     "delete_desc": "從您的安裝中移除此工具組",
     "delete_desc_builtin": "內建工具組無法移除"
+  },
+  "commands": {
+    "btw": "立即回答，不打斷當前任務",
+    "fyi": "補充給當前任務",
+    "steer": "本輪結束後執行"
   }
 }

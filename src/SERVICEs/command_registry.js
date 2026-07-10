@@ -171,7 +171,7 @@ const interjectAvailability = (ctx) => !!ctx?.isStreaming;
 
 registerCommand({
   name: "/btw",
-  description: "立即回答,不打断当前任务",
+  description: "commands.btw",
   icon: "btw",
   availability: interjectAvailability,
   exclusiveGroup: "interject-channel",
@@ -179,7 +179,7 @@ registerCommand({
 
 registerCommand({
   name: "/fyi",
-  description: "补充给当前任务",
+  description: "commands.fyi",
   icon: "fyi",
   availability: interjectAvailability,
   exclusiveGroup: "interject-channel",
@@ -187,7 +187,7 @@ registerCommand({
 
 registerCommand({
   name: "/steer",
-  description: "本轮结束后执行",
+  description: "commands.steer",
   icon: "steer_arrow",
   availability: interjectAvailability,
   exclusiveGroup: "interject-channel",

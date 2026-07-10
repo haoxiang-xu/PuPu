@@ -279,5 +279,10 @@
     "delete_label": "툴킷 삭제",
     "delete_desc": "설치에서 이 툴킷을 제거합니다",
     "delete_desc_builtin": "기본 툴킷은 제거할 수 없습니다"
+  },
+  "commands": {
+    "btw": "지금 바로 답변(작업 중단 없음)",
+    "fyi": "현재 작업에 정보 추가",
+    "steer": "이번 턴 종료 후 실행"
   }
 }
