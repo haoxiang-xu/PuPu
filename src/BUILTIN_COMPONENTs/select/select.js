@@ -740,17 +740,17 @@ const Select = ({
     ? {
         ...base_group_theme,
         headerHeight: 24,
-        headerFontSize: 9.5,
+        headerFontSize: 10,
         headerPadding: "0 8px",
         headerBorderRadius: 12,
         expandIconSize: 10,
         iconGap: 5,
         separatorColor: "transparent",
         separatorMargin: "1px 0",
-        /* indent option rows under their group: 33 + the row's own 8px
-           padding lands the option text at 41px — exactly where the group
-           label starts (8 pad + 10 chevron + 5 + 13 icon + 5) */
-        childIndent: 33,
+        /* indent option rows under their group: 15 + the row's own 8px
+           padding lands the option text at 23px — where the group ICON
+           sits (8 pad + 10 chevron + 5), a moderate nest */
+        childIndent: 15,
         accentBarWidth: 0,
         childBarGap: 0,
         childPaddingTop: 1,
@@ -1108,7 +1108,7 @@ const Select = ({
           select_option={select_option}
           on_group_toggle={on_group_toggle}
           optionRefs={optionRefs}
-          fontSize={fontSize}
+          fontSize={isPalette ? 13 : fontSize}
           fontFamily={fontFamily}
           baseColor={baseColor}
           placeholderColor={placeholderColor}
