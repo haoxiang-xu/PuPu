@@ -4,6 +4,8 @@ const CHANNELS = Object.freeze({
   }),
   CHAT_STORAGE: Object.freeze({
     BOOTSTRAP_READ: "chat-storage:bootstrap-read",
+    READ_MESSAGES: "chat-storage:read-messages",
+    APPLY_OPS: "chat-storage:apply-ops",
     WRITE: "chat-storage:write",
   }),
   UPDATE: Object.freeze({

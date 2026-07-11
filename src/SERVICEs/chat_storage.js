@@ -7,6 +7,7 @@ export {
   createFolder,
   deleteTreeNodeCascade,
   duplicateTreeNodeSubtree,
+  getChatMessages,
   getChatsStore,
   openCharacterChat,
   refreshCharacterChatMetadata,

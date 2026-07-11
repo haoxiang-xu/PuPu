@@ -22,7 +22,9 @@ const buildSummary = (chat) => ({
   id: chat.id,
   title: chat.title || "",
   model: unwrapModel(chat.model || chat.selectedModelId),
-  message_count: Array.isArray(chat.messages) ? chat.messages.length : 0,
+  // v3 lazy messages: the summary list must stay cheap — read the meta stats,
+  // never load message arrays (non-active chats are `[]` placeholders).
+  message_count: chat.stats?.messageCount ?? 0,
   updated_at: chat.updatedAt || chat.modifiedAt || 0,
 });
 
@@ -67,7 +69,7 @@ export const buildChatStorageAdapter = () => ({
   getChatConfig: (id) => {
     const chat = cs.getChatsStore()?.chatsById?.[id];
     if (!chat) return null;
-    const messages = chat.messages || [];
+    const messages = cs.getChatMessages(id) || [];
     return {
       model: unwrapModel(chat.model || chat.selectedModelId),
       toolkits: chat.selectedToolkits || chat.toolkits || [],
@@ -92,7 +94,7 @@ export const buildChatStorageAdapter = () => ({
       model: unwrapModel(chat.model || chat.selectedModelId),
       character_id: chat.characterId || chat.character_id || null,
       toolkits: chat.selectedToolkits || chat.toolkits || [],
-      messages: chat.messages || [],
+      messages: cs.getChatMessages(id) || [],
     };
   },
 

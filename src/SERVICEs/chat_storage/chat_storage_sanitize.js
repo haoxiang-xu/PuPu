@@ -775,6 +775,9 @@ export const sanitizeChatSession = (chat, fallbackId) => {
     messages,
     isTransientNewChat: chat?.isTransientNewChat === true,
     hasUnreadGeneratedReply: chat?.hasUnreadGeneratedReply === true,
+    // Meta flag maintained by setChatMessages (v3: the tree reads this instead
+    // of scanning messages, which are lazy placeholders for non-active chats).
+    isGenerating: chat?.isGenerating === true,
     stats: {
       messageCount: 0,
       approxBytes: 0,
@@ -797,6 +800,24 @@ export const sanitizeChatSession = (chat, fallbackId) => {
   }
 
   cleaned.stats = computeChatStats(cleaned);
+
+  // v3 lazy-messages guard: non-active chats keep `messages: []` placeholders
+  // in the renderer while their real stats live in the persisted meta.
+  // Recomputing stats from the placeholder would clobber the real counts
+  // (breaking tree ordering/summaries) — preserve the incoming stats instead.
+  if (
+    messages.length === 0 &&
+    isObject(chat?.stats) &&
+    Number(chat.stats.messageCount) > 0
+  ) {
+    cleaned.stats = {
+      messageCount: Math.floor(Number(chat.stats.messageCount)),
+      approxBytes: Number.isFinite(Number(chat.stats.approxBytes))
+        ? Math.max(0, Number(chat.stats.approxBytes))
+        : cleaned.stats.approxBytes,
+    };
+  }
+
   return cleaned;
 };
 

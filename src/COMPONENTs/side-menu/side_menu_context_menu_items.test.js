@@ -205,6 +205,58 @@ describe("side_menu_context_menu_items root paste", () => {
     );
   });
 
+  test("copy action reads messages via getChatMessages, not the store snapshot", () => {
+    const source = createChatInSelectedContext(
+      { title: "Copy Source", parentFolderId: null },
+      { source: "test" },
+    );
+    setChatMessages(
+      source.chatId,
+      [{ role: "user", content: "real copied content" }],
+      { source: "test" },
+    );
+
+    // Simulate the v3 IPC snapshot shape: non-active chats carry `messages: []`
+    // placeholders (stats intact). The copy handler must NOT trust it.
+    const snapshotStore = getChatsStore();
+    const placeholderStore = JSON.parse(JSON.stringify(snapshotStore));
+    placeholderStore.chatsById[source.chatId].messages = [];
+
+    const setClipboard = jest.fn();
+    const items = buildSideMenuContextMenuItems({
+      node: {
+        id: source.nodeId,
+        entity: "chat",
+        chatId: source.chatId,
+        label: "Copy Source",
+      },
+      clipboard: null,
+      chatStore: placeholderStore,
+      setChatStore: jest.fn(),
+      handleStartRename: jest.fn(),
+      setClipboard,
+      setConfirmDelete: jest.fn(),
+      t: testT,
+    });
+
+    const copyItem = items.find((item) => item?.label === "Copy");
+    expect(copyItem).toBeTruthy();
+    copyItem.onClick();
+
+    expect(setClipboard).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "chat",
+        chatId: source.chatId,
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: "user",
+            content: "real copied content",
+          }),
+        ]),
+      }),
+    );
+  });
+
   test("character chat menu removes rename and copy actions", () => {
     const initialStore = getChatsStore();
     setChatModel(initialStore.activeChatId, { id: "openai:gpt-5" }, { source: "test" });
@@ -238,5 +290,126 @@ describe("side_menu_context_menu_items root paste", () => {
     expect(items.some((item) => item?.label === "Delete")).toBe(true);
     expect(items.some((item) => item?.label === "Rename")).toBe(false);
     expect(items.some((item) => item?.label === "Copy")).toBe(false);
+  });
+});
+
+describe("side_menu_context_menu_items paste under v3 IPC placeholder store", () => {
+  const CHAT_A = "chat-a";
+  const CHAT_B = "chat-b";
+  const NODE_A = `chn-${CHAT_A}`;
+  const NODE_B = `chn-${CHAT_B}`;
+
+  const CHAT_B_MESSAGES = [
+    { id: "msg-b1", role: "user", content: "cold paste content", createdAt: 1000 },
+  ];
+
+  const makeMeta = (id, { title, messageCount = 0 } = {}) => ({
+    id,
+    kind: "default",
+    title: title || id,
+    createdAt: 1000,
+    updatedAt: 2000,
+    lastMessageAt: messageCount > 0 ? 1500 : null,
+    threadId: null,
+    model: { id: "test-model" },
+    agentOrchestration: { mode: "default" },
+    selectedToolkits: [],
+    selectedWorkspaceIds: [],
+    systemPromptOverrides: {},
+    draft: { text: "", attachments: [], updatedAt: 1000 },
+    isTransientNewChat: false,
+    hasUnreadGeneratedReply: false,
+    isGenerating: false,
+    stats: { messageCount, approxBytes: 640 },
+  });
+
+  const makeChatNode = (nodeId, chatId, label) => ({
+    id: nodeId,
+    entity: "chat",
+    type: "file",
+    chatId,
+    label,
+    createdAt: 1000,
+    updatedAt: 2000,
+  });
+
+  let bridge;
+
+  beforeEach(() => {
+    jest.resetModules();
+    window.localStorage.clear();
+    bridge = {
+      bootstrap: jest.fn(() => ({
+        schemaVersion: 3,
+        updatedAt: 3000,
+        activeChatId: CHAT_A,
+        tree: {
+          root: [NODE_A, NODE_B],
+          nodesById: {
+            [NODE_A]: makeChatNode(NODE_A, CHAT_A, "Chat A"),
+            [NODE_B]: makeChatNode(NODE_B, CHAT_B, "Chat B"),
+          },
+          selectedNodeId: NODE_A,
+          expandedFolderIds: [],
+        },
+        chatMetasById: {
+          [CHAT_A]: makeMeta(CHAT_A, { title: "Chat A", messageCount: 1 }),
+          [CHAT_B]: makeMeta(CHAT_B, { title: "Chat B", messageCount: 1 }),
+        },
+        activeChatMessages: [
+          { id: "msg-a1", role: "user", content: "hello from A", createdAt: 1000 },
+        ],
+      })),
+      write: jest.fn(),
+      readMessages: jest.fn((chatId) =>
+        chatId === CHAT_B ? CHAT_B_MESSAGES.map((m) => ({ ...m })) : [],
+      ),
+      applyOps: jest.fn(),
+    };
+    window.chatStorageAPI = bridge;
+  });
+
+  afterEach(() => {
+    delete window.chatStorageAPI;
+  });
+
+  test("paste of a cold non-active chat pulls messages via getChatMessages", () => {
+    const cs = require("../../SERVICEs/chat_storage");
+    const {
+      buildSideMenuContextMenuItems: buildItems,
+    } = require("./side_menu_context_menu_items");
+
+    const before = cs.getChatsStore();
+    // Placeholder precondition: the snapshot really is lazy for chat B.
+    expect(before.chatsById[CHAT_B].messages).toEqual([]);
+
+    const setChatStore = jest.fn();
+    const items = buildItems({
+      node: null,
+      clipboard: { type: "chat", chatId: CHAT_B, label: "Chat B", messages: [] },
+      chatStore: before,
+      setChatStore,
+      handleStartRename: jest.fn(),
+      setClipboard: jest.fn(),
+      setConfirmDelete: jest.fn(),
+      t: testT,
+    });
+
+    const pasteItem = items.find((item) => item?.label === "Paste");
+    expect(pasteItem).toBeTruthy();
+    pasteItem.onClick();
+    expect(setChatStore).toHaveBeenCalled();
+
+    const after = cs.getChatsStore();
+    const copiedChatId = Object.keys(after.chatsById).find(
+      (chatId) => !before.chatsById[chatId],
+    );
+    expect(copiedChatId).toBeTruthy();
+    expect(bridge.readMessages).toHaveBeenCalledWith(CHAT_B);
+    expect(cs.getChatMessages(copiedChatId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ role: "user", content: "cold paste content" }),
+      ]),
+    );
   });
 });

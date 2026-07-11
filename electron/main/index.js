@@ -24,7 +24,7 @@ const { createScreenshotService } = require("./services/screenshot/service");
 const { createChatStorageService } = require("./services/chat_storage/service");
 const { createTestApiService } = require("./services/test-api");
 const { registerIpcHandlers } = require("./ipc/register_handlers");
-const fsp = require("fs/promises");
+const sqlite = require("node:sqlite");
 
 let autoUpdater = null;
 try {
@@ -65,8 +65,8 @@ if (!gotSingleInstanceLock) {
   const chatStorageService = createChatStorageService({
     app,
     fs,
-    fsp,
     path,
+    sqlite,
   });
 
   const ollamaService = createOllamaService({
@@ -139,7 +139,7 @@ if (!gotSingleInstanceLock) {
   };
 
   app.on("before-quit", () => {
-    chatStorageService.flushSync();
+    chatStorageService.close();
   });
   app.on("before-quit", stopBackgroundServices);
   app.on("before-quit", () => {

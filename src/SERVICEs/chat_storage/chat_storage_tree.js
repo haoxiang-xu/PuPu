@@ -278,9 +278,33 @@ export const ensureUniqueLabel = (
   }
 };
 
-export const snapshotSubtreeForCopy = (store, sourceNodeId) => {
+// loadMessages: optional `(chatId) => message[]` loader (v3 lazy messages).
+// When provided, chats whose in-store messages are a `[]` placeholder but
+// whose stats say they have messages are hydrated through it. The loader is
+// passed by CALLERS (e.g. chat_export passes getChatMessages) instead of being
+// imported here: chat_storage_store.js imports this module, so importing
+// getChatMessages from the store would create a require cycle.
+export const snapshotSubtreeForCopy = (store, sourceNodeId, loadMessages) => {
   const nodesById = {};
   const chatsById = {};
+
+  const hydrateChatCopy = (chatId, chatCopy) => {
+    if (typeof loadMessages !== "function") {
+      return chatCopy;
+    }
+    const inMemory = Array.isArray(chatCopy?.messages) ? chatCopy.messages : [];
+    if (inMemory.length > 0) {
+      return chatCopy;
+    }
+    if (Number(chatCopy?.stats?.messageCount || 0) <= 0) {
+      return chatCopy;
+    }
+    const loaded = loadMessages(chatId);
+    return {
+      ...chatCopy,
+      messages: Array.isArray(loaded) ? loaded : [],
+    };
+  };
 
   const walk = (nodeId, path = new Set()) => {
     const node = store.tree.nodesById[nodeId];
@@ -314,7 +338,10 @@ export const snapshotSubtreeForCopy = (store, sourceNodeId) => {
         chatId: node.chatId,
         label: sanitizeLabel(node.label, DEFAULT_CHAT_TITLE),
       };
-      chatsById[node.chatId] = clone(store.chatsById[node.chatId]);
+      chatsById[node.chatId] = hydrateChatCopy(
+        node.chatId,
+        clone(store.chatsById[node.chatId]),
+      );
       return nodeId;
     }
 
@@ -375,11 +402,17 @@ export const ensureTreeHasNodeForChat = (store, chatId, options = {}) => {
 
   for (const [nodeId, node] of Object.entries(store.tree.nodesById)) {
     if (node.entity === "chat" && node.chatId === chatId) {
-      node.label = sanitizeLabel(
+      const nextLabel = sanitizeLabel(
         store.chatsById[chatId].title,
         DEFAULT_CHAT_TITLE,
       );
-      node.updatedAt = now();
+      /* stamp only on real change — normalizeStore must be idempotent
+         (the ops protocol assumes un-dirtied chats re-normalize to the
+         exact same bytes) */
+      if (node.label !== nextLabel) {
+        node.label = nextLabel;
+        node.updatedAt = now();
+      }
       return nodeId;
     }
   }
@@ -624,15 +657,10 @@ export const buildTreeNodeLookupByChatId = (tree) => {
 const sanitizeExplorerLabel = (label, fallback) =>
   sanitizeLabel(label, fallback);
 
-const isChatGenerating = (chat) => {
-  if (!Array.isArray(chat?.messages)) {
-    return false;
-  }
-  return chat.messages.some(
-    (message) =>
-      message?.role === "assistant" && message?.status === "streaming",
-  );
-};
+// v3: `messages` is a lazy `[]` placeholder for non-active chats, so the tree
+// must NOT scan messages. `isGenerating` is a chat-meta flag maintained by
+// setChatMessages (the single message write entry point).
+const isChatGenerating = (chat) => chat?.isGenerating === true;
 
 export const sanitizeExplorerReorderPayload = ({
   data,

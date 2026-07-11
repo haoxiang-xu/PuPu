@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   bootstrapChatsStore,
   cleanupTransientNewChatOnPageLeave,
+  getChatMessages,
   setChatMessages,
   setChatModel,
   setChatSessionBundle,
@@ -260,10 +261,19 @@ export const useChatSessionState = ({
   }, []);
 
   useEffect(() => {
+    // Bootstrap straggler settle, v3 lazy messages: non-active chats carry
+    // `[]` placeholders, so scanning `chat.messages` would miss them. The
+    // isGenerating META flag (maintained by setChatMessages) marks the only
+    // chats that can hold stranded streaming messages — load just those via
+    // getChatMessages, settle, and write back.
     const chatsById = bootstrapped?.store?.chatsById || {};
     for (const [chatId, chat] of Object.entries(chatsById)) {
+      if (chat?.isGenerating !== true) {
+        continue;
+      }
+
       const { changed, nextMessages } = settleStreamingAssistantMessages(
-        chat?.messages,
+        getChatMessages(chatId),
       );
       if (!changed) {
         continue;

@@ -84,5 +84,30 @@ export const createChatStorageBackend = () => {
     writeLegacyToLocalStorage(store);
   };
 
-  return { readBootstrap, persist };
+  // v3 lazy-messages: single-chat sendSync read. Only meaningful on the IPC
+  // path — in the localStorage fallback the store module keeps every message
+  // in memory and must never call this (returns null so misuse is loud).
+  const readMessages = (chatId) => {
+    if (!ipcApi || typeof ipcApi.readMessages !== "function") {
+      return null;
+    }
+    try {
+      const rows = ipcApi.readMessages(chatId);
+      return Array.isArray(rows) ? rows : [];
+    } catch {
+      return null;
+    }
+  };
+
+  // v3 ops protocol: fire-and-forget incremental writes (spec §3). No-op in
+  // the fallback build — persist() keeps writing the whole store there.
+  const applyOps = (ops) => {
+    if (!ipcApi || typeof ipcApi.applyOps !== "function") {
+      return false;
+    }
+    ipcApi.applyOps(ops);
+    return true;
+  };
+
+  return { readBootstrap, persist, readMessages, applyOps };
 };

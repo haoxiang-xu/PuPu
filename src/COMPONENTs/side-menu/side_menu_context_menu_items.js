@@ -4,6 +4,7 @@ import {
   createChatWithMessagesInSelectedContext,
   createFolder,
   duplicateTreeNodeSubtree,
+  getChatMessages,
   getChatsStore,
 } from "../../SERVICEs/chat_storage";
 
@@ -36,10 +37,12 @@ export const buildSideMenuContextMenuItems = ({
       const clipboardMessages = Array.isArray(clipboard.messages)
         ? clipboard.messages
         : null;
+      // v3 lazy messages: store snapshots hold `[]` placeholders for
+      // non-active chats — read through getChatMessages, never the snapshot.
       const msgs =
         clipboardMessages && clipboardMessages.length > 0
           ? clipboardMessages
-          : latestStore?.chatsById?.[clipboard.chatId]?.messages || [];
+          : getChatMessages(clipboard.chatId) || [];
       const res = createChatWithMessagesInSelectedContext(
         {
           title: t("context_menu.copy_of", { label: clipboard.label }),
@@ -233,7 +236,8 @@ export const buildSideMenuContextMenuItems = ({
             type: "chat",
             chatId: node.chatId,
             label: chatTitle,
-            messages: chatStore?.chatsById?.[node.chatId]?.messages || [],
+            // v3 lazy messages: never trust the snapshot's placeholder array.
+            messages: getChatMessages(node.chatId) || [],
           }),
       },
       {
