@@ -3,17 +3,14 @@ import { createPortal } from "react-dom";
 import Icon from "../icon/icon";
 
 /**
- * ContextMenu — right-click menu in the command-palette family language:
- * translucent blur(20px) surface, radius 22 with an 8px inset, 28px rows at
- * radius 14 (concentric), row-level hover highlight, and a quick staggered
- * row entrance. Danger rows stay red.
+ * ContextMenu — right-click menu. Original compact geometry (radius 8,
+ * 4px inset, 28px rows at radius 6), with the palette family's frosted
+ * surface (translucent themed color + blur) and entrance animation (panel
+ * scales in from the pointer corner, rows cascade briefly).
  */
 
-const PANEL_RADIUS = 22;
-const PANEL_PAD = 8;
-const ROW_H = 28;
-const ROW_RADIUS = 14;
 const MENU_W = 200;
+const ROW_H = 28;
 const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
@@ -54,14 +51,16 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
 
   if (!visible) return null;
 
+  const border = isDark
+    ? "1px solid rgba(255,255,255,0.08)"
+    : "1px solid rgba(0,0,0,0.08)";
+  const shadow = isDark
+    ? "0 8px 32px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)"
+    : "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)";
+
   const screenW = window.innerWidth;
   const screenH = window.innerHeight;
-  const menuH =
-    items.reduce(
-      (h, item) => h + (item.type === "separator" ? 9 : ROW_H + 1),
-      0,
-    ) +
-    PANEL_PAD * 2;
+  const menuH = items.length * 32;
   const left = Math.min(x, screenW - MENU_W - 8);
   const top = Math.min(y, screenH - menuH - 8);
   /* grow away from the pointer: origin follows which corner we open from */
@@ -77,24 +76,16 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
         top,
         left,
         zIndex: 99999,
-        boxSizing: "border-box",
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
-        minWidth: MENU_W,
-        padding: PANEL_PAD,
         backgroundColor: isDark
-          ? "rgba(28,28,28,0.85)"
-          : "rgba(252,252,252,0.9)",
-        border: isDark
-          ? "1px solid rgba(255,255,255,0.10)"
-          : "1px solid rgba(0,0,0,0.09)",
-        borderRadius: PANEL_RADIUS,
+          ? "color-mix(in srgb, var(--pupu-surface, rgb(30, 30, 30)) 85%, transparent)"
+          : "color-mix(in srgb, var(--pupu-surface, rgb(255, 255, 255)) 90%, transparent)",
         backdropFilter: "blur(20px) saturate(130%)",
         WebkitBackdropFilter: "blur(20px) saturate(130%)",
-        boxShadow: isDark
-          ? "0 10px 34px rgba(0,0,0,0.5)"
-          : "0 10px 34px rgba(0,0,0,0.12)",
+        border,
+        borderRadius: 8,
+        boxShadow: shadow,
+        padding: 4,
+        minWidth: MENU_W,
         userSelect: "none",
         opacity: entered ? 1 : 0,
         transform: entered ? "none" : "scale(0.96)",
@@ -109,7 +100,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
               key={`sep-${i}`}
               style={{
                 height: 1,
-                margin: "4px 6px",
+                margin: "4px 0",
                 backgroundColor: isDark
                   ? "rgba(255,255,255,0.06)"
                   : "rgba(0,0,0,0.06)",
@@ -148,8 +139,8 @@ function MenuRow({ item, isDark, onClose, entered, delayMs }) {
       ? "rgba(220,50,50,0.15)"
       : "rgba(220,50,50,0.08)"
     : isDark
-      ? "rgba(255,255,255,0.10)"
-      : "rgba(0,0,0,0.06)";
+      ? "rgba(255,255,255,0.07)"
+      : "rgba(0,0,0,0.05)";
 
   return (
     <div
@@ -165,8 +156,8 @@ function MenuRow({ item, isDark, onClose, entered, delayMs }) {
         alignItems: "center",
         gap: 10,
         height: ROW_H,
-        padding: "0 8px",
-        borderRadius: ROW_RADIUS,
+        padding: "0 10px",
+        borderRadius: 6,
         color: textColor,
         fontSize: 13,
         cursor: item.disabled ? "not-allowed" : "pointer",
