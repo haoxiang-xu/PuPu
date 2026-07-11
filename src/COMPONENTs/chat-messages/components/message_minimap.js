@@ -53,17 +53,24 @@ const PALETTE = {
     lensBg: "rgba(255,255,255,0.055)", lensLine: "rgba(255,255,255,0.15)",
     pillBg: "rgba(255,255,255,0.12)", pillFg: "rgba(255,255,255,0.85)",
     count: "rgba(255,255,255,0.40)",
-    snapBg: "rgba(34,34,38,0.92)", snapLine: "rgba(255,255,255,0.09)",
-    snapFg: "rgba(255,255,255,0.88)", snapMuted: "rgba(255,255,255,0.45)",
-    chip: "rgba(255,255,255,0.08)",
+    /* 快照卡走 palette/attach 家族语言(command_palette_panel/command_menu 同源 token) */
+    snapBg: "rgba(28,28,28,0.85)", snapLine: "rgba(255,255,255,0.10)",
+    snapFg: "rgba(255,255,255,0.92)", snapMuted: "rgba(255,255,255,0.42)",
+    snapBody: "rgba(255,255,255,0.78)", snapHint: "rgba(255,255,255,0.35)",
+    snapCodeBg: "rgba(255,255,255,0.05)",
+    snapShadow: "0 10px 34px rgba(0,0,0,0.5)",
+    chip: "rgba(255,255,255,0.10)",
   },
   light: {
     uOff: "rgba(0,0,0,0.16)", uOn: "rgba(0,0,0,0.55)",
     lensBg: "rgba(0,0,0,0.05)", lensLine: "rgba(0,0,0,0.13)",
     pillBg: "rgba(0,0,0,0.10)", pillFg: "rgba(0,0,0,0.70)",
     count: "rgba(0,0,0,0.40)",
-    snapBg: "rgba(252,251,248,0.92)", snapLine: "rgba(0,0,0,0.11)",
-    snapFg: "rgba(0,0,0,0.85)", snapMuted: "rgba(0,0,0,0.45)",
+    snapBg: "rgba(252,252,252,0.9)", snapLine: "rgba(0,0,0,0.09)",
+    snapFg: "rgba(0,0,0,0.86)", snapMuted: "rgba(0,0,0,0.44)",
+    snapBody: "rgba(0,0,0,0.72)", snapHint: "rgba(0,0,0,0.38)",
+    snapCodeBg: "rgba(0,0,0,0.045)",
+    snapShadow: "0 10px 34px rgba(0,0,0,0.12)",
     chip: "rgba(0,0,0,0.06)",
   },
 };
@@ -454,6 +461,7 @@ const MessageMinimap = ({
         const mCode = raw.match(/```[^\n]*\n([\s\S]*?)(```|$)/);
         if (mCode) codePeek = mCode[1].split("\n").slice(0, 3).join("\n");
       }
+      // palette 家族条目排版:名称 12.5/600 + 提示 10.5/.05em + chip 圆角 8
       const badges = [
         isLive ? "生成中" : "",
         it.hasCode ? "⌗ 代码" : "",
@@ -462,19 +470,21 @@ const MessageMinimap = ({
         .filter(Boolean)
         .map(
           (b) =>
-            `<span style="background:${C.chip};border-radius:4px;padding:0 5px;font-size:9.5px;${
+            `<span style="display:inline-flex;align-items:center;height:16px;background:${C.chip};border-radius:8px;padding:0 6px;font-size:10px;line-height:16px;color:${C.snapMuted};${
               b === "生成中" ? `color:${C.snapRole};font-weight:600;` : ""
             }">${b}</span>`,
         )
         .join("");
+      const roleDot = m.role === "user" ? C.uOn : C.aHot;
       snap.innerHTML =
-        `<div style="display:flex;align-items:center;gap:6px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;letter-spacing:.05em;color:${C.snapMuted};margin-bottom:3px;">` +
-        `<span style="font-weight:700;color:${m.role === "user" ? C.snapFg : C.snapRole};">${m.role === "user" ? "你" : "PuPu"}</span>` +
-        `<span>#${idx + 1}</span>` +
+        `<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">` +
+        `<span style="flex-shrink:0;width:6px;height:6px;border-radius:100px;background:${roleDot};"></span>` +
+        `<span style="font-size:12.5px;line-height:16px;font-weight:600;color:${C.snapFg};">${m.role === "user" ? "你" : "PuPu"}</span>` +
+        `<span style="font-size:10.5px;letter-spacing:.05em;color:${C.snapHint};">#${idx + 1}</span>` +
         `<span style="margin-left:auto;display:flex;gap:4px;">${badges}</span></div>` +
-        `<div data-mm-snap-snippet style="color:${C.snapFg};display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;"></div>` +
+        `<div data-mm-snap-snippet style="font-size:12px;line-height:1.55;color:${C.snapBody};display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;"></div>` +
         (codePeek
-          ? `<div data-mm-snap-code style="margin-top:5px;background:${C.chip};border:1px solid ${C.snapLine};border-radius:6px;padding:5px 7px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:9.5px;line-height:1.45;color:${C.snapMuted};white-space:pre;overflow:hidden;max-height:46px;"></div>`
+          ? `<div data-mm-snap-code style="margin-top:6px;background:${C.snapCodeBg};border:1px solid ${C.snapLine};border-radius:8px;padding:6px 8px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:10px;line-height:1.5;color:${C.snapMuted};white-space:pre;overflow:hidden;max-height:48px;"></div>`
           : "");
       // 正文/代码用 textContent 注入,杜绝消息内容进入 innerHTML(XSS 面)
       snap.querySelector("[data-mm-snap-snippet]").textContent = snippet;
@@ -895,17 +905,16 @@ const MessageMinimap = ({
           position: "absolute",
           right: STACK_W + 14,
           width: SNAP_W,
+          /* palette/attach 家族 chrome:同 command_palette_panel 的面板参数 */
           background: C.snapBg,
-          WebkitBackdropFilter: "blur(14px) saturate(1.1)",
-          backdropFilter: "blur(14px) saturate(1.1)",
+          WebkitBackdropFilter: "blur(20px) saturate(130%)",
+          backdropFilter: "blur(20px) saturate(130%)",
           border: `1px solid ${C.snapLine}`,
-          borderRadius: 12,
-          padding: "9px 12px 10px",
-          fontSize: 11.5,
+          borderRadius: 14,
+          padding: "10px 12px",
+          fontSize: 12,
           lineHeight: 1.55,
-          boxShadow: isDark
-            ? "0 10px 34px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3)"
-            : "0 10px 34px rgba(30,24,12,0.18), 0 2px 8px rgba(30,24,12,0.1)",
+          boxShadow: C.snapShadow,
           opacity: 0,
           transform: "translateX(6px)",
           pointerEvents: "none",
