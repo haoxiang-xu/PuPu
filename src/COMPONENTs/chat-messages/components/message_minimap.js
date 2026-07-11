@@ -13,6 +13,7 @@ import {
   themeHighlightColor,
 } from "../../../CONTAINERs/config/theme_highlight";
 import {
+  SLOT,
   TICK_H,
   TRACK_W,
   PADV,
@@ -41,7 +42,7 @@ import {
 const EASE = "cubic-bezier(.22,.61,.36,1)";
 const TOP_INSET = 38; // 避开窗口顶部可拖拽标题栏(否则 to-top 按钮点不到)
 const INSET_BASE = 74; // 轨道上/下内边距:给两颗 pill 让位
-const STACK_W = 30;
+const STACK_W = 36; // 轨道整体内收:贴窗口边会被 overflow:hidden 祖先裁掉透镜/够不着 hover
 const SNAP_W = 236;
 const SCRUB_THRESHOLD_PX = 6;
 const STREAM_PAINT_INTERVAL_MS = 400; // 流式期间兜底重绘(直播膨胀不产生 scroll 事件时透镜仍跟上)
@@ -156,6 +157,7 @@ const MessageMinimap = ({
       aOff: colorWithAlpha(highlightColor, isDark ? 0.16 : 0.18),
       aOn: colorWithAlpha(highlightColor, isDark ? 0.55 : 0.55),
       live: colorWithAlpha(highlightColor, isDark ? 0.9 : 0.85),
+      aHot: colorWithAlpha(highlightColor, isDark ? 0.9 : 0.8),
       liveHalo: colorWithAlpha(highlightColor, 0.16),
       flash: colorWithAlpha(highlightColor, isDark ? 0.13 : 0.14),
       snapRole: colorWithAlpha(highlightColor, 0.95),
@@ -260,10 +262,13 @@ const MessageMinimap = ({
           h += IN_VIEW_H_BONUS;
         }
         const cy = tickCenterY({ index: idx, winBase: base, count, usable: u });
+        let hot = false; // 光标正指着的那根:demo 同款点亮
         if (fisheyeYRef.current != null && !REDUCED) {
-          const g = fisheyeGain(Math.abs(cy - fisheyeYRef.current));
+          const d = Math.abs(cy - fisheyeYRef.current);
+          const g = fisheyeGain(d);
           w += g * FISHEYE_W_BONUS;
           h += g * FISHEYE_H_BONUS;
+          hot = d < SLOT / 2;
         }
         tk.style.width = `${w}px`;
         tk.style.height = `${h}px`;
@@ -272,6 +277,10 @@ const MessageMinimap = ({
         const live = streaming && idx === count - 1;
         tk.style.background = live
           ? C.live
+          : hot
+          ? it.role === "user"
+            ? C.uOn
+            : C.aHot
           : it.role === "user"
           ? inV
             ? C.uOn
@@ -581,6 +590,10 @@ const MessageMinimap = ({
           const th = track.clientHeight;
           setCrawl(y < CRAWL_EDGE_PX ? -1 : y > th - CRAWL_EDGE_PX ? 1 : 0, e.clientY);
         }
+        // 扫播中 onScroll 被抑制,这里同步重绘 —— 透镜/高亮/计数跟着拖动走
+        showSnap(idx, y);
+        paintNow();
+        return;
       }
       showSnap(idx, y);
       styleTicks();
@@ -815,7 +828,7 @@ const MessageMinimap = ({
         aria-label="会话导航轨"
         style={{
           position: "absolute",
-          right: 2,
+          right: 8,
           top: INSET_BASE,
           bottom: INSET_BASE,
           width: TRACK_W,
