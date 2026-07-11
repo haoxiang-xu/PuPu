@@ -1,5 +1,4 @@
 import { useContext, useEffect, useRef } from "react";
-import { createPortal } from "react-dom";
 
 import Button from "../../BUILTIN_COMPONENTs/input/button";
 import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
@@ -116,131 +115,11 @@ export const RenameRow = ({
   );
 };
 
-export const ContextMenu = ({ visible, x, y, items, onClose, isDark }) => {
-  const { theme } = useContext(ConfigContext);
-  const ref = useRef(null);
-
-  useEffect(() => {
-    if (!visible) return;
-    const onMouseDown = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) onClose();
-    };
-    const onKey = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onMouseDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [visible, onClose]);
-
-  if (!visible) return null;
-
-  const bg = isDark
-    ? "var(--pupu-surface, #1e1e1e)"
-    : "var(--pupu-surface, #ffffff)";
-  const border = isDark
-    ? "1px solid rgba(255,255,255,0.08)"
-    : "1px solid rgba(0,0,0,0.08)";
-  const shadow = isDark
-    ? "0 8px 32px rgba(0,0,0,0.65), 0 2px 8px rgba(0,0,0,0.4)"
-    : "0 8px 32px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.08)";
-
-  const screenW = window.innerWidth;
-  const screenH = window.innerHeight;
-  const menuW = 180;
-  const menuH = items.length * 28;
-  const left = Math.min(x, screenW - menuW - 8);
-  const top = Math.min(y, screenH - menuH - 8);
-
-  return createPortal(
-    <div
-      ref={ref}
-      style={{
-        position: "fixed",
-        top,
-        left,
-        zIndex: 99999,
-        backgroundColor: bg,
-        border,
-        borderRadius: 8,
-        boxShadow: shadow,
-        padding: "4px",
-        minWidth: menuW,
-        userSelect: "none",
-      }}
-    >
-      {items.map((item, i) => {
-        if (item.type === "separator") {
-          return (
-            <div
-              key={i}
-              style={{
-                height: 1,
-                margin: "4px 0",
-                backgroundColor: isDark
-                  ? "rgba(255,255,255,0.06)"
-                  : "rgba(0,0,0,0.06)",
-              }}
-            />
-          );
-        }
-        const textColor = item.danger
-          ? isDark
-            ? "rgba(255,100,100,0.9)"
-            : "rgba(180,30,30,0.9)"
-          : isDark
-            ? "rgba(255,255,255,0.85)"
-            : "rgba(0,0,0,0.80)";
-        const hoverBg = item.danger
-          ? isDark
-            ? "rgba(220,50,50,0.15)"
-            : "rgba(220,50,50,0.08)"
-          : isDark
-            ? "rgba(255,255,255,0.07)"
-            : "rgba(0,0,0,0.05)";
-        return (
-          <div
-            key={i}
-            onClick={() => {
-              item.onClick();
-              onClose();
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              padding: "6px 8px",
-              cursor: "pointer",
-              fontSize: 13,
-              fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-              color: textColor,
-              borderRadius: 6,
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.backgroundColor = hoverBg;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.backgroundColor = "transparent";
-            }}
-          >
-            {item.icon && (
-              <Icon
-                src={item.icon}
-                color={textColor}
-                style={{ width: 16, height: 16, flexShrink: 0 }}
-              />
-            )}
-            {item.label}
-          </div>
-        );
-      })}
-    </div>,
-    document.body,
-  );
-};
+/* ContextMenu — re-exported from the BUILTIN palette-family menu so the
+   side-menu / chat-tree right-click shares the exact same surface as the
+   rest of the app (recipes, etc.). The local duplicate implementation was
+   removed when the family restyle landed. */
+export { default as ContextMenu } from "../../BUILTIN_COMPONENTs/context_menu/context_menu";
 
 export const ConfirmDeleteModal = ({
   open,
