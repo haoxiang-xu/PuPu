@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 /**
  * SlidingHighlight — ONE highlight block that glides between rows.
@@ -14,12 +14,17 @@ import { useLayoutEffect, useRef, useState } from "react";
  * `measureKey` must change whenever the list's layout may have shifted for
  * the SAME index (filtering, group switch) so the position is re-measured.
  * First appearance snaps into place without sliding.
+ *
+ * Deliberately a PASSIVE effect (not layout): callback refs re-attach
+ * during the commit in tree order, and this component renders before the
+ * rows — a layout effect here would read the refs while they are still
+ * detached and never find its target.
  */
 const SlidingHighlight = ({ refs, index, color, borderRadius, measureKey }) => {
   const [box, setBox] = useState(null);
   const hadBoxRef = useRef(false);
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const target =
       typeof index === "number" && index >= 0 ? refs?.current?.[index] : null;
     if (!target || !target.isConnected) {
