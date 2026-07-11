@@ -278,9 +278,13 @@ const AttachPanel = forwardRef(({
     onKeyboardActiveChange(kbIndex >= 0);
   }, [kbIndex, onKeyboardActiveChange]);
 
-  /* let the host keep the panel floated while any dropdown is open */
+  /* keep the panel floated ONLY for keyboard-opened dropdowns (opening
+     one blurs the input, which would retract the row underneath it) — a
+     mouse click on the resting row must NOT pop the panel out */
   useEffect(() => {
-    onSelectorOpenChange(openSelector != null);
+    onSelectorOpenChange(
+      openSelector != null && kbOpenedSelectorRef.current != null,
+    );
   }, [openSelector, onSelectorOpenChange]);
 
   /* keep index valid when controls disappear (e.g. steers all undone) */
