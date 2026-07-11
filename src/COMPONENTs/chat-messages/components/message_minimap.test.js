@@ -1,469 +1,247 @@
+// src/COMPONENTs/chat-messages/components/message_minimap.test.js
 import { render, act, fireEvent } from "@testing-library/react";
 import MessageMinimap from "./message_minimap";
+import { CRAWL_STEP_MS } from "../minimap_rail_geometry";
 
-const seg = (id, role, top, height) => ({ id, role, top, height });
+// jsdom(本项目锁定的 16.7)未实现 PointerEvent,RTL 的 fireEvent.pointer* 退化成
+// 裸 Event(丢 clientY)。旧 message_minimap.test.js 已注明同一坑,此处用同一惯例:
+// 补一个 MouseEvent 子类当 PointerEvent,让 clientY 随 init dict 正常携带。
+if (typeof window !== "undefined" && typeof window.PointerEvent === "undefined") {
+  class PointerEvent extends MouseEvent {
+    constructor(type, params = {}) {
+      super(type, params);
+      this.pointerId = params.pointerId ?? 0;
+    }
+  }
+  window.PointerEvent = PointerEvent;
+}
 
-// 真实 DOM host,使 MessageMinimap 的命令式 layout effect 能完整跑起来
-// (getComputedStyle / clientHeight / scrollHeight 都需要真实 Element)。
+// jsdom 下 track.clientHeight = 0 → winCapacity 恒为下限 10(池容量 10),
+// 测试利用这一确定性构造非窗口(n≤10)与窗口(n>10)两种形态。
+
+const msg = (id, role, content = "hello world", attachments) => ({
+  id, role, content, attachments,
+});
+
 const makeScrollHost = () => {
   const el = document.createElement("div");
-  const inner = document.createElement("div");
-  el.appendChild(inner);
   Object.defineProperty(el, "clientHeight", { value: 400, configurable: true });
-  Object.defineProperty(el, "scrollHeight", {
-    value: 2000,
-    configurable: true,
-  });
+  Object.defineProperty(el, "scrollHeight", { value: 2000, configurable: true });
   el.scrollTop = 0;
+  el.scrollTo = jest.fn();
   document.body.appendChild(el);
   return el;
 };
 
+const makeMessageNode = (offsetTop, offsetHeight) => {
+  const n = document.createElement("div");
+  Object.defineProperty(n, "offsetTop", { value: offsetTop, configurable: true });
+  Object.defineProperty(n, "offsetHeight", { value: offsetHeight, configurable: true });
+  return n;
+};
+
 const baseProps = (over = {}) => ({
-  messagesRef: { current: null },
+  messagesRef: { current: makeScrollHost() },
   messageNodeRefs: { current: new Map() },
-  segments: [seg("a", "user", 0, 100), seg("b", "assistant", 100, 100)],
-  total: 200,
+  messages: [msg("a", "user"), msg("b", "assistant")],
   safeVisibleStart: 0,
-  measure: () => {},
-  scrollToMessageIndex: jest.fn(),
+  scrollToMessageIndex: jest.fn(() => true),
   bottomViewportInset: 0,
   isDark: true,
   ...over,
 });
 
-test("renders one tick per segment with role data-attr", () => {
+afterEach(() => {
+  document.body.innerHTML = "";
+});
+
+test("每条消息一根刻度(n ≤ 容量),带 role 标记", () => {
   const { container } = render(<MessageMinimap {...baseProps()} />);
-  const ticks = container.querySelectorAll('[data-mm-tick]');
+  const ticks = container.querySelectorAll("[data-mm-tick]");
   expect(ticks).toHaveLength(2);
   expect(ticks[0].getAttribute("data-mm-role")).toBe("user");
   expect(ticks[1].getAttribute("data-mm-role")).toBe("assistant");
 });
 
-test("renders nothing when there are no segments", () => {
-  const { container } = render(<MessageMinimap {...baseProps({ segments: [], total: 0 })} />);
-  expect(container.querySelector('[data-mm-track]')).toBeNull();
+test("无消息时不渲染", () => {
+  const { container } = render(<MessageMinimap {...baseProps({ messages: [] })} />);
+  expect(container.querySelector("[data-mm-track]")).toBeNull();
 });
 
-test("user tick is grey, assistant tick uses theme highlight color (dark)", () => {
+test("窗口封顶:25 条消息只渲染容量(10)根刻度,端点计数出现", () => {
+  const messages = Array.from({ length: 25 }, (_, i) =>
+    msg(`m${i}`, i % 2 ? "assistant" : "user"),
+  );
+  const nodeRefs = { current: new Map() };
+  // 视口中部:第 12/13 条可见(offsetTop 与 scrollTop=1200 对齐)
+  nodeRefs.current.set(12, makeMessageNode(1200, 150));
+  nodeRefs.current.set(13, makeMessageNode(1350, 150));
+  const props = baseProps({ messages, messageNodeRefs: nodeRefs });
+  props.messagesRef.current.scrollTop = 1200;
+  const { container } = render(<MessageMinimap {...props} />);
+  const visibleTicks = Array.from(
+    container.querySelectorAll("[data-mm-tick]"),
+  ).filter((t) => t.style.display !== "none");
+  expect(visibleTicks.length).toBeLessThanOrEqual(10);
+  const cTop = container.querySelector("[data-mm-count-top]");
+  const cBot = container.querySelector("[data-mm-count-bottom]");
+  expect(cTop.textContent).toMatch(/^↑ \d+$/);
+  expect(cBot.textContent).toMatch(/^↓ \d+$/);
+});
+
+test("点击轨道 → scrollToMessageIndex(居中)", () => {
+  const props = baseProps();
+  props.messageNodeRefs.current.set(0, makeMessageNode(0, 100));
+  const { container } = render(<MessageMinimap {...props} />);
+  const track = container.querySelector("[data-mm-track]");
+  fireEvent.pointerDown(track, { clientY: 100, pointerId: 1 });
+  fireEvent.pointerUp(track, { clientY: 100, pointerId: 1 });
+  expect(props.scrollToMessageIndex).toHaveBeenCalledWith(
+    expect.any(Number),
+    "auto",
+    expect.objectContaining({ align: "center" }),
+  );
+});
+
+test("键盘 ↓ → 跳到下一条(smooth 居中)", () => {
+  const props = baseProps({
+    messages: [msg("a", "user"), msg("b", "assistant"), msg("c", "user")],
+  });
+  props.messageNodeRefs.current.set(0, makeMessageNode(0, 100));
+  const { container } = render(<MessageMinimap {...props} />);
+  const track = container.querySelector("[data-mm-track]");
+  fireEvent.keyDown(track, { key: "ArrowDown" });
+  expect(props.scrollToMessageIndex).toHaveBeenCalledWith(
+    1,
+    "smooth",
+    expect.objectContaining({ align: "center" }),
+  );
+});
+
+test("流式:末条刻度带 live 类;结束后移除", () => {
+  const props = baseProps({ isStreaming: true });
+  const { container, rerender } = render(<MessageMinimap {...props} />);
+  const ticks = container.querySelectorAll("[data-mm-tick]");
+  expect(ticks[1].classList.contains("pupu-mm-live")).toBe(true);
+  rerender(<MessageMinimap {...props} isStreaming={false} />);
+  expect(ticks[1].classList.contains("pupu-mm-live")).toBe(false);
+});
+
+test("四颗导航 pill 全部渲染", () => {
   const { container } = render(<MessageMinimap {...baseProps()} />);
-  const ticks = container.querySelectorAll('[data-mm-tick]');
-  expect(ticks[0].style.background).toContain("255, 255, 255"); // user 灰
-  expect(ticks[1].style.background).toContain("101, 196, 102"); // highlight 色
+  expect(container.querySelectorAll("[data-mm-pill]")).toHaveLength(4);
 });
 
-describe("measure is off the scroll hot path", () => {
-  let originalRaf;
-  let originalCancelRaf;
-  beforeEach(() => {
-    jest.useFakeTimers();
-    // 强制走 setTimeout 节流分支,保证 fake timers 可确定性推进
-    originalRaf = window.requestAnimationFrame;
-    originalCancelRaf = window.cancelAnimationFrame;
-    window.requestAnimationFrame = undefined;
-    window.cancelAnimationFrame = undefined;
+test("hover 轨道 → 快照卡出现且正文走 textContent(不解释 HTML)", () => {
+  const props = baseProps({
+    messages: [msg("a", "user", "<img src=x onerror=alert(1)> 你好世界"), msg("b", "assistant")],
   });
-  afterEach(() => {
-    act(() => {
-      jest.runOnlyPendingTimers();
-    });
-    jest.useRealTimers();
-    window.requestAnimationFrame = originalRaf;
-    window.cancelAnimationFrame = originalCancelRaf;
-    document.body.innerHTML = "";
-  });
-
-  test("bursts of scroll events do not run measure() synchronously per event; it is throttled", () => {
-    const el = makeScrollHost();
-    const measure = jest.fn();
-    render(
-      <MessageMinimap
-        {...baseProps({ messagesRef: { current: el }, measure })}
-      />,
-    );
-    measure.mockClear();
-
-    // 一连串 scroll 事件:节流后 measure 不应逐事件同步触发
-    act(() => {
-      el.dispatchEvent(new Event("scroll"));
-      el.dispatchEvent(new Event("scroll"));
-      el.dispatchEvent(new Event("scroll"));
-    });
-    expect(measure).not.toHaveBeenCalled();
-
-    // 节流窗口过后合并成一次 measure
-    act(() => {
-      jest.advanceTimersByTime(120);
-    });
-    expect(measure).toHaveBeenCalledTimes(1);
-  });
+  const { container } = render(<MessageMinimap {...props} />);
+  const track = container.querySelector("[data-mm-track]");
+  // track.clientHeight=0(jsdom 无布局)→ usable=-12 → groupTopPx=-10(见 minimap_rail_geometry
+  // 的 groupTopPx/indexAtY);clientY 需 <0 才落在消息 0 的槽位,故用 -15 而非天真的 5。
+  fireEvent.pointerMove(track, { clientY: -15 });
+  const snap = container.querySelector("[data-mm-snap]");
+  expect(snap.style.opacity).toBe("1");
+  expect(snap.querySelector("img")).toBeNull(); // XSS 面:消息内容不得进 innerHTML
+  expect(snap.textContent).toContain("你好世界");
 });
 
-describe("lite mode while streaming (minimap stays mounted)", () => {
-  let originalRaf;
-  let originalCancelRaf;
-  beforeEach(() => {
-    jest.useFakeTimers();
-    // 强制走 setTimeout 节流分支,保证 fake timers 可确定性推进
-    originalRaf = window.requestAnimationFrame;
-    originalCancelRaf = window.cancelAnimationFrame;
-    window.requestAnimationFrame = undefined;
-    window.cancelAnimationFrame = undefined;
-  });
-  afterEach(() => {
-    act(() => {
-      jest.runOnlyPendingTimers();
-    });
-    jest.useRealTimers();
-    window.requestAnimationFrame = originalRaf;
-    window.cancelAnimationFrame = originalCancelRaf;
-    document.body.innerHTML = "";
-  });
-
-  test("scroll during streaming does not schedule measure; a ~400ms timer measures without any scroll", () => {
-    const el = makeScrollHost();
-    const measure = jest.fn();
-    render(
-      <MessageMinimap
-        {...baseProps({
-          messagesRef: { current: el },
-          measure,
-          isStreaming: true,
-        })}
-      />,
+describe("扫播与窗口冻结", () => {
+  // 30 条 → 窗口模式(jsdom 下 track.clientHeight=0 → 容量恒为 10)
+  const makeWindowedProps = (over = {}) => {
+    const messages = Array.from({ length: 30 }, (_, i) =>
+      msg(`m${i}`, i % 2 ? "assistant" : "user"),
     );
-    measure.mockClear();
+    return baseProps({ messages, ...over });
+  };
 
-    // lite 模式:scroll 事件不再排程昂贵的 measure(热路径静默)
-    act(() => {
-      el.dispatchEvent(new Event("scroll"));
-      el.dispatchEvent(new Event("scroll"));
-    });
-    act(() => {
-      jest.advanceTimersByTime(120);
-    });
-    expect(measure).not.toHaveBeenCalled();
-
-    // 即便没有 scroll,~400ms 定时器也会驱动一次 measure
-    act(() => {
-      jest.advanceTimersByTime(400);
-    });
-    expect(measure).toHaveBeenCalled();
-  });
-
-  test("scroll during streaming still drives a layout update (box/inner reposition), not just the timer", () => {
-    const el = makeScrollHost();
-    const measure = jest.fn();
-    const { container } = render(
-      <MessageMinimap
-        {...baseProps({
-          messagesRef: { current: el },
-          measure,
-          isStreaming: true,
-        })}
-      />,
-    );
-    measure.mockClear();
-
+  test("扫播:越过阈值后按 top 对齐滚动(非居中),松手不触发额外的居中跳转", () => {
+    const props = makeWindowedProps();
+    const { container } = render(<MessageMinimap {...props} />);
     const track = container.querySelector("[data-mm-track]");
-    const inner = track.querySelector("div"); // innerRef:applyLayout 会写 transform
-    // 哨兵:若 onScroll 跑了 update()→applyLayout,transform 会被计算值覆盖
-    inner.style.transform = "translateY(999px)";
 
-    // 用户手动滚动到新位置(120ms < 400ms 定时器周期,排除定时器影响)
-    act(() => {
-      el.scrollTop = 1500;
-      el.dispatchEvent(new Event("scroll"));
-    });
-    act(() => {
-      jest.advanceTimersByTime(120);
-    });
+    fireEvent.pointerDown(track, { clientY: 100, pointerId: 1 });
+    fireEvent.pointerMove(track, { clientY: 110, pointerId: 1 }); // |110-100|=10 > 阈值(6)
 
-    // measure 仍不在 scroll 上排程(移出热路径)
-    expect(measure).not.toHaveBeenCalled();
-    // 但 update() 在 scroll 上照跑:视口框/tick 实时跟手,而非随定时器跳格
-    expect(inner.style.transform).not.toBe("translateY(999px)");
-  });
-
-  test("ending streaming triggers a convergence measure", () => {
-    const el = makeScrollHost();
-    const measure = jest.fn();
-    const { rerender } = render(
-      <MessageMinimap
-        {...baseProps({
-          messagesRef: { current: el },
-          measure,
-          isStreaming: true,
-        })}
-      />,
+    // 扫播语义:align:"top", settle:false —— 绝非点击式的 align:"center"
+    expect(props.scrollToMessageIndex).toHaveBeenCalledWith(
+      expect.any(Number),
+      "auto",
+      { align: "top", settle: false },
     );
-    measure.mockClear();
+    const callsBeforeRelease = props.scrollToMessageIndex.mock.calls.length;
+    const lastBeforeRelease =
+      props.scrollToMessageIndex.mock.calls[callsBeforeRelease - 1];
 
-    // 流式结束:effect 依赖变化重跑 → 立即收敛一次 measure
-    rerender(
-      <MessageMinimap
-        {...baseProps({
-          messagesRef: { current: el },
-          measure,
-          isStreaming: false,
-        })}
-      />,
-    );
-    expect(measure).toHaveBeenCalled();
-  });
-});
+    fireEvent.pointerUp(track, { clientY: 110, pointerId: 1 });
 
-describe("lite mode v2 — 命令式几何补偿 + rAF 合并", () => {
-  let originalRaf;
-  let originalCancelRaf;
-  afterEach(() => {
-    window.requestAnimationFrame = originalRaf;
-    window.cancelAnimationFrame = originalCancelRaf;
-    document.body.innerHTML = "";
+    // 松手(scrub-release)不应追加一次 align:"center" 的点击式跳转
+    const callsAfterRelease = props.scrollToMessageIndex.mock.calls;
+    const lastAfterRelease = callsAfterRelease[callsAfterRelease.length - 1];
+    expect(lastAfterRelease).toEqual(lastBeforeRelease);
+    expect(lastAfterRelease[2]).toEqual({ align: "top", settle: false });
   });
 
-  test("一帧内多次 scroll 只排一次 rAF(update 合并)", () => {
-    originalRaf = window.requestAnimationFrame;
-    originalCancelRaf = window.cancelAnimationFrame;
-    const rafSpy = jest.fn(() => 1);
-    window.requestAnimationFrame = rafSpy;
-    window.cancelAnimationFrame = jest.fn();
+  test("扫播贴近轨道顶边 → 冻结窗口逐步爬行(索引单调递减);松手后计时器停止", () => {
+    jest.useFakeTimers();
+    try {
+      // first=last=20 的视口 → 挂载时 winSRef 归中到 15(round(20-cap/2)),
+      // 扫播冻结取这个非零起点,爬行才能真正"走",不会一开始就被 clamp 在 0
+      const nodeRefs = { current: new Map() };
+      nodeRefs.current.set(20, makeMessageNode(2000, 150));
+      const props = makeWindowedProps({ messageNodeRefs: nodeRefs });
+      props.messagesRef.current.scrollTop = 2000;
+      const { container } = render(<MessageMinimap {...props} />);
+      const track = container.querySelector("[data-mm-track]");
 
-    const el = makeScrollHost();
-    render(
-      <MessageMinimap
-        {...baseProps({ messagesRef: { current: el }, isStreaming: true })}
-      />,
-    );
-    rafSpy.mockClear(); // 挂载时的直接 update() 不走 rAF,清掉噪声
+      fireEvent.pointerDown(track, { clientY: 100, pointerId: 1 });
+      fireEvent.pointerMove(track, { clientY: 110, pointerId: 1 }); // 越过阈值,进入扫播,窗口冻结
+      fireEvent.pointerMove(track, { clientY: 2, pointerId: 1 }); // y=2 < CRAWL_EDGE_PX(16) → 顶边爬行
 
-    act(() => {
-      el.dispatchEvent(new Event("scroll"));
-      el.dispatchEvent(new Event("scroll"));
-      el.dispatchEvent(new Event("scroll"));
-    });
-    // 三次 scroll 合并成一次 rAF 调度
-    expect(rafSpy).toHaveBeenCalledTimes(1);
-  });
-
-  test("recalcGeometry 用已渲染节点的真实 offsetHeight 覆盖冻结的 segment 高度", () => {
-    originalRaf = window.requestAnimationFrame;
-    originalCancelRaf = window.cancelAnimationFrame;
-
-    const el = makeScrollHost();
-    const nodeRefs = { current: new Map() };
-    // 段 0 冻结高度 100,但真实节点已长到 300(流式膨胀)
-    nodeRefs.current.set(0, { offsetHeight: 300, offsetTop: 0 });
-    const { container } = render(
-      <MessageMinimap
-        {...baseProps({
-          messagesRef: { current: el },
-          messageNodeRefs: nodeRefs,
-          segments: [seg("a", "user", 0, 100), seg("b", "assistant", 100, 100)],
-          total: 200,
-        })}
-      />,
-    );
-    const ticks = container.querySelectorAll("[data-mm-tick]");
-    // jsdom 下 padding/gap=0、scale=1(track clientHeight=0 → usable<=0 → scale 1)。
-    // 段 1 顶部 = PAD(8) + cOffsets[1]。用真实高度覆盖后 cOffsets[1]=300 → top=308px
-    // (未覆盖则用冻结值 100 → 108px)。
-    expect(ticks[1].style.top).toBe("308px");
-  });
-});
-
-describe("tick downsampling (MAX_TICKS bucket 化)", () => {
-  // jsdom 无 pointer capture,补 no-op
-  let hadSet;
-  let hadHas;
-  let hadRelease;
-  beforeAll(() => {
-    hadSet = Element.prototype.setPointerCapture;
-    hadHas = Element.prototype.hasPointerCapture;
-    hadRelease = Element.prototype.releasePointerCapture;
-    Element.prototype.setPointerCapture = function () {};
-    Element.prototype.hasPointerCapture = function () {
-      return false;
-    };
-    Element.prototype.releasePointerCapture = function () {};
-  });
-  afterAll(() => {
-    Element.prototype.setPointerCapture = hadSet;
-    Element.prototype.hasPointerCapture = hadHas;
-    Element.prototype.releasePointerCapture = hadRelease;
-  });
-  afterEach(() => {
-    document.body.innerHTML = "";
-  });
-
-  const manySegments = (n) =>
-    Array.from({ length: n }, (_, i) =>
-      seg(`m-${i}`, i % 2 ? "assistant" : "user", i * 10, 10),
-    );
-
-  test("250 条消息时 tick DOM 数量 ≤ 100,且每个 tick 暴露其消息区间", () => {
-    const el = makeScrollHost();
-    const { container } = render(
-      <MessageMinimap
-        {...baseProps({
-          messagesRef: { current: el },
-          segments: manySegments(250),
-          total: 2500,
-        })}
-      />,
-    );
-    const ticks = container.querySelectorAll("[data-mm-tick]");
-    expect(ticks.length).toBeLessThanOrEqual(100);
-    expect(ticks.length).toBeGreaterThan(0);
-
-    // bucket 区间连续覆盖 [0, 249],无缝无重叠
-    let expectedStart = 0;
-    ticks.forEach((tk) => {
-      const b0 = Number(tk.getAttribute("data-mm-b0"));
-      const b1 = Number(tk.getAttribute("data-mm-b1"));
-      expect(b0).toBe(expectedStart);
-      expect(b1).toBeGreaterThanOrEqual(b0);
-      expectedStart = b1 + 1;
-    });
-    expect(expectedStart).toBe(250);
-  });
-
-  test("N ≤ MAX_TICKS 时仍是一消息一 tick(行为不变)", () => {
-    const el = makeScrollHost();
-    const { container } = render(
-      <MessageMinimap
-        {...baseProps({
-          messagesRef: { current: el },
-          segments: manySegments(40),
-          total: 400,
-        })}
-      />,
-    );
-    const ticks = container.querySelectorAll("[data-mm-tick]");
-    expect(ticks.length).toBe(40);
-    ticks.forEach((tk, i) => {
-      expect(Number(tk.getAttribute("data-mm-b0"))).toBe(i);
-      expect(Number(tk.getAttribute("data-mm-b1"))).toBe(i);
-    });
-  });
-
-  test("点击某 bucket:scrollToMessageIndex 的 index 落在该 bucket 的消息区间内", () => {
-    const el = makeScrollHost();
-    const scrollToMessageIndex = jest.fn(() => true);
-    const props = (segs) =>
-      baseProps({
-        messagesRef: { current: el },
-        segments: segs,
-        total: 2500,
-        scrollToMessageIndex,
+      const preCrawlCalls = props.scrollToMessageIndex.mock.calls.length;
+      act(() => {
+        jest.advanceTimersByTime(CRAWL_STEP_MS * 3);
       });
-    const segsA = manySegments(250);
-    const { container, rerender } = render(<MessageMinimap {...props(segsA)} />);
-    const track = container.querySelector("[data-mm-track]");
-    // 给轨道一个真实高度,再用新 segments 数组触发 effect 重跑,让 recalcGeometry
-    // 用与点击路径相同的几何(usable/scale)重排 tick(mount 时 clientHeight 还是 0)
-    Object.defineProperty(track, "clientHeight", {
-      value: 516,
-      configurable: true,
-    });
-    act(() => {
-      rerender(<MessageMinimap {...props(manySegments(250))} />);
-    });
-    scrollToMessageIndex.mockClear();
+      const crawlCalls = props.scrollToMessageIndex.mock.calls.slice(preCrawlCalls);
+      expect(crawlCalls.length).toBeGreaterThanOrEqual(3);
+      const indices = crawlCalls.map((c) => c[0]);
+      for (let i = 1; i < indices.length; i++) {
+        expect(indices[i]).toBeLessThan(indices[i - 1]);
+      }
+      crawlCalls.forEach((c) => expect(c[2]).toEqual({ align: "top", settle: false }));
 
-    // 溢出时 off=0 只露出轨道前段 —— 选一个「可见区内」的 bucket 点它的视觉中心
-    // (真实 UI 也只能点到可见的 tick;scrollTop=0 → off=0,r.top=0)
-    const ticks = container.querySelectorAll("[data-mm-tick]");
-    const target = [...ticks].find(
-      (tk) =>
-        parseFloat(tk.style.top) > 100 &&
-        parseFloat(tk.style.top) + parseFloat(tk.style.height) < 480,
-    );
-    expect(target).toBeTruthy();
-    const b0 = Number(target.getAttribute("data-mm-b0"));
-    const b1 = Number(target.getAttribute("data-mm-b1"));
-    const top = parseFloat(target.style.top);
-    const height = parseFloat(target.style.height);
-    // jsdom 的 PointerEvent 不携带 clientY,手工派发带坐标的 MouseEvent
-    act(() => {
-      track.dispatchEvent(
-        new MouseEvent("pointerdown", {
-          bubbles: true,
-          clientY: top + height / 2,
-        }),
-      );
-    });
-
-    expect(scrollToMessageIndex).toHaveBeenCalled();
-    const index = scrollToMessageIndex.mock.calls[0][0];
-    expect(index).toBeGreaterThanOrEqual(b0);
-    expect(index).toBeLessThanOrEqual(b1);
-  });
-});
-
-describe("drag vs click semantics", () => {
-  // jsdom 未实现 pointer capture,补一层 no-op,让 onPointerDown/Up 不抛
-  let hadSet;
-  let hadHas;
-  let hadRelease;
-  beforeAll(() => {
-    hadSet = Element.prototype.setPointerCapture;
-    hadHas = Element.prototype.hasPointerCapture;
-    hadRelease = Element.prototype.releasePointerCapture;
-    Element.prototype.setPointerCapture = function () {};
-    Element.prototype.hasPointerCapture = function () {
-      return false;
-    };
-    Element.prototype.releasePointerCapture = function () {};
-  });
-  afterAll(() => {
-    Element.prototype.setPointerCapture = hadSet;
-    Element.prototype.hasPointerCapture = hadHas;
-    Element.prototype.releasePointerCapture = hadRelease;
-  });
-  afterEach(() => {
-    document.body.innerHTML = "";
+      fireEvent.pointerUp(track, { clientY: 2, pointerId: 1 });
+      const callsAfterRelease = props.scrollToMessageIndex.mock.calls.length;
+      act(() => {
+        jest.advanceTimersByTime(CRAWL_STEP_MS * 5);
+      });
+      // 松手清了 crawl interval → 之后推进计时器不应再产生新调用
+      expect(props.scrollToMessageIndex.mock.calls.length).toBe(callsAfterRelease);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
-  test("a synchronous landing enters drag; move drives a settle:false scroll", () => {
-    const el = makeScrollHost();
-    const scrollToMessageIndex = jest.fn(() => true); // 同步落位
-    const { container } = render(
-      <MessageMinimap
-        {...baseProps({ messagesRef: { current: el }, scrollToMessageIndex })}
-      />,
-    );
-    const track = container.querySelector("[data-mm-track]");
+  test("单条超长消息淹没视口 → 阅读进度读数出现;多条可见时隐藏", () => {
+    // Case 1: 单消息(offsetHeight 2000)远超 1.2×clientHeight(400*1.2=480),first===last
+    const nodeRefsLong = { current: new Map() };
+    nodeRefsLong.current.set(0, makeMessageNode(0, 2000));
+    const propsLong = baseProps({ messageNodeRefs: nodeRefsLong });
+    propsLong.messagesRef.current.scrollTop = 300;
+    const { container: longContainer } = render(<MessageMinimap {...propsLong} />);
+    const pctLong = longContainer.querySelector("[data-mm-lenspct]");
+    expect(pctLong.textContent).toMatch(/%$/);
+    expect(pctLong.style.opacity).toBe("0.9");
 
-    fireEvent.pointerDown(track, { clientY: 100, pointerId: 1 });
-    scrollToMessageIndex.mockClear();
-
-    // 超过 6px 阈值 → 接管为拖动 → dragTo 用 settle:false
-    fireEvent.pointerMove(track, { clientY: 200, pointerId: 1 });
-    expect(scrollToMessageIndex).toHaveBeenCalled();
-    const lastCall =
-      scrollToMessageIndex.mock.calls[
-        scrollToMessageIndex.mock.calls.length - 1
-      ];
-    expect(lastCall[2]).toMatchObject({ settle: false });
-  });
-
-  test("a deferred (async) landing stays a pure click — no drag scroll on move", () => {
-    const el = makeScrollHost();
-    const scrollToMessageIndex = jest.fn(() => false); // 异步扩窗跳转
-    const { container } = render(
-      <MessageMinimap
-        {...baseProps({ messagesRef: { current: el }, scrollToMessageIndex })}
-      />,
-    );
-    const track = container.querySelector("[data-mm-track]");
-
-    fireEvent.pointerDown(track, { clientY: 100, pointerId: 1 });
-    expect(scrollToMessageIndex).toHaveBeenCalledTimes(1); // 按下的跳转
-    scrollToMessageIndex.mockClear();
-
-    // 未进入拖动态:移动超过阈值也不再产生滚动
-    fireEvent.pointerMove(track, { clientY: 200, pointerId: 1 });
-    expect(scrollToMessageIndex).not.toHaveBeenCalled();
+    // Case 2: 两条短消息同时可见,first!==last → 阅读进度读数隐藏
+    const nodeRefsShort = { current: new Map() };
+    nodeRefsShort.current.set(0, makeMessageNode(0, 100));
+    nodeRefsShort.current.set(1, makeMessageNode(100, 100));
+    const propsShort = baseProps({ messageNodeRefs: nodeRefsShort });
+    propsShort.messagesRef.current.scrollTop = 0;
+    const { container: shortContainer } = render(<MessageMinimap {...propsShort} />);
+    const pctShort = shortContainer.querySelector("[data-mm-lenspct]");
+    expect(pctShort.style.opacity).toBe("0");
   });
 });

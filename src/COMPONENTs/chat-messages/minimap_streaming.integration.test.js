@@ -1,12 +1,12 @@
+// 固定 spec §6:流式期间几何零重排 —— 刻度几何是消息数据的纯函数,
+// token 增长(不改 messages 引用)绝不触碰刻度 top/height。
 import { render } from "@testing-library/react";
-import { useMessageMinimap } from "./hooks/use_message_minimap";
 import MessageMinimap from "./components/message_minimap";
 
-// 真实 scroll host,供 MessageMinimap 的命令式 layout effect 完整跑起来。
+const msg = (id, role, content = "x".repeat(50)) => ({ id, role, content });
+
 const makeScrollHost = () => {
   const el = document.createElement("div");
-  const inner = document.createElement("div");
-  el.appendChild(inner);
   Object.defineProperty(el, "clientHeight", { value: 400, configurable: true });
   Object.defineProperty(el, "scrollHeight", { value: 2000, configurable: true });
   el.scrollTop = 0;
@@ -14,62 +14,55 @@ const makeScrollHost = () => {
   return el;
 };
 
-// hook + component 串起来:模拟 chat_messages.js 的真实接线,验证「流式追加 trace
-// frame → segments 引用稳定 → MessageMinimap 大 effect 不重初始化」这条端到端保证。
-const Harness = ({ messages, isStreaming, hostRef, nodeRefs }) => {
-  const { segments, total, measure } = useMessageMinimap({
-    chatId: "c1",
-    messages,
-    messageNodeRefs: nodeRefs,
-    safeVisibleStart: 0,
-    isStreaming,
-  });
-  return (
-    <MessageMinimap
-      messagesRef={hostRef}
-      messageNodeRefs={nodeRefs}
-      segments={segments}
-      total={total}
-      safeVisibleStart={0}
-      measure={measure}
-      scrollToMessageIndex={() => true}
-      bottomViewportInset={0}
-      isDark
-      isStreaming={isStreaming}
-    />
-  );
-};
-
 afterEach(() => {
   document.body.innerHTML = "";
 });
 
-test("流式追加 trace frame 不重初始化 minimap effect(scroll 监听只挂一次)", () => {
-  const el = makeScrollHost();
-  const addSpy = jest.spyOn(el, "addEventListener");
-  // 稳定的 ref 对象:messagesRef/messageNodeRefs 身份跨渲染不变(否则 effect 依赖变化会误重跑)
-  const hostRef = { current: el };
-  const nodeRefs = { current: new Map() };
-
-  const msgsA = [
-    { id: "m0", role: "user", content: "hello" },
-    { id: "m1", role: "assistant", content: "hi" },
-  ];
-  const { rerender } = render(
-    <Harness messages={msgsA} isStreaming hostRef={hostRef} nodeRefs={nodeRefs} />,
+test("流式期间:同一 messages 引用重渲染 N 次,刻度 top/height 逐像素不变", () => {
+  const messages = [msg("a", "user"), msg("b", "assistant"), msg("c", "assistant", "")];
+  const props = {
+    messagesRef: { current: makeScrollHost() },
+    messageNodeRefs: { current: new Map() },
+    messages,
+    safeVisibleStart: 0,
+    scrollToMessageIndex: jest.fn(() => true),
+    bottomViewportInset: 0,
+    isDark: true,
+    isStreaming: true,
+  };
+  const { container, rerender } = render(<MessageMinimap {...props} />);
+  const snapshot = Array.from(container.querySelectorAll("[data-mm-tick]")).map(
+    (t) => `${t.style.top}|${t.style.height}|${t.style.width}`,
   );
-  // 挂载期会挂 scroll 监听(chatId effect bump version 会带来一次额外重跑,属一次性成本)
-  expect(
-    addSpy.mock.calls.filter((c) => c[0] === "scroll").length,
-  ).toBeGreaterThanOrEqual(1);
-
-  addSpy.mockClear();
-  // 追加 trace frame:全新数组、长度不变、首尾 id 不变(仅末条 content 变长)
-  const msgsB = [msgsA[0], { ...msgsA[1], content: "hi there, more tokens" }];
-  rerender(
-    <Harness messages={msgsB} isStreaming hostRef={hostRef} nodeRefs={nodeRefs} />,
+  for (let i = 0; i < 5; i++) rerender(<MessageMinimap {...props} />);
+  const after = Array.from(container.querySelectorAll("[data-mm-tick]")).map(
+    (t) => `${t.style.top}|${t.style.height}|${t.style.width}`,
   );
-  const scrollAddsAfter = addSpy.mock.calls.filter((c) => c[0] === "scroll").length;
-  // effect 未重初始化 → 未 removeEventListener/addEventListener 重挂监听
-  expect(scrollAddsAfter).toBe(0);
+  expect(after).toEqual(snapshot);
+});
+
+test("流式结束下降沿:直播消息内容落库 → 宽度一次性收敛", () => {
+  const live = { id: "c", role: "assistant", content: "" };
+  const messages = [msg("a", "user", "x".repeat(30)), msg("b", "assistant", "x".repeat(900)), live];
+  const props = {
+    messagesRef: { current: makeScrollHost() },
+    messageNodeRefs: { current: new Map() },
+    messages,
+    safeVisibleStart: 0,
+    scrollToMessageIndex: jest.fn(() => true),
+    bottomViewportInset: 0,
+    isDark: true,
+    isStreaming: true,
+  };
+  const { container, rerender } = render(<MessageMinimap {...props} />);
+  const ticks = () => container.querySelectorAll("[data-mm-tick]");
+  const liveWidthBefore = parseFloat(ticks()[2].style.width);
+  expect(liveWidthBefore).toBeCloseTo(7, 1); // 空消息:TICK_W_MIN
+
+  // 下降沿:内容提交 + isStreaming=false(messages 换新引用)
+  const committed = [...messages.slice(0, 2), { ...live, content: "x".repeat(900) }];
+  rerender(<MessageMinimap {...props} messages={committed} isStreaming={false} />);
+  const liveWidthAfter = parseFloat(ticks()[2].style.width);
+  expect(liveWidthAfter).toBeGreaterThan(liveWidthBefore); // 收敛到真实字数档位
+  expect(ticks()[2].classList.contains("pupu-mm-live")).toBe(false);
 });

@@ -3,7 +3,6 @@ import ChatBubble from "../chat-bubble/chat_bubble";
 import CharacterChatBubble from "../chat-bubble/character_chat_bubble";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import MessageMinimap from "./components/message_minimap";
-import { useMessageMinimap } from "./hooks/use_message_minimap";
 import { useMessageWindowScroll } from "./hooks/use_message_window_scroll";
 import { StreamingMessageStoreContext } from "../chat-bubble/components/streaming_message_store_context";
 
@@ -60,16 +59,6 @@ const ChatMessages = ({
     boot_visible_count: bootVisibleCount,
     bottom_viewport_inset: safeBottomViewportInset,
     max_mounted_count: maxMountedCount,
-  });
-
-  // minimap 永远拿真实 messages、永远挂载:流式期间进入 lite 模式(定时 measure),
-  // 不再整条 rail 闪没→闪现,用户上拉脱离吸底后仍有导航。
-  const { segments, total, measure } = useMessageMinimap({
-    chatId,
-    messages,
-    messageNodeRefs,
-    safeVisibleStart,
-    isStreaming,
   });
 
   // Provider value memo(2026-07 C 批性能):此前每次重渲染新建对象,所有订阅
@@ -217,10 +206,8 @@ const ChatMessages = ({
       <MessageMinimap
         messagesRef={messagesRef}
         messageNodeRefs={messageNodeRefs}
-        segments={segments}
-        total={total}
+        messages={messages}
         safeVisibleStart={safeVisibleStart}
-        measure={measure}
         scrollToMessageIndex={scrollToMessageIndex}
         bottomViewportInset={safeBottomViewportInset}
         isDark={isDark}
