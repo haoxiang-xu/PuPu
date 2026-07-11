@@ -7,11 +7,9 @@ export const TICK_W_MID = 12.5;
 export const TICK_W_MAX = 18;
 export const TRACK_W = 26;
 export const PADV = 6;
-export const LENS_MIN_H = 12;
-export const IN_VIEW_W_BONUS = 4;
-export const IN_VIEW_H_BONUS = 0.8;
-export const FISHEYE_W_BONUS = 8;
-export const FISHEYE_H_BONUS = 2;
+export const NEEDLE_W = 26; // 位置针:视口顶部所在的刻度拉到最长
+export const HOVER_MAX_W = 22; // hover 长度延伸上限(不盖过位置针)
+export const FISHEYE_W_BONUS = 8; // hover 只变长,不加粗
 export const CRAWL_EDGE_PX = 16;
 export const CRAWL_STEP_MS = 80;
 
@@ -99,23 +97,6 @@ export function hiddenCounts({ winBase, count, usable }) {
 }
 export function capCount(n) {
   return n > 999 ? "999+" : String(n);
-}
-
-// 透镜:亚槽位插值 + 最小高居中 + 轨道内钳位。窗口模式必须减 winBase
-// (v6 教训:漏减会把透镜钳死在轨道底部,"怎么滚都不动")。
-export function lensRect({ first, last, fTop, fBot, winBase, count, usable }) {
-  const base = isWindowed(count, usable) ? winBase : 0;
-  const gt = groupTopPx(count, usable);
-  let top = gt + (first - base + clamp01(fTop)) * SLOT - 2;
-  const bottom = gt + (last - base + clamp01(fBot)) * SLOT + 2;
-  let height = bottom - top;
-  if (height < LENS_MIN_H) {
-    top = (top + bottom) / 2 - LENS_MIN_H / 2;
-    height = LENS_MIN_H;
-  }
-  const trackH = usable + 2 * PADV;
-  top = clamp(top, PADV - 4, Math.max(PADV - 4, trackH - PADV - height + 4));
-  return { top, height };
 }
 
 export function fisheyeGain(dist) {

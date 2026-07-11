@@ -13,14 +13,12 @@ import {
   themeHighlightColor,
 } from "../../../CONTAINERs/config/theme_highlight";
 import {
-  SLOT,
   TICK_H,
   TRACK_W,
   PADV,
-  IN_VIEW_W_BONUS,
-  IN_VIEW_H_BONUS,
+  NEEDLE_W,
+  HOVER_MAX_W,
   FISHEYE_W_BONUS,
-  FISHEYE_H_BONUS,
   CRAWL_EDGE_PX,
   CRAWL_STEP_MS,
   buildRailModel,
@@ -33,7 +31,6 @@ import {
   recenterWindow,
   hiddenCounts,
   capCount,
-  lensRect,
   fisheyeGain,
   clamp01,
   readingPct,
@@ -49,8 +46,8 @@ const STREAM_PAINT_INTERVAL_MS = 400; // 流式期间兜底重绘(直播膨胀�
 
 const PALETTE = {
   dark: {
-    uOff: "rgba(255,255,255,0.16)", uOn: "rgba(255,255,255,0.62)",
-    lensBg: "rgba(255,255,255,0.055)", lensLine: "rgba(255,255,255,0.15)",
+    uOn: "rgba(255,255,255,0.62)",
+    tickDim: "rgba(255,255,255,0.12)", // 视口外:统一淡色,不分角色
     pillBg: "rgba(255,255,255,0.12)", pillFg: "rgba(255,255,255,0.85)",
     count: "rgba(255,255,255,0.40)",
     /* 快照卡走 palette/attach 家族语言(command_palette_panel/command_menu 同源 token) */
@@ -62,8 +59,8 @@ const PALETTE = {
     chip: "rgba(255,255,255,0.10)",
   },
   light: {
-    uOff: "rgba(0,0,0,0.16)", uOn: "rgba(0,0,0,0.55)",
-    lensBg: "rgba(0,0,0,0.05)", lensLine: "rgba(0,0,0,0.13)",
+    uOn: "rgba(0,0,0,0.55)",
+    tickDim: "rgba(0,0,0,0.12)",
     pillBg: "rgba(0,0,0,0.10)", pillFg: "rgba(0,0,0,0.70)",
     count: "rgba(0,0,0,0.40)",
     snapBg: "rgba(252,252,252,0.9)", snapLine: "rgba(0,0,0,0.09)",
@@ -161,10 +158,8 @@ const MessageMinimap = ({
     const base = PALETTE[isDark ? "dark" : "light"];
     return {
       ...base,
-      aOff: colorWithAlpha(highlightColor, isDark ? 0.16 : 0.18),
-      aOn: colorWithAlpha(highlightColor, isDark ? 0.55 : 0.55),
+      aOn: colorWithAlpha(highlightColor, isDark ? 0.9 : 0.85), // 点亮才着色,直接用强色
       live: colorWithAlpha(highlightColor, isDark ? 0.9 : 0.85),
-      aHot: colorWithAlpha(highlightColor, isDark ? 0.9 : 0.8),
       liveHalo: colorWithAlpha(highlightColor, 0.16),
       flash: colorWithAlpha(highlightColor, isDark ? 0.13 : 0.14),
       snapRole: colorWithAlpha(highlightColor, 0.95),
@@ -185,7 +180,6 @@ const MessageMinimap = ({
 
   const stackRef = useRef(null);
   const trackRef = useRef(null);
-  const lensRef = useRef(null);
   const lensPctRef = useRef(null);
   const cTopRef = useRef(null);
   const cBotRef = useRef(null);
@@ -211,7 +205,6 @@ const MessageMinimap = ({
   const crawlDirRef = useRef(0);
   const crawlClientYRef = useRef(0);
   const paintApiRef = useRef(null);
-  const hoverTrackRef = useRef(false); // 轨道 hover 态,普通模式端点计数透明度靠这个防残留
   const flashTimersRef = useRef({ raf: null, timeout: null }); // 落点回声的 rAF 重试/淡出计时,卸载时清理
 
   // 最新数据走 ref,让大 effect 依赖保持最小。用 useLayoutEffect(而非 useEffect)
@@ -237,8 +230,7 @@ const MessageMinimap = ({
   useLayoutEffect(() => {
     const el = messagesRef.current;
     const track = trackRef.current;
-    const lens = lensRef.current;
-    if (!el || !track || !lens || !latestRef.current.messages.length) return undefined;
+    if (!el || !track || !latestRef.current.messages.length) return undefined;
 
     const usable = () => track.clientHeight - 2 * PADV;
 
@@ -262,43 +254,27 @@ const MessageMinimap = ({
         tk.style.display = "";
         const it = model[idx];
         let w = ws[idx];
-        let h = TICK_H;
-        const inV = viewSetRef.current.has(idx);
-        if (inV) {
-          w += IN_VIEW_W_BONUS;
-          h += IN_VIEW_H_BONUS;
-        }
         const cy = tickCenterY({ index: idx, winBase: base, count, usable: u });
-        let hot = false; // 光标正指着的那根:demo 同款点亮
         if (fisheyeYRef.current != null && !REDUCED) {
-          const d = Math.abs(cy - fisheyeYRef.current);
-          const g = fisheyeGain(d);
-          w += g * FISHEYE_W_BONUS;
-          h += g * FISHEYE_H_BONUS;
-          hot = d < SLOT / 2;
+          const g = fisheyeGain(Math.abs(cy - fisheyeYRef.current));
+          w = Math.min(HOVER_MAX_W, w + g * FISHEYE_W_BONUS); // hover 只变长,不加粗
         }
+        if (idx === viewFirstRef.current) w = NEEDLE_W; // 位置针:视口顶部所在的刻度最长
         tk.style.width = `${w}px`;
-        tk.style.height = `${h}px`;
-        tk.style.left = `${(TRACK_W - w) / 2}px`;
-        tk.style.top = `${cy - h / 2}px`;
+        tk.style.height = `${TICK_H}px`;
+        tk.style.top = `${cy - TICK_H / 2}px`;
+        const inV = viewSetRef.current.has(idx);
         const live = streaming && idx === count - 1;
+        // 视口外统一淡色不分角色;点亮的才按角色着色
         tk.style.background = live
           ? C.live
-          : hot
-          ? it.role === "user"
-            ? C.uOn
-            : C.aHot
+          : !inV
+          ? C.tickDim
           : it.role === "user"
-          ? inV
-            ? C.uOn
-            : C.uOff
-          : inV
-          ? C.aOn
-          : C.aOff;
+          ? C.uOn
+          : C.aOn;
         tk.classList.toggle("pupu-mm-live", live);
         tk.setAttribute("data-mm-role", it.role);
-        const dot = tk.firstElementChild;
-        if (dot) dot.style.display = it.hasCode || it.hasAttach ? "" : "none";
       });
     };
 
@@ -362,37 +338,29 @@ const MessageMinimap = ({
         fBot = clamp01(
           (top + vh - lastNode.offsetTop) / Math.max(1, lastNode.offsetHeight),
         );
-        const r = lensRect({
-          first,
-          last,
-          fTop,
-          fBot,
-          winBase: winBase(),
-          count,
-          usable: u,
-        });
-        lens.style.top = `${r.top}px`;
-        lens.style.height = `${r.height}px`;
-        lens.style.opacity = "1";
-        // 单条超长消息淹没整个视口:透镜旁显示阅读进度读数
-        const pctEl = lensPctRef.current;
-        if (pctEl) {
-          if (first === last && firstNode.offsetHeight > vh * 1.2) {
-            pctEl.textContent = `${readingPct(fBot)}%`;
-            pctEl.style.top = `${track.offsetTop + r.top + r.height / 2 - 6}px`;
-            pctEl.style.opacity = "0.9";
-          } else {
-            pctEl.style.opacity = "0";
-          }
+      }
+      // 超屏进度:视口顶部的消息高过一屏 → 位置针旁显示 %(fBot 取顶部消息的已读比例)
+      const pctEl = lensPctRef.current;
+      if (pctEl) {
+        if (first >= 0 && firstNode && firstNode.offsetHeight > vh * 1.1) {
+          const fRead = clamp01(
+            (top + vh - firstNode.offsetTop) / Math.max(1, firstNode.offsetHeight),
+          );
+          pctEl.textContent = `${readingPct(fRead)}%`;
+          pctEl.style.top = `${
+            track.offsetTop +
+            tickCenterY({ index: first, winBase: winBase(), count, usable: u }) -
+            6
+          }px`;
+          pctEl.style.opacity = "0.9";
+        } else {
+          pctEl.style.opacity = "0";
         }
-      } else {
-        lens.style.opacity = "0";
-        if (lensPctRef.current) lensPctRef.current.style.opacity = "0";
       }
 
       styleTicks();
 
-      // 计数:窗口模式端点常驻"未画出的 node 数";普通模式 hover 显示视口外条数
+      // 计数:只在轨道装不下全部刻度时,显示两端没画出来的数量;装得下时无任何计数
       const cTop = cTopRef.current;
       const cBot = cBotRef.current;
       if (cTop && cBot) {
@@ -403,16 +371,8 @@ const MessageMinimap = ({
           cTop.style.opacity = hid.above > 0 ? "1" : "0";
           cBot.style.opacity = hid.below > 0 ? "1" : "0";
         } else {
-          const above = Math.max(0, first);
-          const below = first < 0 ? 0 : Math.max(0, count - 1 - last);
-          cTop.textContent = above > 0 ? `↑ ${above}` : "";
-          cBot.textContent = below > 0 ? `↓ ${below}` : "";
-          // 普通模式下透明度由 hover 控制(pointerenter/leave),这里只更新文案;
-          // 非 hover 态强制清零,避免窗口模式→普通模式收缩后 opacity:1 残留(无 hover 也常驻)
-          if (!hoverTrackRef.current) {
-            cTop.style.opacity = "0";
-            cBot.style.opacity = "0";
-          }
+          cTop.style.opacity = "0";
+          cBot.style.opacity = "0";
         }
       }
 
@@ -475,7 +435,7 @@ const MessageMinimap = ({
             }">${b}</span>`,
         )
         .join("");
-      const roleDot = m.role === "user" ? C.uOn : C.aHot;
+      const roleDot = m.role === "user" ? C.uOn : C.aOn;
       snap.innerHTML =
         `<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">` +
         `<span style="flex-shrink:0;width:6px;height:6px;border-radius:100px;background:${roleDot};"></span>` +
@@ -572,14 +532,6 @@ const MessageMinimap = ({
       paint();
     };
 
-    const onPointerEnter = () => {
-      hoverTrackRef.current = true;
-      const count = latestRef.current.messages.length;
-      if (!isWindowed(count, usable())) {
-        if (cTopRef.current) cTopRef.current.style.opacity = "1";
-        if (cBotRef.current) cBotRef.current.style.opacity = "1";
-      }
-    };
     const onPointerMove = (e) => {
       const y = trackYOf(e);
       fisheyeYRef.current = y;
@@ -600,7 +552,7 @@ const MessageMinimap = ({
           const th = track.clientHeight;
           setCrawl(y < CRAWL_EDGE_PX ? -1 : y > th - CRAWL_EDGE_PX ? 1 : 0, e.clientY);
         }
-        // 扫播中 onScroll 被抑制,这里同步重绘 —— 透镜/高亮/计数跟着拖动走
+        // 扫播中 onScroll 被抑制,这里同步重绘 —— 位置针/高亮/计数跟着拖动走
         showSnap(idx, y);
         paintNow();
         return;
@@ -610,14 +562,8 @@ const MessageMinimap = ({
     };
     const onPointerLeave = () => {
       if (scrubbingRef.current) return;
-      hoverTrackRef.current = false;
       fisheyeYRef.current = null;
       hideSnap();
-      const count = latestRef.current.messages.length;
-      if (!isWindowed(count, usable())) {
-        if (cTopRef.current) cTopRef.current.style.opacity = "0";
-        if (cBotRef.current) cBotRef.current.style.opacity = "0";
-      }
       styleTicks();
     };
     const onPointerDown = (e) => {
@@ -681,7 +627,6 @@ const MessageMinimap = ({
       paint();
     };
 
-    track.addEventListener("pointerenter", onPointerEnter);
     track.addEventListener("pointermove", onPointerMove);
     track.addEventListener("pointerleave", onPointerLeave);
     track.addEventListener("pointerdown", onPointerDown);
@@ -719,7 +664,6 @@ const MessageMinimap = ({
     paintNow();
 
     return () => {
-      track.removeEventListener("pointerenter", onPointerEnter);
       track.removeEventListener("pointermove", onPointerMove);
       track.removeEventListener("pointerleave", onPointerLeave);
       track.removeEventListener("pointerdown", onPointerDown);
@@ -847,21 +791,6 @@ const MessageMinimap = ({
           outline: "none",
         }}
       >
-        <div
-          ref={lensRef}
-          data-mm-lens
-          style={{
-            position: "absolute",
-            left: -3,
-            right: -3,
-            background: C.lensBg,
-            border: `1px solid ${C.lensLine}`,
-            borderRadius: 8,
-            opacity: 0,
-            pointerEvents: "none",
-            transition: `top .12s ${EASE}, height .12s ${EASE}, opacity .2s ease`,
-          }}
-        />
         {Array.from({ length: tickCount }).map((_, k) => (
           <div
             key={k}
@@ -871,30 +800,15 @@ const MessageMinimap = ({
             }}
             style={{
               position: "absolute",
+              right: 0, // 右侧齐平,向左生长
               borderRadius: 100,
-              background: C.uOff,
-              transition:
-                `background .24s ease, width .13s ease, height .13s ease, ` +
-                `left .13s ease, top .13s ease`,
+              background: C.tickDim,
+              // 长度/位置零 transition —— hover 即时跟手;只有颜色淡入淡出
+              transition: "background .18s ease, opacity .18s ease",
               // live 呼吸光晕的颜色走 CSS var(伪元素无法内联)
               "--pupu-mm-live-halo": C.liveHalo,
             }}
-          >
-            <span
-              data-mm-dot
-              style={{
-                position: "absolute",
-                top: "50%",
-                right: -5,
-                width: 3,
-                height: 3,
-                borderRadius: 100,
-                background: C.aOn,
-                transform: "translateY(-50%)",
-                display: "none",
-              }}
-            />
-          </div>
+          />
         ))}
       </div>
 

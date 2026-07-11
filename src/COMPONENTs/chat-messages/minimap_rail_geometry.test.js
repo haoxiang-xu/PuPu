@@ -1,9 +1,9 @@
 import {
-  SLOT, TICK_W_MIN, TICK_W_MID, TICK_W_MAX, PADV, LENS_MIN_H,
+  SLOT, TICK_W_MIN, TICK_W_MID, TICK_W_MAX, PADV, NEEDLE_W, HOVER_MAX_W,
   messageLen, buildRailModel, widthStats, tickWidth,
   winCapacity, isWindowed, shownCount, groupTopPx,
   tickCenterY, indexAtY, recenterWindow, hiddenCounts, capCount,
-  lensRect, fisheyeGain, readingPct,
+  fisheyeGain, readingPct,
 } from "./minimap_rail_geometry";
 
 const msg = (id, role, content, attachments) => ({ id, role, content, attachments });
@@ -88,22 +88,11 @@ describe("窗口与定位(节距恒定)", () => {
   });
 });
 
-describe("lensRect 亚槽位插值", () => {
-  const usable = 500;
-  test("fTop/fBot 在槽位内部连续行进", () => {
-    const a = lensRect({ first: 3, last: 3, fTop: 0, fBot: 0.5, winBase: 0, count: 10, usable });
-    const b = lensRect({ first: 3, last: 3, fTop: 0.3, fBot: 0.8, winBase: 0, count: 10, usable });
-    expect(b.top).toBeGreaterThan(a.top);
-  });
-  test("过小时夹到最小高 12 并居中", () => {
-    const r = lensRect({ first: 5, last: 5, fTop: 0.4, fBot: 0.5, winBase: 0, count: 40, usable });
-    expect(r.height).toBe(LENS_MIN_H);
-  });
-  test("窗口模式减 winBase(v6 修过的透镜卡死 bug 的回归测试)", () => {
-    const inWin = lensRect({ first: 90, last: 92, fTop: 0, fBot: 1, winBase: 80, count: 200, usable });
-    // first-winBase=10 → top ≈ groupTop + 100,必须落在轨道内部而不是被钳在底部
-    expect(inWin.top).toBeLessThan(usable);
-    expect(inWin.top).toBeGreaterThan(PADV);
+describe("位置针常量关系", () => {
+  test("位置针最长,hover 上限不盖过它", () => {
+    expect(NEEDLE_W).toBeGreaterThan(TICK_W_MAX);
+    expect(HOVER_MAX_W).toBeGreaterThan(TICK_W_MAX);
+    expect(HOVER_MAX_W).toBeLessThan(NEEDLE_W);
   });
 });
 
