@@ -208,6 +208,7 @@ const AttachPanel = forwardRef(({
   const [kbIndex, setKbIndex] = useState(-1);
   const [kbSteerOpen, setKbSteerOpen] = useState(false);
   const kbOpenedSelectorRef = useRef(null);
+  const kbReturnIndexRef = useRef(-1);
 
   const handleModelSelectorOpenChange = useCallback((next) => {
     setOpenSelector(next ? "model" : null);
@@ -223,6 +224,7 @@ const AttachPanel = forwardRef(({
     } else if (kbOpenedSelectorRef.current === "model") {
       kbOpenedSelectorRef.current = null;
       onRequestInputFocus();
+      setKbIndex(kbReturnIndexRef.current); // back where the user was
     }
   }, [onRequestInputFocus]);
 
@@ -238,6 +240,7 @@ const AttachPanel = forwardRef(({
       if (kbOpenedSelectorRef.current === "tools") {
         kbOpenedSelectorRef.current = null;
         onRequestInputFocus();
+        setKbIndex(kbReturnIndexRef.current);
       }
     },
     [refreshToolkits, onRequestInputFocus],
@@ -249,6 +252,7 @@ const AttachPanel = forwardRef(({
       if (!next && kbOpenedSelectorRef.current === "workspace") {
         kbOpenedSelectorRef.current = null;
         onRequestInputFocus();
+        setKbIndex(kbReturnIndexRef.current);
       }
     },
     [onRequestInputFocus],
@@ -294,6 +298,7 @@ const AttachPanel = forwardRef(({
   }, []);
 
   const kbActivate = (id) => {
+    kbReturnIndexRef.current = kbStateRef.current.kbIndex;
     if (id === "model") {
       kbOpenedSelectorRef.current = "model";
       handleModelSelectorOpenChange(true);
