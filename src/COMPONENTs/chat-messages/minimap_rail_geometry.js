@@ -99,6 +99,12 @@ export function capCount(n) {
   return n > 999 ? "999+" : String(n);
 }
 
+// 刻度组的实际纵向范围(轨道内坐标)。组外是死区:不触发 hover/点击/起拖
+export function railExtent(count, usable) {
+  const top = groupTopPx(count, usable);
+  return { top, bottom: top + shownCount(count, usable) * SLOT };
+}
+
 export function fisheyeGain(dist) {
   const sigma = Math.max(20, SLOT * 2.6);
   return Math.exp(-(dist * dist) / (2 * sigma * sigma));

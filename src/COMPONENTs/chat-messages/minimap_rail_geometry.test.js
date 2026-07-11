@@ -3,7 +3,7 @@ import {
   messageLen, buildRailModel, widthStats, tickWidth,
   winCapacity, isWindowed, shownCount, groupTopPx,
   tickCenterY, indexAtY, recenterWindow, hiddenCounts, capCount,
-  fisheyeGain, readingPct,
+  railExtent, fisheyeGain, readingPct,
 } from "./minimap_rail_geometry";
 
 const msg = (id, role, content, attachments) => ({ id, role, content, attachments });
@@ -85,6 +85,17 @@ describe("窗口与定位(节距恒定)", () => {
     expect(hiddenCounts({ winBase: 77, count: 200, usable })).toEqual({ above: 77, below: 73 });
     expect(capCount(999)).toBe("999");
     expect(capCount(1000)).toBe("999+");
+  });
+});
+
+describe("railExtent 死区边界", () => {
+  test("组范围 = groupTop .. groupTop + shown×SLOT", () => {
+    const usable = 500; // 容量 50
+    const e = railExtent(10, usable); // 10 条居中:top = 6+200
+    expect(e.top).toBe(PADV + 200);
+    expect(e.bottom).toBe(PADV + 200 + 10 * SLOT);
+    const full = railExtent(200, usable); // 窗口模式:铺满
+    expect(full.bottom - full.top).toBe(50 * SLOT);
   });
 });
 

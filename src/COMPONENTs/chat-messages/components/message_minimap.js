@@ -31,6 +31,7 @@ import {
   recenterWindow,
   hiddenCounts,
   capCount,
+  railExtent,
   fisheyeGain,
   clamp01,
   readingPct,
@@ -532,8 +533,25 @@ const MessageMinimap = ({
       paint();
     };
 
+    // 刻度组外的轨道空白 = 死区(jsdom 下 usable≤0 无法定义边界,视为全域有效)
+    const insideRail = (y) => {
+      const u = usable();
+      if (u <= 0) return true;
+      const ext = railExtent(latestRef.current.messages.length, u);
+      return y >= ext.top - 2 && y <= ext.bottom + 2;
+    };
+
     const onPointerMove = (e) => {
       const y = trackYOf(e);
+      if (!insideRail(y) && !scrubbingRef.current) {
+        // 组外滑动:清掉既有 hover 态,不触发任何效果
+        if (fisheyeYRef.current != null) {
+          fisheyeYRef.current = null;
+          hideSnap();
+          styleTicks();
+        }
+        return;
+      }
       fisheyeYRef.current = y;
       const idx = idxAtCursorY(y);
       if (
@@ -567,6 +585,7 @@ const MessageMinimap = ({
       styleTicks();
     };
     const onPointerDown = (e) => {
+      if (!insideRail(trackYOf(e))) return; // 死区不起拖、不入点击
       pressedRef.current = true;
       pressYRef.current = e.clientY;
       if (track.setPointerCapture) {
@@ -582,10 +601,11 @@ const MessageMinimap = ({
         track.releasePointerCapture(e.pointerId);
       }
       const wasScrub = scrubbingRef.current;
+      const wasPressed = pressedRef.current; // 死区 pointerdown 不置 pressed → 松手不算点击
       const y = trackYOf(e);
       const idx = idxAtCursorY(y);
       endScrub();
-      if (!wasScrub) {
+      if (!wasScrub && wasPressed && insideRail(y)) {
         scrollToMessageIndex(idx, "auto", { align: "center" });
         flashMessage(idx);
       }
