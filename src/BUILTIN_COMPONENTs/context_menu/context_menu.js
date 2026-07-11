@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../icon/icon";
-import ScaleHighlight from "../class/scale_highlight";
+import SlidingHighlight from "../class/sliding_highlight";
 
 /**
  * ContextMenu — right-click menu. Original compact geometry (radius 8,
@@ -16,12 +16,15 @@ const EASE_OUT = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
   const ref = useRef(null);
+  const rowRefs = useRef([]);
+  const [hoverIndex, setHoverIndex] = useState(-1);
 
   /* double-rAF latch so the entrance animates on mount */
   const [entered, setEntered] = useState(false);
   useEffect(() => {
     if (!visible) {
       setEntered(false);
+      setHoverIndex(-1);
       return undefined;
     }
     let raf2 = 0;
@@ -93,7 +96,24 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
         transformOrigin: `${originY} ${originX}`,
         transition: `opacity 140ms ease, transform 180ms ${EASE_OUT}`,
       }}
+      onMouseLeave={() => setHoverIndex(-1)}
     >
+      {/* one hover pill gliding between rows (red over danger rows) */}
+      <SlidingHighlight
+        refs={rowRefs}
+        index={hoverIndex}
+        color={
+          items[hoverIndex]?.danger
+            ? isDark
+              ? "rgba(220,50,50,0.15)"
+              : "rgba(220,50,50,0.08)"
+            : isDark
+              ? "rgba(255,255,255,0.07)"
+              : "rgba(0,0,0,0.05)"
+        }
+        borderRadius={6}
+        measureKey={items.length}
+      />
       {items.map((item, i) => {
         if (item.type === "separator") {
           return (
@@ -117,6 +137,12 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
             onClose={onClose}
             entered={entered}
             delayMs={30 + i * 22}
+            refCallback={(el) => {
+              rowRefs.current[i] = el;
+            }}
+            onHover={() => {
+              if (!item.disabled) setHoverIndex(i);
+            }}
           />
         );
       })}
@@ -125,9 +151,7 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
   );
 }
 
-function MenuRow({ item, isDark, onClose, entered, delayMs }) {
-  const [hover, setHover] = useState(false);
-
+function MenuRow({ item, isDark, onClose, entered, delayMs, refCallback, onHover }) {
   const textColor = item.danger
     ? isDark
       ? "rgba(255,100,100,0.9)"
@@ -135,18 +159,11 @@ function MenuRow({ item, isDark, onClose, entered, delayMs }) {
     : isDark
       ? "rgba(255,255,255,0.85)"
       : "rgba(0,0,0,0.80)";
-  const hoverBg = item.danger
-    ? isDark
-      ? "rgba(220,50,50,0.15)"
-      : "rgba(220,50,50,0.08)"
-    : isDark
-      ? "rgba(255,255,255,0.07)"
-      : "rgba(0,0,0,0.05)";
 
   return (
     <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
+      ref={refCallback}
+      onMouseEnter={onHover}
       onClick={() => {
         if (item.disabled) return;
         item.onClick?.();
@@ -168,11 +185,6 @@ function MenuRow({ item, isDark, onClose, entered, delayMs }) {
         transition: `transform 160ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms, opacity 150ms linear ${delayMs}ms`,
       }}
     >
-      <ScaleHighlight
-        visible={hover && !item.disabled}
-        color={hoverBg}
-        borderRadius={6}
-      />
       {item.prefix_icon && (
         <Icon
           src={item.prefix_icon}

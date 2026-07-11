@@ -341,32 +341,64 @@ export const useChatSessionState = ({
     }
   }, []);
 
+  /* Session-bundle persist is DEFERRED off the interaction's paint path:
+     a synchronous whole-store persist here blocks the main thread for
+     40-80ms right after e.g. a toolkit checkbox click, making the toggle
+     feel sluggish. Debounced writes coalesce rapid toggles; a pending
+     write is flushed when the chat switches under it and on unmount, so
+     nothing is lost. */
+  const pendingSessionBundleRef = useRef(null);
+  const flushPendingSessionBundle = useCallback(() => {
+    const pending = pendingSessionBundleRef.current;
+    pendingSessionBundleRef.current = null;
+    if (pending) {
+      setChatSessionBundle(pending.chatId, pending.bundle, {
+        source: "chat-page",
+      });
+    }
+  }, []);
+
   useEffect(() => {
     const currentChatId = activeChatIdRef.current;
     if (!currentChatId) {
-      return;
+      return undefined;
     }
     if (activeChatKind === "character") {
-      return;
+      return undefined;
     }
 
-    setChatSessionBundle(
-      currentChatId,
-      {
+    const pending = pendingSessionBundleRef.current;
+    if (pending && pending.chatId !== currentChatId) {
+      // don't let a chat switch swallow the previous chat's pending write
+      flushPendingSessionBundle();
+    }
+
+    pendingSessionBundleRef.current = {
+      chatId: currentChatId,
+      bundle: {
         selectedToolkits,
         agentOrchestration,
         selectedWorkspaceIds,
         selectedRecipeName,
       },
-      { source: "chat-page" },
-    );
+    };
+    const timer = setTimeout(flushPendingSessionBundle, 150);
+    return () => clearTimeout(timer);
   }, [
     activeChatKind,
     selectedToolkits,
     agentOrchestration,
     selectedWorkspaceIds,
     selectedRecipeName,
+    flushPendingSessionBundle,
   ]);
+
+  useEffect(
+    () => () => {
+      flushPendingSessionBundle();
+    },
+    [flushPendingSessionBundle],
+  );
 
   useEffect(() => {
     return () => {

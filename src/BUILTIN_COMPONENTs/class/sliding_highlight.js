@@ -57,7 +57,7 @@ const SlidingHighlight = ({ refs, index, color, borderRadius, measureKey }) => {
         borderRadius,
         backgroundColor: color,
         transition: box.animate
-          ? "transform 200ms cubic-bezier(0.3, 1, 0.35, 1), width 200ms cubic-bezier(0.3, 1, 0.35, 1), height 200ms cubic-bezier(0.3, 1, 0.35, 1)"
+          ? "transform 200ms cubic-bezier(0.3, 1, 0.35, 1), width 200ms cubic-bezier(0.3, 1, 0.35, 1), height 200ms cubic-bezier(0.3, 1, 0.35, 1), background-color 150ms ease"
           : "none",
         pointerEvents: "none",
         zIndex: 0,
