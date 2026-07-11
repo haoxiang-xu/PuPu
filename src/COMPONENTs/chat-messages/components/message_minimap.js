@@ -415,8 +415,8 @@ const MessageMinimap = ({
       const snippet = flat
         ? flat.slice(0, 92) + (flat.length > 92 ? "…" : "")
         : isLive
-        ? "正在生成…"
-        : "(空消息)";
+        ? "Generating…"
+        : "(empty)";
       let codePeek = "";
       if (it.hasCode) {
         const mCode = raw.match(/```[^\n]*\n([\s\S]*?)(```|$)/);
@@ -424,15 +424,15 @@ const MessageMinimap = ({
       }
       // palette 家族条目排版:名称 12.5/600 + 提示 10.5/.05em + chip 圆角 8
       const badges = [
-        isLive ? "生成中" : "",
-        it.hasCode ? "⌗ 代码" : "",
+        isLive ? "Generating" : "",
+        it.hasCode ? "⌗ Code" : "",
         it.hasAttach ? "📎" : "",
       ]
         .filter(Boolean)
         .map(
           (b) =>
             `<span style="display:inline-flex;align-items:center;height:16px;background:${C.chip};border-radius:8px;padding:0 6px;font-size:10px;line-height:16px;color:${C.snapMuted};${
-              b === "生成中" ? `color:${C.snapRole};font-weight:600;` : ""
+              b === "Generating" ? `color:${C.snapRole};font-weight:600;` : ""
             }">${b}</span>`,
         )
         .join("");
@@ -440,7 +440,7 @@ const MessageMinimap = ({
       snap.innerHTML =
         `<div style="display:flex;align-items:center;gap:7px;margin-bottom:4px;">` +
         `<span style="flex-shrink:0;width:6px;height:6px;border-radius:100px;background:${roleDot};"></span>` +
-        `<span style="font-size:12.5px;line-height:16px;font-weight:600;color:${C.snapFg};">${m.role === "user" ? "你" : "PuPu"}</span>` +
+        `<span style="font-size:12.5px;line-height:16px;font-weight:600;color:${C.snapFg};">${m.role === "user" ? "User" : "Assistant"}</span>` +
         `<span style="font-size:10.5px;letter-spacing:.05em;color:${C.snapHint};">#${idx + 1}</span>` +
         `<span style="margin-left:auto;display:flex;gap:4px;">${badges}</span></div>` +
         `<div data-mm-snap-snippet style="font-size:12px;line-height:1.55;color:${C.snapBody};display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;"></div>` +
@@ -799,7 +799,7 @@ const MessageMinimap = ({
         data-mm-track
         tabIndex={0}
         role="scrollbar"
-        aria-label="会话导航轨"
+        aria-label="Conversation minimap"
         style={{
           position: "absolute",
           right: 8,
