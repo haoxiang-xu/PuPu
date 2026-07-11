@@ -872,7 +872,12 @@ const MessageMinimap = ({
       />
 
       <NavPill nodeRef={topPillRef} edge="top" offset={8} icon={CH_UP2} C={C} isDark={isDark}
-        onClick={() => scrollToMessageIndex(0, "smooth")} />
+        onClick={() => {
+          // 远距离到顶用瞬时落位:长距离 smooth 会被触控板惯性滚轮中断在半路
+          // ("底部按 to-top 有时失效"的另一半根因);近距离保留 smooth 的顺滑。
+          const far = (viewFirstRef.current < 0 ? safeVisibleStart : viewFirstRef.current) > 8;
+          scrollToMessageIndex(0, far ? "auto" : "smooth");
+        }} />
       <NavPill nodeRef={upOnePillRef} edge="top" offset={38} icon={CH_UP} C={C} isDark={isDark}
         onClick={() => jumpRelative(-1)} />
       <NavPill nodeRef={downOnePillRef} edge="bottom" offset={38} icon={CH_DOWN} C={C} isDark={isDark}

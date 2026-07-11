@@ -449,13 +449,25 @@ export const useMessageWindowScroll = ({
   // 置意图,不等 scroll 事件、不看 24px 阈值带(rAF 会在事件到达前把位置拍回底部)。
   const handleWheel = useCallback(
     (event) => {
-      clearLandingCorrection();
-      clearChunkedExpand();
+      const deltaY =
+        event && typeof event.deltaY === "number" ? event.deltaY : 0;
+      // 边缘哑滚轮守卫:推不动视口的滚轮不构成"用户接管"。贴底后的向下滚轮
+      // (典型为触控板惯性余量,可持续 1s+)本身滚不动任何东西,却会掐掉刚点的
+      // to-top 分批扩窗/落位 —— 即"底部按 to-top 有时失效"。贴顶向上同理。
+      // 真实的反向接管(在底部向上滚)不受影响,照常取消。
+      const el = messagesRef.current;
+      const atBottomNoop =
+        deltaY > 0 &&
+        el &&
+        el.scrollHeight - el.scrollTop - el.clientHeight <= 1;
+      const atTopNoop = deltaY < 0 && el && el.scrollTop <= 0;
+      if (!atBottomNoop && !atTopNoop) {
+        clearLandingCorrection();
+        clearChunkedExpand();
+      }
       if (!is_streaming) {
         return;
       }
-      const deltaY =
-        event && typeof event.deltaY === "number" ? event.deltaY : 0;
       if (deltaY < 0) {
         streamingFollowEnabledRef.current = false;
         userScrollIntentRef.current = true;
