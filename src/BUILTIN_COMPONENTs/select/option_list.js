@@ -2,6 +2,7 @@ import { isValidElement, useContext, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
 import AnimatedChildren from "../class/animated_children";
+import ScaleHighlight from "../class/scale_highlight";
 import { get_option_text, render_icon } from "./use_select";
 import Icon from "../icon/icon";
 
@@ -84,6 +85,21 @@ export const OptionItem = ({
     ? (option_theme?.paddingWithDesc ?? "5px 10px")
     : (option_theme?.padding ?? "0 10px");
 
+  /* Button-style highlight layer: scales in from center. One layer serves
+     both states — hover (keyboard/mouse highlight) and, for single-select,
+     the persistent selected tint; moving between them only recolors. */
+  const isSelectedSingle = isSelected && !multi;
+  const highlightVisible = (isHighlighted && !isDisabled) || isSelectedSingle;
+  const highlightColor = isHighlighted
+    ? isSelectedSingle
+      ? (option_theme?.selectedHighlightedBackgroundColor ??
+        option_theme?.hoverBackgroundColor ??
+        "rgba(0, 0, 0, 0.06)")
+      : (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
+    : isSelectedSingle
+      ? (option_theme?.selectedBackgroundColor ?? "rgba(10, 133, 255, 0.14)")
+      : "transparent";
+
   return (
     <div
       key={`${option?.value ?? flatIndex}`}
@@ -102,31 +118,37 @@ export const OptionItem = ({
         borderRadius: option_theme?.borderRadius ?? 5,
         cursor: isDisabled ? "not-allowed" : "pointer",
         color: optionColor,
-        backgroundColor: isHighlighted
-          ? isSelected && !multi
-            ? (option_theme?.selectedHighlightedBackgroundColor ??
-              option_theme?.hoverBackgroundColor ??
-              "rgba(0, 0, 0, 0.06)")
-            : (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
-          : isSelected && !multi
-            ? (option_theme?.selectedBackgroundColor ??
-              "rgba(10, 133, 255, 0.14)")
-            : "transparent",
         ...option_style,
         gap: showIcon ? (option_theme?.gap ?? 6) : multi ? 8 : 0,
         ...extra_style,
       }}
     >
+      <ScaleHighlight
+        visible={highlightVisible}
+        color={highlightColor}
+        borderRadius={option_theme?.borderRadius ?? 5}
+      />
+
       {/* checkbox for multi-select */}
       {multi && (
-        <Checkbox checked={isSelected} isDark={isDark} checkColor={checkColor} />
+        <span style={{ position: "relative", zIndex: 1, display: "flex" }}>
+          <Checkbox
+            checked={isSelected}
+            isDark={isDark}
+            checkColor={checkColor}
+          />
+        </span>
       )}
 
       {/* icon */}
-      {showIcon ? <>{render_icon(iconValue, fontSize, optionColor)}</> : null}
+      {showIcon ? (
+        <span style={{ position: "relative", zIndex: 1, display: "flex" }}>
+          {render_icon(iconValue, fontSize, optionColor)}
+        </span>
+      ) : null}
 
       {/* label + optional description */}
-      <div style={{ minWidth: 0, flex: 1 }}>
+      <div style={{ minWidth: 0, flex: 1, position: "relative", zIndex: 1 }}>
         <span
           style={{
             position: "relative",
@@ -162,6 +184,8 @@ export const OptionItem = ({
       {group_tag ? (
         <span
           style={{
+            position: "relative",
+            zIndex: 1,
             flexShrink: 0,
             fontFamily,
             fontSize: 9,
@@ -223,6 +247,7 @@ const GroupHeader = ({
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => onToggle(group.group)}
       style={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: showGroupIcon ? iconGap : 2,
@@ -230,17 +255,23 @@ const GroupHeader = ({
         padding: headerPadding,
         borderRadius: group_theme?.headerBorderRadius ?? 5,
         cursor: "pointer",
-        backgroundColor: hovered ? hoverBg : "transparent",
-        transition: "background-color 0.15s ease",
         userSelect: "none",
         WebkitUserSelect: "none",
       }}
     >
+      <ScaleHighlight
+        visible={hovered}
+        color={hoverBg}
+        borderRadius={group_theme?.headerBorderRadius ?? 5}
+      />
+
       {/* expand/collapse chevron */}
       <Icon
         src="arrow_down"
         color={headerColor}
         style={{
+          position: "relative",
+          zIndex: 1,
           width: expandIconSize,
           height: expandIconSize,
           transition:
@@ -256,6 +287,8 @@ const GroupHeader = ({
       {showGroupIcon && (
         <div
           style={{
+            position: "relative",
+            zIndex: 1,
             display: "flex",
             alignItems: "center",
             height: "100%",
@@ -269,6 +302,8 @@ const GroupHeader = ({
       {/* group label */}
       <span
         style={{
+          position: "relative",
+          zIndex: 1,
           fontFamily,
           fontSize: headerFontSize,
           fontWeight: headerFontWeight,
@@ -288,6 +323,8 @@ const GroupHeader = ({
       {group_theme?.showCount && typeof count === "number" ? (
         <span
           style={{
+            position: "relative",
+            zIndex: 1,
             flex: "none",
             fontFamily,
             fontSize: headerFontSize,

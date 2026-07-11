@@ -6,8 +6,111 @@ import {
 } from "../../CONTAINERs/config/theme_highlight";
 import Tooltip from "../tooltip/tooltip";
 import Icon from "../icon/icon";
+import ScaleHighlight from "../class/scale_highlight";
 import useSelect, { render_icon } from "./use_select";
 import OptionList, { OptionItem } from "./option_list";
+
+/* ── palette-rail provider icon (Button-style scale-in highlight) ── */
+const RailItem = ({
+  group,
+  active,
+  dimmed,
+  holdsSelection,
+  accentColor,
+  baseColor,
+  fontFamily,
+  isDark,
+  onPick,
+}) => {
+  const [hovered, setHovered] = useState(false);
+  return (
+    <div
+      title={group.group}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={onPick}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        position: "relative",
+        width: 34,
+        height: 34,
+        borderRadius: 12,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        cursor: "pointer",
+        opacity: dimmed ? 0.35 : active || hovered ? 1 : 0.6,
+        transition: "opacity 0.15s ease",
+      }}
+    >
+      <ScaleHighlight
+        visible={active || (hovered && !dimmed)}
+        color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+        borderRadius={12}
+      />
+      <span
+        style={{
+          position: "relative",
+          zIndex: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        {group.icon ? (
+          render_icon(group.icon, 16, baseColor)
+        ) : (
+          <span
+            style={{
+              fontFamily,
+              fontSize: 12,
+              fontWeight: 600,
+              color: baseColor,
+            }}
+          >
+            {String(group.group || "?")
+              .slice(0, 1)
+              .toUpperCase()}
+          </span>
+        )}
+      </span>
+      {active ? (
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: -8,
+            top: "50%",
+            transform: "translateY(-50%)",
+            width: 3,
+            height: 14,
+            borderRadius: 2,
+            backgroundColor: accentColor,
+            zIndex: 1,
+          }}
+        />
+      ) : null}
+      {holdsSelection ? (
+        <span
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            right: 3,
+            top: 3,
+            width: 6,
+            height: 6,
+            borderRadius: "50%",
+            backgroundColor: accentColor,
+            border: `1.5px solid ${
+              isDark ? "rgba(28,28,28,1)" : "rgba(252,252,252,1)"
+            }`,
+            zIndex: 1,
+          }}
+        />
+      ) : null}
+    </div>
+  );
+};
 
 const default_gap_width = 8;
 const default_left_right_padding = 8;
@@ -1148,87 +1251,24 @@ const Select = ({
               }`,
             }}
           >
-            {filteredGroups.map((g) => {
-              const active = !railQueryActive && !g.collapsed;
-              const holdsSelection = multi
-                ? g.options.some((o) => selectedValuesSet?.has(o?.value))
-                : g.options.some((o) => o?.value === selectedValue);
-              return (
-                <div
-                  key={g.group}
-                  title={g.group}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => rail_pick_group(g.group)}
-                  style={{
-                    position: "relative",
-                    width: 34,
-                    height: 34,
-                    borderRadius: 12,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    backgroundColor: active
-                      ? isDark
-                        ? "rgba(255,255,255,0.10)"
-                        : "rgba(0,0,0,0.06)"
-                      : "transparent",
-                    opacity: railQueryActive ? 0.35 : active ? 1 : 0.6,
-                    transition:
-                      "background-color 0.15s ease, opacity 0.15s ease",
-                  }}
-                >
-                  {g.icon ? (
-                    render_icon(g.icon, 16, baseColor)
-                  ) : (
-                    <span
-                      style={{
-                        fontFamily,
-                        fontSize: 12,
-                        fontWeight: 600,
-                        color: baseColor,
-                      }}
-                    >
-                      {String(g.group || "?")
-                        .slice(0, 1)
-                        .toUpperCase()}
-                    </span>
-                  )}
-                  {active ? (
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        left: -8,
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        width: 3,
-                        height: 14,
-                        borderRadius: 2,
-                        backgroundColor: railCheckColor,
-                      }}
-                    />
-                  ) : null}
-                  {holdsSelection ? (
-                    <span
-                      aria-hidden="true"
-                      style={{
-                        position: "absolute",
-                        right: 3,
-                        top: 3,
-                        width: 6,
-                        height: 6,
-                        borderRadius: "50%",
-                        backgroundColor: railCheckColor,
-                        border: `1.5px solid ${
-                          isDark ? "rgba(28,28,28,1)" : "rgba(252,252,252,1)"
-                        }`,
-                      }}
-                    />
-                  ) : null}
-                </div>
-              );
-            })}
+            {filteredGroups.map((g) => (
+              <RailItem
+                key={g.group}
+                group={g}
+                active={!railQueryActive && !g.collapsed}
+                dimmed={railQueryActive}
+                holdsSelection={
+                  multi
+                    ? g.options.some((o) => selectedValuesSet?.has(o?.value))
+                    : g.options.some((o) => o?.value === selectedValue)
+                }
+                accentColor={railCheckColor}
+                baseColor={baseColor}
+                fontFamily={fontFamily}
+                isDark={isDark}
+                onPick={() => rail_pick_group(g.group)}
+              />
+            ))}
           </div>
 
           {/* flat rows of the visible pool (= flatSelectable, so keyboard

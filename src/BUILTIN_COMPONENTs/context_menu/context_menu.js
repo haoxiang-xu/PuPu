@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import Icon from "../icon/icon";
+import ScaleHighlight from "../class/scale_highlight";
 
 /**
  * ContextMenu — right-click menu. Original compact geometry (radius 8,
@@ -152,6 +153,7 @@ function MenuRow({ item, isDark, onClose, entered, delayMs }) {
         onClose();
       }}
       style={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: 10,
@@ -162,22 +164,38 @@ function MenuRow({ item, isDark, onClose, entered, delayMs }) {
         fontSize: 13,
         cursor: item.disabled ? "not-allowed" : "pointer",
         opacity: item.disabled ? 0.5 : entered ? 1 : 0,
-        backgroundColor: hover && !item.disabled ? hoverBg : "transparent",
         transform: entered ? "translateY(0)" : "translateY(-6px)",
-        transition: `transform 160ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms, opacity 150ms linear ${delayMs}ms, background-color 0.13s ease`,
+        transition: `transform 160ms cubic-bezier(0.22,1,0.36,1) ${delayMs}ms, opacity 150ms linear ${delayMs}ms`,
       }}
     >
+      <ScaleHighlight
+        visible={hover && !item.disabled}
+        color={hoverBg}
+        borderRadius={6}
+      />
       {item.prefix_icon && (
         <Icon
           src={item.prefix_icon}
           color={textColor}
-          style={{ width: 12, height: 12, opacity: 0.6 }}
+          style={{
+            position: "relative",
+            zIndex: 1,
+            width: 12,
+            height: 12,
+            opacity: 0.6,
+          }}
         />
       )}
       {item.icon && (
-        <Icon src={item.icon} color={textColor} style={{ width: 14, height: 14 }} />
+        <Icon
+          src={item.icon}
+          color={textColor}
+          style={{ position: "relative", zIndex: 1, width: 14, height: 14 }}
+        />
       )}
-      <span style={{ flex: 1 }}>{item.label}</span>
+      <span style={{ position: "relative", zIndex: 1, flex: 1 }}>
+        {item.label}
+      </span>
     </div>
   );
 }
