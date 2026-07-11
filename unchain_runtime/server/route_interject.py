@@ -13,7 +13,8 @@ Routes a client-side interject into one of:
 from __future__ import annotations
 
 import importlib
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+import threading
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from typing import Any, Callable, TypeVar
 
 from flask import Response, jsonify, request
@@ -38,15 +39,32 @@ def _call_with_timeout(fn: Callable[[], _T], seconds: float) -> _T:
     completion in the background. This is acceptable here because fn is a
     one-shot side-call (btw answer / auto-classify) with no caller-visible
     state to clean up beyond the return value we're discarding.
+
+    Runs on a DAEMON thread (not a ThreadPoolExecutor): executor workers are
+    non-daemon and are joined at interpreter exit, so a provider call hung
+    past its timeout would block the whole sidecar from shutting down.
     """
-    executor = ThreadPoolExecutor(max_workers=1)
-    try:
-        future = executor.submit(fn)
-        return future.result(timeout=seconds)
-    finally:
-        # wait=False: do NOT block here on timeout — that would defeat the
-        # purpose of the timeout. The worker thread finishes on its own.
-        executor.shutdown(wait=False)
+    result: list[Any] = []
+    error: list[BaseException] = []
+    done = threading.Event()
+
+    def _worker() -> None:
+        try:
+            result.append(fn())
+        except BaseException as exc:  # noqa: BLE001 — relayed to caller below
+            error.append(exc)
+        finally:
+            done.set()
+
+    thread = threading.Thread(
+        target=_worker, name="interject-side-call", daemon=True
+    )
+    thread.start()
+    if not done.wait(seconds):
+        raise FutureTimeoutError()
+    if error:
+        raise error[0]
+    return result[0]
 
 
 def _root():
