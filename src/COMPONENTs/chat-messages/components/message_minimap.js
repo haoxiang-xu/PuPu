@@ -102,8 +102,9 @@ const ensureStyle = () => {
     "@keyframes pupuMmPop{0%{transform:scaleX(.2);opacity:0;}100%{transform:scaleX(1);opacity:1;}}" +
     // 落点回声:侧标线(CEO 选定方案 C)—— 3px 竖线在消息侧边展开→停→淡出
     ".pupu-mm-flash{position:relative;}" +
-    ".pupu-mm-flash::before{content:'';position:absolute;left:4px;top:8%;width:3px;height:84%;border-radius:100px;background:var(--pupu-mm-flash);animation:pupuMmFlashBar 1.8s cubic-bezier(0.22,1,0.36,1) 1;pointer-events:none;}" +
-    '.pupu-mm-flash[data-mm-flash-side="right"]::before{left:auto;right:-12px;}' +
+    // assistant(默认,线在左):只标消息开头一小段;user(right,气泡小):整高
+    ".pupu-mm-flash::before{content:'';position:absolute;left:4px;top:4px;width:3px;height:20px;border-radius:100px;background:var(--pupu-mm-flash);animation:pupuMmFlashBar 1.8s cubic-bezier(0.22,1,0.36,1) 1;pointer-events:none;}" +
+    '.pupu-mm-flash[data-mm-flash-side="right"]::before{left:auto;right:-12px;top:8%;height:84%;}' +
     "@keyframes pupuMmFlashBar{0%{transform:scaleY(0);opacity:0;}12%{transform:scaleY(1);opacity:1;}70%{transform:scaleY(1);opacity:1;}100%{transform:scaleY(1);opacity:0;}}" +
     "@media (prefers-reduced-motion: reduce){[data-mm-tick].pupu-mm-live::after,[data-mm-tick].pupu-mm-pop{animation:none !important;}.pupu-mm-flash::before{animation:none !important;content:none;}}";
   document.head.appendChild(el);
