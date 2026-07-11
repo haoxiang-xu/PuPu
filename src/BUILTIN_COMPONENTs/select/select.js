@@ -1167,6 +1167,58 @@ const Select = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRail, mergedOpen, options, selectedValue]);
 
+  /* ── rail keyboard focus: ← jumps to the provider rail, ↑↓ switch the
+     provider live (the list swaps), →/Enter/typing return to the list.
+     While the rail holds focus, the list dims. */
+  const [railFocus, setRailFocus] = useState(false);
+  useEffect(() => {
+    if (!mergedOpen || railQueryActive) setRailFocus(false);
+  }, [mergedOpen, railQueryActive]);
+
+  const rail_key_down = (e) => {
+    /* the same event bubbles from the search input to the panel div —
+       handling it twice double-toggles the exclusive accordion (a no-op) */
+    if (e.defaultPrevented) return;
+    if (!isRail) {
+      handle_key_down(e);
+      return;
+    }
+    if (!railFocus) {
+      if (
+        e.key === "ArrowLeft" &&
+        !railQueryActive &&
+        (e.target?.selectionStart ?? 0) === 0
+      ) {
+        e.preventDefault();
+        setRailFocus(true);
+        return;
+      }
+      handle_key_down(e);
+      return;
+    }
+    /* rail focused */
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const groups = filteredGroups;
+      if (!groups.length) return;
+      const activeIdx = Math.max(
+        0,
+        groups.findIndex((g) => !g.collapsed),
+      );
+      const delta = e.key === "ArrowDown" ? 1 : -1;
+      const next = (activeIdx + delta + groups.length) % groups.length;
+      rail_pick_group(groups[next].group);
+      return;
+    }
+    if (e.key === "ArrowRight" || e.key === "Enter" || e.key === "Escape") {
+      e.preventDefault();
+      setRailFocus(false);
+      return;
+    }
+    setRailFocus(false);
+    handle_key_down(e);
+  };
+
   const dropdownContent = (
     <div
       style={
@@ -1221,7 +1273,7 @@ const Select = ({
               ...dropdown_style,
             }
       }
-      onKeyDown={handle_key_down}
+      onKeyDown={rail_key_down}
     >
       {/* default variant: search on top */}
       {filterable && !isPalette ? (
@@ -1300,6 +1352,8 @@ const Select = ({
               gap: 1,
               overflowY: "auto",
               overscrollBehavior: "contain",
+              opacity: railFocus ? 0.5 : 1,
+              transition: "opacity 150ms ease",
             }}
           >
             <SlidingHighlight
@@ -1429,7 +1483,7 @@ const Select = ({
               value={query}
               placeholder={search_placeholder}
               onChange={(e) => handle_query_change(e.target.value)}
-              onKeyDown={handle_key_down}
+              onKeyDown={rail_key_down}
               style={{
                 flex: 1,
                 minWidth: 40,
