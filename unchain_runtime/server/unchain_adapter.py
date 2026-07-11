@@ -236,6 +236,12 @@ _TOOLKIT_NAME_ALIASES = {
     "plan_toolkit": "PlanToolkit",
     "plantoolkit": "PlanToolkit",
     "PlanToolkit": "PlanToolkit",
+    "agent_reach": "AgentReachToolkit",
+    "agent-reach": "AgentReachToolkit",
+    "agentreach": "AgentReachToolkit",
+    "agent_reach_toolkit": "AgentReachToolkit",
+    "agentreachtoolkit": "AgentReachToolkit",
+    "AgentReachToolkit": "AgentReachToolkit",
 }
 _DEFAULT_MAX_ITERATIONS = 32
 _CONFIRMATION_CANCELLED_REASON = "confirmation_cancelled_stream_terminated"
