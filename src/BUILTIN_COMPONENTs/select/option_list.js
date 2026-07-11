@@ -45,7 +45,7 @@ const Checkbox = ({ checked, isDark, checkColor }) => (
  *  OptionItem — single selectable option
  * ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const OptionItem = ({
+export const OptionItem = ({
   option,
   flatIndex,
   isSelected,
@@ -64,6 +64,7 @@ const OptionItem = ({
   option_style,
   checkColor,
   extra_style,
+  group_tag,
 }) => {
   const isDisabled = !!option?.disabled;
   const optionColor = isDisabled
@@ -156,6 +157,22 @@ const OptionItem = ({
           </span>
         )}
       </div>
+
+      {/* faint trailing group tag (e.g. provider during cross-group search) */}
+      {group_tag ? (
+        <span
+          style={{
+            flexShrink: 0,
+            fontFamily,
+            fontSize: 9,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.32)",
+          }}
+        >
+          {group_tag}
+        </span>
+      ) : null}
     </div>
   );
 };

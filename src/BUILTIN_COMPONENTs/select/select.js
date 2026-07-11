@@ -1,10 +1,13 @@
 import { isValidElement, useContext, useEffect, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
-import { themeHighlightRgba } from "../../CONTAINERs/config/theme_highlight";
+import {
+  themeHighlightColor,
+  themeHighlightRgba,
+} from "../../CONTAINERs/config/theme_highlight";
 import Tooltip from "../tooltip/tooltip";
 import Icon from "../icon/icon";
 import useSelect, { render_icon } from "./use_select";
-import OptionList from "./option_list";
+import OptionList, { OptionItem } from "./option_list";
 
 const default_gap_width = 8;
 const default_left_right_padding = 8;
@@ -705,6 +708,7 @@ const Select = ({
   variant,
   palette_chip,
   palette_actions,
+  palette_rail = false,
 }) => {
   const { theme, onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -1004,6 +1008,50 @@ const Select = ({
       </span>
     ) : null;
 
+  /* ── palette rail (design B): a provider icon rail on the left, only the
+     active (sole expanded) group's options on the right, cross-group flat
+     results while searching, and a FIXED panel height so nothing ever
+     jumps. Reuses the caller's collapse state as an exclusive accordion. */
+  const isRail = isPalette && palette_rail && hasGroups;
+  const railQueryActive = filterable && query.trim() !== "";
+  const railCheckColor = themeHighlightColor(theme);
+  const railGroupNames = new Map();
+  if (isRail) {
+    filteredGroups.forEach((g) =>
+      g.options.forEach((o) => railGroupNames.set(o, g.group)),
+    );
+  }
+  const rail_pick_group = (target) => {
+    (options || []).forEach((item) => {
+      if (!item || typeof item !== "object" || !item.group) return;
+      const shouldCollapse = item.group !== target;
+      if (!!item.collapsed !== shouldCollapse) on_group_toggle(item.group);
+    });
+    if (query) handle_query_change("");
+  };
+
+  /* rail invariant: exactly ONE group expanded. The caller's collapse
+     state can drift (all collapsed, or several open from the pre-rail
+     UI) — on open, snap it to the group holding the selection, else the
+     first group. */
+  useEffect(() => {
+    if (!isRail || !mergedOpen) return;
+    const groups = (options || []).filter(
+      (item) => item && typeof item === "object" && item.group,
+    );
+    if (!groups.length) return;
+    const expanded = groups.filter((g) => !g.collapsed);
+    if (expanded.length === 1) return;
+    const holder =
+      groups.find(
+        (g) =>
+          Array.isArray(g.options) &&
+          g.options.some((o) => o?.value === selectedValue),
+      ) || groups[0];
+    rail_pick_group(holder.group);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isRail, mergedOpen, options, selectedValue]);
+
   const dropdownContent = (
     <div
       style={
@@ -1013,7 +1061,7 @@ const Select = ({
               display: "flex",
               flexDirection: "column",
               gap: 1,
-              width: 280,
+              width: isRail ? 300 : 280,
               maxWidth: "calc(100vw - 40px)",
               padding: 8,
               backgroundColor: isDark
@@ -1033,6 +1081,9 @@ const Select = ({
               ...(dropdown_style
                 ? { ...dropdown_style, maxHeight: undefined }
                 : {}),
+              /* rail mode: FIXED height — search/switch never move the
+                 panel; short content leaves blank space, long scrolls */
+              ...(isRail ? { height: dropdown_style?.height ?? 322 } : {}),
             }
           : {
               display: "flex",
@@ -1079,6 +1130,174 @@ const Select = ({
           }}
         />
       ) : null}
+      {isRail ? (
+        <div style={{ flex: 1, minHeight: 0, display: "flex" }}>
+          {/* provider rail — active gets the highlight + accent bar; the
+              provider holding the current selection carries a green dot */}
+          <div
+            style={{
+              width: 40,
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+              paddingRight: 5,
+              marginRight: 7,
+              borderRight: `1px solid ${
+                isDark ? "rgba(255,255,255,0.06)" : "rgba(0,0,0,0.06)"
+              }`,
+            }}
+          >
+            {filteredGroups.map((g) => {
+              const active = !railQueryActive && !g.collapsed;
+              const holdsSelection = multi
+                ? g.options.some((o) => selectedValuesSet?.has(o?.value))
+                : g.options.some((o) => o?.value === selectedValue);
+              return (
+                <div
+                  key={g.group}
+                  title={g.group}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => rail_pick_group(g.group)}
+                  style={{
+                    position: "relative",
+                    width: 34,
+                    height: 34,
+                    borderRadius: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    backgroundColor: active
+                      ? isDark
+                        ? "rgba(255,255,255,0.10)"
+                        : "rgba(0,0,0,0.06)"
+                      : "transparent",
+                    opacity: railQueryActive ? 0.35 : active ? 1 : 0.6,
+                    transition:
+                      "background-color 0.15s ease, opacity 0.15s ease",
+                  }}
+                >
+                  {g.icon ? (
+                    render_icon(g.icon, 16, baseColor)
+                  ) : (
+                    <span
+                      style={{
+                        fontFamily,
+                        fontSize: 12,
+                        fontWeight: 600,
+                        color: baseColor,
+                      }}
+                    >
+                      {String(g.group || "?")
+                        .slice(0, 1)
+                        .toUpperCase()}
+                    </span>
+                  )}
+                  {active ? (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        left: -8,
+                        top: "50%",
+                        transform: "translateY(-50%)",
+                        width: 3,
+                        height: 14,
+                        borderRadius: 2,
+                        backgroundColor: railCheckColor,
+                      }}
+                    />
+                  ) : null}
+                  {holdsSelection ? (
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        position: "absolute",
+                        right: 3,
+                        top: 3,
+                        width: 6,
+                        height: 6,
+                        borderRadius: "50%",
+                        backgroundColor: railCheckColor,
+                        border: `1.5px solid ${
+                          isDark ? "rgba(28,28,28,1)" : "rgba(252,252,252,1)"
+                        }`,
+                      }}
+                    />
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* flat rows of the visible pool (= flatSelectable, so keyboard
+              highlight indices line up 1:1); provider tag while searching */}
+          <div
+            id={listboxIdRef.current}
+            role="listbox"
+            className="scrollable"
+            data-sb-wall={2}
+            data-sb-edge={12}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              display: "flex",
+              flexDirection: "column",
+              gap: 1,
+              overflowY: "auto",
+              overscrollBehavior: "contain",
+            }}
+          >
+            {flatSelectable.length === 0 ? (
+              <div
+                style={{
+                  padding: "10px 8px",
+                  color: placeholderColor,
+                  fontFamily,
+                  fontSize: 11,
+                }}
+              >
+                No results
+              </div>
+            ) : (
+              flatSelectable.map((option, fi) => (
+                <OptionItem
+                  key={`${option?.value ?? fi}`}
+                  option={option}
+                  flatIndex={fi}
+                  isSelected={
+                    multi
+                      ? selectedValuesSet?.has(option?.value)
+                      : option?.value === selectedValue
+                  }
+                  isHighlighted={fi === highlightedIndex}
+                  multi={multi}
+                  isDark={isDark}
+                  onMouseEnter={() => {
+                    if (!option?.disabled) setHighlightedIndexFromHover(fi);
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => select_option(option)}
+                  refCallback={(el) => {
+                    optionRefs.current[fi] = el;
+                  }}
+                  fontSize={13}
+                  fontFamily={fontFamily}
+                  baseColor={baseColor}
+                  placeholderColor={placeholderColor}
+                  option_theme={option_theme}
+                  option_style={option_style}
+                  checkColor={railCheckColor}
+                  group_tag={
+                    railQueryActive ? railGroupNames.get(option) : null
+                  }
+                />
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
       <div
         id={listboxIdRef.current}
         role="listbox"
@@ -1119,6 +1338,7 @@ const Select = ({
           isDark={isDark}
         />
       </div>
+      )}
       {/* palette variant: bottom header — chip + search + actions, the
           command palette's header slot (chip inset 13 = concentric r9+13=22) */}
       {isPalette ? (

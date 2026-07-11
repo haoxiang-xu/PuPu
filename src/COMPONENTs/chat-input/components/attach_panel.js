@@ -320,7 +320,7 @@ const AttachPanel = ({
               style={{ ...pillStyle, maxWidth: 180 }}
               variant="palette"
               palette_chip="model"
-              dropdown_style={{ maxHeight: 268 }}
+              palette_rail
             />,
           )}
 
