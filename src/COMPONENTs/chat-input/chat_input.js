@@ -73,6 +73,7 @@ const ChatInput = ({
   const [focused, setFocused] = useState(false);
   const attachPanelRef = useRef(null);
   const [panelKbActive, setPanelKbActive] = useState(false);
+  const [panelSelectorOpen, setPanelSelectorOpen] = useState(false);
 
   const { modelOptions, handleGroupToggle } = useChatInputModels({
     model_catalog: modelCatalog,
@@ -93,7 +94,15 @@ const ChatInput = ({
     : "0 4px 24px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.06)";
 
   const hasAttachments = Array.isArray(attachments) && attachments.length > 0;
-  const chatActive = value.length > 0 || focused || hasAttachments;
+  /* keyboard focus in the attach panel (or an open selector dropdown)
+     must keep the panel floated — otherwise opening a dropdown blurs the
+     input and the row would retract underneath it */
+  const chatActive =
+    value.length > 0 ||
+    focused ||
+    hasAttachments ||
+    panelKbActive ||
+    panelSelectorOpen;
 
   /* ── Slash-command autocomplete menu (seed of PuPu's main command system) ── */
   const [commandMenuActiveIndex, setCommandMenuActiveIndex] = useState(0);
@@ -439,6 +448,7 @@ const ChatInput = ({
                     <AttachPanel
                       ref={attachPanelRef}
                       onKeyboardActiveChange={setPanelKbActive}
+                      onSelectorOpenChange={setPanelSelectorOpen}
                       onRequestInputFocus={() => inputRef.current?.focus()}
                       color={color}
                       active={chatActive}

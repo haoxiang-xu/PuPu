@@ -9,10 +9,8 @@ import {
   useState,
 } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
-import {
-  themeHighlightColor,
-  themeHighlightRgba,
-} from "../../../CONTAINERs/config/theme_highlight";
+import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
+import ScaleHighlight from "../../../BUILTIN_COMPONENTs/class/scale_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
@@ -125,6 +123,7 @@ const AttachPanel = forwardRef(({
   onSteerUndo,
   onKeyboardActiveChange = () => {},
   onRequestInputFocus = () => {},
+  onSelectorOpenChange = () => {},
 }, ref) => {
   const { theme } = useContext(ConfigContext);
   const highlight = themeHighlightColor(theme);
@@ -275,6 +274,11 @@ const AttachPanel = forwardRef(({
     onKeyboardActiveChange(kbIndex >= 0);
   }, [kbIndex, onKeyboardActiveChange]);
 
+  /* let the host keep the panel floated while any dropdown is open */
+  useEffect(() => {
+    onSelectorOpenChange(openSelector != null);
+  }, [openSelector, onSelectorOpenChange]);
+
   /* keep index valid when controls disappear (e.g. steers all undone) */
   useEffect(() => {
     if (kbIndex >= kbControls.length) {
@@ -375,13 +379,15 @@ const AttachPanel = forwardRef(({
   );
 
   const kbActiveId = kbIndex >= 0 ? kbControls[kbIndex] : null;
-  const kbRing = (id) =>
-    kbActiveId === id
-      ? {
-          borderRadius: 999,
-          boxShadow: `0 0 0 2px ${themeHighlightRgba(theme, 0.55)}`,
-        }
-      : {};
+  /* keyboard focus reads as the control's HOVER state: a Button-style
+     scale-in glow behind the control (wrapper must be position:relative) */
+  const kbGlow = (id) => (
+    <ScaleHighlight
+      visible={kbActiveId === id}
+      color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+      borderRadius={999}
+    />
+  );
 
   const floating = active || focused;
   let panelBg = "transparent";
@@ -441,7 +447,7 @@ const AttachPanel = forwardRef(({
     ) : null;
 
   /* stop-propagation wrapper for selects */
-  const selectWrap = (children, ringId) => (
+  const selectWrap = (children, glowId) => (
     <div
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => {
@@ -449,11 +455,13 @@ const AttachPanel = forwardRef(({
         e.stopPropagation();
       }}
       style={{
+        position: "relative",
         display: "flex",
         alignItems: "center",
-        ...(ringId ? kbRing(ringId) : {}),
+        borderRadius: 999,
       }}
     >
+      {glowId ? kbGlow(glowId) : null}
       {children}
     </div>
   );
@@ -534,8 +542,13 @@ const AttachPanel = forwardRef(({
                   : attachmentsDisabledReason ||
                     "Current model does not support file inputs"
               }
-              style={{ display: "flex", ...kbRing("attach") }}
+              style={{
+                position: "relative",
+                display: "flex",
+                borderRadius: 999,
+              }}
             >
+              {kbGlow("attach")}
               <Button
                 prefix_icon="attachment"
                 onClick={onAttachFile}
@@ -553,8 +566,13 @@ const AttachPanel = forwardRef(({
                     : attachmentsDisabledReason ||
                       "Current model does not support image inputs"
                 }
-                style={{ display: "flex", ...kbRing("screenshot") }}
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  borderRadius: 999,
+                }}
               >
+                {kbGlow("screenshot")}
                 <Button
                   prefix_icon="screenshot"
                   onClick={onAttachScreenshot}
@@ -566,7 +584,8 @@ const AttachPanel = forwardRef(({
 
             {/* ── Tools selector (icon button + badge trigger) ── */}
             {showToolSelector && !hasActiveAgentRecipe ? (
-              <div style={{ position: "relative", display: "flex", ...kbRing("tools") }}>
+              <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+                {kbGlow("tools")}
                 <Select
                   multi
                   options={toolkitOptions}
@@ -623,7 +642,8 @@ const AttachPanel = forwardRef(({
 
             {/* ── Workspace selector (icon button + badge trigger) ── */}
             {showWorkspaceSelector ? (
-              <div style={{ position: "relative", display: "flex", ...kbRing("workspace") }}>
+              <div style={{ position: "relative", display: "flex", borderRadius: 999 }}>
+                {kbGlow("workspace")}
                 <Select
                   multi
                   options={workspaceOptions}
@@ -690,7 +710,10 @@ const AttachPanel = forwardRef(({
         )}
 
         {onAttachLink && (
-          <span style={{ display: "flex", ...kbRing("link") }}>
+          <span
+            style={{ position: "relative", display: "flex", borderRadius: 999 }}
+          >
+            {kbGlow("link")}
             <Button
               prefix_icon="link"
               onClick={onAttachLink}

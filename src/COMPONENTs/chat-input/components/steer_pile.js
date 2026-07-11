@@ -460,15 +460,12 @@ export const SteerAttachSection = ({
           padding: "0 10px",
           borderRadius: 999,
           backgroundColor:
-            segHover || open
+            segHover || open || highlightRing
               ? isDark
                 ? "rgba(255,255,255,0.07)"
                 : "rgba(0,0,0,0.05)"
               : "transparent",
-          boxShadow: highlightRing
-            ? "0 0 0 2px rgba(101, 196, 102, 0.55)"
-            : "none",
-          transition: "background-color 160ms ease, box-shadow 120ms ease",
+          transition: "background-color 160ms ease",
         }}
       >
         <SteerSummaryInline items={items} isDark={isDark} />
