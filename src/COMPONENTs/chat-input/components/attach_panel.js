@@ -1,4 +1,5 @@
 import {
+  startTransition,
   useCallback,
   useContext,
   useEffect,
@@ -122,6 +123,40 @@ const AttachPanel = ({
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [openSelector, setOpenSelector] = useState(null);
+
+  /* Optimistic mirrors for the multi-selects: the checkbox flips against
+     LOCAL state instantly (re-rendering just this panel), while the real
+     update — which lives at the top of the chat page and re-renders the
+     whole message tree — rides a startTransition in the background. */
+  const [localToolkits, setLocalToolkits] = useState(selectedToolkits);
+  useEffect(() => {
+    setLocalToolkits(selectedToolkits);
+  }, [selectedToolkits]);
+  const handleToolkitsValueChange = useCallback(
+    (next) => {
+      setLocalToolkits(next);
+      startTransition(() => {
+        (onToolkitsChange || (() => {}))(next);
+      });
+    },
+    [onToolkitsChange],
+  );
+
+  const [localWorkspaceIds, setLocalWorkspaceIds] = useState(
+    selectedWorkspaceIds,
+  );
+  useEffect(() => {
+    setLocalWorkspaceIds(selectedWorkspaceIds);
+  }, [selectedWorkspaceIds]);
+  const handleWorkspaceIdsValueChange = useCallback(
+    (next) => {
+      setLocalWorkspaceIds(next);
+      startTransition(() => {
+        (onWorkspaceIdsChange || (() => {}))(next);
+      });
+    },
+    [onWorkspaceIdsChange],
+  );
   const [featureFlags, setFeatureFlags] = useState(() => readFeatureFlags());
   const lastModelSelectorRefreshAt = useRef(0);
   const { toolkitOptions, refreshToolkits } = useChatInputToolkits();
@@ -368,8 +403,8 @@ const AttachPanel = ({
                 <Select
                   multi
                   options={toolkitOptions}
-                  value={selectedToolkits}
-                  set_value={onToolkitsChange || (() => {})}
+                  value={localToolkits}
+                  set_value={handleToolkitsValueChange}
                   filterable={true}
                   filter_mode="panel"
                   search_placeholder="Search toolkits..."
@@ -378,14 +413,14 @@ const AttachPanel = ({
                   dropdown_position="top"
                   variant="palette"
                   palette_chip={
-                    selectedToolkits.length > 0
-                      ? `tools ×${selectedToolkits.length}`
+                    localToolkits.length > 0
+                      ? `tools ×${localToolkits.length}`
                       : "tools"
                   }
                   palette_actions={
-                    selectedToolkits.length > 0 ? (
+                    localToolkits.length > 0 ? (
                       <HeaderAction
-                        onAct={() => (onToolkitsChange || (() => {}))([])}
+                        onAct={() => handleToolkitsValueChange([])}
                         isDark={isDark}
                         theme={theme}
                       >
@@ -402,7 +437,7 @@ const AttachPanel = ({
                         style={{
                           ...iconBtnStyle,
                           color:
-                            selectedToolkits.length > 0
+                            localToolkits.length > 0
                               ? highlight
                               : color,
                           iconSize: TOOL_SELECTOR_TRIGGER_ICON_SIZE,
@@ -412,7 +447,7 @@ const AttachPanel = ({
                             (PILL_HEIGHT - TOOL_SELECTOR_TRIGGER_ICON_SIZE) / 2,
                         }}
                       />
-                      <Badge count={selectedToolkits.length} />
+                      <Badge count={localToolkits.length} />
                     </div>
                   }
                 />
@@ -425,8 +460,8 @@ const AttachPanel = ({
                 <Select
                   multi
                   options={workspaceOptions}
-                  value={selectedWorkspaceIds}
-                  set_value={onWorkspaceIdsChange || (() => {})}
+                  value={localWorkspaceIds}
+                  set_value={handleWorkspaceIdsValueChange}
                   filterable={true}
                   filter_mode="panel"
                   search_placeholder="Search workspaces..."
@@ -437,8 +472,8 @@ const AttachPanel = ({
                   dropdown_position="top"
                   variant="palette"
                   palette_chip={
-                    selectedWorkspaceIds.length > 0
-                      ? `workspace ×${selectedWorkspaceIds.length}`
+                    localWorkspaceIds.length > 0
+                      ? `workspace ×${localWorkspaceIds.length}`
                       : "workspace"
                   }
                   palette_actions={
@@ -454,11 +489,9 @@ const AttachPanel = ({
                       >
                         + ADD
                       </HeaderAction>
-                      {selectedWorkspaceIds.length > 0 ? (
+                      {localWorkspaceIds.length > 0 ? (
                         <HeaderAction
-                          onAct={() =>
-                            (onWorkspaceIdsChange || (() => {}))([])
-                          }
+                          onAct={() => handleWorkspaceIdsValueChange([])}
                           isDark={isDark}
                           theme={theme}
                         >
@@ -476,12 +509,12 @@ const AttachPanel = ({
                         style={{
                           ...iconBtnStyle,
                           color:
-                            selectedWorkspaceIds.length > 0
+                            localWorkspaceIds.length > 0
                               ? highlight
                               : color,
                         }}
                       />
-                      <Badge count={selectedWorkspaceIds.length} />
+                      <Badge count={localWorkspaceIds.length} />
                     </div>
                   }
                 />
