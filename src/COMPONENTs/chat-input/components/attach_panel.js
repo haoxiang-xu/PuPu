@@ -278,14 +278,22 @@ const AttachPanel = forwardRef(({
     onKeyboardActiveChange(kbIndex >= 0);
   }, [kbIndex, onKeyboardActiveChange]);
 
-  /* keep the panel floated ONLY for keyboard-opened dropdowns (opening
-     one blurs the input, which would retract the row underneath it) — a
-     mouse click on the resting row must NOT pop the panel out */
+  /* While a dropdown is open, FREEZE the panel's floating state as it was
+     at open time: a floating panel must not retract when the dropdown's
+     search input steals focus, and a resting panel must not pop out from
+     a mouse click. (Keyboard opens always start floated — input focused.) */
+  const floating = active || focused;
+  const selectorWasOpenRef = useRef(false);
+  const holdFloatRef = useRef(false);
   useEffect(() => {
-    onSelectorOpenChange(
-      openSelector != null && kbOpenedSelectorRef.current != null,
-    );
-  }, [openSelector, onSelectorOpenChange]);
+    const isOpen = openSelector != null;
+    if (isOpen && !selectorWasOpenRef.current) {
+      holdFloatRef.current = floating;
+    }
+    if (!isOpen) holdFloatRef.current = false;
+    selectorWasOpenRef.current = isOpen;
+    onSelectorOpenChange(isOpen && holdFloatRef.current);
+  }, [openSelector, floating, onSelectorOpenChange]);
 
   /* keep index valid when controls disappear (e.g. steers all undone) */
   useEffect(() => {
@@ -398,7 +406,6 @@ const AttachPanel = forwardRef(({
     />
   );
 
-  const floating = active || focused;
   let panelBg = "transparent";
   if (floating)
     panelBg = isDark ? "rgba(28,28,28,0.85)" : "rgba(252,252,252,0.9)";
