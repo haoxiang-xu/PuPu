@@ -55,7 +55,11 @@ const InputActionButtons = ({
         margin: -6,
         display: "flex",
         alignItems: "center",
-        gap: 8,
+        /* VISUALLY even spacing: the clear/stop glyphs sit ~10px inside
+           their hit boxes while the send circle fills its box to the edge.
+           gap 10 + a -10 pull on stop (when clear is present) lands every
+           visible glyph-edge gap at ~21px. */
+        gap: 10,
       }}
     >
       {hasText && (
@@ -76,7 +80,17 @@ const InputActionButtons = ({
         <Button
           prefix_icon="stop_mini_filled"
           onClick={onStop}
-          style={showSend ? stopStyle : primaryStyle}
+          style={
+            showSend
+              ? {
+                  ...stopStyle,
+                  root: {
+                    ...stopStyle.root,
+                    marginLeft: hasText ? -10 : 0,
+                  },
+                }
+              : primaryStyle
+          }
         />
       )}
       {showSend && (
