@@ -362,8 +362,12 @@ export const SteerAttachSection = ({
   items = [],
   onUndo = () => {},
   isDark = false,
+  forceOpen = false,
+  onForceOpenChange = () => {},
+  highlightRing = false,
 }) => {
-  const [open, hoverHandlers, closeNow] = useHoverIntent();
+  const [hoverOpen, hoverHandlers, closeNow] = useHoverIntent();
+  const open = hoverOpen || forceOpen;
   const [segHover, setSegHover] = useState(false); // instant highlight
   const [activeIndex, setActiveIndex] = useState(-1);
   const entered = useEnteredLatch(open);
@@ -375,12 +379,19 @@ export const SteerAttachSection = ({
     if (!open) setActiveIndex(-1);
   }, [open]);
 
+  /* keyboard-opened: start the pill on the first row */
+  useEffect(() => {
+    if (forceOpen) setActiveIndex((prev) => (prev < 0 ? 0 : prev));
+  }, [forceOpen]);
+
   /* keyboard control while the panel is open: ↑↓ move the pill,
      Enter/Delete undo the active queued row, Esc closes. Keys are left
-     alone while the user is typing in a text field. */
+     alone while the user is typing in a text field — UNLESS the panel was
+     opened by keyboard (forceOpen), where driving it is the intent. */
   useEffect(() => {
     if (!open) return undefined;
     const isTyping = () => {
+      if (forceOpen) return false;
       const el = document.activeElement;
       return (
         el &&
@@ -392,6 +403,7 @@ export const SteerAttachSection = ({
     const onKey = (e) => {
       if (e.key === "Escape") {
         closeNow();
+        onForceOpenChange(false);
         return;
       }
       if (isTyping()) return;
@@ -421,7 +433,7 @@ export const SteerAttachSection = ({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, forceOpen]);
 
   if (!Array.isArray(items) || items.length === 0) return null;
 
@@ -453,7 +465,10 @@ export const SteerAttachSection = ({
                 ? "rgba(255,255,255,0.07)"
                 : "rgba(0,0,0,0.05)"
               : "transparent",
-          transition: "background-color 160ms ease",
+          boxShadow: highlightRing
+            ? "0 0 0 2px rgba(101, 196, 102, 0.55)"
+            : "none",
+          transition: "background-color 160ms ease, box-shadow 120ms ease",
         }}
       >
         <SteerSummaryInline items={items} isDark={isDark} />

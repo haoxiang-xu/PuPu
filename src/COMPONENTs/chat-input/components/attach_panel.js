@@ -1,13 +1,18 @@
 import {
+  forwardRef,
   startTransition,
   useCallback,
   useContext,
   useEffect,
+  useImperativeHandle,
   useRef,
   useState,
 } from "react";
 import { ConfigContext } from "../../../CONTAINERs/config/context";
-import { themeHighlightColor } from "../../../CONTAINERs/config/theme_highlight";
+import {
+  themeHighlightColor,
+  themeHighlightRgba,
+} from "../../../CONTAINERs/config/theme_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
@@ -87,7 +92,7 @@ const HeaderAction = ({ children, onAct, accent = false, isDark, theme }) => {
 
 /* ── main component ── */
 
-const AttachPanel = ({
+const AttachPanel = forwardRef(({
   color,
   active,
   focused,
@@ -118,7 +123,9 @@ const AttachPanel = ({
   onSelectRecipe,
   steerItems = [],
   onSteerUndo,
-}) => {
+  onKeyboardActiveChange = () => {},
+  onRequestInputFocus = () => {},
+}, ref) => {
   const { theme } = useContext(ConfigContext);
   const highlight = themeHighlightColor(theme);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
@@ -196,6 +203,13 @@ const AttachPanel = ({
     [hasActiveAgentRecipe, onSelectModel, onSelectRecipe],
   );
 
+  /* ── keyboard control (driven by chat_input via ref) ──
+     kbIndex highlights one control in the row; a selector opened via
+     keyboard reports back on close so focus returns to the input. */
+  const [kbIndex, setKbIndex] = useState(-1);
+  const [kbSteerOpen, setKbSteerOpen] = useState(false);
+  const kbOpenedSelectorRef = useRef(null);
+
   const handleModelSelectorOpenChange = useCallback((next) => {
     setOpenSelector(next ? "model" : null);
     if (next) {
@@ -207,8 +221,11 @@ const AttachPanel = ({
         lastModelSelectorRefreshAt.current = now;
         emitModelCatalogRefresh({ reason: "model_selector_opened" });
       }
+    } else if (kbOpenedSelectorRef.current === "model") {
+      kbOpenedSelectorRef.current = null;
+      onRequestInputFocus();
     }
-  }, []);
+  }, [onRequestInputFocus]);
 
   const handleToolsOpenChange = useCallback(
     (next) => {
@@ -219,9 +236,152 @@ const AttachPanel = ({
       }
 
       setOpenSelector(null);
+      if (kbOpenedSelectorRef.current === "tools") {
+        kbOpenedSelectorRef.current = null;
+        onRequestInputFocus();
+      }
     },
-    [refreshToolkits],
+    [refreshToolkits, onRequestInputFocus],
   );
+
+  const handleWorkspaceOpenChange = useCallback(
+    (next) => {
+      setOpenSelector(next ? "workspace" : null);
+      if (!next && kbOpenedSelectorRef.current === "workspace") {
+        kbOpenedSelectorRef.current = null;
+        onRequestInputFocus();
+      }
+    },
+    [onRequestInputFocus],
+  );
+
+  /* ordered, availability-filtered control list for keyboard navigation */
+  const kbControls = [];
+  if (showModelSelector && modelSelectOptions.length > 0)
+    kbControls.push("model");
+  if (onAttachFile) {
+    kbControls.push("attach");
+    if (onAttachScreenshot) kbControls.push("screenshot");
+    if (showToolSelector && !hasActiveAgentRecipe) kbControls.push("tools");
+    if (showWorkspaceSelector) kbControls.push("workspace");
+  }
+  if (onAttachLink) kbControls.push("link");
+  if (steerItems.length > 0) kbControls.push("steer");
+
+  const kbStateRef = useRef({});
+  kbStateRef.current = { kbIndex, kbSteerOpen, kbControls };
+
+  useEffect(() => {
+    onKeyboardActiveChange(kbIndex >= 0);
+  }, [kbIndex, onKeyboardActiveChange]);
+
+  /* keep index valid when controls disappear (e.g. steers all undone) */
+  useEffect(() => {
+    if (kbIndex >= kbControls.length) {
+      setKbIndex(kbControls.length ? kbControls.length - 1 : -1);
+    }
+    if (kbSteerOpen && !kbControls.includes("steer")) setKbSteerOpen(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kbControls.length]);
+
+  const exitKeyboard = useCallback(() => {
+    setKbIndex(-1);
+    setKbSteerOpen(false);
+  }, []);
+
+  const kbActivate = (id) => {
+    if (id === "model") {
+      kbOpenedSelectorRef.current = "model";
+      handleModelSelectorOpenChange(true);
+    } else if (id === "tools") {
+      kbOpenedSelectorRef.current = "tools";
+      handleToolsOpenChange(true);
+    } else if (id === "workspace") {
+      kbOpenedSelectorRef.current = "workspace";
+      handleWorkspaceOpenChange(true);
+    } else if (id === "attach") {
+      exitKeyboard();
+      if (attachmentsEnabled && onAttachFile) onAttachFile();
+    } else if (id === "screenshot") {
+      exitKeyboard();
+      if (attachmentsEnabled && onAttachScreenshot) onAttachScreenshot();
+    } else if (id === "link") {
+      exitKeyboard();
+      if (onAttachLink) onAttachLink();
+    } else if (id === "steer") {
+      setKbSteerOpen(true);
+    }
+  };
+  const kbActivateRef = useRef(kbActivate);
+  kbActivateRef.current = kbActivate;
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      /* returns true when keyboard mode engaged (controls exist) */
+      enterKeyboard: () => {
+        const { kbControls: controls } = kbStateRef.current;
+        if (!controls.length) return false;
+        setKbIndex(0);
+        return true;
+      },
+      exitKeyboard,
+      /* returns "handled" (host must preventDefault) or "pass" (key falls
+         through to the input; keyboard mode already exited) */
+      handleKeyboardKey: (key) => {
+        const {
+          kbIndex: idx,
+          kbSteerOpen: steerOpen,
+          kbControls: controls,
+        } = kbStateRef.current;
+        if (idx < 0) return "pass";
+        if (steerOpen) {
+          if (key === "Escape") {
+            setKbSteerOpen(false);
+            return "handled";
+          }
+          if (
+            ["ArrowUp", "ArrowDown", "Enter", "Delete", "Backspace"].includes(
+              key,
+            )
+          ) {
+            /* the steer panel's own document listener performs the action */
+            return "handled";
+          }
+          if (key === "ArrowLeft" || key === "ArrowRight") return "handled";
+          exitKeyboard();
+          return "pass";
+        }
+        if (key === "ArrowLeft" || key === "ArrowRight") {
+          const delta = key === "ArrowRight" ? 1 : -1;
+          setKbIndex(
+            (prev) => (prev + delta + controls.length) % controls.length,
+          );
+          return "handled";
+        }
+        if (key === "Enter" || key === " " || key === "ArrowUp") {
+          kbActivateRef.current(controls[idx]);
+          return "handled";
+        }
+        if (key === "Escape" || key === "ArrowDown") {
+          exitKeyboard();
+          return "handled";
+        }
+        exitKeyboard();
+        return "pass";
+      },
+    }),
+    [exitKeyboard],
+  );
+
+  const kbActiveId = kbIndex >= 0 ? kbControls[kbIndex] : null;
+  const kbRing = (id) =>
+    kbActiveId === id
+      ? {
+          borderRadius: 999,
+          boxShadow: `0 0 0 2px ${themeHighlightRgba(theme, 0.55)}`,
+        }
+      : {};
 
   const floating = active || focused;
   let panelBg = "transparent";
@@ -281,14 +441,18 @@ const AttachPanel = ({
     ) : null;
 
   /* stop-propagation wrapper for selects */
-  const selectWrap = (children) => (
+  const selectWrap = (children, ringId) => (
     <div
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => {
         if (!isTextEntryTarget(e.target)) e.preventDefault();
         e.stopPropagation();
       }}
-      style={{ display: "flex", alignItems: "center" }}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        ...(ringId ? kbRing(ringId) : {}),
+      }}
     >
       {children}
     </div>
@@ -357,6 +521,7 @@ const AttachPanel = ({
               palette_chip="model"
               palette_rail
             />,
+            "model",
           )}
 
         {onAttachFile && (
@@ -369,6 +534,7 @@ const AttachPanel = ({
                   : attachmentsDisabledReason ||
                     "Current model does not support file inputs"
               }
+              style={{ display: "flex", ...kbRing("attach") }}
             >
               <Button
                 prefix_icon="attachment"
@@ -387,6 +553,7 @@ const AttachPanel = ({
                     : attachmentsDisabledReason ||
                       "Current model does not support image inputs"
                 }
+                style={{ display: "flex", ...kbRing("screenshot") }}
               >
                 <Button
                   prefix_icon="screenshot"
@@ -399,7 +566,7 @@ const AttachPanel = ({
 
             {/* ── Tools selector (icon button + badge trigger) ── */}
             {showToolSelector && !hasActiveAgentRecipe ? (
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", display: "flex", ...kbRing("tools") }}>
                 <Select
                   multi
                   options={toolkitOptions}
@@ -456,7 +623,7 @@ const AttachPanel = ({
 
             {/* ── Workspace selector (icon button + badge trigger) ── */}
             {showWorkspaceSelector ? (
-              <div style={{ position: "relative" }}>
+              <div style={{ position: "relative", display: "flex", ...kbRing("workspace") }}>
                 <Select
                   multi
                   options={workspaceOptions}
@@ -466,9 +633,7 @@ const AttachPanel = ({
                   filter_mode="panel"
                   search_placeholder="Search workspaces..."
                   open={openSelector === "workspace"}
-                  on_open_change={(next) =>
-                    setOpenSelector(next ? "workspace" : null)
-                  }
+                  on_open_change={handleWorkspaceOpenChange}
                   dropdown_position="top"
                   variant="palette"
                   palette_chip={
@@ -525,11 +690,13 @@ const AttachPanel = ({
         )}
 
         {onAttachLink && (
-          <Button
-            prefix_icon="link"
-            onClick={onAttachLink}
-            style={iconBtnStyle}
-          />
+          <span style={{ display: "flex", ...kbRing("link") }}>
+            <Button
+              prefix_icon="link"
+              onClick={onAttachLink}
+              style={iconBtnStyle}
+            />
+          </span>
         )}
 
         {/* ── Steer queue segment — the steer queue's one and only home ── */}
@@ -538,6 +705,9 @@ const AttachPanel = ({
             items={steerItems}
             onUndo={onSteerUndo}
             isDark={isDark}
+            forceOpen={kbSteerOpen}
+            onForceOpenChange={setKbSteerOpen}
+            highlightRing={kbActiveId === "steer"}
           />
         ) : null}
       </div>
@@ -548,6 +718,8 @@ const AttachPanel = ({
       />
     </div>
   );
-};
+});
+
+AttachPanel.displayName = "AttachPanel";
 
 export default AttachPanel;

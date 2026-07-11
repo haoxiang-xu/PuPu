@@ -71,6 +71,8 @@ const ChatInput = ({
   const isDark = onThemeMode === "dark_mode";
   const inputRef = useRef(null);
   const [focused, setFocused] = useState(false);
+  const attachPanelRef = useRef(null);
+  const [panelKbActive, setPanelKbActive] = useState(false);
 
   const { modelOptions, handleGroupToggle } = useChatInputModels({
     model_catalog: modelCatalog,
@@ -243,6 +245,33 @@ const ChatInput = ({
 
   const handleKeyDown = useCallback(
     (e) => {
+      /* attach panel keyboard mode: keys are delegated to the panel until
+         it reports "pass" (typing resumes) */
+      if (panelKbActive) {
+        const res = attachPanelRef.current?.handleKeyboardKey?.(e.key);
+        if (res === "handled") {
+          e.preventDefault();
+          return;
+        }
+      } else if (
+        e.key === "ArrowUp" &&
+        !commandMenuOpen &&
+        !e.shiftKey &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        e.target &&
+        e.target.selectionStart === 0 &&
+        e.target.selectionEnd === 0
+      ) {
+        /* caret already at the very start — a second ArrowUp climbs into
+           the attach panel (leftmost control) */
+        if (attachPanelRef.current?.enterKeyboard?.()) {
+          e.preventDefault();
+          return;
+        }
+      }
+
       if (commandMenuOpen) {
         if (e.key === "ArrowDown") {
           e.preventDefault();
@@ -315,6 +344,7 @@ const ChatInput = ({
       activeTokens,
       value,
       onChange,
+      panelKbActive,
     ],
   );
 
@@ -391,6 +421,7 @@ const ChatInput = ({
             on_blur={() => {
               setFocused(false);
               setSlashTrigger(null);
+              attachPanelRef.current?.exitKeyboard?.();
             }}
             on_key_down={handleKeyDown}
             content_section={
@@ -406,6 +437,9 @@ const ChatInput = ({
                 >
                   {showAttachments ? (
                     <AttachPanel
+                      ref={attachPanelRef}
+                      onKeyboardActiveChange={setPanelKbActive}
+                      onRequestInputFocus={() => inputRef.current?.focus()}
                       color={color}
                       active={chatActive}
                       focused={focused}
