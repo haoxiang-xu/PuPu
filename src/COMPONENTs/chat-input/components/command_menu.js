@@ -7,7 +7,9 @@
  * search, no categories, no param hints — those are explicitly out of scope
  * for this seed.
  */
+import { useRef } from "react";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import SlidingHighlight from "../../../BUILTIN_COMPONENTs/class/sliding_highlight";
 
 const ROW_HEIGHT = 32;
 const BARE_ROW_HEIGHT = 28;
@@ -28,6 +30,8 @@ const CommandMenu = ({
   bare = false,
   visible = true,
 }) => {
+  const rowRefs = useRef([]);
+
   if (!Array.isArray(items) || items.length === 0) return null;
 
   const surfaceBg = isDark
@@ -62,6 +66,7 @@ const CommandMenu = ({
       aria-label="斜杠命令"
       className="scrollable"
       style={{
+        position: "relative",
         boxSizing: "border-box",
         display: "flex",
         flexDirection: "column",
@@ -72,6 +77,14 @@ const CommandMenu = ({
         ...chrome,
       }}
     >
+      {/* one selection pill gliding between rows (keyboard + hover) */}
+      <SlidingHighlight
+        refs={rowRefs}
+        index={activeIndex}
+        color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+        borderRadius={bare ? 14 : 7}
+        measureKey={`${items.length}|${items[0]?.name ?? ""}|${visible}`}
+      />
       {items.map((item, index) => (
         <CommandRow
           key={item.name}
@@ -82,6 +95,9 @@ const CommandMenu = ({
           onHover={onHover ? () => onHover(index) : null}
           rowRadius={bare ? 14 : 7}
           rowHeight={bare ? BARE_ROW_HEIGHT : ROW_HEIGHT}
+          refCallback={(el) => {
+            rowRefs.current[index] = el;
+          }}
           entrance={
             bare
               ? {
@@ -105,8 +121,8 @@ const CommandRow = ({
   entrance = null,
   rowRadius = 7,
   rowHeight = ROW_HEIGHT,
+  refCallback,
 }) => {
-  const activeBg = isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)";
   const nameColor = isDark ? "rgba(255,255,255,0.92)" : "rgba(0,0,0,0.86)";
   const descColor = isDark ? "rgba(255,255,255,0.42)" : "rgba(0,0,0,0.44)";
   const iconColor = isDark ? "rgba(255,255,255,0.6)" : "rgba(0,0,0,0.55)";
@@ -128,6 +144,7 @@ const CommandRow = ({
 
   return (
     <div
+      ref={refCallback}
       role="option"
       aria-selected={active}
       data-command-row
@@ -140,13 +157,13 @@ const CommandRow = ({
       onMouseEnter={onHover || undefined}
       style={{
         boxSizing: "border-box",
+        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: 8,
         height: rowHeight,
         padding: "0 8px",
         borderRadius: rowRadius,
-        backgroundColor: active ? activeBg : "transparent",
         cursor: "pointer",
         ...(entranceStyle || {}),
       }}

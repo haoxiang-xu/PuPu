@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
+import SlidingHighlight from "../../../BUILTIN_COMPONENTs/class/sliding_highlight";
 
 /**
  * Steer queue UI — a compact segment that lives INSIDE the attach panel row.
@@ -42,7 +43,11 @@ const useHoverIntent = () => {
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setHover(false), COLLAPSE_DELAY);
   };
-  return [hover, { onMouseEnter, onMouseLeave }];
+  const closeNow = () => {
+    clearTimeout(timerRef.current);
+    setHover(false);
+  };
+  return [hover, { onMouseEnter, onMouseLeave }, closeNow];
 };
 
 /* double-rAF latch so the panel mounted-on-hover still animates in */
@@ -115,8 +120,16 @@ export const SteerSummaryInline = ({ items = [], isDark = false }) => {
 };
 
 /* ── one row in the panel (command-menu row language) ── */
-const SteerRow = ({ item, isDark, onUndo, entered, delayMs }) => {
-  const [rowHover, setRowHover] = useState(false);
+const SteerRow = ({
+  item,
+  isDark,
+  onUndo,
+  entered,
+  delayMs,
+  active,
+  onActive,
+  refCallback,
+}) => {
   const relayed = item?.status === "relayed";
   const relayedColor = isDark
     ? "rgba(150,225,170,0.95)"
@@ -127,27 +140,23 @@ const SteerRow = ({ item, isDark, onUndo, entered, delayMs }) => {
 
   return (
     <div
+      ref={refCallback}
       data-steer-row
       data-status={relayed ? "relayed" : "queued"}
-      onMouseEnter={() => setRowHover(true)}
-      onMouseLeave={() => setRowHover(false)}
+      onMouseEnter={onActive}
       style={{
         boxSizing: "border-box",
+        position: "relative",
         display: "flex",
         alignItems: "center",
         gap: 8,
         height: ROW_H,
         padding: "0 8px",
         borderRadius: ROW_RADIUS,
-        backgroundColor: rowHover
-          ? isDark
-            ? "rgba(255,255,255,0.10)"
-            : "rgba(0,0,0,0.06)"
-          : "transparent",
         opacity: entered ? 1 : 0,
         transform: entered ? "translateY(0)" : "translateY(-9px)",
         transition: entered
-          ? `transform 160ms ${EASE_OUT} ${delayMs}ms, opacity 160ms linear ${delayMs}ms, background-color 130ms ease`
+          ? `transform 160ms ${EASE_OUT} ${delayMs}ms, opacity 160ms linear ${delayMs}ms`
           : "transform 110ms cubic-bezier(0.4,0,1,1), opacity 110ms cubic-bezier(0.4,0,1,1)",
       }}
     >
@@ -207,9 +216,9 @@ const SteerRow = ({ item, isDark, onUndo, entered, delayMs }) => {
             borderRadius: 8,
             color: undoColor,
             cursor: "pointer",
-            /* row-hover-revealed, like the mock — still clickable the moment
-               the row is hovered, and always present for a11y */
-            opacity: rowHover ? 1 : 0,
+            /* revealed on the active row (hover OR keyboard), always
+               present for a11y */
+            opacity: active ? 1 : 0,
             transition: "opacity 130ms ease",
           }}
         >
@@ -226,16 +235,22 @@ export const SteerPanel = ({
   onUndo = () => {},
   isDark = false,
   entered = true,
+  activeIndex = -1,
+  onActiveIndex = () => {},
+  rowRefs,
 }) => {
   const chipBg = isDark ? "rgba(120,200,150,0.14)" : "rgba(40,150,80,0.12)";
   const chipColor = isDark ? "#9ad9a0" : "rgba(25,125,65,0.95)";
   const hintColor = isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.38)";
+  const fallbackRowRefs = useRef([]);
+  const refs = rowRefs || fallbackRowRefs;
 
   return (
     <div
       data-steer-panel=""
       style={{
         boxSizing: "border-box",
+        position: "relative",
         width: PANEL_W,
         display: "flex",
         flexDirection: "column",
@@ -263,6 +278,15 @@ export const SteerPanel = ({
           : "opacity 150ms cubic-bezier(0.4,0,0.6,1), transform 150ms cubic-bezier(0.4,0,0.6,1)",
       }}
     >
+      {/* one hover/keyboard pill gliding between rows */}
+      <SlidingHighlight
+        refs={refs}
+        index={activeIndex}
+        color={isDark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.06)"}
+        borderRadius={ROW_RADIUS}
+        measureKey={`${items.length}|${entered}`}
+      />
+
       {/* rows: oldest → newest, top-down cascade */}
       {items.map((item, index) => (
         <SteerRow
@@ -272,6 +296,11 @@ export const SteerPanel = ({
           onUndo={onUndo}
           entered={entered}
           delayMs={130 + index * 35}
+          active={index === activeIndex}
+          onActive={() => onActiveIndex(index)}
+          refCallback={(el) => {
+            refs.current[index] = el;
+          }}
         />
       ))}
 
@@ -334,9 +363,65 @@ export const SteerAttachSection = ({
   onUndo = () => {},
   isDark = false,
 }) => {
-  const [open, hoverHandlers] = useHoverIntent();
+  const [open, hoverHandlers, closeNow] = useHoverIntent();
   const [segHover, setSegHover] = useState(false); // instant highlight
+  const [activeIndex, setActiveIndex] = useState(-1);
   const entered = useEnteredLatch(open);
+  const rowRefs = useRef([]);
+  const stateRef = useRef({ items, activeIndex, onUndo });
+  stateRef.current = { items, activeIndex, onUndo };
+
+  useEffect(() => {
+    if (!open) setActiveIndex(-1);
+  }, [open]);
+
+  /* keyboard control while the panel is open: ↑↓ move the pill,
+     Enter/Delete undo the active queued row, Esc closes. Keys are left
+     alone while the user is typing in a text field. */
+  useEffect(() => {
+    if (!open) return undefined;
+    const isTyping = () => {
+      const el = document.activeElement;
+      return (
+        el &&
+        (el.tagName === "TEXTAREA" ||
+          el.tagName === "INPUT" ||
+          el.isContentEditable)
+      );
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        closeNow();
+        return;
+      }
+      if (isTyping()) return;
+      const { items: its, activeIndex: idx, onUndo: undo } = stateRef.current;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const delta = e.key === "ArrowDown" ? 1 : -1;
+        setActiveIndex((prev) => {
+          const total = its.length;
+          if (!total) return -1;
+          return prev < 0
+            ? delta > 0
+              ? 0
+              : total - 1
+            : (prev + delta + total) % total;
+        });
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Delete" || e.key === "Backspace") {
+        const item = its[idx];
+        if (item && item.status !== "relayed") {
+          e.preventDefault();
+          undo(item.id);
+        }
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   if (!Array.isArray(items) || items.length === 0) return null;
 
@@ -392,6 +477,9 @@ export const SteerAttachSection = ({
             onUndo={onUndo}
             isDark={isDark}
             entered={entered}
+            activeIndex={activeIndex}
+            onActiveIndex={setActiveIndex}
+            rowRefs={rowRefs}
           />
         </div>
       )}

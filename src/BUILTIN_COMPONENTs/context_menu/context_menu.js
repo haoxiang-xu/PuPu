@@ -37,13 +37,51 @@ export default function ContextMenu({ visible, x, y, items, onClose, isDark }) {
     };
   }, [visible]);
 
+  /* items/hoverIndex snapshot for the keyboard handler */
+  const kbRef = useRef({ items, hoverIndex });
+  kbRef.current = { items, hoverIndex };
+
   useEffect(() => {
     if (!visible) return;
     const onMouseDown = (e) => {
       if (ref.current && !ref.current.contains(e.target)) onClose();
     };
+    const isRowSelectable = (item) =>
+      item && item.type !== "separator" && !item.disabled;
     const onKey = (e) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      const { items: its, hoverIndex: idx } = kbRef.current;
+      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const delta = e.key === "ArrowDown" ? 1 : -1;
+        const total = its.length;
+        if (!total) return;
+        let next = idx;
+        for (let step = 0; step < total; step += 1) {
+          next =
+            next < 0
+              ? delta > 0
+                ? 0
+                : total - 1
+              : (next + delta + total) % total;
+          if (isRowSelectable(its[next])) {
+            setHoverIndex(next);
+            return;
+          }
+        }
+        return;
+      }
+      if (e.key === "Enter") {
+        const item = its[idx];
+        if (isRowSelectable(item)) {
+          e.preventDefault();
+          item.onClick?.();
+          onClose();
+        }
+      }
     };
     document.addEventListener("mousedown", onMouseDown);
     document.addEventListener("keydown", onKey);
