@@ -100,10 +100,12 @@ const ensureStyle = () => {
     "@keyframes pupuMmBreathe{0%,100%{opacity:.25;transform:scale(.9);}50%{opacity:1;transform:scale(1.25);}}" +
     "[data-mm-tick].pupu-mm-pop{animation:pupuMmPop .34s cubic-bezier(.34,1.56,.64,1) 1;}" +
     "@keyframes pupuMmPop{0%{transform:scaleX(.2);opacity:0;}100%{transform:scaleX(1);opacity:1;}}" +
-    // 落点回声:目标消息背景闪光一次
-    ".pupu-mm-flash{animation:pupuMmFlash 1.6s ease-out 1;}" +
-    "@keyframes pupuMmFlash{0%{background-color:var(--pupu-mm-flash);}100%{background-color:var(--pupu-mm-flash-end, transparent);}}" +
-    "@media (prefers-reduced-motion: reduce){[data-mm-tick].pupu-mm-live::after,[data-mm-tick].pupu-mm-pop,.pupu-mm-flash{animation:none !important;}}";
+    // 落点回声:侧标线(CEO 选定方案 C)—— 3px 竖线在消息侧边展开→停→淡出
+    ".pupu-mm-flash{position:relative;}" +
+    ".pupu-mm-flash::before{content:'';position:absolute;left:4px;top:8%;width:3px;height:84%;border-radius:100px;background:var(--pupu-mm-flash);animation:pupuMmFlashBar 1.8s cubic-bezier(0.22,1,0.36,1) 1;pointer-events:none;}" +
+    '.pupu-mm-flash[data-mm-flash-side="right"]::before{left:auto;right:-12px;}' +
+    "@keyframes pupuMmFlashBar{0%{transform:scaleY(0);opacity:0;}12%{transform:scaleY(1);opacity:1;}70%{transform:scaleY(1);opacity:1;}100%{transform:scaleY(1);opacity:0;}}" +
+    "@media (prefers-reduced-motion: reduce){[data-mm-tick].pupu-mm-live::after,[data-mm-tick].pupu-mm-pop{animation:none !important;}.pupu-mm-flash::before{animation:none !important;content:none;}}";
   document.head.appendChild(el);
   styleInjected = true;
 };
@@ -472,29 +474,25 @@ const MessageMinimap = ({
         flashTimersRef.current.raf = null;
         const node = messageNodeRefs.current.get(idx);
         if (node) {
-          // user 消息:闪它的气泡本体(wrapper 里首个带 border-radius 内联样式的 div),
-          // 而不是整行 wrapper;assistant 无气泡底,闪整行(补个圆角)
+          // 侧标线:user 打在气泡本体右侧,assistant 打在整行左侧(padding 带内,
+          // 不越出 wrapper 以免触发聊天区横向溢出)
           const role = (latestRef.current.messages[idx] || {}).role;
           let target = node;
           if (role === "user") {
             const bubble = node.querySelector('div[style*="border-radius"]');
             if (bubble) target = bubble;
+            target.setAttribute("data-mm-flash-side", "right");
           } else {
-            node.style.borderRadius = "10px";
+            target.removeAttribute("data-mm-flash-side");
           }
-          target.style.setProperty("--pupu-mm-flash", C.flash);
-          // 终点回到元素自己的底色(user 气泡有自带背景,落到 transparent 会跳变)
-          target.style.setProperty(
-            "--pupu-mm-flash-end",
-            window.getComputedStyle(target).backgroundColor || "transparent",
-          );
+          target.style.setProperty("--pupu-mm-flash", C.aOn); // 实色标线,非淡染
           target.classList.remove("pupu-mm-flash");
           void target.offsetWidth; // 重启动画
           target.classList.add("pupu-mm-flash");
           flashTimersRef.current.timeout = window.setTimeout(() => {
             target.classList.remove("pupu-mm-flash");
             flashTimersRef.current.timeout = null;
-          }, 1700);
+          }, 1900);
           return;
         }
         if (tries++ < 90 && typeof window.requestAnimationFrame === "function") {
