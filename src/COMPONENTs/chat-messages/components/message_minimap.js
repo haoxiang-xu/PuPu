@@ -101,8 +101,8 @@ const ensureStyle = () => {
     "[data-mm-tick].pupu-mm-pop{animation:pupuMmPop .34s cubic-bezier(.34,1.56,.64,1) 1;}" +
     "@keyframes pupuMmPop{0%{transform:scaleX(.2);opacity:0;}100%{transform:scaleX(1);opacity:1;}}" +
     // 落点回声:目标消息背景闪光一次
-    ".pupu-mm-flash{animation:pupuMmFlash 1.6s ease-out 1;border-radius:10px;}" +
-    "@keyframes pupuMmFlash{0%{background-color:var(--pupu-mm-flash);}100%{background-color:transparent;}}" +
+    ".pupu-mm-flash{animation:pupuMmFlash 1.6s ease-out 1;}" +
+    "@keyframes pupuMmFlash{0%{background-color:var(--pupu-mm-flash);}100%{background-color:var(--pupu-mm-flash-end, transparent);}}" +
     "@media (prefers-reduced-motion: reduce){[data-mm-tick].pupu-mm-live::after,[data-mm-tick].pupu-mm-pop,.pupu-mm-flash{animation:none !important;}}";
   document.head.appendChild(el);
   styleInjected = true;
@@ -472,12 +472,27 @@ const MessageMinimap = ({
         flashTimersRef.current.raf = null;
         const node = messageNodeRefs.current.get(idx);
         if (node) {
-          node.style.setProperty("--pupu-mm-flash", C.flash);
-          node.classList.remove("pupu-mm-flash");
-          void node.offsetWidth; // 重启动画
-          node.classList.add("pupu-mm-flash");
+          // user 消息:闪它的气泡本体(wrapper 里首个带 border-radius 内联样式的 div),
+          // 而不是整行 wrapper;assistant 无气泡底,闪整行(补个圆角)
+          const role = (latestRef.current.messages[idx] || {}).role;
+          let target = node;
+          if (role === "user") {
+            const bubble = node.querySelector('div[style*="border-radius"]');
+            if (bubble) target = bubble;
+          } else {
+            node.style.borderRadius = "10px";
+          }
+          target.style.setProperty("--pupu-mm-flash", C.flash);
+          // 终点回到元素自己的底色(user 气泡有自带背景,落到 transparent 会跳变)
+          target.style.setProperty(
+            "--pupu-mm-flash-end",
+            window.getComputedStyle(target).backgroundColor || "transparent",
+          );
+          target.classList.remove("pupu-mm-flash");
+          void target.offsetWidth; // 重启动画
+          target.classList.add("pupu-mm-flash");
           flashTimersRef.current.timeout = window.setTimeout(() => {
-            node.classList.remove("pupu-mm-flash");
+            target.classList.remove("pupu-mm-flash");
             flashTimersRef.current.timeout = null;
           }, 1700);
           return;
