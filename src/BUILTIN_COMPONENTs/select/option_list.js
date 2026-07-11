@@ -2,7 +2,6 @@ import { isValidElement, useContext, useState } from "react";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
 import AnimatedChildren from "../class/animated_children";
-import ScaleHighlight from "../class/scale_highlight";
 import { get_option_text, render_icon } from "./use_select";
 import Icon from "../icon/icon";
 
@@ -85,20 +84,24 @@ export const OptionItem = ({
     ? (option_theme?.paddingWithDesc ?? "5px 10px")
     : (option_theme?.padding ?? "0 10px");
 
-  /* Button-style highlight layer: scales in from center. One layer serves
-     both states — hover (keyboard/mouse highlight) and, for single-select,
-     the persistent selected tint; moving between them only recolors. */
+  /* With option_theme.externalHighlight the hover layer is drawn by the
+     host (a SlidingHighlight gliding between rows) — the row itself only
+     paints the persistent single-select tint. Without it, classic per-row
+     hover/selected backgrounds. */
   const isSelectedSingle = isSelected && !multi;
-  const highlightVisible = (isHighlighted && !isDisabled) || isSelectedSingle;
-  const highlightColor = isHighlighted
+  const backgroundColor = option_theme?.externalHighlight
     ? isSelectedSingle
-      ? (option_theme?.selectedHighlightedBackgroundColor ??
-        option_theme?.hoverBackgroundColor ??
-        "rgba(0, 0, 0, 0.06)")
-      : (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
-    : isSelectedSingle
       ? (option_theme?.selectedBackgroundColor ?? "rgba(10, 133, 255, 0.14)")
-      : "transparent";
+      : "transparent"
+    : isHighlighted
+      ? isSelectedSingle
+        ? (option_theme?.selectedHighlightedBackgroundColor ??
+          option_theme?.hoverBackgroundColor ??
+          "rgba(0, 0, 0, 0.06)")
+        : (option_theme?.hoverBackgroundColor ?? "rgba(0, 0, 0, 0.06)")
+      : isSelectedSingle
+        ? (option_theme?.selectedBackgroundColor ?? "rgba(10, 133, 255, 0.14)")
+        : "transparent";
 
   return (
     <div
@@ -118,17 +121,12 @@ export const OptionItem = ({
         borderRadius: option_theme?.borderRadius ?? 5,
         cursor: isDisabled ? "not-allowed" : "pointer",
         color: optionColor,
+        backgroundColor,
         ...option_style,
         gap: showIcon ? (option_theme?.gap ?? 6) : multi ? 8 : 0,
         ...extra_style,
       }}
     >
-      <ScaleHighlight
-        visible={highlightVisible}
-        color={highlightColor}
-        borderRadius={option_theme?.borderRadius ?? 5}
-      />
-
       {/* checkbox for multi-select */}
       {multi && (
         <span style={{ position: "relative", zIndex: 1, display: "flex" }}>
@@ -255,16 +253,12 @@ const GroupHeader = ({
         padding: headerPadding,
         borderRadius: group_theme?.headerBorderRadius ?? 5,
         cursor: "pointer",
+        backgroundColor: hovered ? hoverBg : "transparent",
+        transition: "background-color 0.15s ease",
         userSelect: "none",
         WebkitUserSelect: "none",
       }}
     >
-      <ScaleHighlight
-        visible={hovered}
-        color={hoverBg}
-        borderRadius={group_theme?.headerBorderRadius ?? 5}
-      />
-
       {/* expand/collapse chevron */}
       <Icon
         src="arrow_down"

@@ -7,6 +7,7 @@ import {
 import Tooltip from "../tooltip/tooltip";
 import Icon from "../icon/icon";
 import ScaleHighlight from "../class/scale_highlight";
+import SlidingHighlight from "../class/sliding_highlight";
 import useSelect, { render_icon } from "./use_select";
 import OptionList, { OptionItem } from "./option_list";
 
@@ -841,6 +842,9 @@ const Select = ({
           : "rgba(0,0,0,0.06)",
         selectedBackgroundColor: themeHighlightRgba(theme, 0.14),
         selectedHighlightedBackgroundColor: themeHighlightRgba(theme, 0.22),
+        /* hover is drawn by the host's SlidingHighlight gliding between
+           rows — rows themselves only paint the persistent selected tint */
+        externalHighlight: true,
       }
     : base_option_theme;
   const group_theme = isPalette
@@ -1133,6 +1137,14 @@ const Select = ({
     if (query) handle_query_change("");
   };
 
+  /* one hover pill gliding between rows (palette lists) */
+  const slidingHoverColor = isDark
+    ? "rgba(255,255,255,0.10)"
+    : "rgba(0,0,0,0.06)";
+  const slidingMeasureKey = `${query}|${flatSelectable.length}|${
+    flatSelectable[0]?.value ?? ""
+  }`;
+
   /* rail invariant: exactly ONE group expanded. The caller's collapse
      state can drift (all collapsed, or several open from the pre-rail
      UI) — on open, snap it to the group holding the selection, else the
@@ -1280,6 +1292,7 @@ const Select = ({
             data-sb-wall={2}
             data-sb-edge={12}
             style={{
+              position: "relative",
               flex: 1,
               minWidth: 0,
               display: "flex",
@@ -1289,6 +1302,13 @@ const Select = ({
               overscrollBehavior: "contain",
             }}
           >
+            <SlidingHighlight
+              refs={optionRefs}
+              index={highlightedIndex}
+              color={slidingHoverColor}
+              borderRadius={14}
+              measureKey={slidingMeasureKey}
+            />
             {flatSelectable.length === 0 ? (
               <div
                 style={{
@@ -1345,6 +1365,7 @@ const Select = ({
         data-sb-wall={isPalette ? 2 : undefined}
         data-sb-edge={isPalette ? 12 : undefined}
         style={{
+          position: isPalette ? "relative" : undefined,
           display: "flex",
           flexDirection: "column",
           gap: isPalette ? 1 : 4,
@@ -1354,6 +1375,15 @@ const Select = ({
           padding: isPalette ? 0 : 2,
         }}
       >
+        {isPalette ? (
+          <SlidingHighlight
+            refs={optionRefs}
+            index={highlightedIndex}
+            color={slidingHoverColor}
+            borderRadius={14}
+            measureKey={slidingMeasureKey}
+          />
+        ) : null}
         <OptionList
           hasGroups={hasGroups}
           filteredGroups={filteredGroups}
