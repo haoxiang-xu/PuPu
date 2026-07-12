@@ -1408,6 +1408,28 @@ const Eyedropper = (props) => (
   </svg>
 );
 
+const EnterKey = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    {...props}
+  >
+    <path d="M19.0001 13.9999L19.0002 5L17.0002 4.99997L17.0001 11.9999L6.8283 12L10.778 8.05024L9.36382 6.63603L2.99986 13L9.36382 19.364L10.778 17.9497L6.82826 14L19.0001 13.9999Z"></path>
+  </svg>
+);
+
+const TabKey = (props) => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    {...props}
+  >
+    <path d="M10.0858 12L5.29289 16.7929L6.70711 18.2071L12.9142 12L6.70711 5.79291L5.29289 7.20712L10.0858 12ZM17 6.00002L17 18H15L15 6.00002L17 6.00002Z"></path>
+  </svg>
+);
+
 const UISVGs = {
   add: Add,
   arrow_down: ArrowDown,
@@ -1444,6 +1466,7 @@ const UISVGs = {
   edit_box: EditBox,
   edit_pen: EditPen,
   education: Education,
+  enter_key: EnterKey,
   email: Email,
   error: Error,
   eye_open: EyeOpen,
@@ -1516,6 +1539,7 @@ const UISVGs = {
   stop_mini_filled: StopMiniFilled,
   subtract: Subtract,
   sun: Sun,
+  tab_key: TabKey,
   target: Target,
   terminal: Terminal,
   text: Text,

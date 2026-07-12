@@ -46,6 +46,11 @@ jest.mock("../../CONTAINERs/config/theme_highlight", () => ({
   themeHighlightColor: () => "#7c8cf8",
 }));
 
+jest.mock("../../BUILTIN_COMPONENTs/icon/icon", () => ({
+  __esModule: true,
+  default: () => <span data-testid="icon" />,
+}));
+
 jest.mock("../../BUILTIN_COMPONENTs/input/button", () => ({
   __esModule: true,
   default: ({ label, prefix_icon, onClick, disabled }) => (
@@ -96,7 +101,7 @@ describe("workspace list delete confirm", () => {
   test("confirming deletes the row", () => {
     renderEditor();
     fireEvent.click(screen.getAllByTestId("btn-delete")[0]);
-    fireEvent.click(screen.getByTestId("btn-common.delete ↩"));
+    fireEvent.click(screen.getByTestId("btn-common.delete"));
     expect(writeWorkspaces).toHaveBeenCalledWith([WORKSPACES[1]]);
   });
 
@@ -108,6 +113,33 @@ describe("workspace list delete confirm", () => {
     });
     expect(screen.queryByTestId("delete-confirm-row")).not.toBeInTheDocument();
     expect(writeWorkspaces).not.toHaveBeenCalled();
+  });
+});
+
+describe("escape containment (modal must not close mid-edit)", () => {
+  test("escape during row edit is stopped before the window listener", () => {
+    const windowSpy = jest.fn();
+    window.addEventListener("keydown", windowSpy);
+    renderEditor();
+    fireEvent.click(screen.getAllByTestId("btn-edit_pen")[0]);
+    const nameField = screen.getByLabelText("workspace-name");
+    fireEvent.keyDown(nameField, { key: "Escape" });
+    expect(windowSpy).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("workspace-name")).not.toBeInTheDocument();
+    window.removeEventListener("keydown", windowSpy);
+  });
+
+  test("escape on a dirty root field is contained; clean field lets it bubble", () => {
+    const windowSpy = jest.fn();
+    window.addEventListener("keydown", windowSpy);
+    renderEditor();
+    const input = screen.getByPlaceholderText("workspace.enter_path");
+    fireEvent.change(input, { target: { value: "/typo" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(windowSpy).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(windowSpy).toHaveBeenCalledTimes(1);
+    window.removeEventListener("keydown", windowSpy);
   });
 });
 

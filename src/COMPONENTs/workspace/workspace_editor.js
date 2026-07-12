@@ -12,6 +12,8 @@ import { runtimeBridge } from "../../SERVICEs/bridges/unchain_bridge";
 import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translation";
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
+import Icon from "../../BUILTIN_COMPONENTs/icon/icon";
+import SlidingHighlight from "../../BUILTIN_COMPONENTs/class/sliding_highlight";
 
 /* Mono Editorial layout — no containers, underline fields, inline editing,
    keyboard-first (↩ save · esc cancel). Spec:
@@ -139,14 +141,18 @@ const TextLink = ({
   disabled,
   tone = "muted",
   weight = 400,
+  postfixIcon,
   colors,
   fontFamily,
 }) => (
   <Button
     label={label}
+    postfix_icon={postfixIcon}
     onClick={onClick}
     disabled={disabled}
     style={{
+      gap: 5,
+      content: { icon: { width: 12, height: 12 } },
       fontSize: 12,
       fontFamily,
       fontWeight: weight,
@@ -170,6 +176,9 @@ const TextLink = ({
 const Hint = ({ children, colors, fontFamily }) => (
   <span
     style={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 4,
       fontSize: 12,
       fontFamily,
       color: colors.faint,
@@ -308,8 +317,13 @@ const DefaultRootSection = ({ isDark }) => {
         handleSave();
       }
     } else if (event.key === "Escape") {
-      event.preventDefault();
-      handleRevert();
+      /* Only swallow esc when there is an edit to cancel — a clean field
+         lets it bubble so the modal can close. */
+      if (isDirty || error) {
+        event.preventDefault();
+        event.stopPropagation();
+        handleRevert();
+      }
     }
   };
 
@@ -357,7 +371,8 @@ const DefaultRootSection = ({ isDark }) => {
         {isDirty ? (
           <>
             <TextLink
-              label={`${t("common.save")} ↩`}
+              label={t("common.save")}
+              postfixIcon="enter_key"
               tone="accent"
               weight={500}
               onClick={handleSave}
@@ -441,7 +456,10 @@ const WorkspacesSection = ({ isDark }) => {
   const [unsavedIds, setUnsavedIds] = useState(() => new Set());
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState("");
-  const [hoveredId, setHoveredId] = useState(null);
+  /* One sliding hover pill glides between rows (same pattern as the
+     builtin context menu) — refs are collected per row index. */
+  const [hoverIndex, setHoverIndex] = useState(-1);
+  const rowRefs = useRef([]);
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
   const confirmRef = useRef(null);
 
@@ -563,7 +581,10 @@ const WorkspacesSection = ({ isDark }) => {
         handleSaveItem();
       }
     } else if (event.key === "Escape") {
+      /* Cancel the row edit only — never let esc reach the modal's
+         window-level close listener. */
       event.preventDefault();
+      event.stopPropagation();
       cancelEditing();
     }
   };
@@ -575,11 +596,16 @@ const WorkspacesSection = ({ isDark }) => {
   const renderEditRow = (item, index) => (
     <div
       key={item.id}
+      ref={() => {
+        rowRefs.current[index] = null;
+      }}
       style={{
         display: "flex",
         gap: 14,
         padding: "12px 8px 14px",
         margin: "0 -8px",
+        position: "relative",
+        zIndex: 1,
       }}
     >
       <span
@@ -636,7 +662,8 @@ const WorkspacesSection = ({ isDark }) => {
           }}
         >
           <TextLink
-            label={`${t("common.save")} ↩`}
+            label={t("common.save")}
+            postfixIcon="enter_key"
             tone="accent"
             weight={500}
             onClick={handleSaveItem}
@@ -653,7 +680,14 @@ const WorkspacesSection = ({ isDark }) => {
             />
           )}
           <span style={{ flex: 1 }} />
-          <Hint {...linkProps}>tab ⇥</Hint>
+          <Hint {...linkProps}>
+            tab
+            <Icon
+              src="tab_key"
+              color={colors.faint}
+              style={{ width: 13, height: 13, display: "block" }}
+            />
+          </Hint>
         </div>
       </div>
     </div>
@@ -665,14 +699,19 @@ const WorkspacesSection = ({ isDark }) => {
       <div
         key={item.id}
         data-testid="delete-confirm-row"
-        ref={confirmRef}
+        ref={(el) => {
+          confirmRef.current = el;
+          rowRefs.current[index] = null;
+        }}
         tabIndex={-1}
         onKeyDown={(event) => {
           if (event.key === "Enter") {
             event.preventDefault();
             deleteItem(item.id);
           } else if (event.key === "Escape") {
+            /* Dismiss the confirm only — keep esc away from the modal. */
             event.preventDefault();
+            event.stopPropagation();
             setConfirmDeleteId(null);
           }
         }}
@@ -686,6 +725,8 @@ const WorkspacesSection = ({ isDark }) => {
           borderRadius: 10,
           backgroundColor: colors.dangerFill,
           outline: "none",
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <span
@@ -718,7 +759,8 @@ const WorkspacesSection = ({ isDark }) => {
           </span>
         </div>
         <TextLink
-          label={`${t("common.delete")} ↩`}
+          label={t("common.delete")}
+          postfixIcon="enter_key"
           tone="danger"
           weight={500}
           onClick={() => deleteItem(item.id)}
@@ -731,12 +773,14 @@ const WorkspacesSection = ({ isDark }) => {
 
   const renderRow = (item, index) => {
     const displayName = item.name?.trim() || item.path?.trim() || "Unnamed";
-    const hovered = hoveredId === item.id && !dimOthers;
+    const hovered = hoverIndex === index && !dimOthers;
     return (
       <div
         key={item.id}
-        onMouseEnter={() => setHoveredId(item.id)}
-        onMouseLeave={() => setHoveredId(null)}
+        ref={(el) => {
+          rowRefs.current[index] = el;
+        }}
+        onMouseEnter={() => setHoverIndex(index)}
         style={{
           display: "flex",
           alignItems: "center",
@@ -745,9 +789,10 @@ const WorkspacesSection = ({ isDark }) => {
           padding: "0 8px",
           margin: "0 -8px",
           borderRadius: 10,
-          backgroundColor: hovered ? colors.hoverFill : "transparent",
+          position: "relative",
+          zIndex: 1,
           opacity: dimOthers ? 0.4 : 1,
-          transition: "background-color 120ms, opacity 120ms",
+          transition: "opacity 120ms",
         }}
       >
         <span
@@ -884,7 +929,17 @@ const WorkspacesSection = ({ isDark }) => {
           {t("workspace.no_workspaces")}
         </Caption>
       ) : (
-        <div style={{ borderTop: `1px solid ${colors.line}` }}>
+        <div
+          style={{ borderTop: `1px solid ${colors.line}`, position: "relative" }}
+          onMouseLeave={() => setHoverIndex(-1)}
+        >
+          <SlidingHighlight
+            refs={rowRefs}
+            index={dimOthers ? -1 : hoverIndex}
+            color={colors.hoverFill}
+            borderRadius={10}
+            measureKey={`${items.length}:${editingId}:${confirmDeleteId}`}
+          />
           {items.map((item, index) => {
             if (editingId === item.id) return renderEditRow(item, index);
             if (confirmDeleteId === item.id)
