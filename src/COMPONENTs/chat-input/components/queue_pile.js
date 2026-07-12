@@ -3,21 +3,21 @@ import Icon from "../../../BUILTIN_COMPONENTs/icon/icon";
 import SlidingHighlight from "../../../BUILTIN_COMPONENTs/class/sliding_highlight";
 
 /**
- * Steer queue UI — a compact segment that lives INSIDE the attach panel row.
+ * Queue UI — a compact segment that lives INSIDE the attach panel row.
  *
- * The segment reads: [steer icon] ×N [latest message text]. It carries NO
+ * The segment reads: [queue icon] ×N [latest message text]. It carries NO
  * resting highlight — the sub-pill background appears on hover only.
  *
- * Hovering opens the steer panel above the row: a clone of the command
+ * Hovering opens the queue panel above the row: a clone of the command
  * palette's language (design B) — same translucent blur(20px) surface,
  * radius 22, 8px inset, 28px rows with radius 14 (concentric), row-level
  * hover highlight, Elevator Push entrance (rows cascade at 130+i×35ms) —
- * plus the palette's bottom header slot: a green chip (steer ×N) and a
+ * plus the palette's bottom header slot: a green chip (queue ×N) and a
  * QUEUED hint. Undo is row-hover-revealed; relayed rows render green with a
  * ✓ in the icon slot and no Undo.
  *
- * attach_panel.js renders <SteerAttachSection> whenever the queue is
- * non-empty; there is no other home for the steer queue.
+ * attach_panel.js renders <QueueAttachSection> whenever the queue is
+ * non-empty; there is no other home for the queued turns.
  */
 
 const PANEL_W = 300;
@@ -71,7 +71,7 @@ const useEnteredLatch = (active) => {
 };
 
 /* ── summary content: [icon] ×N [latest text] ── */
-export const SteerSummaryInline = ({ items = [], isDark = false }) => {
+export const QueueSummaryInline = ({ items = [], isDark = false }) => {
   const latest = items[items.length - 1];
   return (
     <>
@@ -84,14 +84,14 @@ export const SteerSummaryInline = ({ items = [], isDark = false }) => {
         }}
       >
         <Icon
-          src="steer_arrow"
+          src="queue_arrow"
           color={isDark ? "rgba(255,255,255,0.5)" : "rgba(0,0,0,0.45)"}
           style={{ width: 14, height: 14 }}
         />
       </span>
       {items.length > 1 && (
         <span
-          data-steer-count=""
+          data-queue-count=""
           style={{
             flexShrink: 0,
             fontSize: 10,
@@ -120,7 +120,7 @@ export const SteerSummaryInline = ({ items = [], isDark = false }) => {
 };
 
 /* ── one row in the panel (command-menu row language) ── */
-const SteerRow = ({
+const QueueRow = ({
   item,
   isDark,
   onUndo,
@@ -141,7 +141,7 @@ const SteerRow = ({
   return (
     <div
       ref={refCallback}
-      data-steer-row
+      data-queue-row
       data-status={relayed ? "relayed" : "queued"}
       onMouseEnter={onActive}
       style={{
@@ -175,7 +175,7 @@ const SteerRow = ({
           </span>
         ) : (
           <Icon
-            src="steer_arrow"
+            src="queue_arrow"
             color={isDark ? "rgba(255,255,255,0.45)" : "rgba(0,0,0,0.4)"}
             style={{ width: 13, height: 13 }}
           />
@@ -229,8 +229,8 @@ const SteerRow = ({
   );
 };
 
-/* ── the steer panel: palette clone, header pinned at the bottom ── */
-export const SteerPanel = ({
+/* ── the queue panel: palette clone, header pinned at the bottom ── */
+export const QueuePanel = ({
   items = [],
   onUndo = () => {},
   isDark = false,
@@ -247,7 +247,7 @@ export const SteerPanel = ({
 
   return (
     <div
-      data-steer-panel=""
+      data-queue-panel=""
       style={{
         boxSizing: "border-box",
         position: "relative",
@@ -289,7 +289,7 @@ export const SteerPanel = ({
 
       {/* rows: oldest → newest, top-down cascade */}
       {items.map((item, index) => (
-        <SteerRow
+        <QueueRow
           key={item.id}
           item={item}
           isDark={isDark}
@@ -304,12 +304,12 @@ export const SteerPanel = ({
         />
       ))}
 
-      {/* header slot at the bottom — the palette's chip + hint, steer-dyed.
+      {/* header slot at the bottom — the palette's chip + hint, queue-dyed.
           chip corner is concentric with the panel's bottom-left: the chip is
           an 18px pill (r9) inset 13px from the panel edge on both axes
           (8 panel pad + 5 header pad), and 9 + 13 = 22, the panel radius */}
       <div
-        data-steer-panel-header=""
+        data-queue-panel-header=""
         style={{
           display: "flex",
           alignItems: "center",
@@ -334,11 +334,11 @@ export const SteerPanel = ({
           }}
         >
           <Icon
-            src="steer_arrow"
+            src="queue_arrow"
             color={chipColor}
             style={{ width: 11, height: 11 }}
           />
-          steer ×{items.length}
+          queue ×{items.length}
         </span>
         <span
           style={{
@@ -358,7 +358,7 @@ export const SteerPanel = ({
 };
 
 /* ── the attach panel segment ── */
-export const SteerAttachSection = ({
+export const QueueAttachSection = ({
   items = [],
   onUndo = () => {},
   isDark = false,
@@ -439,10 +439,10 @@ export const SteerAttachSection = ({
 
   return (
     <div
-      data-steer-attach-section=""
+      data-queue-attach-section=""
       data-expanded={open}
       role="group"
-      aria-label="Queued steer messages"
+      aria-label="Queued messages"
       {...hoverHandlers}
       style={{ position: "relative", display: "flex", alignItems: "center" }}
     >
@@ -468,7 +468,7 @@ export const SteerAttachSection = ({
           transition: "background-color 160ms ease",
         }}
       >
-        <SteerSummaryInline items={items} isDark={isDark} />
+        <QueueSummaryInline items={items} isDark={isDark} />
       </div>
 
       {/* hover: the palette-clone panel above the row; paddingBottom keeps
@@ -484,7 +484,7 @@ export const SteerAttachSection = ({
             zIndex: 40,
           }}
         >
-          <SteerPanel
+          <QueuePanel
             items={items}
             onUndo={onUndo}
             isDark={isDark}

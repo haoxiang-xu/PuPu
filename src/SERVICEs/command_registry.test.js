@@ -4,14 +4,14 @@ const loadCommandRegistryModule = () => {
 };
 
 describe("command_registry", () => {
-  test("seeds /btw /fyi /steer, all available only while streaming", () => {
+  test("seeds /btw /fyi /queue, all available only while streaming", () => {
     const { listCommands } = loadCommandRegistryModule();
 
     const whileStreaming = listCommands({ isStreaming: true }, "");
     expect(whileStreaming.map((c) => c.name)).toEqual([
       "/btw",
       "/fyi",
-      "/steer",
+      "/queue",
     ]);
     expect(whileStreaming[0]).toEqual({
       name: "/btw",
@@ -19,9 +19,12 @@ describe("command_registry", () => {
       icon: "btw",
       insertText: "/btw ",
       exclusiveGroup: "interject-channel",
+      channel: "btw",
     });
     expect(whileStreaming[1].icon).toBe("fyi");
-    expect(whileStreaming[2].icon).toBe("steer_arrow");
+    expect(whileStreaming[1].channel).toBe("fyi");
+    expect(whileStreaming[2].icon).toBe("queue_arrow");
+    expect(whileStreaming[2].channel).toBe("queue");
 
     const notStreaming = listCommands({ isStreaming: false }, "");
     expect(notStreaming).toEqual([]);
@@ -31,7 +34,7 @@ describe("command_registry", () => {
     const { listCommands } = loadCommandRegistryModule();
 
     const items = listCommands({ isStreaming: true });
-    expect(items.map((c) => c.name)).toEqual(["/btw", "/fyi", "/steer"]);
+    expect(items.map((c) => c.name)).toEqual(["/btw", "/fyi", "/queue"]);
   });
 
   test("filters by case-insensitive name prefix", () => {
@@ -41,12 +44,21 @@ describe("command_registry", () => {
       listCommands({ isStreaming: true }, "/b").map((c) => c.name),
     ).toEqual(["/btw"]);
     expect(
-      listCommands({ isStreaming: true }, "/S").map((c) => c.name),
-    ).toEqual(["/steer"]);
+      listCommands({ isStreaming: true }, "/Q").map((c) => c.name),
+    ).toEqual(["/queue"]);
     expect(listCommands({ isStreaming: true }, "/f").map((c) => c.name)).toEqual([
       "/fyi",
     ]);
     expect(listCommands({ isStreaming: true }, "/zz")).toEqual([]);
+  });
+
+  test("channel defaults to empty string when omitted at registration", () => {
+    const { registerCommand, listCommands } = loadCommandRegistryModule();
+
+    registerCommand({ name: "/nochan", description: "no channel given" });
+
+    const [item] = listCommands({ isStreaming: false }, "/nochan");
+    expect(item.channel).toBe("");
   });
 
   test("filters by availability(ctx) in addition to prefix", () => {
@@ -136,15 +148,15 @@ describe("exclusive groups & token scanning", () => {
       { isStreaming: true, activeCommands: ["/fyi"] },
       "",
     );
-    // fyi/btw/steer share "interject-channel" — all gone once one is active
+    // fyi/btw/queue share "interject-channel" — all gone once one is active
     expect(withActive.map((c) => c.name)).toEqual([]);
   });
 
   test("findCommandTokens: first token takes the group, later same-group tokens stay inactive", () => {
-    const tokens = findCommandTokens("check this /fyi and then /steer after", ctx);
+    const tokens = findCommandTokens("check this /fyi and then /queue after", ctx);
     expect(tokens).toHaveLength(2);
-    expect(tokens[0]).toMatchObject({ name: "/fyi", active: true });
-    expect(tokens[1]).toMatchObject({ name: "/steer", active: false });
+    expect(tokens[0]).toMatchObject({ name: "/fyi", channel: "fyi", active: true });
+    expect(tokens[1]).toMatchObject({ name: "/queue", channel: "queue", active: false });
   });
 
   test("findCommandTokens: word boundary + availability required", () => {
@@ -157,11 +169,13 @@ describe("exclusive groups & token scanning", () => {
 
   test("extractCommands strips active tokens (plus one space) and keeps inactive ones", () => {
     const { commands, body } = extractCommands(
-      "check this /fyi and then /steer after",
+      "check this /fyi and then /queue after",
       ctx,
     );
-    expect(commands).toEqual(["/fyi"]);
-    expect(body).toBe("check this and then /steer after");
+    // commands carry the registry channel so consumers never derive the
+    // wire channel from the command NAME again
+    expect(commands).toEqual([{ name: "/fyi", channel: "fyi" }]);
+    expect(body).toBe("check this and then /queue after");
   });
 
   test("extractCommands with no tokens returns text unchanged", () => {

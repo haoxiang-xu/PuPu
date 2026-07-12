@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-_VALID = ("btw", "fyi", "steer", "clarify")
+_VALID = ("btw", "fyi", "queue", "clarify")
 
 CLASSIFIER_SYSTEM_PROMPT = (
     "An AI agent is currently working on a task. The user just sent a new "
@@ -16,9 +16,10 @@ CLASSIFIER_SYSTEM_PROMPT = (
     "anything conversational) that does not change the task\n"
     "- fyi: extra information or a requirement change that affects the "
     "CURRENT task\n"
-    "- steer: a NEW follow-up request to do AFTER the current task finishes\n"
+    "- queue: a NEW follow-up request to queue up for AFTER the current task "
+    "finishes\n"
     "- clarify: genuinely ambiguous between the above\n"
-    "Reply with one word only: btw, fyi, steer or clarify."
+    "Reply with one word only: btw, fyi, queue or clarify."
 )
 
 

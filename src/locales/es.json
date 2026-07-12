@@ -283,6 +283,6 @@
   "commands": {
     "btw": "Responde ahora, sin interrumpir la tarea",
     "fyi": "Añade información a la tarea actual",
-    "steer": "Se ejecuta al terminar este turno"
+    "queue": "Pone en cola, se ejecuta al terminar este turno"
   }
 }

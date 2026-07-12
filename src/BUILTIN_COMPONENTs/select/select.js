@@ -824,7 +824,7 @@ const Select = ({
   const base_group_theme = theme?.select?.group || {};
 
   /* ── palette variant: the command-palette family look ──
-     Same language as CommandPalettePanel / SteerPanel: translucent
+     Same language as CommandPalettePanel / QueuePanel: translucent
      blur(20px) surface, radius 22, 8px inset, 28px rows at radius 14
      (concentric), theme-highlight selected rows, mini group headers with
      spring chevron + staggered row entrance, and the search living in the

@@ -1455,7 +1455,7 @@ describe("TraceChain interject frames", () => {
           question: "顺手研究一下这个吗？",
           options: [
             { label: "加进当前任务", value: "fyi" },
-            { label: "做完再研究", value: "steer" },
+            { label: "做完再研究", value: "queue" },
             { label: "只是问一嘴", value: "btw" },
           ],
           status: "pending",
@@ -1471,7 +1471,7 @@ describe("TraceChain interject frames", () => {
     fireEvent.click(screen.getByText("做完再研究"));
     fireEvent.click(screen.getByRole("button", { name: "Submit" }));
 
-    expect(onClarifyResolve).toHaveBeenCalledWith("steer");
+    expect(onClarifyResolve).toHaveBeenCalledWith("queue");
   });
 
   test("shows a resolved clarify_request without submit controls", () => {
@@ -1485,7 +1485,7 @@ describe("TraceChain interject frames", () => {
           question: "顺手研究一下这个吗？",
           options: [
             { label: "加进当前任务", value: "fyi" },
-            { label: "做完再研究", value: "steer" },
+            { label: "做完再研究", value: "queue" },
           ],
           status: "resolved",
         },
@@ -1498,7 +1498,42 @@ describe("TraceChain interject frames", () => {
     expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
   });
 
-  test("defaults a resolved_default clarify_request to the steer option", () => {
+  // the selected option row gets a non-transparent background (and its Radio
+  // is filled) — resolve the row div carrying the onClick from the label span
+  const clarifyOptionRow = (label) =>
+    screen.getByText(label).parentElement.parentElement;
+
+  test("defaults a resolved_default clarify_request to the queue option", () => {
+    const frames = [
+      frame({ seq: 1, type: "stream_started", payload: {} }),
+      frame({
+        seq: 2,
+        type: "clarify_request",
+        payload: {
+          id: "clarify-1",
+          question: "顺手研究一下这个吗？",
+          options: [
+            { label: "加进当前任务", value: "fyi" },
+            { label: "做完再研究", value: "queue" },
+          ],
+          status: "resolved_default",
+        },
+      }),
+    ];
+
+    renderTraceChain({ frames, status: "done" });
+
+    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+    expect(clarifyOptionRow("做完再研究").style.background).not.toBe(
+      "transparent",
+    );
+    expect(clarifyOptionRow("加进当前任务").style.background).toBe(
+      "transparent",
+    );
+  });
+
+  test("resolved_default still selects a legacy persisted 'steer' option (read alias for pre-rename frames)", () => {
     const frames = [
       frame({ seq: 1, type: "stream_started", payload: {} }),
       frame({
@@ -1519,6 +1554,8 @@ describe("TraceChain interject frames", () => {
     renderTraceChain({ frames, status: "done" });
 
     expect(screen.getByText("Selected")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Submit" })).not.toBeInTheDocument();
+    expect(clarifyOptionRow("做完再研究").style.background).not.toBe(
+      "transparent",
+    );
   });
 });

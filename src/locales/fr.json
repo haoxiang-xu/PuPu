@@ -283,6 +283,6 @@
   "commands": {
     "btw": "Répond maintenant, sans interrompre la tâche",
     "fyi": "Ajoute des infos à la tâche en cours",
-    "steer": "S'exécute à la fin de ce tour"
+    "queue": "Met en file d'attente, s'exécute à la fin de ce tour"
   }
 }

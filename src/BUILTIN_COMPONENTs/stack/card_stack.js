@@ -3,7 +3,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 /**
  * CardStack — the generic "pile of cards" input-stack primitive.
  *
- * Owns ONLY the stacking math (shared by the toast pile and the steer pile,
+ * Owns ONLY the stacking math (shared by the toast pile and the queue pile,
  * and by anything stackable added later):
  * - collapsed deck: items[0] is the FRONT card, fully visible; cards behind
  *   peek upward (translateY + scale-down per depth); items beyond

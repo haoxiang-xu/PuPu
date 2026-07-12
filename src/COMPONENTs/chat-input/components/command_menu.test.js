@@ -5,7 +5,7 @@ import CommandMenu from "./command_menu";
 const makeItems = () => [
   { name: "/btw", description: "立即回答,不打断当前任务", insertText: "/btw " },
   { name: "/fyi", description: "补充给当前任务", insertText: "/fyi " },
-  { name: "/steer", description: "本轮结束后执行", insertText: "/steer " },
+  { name: "/queue", description: "排队，当前任务完成后执行", insertText: "/queue " },
 ];
 
 describe("CommandMenu", () => {
@@ -25,8 +25,8 @@ describe("CommandMenu", () => {
     expect(screen.getByText("立即回答,不打断当前任务")).toBeInTheDocument();
     expect(screen.getByText("/fyi")).toBeInTheDocument();
     expect(screen.getByText("补充给当前任务")).toBeInTheDocument();
-    expect(screen.getByText("/steer")).toBeInTheDocument();
-    expect(screen.getByText("本轮结束后执行")).toBeInTheDocument();
+    expect(screen.getByText("/queue")).toBeInTheDocument();
+    expect(screen.getByText("排队，当前任务完成后执行")).toBeInTheDocument();
   });
 
   test("highlights the row at activeIndex", () => {

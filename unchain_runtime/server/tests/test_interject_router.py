@@ -14,7 +14,7 @@ from interject_router import classify_interject, CLASSIFIER_SYSTEM_PROMPT  # noq
 
 
 def test_classify_parses_each_label():
-    for label in ("btw", "fyi", "steer", "clarify"):
+    for label in ("btw", "fyi", "queue", "clarify"):
         got = classify_interject("msg", "", {}, run_agent=lambda msgs: f" {label.upper()} ")
         assert got == label
 
@@ -26,6 +26,12 @@ def test_classify_falls_back_to_clarify_on_garbage_or_error():
     assert classify_interject("msg", "", {}, run_agent=boom) == "clarify"
 
 
+def test_classify_rejects_legacy_steer_label():
+    # "steer" is no longer a valid classifier label post-rename; an
+    # off-prompt model that still emits it must degrade to clarify.
+    assert classify_interject("msg", "", {}, run_agent=lambda msgs: "steer") == "clarify"
+
+
 def test_prompt_contains_message_digest_and_labels():
     captured = {}
     def spy(msgs):
@@ -35,5 +41,9 @@ def test_prompt_contains_message_digest_and_labels():
     joined = str(captured["msgs"])
     assert "please also add tests" in joined
     assert "iterations: 2" in joined
-    for label in ("btw", "fyi", "steer", "clarify"):
+    for label in ("btw", "fyi", "queue", "clarify"):
         assert label in CLASSIFIER_SYSTEM_PROMPT
+
+
+def test_prompt_contains_no_legacy_steer_wording():
+    assert "steer" not in CLASSIFIER_SYSTEM_PROMPT.lower()

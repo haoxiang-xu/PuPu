@@ -426,6 +426,6 @@
   "commands": {
     "btw": "Answer now, without interrupting the task",
     "fyi": "Add info to the current task",
-    "steer": "Runs after this turn"
+    "queue": "Queue for after the current run"
   }
 }

@@ -1,6 +1,6 @@
 import React from "react";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { SteerAttachSection } from "./steer_pile";
+import { QueueAttachSection } from "./queue_pile";
 
 jest.mock("../../../BUILTIN_COMPONENTs/icon/icon", () => {
   const React = require("react");
@@ -24,44 +24,44 @@ const hoverOpen = (zone) => {
   });
 };
 
-describe("SteerAttachSection", () => {
+describe("QueueAttachSection", () => {
   afterEach(() => {
     jest.useRealTimers();
   });
 
   test("renders nothing when there are no items", () => {
     const { container } = render(
-      <SteerAttachSection items={[]} onUndo={() => {}} isDark={false} />,
+      <QueueAttachSection items={[]} onUndo={() => {}} isDark={false} />,
     );
     expect(container).toBeEmptyDOMElement();
   });
 
   test("segment shows icon + ×N + only the LATEST message; no panel at rest", () => {
     const { container } = render(
-      <SteerAttachSection
+      <QueueAttachSection
         items={makeItems()}
         onUndo={() => {}}
         isDark={false}
       />,
     );
 
-    const section = container.querySelector("[data-steer-attach-section]");
+    const section = container.querySelector("[data-queue-attach-section]");
     expect(section).toBeInTheDocument();
     expect(
-      section.querySelector('[data-icon="steer_arrow"]'),
+      section.querySelector('[data-icon="queue_arrow"]'),
     ).toBeInTheDocument();
     expect(screen.getByText("×4")).toBeInTheDocument();
     expect(screen.getByText("newest item text")).toBeInTheDocument();
     expect(screen.queryByText("oldest item text")).not.toBeInTheDocument();
     expect(
-      container.querySelector("[data-steer-panel]"),
+      container.querySelector("[data-queue-panel]"),
     ).not.toBeInTheDocument();
     expect(section).toHaveAttribute("data-expanded", "false");
   });
 
   test("segment has NO resting highlight; it appears on hover", () => {
     const { container } = render(
-      <SteerAttachSection
+      <QueueAttachSection
         items={makeItems()}
         onUndo={() => {}}
         isDark={false}
@@ -69,7 +69,7 @@ describe("SteerAttachSection", () => {
     );
 
     const segment = container.querySelector(
-      "[data-steer-attach-section] > div",
+      "[data-queue-attach-section] > div",
     );
     expect(segment).toHaveStyle({ backgroundColor: "transparent" });
 
@@ -82,27 +82,27 @@ describe("SteerAttachSection", () => {
 
   test("a single item shows no ×N counter", () => {
     const { container } = render(
-      <SteerAttachSection
+      <QueueAttachSection
         items={[{ id: "s1", text: "only item", status: "queued" }]}
         onUndo={() => {}}
         isDark={false}
       />,
     );
-    expect(container.querySelector("[data-steer-count]")).toBeNull();
+    expect(container.querySelector("[data-queue-count]")).toBeNull();
     expect(screen.getByText("only item")).toBeInTheDocument();
   });
 
   test("hover expands after the intent delay: panel lists ALL items + header", () => {
     jest.useFakeTimers();
     const { container } = render(
-      <SteerAttachSection
+      <QueueAttachSection
         items={makeItems()}
         onUndo={() => {}}
         isDark={false}
       />,
     );
 
-    const zone = screen.getByRole("group", { name: "Queued steer messages" });
+    const zone = screen.getByRole("group", { name: "Queued messages" });
 
     // hover-in is delayed (intent) — not expanded immediately
     fireEvent.mouseEnter(zone);
@@ -111,9 +111,9 @@ describe("SteerAttachSection", () => {
     hoverOpen(zone);
     expect(zone).toHaveAttribute("data-expanded", "true");
 
-    const panel = container.querySelector("[data-steer-panel]");
+    const panel = container.querySelector("[data-queue-panel]");
     expect(panel).toBeInTheDocument();
-    expect(panel.querySelectorAll("[data-steer-row]")).toHaveLength(4);
+    expect(panel.querySelectorAll("[data-queue-row]")).toHaveLength(4);
     expect(screen.getByText("oldest item text")).toBeInTheDocument();
 
     // relayed row renders green text and no Undo button
@@ -121,23 +121,23 @@ describe("SteerAttachSection", () => {
     expect(relayedRow).toHaveTextContent("second item text");
     expect(relayedRow.querySelector("button")).toBeNull();
 
-    // bottom header: steer chip + QUEUED hint
-    const header = panel.querySelector("[data-steer-panel-header]");
-    expect(header).toHaveTextContent("steer ×4");
+    // bottom header: queue chip + QUEUED hint
+    const header = panel.querySelector("[data-queue-panel-header]");
+    expect(header).toHaveTextContent("queue ×4");
     expect(header).toHaveTextContent("QUEUED · RUNS AFTER THIS TURN");
   });
 
   test("mouseleave collapses only after the grace period", () => {
     jest.useFakeTimers();
     render(
-      <SteerAttachSection
+      <QueueAttachSection
         items={makeItems()}
         onUndo={() => {}}
         isDark={false}
       />,
     );
 
-    const zone = screen.getByRole("group", { name: "Queued steer messages" });
+    const zone = screen.getByRole("group", { name: "Queued messages" });
     hoverOpen(zone);
     expect(zone).toHaveAttribute("data-expanded", "true");
 
@@ -158,14 +158,14 @@ describe("SteerAttachSection", () => {
   test("a quick graze (leaving before the intent delay) never expands", () => {
     jest.useFakeTimers();
     render(
-      <SteerAttachSection
+      <QueueAttachSection
         items={makeItems()}
         onUndo={() => {}}
         isDark={false}
       />,
     );
 
-    const zone = screen.getByRole("group", { name: "Queued steer messages" });
+    const zone = screen.getByRole("group", { name: "Queued messages" });
 
     fireEvent.mouseEnter(zone);
     fireEvent.mouseLeave(zone); // leave well before the expand delay elapses
@@ -180,14 +180,14 @@ describe("SteerAttachSection", () => {
     jest.useFakeTimers();
     const onUndo = jest.fn();
     const { container } = render(
-      <SteerAttachSection
+      <QueueAttachSection
         items={makeItems()}
         onUndo={onUndo}
         isDark={false}
       />,
     );
 
-    hoverOpen(screen.getByRole("group", { name: "Queued steer messages" }));
+    hoverOpen(screen.getByRole("group", { name: "Queued messages" }));
 
     // 4 rows, of which s2 is relayed → 3 undo buttons (hidden until row hover)
     const undoButtons = screen.getAllByRole("button", { name: "Undo" });
@@ -198,7 +198,7 @@ describe("SteerAttachSection", () => {
     });
 
     // hovering the last row (newest item) reveals its Undo
-    const rows = container.querySelectorAll("[data-steer-row]");
+    const rows = container.querySelectorAll("[data-queue-row]");
     fireEvent.mouseEnter(rows[rows.length - 1]);
     const newestUndo = rows[rows.length - 1].querySelector("button");
     expect(newestUndo).toHaveStyle({ opacity: "1" });

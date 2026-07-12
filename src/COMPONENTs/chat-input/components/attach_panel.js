@@ -14,7 +14,7 @@ import ScaleHighlight from "../../../BUILTIN_COMPONENTs/class/scale_highlight";
 import Button from "../../../BUILTIN_COMPONENTs/input/button";
 import { Select } from "../../../BUILTIN_COMPONENTs/select/select";
 import AttachmentChipList from "./attachment_chip_list";
-import { SteerAttachSection } from "./steer_pile";
+import { QueueAttachSection } from "./queue_pile";
 import { WorkspaceModal } from "../../workspace/workspace_modal";
 import useChatInputToolkits from "../hooks/use_chat_input_toolkits";
 import useChatInputWorkspaces from "../hooks/use_chat_input_workspaces";
@@ -119,8 +119,8 @@ const AttachPanel = forwardRef(({
   onWorkspaceIdsChange,
   selectedRecipeName = "Default",
   onSelectRecipe,
-  steerItems = [],
-  onSteerUndo,
+  queueItems = [],
+  onQueueUndo,
   onKeyboardActiveChange = () => {},
   onRequestInputFocus = () => {},
   onSelectorOpenChange = () => {},
@@ -206,7 +206,7 @@ const AttachPanel = forwardRef(({
      kbIndex highlights one control in the row; a selector opened via
      keyboard reports back on close so focus returns to the input. */
   const [kbIndex, setKbIndex] = useState(-1);
-  const [kbSteerOpen, setKbSteerOpen] = useState(false);
+  const [kbQueueOpen, setKbQueueOpen] = useState(false);
   const kbOpenedSelectorRef = useRef(null);
   const kbReturnIndexRef = useRef(-1);
 
@@ -269,10 +269,10 @@ const AttachPanel = forwardRef(({
     if (showWorkspaceSelector) kbControls.push("workspace");
   }
   if (onAttachLink) kbControls.push("link");
-  if (steerItems.length > 0) kbControls.push("steer");
+  if (queueItems.length > 0) kbControls.push("queue");
 
   const kbStateRef = useRef({});
-  kbStateRef.current = { kbIndex, kbSteerOpen, kbControls };
+  kbStateRef.current = { kbIndex, kbQueueOpen, kbControls };
 
   useEffect(() => {
     onKeyboardActiveChange(kbIndex >= 0);
@@ -295,18 +295,18 @@ const AttachPanel = forwardRef(({
     onSelectorOpenChange(isOpen && holdFloatRef.current);
   }, [openSelector, floating, onSelectorOpenChange]);
 
-  /* keep index valid when controls disappear (e.g. steers all undone) */
+  /* keep index valid when controls disappear (e.g. queued turns all undone) */
   useEffect(() => {
     if (kbIndex >= kbControls.length) {
       setKbIndex(kbControls.length ? kbControls.length - 1 : -1);
     }
-    if (kbSteerOpen && !kbControls.includes("steer")) setKbSteerOpen(false);
+    if (kbQueueOpen && !kbControls.includes("queue")) setKbQueueOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kbControls.length]);
 
   const exitKeyboard = useCallback(() => {
     setKbIndex(-1);
-    setKbSteerOpen(false);
+    setKbQueueOpen(false);
   }, []);
 
   const kbActivate = (id) => {
@@ -329,8 +329,8 @@ const AttachPanel = forwardRef(({
     } else if (id === "link") {
       exitKeyboard();
       if (onAttachLink) onAttachLink();
-    } else if (id === "steer") {
-      setKbSteerOpen(true);
+    } else if (id === "queue") {
+      setKbQueueOpen(true);
     }
   };
   const kbActivateRef = useRef(kbActivate);
@@ -352,13 +352,13 @@ const AttachPanel = forwardRef(({
       handleKeyboardKey: (key) => {
         const {
           kbIndex: idx,
-          kbSteerOpen: steerOpen,
+          kbQueueOpen: queueOpen,
           kbControls: controls,
         } = kbStateRef.current;
         if (idx < 0) return "pass";
-        if (steerOpen) {
+        if (queueOpen) {
           if (key === "Escape") {
-            setKbSteerOpen(false);
+            setKbQueueOpen(false);
             return "handled";
           }
           if (
@@ -366,7 +366,7 @@ const AttachPanel = forwardRef(({
               key,
             )
           ) {
-            /* the steer panel's own document listener performs the action */
+            /* the queue panel's own document listener performs the action */
             return "handled";
           }
           if (key === "ArrowLeft" || key === "ArrowRight") return "handled";
@@ -738,15 +738,15 @@ const AttachPanel = forwardRef(({
           </span>
         )}
 
-        {/* ── Steer queue segment — the steer queue's one and only home ── */}
-        {steerItems.length > 0 ? (
-          <SteerAttachSection
-            items={steerItems}
-            onUndo={onSteerUndo}
+        {/* ── Queue segment — the queued turns' one and only home ── */}
+        {queueItems.length > 0 ? (
+          <QueueAttachSection
+            items={queueItems}
+            onUndo={onQueueUndo}
             isDark={isDark}
-            forceOpen={kbSteerOpen}
-            onForceOpenChange={setKbSteerOpen}
-            highlightRing={kbActiveId === "steer"}
+            forceOpen={kbQueueOpen}
+            onForceOpenChange={setKbQueueOpen}
+            highlightRing={kbActiveId === "queue"}
           />
         ) : null}
       </div>

@@ -1,7 +1,7 @@
 import {
   buildInterjectionRecord,
-  createSteerQueue,
-  mergeSteeredTexts,
+  createQueuedTurnBuffer,
+  mergeQueuedTurnTexts,
   parseInterjectPrefix,
 } from "./interject_controller";
 
@@ -46,9 +46,9 @@ describe("parseInterjectPrefix", () => {
     });
   });
 
-  test("/steer with a body routes to steer and strips the prefix", () => {
-    expect(parseInterjectPrefix("/steer add tests too")).toEqual({
-      channel: "steer",
+  test("/queue with a body routes to queue and strips the prefix", () => {
+    expect(parseInterjectPrefix("/queue add tests too")).toEqual({
+      channel: "queue",
       body: "add tests too",
     });
   });
@@ -61,8 +61,8 @@ describe("parseInterjectPrefix", () => {
     expect(parseInterjectPrefix("/fyi")).toEqual({ channel: "empty", body: "" });
   });
 
-  test("bare /steer with no body routes to empty", () => {
-    expect(parseInterjectPrefix("/steer")).toEqual({
+  test("bare /queue with no body routes to empty", () => {
+    expect(parseInterjectPrefix("/queue")).toEqual({
       channel: "empty",
       body: "",
     });
@@ -92,30 +92,30 @@ describe("parseInterjectPrefix", () => {
   });
 });
 
-describe("mergeSteeredTexts", () => {
+describe("mergeQueuedTurnTexts", () => {
   test("empty array returns empty string", () => {
-    expect(mergeSteeredTexts([])).toBe("");
+    expect(mergeQueuedTurnTexts([])).toBe("");
   });
 
   test("non-array input returns empty string", () => {
-    expect(mergeSteeredTexts(undefined)).toBe("");
-    expect(mergeSteeredTexts(null)).toBe("");
+    expect(mergeQueuedTurnTexts(undefined)).toBe("");
+    expect(mergeQueuedTurnTexts(null)).toBe("");
   });
 
   test("all-blank entries are filtered out, yielding empty string", () => {
-    expect(mergeSteeredTexts(["", "   ", "\n"])).toBe("");
+    expect(mergeQueuedTurnTexts(["", "   ", "\n"])).toBe("");
   });
 
   test("single text is returned verbatim (no header, no numbering)", () => {
-    expect(mergeSteeredTexts(["add tests too"])).toBe("add tests too");
+    expect(mergeQueuedTurnTexts(["add tests too"])).toBe("add tests too");
   });
 
   test("single text is trimmed", () => {
-    expect(mergeSteeredTexts(["  add tests too  "])).toBe("add tests too");
+    expect(mergeQueuedTurnTexts(["  add tests too  "])).toBe("add tests too");
   });
 
   test("multiple texts get the exact unchain merge header and numbered list", () => {
-    const merged = mergeSteeredTexts([
+    const merged = mergeQueuedTurnTexts([
       "also add GitHub Actions to the comparison",
       "give a final recommendation",
     ]);
@@ -128,7 +128,7 @@ describe("mergeSteeredTexts", () => {
   });
 
   test("blank entries interleaved with real ones are filtered before numbering", () => {
-    const merged = mergeSteeredTexts(["first", "", "  ", "second"]);
+    const merged = mergeQueuedTurnTexts(["first", "", "  ", "second"]);
     expect(merged).toBe(
       "The user sent several follow-up requests while the previous task was " +
         "running. Address all of them, in order:\n" +
@@ -138,94 +138,94 @@ describe("mergeSteeredTexts", () => {
   });
 });
 
-describe("createSteerQueue", () => {
+describe("createQueuedTurnBuffer", () => {
   test("starts empty", () => {
-    const queue = createSteerQueue();
-    expect(queue.size()).toBe(0);
-    expect(queue.list()).toEqual([]);
-    expect(queue.drainMerged()).toBeNull();
+    const buffer = createQueuedTurnBuffer();
+    expect(buffer.size()).toBe(0);
+    expect(buffer.list()).toEqual([]);
+    expect(buffer.drainMerged()).toBeNull();
   });
 
   test("push returns a stable id and appends a queued item", () => {
-    const queue = createSteerQueue();
-    const id = queue.push("do this next");
+    const buffer = createQueuedTurnBuffer();
+    const id = buffer.push("do this next");
     expect(typeof id).toBe("string");
     expect(id.length).toBeGreaterThan(0);
-    expect(queue.size()).toBe(1);
-    expect(queue.list()).toEqual([{ id, text: "do this next", status: "queued" }]);
+    expect(buffer.size()).toBe(1);
+    expect(buffer.list()).toEqual([{ id, text: "do this next", status: "queued" }]);
   });
 
   test("push assigns distinct ids to distinct entries", () => {
-    const queue = createSteerQueue();
-    const id1 = queue.push("first");
-    const id2 = queue.push("second");
+    const buffer = createQueuedTurnBuffer();
+    const id1 = buffer.push("first");
+    const id2 = buffer.push("second");
     expect(id1).not.toBe(id2);
-    expect(queue.size()).toBe(2);
+    expect(buffer.size()).toBe(2);
   });
 
   test("remove drops the matching entry only", () => {
-    const queue = createSteerQueue();
-    const id1 = queue.push("first");
-    const id2 = queue.push("second");
-    queue.remove(id1);
-    expect(queue.size()).toBe(1);
-    expect(queue.list()).toEqual([{ id: id2, text: "second", status: "queued" }]);
+    const buffer = createQueuedTurnBuffer();
+    const id1 = buffer.push("first");
+    const id2 = buffer.push("second");
+    buffer.remove(id1);
+    expect(buffer.size()).toBe(1);
+    expect(buffer.list()).toEqual([{ id: id2, text: "second", status: "queued" }]);
   });
 
   test("remove with an unknown id is a no-op", () => {
-    const queue = createSteerQueue();
-    queue.push("first");
-    queue.remove("not-a-real-id");
-    expect(queue.size()).toBe(1);
+    const buffer = createQueuedTurnBuffer();
+    buffer.push("first");
+    buffer.remove("not-a-real-id");
+    expect(buffer.size()).toBe(1);
   });
 
   test("drainMerged returns null for an empty queue and does not throw", () => {
-    const queue = createSteerQueue();
-    expect(queue.drainMerged()).toBeNull();
-    expect(queue.size()).toBe(0);
+    const buffer = createQueuedTurnBuffer();
+    expect(buffer.drainMerged()).toBeNull();
+    expect(buffer.size()).toBe(0);
   });
 
   test("drainMerged returns the single text verbatim and clears the queue", () => {
-    const queue = createSteerQueue();
-    queue.push("only one");
-    expect(queue.drainMerged()).toBe("only one");
-    expect(queue.size()).toBe(0);
-    expect(queue.list()).toEqual([]);
+    const buffer = createQueuedTurnBuffer();
+    buffer.push("only one");
+    expect(buffer.drainMerged()).toBe("only one");
+    expect(buffer.size()).toBe(0);
+    expect(buffer.list()).toEqual([]);
   });
 
   test("drainMerged merges multiple queued texts in push order and clears the queue", () => {
-    const queue = createSteerQueue();
-    queue.push("first thing");
-    queue.push("second thing");
-    const merged = queue.drainMerged();
+    const buffer = createQueuedTurnBuffer();
+    buffer.push("first thing");
+    buffer.push("second thing");
+    const merged = buffer.drainMerged();
     expect(merged).toBe(
       "The user sent several follow-up requests while the previous task was " +
         "running. Address all of them, in order:\n" +
         "1. first thing\n" +
         "2. second thing",
     );
-    expect(queue.size()).toBe(0);
+    expect(buffer.size()).toBe(0);
   });
 
   test("markRelayed flips status on all current items without removing them", () => {
-    const queue = createSteerQueue();
-    const id1 = queue.push("first");
-    const id2 = queue.push("second");
-    queue.markRelayed();
-    expect(queue.size()).toBe(2);
-    expect(queue.list()).toEqual([
+    const buffer = createQueuedTurnBuffer();
+    const id1 = buffer.push("first");
+    const id2 = buffer.push("second");
+    buffer.markRelayed();
+    expect(buffer.size()).toBe(2);
+    expect(buffer.list()).toEqual([
       { id: id1, text: "first", status: "relayed" },
       { id: id2, text: "second", status: "relayed" },
     ]);
   });
 
   test("list() returns a snapshot copy, not a live reference", () => {
-    const queue = createSteerQueue();
-    queue.push("first");
-    const snapshot = queue.list();
-    queue.push("second");
+    const buffer = createQueuedTurnBuffer();
+    buffer.push("first");
+    const snapshot = buffer.list();
+    buffer.push("second");
     expect(snapshot).toHaveLength(1);
-    expect(queue.list()).toHaveLength(2);
+    expect(buffer.list()).toHaveLength(2);
   });
 });
 

@@ -17,7 +17,7 @@ describe("InputActionButtons", () => {
   test("streaming stop button has no default background when text also shows send", () => {
     render(
       <InputActionButtons
-        value="queued steer"
+        value="queued turn"
         color="#eeeeee"
         isDark
         isStreaming

@@ -9,7 +9,7 @@ import TestControls from "../test_controls";
  * InterjectRunner — UI test bench for the run-in interject surface.
  *
  * Mounts the REAL TraceChain (fed with mock interject frames) above the REAL
- * ChatInput (slash command menu, steer attach section, hint pill, send/stop button trio),
+ * ChatInput (slash command menu, queue attach section, hint pill, send/stop button trio),
  * with a control bar to flip every interject state — so the whole surface can
  * be eyeballed without driving a live streaming run.
  */
@@ -71,20 +71,20 @@ const SIDE_FRAME = f({
 
 const CLARIFY_OPTIONS = [
   { label: "加进当前任务", value: "fyi" },
-  { label: "做完再研究", value: "steer" },
+  { label: "做完再研究", value: "queue" },
   { label: "只是问一嘴", value: "btw" },
 ];
 
-const STEER_SAMPLES = [
+const QUEUE_SAMPLES = [
   "做完后把结论整理成一页 markdown",
   "顺便估一下迁移工作量",
   "再把 Jenkins 也补进对比",
   "最后给一个一句话推荐",
 ];
 
-let steerSeq = 0;
-const makeSteerItem = (text) => ({
-  id: `steer-${(steerSeq += 1)}`,
+let queueSeq = 0;
+const makeQueueItem = (text) => ({
+  id: `queue-${(queueSeq += 1)}`,
   text,
   status: "queued",
 });
@@ -136,7 +136,7 @@ const InterjectRunner = () => {
 
   const [value, setValue] = useState("");
   const [isStreaming, setIsStreaming] = useState(true);
-  const [steerItems, setSteerItems] = useState([]);
+  const [queueItems, setQueueItems] = useState([]);
   const [showFyi, setShowFyi] = useState(true);
   const [showSide, setShowSide] = useState(true);
   const [clarifyStatus, setClarifyStatus] = useState("off");
@@ -193,21 +193,18 @@ const InterjectRunner = () => {
     return fs;
   }, [showFyi, showSide, clarifyStatus]);
 
-  const interjectState = useMemo(
-    () => ({ steerItems }),
-    [steerItems],
-  );
+  const interjectState = useMemo(() => ({ queueItems }), [queueItems]);
 
-  const addSteer = () =>
-    setSteerItems((prev) =>
-      prev.length >= STEER_SAMPLES.length
+  const addQueueItem = () =>
+    setQueueItems((prev) =>
+      prev.length >= QUEUE_SAMPLES.length
         ? prev
-        : [...prev, makeSteerItem(STEER_SAMPLES[prev.length])],
+        : [...prev, makeQueueItem(QUEUE_SAMPLES[prev.length])],
     );
-  const relaySteer = () =>
-    setSteerItems((prev) => prev.map((it) => ({ ...it, status: "relayed" })));
-  const undoSteer = (id) =>
-    setSteerItems((prev) => prev.filter((it) => it.id !== id));
+  const relayQueue = () =>
+    setQueueItems((prev) => prev.map((it) => ({ ...it, status: "relayed" })));
+  const undoQueueItem = (id) =>
+    setQueueItems((prev) => prev.filter((it) => it.id !== id));
 
   const chips = (
     <>
@@ -227,17 +224,22 @@ const InterjectRunner = () => {
         }
         isDark={isDark}
       />
-      <Chip label="+ steer" active={false} onClick={addSteer} isDark={isDark} />
       <Chip
-        label="steer 接力"
-        active={steerItems.some((it) => it.status === "relayed")}
-        onClick={relaySteer}
+        label="+ queue"
+        active={false}
+        onClick={addQueueItem}
         isDark={isDark}
       />
       <Chip
-        label="清空 steer"
+        label="queue 接力"
+        active={queueItems.some((it) => it.status === "relayed")}
+        onClick={relayQueue}
+        isDark={isDark}
+      />
+      <Chip
+        label="清空 queue"
         active={false}
-        onClick={() => setSteerItems([])}
+        onClick={() => setQueueItems([])}
         isDark={isDark}
       />
       <Chip
@@ -348,7 +350,7 @@ const InterjectRunner = () => {
               selectedWorkspaceIds={selectedWorkspaceIds}
               onWorkspaceIdsChange={setSelectedWorkspaceIds}
               interjectState={interjectState}
-              onSteerUndo={undoSteer}
+              onQueueUndo={undoQueueItem}
               placeholder="插一句话…(试试 / 唤起命令菜单)"
             />
           </div>

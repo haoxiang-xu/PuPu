@@ -30,6 +30,45 @@ def test_interject_missing_fields_400(client):
     assert client.post("/chat/interject", json={"thread_id": "t", "text": "  "}).status_code == 400
 
 
+def test_interject_invalid_channel_400(client):
+    resp = client.post(
+        "/chat/interject", json={"thread_id": "t", "text": "hi", "channel": "banana"}
+    )
+    assert resp.status_code == 400
+
+
+def test_interject_explicit_queue_is_client_side_noop(client):
+    from interaction_channels import register_interject_channels, release_interject_channels
+
+    ch = register_interject_channels("t-queue", "task")
+    try:
+        resp = client.post(
+            "/chat/interject", json={"thread_id": "t-queue", "text": "then do X", "channel": "queue"}
+        )
+        assert resp.get_json()["resolved_channel"] == "queue"
+        assert ch.fyi.pending_count() == 0  # queue 不动服务端任何队列
+    finally:
+        release_interject_channels("t-queue")
+
+
+def test_interject_legacy_steer_channel_normalizes_to_queue(client):
+    # Pre-rename clients still send channel "steer"; server silently
+    # normalizes it to "queue" with identical behavior (server-side noop).
+    from interaction_channels import register_interject_channels, release_interject_channels
+
+    ch = register_interject_channels("t-legacy-steer", "task")
+    try:
+        resp = client.post(
+            "/chat/interject",
+            json={"thread_id": "t-legacy-steer", "text": "then do X", "channel": "steer"},
+        )
+        assert resp.status_code == 200
+        assert resp.get_json()["resolved_channel"] == "queue"
+        assert ch.fyi.pending_count() == 0
+    finally:
+        release_interject_channels("t-legacy-steer")
+
+
 def test_interject_fyi_posts_to_channel(client):
     from interaction_channels import register_interject_channels, release_interject_channels
 
@@ -64,12 +103,12 @@ def test_interject_auto_routes_via_classifier(client, monkeypatch):
     import route_interject
     from interaction_channels import register_interject_channels, release_interject_channels
 
-    monkeypatch.setattr(route_interject, "classify_interject", lambda *a, **k: "steer")
+    monkeypatch.setattr(route_interject, "classify_interject", lambda *a, **k: "queue")
     ch = register_interject_channels("t-auto", "task")
     try:
         resp = client.post("/chat/interject", json={"thread_id": "t-auto", "text": "then do X"})
-        assert resp.get_json()["resolved_channel"] == "steer"
-        assert ch.fyi.pending_count() == 0  # steer 不动服务端任何队列
+        assert resp.get_json()["resolved_channel"] == "queue"
+        assert ch.fyi.pending_count() == 0  # queue 不动服务端任何队列
     finally:
         release_interject_channels("t-auto")
 
@@ -154,7 +193,7 @@ def test_interject_auto_classify_times_out_resolves_clarify(client, monkeypatch)
 
     def slow_classify(text, digest_summary, options, **kwargs):
         time.sleep(0.2)
-        return "steer"
+        return "queue"
 
     monkeypatch.setattr(route_interject, "classify_interject", slow_classify)
     monkeypatch.setattr(route_interject, "CLASSIFY_TIMEOUT_S", 0.05)

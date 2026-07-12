@@ -283,6 +283,6 @@
   "commands": {
     "btw": "Antwortet sofort, ohne die Aufgabe zu unterbrechen",
     "fyi": "Ergänzt Infos zur aktuellen Aufgabe",
-    "steer": "Läuft nach dieser Runde"
+    "queue": "Stellt in die Warteschlange, läuft nach dieser Runde"
   }
 }

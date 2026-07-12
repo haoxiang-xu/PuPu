@@ -1,4 +1,4 @@
-/* Pure logic for mid-run "interject" messages (fyi / btw / steer / clarify / new_run).
+/* Pure logic for mid-run "interject" messages (fyi / btw / queue / clarify / new_run).
  * No React here — this module is imported by use_chat_stream.js but must stay
  * independently testable and dependency-free (besides the repo's id helper). */
 import { generateId } from "../../../SERVICEs/chat_storage/chat_storage_constants";
@@ -6,7 +6,7 @@ import { generateId } from "../../../SERVICEs/chat_storage/chat_storage_constant
 const PREFIXES = [
   ["/btw", "btw"],
   ["/fyi", "fyi"],
-  ["/steer", "steer"],
+  ["/queue", "queue"],
 ];
 
 /**
@@ -38,12 +38,13 @@ const MERGE_HEADER =
   "running. Address all of them, in order:\n";
 
 /**
- * Exact copy of unchain's merge_steered_texts semantics
- * (src/unchain/interaction/steer.py): blank entries are filtered, a single
- * remaining entry is returned verbatim, multiple entries get a numbered list
- * under a fixed header. Returns "" (not null) when nothing remains.
+ * Exact copy of unchain's merge_queued_turn_texts semantics
+ * (src/unchain/interaction/queue_turns.py): blank entries are filtered, a
+ * single remaining entry is returned verbatim, multiple entries get a
+ * numbered list under a fixed header. Returns "" (not null) when nothing
+ * remains.
  */
-export const mergeSteeredTexts = (texts) => {
+export const mergeQueuedTurnTexts = (texts) => {
   const cleaned = (Array.isArray(texts) ? texts : [])
     .map((text) => (typeof text === "string" ? text.trim() : ""))
     .filter((text) => text.length > 0);
@@ -62,17 +63,17 @@ export const mergeSteeredTexts = (texts) => {
 };
 
 /**
- * createSteerQueue() — local "do this next" buffer for a single chat's
- * active run. Mirrors unchain's SteerBuffer but keyed by id so the UI
- * (SteerPile) can render + let the user undo individual entries before the
+ * createQueuedTurnBuffer() — local "do this next" buffer for a single chat's
+ * active run. Mirrors unchain's QueuedTurnBuffer but keyed by id so the UI
+ * (queue pile) can render + let the user undo individual entries before the
  * run ends.
  */
-export const createSteerQueue = () => {
+export const createQueuedTurnBuffer = () => {
   let items = [];
 
   return {
     push(text) {
-      const id = generateId("steer");
+      const id = generateId("queue");
       items = [...items, { id, text, status: "queued" }];
       return id;
     },
@@ -86,7 +87,7 @@ export const createSteerQueue = () => {
       items = items.map((item) => ({ ...item, status: "relayed" }));
     },
     drainMerged() {
-      const merged = mergeSteeredTexts(items.map((item) => item.text));
+      const merged = mergeQueuedTurnTexts(items.map((item) => item.text));
       items = [];
       return merged || null;
     },

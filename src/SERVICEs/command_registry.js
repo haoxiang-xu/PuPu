@@ -13,6 +13,12 @@
  *     availability: (ctx) => boolean   — ctx has at least { isStreaming }
  *     insertText?:  string   — text written into the input on pick;
  *                              defaults to `${name} ` when omitted
+ *     channel?:     string   — protocol channel the command routes to
+ *                              (e.g. "btw"/"fyi"/"queue"); "" when the
+ *                              command has no channel semantic. Consumers
+ *                              MUST read this field instead of deriving a
+ *                              channel from the command name, so renaming
+ *                              a command never touches the wire protocol.
  *   }
  */
 
@@ -30,6 +36,7 @@ export const registerCommand = ({
   availability = () => true,
   insertText,
   exclusiveGroup = "",
+  channel = "",
 }) => {
   if (!name || typeof name !== "string" || !name.startsWith("/")) {
     throw new Error(
@@ -43,6 +50,7 @@ export const registerCommand = ({
     availability: typeof availability === "function" ? availability : () => true,
     insertText: insertText ?? `${name} `,
     exclusiveGroup,
+    channel: typeof channel === "string" ? channel : "",
   });
 };
 
@@ -55,7 +63,7 @@ export const registerCommand = ({
  *   `activeCommands` lists command names already present in the message;
  *   commands sharing a non-empty `exclusiveGroup` with any of them are
  *   filtered out (a message holds ONE command per exclusive group — e.g.
- *   fyi/btw/steer are all "interject-channel" — while commands from
+ *   fyi/btw/queue are all "interject-channel" — while commands from
  *   different groups may coexist).
  * @param {string} prefix — e.g. "/", "/b" — matched case-insensitively
  *   against the command name. Empty/undefined prefix returns all
@@ -83,12 +91,13 @@ export const listCommands = (ctx = {}, prefix = "") => {
         return false;
       }
     })
-    .map(({ name, description, icon, insertText, exclusiveGroup }) => ({
+    .map(({ name, description, icon, insertText, exclusiveGroup, channel }) => ({
       name,
       description,
       icon,
       insertText,
       exclusiveGroup,
+      channel,
     }));
 };
 
@@ -106,10 +115,10 @@ const findRegisteredName = (lowerName) => {
  * if its command is available in `ctx` and no earlier active token occupies
  * the same non-empty exclusiveGroup; otherwise it stays plain text.
  *
- * Returns [{start, end, name, icon, exclusiveGroup, active}] for every
- * syntactic token found (active and inactive alike, so renderers can decide
- * what to highlight). `end` is exclusive and does NOT include the trailing
- * whitespace.
+ * Returns [{start, end, name, icon, exclusiveGroup, channel, active}] for
+ * every syntactic token found (active and inactive alike, so renderers can
+ * decide what to highlight). `end` is exclusive and does NOT include the
+ * trailing whitespace.
  */
 export const findCommandTokens = (text, ctx = {}) => {
   if (typeof text !== "string" || !text) return [];
@@ -134,6 +143,7 @@ export const findCommandTokens = (text, ctx = {}) => {
       name: def.name,
       icon: def.icon,
       exclusiveGroup: group,
+      channel: def.channel || "",
       active,
     });
   }
@@ -144,6 +154,9 @@ export const findCommandTokens = (text, ctx = {}) => {
  * Strip the ACTIVE command tokens out of `text` (collapsing the whitespace
  * they occupied) and report them — the caller uses the active commands for
  * routing and sends the remaining body as the message content.
+ *
+ * `commands` entries are {name, channel} — routing consumers read `channel`
+ * (the registry's protocol field), never parse the name.
  */
 export const extractCommands = (text, ctx = {}) => {
   const tokens = findCommandTokens(text, ctx).filter((t) => t.active);
@@ -157,7 +170,10 @@ export const extractCommands = (text, ctx = {}) => {
     if (/\s/.test(text[cursor] || "")) cursor += 1;
   }
   body += text.slice(cursor);
-  return { commands: tokens.map((t) => t.name), body };
+  return {
+    commands: tokens.map((t) => ({ name: t.name, channel: t.channel })),
+    body,
+  };
 };
 
 /** Test/debug helper — clears all registered commands. */
@@ -175,6 +191,7 @@ registerCommand({
   icon: "btw",
   availability: interjectAvailability,
   exclusiveGroup: "interject-channel",
+  channel: "btw",
 });
 
 registerCommand({
@@ -183,12 +200,14 @@ registerCommand({
   icon: "fyi",
   availability: interjectAvailability,
   exclusiveGroup: "interject-channel",
+  channel: "fyi",
 });
 
 registerCommand({
-  name: "/steer",
-  description: "commands.steer",
-  icon: "steer_arrow",
+  name: "/queue",
+  description: "commands.queue",
+  icon: "queue_arrow",
   availability: interjectAvailability,
   exclusiveGroup: "interject-channel",
+  channel: "queue",
 });

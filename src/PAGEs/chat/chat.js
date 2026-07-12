@@ -708,7 +708,7 @@ const ChatInterface = () => {
       onSelectRecipe: session.setSelectedRecipeName,
       recipeOptions,
       interjectState: stream.interjectState,
-      onSteerUndo: stream.onSteerUndo,
+      onQueueUndo: stream.onQueueUndo,
     }),
     [
       session.inputValue, session.setInputValue, session.selectedModelId,
@@ -716,7 +716,7 @@ const ChatInterface = () => {
       effectiveSelectedWorkspaceIds, handleWorkspaceIdsChange,
       session.selectedRecipeName, session.setSelectedRecipeName, recipeOptions,
       stream.sendNewTurn, stream.stopStream, stream.isStreaming,
-      stream.interjectState, stream.onSteerUndo,
+      stream.interjectState, stream.onQueueUndo,
       isSendDisabled, unchainStatus.ready, unchainStatus.status, unchainStatus.reason,
       effectiveDisclaimer, attachments.handleAttachFile, attachments.handleScreenshot,
       attachments.processFiles, draftAttachments, attachments.removeDraftAttachment,

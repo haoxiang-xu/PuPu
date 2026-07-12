@@ -36,7 +36,7 @@ describe("ChatInput slash-command menu wiring", () => {
 
     expect(screen.getByText("/btw")).toBeInTheDocument();
     expect(screen.getByText("/fyi")).toBeInTheDocument();
-    expect(screen.getByText("/steer")).toBeInTheDocument();
+    expect(screen.getByText("/queue")).toBeInTheDocument();
   });
 
   test("does not open the command menu when not streaming (no available commands)", () => {
@@ -56,7 +56,7 @@ describe("ChatInput slash-command menu wiring", () => {
 
     expect(screen.getByText("/btw")).toBeInTheDocument();
     expect(screen.queryByText("/fyi")).not.toBeInTheDocument();
-    expect(screen.queryByText("/steer")).not.toBeInTheDocument();
+    expect(screen.queryByText("/queue")).not.toBeInTheDocument();
   });
 
   test("Enter picks the active command instead of sending; the command renders as an inline tag", () => {
@@ -155,8 +155,8 @@ describe("ChatInput slash-command menu wiring", () => {
     expect(screen.queryByText("/btw")).not.toBeInTheDocument();
 
     // boundary + token → narrowed menu
-    fireEvent.change(textarea, { target: { value: "see /st" } });
-    expect(screen.getByText("/steer")).toBeInTheDocument();
+    fireEvent.change(textarea, { target: { value: "see /qu" } });
+    expect(screen.getByText("/queue")).toBeInTheDocument();
     expect(screen.queryByText("/btw")).not.toBeInTheDocument();
   });
 
@@ -171,21 +171,21 @@ describe("ChatInput slash-command menu wiring", () => {
 
     // typing another slash token: all three share "interject-channel", so
     // the menu offers nothing
-    fireEvent.change(textarea, { target: { value: "/btw hello /st" } });
-    expect(screen.queryByText("/steer")).not.toBeInTheDocument();
+    fireEvent.change(textarea, { target: { value: "/btw hello /qu" } });
+    expect(screen.queryByText("/queue")).not.toBeInTheDocument();
   });
 
   test("a hand-typed conflicting token stays plain text (inactive)", () => {
     const { container } = render(
       <ControlledChatInput
         isStreaming
-        initialValue="/btw hello /steer world"
+        initialValue="/btw hello /queue world"
       />,
     );
     const btw = container.querySelector('[data-command-token="/btw"]');
-    const steer = container.querySelector('[data-command-token="/steer"]');
+    const queueToken = container.querySelector('[data-command-token="/queue"]');
     expect(btw.getAttribute("data-active")).toBe("true");
-    expect(steer.getAttribute("data-active")).toBe("false");
+    expect(queueToken.getAttribute("data-active")).toBe("false");
   });
 
   test("no tag when not streaming — the prefix stays plain text", () => {

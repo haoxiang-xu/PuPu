@@ -63,7 +63,7 @@ const ChatInput = ({
   onSelectRecipe,
   recipeOptions = [],
   interjectState,
-  onSteerUndo,
+  onQueueUndo,
 }) => {
   const { t } = useTranslation();
   const placeholder = placeholderProp || t("chat.placeholder");
@@ -479,8 +479,8 @@ const ChatInput = ({
                       selectedRecipeName={selectedRecipeName}
                       onSelectRecipe={onSelectRecipe}
                       recipeOptions={recipeOptions}
-                      steerItems={interjectState?.steerItems || []}
-                      onSteerUndo={onSteerUndo}
+                      queueItems={interjectState?.queueItems || []}
+                      onQueueUndo={onQueueUndo}
                     />
                   ) : null}
                 </CommandPalettePanel>

@@ -67,10 +67,10 @@ describe("Icon", () => {
     expect(hasInvalidPathError).toBe(false);
   });
 
-  test("renders steer_arrow from the builtin icon manifest", async () => {
+  test("renders queue_arrow from the builtin icon manifest", async () => {
     const { container } = render(
       <ConfigContext.Provider value={{ theme: {}, onThemeMode: "light_mode" }}>
-        <Icon src="steer_arrow" color="#123456" />
+        <Icon src="queue_arrow" color="#123456" />
       </ConfigContext.Provider>,
     );
 

@@ -1091,14 +1091,21 @@ const TraceChain = ({
         const canResolveClarify =
           !isClarifyResolved && typeof onClarifyResolve === "function";
         // "resolved_default" always means the run ended before the user
-        // picked a channel, and the pending clarify falls back to steer
-        // (see use_chat_stream.js dispatchInterjectChannel) — reflect that
-        // known outcome in the UI instead of leaving nothing selected.
-        const defaultClarifyResponse =
-          clarifyStatus === "resolved_default" &&
-          clarifyOptions.some((opt) => opt?.value === "steer")
-            ? { value: "steer" }
+        // picked a channel, and the pending clarify falls back to the queue
+        // channel (see use_chat_stream.js dispatchInterjectChannel) — reflect
+        // that known outcome in the UI instead of leaving nothing selected.
+        // Read alias: clarify frames persisted before the steer→queue rename
+        // carry value:"steer"; treat it as ≡ "queue" (render-side only, no
+        // data migration).
+        const defaultClarifyOption =
+          clarifyStatus === "resolved_default"
+            ? clarifyOptions.find(
+                (opt) => opt?.value === "queue" || opt?.value === "steer",
+              )
             : undefined;
+        const defaultClarifyResponse = defaultClarifyOption
+          ? { value: defaultClarifyOption.value }
+          : undefined;
         const clarifyStatusColor = isClarifyResolved
           ? isDark
             ? "rgba(110,231,183,0.95)"

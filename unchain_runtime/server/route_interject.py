@@ -6,7 +6,7 @@ Routes a client-side interject into one of:
 - btw: answered immediately by a tiny side-agent call, and the Q/A pair is
   posted back into the FyiChannel as a system-origin note so the main run
   stays consistent with what the user was told.
-- steer / clarify: server does nothing; execution is entirely client-side.
+- queue / clarify: server does nothing; execution is entirely client-side.
 - new_run: no active interject channel is registered for this thread_id
   (no run in flight, or it already finished) — caller should start a new run.
 """
@@ -23,7 +23,7 @@ from route_blueprint import api_blueprint
 from interaction_channels import get_interject_channels
 from interject_router import classify_interject
 
-_VALID_CHANNELS = {"auto", "btw", "fyi", "steer"}
+_VALID_CHANNELS = {"auto", "btw", "fyi", "queue"}
 
 # Side-call budgets. Module-level so tests can monkeypatch them down.
 BTW_TIMEOUT_S = 30.0
@@ -100,6 +100,8 @@ def chat_interject() -> Response:
     thread_id = str(payload.get("thread_id") or "").strip()
     text = str(payload.get("text") or "").strip()
     channel = str(payload.get("channel") or "auto").strip().lower()
+    if channel == "steer":  # legacy client compat: pre-rename clients send "steer"
+        channel = "queue"
     if not thread_id or not text:
         return root._json_error("invalid_request", "thread_id and text are required", 400)
     if channel not in _VALID_CHANNELS:
@@ -123,7 +125,7 @@ def chat_interject() -> Response:
             )
         except FutureTimeoutError:
             channel = "clarify"
-        if channel in ("steer", "clarify"):
+        if channel in ("queue", "clarify"):
             return jsonify({"resolved_channel": channel})
 
     if channel == "fyi":
@@ -153,5 +155,5 @@ def chat_interject() -> Response:
         # system note, but the answer itself is still valid to show.
         return jsonify({"resolved_channel": "btw", "answer": answer})
 
-    # explicit steer: server does nothing, execution is client-side
-    return jsonify({"resolved_channel": "steer"})
+    # explicit queue: server does nothing, execution is client-side
+    return jsonify({"resolved_channel": "queue"})

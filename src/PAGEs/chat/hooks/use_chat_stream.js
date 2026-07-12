@@ -33,7 +33,7 @@ import { finalizeStreamPersist } from "./finalize_stream_persist";
 import { createRuntimeEventBatcher } from "./runtime_event_batcher";
 import {
   buildInterjectionRecord,
-  createSteerQueue,
+  createQueuedTurnBuffer,
 } from "./interject_controller";
 import {
   start as progressStart,
@@ -274,10 +274,10 @@ export const useChatStream = ({
   const subagentMetaByRunIdRef = useRef(new Map()); // childRunId → metadata
   const subagentFramesByRunIdRef = useRef(new Map()); // childRunId → frame[]
   const lastTokenRunIdRef = useRef("");
-  // Interject (mid-run "fyi"/"btw"/"steer"/"clarify") bookkeeping — all keyed
+  // Interject (mid-run "fyi"/"btw"/"queue"/"clarify") bookkeeping — all keyed
   // by chatId so multiple chats never cross-talk.
   const activeRunThreadIdByChatIdRef = useRef(new Map()); // chatId -> threadId the active run actually used (character chats use a session_id, not chatId)
-  const steerQueueByChatIdRef = useRef(new Map()); // chatId -> createSteerQueue() instance for that chat's active run
+  const queuedTurnsByChatIdRef = useRef(new Map()); // chatId -> createQueuedTurnBuffer() instance for that chat's active run
   const pendingFyiCountByChatIdRef = useRef(new Map()); // chatId -> count of fyi interjects sent but not yet confirmed injected
   const pendingClarifyByChatIdRef = useRef(new Map()); // chatId -> {id, text} awaiting the user's channel choice
   const handleInterjectRef = useRef(null); // breaks the sendNewTurn <-> handleInterject declaration cycle
@@ -460,20 +460,20 @@ export const useChatStream = ({
     return next;
   }, []);
 
-  /* Snapshots the current steer queue + pending-fyi count for targetChatId
-     into React state so SteerPile/UI can render it. Called explicitly (not
-     derived on every render) so a "relayed" status can be shown for one
-     render before the queue is actually cleared — see the onDone steer
-     relay below. */
+  /* Snapshots the current queued-turns buffer + pending-fyi count for
+     targetChatId into React state so the queue pile/UI can render it. Called
+     explicitly (not derived on every render) so a "relayed" status can be
+     shown for one render before the buffer is actually cleared — see the
+     onDone queue relay below. */
   const syncInterjectStateForChat = useCallback(
     (targetChatId) => {
-      const queue = steerQueueByChatIdRef.current.get(targetChatId);
+      const queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
       const pendingFyiCount =
         pendingFyiCountByChatIdRef.current.get(targetChatId) || 0;
-      const steerItems = queue ? queue.list() : [];
+      const queueItems = queuedTurns ? queuedTurns.list() : [];
       updateInterjectStateByChatId((previous) => ({
         ...previous,
-        [targetChatId]: { pendingFyiCount, steerItems },
+        [targetChatId]: { pendingFyiCount, queueItems },
       }));
     },
     [updateInterjectStateByChatId],
@@ -3164,22 +3164,23 @@ export const useChatStream = ({
               });
 
               // Clarify timeout fallback: the run ended before the user picked
-              // a channel — resolve it as steer so the message is never lost,
-              // and mark the frame so the UI stops showing it as pending.
+              // a channel — resolve it as a queued turn so the message is
+              // never lost, and mark the frame so the UI stops showing it as
+              // pending.
               const pendingClarifyOnDone =
                 pendingClarifyByChatIdRef.current.get(targetChatId);
               if (pendingClarifyOnDone) {
                 pendingClarifyByChatIdRef.current.delete(targetChatId);
-                let steerQueueForClarify =
-                  steerQueueByChatIdRef.current.get(targetChatId);
-                if (!steerQueueForClarify) {
-                  steerQueueForClarify = createSteerQueue();
-                  steerQueueByChatIdRef.current.set(
+                let queuedTurnsForClarify =
+                  queuedTurnsByChatIdRef.current.get(targetChatId);
+                if (!queuedTurnsForClarify) {
+                  queuedTurnsForClarify = createQueuedTurnBuffer();
+                  queuedTurnsByChatIdRef.current.set(
                     targetChatId,
-                    steerQueueForClarify,
+                    queuedTurnsForClarify,
                   );
                 }
-                steerQueueForClarify.push(pendingClarifyOnDone.text);
+                queuedTurnsForClarify.push(pendingClarifyOnDone.text);
                 nextStreamMessages = nextStreamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
                   const frames = Array.isArray(message.traceFrames)
@@ -3287,23 +3288,23 @@ export const useChatStream = ({
               pendingFyiCountByChatIdRef.current.delete(targetChatId);
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-              // Steer relay: anything queued locally (explicit /steer, a
-              // resolved_channel:"steer" from the server, or the clarify
+              // Queue relay: anything queued locally (explicit /queue, a
+              // resolved_channel:"queue" from the server, or the clarify
               // fallback above) merges into one follow-up turn now that this
               // run has fully ended and persisted.
-              const steerQueueOnDone = steerQueueByChatIdRef.current.get(targetChatId);
-              if (steerQueueOnDone && steerQueueOnDone.size() > 0) {
-                steerQueueOnDone.markRelayed();
+              const queuedTurnsOnDone = queuedTurnsByChatIdRef.current.get(targetChatId);
+              if (queuedTurnsOnDone && queuedTurnsOnDone.size() > 0) {
+                queuedTurnsOnDone.markRelayed();
                 syncInterjectStateForChat(targetChatId);
-                const mergedSteerText = steerQueueOnDone.drainMerged();
-                if (mergedSteerText) {
+                const mergedQueueText = queuedTurnsOnDone.drainMerged();
+                if (mergedQueueText) {
                   const relayBaseMessages = nextStreamMessages;
                   const relayCharacterConfig = resolvedCharacterConfig;
                   setTimeout(() => {
                     void runTurnRequest({
                       mode: "send",
                       chatId: targetChatId,
-                      text: mergedSteerText,
+                      text: mergedQueueText,
                       attachments: [],
                       baseMessages: relayBaseMessages,
                       clearComposer: false,
@@ -3312,20 +3313,20 @@ export const useChatStream = ({
                     });
                   }, 0);
                 }
-                // Give SteerPile one render with status:"relayed" before the
-                // queue disappears; guard against clobbering a *new* run's
-                // fresh queue that may have replaced this one by then.
+                // Give the queue pile one render with status:"relayed" before
+                // the buffer disappears; guard against clobbering a *new*
+                // run's fresh buffer that may have replaced this one by then.
                 setTimeout(() => {
                   if (
-                    steerQueueByChatIdRef.current.get(targetChatId) ===
-                    steerQueueOnDone
+                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
+                    queuedTurnsOnDone
                   ) {
-                    steerQueueByChatIdRef.current.delete(targetChatId);
+                    queuedTurnsByChatIdRef.current.delete(targetChatId);
                     syncInterjectStateForChat(targetChatId);
                   }
                 }, 1600);
-              } else if (steerQueueOnDone) {
-                steerQueueByChatIdRef.current.delete(targetChatId);
+              } else if (queuedTurnsOnDone) {
+                queuedTurnsByChatIdRef.current.delete(targetChatId);
                 syncInterjectStateForChat(targetChatId);
               }
             },
@@ -3461,22 +3462,22 @@ export const useChatStream = ({
               });
 
               // Clarify timeout fallback (see onDone) — the run also ends on
-              // error, so resolve any pending clarify into the steer queue
-              // here too; the message must never be silently dropped.
+              // error, so resolve any pending clarify into the queued-turns
+              // buffer here too; the message must never be silently dropped.
               const pendingClarifyOnError =
                 pendingClarifyByChatIdRef.current.get(targetChatId);
               if (pendingClarifyOnError) {
                 pendingClarifyByChatIdRef.current.delete(targetChatId);
-                let steerQueueForClarify =
-                  steerQueueByChatIdRef.current.get(targetChatId);
-                if (!steerQueueForClarify) {
-                  steerQueueForClarify = createSteerQueue();
-                  steerQueueByChatIdRef.current.set(
+                let queuedTurnsForClarify =
+                  queuedTurnsByChatIdRef.current.get(targetChatId);
+                if (!queuedTurnsForClarify) {
+                  queuedTurnsForClarify = createQueuedTurnBuffer();
+                  queuedTurnsByChatIdRef.current.set(
                     targetChatId,
-                    steerQueueForClarify,
+                    queuedTurnsForClarify,
                   );
                 }
-                steerQueueForClarify.push(pendingClarifyOnError.text);
+                queuedTurnsForClarify.push(pendingClarifyOnError.text);
                 nextStreamMessages = nextStreamMessages.map((message) => {
                   if (message.id !== assistantMessageId) return message;
                   const frames = Array.isArray(message.traceFrames)
@@ -3509,19 +3510,19 @@ export const useChatStream = ({
               pendingFyiCountByChatIdRef.current.delete(targetChatId);
               activeRunThreadIdByChatIdRef.current.delete(targetChatId);
 
-              const steerQueueOnError = steerQueueByChatIdRef.current.get(targetChatId);
-              if (steerQueueOnError && steerQueueOnError.size() > 0) {
-                steerQueueOnError.markRelayed();
+              const queuedTurnsOnError = queuedTurnsByChatIdRef.current.get(targetChatId);
+              if (queuedTurnsOnError && queuedTurnsOnError.size() > 0) {
+                queuedTurnsOnError.markRelayed();
                 syncInterjectStateForChat(targetChatId);
-                const mergedSteerText = steerQueueOnError.drainMerged();
-                if (mergedSteerText) {
+                const mergedQueueText = queuedTurnsOnError.drainMerged();
+                if (mergedQueueText) {
                   const relayBaseMessages = nextStreamMessages;
                   const relayCharacterConfig = resolvedCharacterConfig;
                   setTimeout(() => {
                     void runTurnRequest({
                       mode: "send",
                       chatId: targetChatId,
-                      text: mergedSteerText,
+                      text: mergedQueueText,
                       attachments: [],
                       baseMessages: relayBaseMessages,
                       clearComposer: false,
@@ -3532,15 +3533,15 @@ export const useChatStream = ({
                 }
                 setTimeout(() => {
                   if (
-                    steerQueueByChatIdRef.current.get(targetChatId) ===
-                    steerQueueOnError
+                    queuedTurnsByChatIdRef.current.get(targetChatId) ===
+                    queuedTurnsOnError
                   ) {
-                    steerQueueByChatIdRef.current.delete(targetChatId);
+                    queuedTurnsByChatIdRef.current.delete(targetChatId);
                     syncInterjectStateForChat(targetChatId);
                   }
                 }, 1600);
-              } else if (steerQueueOnError) {
-                steerQueueByChatIdRef.current.delete(targetChatId);
+              } else if (queuedTurnsOnError) {
+                queuedTurnsByChatIdRef.current.delete(targetChatId);
                 syncInterjectStateForChat(targetChatId);
               }
             },
@@ -3704,7 +3705,7 @@ export const useChatStream = ({
      a plain object carrying our own known keys, so the common call sites
      (onClick={sendNewTurn} handing sendNewTurn a SyntheticEvent, or the
      plain sendNewTurn() from the input panel) stay exactly as before:
-       - options.text: string   — programmatic send (steer-relay / new_run
+       - options.text: string   — programmatic send (queue-relay / new_run
          fallback via handleInterject); bypasses the composer entirely.
        - options.chatId: string — target chat for a programmatic send
          (only ever used when it equals the active chat — see
@@ -3753,7 +3754,7 @@ export const useChatStream = ({
           return;
         }
         // A send arrived while this chat's run is still active: route it
-        // through the interject channels (fyi/btw/steer/clarify) instead of
+        // through the interject channels (fyi/btw/queue/clarify) instead of
         // silently dropping it.
         setInputValue("");
         setDraftAttachments([]);
@@ -3802,14 +3803,14 @@ export const useChatStream = ({
     ],
   );
 
-  const pushSteer = useCallback(
+  const pushQueuedTurn = useCallback(
     (targetChatId, text) => {
-      let queue = steerQueueByChatIdRef.current.get(targetChatId);
-      if (!queue) {
-        queue = createSteerQueue();
-        steerQueueByChatIdRef.current.set(targetChatId, queue);
+      let queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (!queuedTurns) {
+        queuedTurns = createQueuedTurnBuffer();
+        queuedTurnsByChatIdRef.current.set(targetChatId, queuedTurns);
       }
-      queue.push(text);
+      queuedTurns.push(text);
       syncInterjectStateForChat(targetChatId);
     },
     [syncInterjectStateForChat],
@@ -3818,12 +3819,12 @@ export const useChatStream = ({
   /* Sends {threadId, text: body, channel} to the server and dispatches on
      whatever resolved_channel comes back — NOT on the channel we asked for,
      since the server (not the client) decides how a given run can actually
-     absorb a mid-run message. `channel: "steer"` (explicit /steer) is the
-     one case that never touches the server: it is purely a local queue. */
+     absorb a mid-run message. `channel: "queue"` (explicit /queue) is the
+     one case that never touches the server: it is purely a local buffer. */
   const dispatchInterjectChannel = useCallback(
     (targetChatId, body, channel) => {
-      if (channel === "steer") {
-        pushSteer(targetChatId, body);
+      if (channel === "queue") {
+        pushQueuedTurn(targetChatId, body);
         return;
       }
 
@@ -3833,10 +3834,15 @@ export const useChatStream = ({
       api.unchain
         .interject({ threadId, text: body, channel })
         .then((result) => {
-          const resolvedChannel =
+          const rawResolvedChannel =
             result && typeof result.resolved_channel === "string"
               ? result.resolved_channel
               : "new_run";
+          // Legacy wire alias — pre-rename servers answer resolved_channel
+          // steer for what is now the queue channel. Normalize at this
+          // single read point so the rest of the client only speaks queue.
+          const resolvedChannel =
+            rawResolvedChannel === "steer" ? "queue" : rawResolvedChannel;
           const dispatchTime = Date.now();
 
           if (resolvedChannel === "fyi") {
@@ -3874,8 +3880,8 @@ export const useChatStream = ({
             return;
           }
 
-          if (resolvedChannel === "steer") {
-            pushSteer(targetChatId, body);
+          if (resolvedChannel === "queue") {
+            pushQueuedTurn(targetChatId, body);
             return;
           }
 
@@ -3897,7 +3903,7 @@ export const useChatStream = ({
                 question: body,
                 options: [
                   { label: "加进当前任务", value: "fyi" },
-                  { label: "做完再研究", value: "steer" },
+                  { label: "做完再研究", value: "queue" },
                   { label: "只是问一嘴", value: "btw" },
                 ],
                 status: "pending",
@@ -3909,14 +3915,15 @@ export const useChatStream = ({
           // resolved_channel === "new_run": graph-recipe runs never register
           // an interject channel, so the server can (and will) report
           // new_run even while the stream is still active — that must be
-          // treated as steer, never a concurrent send. Only fall back to an
-          // actual new send once the stream is genuinely no longer active.
+          // treated as a queued turn, never a concurrent send. Only fall back
+          // to an actual new send once the stream is genuinely no longer
+          // active.
           const stillActive = Boolean(
             streamingChatIdsRef.current.has(targetChatId) &&
               streamHandlesRef.current.has(targetChatId),
           );
           if (stillActive) {
-            pushSteer(targetChatId, body);
+            pushQueuedTurn(targetChatId, body);
             return;
           }
 
@@ -3945,7 +3952,7 @@ export const useChatStream = ({
       activeChatIdRef,
       appendLocalInterjectionRecord,
       appendLocalTraceFrame,
-      pushSteer,
+      pushQueuedTurn,
       sendNewTurn,
       setStreamError,
       streamHandlesRef,
@@ -3963,12 +3970,12 @@ export const useChatStream = ({
       const { commands, body } = extractCommands(rawText ?? "", {
         isStreaming: true,
       });
-      const channelCommand = commands.find((name) =>
-        ["/btw", "/fyi", "/steer"].includes(name.toLowerCase()),
+      // The registry's `channel` field is the routing contract — command
+      // NAMES are presentation and may be renamed freely.
+      const channelCommand = commands.find((command) =>
+        Boolean(command?.channel),
       );
-      const channel = channelCommand
-        ? channelCommand.slice(1).toLowerCase()
-        : "auto";
+      const channel = channelCommand ? channelCommand.channel : "auto";
       const trimmedBody = (body || "").trim();
       if (!trimmedBody) return;
       dispatchInterjectChannel(targetChatId, trimmedBody, channel);
@@ -3977,14 +3984,14 @@ export const useChatStream = ({
   );
   handleInterjectRef.current = handleInterject;
 
-  const onSteerUndo = useCallback(
+  const onQueueUndo = useCallback(
     (id) => {
       const targetChatId = activeChatIdRef.current;
-      const queue = steerQueueByChatIdRef.current.get(targetChatId);
-      if (!queue) {
+      const queuedTurns = queuedTurnsByChatIdRef.current.get(targetChatId);
+      if (!queuedTurns) {
         return;
       }
-      queue.remove(id);
+      queuedTurns.remove(id);
       syncInterjectStateForChat(targetChatId);
     },
     [activeChatIdRef, syncInterjectStateForChat],
@@ -4013,7 +4020,7 @@ export const useChatStream = ({
 
   const interjectState = interjectStateByChatId[chatId] || {
     pendingFyiCount: 0,
-    steerItems: [],
+    queueItems: [],
   };
 
   const resendTurn = useCallback(
@@ -4305,7 +4312,7 @@ export const useChatStream = ({
       pendingToolConfirmationRequestsRef.current = {};
       pendingContinuationRequestRef.current = null;
       activeRunThreadIdByChatIdRef.current.clear();
-      steerQueueByChatIdRef.current.clear();
+      queuedTurnsByChatIdRef.current.clear();
       pendingFyiCountByChatIdRef.current.clear();
       pendingClarifyByChatIdRef.current.clear();
     };
@@ -4324,7 +4331,7 @@ export const useChatStream = ({
     interjectState,
     isStreaming,
     onClarifyResolve,
-    onSteerUndo,
+    onQueueUndo,
     pendingContinuationRequest,
     pendingToolConfirmationRequests,
     resendTurn,

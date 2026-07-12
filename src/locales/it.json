@@ -283,6 +283,6 @@
   "commands": {
     "btw": "Risponde subito, senza interrompere l'attività",
     "fyi": "Aggiunge informazioni all'attività corrente",
-    "steer": "Viene eseguito alla fine di questo turno"
+    "queue": "Mette in coda, viene eseguito alla fine di questo turno"
   }
 }
