@@ -129,6 +129,23 @@ const shouldSkipRowDragStart = (target) => {
   return Boolean(target.closest(DRAG_BLOCK_SELECTOR));
 };
 
+/* Row-model composition cache (switch-chain incrementalization Task 3):
+   upstream row objects are identity-stable across builds (buildExplorerFromTree
+   generation cache), so keep the composed `{ id, ...data }` object identity-
+   stable too — it is the `node` prop React.memo compares on ExplorerRow.
+   WeakMap keyed on the row object; the entry is pinned to its key so a row
+   object reappearing under a different id is re-composed. */
+const composedRowNodes = new WeakMap();
+const composeRowNode = (key, data) => {
+  const cached = composedRowNodes.get(data);
+  if (cached && cached.key === key) {
+    return cached.node;
+  }
+  const node = { id: key, ...data };
+  composedRowNodes.set(data, { key, node });
+  return node;
+};
+
 const resolveCharacterAvatarSrc = (avatar) => {
   const rawUrl = typeof avatar?.url === "string" ? avatar.url.trim() : "";
   if (rawUrl) {
@@ -459,7 +476,7 @@ const performDrop = (store, sourceId, dropTarget, expandedRef) => {
 /*  ExplorerRow — one row in the tree                                                                                           */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const ExplorerRow = ({
+const ExplorerRowBase = ({
   node,
   depth,
   isDark,
@@ -1066,6 +1083,34 @@ const ExplorerRow = ({
   );
 };
 
+/* Memo equality (switch-chain incrementalization Task 3): identity-stable row
+   objects must translate into skipped re-renders. All props compare with
+   Object.is EXCEPT activeNodeId / contextMenuNodeId, which change globally on
+   every selection / context-menu move: for those, only this row's DERIVED
+   state matters — is it the active row, is a context menu open, is it the
+   context-menu target. */
+const explorerRowPropsAreEqual = (prev, next) => {
+  for (const key of Object.keys(next)) {
+    if (key === "activeNodeId" || key === "contextMenuNodeId") continue;
+    if (!Object.is(prev[key], next[key])) return false;
+  }
+
+  const prevActive = prev.activeNodeId != null && prev.node.id === prev.activeNodeId;
+  const nextActive = next.activeNodeId != null && next.node.id === next.activeNodeId;
+  if (prevActive !== nextActive) return false;
+
+  const prevMenuOpen = prev.contextMenuNodeId != null;
+  const nextMenuOpen = next.contextMenuNodeId != null;
+  if (prevMenuOpen !== nextMenuOpen) return false;
+  const prevMenuTarget = prevMenuOpen && prev.node.id === prev.contextMenuNodeId;
+  const nextMenuTarget = nextMenuOpen && next.node.id === next.contextMenuNodeId;
+  if (prevMenuTarget !== nextMenuTarget) return false;
+
+  return true;
+};
+
+const ExplorerRow = React.memo(ExplorerRowBase, explorerRowPropsAreEqual);
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 /*  ExplorerBranch — recursively renders tree nodes with level indicator lines                                                  */
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
@@ -1092,7 +1137,7 @@ const ExplorerBranch = ({
   return childKeys.map((key) => {
     const data = nodeMap[key];
     if (!data) return null;
-    const node = { id: key, ...data };
+    const node = composeRowNode(key, data);
     const type = getNodeType(data);
     const isFolder = type === "folder";
     const hasChildren = data.children && data.children.length > 0;

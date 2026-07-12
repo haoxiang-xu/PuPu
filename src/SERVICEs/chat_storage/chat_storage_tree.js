@@ -707,9 +707,36 @@ export const sanitizeExplorerReorderPayload = ({
   };
 };
 
-export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
+// Switch-chain incrementalization Task 3 (spec §3): generation row cache.
+//
+// `cache` is a CALLER-OWNED object ({ rowsByNodeId: Map }). When provided, a
+// node's row object from the previous build is REUSED (reference equality)
+// when everything that feeds it is unchanged, so downstream React.memo rows
+// skip re-rendering. Validity rules (all keys include the handlers OBJECT
+// reference — row closures capture `handlers`, so the caller must keep it
+// identity-stable; see side_menu's stable dispatcher):
+//
+//  - Chat rows: reuse iff node ref + chat ref (T1 identity-preserving store:
+//    untouched ⇔ same reference) + handlers ref + computed `selected` flag +
+//    the recomputed relative-age postfix are ALL unchanged. Reference-gated:
+//    a re-minted chat object re-mints the row even if content is equal.
+//  - Folder rows (documented policy): descendant roll-ups (generating /
+//    unread) are RECOMPUTED every build via the memoized subtree walks —
+//    they are cheap and folders are few — and the row object is reused iff
+//    node ref + handlers ref + `selected` + BOTH roll-up booleans are
+//    unchanged. An ancestor folder's row identity therefore changes exactly
+//    when a descendant flip moves its roll-up, not on every descendant write.
+//  - The cache map is rebuilt on every call (hits carried over), so ids that
+//    leave the tree are evicted automatically.
+//
+// Without `cache` the behavior is byte-identical to the pre-cache version:
+// fresh row objects on every call.
+export const buildExplorerFromTree = (tree, chatsById, handlers = {}, cache = null) => {
   const nodesById = isObject(tree?.nodesById) ? tree.nodesById : {};
   const root = Array.isArray(tree?.root) ? tree.root : [];
+  const prevRows =
+    cache && cache.rowsByNodeId instanceof Map ? cache.rowsByNodeId : null;
+  const nextRows = cache ? new Map() : null;
   const relativeNow = Number.isFinite(Number(handlers.relativeNow))
     ? Number(handlers.relativeNow)
     : now();
@@ -809,6 +836,19 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
     if (node.entity === "folder") {
       const hasGeneratingDescendant = hasGeneratingChatInSubtree(nodeId);
       const hasUnreadGeneratedDescendant = hasUnreadGeneratedInSubtree(nodeId);
+      const prevEntry = prevRows ? prevRows.get(nodeId) : null;
+      if (
+        prevEntry &&
+        prevEntry.nodeRef === node &&
+        prevEntry.handlersRef === handlers &&
+        prevEntry.selected === selected &&
+        prevEntry.generatingDescendant === hasGeneratingDescendant &&
+        prevEntry.unreadDescendant === hasUnreadGeneratedDescendant
+      ) {
+        data[nodeId] = prevEntry.row;
+        nextRows.set(nodeId, prevEntry);
+        continue;
+      }
       data[nodeId] = {
         type: "folder",
         entity: "folder",
@@ -833,6 +873,16 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
           }
         },
       };
+      if (nextRows) {
+        nextRows.set(nodeId, {
+          nodeRef: node,
+          handlersRef: handlers,
+          selected,
+          generatingDescendant: hasGeneratingDescendant,
+          unreadDescendant: hasUnreadGeneratedDescendant,
+          row: data[nodeId],
+        });
+      }
       continue;
     }
 
@@ -854,6 +904,19 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
           ? Number(node.updatedAt)
           : null;
     const updatedAgo = formatRelativeAgeShort(lastUpdatedAt, relativeNow);
+    const prevEntry = prevRows ? prevRows.get(nodeId) : null;
+    if (
+      prevEntry &&
+      prevEntry.nodeRef === node &&
+      prevEntry.chatRef === chat &&
+      prevEntry.handlersRef === handlers &&
+      prevEntry.selected === selected &&
+      prevEntry.postfix === updatedAgo
+    ) {
+      data[nodeId] = prevEntry.row;
+      nextRows.set(nodeId, prevEntry);
+      continue;
+    }
     data[nodeId] = {
       type: "file",
       entity: "chat",
@@ -890,6 +953,20 @@ export const buildExplorerFromTree = (tree, chatsById, handlers = {}) => {
         }
       },
     };
+    if (nextRows) {
+      nextRows.set(nodeId, {
+        nodeRef: node,
+        chatRef: chat,
+        handlersRef: handlers,
+        selected,
+        postfix: updatedAgo,
+        row: data[nodeId],
+      });
+    }
+  }
+
+  if (cache) {
+    cache.rowsByNodeId = nextRows;
   }
 
   return {

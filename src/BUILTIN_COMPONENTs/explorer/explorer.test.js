@@ -85,6 +85,85 @@ describe("Explorer", () => {
     expect(document.body.style.userSelect).toBe("");
   });
 
+  /* Switch-chain incrementalization Task 3: rows are memo'd so that
+     identity-stable row objects (from buildExplorerFromTree's generation
+     cache) translate into SKIPPED row re-renders when the tree re-renders
+     with fresh containers. */
+  /* context value must be identity-stable across rerenders — in the app it
+     comes from ConfigContainer state; an inline literal would re-mint theme
+     and defeat the very memo under test */
+  const STABLE_CONFIG = { theme: {}, onThemeMode: "light_mode" };
+  const STABLE_STYLE = { width: 240 };
+
+  test("memo: identity-stable row objects skip re-render across data container changes", () => {
+    const renderCount = jest.fn();
+    const stableRow = {
+      label: "Stable row",
+      component: () => {
+        renderCount();
+        return <div>Stable row body</div>;
+      },
+    };
+    const root = ["stable"];
+
+    const explorerEl = (data) => (
+      <ConfigContext.Provider value={STABLE_CONFIG}>
+        <Explorer style={STABLE_STYLE} data={data} root={root} />
+      </ConfigContext.Provider>
+    );
+
+    const view = render(explorerEl({ stable: stableRow }));
+    const initial = renderCount.mock.calls.length;
+    expect(initial).toBeGreaterThan(0);
+
+    /* new data CONTAINER, same row object → row must not re-render */
+    view.rerender(explorerEl({ stable: stableRow }));
+    expect(renderCount.mock.calls.length).toBe(initial);
+
+    /* re-minted row object → row re-renders */
+    view.rerender(explorerEl({ stable: { ...stableRow } }));
+    expect(renderCount.mock.calls.length).toBeGreaterThan(initial);
+  });
+
+  test("memo: active_node_id moving between OTHER rows does not re-render an untargeted row", () => {
+    const renderCount = jest.fn();
+    const watchedRow = {
+      label: "Watched row",
+      component: () => {
+        renderCount();
+        return <div>Watched row body</div>;
+      },
+    };
+    const data = {
+      watched: watchedRow,
+      one: { label: "One" },
+      two: { label: "Two" },
+    };
+    const root = ["watched", "one", "two"];
+
+    const explorerEl = (activeNodeId) => (
+      <ConfigContext.Provider value={STABLE_CONFIG}>
+        <Explorer
+          style={STABLE_STYLE}
+          data={data}
+          root={root}
+          active_node_id={activeNodeId}
+        />
+      </ConfigContext.Provider>
+    );
+
+    const view = render(explorerEl("one"));
+    const initial = renderCount.mock.calls.length;
+
+    /* active moves one → two: watched row's active-ness is unchanged */
+    view.rerender(explorerEl("two"));
+    expect(renderCount.mock.calls.length).toBe(initial);
+
+    /* active moves onto the watched row → it must re-render */
+    view.rerender(explorerEl("watched"));
+    expect(renderCount.mock.calls.length).toBeGreaterThan(initial);
+  });
+
   test("收起 folder 的子节点不挂载,点击展开后才挂载", () => {
     renderExplorer({
       data: {

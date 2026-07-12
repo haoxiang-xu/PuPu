@@ -68,9 +68,20 @@ describe("chat_storage microtask coalescing (IPC ops path)", () => {
     expect(ops.some((op) => op.type === "delete_chats")).toBe(false);
 
     // The single emit carries the latest store (all three chats exist)
-    const [emittedStore] = listener.mock.calls[0];
+    const [emittedStore, emittedEvent] = listener.mock.calls[0];
     const titles = Object.values(emittedStore.chatsById).map((chat) => chat.title);
     expect(titles).toEqual(expect.arrayContaining(["A", "B", "C"]));
+
+    // Task 2 (spec §2): the coalesced emit carries the UNION dirty of all
+    // same-tick writes — all three created chat ids, no deletions, and the
+    // tree/active flags reflect the tick's real changes.
+    expect(emittedEvent.dirty).toBeDefined();
+    expect(emittedEvent.dirty.chatIds).toEqual(
+      expect.arrayContaining([a.chatId, b.chatId, c.chatId]),
+    );
+    expect(emittedEvent.dirty.deletedChatIds).toEqual([]);
+    expect(emittedEvent.dirty.treeChanged).toBe(true);
+    expect(emittedEvent.dirty.activeChanged).toBe(true);
 
     unsubscribe();
   });
@@ -83,7 +94,10 @@ describe("chat_storage microtask coalescing (IPC ops path)", () => {
     const listener = jest.fn();
     store.subscribeChatsStore(listener);
 
-    store.createChatInSelectedContext({ title: "A" }, { source: "test" });
+    const created = store.createChatInSelectedContext(
+      { title: "A" },
+      { source: "test" },
+    );
     expect(bridgeApplyOps).toHaveBeenCalledTimes(0);
     expect(listener).toHaveBeenCalledTimes(0);
 
@@ -91,6 +105,13 @@ describe("chat_storage microtask coalescing (IPC ops path)", () => {
 
     expect(bridgeApplyOps).toHaveBeenCalledTimes(1);
     expect(listener).toHaveBeenCalledTimes(1);
+    // Task 2: the sync-flushed emit carries the same dirty shape.
+    const [, event] = listener.mock.calls[0];
+    expect(event.dirty).toBeDefined();
+    expect(event.dirty.chatIds).toContain(created.chatId);
+    expect(event.dirty.deletedChatIds).toEqual([]);
+    expect(event.dirty.treeChanged).toBe(true);
+    expect(event.dirty.activeChanged).toBe(true);
   });
 
   test("memory mirror stays consistent for synchronous reads between mutations", async () => {
