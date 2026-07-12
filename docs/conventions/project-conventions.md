@@ -63,10 +63,12 @@ unrelated state changes (e.g. window resize). Defined in
 - `LocaleContext` — `locale`, `setLocale`
 - `EnvironmentContext` — `window_size`, `env_browser`, `device_type`
 - `NavigationContext` — `onFragment`, `setOnFragment`
-- `ConfigContext` — backward-compatible merged view of all of the above
+- `ConfigContext` — compatibility view with theme, locale, navigation, and an
+  immutable startup environment snapshot
 
 > New code should subscribe to the granular context it needs; `ConfigContext`
-> remains a compatibility merged view (it re-renders on any sub-context change).
+> does not publish environment updates. Components that must react to resize,
+> browser, or device changes use `EnvironmentContext`.
 
 ### ConfigContext Shape (merged view)
 

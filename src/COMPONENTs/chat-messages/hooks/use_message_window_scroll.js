@@ -17,24 +17,16 @@ const STREAMING_BOTTOM_FOLLOW_MS = 64;
 const LANDING_SETTLE_INTERVAL_MS = 50;
 const LANDING_SETTLE_MAX_ATTEMPTS = 40;
 const LANDING_TOP_EPSILON = 1;
-// 分批扩窗:目标与当前窗口差距超过阈值时,不一帧扩到位,而是每个 idle(无则
-// setTimeout 0)步进约 CHUNK_EXPAND_STEP 条,消灭"一帧挂载全部消息"的爆发。
-// 阈值取 (3×load_batch_size) 与单步条数的较大者 —— 差距若不足一步,分批只会多一次
-// idle 延迟、无批处理收益,直接一步扩窗即可。
-const CHUNK_EXPAND_STEP = 40;
-const CHUNK_EXPAND_THRESHOLD_MULT = 3;
-const chunkExpandThreshold = (load_batch_size) =>
-  Math.max(CHUNK_EXPAND_THRESHOLD_MULT * load_batch_size, CHUNK_EXPAND_STEP);
+const LANDING_OBSERVER_MAX_MS = 2000;
 
 // 双向窗口上限:窗口原本只增不减(loadOlderMessages 只减小 visibleStart,无对称卸载),
 // 长会话滚到顶后 N 条全挂载、滚回底不释放 → "越用越卡"。收缩把 visibleStart 抬回
 // messages.length - max_mounted_count,但只在「贴底跟随」时做(视口内容在窗口尾部,
 // 抬起窗口头部不影响可见区),且经 trailing debounce 触发(滚动停止后 / 流式吸底落地后),
 // 绝不在每个 scroll 事件里同步收缩。
-// 12 = 与初始窗口一致:贴底常驻的就是开屏那一窗,视口一次只显 2-5 条已够回看;
-// 重内容单条可达数百 DOM 节点 + 每代码块一套滚动条实例,上限每多 1 条都是常驻成本。
-// 更早的历史靠向上翻页按批加载(每批 ~27ms),回底后收缩回来。
-const DEFAULT_MAX_MOUNTED_COUNT = 12;
+// 初始仍只挂 12 条；40 是轻量短消息不足一屏时的自适应硬上限。重内容通常
+// 12 条内就已可滚动，不会扩到 40；无论历史多长，DOM 都不会越过这个边界。
+const DEFAULT_MAX_MOUNTED_COUNT = 40;
 const WINDOW_TRIM_DEBOUNCE_MS = 200;
 
 export { computeLandingTop } from "../message_viewport_geometry";
@@ -68,12 +60,18 @@ export const useMessageWindowScroll = ({
   const pendingLandingActionRef = useRef(null);
   const pendingLandingTimerRef = useRef(null);
   const pendingLandingObserverRef = useRef(null);
-  const chunkedExpandRef = useRef(null);
+  const pendingLandingExpiryTimerRef = useRef(null);
   const trimDebounceTimerRef = useRef(null);
+  const windowShiftAnchorRef = useRef(null);
+  // Target changes arm exactly one baseline measurement. The layout pass
+  // consumes this flag once 12 rows are committed; a short target then grows
+  // directly to the hard cap in one state update instead of 12→18→…→40.
+  const adaptiveMeasurePendingRef = useRef(true);
+  const smoothScrollActiveRef = useRef(false);
+  const smoothScrollEndTimerRef = useRef(null);
   // 收缩读的是「最新」消息长度:吸底 follow 的 rAF/timer 回调可能在一次 append 之后才落地,
   // 若闭包捕获旧长度会漏收缩。用 ref 承载最新长度,让收缩逻辑与调度时机解耦。
   const messagesLengthRef = useRef(messages.length);
-  messagesLengthRef.current = messages.length;
   const bottomSentinelRef = useRef(null);
   const activeChatIdRef = useRef(chat_id);
   const isAtBottomRef = useRef(true);
@@ -87,13 +85,20 @@ export const useMessageWindowScroll = ({
   const [visibleStartIndex, setVisibleStartIndex] = useState(() =>
     Math.max(0, messages.length - initial_visible_count),
   );
+  const [mountedWindowCount, setMountedWindowCount] = useState(
+    initial_visible_count,
+  );
+  const mountedWindowCountRef = useRef(initial_visible_count);
   const [isAtBottom, setIsAtBottom] = useState(true);
   const [isAtTop, setIsAtTop] = useState(true);
 
-  const safeVisibleStart = Math.max(
-    0,
-    Math.min(visibleStartIndex, messages.length),
-  );
+  // Event callbacks must only observe committed renderer state. Writing these
+  // refs during render leaks values from a suspended/aborted concurrent render
+  // into handlers that still belong to the previous committed tree.
+  useLayoutEffect(() => {
+    messagesLengthRef.current = messages.length;
+    mountedWindowCountRef.current = mountedWindowCount;
+  }, [messages.length, mountedWindowCount]);
 
   // 收缩上限有下限保护:不得小于 initial_visible_count —— 收缩到比初始窗口还小
   // 会跟开屏窗口语义打架(刚打开就收缩)。向上翻页把窗口顶过上限后滚回底再收缩
@@ -102,34 +107,108 @@ export const useMessageWindowScroll = ({
     max_mounted_count,
     initial_visible_count,
   );
-
-  const visibleMessages = useMemo(
-    () => messages.slice(safeVisibleStart),
-    [messages, safeVisibleStart],
+  const effectiveMountedCount = Math.min(
+    resolvedMaxMountedCount,
+    Math.max(1, mountedWindowCount),
   );
+
+  const isChatSwitchPending = activeChatIdRef.current !== chat_id;
+  const stateVisibleStart = isChatSwitchPending
+    ? Math.max(0, messages.length - effectiveBootCount)
+    : visibleStartIndex;
+  const renderMountedCount = isChatSwitchPending
+    ? effectiveBootCount
+    : effectiveMountedCount;
+  const shouldRenderLatestWindow =
+    !isChatSwitchPending &&
+    isAtBottomRef.current &&
+    streamingFollowEnabledRef.current &&
+    !userScrollIntentRef.current &&
+    messages.length > stateVisibleStart + renderMountedCount;
+  const renderVisibleStart = shouldRenderLatestWindow
+    ? Math.max(0, messages.length - renderMountedCount)
+    : stateVisibleStart;
+  const safeVisibleStart = Math.max(
+    0,
+    Math.min(renderVisibleStart, messages.length),
+  );
+  const safeVisibleEnd = Math.min(
+    messages.length,
+    safeVisibleStart + renderMountedCount,
+  );
+  const visibleMessages = useMemo(
+    () => messages.slice(safeVisibleStart, safeVisibleEnd),
+    [messages, safeVisibleEnd, safeVisibleStart],
+  );
+
+  const clearProgrammaticSmoothScroll = useCallback(() => {
+    smoothScrollActiveRef.current = false;
+    if (smoothScrollEndTimerRef.current != null) {
+      clearTimeout(smoothScrollEndTimerRef.current);
+      smoothScrollEndTimerRef.current = null;
+    }
+  }, []);
+
+  const holdProgrammaticSmoothScroll = useCallback(() => {
+    smoothScrollActiveRef.current = true;
+    if (smoothScrollEndTimerRef.current != null) {
+      clearTimeout(smoothScrollEndTimerRef.current);
+    }
+    smoothScrollEndTimerRef.current = setTimeout(() => {
+      smoothScrollEndTimerRef.current = null;
+      smoothScrollActiveRef.current = false;
+    }, 160);
+  }, []);
 
   // 程序性滚动写:记录写前 scrollTop,执行写,只有当位置真的变了(会产生 scroll 事件)
   // 才 +1 计数。防"写了但值没变不产生 scroll 事件"导致计数泄漏、误吞下一次用户 scroll。
-  const writeProgrammaticScroll = useCallback((el, apply) => {
-    if (!el) {
-      return;
-    }
-    const before = el.scrollTop;
-    apply(el);
-    if (el.scrollTop !== before) {
-      programmaticScrollDepthRef.current += 1;
-    }
-  }, []);
+  const writeProgrammaticScroll = useCallback(
+    (el, apply, behavior = "auto") => {
+      if (!el) {
+        return;
+      }
+      if (behavior === "smooth") {
+        holdProgrammaticSmoothScroll();
+      } else {
+        clearProgrammaticSmoothScroll();
+      }
+      const before = el.scrollTop;
+      apply(el);
+      if (el.scrollTop !== before) {
+        programmaticScrollDepthRef.current += 1;
+      }
+    },
+    [clearProgrammaticSmoothScroll, holdProgrammaticSmoothScroll],
+  );
 
   // 纯测量:只更新 isAtBottom/isAtTop 与 isAtBottomRef,不再改 follow/intent。
   // follow/intent 的状态迁移集中到 handleScroll 与显式动作里。
   const updateIsAtBottom = useCallback((el) => {
     const distance = el.scrollHeight - (el.scrollTop + el.clientHeight);
-    const nextIsAtBottom = distance <= BOTTOM_FOLLOW_THRESHOLD;
+    const hasNewerMessages =
+      visibleStartRef.current + effectiveMountedCount <
+      messagesLengthRef.current;
+    const nextIsAtBottom =
+      !hasNewerMessages && distance <= BOTTOM_FOLLOW_THRESHOLD;
     isAtBottomRef.current = nextIsAtBottom;
     setIsAtBottom(nextIsAtBottom);
-    setIsAtTop(el.scrollTop <= TOP_EDGE_THRESHOLD);
+    setIsAtTop(
+      visibleStartRef.current === 0 && el.scrollTop <= TOP_EDGE_THRESHOLD,
+    );
     return nextIsAtBottom;
+  }, [effectiveMountedCount]);
+
+  const captureWindowShiftAnchor = useCallback((index) => {
+    const el = messagesRef.current;
+    const node = messageNodeRefs.current.get(index);
+    if (!el || !node || !Number.isFinite(Number(node.offsetTop))) {
+      windowShiftAnchorRef.current = null;
+      return;
+    }
+    windowShiftAnchorRef.current = {
+      index,
+      viewportOffset: Number(node.offsetTop) - el.scrollTop,
+    };
   }, []);
 
   const clearScheduledStreamingBottomFollow = useCallback(() => {
@@ -154,6 +233,10 @@ export const useMessageWindowScroll = ({
       clearTimeout(pendingLandingTimerRef.current);
       pendingLandingTimerRef.current = null;
     }
+    if (pendingLandingExpiryTimerRef.current != null) {
+      clearTimeout(pendingLandingExpiryTimerRef.current);
+      pendingLandingExpiryTimerRef.current = null;
+    }
     if (pendingLandingObserverRef.current) {
       pendingLandingObserverRef.current.disconnect();
       pendingLandingObserverRef.current = null;
@@ -161,112 +244,17 @@ export const useMessageWindowScroll = ({
     pendingLandingActionRef.current = null;
   }, []);
 
-  // 取消进行中的分批扩窗(像 pendingLandingTimerRef 一样清理定时器 + 置空状态)。
-  const clearChunkedExpand = useCallback(() => {
-    const state = chunkedExpandRef.current;
-    if (!state) {
-      return;
-    }
-    chunkedExpandRef.current = null;
-    if (state.timerId == null) {
-      return;
-    }
-    if (
-      state.idleType === "idle" &&
-      typeof window !== "undefined" &&
-      typeof window.cancelIdleCallback === "function"
-    ) {
-      window.cancelIdleCallback(state.timerId);
-    } else {
-      clearTimeout(state.timerId);
-    }
-  }, []);
-
-  // 分批扩窗:从当前 visibleStart 逐步(每拍约 CHUNK_EXPAND_STEP 条)扩到 targetStart,
-  // 每步设 prependCompensation 稳住视口;走到目标后挂上 landingAction 交回既有
-  // pendingJumpAction 机制落位(type 保持 toIndex/top)。无 host 时退化为一步扩窗。
-  const beginChunkedExpand = useCallback(
-    (targetStart, landingAction) => {
-      clearChunkedExpand();
-      const el = messagesRef.current;
-      if (!el) {
-        visibleStartRef.current = targetStart;
-        pendingJumpActionRef.current = landingAction;
-        setVisibleStartIndex(targetStart);
-        return;
-      }
-
-      const state = {
-        targetStart,
-        landingAction,
-        timerId: null,
-        idleType: null,
-      };
-      chunkedExpandRef.current = state;
-
-      const step = () => {
-        // 已被取消 / 被新跳转替换:忽略这一拍
-        if (chunkedExpandRef.current !== state) {
-          return;
-        }
-        state.timerId = null;
-        const host = messagesRef.current;
-        if (!host) {
-          chunkedExpandRef.current = null;
-          return;
-        }
-        const currentStart = visibleStartRef.current;
-        const nextStart = Math.max(targetStart, currentStart - CHUNK_EXPAND_STEP);
-        // 每步 prepend 补偿:补偿写 scrollTop 走 layoutEffect 的 writeProgrammaticScroll
-        // 路径(计数为程序性滚动),视口稳定。
-        prependCompensationRef.current = {
-          previousScrollHeight: host.scrollHeight,
-          previousScrollTop: host.scrollTop,
-        };
-        visibleStartRef.current = nextStart;
-        const isFinal = nextStart <= targetStart;
-        if (isFinal) {
-          pendingJumpActionRef.current = landingAction;
-          chunkedExpandRef.current = null;
-        }
-        setVisibleStartIndex(nextStart);
-        if (!isFinal) {
-          scheduleStep();
-        }
-      };
-
-      const scheduleStep = () => {
-        if (chunkedExpandRef.current !== state) {
-          return;
-        }
-        if (
-          typeof window !== "undefined" &&
-          typeof window.requestIdleCallback === "function"
-        ) {
-          state.idleType = "idle";
-          state.timerId = window.requestIdleCallback(step, { timeout: 240 });
-        } else {
-          state.idleType = "timeout";
-          state.timerId = setTimeout(step, 0);
-        }
-      };
-
-      scheduleStep();
-    },
-    [clearChunkedExpand],
-  );
-
   const beginExplicitScrollNavigation = useCallback(() => {
+    clearProgrammaticSmoothScroll();
     clearLandingCorrection();
     clearScheduledStreamingBottomFollow();
-    clearChunkedExpand();
     pendingScrollToBottomRef.current = null;
     isAtBottomRef.current = false;
     streamingFollowEnabledRef.current = false;
     userScrollIntentRef.current = true;
     setIsAtBottom(false);
   }, [
-    clearChunkedExpand,
+    clearProgrammaticSmoothScroll,
     clearLandingCorrection,
     clearScheduledStreamingBottomFollow,
   ]);
@@ -276,24 +264,76 @@ export const useMessageWindowScroll = ({
     if (!el) {
       return;
     }
+    const previous = visibleStartRef.current;
+    if (previous <= 0) {
+      return;
+    }
+    const targetMountedCount = Math.min(
+      resolvedMaxMountedCount,
+      initial_visible_count,
+    );
+    const next = Math.max(0, previous - load_batch_size);
+    if (next === previous) {
+      return;
+    }
 
-    setVisibleStartIndex((previous) => {
-      if (previous <= 0) {
-        return 0;
-      }
-      const next = Math.max(0, previous - load_batch_size);
-      if (next === previous) {
-        return previous;
-      }
+    if (previous < next + targetMountedCount) {
+      // Every target window starts from the small baseline. The old first row
+      // remains in that baseline and is kept at the same viewport offset.
+      captureWindowShiftAnchor(previous);
+    }
+    adaptiveMeasurePendingRef.current = true;
+    visibleStartRef.current = next;
+    setMountedWindowCount(targetMountedCount);
+    setVisibleStartIndex(next);
+  }, [
+    captureWindowShiftAnchor,
+    initial_visible_count,
+    load_batch_size,
+    resolvedMaxMountedCount,
+  ]);
 
-      prependCompensationRef.current = {
-        previousScrollHeight: el.scrollHeight,
-        previousScrollTop: el.scrollTop,
-      };
-      visibleStartRef.current = next;
-      return next;
-    });
-  }, [load_batch_size]);
+  const loadNewerMessages = useCallback(() => {
+    const currentLength = messagesLengthRef.current;
+    const previous = visibleStartRef.current;
+    const currentEnd = Math.min(
+      currentLength,
+      previous + effectiveMountedCount,
+    );
+    if (currentEnd >= currentLength) {
+      return;
+    }
+    const targetMountedCount = Math.min(
+      resolvedMaxMountedCount,
+      initial_visible_count,
+    );
+    const retainedBeforeAnchor = Math.max(
+      0,
+      targetMountedCount - load_batch_size,
+    );
+    const next = Math.min(
+      Math.max(0, currentLength - targetMountedCount),
+      Math.max(0, currentEnd - retainedBeforeAnchor),
+    );
+    if (next === previous) {
+      return;
+    }
+
+    const anchorIndex = currentEnd - 1;
+    if (anchorIndex >= next) {
+      captureWindowShiftAnchor(anchorIndex);
+    }
+    adaptiveMeasurePendingRef.current = true;
+    visibleStartRef.current = next;
+    setMountedWindowCount(targetMountedCount);
+    setVisibleStartIndex(next);
+  }, [
+    captureWindowShiftAnchor,
+    effectiveMountedCount,
+    initial_visible_count,
+    load_batch_size,
+    resolvedMaxMountedCount,
+  ]);
 
   const clearTrimDebounce = useCallback(() => {
     if (trimDebounceTimerRef.current != null) {
@@ -304,8 +344,8 @@ export const useMessageWindowScroll = ({
 
   // 向下收缩:只在贴底跟随时把 visibleStart 抬回 messages.length - 上限,复用既有
   // prependCompensation → layoutEffect 补偿路径(贴底时走 scrollToBottom("auto") 重新钉底,
-  // 维持程序性滚动计数不变量)。任何可能与其它精密状态机竞态的时机(进行中的分批扩窗 /
-  // landing 结算 / 待落位跳转 / 未消费的 prepend 补偿 / 用户已表达脱离意图 / 不在底部)
+  // 维持程序性滚动计数不变量)。任何可能与其它精密状态机竞态的时机(landing 结算 /
+  // 待落位跳转 / 未消费的 prepend 补偿 / 用户已表达脱离意图 / 不在底部)
   // 一律跳过本轮收缩,存疑宁可不收。
   const trimMountedWindowToBottom = useCallback(() => {
     const el = messagesRef.current;
@@ -318,7 +358,6 @@ export const useMessageWindowScroll = ({
     if (
       userScrollIntentRef.current ||
       prependCompensationRef.current ||
-      chunkedExpandRef.current ||
       pendingLandingActionRef.current ||
       pendingJumpActionRef.current
     ) {
@@ -360,13 +399,37 @@ export const useMessageWindowScroll = ({
 
     const currentScrollTop = el.scrollTop;
     const isScrollingUp = currentScrollTop < lastScrollTopRef.current - 0.5;
+    const isScrollingDown = currentScrollTop > lastScrollTopRef.current + 0.5;
     lastScrollTopRef.current = currentScrollTop;
+    const currentStart = visibleStartRef.current;
+    const currentEnd = Math.min(
+      messagesLengthRef.current,
+      currentStart + effectiveMountedCount,
+    );
+    const firstRenderedNode = messageNodeRefs.current.get(currentStart);
+    const lastRenderedNode = messageNodeRefs.current.get(currentEnd - 1);
+    const nearWindowTop = firstRenderedNode
+      ? currentScrollTop <= firstRenderedNode.offsetTop + top_load_threshold
+      : currentScrollTop <= top_load_threshold;
+    const renderedBottom = lastRenderedNode
+      ? Number(lastRenderedNode.offsetTop) +
+        Math.max(0, Number(lastRenderedNode.offsetHeight) || 0)
+      : 0;
+    const distanceToWindowBottom = renderedBottom
+      ? renderedBottom - (currentScrollTop + el.clientHeight)
+      : el.scrollHeight - (currentScrollTop + el.clientHeight);
+    const nearWindowBottom = distanceToWindowBottom <= top_load_threshold;
 
     // 区分程序性 / 用户滚动:程序性(吸底 rAF、scrollToBottom、landing、prepend 补偿等)
     // 产生的 scroll 事件只做测量,不改 follow/intent。
-    const isProgrammatic = programmaticScrollDepthRef.current > 0;
-    if (isProgrammatic) {
+    const isProgrammatic =
+      programmaticScrollDepthRef.current > 0 ||
+      smoothScrollActiveRef.current;
+    if (programmaticScrollDepthRef.current > 0) {
       programmaticScrollDepthRef.current -= 1;
+    }
+    if (smoothScrollActiveRef.current) {
+      holdProgrammaticSmoothScroll();
     }
 
     const nextIsAtBottom = updateIsAtBottom(el);
@@ -394,12 +457,24 @@ export const useMessageWindowScroll = ({
     }
 
     if (
-      currentScrollTop <= top_load_threshold &&
+      nearWindowTop &&
+      !isProgrammatic &&
       isScrollingUp &&
       visibleStartRef.current > 0 &&
       !prependCompensationRef.current
     ) {
       loadOlderMessages();
+    }
+
+    if (
+      nearWindowBottom &&
+      !isProgrammatic &&
+      isScrollingDown &&
+      visibleStartRef.current + effectiveMountedCount <
+        messagesLengthRef.current &&
+      !windowShiftAnchorRef.current
+    ) {
+      loadNewerMessages();
     }
 
     // 滚动停止后(trailing debounce)再考虑向下收缩 —— 不在每个 scroll 事件里同步收缩。
@@ -408,7 +483,10 @@ export const useMessageWindowScroll = ({
     clearLandingCorrection,
     clearScheduledStreamingBottomFollow,
     is_streaming,
+    holdProgrammaticSmoothScroll,
     loadOlderMessages,
+    loadNewerMessages,
+    effectiveMountedCount,
     scheduleWindowTrim,
     top_load_threshold,
     updateIsAtBottom,
@@ -423,7 +501,7 @@ export const useMessageWindowScroll = ({
 
       writeProgrammaticScroll(el, (node) => {
         node.scrollTo({ top: node.scrollHeight, behavior });
-      });
+      }, behavior);
       // 记录真实(clamped)scrollTop,而非 scrollHeight —— 真实 scrollTop 最大只到
       // scrollHeight-clientHeight,写 scrollHeight 会让后续事件被误判为"上滚"。
       lastScrollTopRef.current = el.scrollTop;
@@ -431,19 +509,26 @@ export const useMessageWindowScroll = ({
       streamingFollowEnabledRef.current = true;
       userScrollIntentRef.current = false;
       setIsAtBottom(true);
-      setIsAtTop(false);
+      setIsAtTop(
+        visibleStartRef.current === 0 &&
+          el.scrollTop <= TOP_EDGE_THRESHOLD,
+      );
     },
     [writeProgrammaticScroll],
   );
 
-  const handleUserScrollIntent = useCallback(() => {
+  const handlePointerInteraction = useCallback(() => {
+    clearProgrammaticSmoothScroll();
     clearLandingCorrection();
-    clearChunkedExpand();
+  }, [clearLandingCorrection, clearProgrammaticSmoothScroll]);
+
+  const handleUserScrollIntent = useCallback(() => {
+    handlePointerInteraction();
     if (!is_streaming) {
       return;
     }
     userScrollIntentRef.current = true;
-  }, [clearChunkedExpand, clearLandingCorrection, is_streaming]);
+  }, [handlePointerInteraction, is_streaming]);
 
   // 滚轮处理器:流式期间上滚(deltaY<0)立即脱离 —— 关跟随 + 取消 pending 吸底 rAF +
   // 置意图,不等 scroll 事件、不看 24px 阈值带(rAF 会在事件到达前把位置拍回底部)。
@@ -451,9 +536,12 @@ export const useMessageWindowScroll = ({
     (event) => {
       const deltaY =
         event && typeof event.deltaY === "number" ? event.deltaY : 0;
+      if (deltaY !== 0) {
+        clearProgrammaticSmoothScroll();
+      }
       // 边缘哑滚轮守卫:推不动视口的滚轮不构成"用户接管"。贴底后的向下滚轮
       // (典型为触控板惯性余量,可持续 1s+)本身滚不动任何东西,却会掐掉刚点的
-      // to-top 分批扩窗/落位 —— 即"底部按 to-top 有时失效"。贴顶向上同理。
+      // to-top 落位 —— 即"底部按 to-top 有时失效"。贴顶向上同理。
       // 真实的反向接管(在底部向上滚)不受影响,照常取消。
       const el = messagesRef.current;
       const atBottomNoop =
@@ -461,9 +549,9 @@ export const useMessageWindowScroll = ({
         el &&
         el.scrollHeight - el.scrollTop - el.clientHeight <= 1;
       const atTopNoop = deltaY < 0 && el && el.scrollTop <= 0;
+
       if (!atBottomNoop && !atTopNoop) {
         clearLandingCorrection();
-        clearChunkedExpand();
       }
       if (!is_streaming) {
         return;
@@ -475,8 +563,8 @@ export const useMessageWindowScroll = ({
       }
     },
     [
-      clearChunkedExpand,
       clearLandingCorrection,
+      clearProgrammaticSmoothScroll,
       clearScheduledStreamingBottomFollow,
       is_streaming,
     ],
@@ -540,7 +628,7 @@ export const useMessageWindowScroll = ({
       }
       writeProgrammaticScroll(el, (node) => {
         node.scrollTo({ top: 0, behavior });
-      });
+      }, behavior);
       lastScrollTopRef.current = 0;
       updateIsAtBottom(el);
     },
@@ -557,6 +645,7 @@ export const useMessageWindowScroll = ({
         align,
         lastTop: initialTop,
         attempts: 0,
+        stableAttempts: 0,
       };
       pendingLandingActionRef.current = action;
 
@@ -578,6 +667,18 @@ export const useMessageWindowScroll = ({
           return;
         }
 
+        // smooth 在飞守卫:结算补正用 behavior:"auto" 直写,若在原生 smooth 动画
+        // 进行中触发会掐断动画、瞬间钉到补正点(窗内 smooth 跳转也变瞬移)。
+        // 动画在飞时不比较漂移、不消耗 attempts,只等下一个 tick;
+        // smooth hold 下降沿(160ms 无滚动事件)之后照常补正,职责不变。
+        if (smoothScrollActiveRef.current) {
+          pendingLandingTimerRef.current = setTimeout(
+            tick,
+            LANDING_SETTLE_INTERVAL_MS,
+          );
+          return;
+        }
+
         const nextTop = computeLandingTop({
           offsetTop: targetNode.offsetTop,
           within: current.within,
@@ -589,15 +690,28 @@ export const useMessageWindowScroll = ({
         current.attempts += 1;
         if (Math.abs(nextTop - current.lastTop) > LANDING_TOP_EPSILON) {
           current.lastTop = nextTop;
+          current.stableAttempts = 0;
           writeProgrammaticScroll(el, (node) => {
             node.scrollTo({ top: nextTop, behavior: "auto" });
           });
           lastScrollTopRef.current = el.scrollTop;
           updateIsAtBottom(el);
+        } else {
+          current.stableAttempts += 1;
         }
 
         if (current.attempts >= LANDING_SETTLE_MAX_ATTEMPTS) {
           clearLandingCorrection();
+          return;
+        }
+
+        // ResizeObserver remains armed for genuinely late image/Markdown
+        // growth. Once three polls are stable, stop waking the main thread
+        // every 50ms; a later observer callback restarts settling if needed.
+        if (
+          current.stableAttempts >= 3 &&
+          pendingLandingObserverRef.current
+        ) {
           return;
         }
 
@@ -619,6 +733,10 @@ export const useMessageWindowScroll = ({
         pendingLandingObserverRef.current = observer;
       }
 
+      pendingLandingExpiryTimerRef.current = setTimeout(() => {
+        pendingLandingExpiryTimerRef.current = null;
+        clearLandingCorrection();
+      }, LANDING_OBSERVER_MAX_MS);
       pendingLandingTimerRef.current = setTimeout(
         tick,
         LANDING_SETTLE_INTERVAL_MS,
@@ -648,7 +766,7 @@ export const useMessageWindowScroll = ({
       });
       writeProgrammaticScroll(el, (host) => {
         host.scrollTo({ top, behavior });
-      });
+      }, behavior);
       lastScrollTopRef.current = el.scrollTop;
       updateIsAtBottom(el);
       // settle:false(拖动路径)跳过结算循环:每帧都重新落位,残留的 landing
@@ -699,7 +817,7 @@ export const useMessageWindowScroll = ({
           top: Math.max(0, previousNode.offsetTop - 12),
           behavior,
         });
-      });
+      }, behavior);
       lastScrollTopRef.current = el.scrollTop;
       updateIsAtBottom(el);
       return true;
@@ -708,19 +826,50 @@ export const useMessageWindowScroll = ({
   );
 
   const handleBackToBottom = useCallback(() => {
-    const nextStart = Math.max(0, messages.length - initial_visible_count);
-    const shouldAdjustWindow = nextStart !== visibleStartRef.current;
+    // Back-to-bottom supersedes every older navigation contract. In
+    // particular, a late ResizeObserver callback from a minimap landing must
+    // never pull the viewport away from the bottom again.
+    clearProgrammaticSmoothScroll();
+    clearLandingCorrection();
+    clearScheduledStreamingBottomFollow();
+    clearTrimDebounce();
+    pendingJumpActionRef.current = null;
+    pendingScrollToBottomRef.current = null;
+    windowShiftAnchorRef.current = null;
+    prependCompensationRef.current = null;
+
+    const nextStart = Math.max(
+      0,
+      messagesLengthRef.current - initial_visible_count,
+    );
+    const shouldAdjustWindow =
+      nextStart !== visibleStartRef.current ||
+      mountedWindowCountRef.current !== initial_visible_count;
     visibleStartRef.current = nextStart;
+    isAtBottomRef.current = true;
+    streamingFollowEnabledRef.current = true;
+    userScrollIntentRef.current = false;
+    setIsAtBottom(true);
     if (shouldAdjustWindow) {
+      adaptiveMeasurePendingRef.current = true;
       pendingScrollToBottomRef.current = "auto";
+      setMountedWindowCount(initial_visible_count);
       setVisibleStartIndex(nextStart);
       return;
     }
 
     scrollToBottom("auto");
-  }, [initial_visible_count, messages.length, scrollToBottom]);
+  }, [
+    clearLandingCorrection,
+    clearProgrammaticSmoothScroll,
+    clearScheduledStreamingBottomFollow,
+    clearTrimDebounce,
+    initial_visible_count,
+    scrollToBottom,
+  ]);
 
   const handleSkipToTop = useCallback(() => {
+    beginExplicitScrollNavigation();
     pendingJumpActionRef.current = null;
     const currentStart = visibleStartRef.current;
     if (currentStart === 0) {
@@ -728,17 +877,16 @@ export const useMessageWindowScroll = ({
       return;
     }
 
-    const landingAction = { type: "top", behavior: "smooth" };
-    // 长会话到顶:差距超阈值时分批扩窗(每拍约 40 条),否则保持原一步扩窗。
-    if (currentStart > chunkExpandThreshold(load_batch_size)) {
-      beginChunkedExpand(0, landingAction);
-      return;
-    }
-
     visibleStartRef.current = 0;
-    pendingJumpActionRef.current = landingAction;
+    adaptiveMeasurePendingRef.current = true;
+    pendingJumpActionRef.current = { type: "top", behavior: "auto" };
+    setMountedWindowCount(initial_visible_count);
     setVisibleStartIndex(0);
-  }, [beginChunkedExpand, load_batch_size, scrollToTop]);
+  }, [
+    beginExplicitScrollNavigation,
+    initial_visible_count,
+    scrollToTop,
+  ]);
 
   const handleJumpToPreviousMessage = useCallback(() => {
     if (jumpToPreviousRenderedMessage("smooth")) {
@@ -746,7 +894,7 @@ export const useMessageWindowScroll = ({
     }
 
     if (visibleStartRef.current > 0) {
-      pendingJumpActionRef.current = { type: "previous", behavior: "smooth" };
+      pendingJumpActionRef.current = { type: "previous", behavior: "auto" };
       loadOlderMessages();
       return;
     }
@@ -765,9 +913,30 @@ export const useMessageWindowScroll = ({
       const clamped = Math.max(0, Math.min(index, messages.length - 1));
       beginExplicitScrollNavigation();
 
-      if (clamped >= visibleStartRef.current) {
+      const winStart = visibleStartRef.current;
+      const winEnd = winStart + mountedWindowCountRef.current;
+
+      if (clamped >= winStart) {
         const node = messageNodeRefs.current.get(clamped);
+        // 窗内可达性判定:目标虽已挂载,但期望落位 top 超出当前挂载内容的可滚
+        // 上限、且窗口下方还有未挂载消息时,浏览器会把 scrollTop 钳在挂载底部
+        // → 视口永远走不到目标 → ±1 步进死锁(点了没反应)。视为窗内不可达,
+        // 落到下方移窗路径;贴真实底部(下方无未挂载消息)的合法钳制不受影响。
+        const hasUnmountedNewer = winEnd < messages.length;
+        const reachable =
+          !node ||
+          !hasUnmountedNewer ||
+          computeLandingTop({
+            offsetTop: node.offsetTop,
+            within,
+            align,
+            viewportHeight: el.clientHeight,
+            bottomInset: bottom_viewport_inset,
+          }) <=
+            el.scrollHeight - el.clientHeight;
         if (
+          node &&
+          reachable &&
           scrollToRenderedMessage({
             index: clamped,
             node,
@@ -781,35 +950,114 @@ export const useMessageWindowScroll = ({
         }
       }
 
-      const nextStart = Math.max(0, clamped - load_batch_size);
+      // 邻窗滑动:目标出窗不超过一个批次(pill ±1 连点的必然形态)时保留 smooth——
+      // 先挂 pending(保留原 behavior),用 loadOlder/NewerMessages 移窗(自带
+      // windowShiftAnchor 补偿)。消费端 layoutEffect 先执行 anchor 补偿块、后执行
+      // pendingJumpAction 块(顺序不变量,勿重排):同一帧内先把视觉位移补回零,
+      // 再从原位发起 smooth 落位 —— 跨窗强制 auto 所防的"smooth 跨越 DOM 替换
+      // 边界"在此不会发生。远跳不满足邻窗条件,照旧走下方跨窗 auto(竞态防护保留)。
+      if (behavior === "smooth") {
+        const nearAbove =
+          clamped < winStart && clamped >= winStart - load_batch_size;
+        const nearBelowOrUnreachable =
+          clamped >= winStart && clamped < winEnd + load_batch_size;
+        if (nearAbove || nearBelowOrUnreachable) {
+          pendingJumpActionRef.current = {
+            type: "toIndex",
+            index: clamped,
+            behavior,
+            within,
+            align,
+            settle,
+          };
+          if (nearAbove) {
+            loadOlderMessages();
+          } else {
+            loadNewerMessages();
+          }
+          if (visibleStartRef.current !== winStart) {
+            return false;
+          }
+          // 窗口没动(loader 边界钳制):清 pending,落回跨窗路径
+          pendingJumpActionRef.current = null;
+        }
+      }
+
+      const targetMountedCount = Math.min(
+        resolvedMaxMountedCount,
+        initial_visible_count,
+      );
+      const nextStart = Math.max(
+        0,
+        Math.min(
+          clamped - load_batch_size,
+          messages.length - targetMountedCount,
+        ),
+      );
       const landingAction = {
         type: "toIndex",
         index: clamped,
-        behavior,
+        // Cross-window navigation swaps the DOM first. A native smooth scroll
+        // across that boundary races the replacement; only in-window targets
+        // retain the caller's smooth behavior.
+        behavior: "auto",
         within,
         align,
         settle,
       };
-      // 远距离跳转:差距超阈值时分批扩窗,避免一帧渲染爆发;否则一步扩窗落位。
-      if (
-        visibleStartRef.current - nextStart >
-        chunkExpandThreshold(load_batch_size)
-      ) {
-        beginChunkedExpand(nextStart, landingAction);
-        return false;
-      }
-
+      adaptiveMeasurePendingRef.current = true;
       visibleStartRef.current = nextStart;
       pendingJumpActionRef.current = landingAction;
+      setMountedWindowCount(targetMountedCount);
       setVisibleStartIndex(nextStart);
       return false;
     },
     [
-      beginChunkedExpand,
       beginExplicitScrollNavigation,
+      bottom_viewport_inset,
       messages.length,
       load_batch_size,
+      loadNewerMessages,
+      loadOlderMessages,
+      initial_visible_count,
+      resolvedMaxMountedCount,
       scrollToRenderedMessage,
+    ],
+  );
+
+  // 视口页步进:±1 消息不可得(深读超屏消息,minimap PREV/NEXT 的 next===cur
+  // 死区)时的退化动作。clamp 到真实 maxScroll;贴边隐藏由调用方的 pill 显隐兜底。
+  const scrollViewportByPage = useCallback(
+    (direction, behavior = "smooth") => {
+      const el = messagesRef.current;
+      if (!el) {
+        return;
+      }
+      beginExplicitScrollNavigation();
+      const page = Math.max(
+        80,
+        (el.clientHeight - bottom_viewport_inset) * 0.85,
+      );
+      const maxScroll = Math.max(0, el.scrollHeight - el.clientHeight);
+      const top = Math.max(
+        0,
+        Math.min(maxScroll, el.scrollTop + Math.sign(direction) * page),
+      );
+      writeProgrammaticScroll(
+        el,
+        (node) => {
+          node.scrollTo({ top, behavior });
+        },
+        behavior,
+      );
+      lastScrollTopRef.current = el.scrollTop;
+      updateIsAtBottom(el);
+    },
+    [
+      beginExplicitScrollNavigation,
+      bottom_viewport_inset,
+      updateIsAtBottom,
+      writeProgrammaticScroll,
     ],
   );
 
@@ -821,37 +1069,50 @@ export const useMessageWindowScroll = ({
     return () => {
       clearScheduledStreamingBottomFollow();
       clearLandingCorrection();
-      clearChunkedExpand();
+      clearProgrammaticSmoothScroll();
       clearTrimDebounce();
     };
   }, [
-    clearChunkedExpand,
     clearLandingCorrection,
+    clearProgrammaticSmoothScroll,
     clearScheduledStreamingBottomFollow,
     clearTrimDebounce,
   ]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (activeChatIdRef.current === chat_id) {
       return;
     }
 
     activeChatIdRef.current = chat_id;
     lastScrollTopRef.current = 0;
+    clearScheduledStreamingBottomFollow();
     clearLandingCorrection();
-    clearChunkedExpand();
-    const bootStart = Math.max(0, messages.length - effectiveBootCount);
-    const finalStart = Math.max(0, messages.length - initial_visible_count);
+    clearProgrammaticSmoothScroll();
+    clearTrimDebounce();
+    pendingJumpActionRef.current = null;
+    pendingScrollToBottomRef.current = null;
+    windowShiftAnchorRef.current = null;
+    prependCompensationRef.current = null;
+    programmaticScrollDepthRef.current = 0;
+    const currentLength = messagesLengthRef.current;
+    const bootStart = Math.max(0, currentLength - effectiveBootCount);
+    adaptiveMeasurePendingRef.current = true;
     visibleStartRef.current = bootStart;
+    setMountedWindowCount(effectiveBootCount);
     setVisibleStartIndex(bootStart);
     isAtBottomRef.current = true;
     streamingFollowEnabledRef.current = true;
     userScrollIntentRef.current = false;
     setIsAtBottom(true);
     setIsAtTop(true);
-    pendingScrollToBottomRef.current = "auto";
+    if (messagesRef.current) {
+      scrollToBottom("auto");
+    } else {
+      pendingScrollToBottomRef.current = "auto";
+    }
 
-    if (bootStart === finalStart) {
+    if (effectiveBootCount >= initial_visible_count) {
       return;
     }
 
@@ -859,6 +1120,13 @@ export const useMessageWindowScroll = ({
       if (activeChatIdRef.current !== chat_id) {
         return;
       }
+      // A short target may already have expanded beyond the baseline in a
+      // pre-paint layout pass. Never shrink 18/24/.../40 back to 12 here.
+      if (mountedWindowCountRef.current >= initial_visible_count) {
+        return;
+      }
+      const latestLength = messagesLengthRef.current;
+      const finalStart = Math.max(0, latestLength - initial_visible_count);
       // boot(3 条)→ final(12 条)的扩窗是一次 prepend(旧消息补到顶部)。设
       // prependCompensation,让既有 layoutEffect 补偿路径在 paint 前处理:开会话时
       // isAtBottom 为 true → 走 scrollToBottom("auto") 钉底,消除 post-paint smooth 闪动。
@@ -871,6 +1139,7 @@ export const useMessageWindowScroll = ({
         };
       }
       visibleStartRef.current = finalStart;
+      setMountedWindowCount(initial_visible_count);
       setVisibleStartIndex(finalStart);
     };
 
@@ -894,12 +1163,21 @@ export const useMessageWindowScroll = ({
     return () => clearTimeout(timerId);
   }, [
     chat_id,
-    clearChunkedExpand,
     clearLandingCorrection,
+    clearProgrammaticSmoothScroll,
+    clearScheduledStreamingBottomFollow,
+    clearTrimDebounce,
     effectiveBootCount,
     initial_visible_count,
-    messages.length,
+    scrollToBottom,
   ]);
+
+  useLayoutEffect(() => {
+    if (!shouldRenderLatestWindow) return;
+    visibleStartRef.current = renderVisibleStart;
+    pendingScrollToBottomRef.current = "auto";
+    setVisibleStartIndex(renderVisibleStart);
+  }, [renderVisibleStart, shouldRenderLatestWindow]);
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -909,7 +1187,8 @@ export const useMessageWindowScroll = ({
     visibleStartRef.current = 0;
     lastScrollTopRef.current = 0;
     clearLandingCorrection();
-    clearChunkedExpand();
+    adaptiveMeasurePendingRef.current = true;
+    setMountedWindowCount(initial_visible_count);
     setVisibleStartIndex(0);
     isAtBottomRef.current = true;
     streamingFollowEnabledRef.current = true;
@@ -917,12 +1196,56 @@ export const useMessageWindowScroll = ({
     setIsAtBottom(true);
     setIsAtTop(true);
     pendingScrollToBottomRef.current = "auto";
-  }, [clearChunkedExpand, clearLandingCorrection, messages.length]);
+  }, [clearLandingCorrection, initial_visible_count, messages.length]);
 
   useLayoutEffect(() => {
     const el = messagesRef.current;
     if (!el) {
       return;
+    }
+
+    if (pendingScrollToBottomRef.current) {
+      const behavior = pendingScrollToBottomRef.current;
+      pendingScrollToBottomRef.current = null;
+      if (behavior === "auto") {
+        writeProgrammaticScroll(el, (node) => {
+          node.scrollTop = Number.MAX_SAFE_INTEGER;
+        });
+        lastScrollTopRef.current = el.scrollTop;
+        isAtBottomRef.current = true;
+        streamingFollowEnabledRef.current = true;
+        userScrollIntentRef.current = false;
+        setIsAtBottom(true);
+        setIsAtTop(
+          visibleStartRef.current === 0 &&
+            el.scrollTop <= TOP_EDGE_THRESHOLD,
+        );
+      } else {
+        scrollToBottom(behavior);
+      }
+    }
+
+    if (windowShiftAnchorRef.current) {
+      const { index, viewportOffset } = windowShiftAnchorRef.current;
+      const anchorNode = messageNodeRefs.current.get(index);
+      windowShiftAnchorRef.current = null;
+      if (anchorNode) {
+        const anchorTop = Math.max(0, anchorNode.offsetTop - viewportOffset);
+        writeProgrammaticScroll(el, (node) => {
+          node.scrollTop = anchorTop;
+        });
+        lastScrollTopRef.current = el.scrollTop;
+        updateIsAtBottom(el);
+        // Reuse the landing settle loop for async Markdown/code/image growth.
+        // For top alignment computeLandingTop is offsetTop + within - 12;
+        // this within value therefore preserves the captured viewport offset.
+        scheduleLandingCorrection({
+          index,
+          within: 12 - viewportOffset,
+          align: "top",
+          initialTop: anchorTop,
+        });
+      }
     }
 
     if (prependCompensationRef.current) {
@@ -967,7 +1290,18 @@ export const useMessageWindowScroll = ({
         pendingJumpActionRef.current = null;
         return;
       }
-      if (visibleStartRef.current > 0) {
+      // 方向感知救援:目标在窗口下边界外且下方还有消息 → 向下移窗;目标在上方
+      // → 向上移窗。旧实现只会 loadOlder 向上爬、爬到 0 放弃,向下的跳转会被丢失。
+      const rescueStart = visibleStartRef.current;
+      const rescueEnd = rescueStart + mountedWindowCountRef.current;
+      if (
+        pendingAction.index >= rescueEnd &&
+        rescueEnd < messagesLengthRef.current
+      ) {
+        loadNewerMessages();
+        return;
+      }
+      if (pendingAction.index < rescueStart && rescueStart > 0) {
         loadOlderMessages();
         return;
       }
@@ -995,13 +1329,78 @@ export const useMessageWindowScroll = ({
   }, [
     isAtBottom,
     jumpToPreviousRenderedMessage,
+    loadNewerMessages,
     loadOlderMessages,
     safeVisibleStart,
+    safeVisibleEnd,
+    scheduleLandingCorrection,
     scrollToBottom,
     scrollToRenderedMessage,
     scrollToTop,
     updateIsAtBottom,
     writeProgrammaticScroll,
+  ]);
+
+  useLayoutEffect(() => {
+    const el = messagesRef.current;
+    if (
+      !el ||
+      isChatSwitchPending ||
+      !adaptiveMeasurePendingRef.current ||
+      effectiveMountedCount < initial_visible_count ||
+      effectiveMountedCount >= resolvedMaxMountedCount ||
+      (visibleStartRef.current === 0 &&
+        messagesLengthRef.current <= effectiveMountedCount) ||
+      prependCompensationRef.current ||
+      pendingJumpActionRef.current ||
+      windowShiftAnchorRef.current
+    ) {
+      return;
+    }
+
+    // Consume this target's only synchronous measurement regardless of the
+    // result. Heavy content keeps the 12-row baseline; short content performs
+    // one bounded expansion straight to the cap. There is no per-batch loop,
+    // idle chain, animation frame, or observer-driven growth.
+    adaptiveMeasurePendingRef.current = false;
+    if (el.scrollHeight <= el.clientHeight + top_load_threshold) {
+      const nextCount = resolvedMaxMountedCount;
+      const currentStart = visibleStartRef.current;
+      const latestLength = messagesLengthRef.current;
+      const nextStart = Math.min(
+        currentStart,
+        Math.max(0, latestLength - nextCount),
+      );
+      if (nextStart === currentStart && nextCount <= effectiveMountedCount) {
+        return;
+      }
+
+      if (nextStart < currentStart) {
+        if (isAtBottomRef.current) {
+          prependCompensationRef.current = {
+            previousScrollHeight: el.scrollHeight,
+            previousScrollTop: el.scrollTop,
+          };
+        } else {
+          const landingIndex = pendingLandingActionRef.current?.index;
+          const anchorIndex = messageNodeRefs.current.get(landingIndex)
+            ? landingIndex
+            : currentStart;
+          captureWindowShiftAnchor(anchorIndex);
+        }
+      }
+      visibleStartRef.current = nextStart;
+      setMountedWindowCount(nextCount);
+      setVisibleStartIndex(nextStart);
+    }
+  }, [
+    captureWindowShiftAnchor,
+    effectiveMountedCount,
+    initial_visible_count,
+    isChatSwitchPending,
+    resolvedMaxMountedCount,
+    safeVisibleStart,
+    top_load_threshold,
   ]);
 
   useEffect(() => {
@@ -1041,40 +1440,17 @@ export const useMessageWindowScroll = ({
     safeVisibleStart,
   ]);
 
-  useEffect(() => {
-    const el = messagesRef.current;
-    if (
-      !el ||
-      is_streaming ||
-      prependCompensationRef.current ||
-      messages.length === 0
-    ) {
-      return;
-    }
-
-    if (
-      visibleStartRef.current > 0 &&
-      el.scrollHeight <= el.clientHeight + top_load_threshold
-    ) {
-      loadOlderMessages();
-    }
-  }, [
-    is_streaming,
-    loadOlderMessages,
-    messages,
-    safeVisibleStart,
-    top_load_threshold,
-  ]);
-
   return {
     messagesRef,
     bottomSentinelRef,
     messageNodeRefs,
     safeVisibleStart,
+    safeVisibleEnd,
     visibleMessages,
     isAtBottom,
     isAtTop,
     handleScroll,
+    handlePointerInteraction,
     handleUserScrollIntent,
     handleWheel,
     notifyStreamingContentCommitted,
@@ -1082,6 +1458,7 @@ export const useMessageWindowScroll = ({
     handleSkipToTop,
     handleJumpToPreviousMessage,
     scrollToMessageIndex,
+    scrollViewportByPage,
   };
 };
 

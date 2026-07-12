@@ -1,6 +1,8 @@
 const HUMAN_INPUT_TOOL_NAME = "ask_user_question";
 const CONTINUATION_TOOL_NAME = "__continuation__";
 const RUN_PROMOTED_ARTIFACT_KINDS = new Set(["plan"]);
+const INCREMENTAL_REDUCTION_META = Symbol("runtimeEventReductionMeta");
+const ARTIFACT_SUMMARY_ORDER = Symbol("artifactSummaryOrder");
 
 const isObject = (value) =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -116,10 +118,16 @@ const resolveTurnId = (event) => {
 const ensureArtifactBucket = (state, turnId) => {
   if (!turnId) return null;
   if (!state.artifactSummariesByTurnId[turnId]) {
-    const nextOrder =
-      Object.keys(state.artifactSummariesByTurnId).length + 1;
+    if (!Object.prototype.hasOwnProperty.call(state, ARTIFACT_SUMMARY_ORDER)) {
+      Object.defineProperty(state, ARTIFACT_SUMMARY_ORDER, {
+        configurable: true,
+        writable: true,
+        value: Object.keys(state.artifactSummariesByTurnId).length,
+      });
+    }
+    state[ARTIFACT_SUMMARY_ORDER] += 1;
     state.artifactSummariesByTurnId[turnId] = {
-      order: nextOrder,
+      order: state[ARTIFACT_SUMMARY_ORDER],
       status: "pending",
       artifacts: [],
     };
@@ -137,7 +145,7 @@ const upsertArtifactDescriptor = (bucket, artifact) => {
     (a) => a?.artifact_id === artifactId,
   );
   if (existingIdx < 0) {
-    bucket.artifacts.push({ ...artifact });
+    bucket.artifacts.push(clone(artifact));
     return { changed: true, replaced: false };
   }
 
@@ -152,7 +160,14 @@ const upsertArtifactDescriptor = (bucket, artifact) => {
     return { changed: false, replaced: true };
   }
 
-  bucket.artifacts[existingIdx] = { ...artifact };
+  if (
+    existingRevision === incomingRevision &&
+    JSON.stringify(existing) === JSON.stringify(artifact)
+  ) {
+    return { changed: false, replaced: true };
+  }
+
+  bucket.artifacts[existingIdx] = clone(artifact);
   return { changed: true, replaced: true };
 };
 
@@ -1152,25 +1167,543 @@ const mergeRunPromotedArtifacts = ({
   return { bucket: currentBucket, effects: nextEffects };
 };
 
+const attachReductionMeta = (state, meta) => {
+  Object.defineProperty(state, INCREMENTAL_REDUCTION_META, {
+    configurable: true,
+    value: meta,
+  });
+  return state;
+};
+
+const cloneArtifactBucket = (bucket) => {
+  if (!isObject(bucket)) return null;
+  return {
+    ...bucket,
+    artifacts: Array.isArray(bucket.artifacts)
+      ? bucket.artifacts.map((artifact) => clone(artifact))
+      : [],
+  };
+};
+
+const copyArtifactBucket = (bucket) => {
+  if (!isObject(bucket)) return null;
+  return {
+    ...bucket,
+    artifacts: Array.isArray(bucket.artifacts) ? [...bucket.artifacts] : [],
+  };
+};
+
+const createArtifactIndex = (bucket) =>
+  new Map(
+    (Array.isArray(bucket?.artifacts) ? bucket.artifacts : []).map(
+      (artifact, index) => [stringValue(artifact?.artifact_id), index],
+    ),
+  );
+
+const upsertIndexedArtifact = (
+  bucket,
+  indexById,
+  artifact,
+  { cloneValue = false } = {},
+) => {
+  const artifactId = stringValue(artifact?.artifact_id);
+  if (!artifactId || !Array.isArray(bucket?.artifacts)) {
+    return { changed: false, replaced: false };
+  }
+  const existingIdx = indexById.get(artifactId);
+  if (!Number.isInteger(existingIdx)) {
+    indexById.set(artifactId, bucket.artifacts.length);
+    bucket.artifacts.push(cloneValue ? clone(artifact) : artifact);
+    return { changed: true, replaced: false };
+  }
+
+  const existing = bucket.artifacts[existingIdx];
+  const incomingRevision = Number(artifact.revision);
+  const existingRevision = Number(existing?.revision);
+  if (
+    Number.isFinite(existingRevision) &&
+    Number.isFinite(incomingRevision) &&
+    incomingRevision < existingRevision
+  ) {
+    return { changed: false, replaced: true };
+  }
+  if (
+    existingRevision === incomingRevision &&
+    JSON.stringify(existing) === JSON.stringify(artifact)
+  ) {
+    return { changed: false, replaced: true };
+  }
+  bucket.artifacts[existingIdx] = cloneValue ? clone(artifact) : artifact;
+  return { changed: true, replaced: true };
+};
+
+const buildPromotedArtifactIndex = (projectedState) => {
+  const bucket = { order: 0, status: "completed", artifacts: [] };
+  const indexById = new Map();
+  const sourceTurnById = new Map();
+  const duplicateArtifactIds = new Set();
+  let lastTurnOrder = 0;
+
+  Object.entries(projectedState?.artifactSummariesByTurnId || {})
+    .sort(([, left], [, right]) => (left?.order || 0) - (right?.order || 0))
+    .forEach(([turnId, turnBucket]) => {
+      const turnOrder = Number(turnBucket?.order) || 0;
+      const artifacts = Array.isArray(turnBucket?.artifacts)
+        ? turnBucket.artifacts
+        : [];
+      artifacts.forEach((artifact) => {
+        if (!RUN_PROMOTED_ARTIFACT_KINDS.has(stringValue(artifact?.kind))) {
+          return;
+        }
+        const artifactId = stringValue(artifact?.artifact_id);
+        if (!artifactId) return;
+        if (sourceTurnById.has(artifactId)) {
+          duplicateArtifactIds.add(artifactId);
+        } else {
+          sourceTurnById.set(artifactId, turnId);
+        }
+        upsertIndexedArtifact(bucket, indexById, artifact);
+        lastTurnOrder = Math.max(lastTurnOrder, turnOrder);
+      });
+    });
+
+  return {
+    promotedRunArtifactSummary: bucket,
+    promotedRunArtifactIndexById: indexById,
+    promotedSourceTurnById: sourceTurnById,
+    promotedDuplicateArtifactIds: duplicateArtifactIds,
+    lastPromotedTurnOrder: lastTurnOrder,
+  };
+};
+
+const createReductionMeta = (
+  eventStoreSnapshot,
+  eventIds,
+  runSummary,
+  projectedState,
+) => {
+  const explicitRunArtifactSummary = cloneArtifactBucket(runSummary?.bucket);
+  return {
+    processedLength: eventIds.length,
+    lastEventId: eventIds[eventIds.length - 1] || "",
+    storeRevision: Number(eventStoreSnapshot.__runtimeEventStoreRevision),
+    orderRevision: Number(eventStoreSnapshot.__runtimeEventOrderRevision),
+    storeGeneration: Number(eventStoreSnapshot.__runtimeEventStoreGeneration),
+    storeIdentity: eventStoreSnapshot.__runtimeEventStoreIdentity,
+    runSettled: Boolean(runSummary?.runSettled),
+    runSettledEventId: stringValue(runSummary?.runSettledEventId),
+    explicitRunArtifactSummary,
+    explicitRunArtifactIndexById: createArtifactIndex(
+      explicitRunArtifactSummary,
+    ),
+    ...buildPromotedArtifactIndex(projectedState),
+  };
+};
+
+const canReduceIncrementally = (previousState, eventStoreSnapshot, eventIds) => {
+  const meta = previousState?.[INCREMENTAL_REDUCTION_META];
+  const storeRevision = Number(eventStoreSnapshot.__runtimeEventStoreRevision);
+  const orderRevision = Number(eventStoreSnapshot.__runtimeEventOrderRevision);
+  const storeGeneration = Number(
+    eventStoreSnapshot.__runtimeEventStoreGeneration,
+  );
+  if (
+    !meta ||
+    !Number.isFinite(storeRevision) ||
+    !Number.isFinite(orderRevision) ||
+    !Number.isFinite(storeGeneration) ||
+    !eventStoreSnapshot.__runtimeEventStoreIdentity ||
+    meta.storeIdentity !== eventStoreSnapshot.__runtimeEventStoreIdentity ||
+    meta.storeGeneration !== storeGeneration ||
+    storeRevision < meta.storeRevision ||
+    eventIds.length < meta.processedLength
+  ) {
+    return false;
+  }
+  if (
+    meta.processedLength > 0 &&
+    eventIds[meta.processedLength - 1] !== meta.lastEventId
+  ) {
+    return false;
+  }
+  return true;
+};
+
+const runSummaryInputKind = (state, event) => {
+  const type = stringValue(event?.type);
+  if (type === "run.completed" || type === "run.failed") {
+    return "settled";
+  }
+  if (
+    (type !== "artifact.created" && type !== "artifact.updated") ||
+    !isValidArtifactDescriptor(payloadOf(event))
+  ) {
+    return "";
+  }
+  if (isRunSummaryArtifactEvent(event)) {
+    return "explicit";
+  }
+  const artifact = payloadOf(event);
+  const incomingIsPromoted = RUN_PROMOTED_ARTIFACT_KINDS.has(
+    stringValue(artifact?.kind),
+  );
+  const turnId = resolveTurnId(event);
+  const artifactId = stringValue(artifact?.artifact_id);
+  const previousArtifact = Array.isArray(
+    state?.artifactSummariesByTurnId?.[turnId]?.artifacts,
+  )
+    ? state.artifactSummariesByTurnId[turnId].artifacts.find(
+        (candidate) => stringValue(candidate?.artifact_id) === artifactId,
+      )
+    : null;
+  const previousWasPromoted = RUN_PROMOTED_ARTIFACT_KINDS.has(
+    stringValue(previousArtifact?.kind),
+  );
+  return incomingIsPromoted || previousWasPromoted ? "promoted" : "";
+};
+
+const updateExplicitRunSummary = (reductionMeta, event, inputKind) => {
+  if (inputKind === "settled") {
+    reductionMeta.runSettled = true;
+    reductionMeta.runSettledEventId = stringValue(event?.event_id);
+    if (reductionMeta.explicitRunArtifactSummary) {
+      reductionMeta.explicitRunArtifactSummary.status = "completed";
+    }
+    return;
+  }
+  if (inputKind !== "explicit") {
+    return;
+  }
+  const artifact = payloadOf(event);
+  if (!reductionMeta.explicitRunArtifactSummary) {
+    reductionMeta.explicitRunArtifactSummary = {
+      order: 0,
+      status: reductionMeta.runSettled ? "completed" : "pending",
+      artifacts: [],
+    };
+    reductionMeta.explicitRunArtifactIndexById = new Map();
+  }
+  upsertIndexedArtifact(
+    reductionMeta.explicitRunArtifactSummary,
+    reductionMeta.explicitRunArtifactIndexById,
+    artifact,
+    { cloneValue: true },
+  );
+};
+
+const refreshPromotedArtifactIndex = (reductionMeta, projectedState) => {
+  Object.assign(
+    reductionMeta,
+    buildPromotedArtifactIndex(projectedState),
+  );
+};
+
+const updatePromotedArtifactIndex = (
+  reductionMeta,
+  projectedState,
+  event,
+  inputKind,
+  indexIsDirty = false,
+) => {
+  if (inputKind !== "promoted" || indexIsDirty) return indexIsDirty;
+  const artifactId = stringValue(payloadOf(event)?.artifact_id);
+  const turnId = resolveTurnId(event);
+  const turnBucket = projectedState?.artifactSummariesByTurnId?.[turnId];
+  const turnOrder = Number(turnBucket?.order) || 0;
+  const turnArtifacts = Array.isArray(turnBucket?.artifacts)
+    ? turnBucket.artifacts
+    : [];
+  const currentArtifactIndex = turnArtifacts.findIndex(
+    (artifact) => stringValue(artifact?.artifact_id) === artifactId,
+  );
+  const currentArtifact =
+    currentArtifactIndex >= 0 ? turnArtifacts[currentArtifactIndex] : null;
+  const currentIsPromoted = RUN_PROMOTED_ARTIFACT_KINDS.has(
+    stringValue(currentArtifact?.kind),
+  );
+  const existingIdx = reductionMeta.promotedRunArtifactIndexById?.get(
+    artifactId,
+  );
+  const sourceTurnId = reductionMeta.promotedSourceTurnById?.get(artifactId);
+  const hasPromotedArtifactAfter =
+    !Number.isInteger(existingIdx) &&
+    currentIsPromoted &&
+    turnArtifacts.slice(currentArtifactIndex + 1).some(
+      (artifact) =>
+        RUN_PROMOTED_ARTIFACT_KINDS.has(stringValue(artifact?.kind)) &&
+        reductionMeta.promotedRunArtifactIndexById?.has(
+          stringValue(artifact?.artifact_id),
+        ),
+    );
+
+  if (
+    reductionMeta.promotedDuplicateArtifactIds?.has(artifactId) ||
+    (sourceTurnId && sourceTurnId !== turnId) ||
+    (!Number.isInteger(existingIdx) &&
+      currentIsPromoted &&
+      (turnOrder < reductionMeta.lastPromotedTurnOrder ||
+        hasPromotedArtifactAfter))
+  ) {
+    return true;
+  }
+
+  if (currentIsPromoted) {
+    if (Number.isInteger(existingIdx)) {
+      reductionMeta.promotedRunArtifactSummary.artifacts[existingIdx] =
+        currentArtifact;
+    } else {
+      const nextIndex =
+        reductionMeta.promotedRunArtifactSummary.artifacts.length;
+      reductionMeta.promotedRunArtifactSummary.artifacts.push(currentArtifact);
+      reductionMeta.promotedRunArtifactIndexById.set(artifactId, nextIndex);
+      reductionMeta.promotedSourceTurnById.set(artifactId, turnId);
+      reductionMeta.lastPromotedTurnOrder = Math.max(
+        reductionMeta.lastPromotedTurnOrder,
+        turnOrder,
+      );
+    }
+    return false;
+  }
+
+  if (Number.isInteger(existingIdx)) {
+    // Removal can reveal a duplicate from another turn and can change the
+    // promoted ordering; defer this rare canonical rebuild to the batch end.
+    return true;
+  }
+  return false;
+};
+
+const composeRunArtifactSummary = ({
+  explicitBucket,
+  promotedBucket,
+  projectedState,
+  runSettled,
+}) => {
+  if (!explicitBucket && !runSettled) {
+    return null;
+  }
+  const promotedArtifacts = promotedBucket
+    ? promotedBucket.artifacts
+    : collectRunPromotedArtifacts(projectedState?.artifactSummariesByTurnId);
+  if (!explicitBucket && promotedArtifacts.length === 0) {
+    return null;
+  }
+  const bucket = copyArtifactBucket(explicitBucket) || {
+    order: 0,
+    status: runSettled ? "completed" : "pending",
+    artifacts: [],
+  };
+  if (runSettled) {
+    bucket.status = "completed";
+  }
+  const indexById = createArtifactIndex(bucket);
+  promotedArtifacts.forEach((artifact) => {
+    upsertIndexedArtifact(bucket, indexById, artifact);
+  });
+  return bucket;
+};
+
+const artifactBucketsEqual = (left, right) => {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  if (
+    left.order !== right.order ||
+    left.status !== right.status ||
+    !Array.isArray(left.artifacts) ||
+    !Array.isArray(right.artifacts) ||
+    left.artifacts.length !== right.artifacts.length
+  ) {
+    return false;
+  }
+  for (let index = 0; index < left.artifacts.length; index += 1) {
+    if (left.artifacts[index] === right.artifacts[index]) continue;
+    if (
+      JSON.stringify(left.artifacts[index]) !==
+      JSON.stringify(right.artifacts[index])
+    ) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const appendRunSummaryEffect = ({
+  effects,
+  event,
+  inputKind,
+  previousBucket,
+  nextBucket,
+  reductionMeta,
+}) => {
+  if (
+    artifactBucketsEqual(previousBucket, nextBucket) ||
+    (nextBucket
+      ? nextBucket.status !== "completed"
+      : previousBucket?.status !== "completed")
+  ) {
+    return;
+  }
+
+  if (inputKind === "settled") {
+    if (reductionMeta.runSettledEventId) {
+      effects.push({
+        type: "run_artifact_summary",
+        eventId: reductionMeta.runSettledEventId,
+        reason: "flushed",
+      });
+    }
+    return;
+  }
+
+  const type = stringValue(event?.type);
+  effects.push({
+    type: "run_artifact_summary",
+    eventId: stringValue(event?.event_id),
+    reason: type === "artifact.updated" ? "updated" : "created",
+  });
+};
+
+const reduceActivityTreeIncrementally = (
+  previousState,
+  eventStoreSnapshot,
+  eventIds,
+) => {
+  const eventsById = isObject(eventStoreSnapshot.eventsById)
+    ? eventStoreSnapshot.eventsById
+    : {};
+  const previousMeta = previousState[INCREMENTAL_REDUCTION_META];
+  const nextMeta = {
+    ...previousMeta,
+    storeRevision: Number(eventStoreSnapshot.__runtimeEventStoreRevision),
+    orderRevision: Number(eventStoreSnapshot.__runtimeEventOrderRevision),
+    storeGeneration: Number(
+      eventStoreSnapshot.__runtimeEventStoreGeneration,
+    ),
+  };
+  const runSummaryEffects = [];
+  const previousRunArtifactSummary = previousState.runArtifactSummary;
+  let latestRunSummaryInput = null;
+  let settleInput = null;
+  let promotedIndexDirty = false;
+
+  // Effects are a dispatch queue, not durable tree state. Returning only the
+  // newly produced effects keeps the stream flush O(batch); frames and all
+  // other projected state remain cumulative.
+  previousState.effects = [];
+  previousState.diagnostics = cloneDiagnostics(eventStoreSnapshot.diagnostics);
+
+  for (let index = previousMeta.processedLength; index < eventIds.length; index += 1) {
+    const event = eventsById[eventIds[index]];
+    if (!isObject(event)) continue;
+    const inputKind = runSummaryInputKind(previousState, event);
+    updateExplicitRunSummary(nextMeta, event, inputKind);
+    const projectedEvent = toProjectedEvent(event);
+    if (projectedEvent) {
+      applyEvent(previousState, projectedEvent);
+    }
+    promotedIndexDirty = updatePromotedArtifactIndex(
+      nextMeta,
+      previousState,
+      event,
+      inputKind,
+      promotedIndexDirty,
+    );
+    if (inputKind) {
+      latestRunSummaryInput = { event, inputKind };
+      if (inputKind === "settled") {
+        settleInput = latestRunSummaryInput;
+      }
+    }
+  }
+
+  if (promotedIndexDirty) {
+    refreshPromotedArtifactIndex(nextMeta, previousState);
+  }
+
+  if (latestRunSummaryInput) {
+    const nextRunArtifactSummary = composeRunArtifactSummary({
+      explicitBucket: nextMeta.explicitRunArtifactSummary,
+      promotedBucket: nextMeta.promotedRunArtifactSummary,
+      projectedState: previousState,
+      runSettled: nextMeta.runSettled,
+    });
+    const effectiveInput =
+      settleInput && previousRunArtifactSummary?.status !== "completed"
+        ? settleInput
+        : latestRunSummaryInput;
+    appendRunSummaryEffect({
+      effects: runSummaryEffects,
+      event: effectiveInput.event,
+      inputKind: effectiveInput.inputKind,
+      previousBucket: previousRunArtifactSummary,
+      nextBucket: nextRunArtifactSummary,
+      reductionMeta: nextMeta,
+    });
+    previousState.runArtifactSummary = nextRunArtifactSummary;
+  }
+
+  previousState.effects.push(...runSummaryEffects);
+  nextMeta.processedLength = eventIds.length;
+  nextMeta.lastEventId = eventIds[eventIds.length - 1] || "";
+  return attachReductionMeta(previousState, nextMeta);
+};
+
 export const reduceActivityTree = (_previousState, eventStoreSnapshot = {}) => {
+  const eventIds = Array.isArray(eventStoreSnapshot.orderedEventIds)
+    ? eventStoreSnapshot.orderedEventIds
+    : [];
   const projectedState = reduceProjectedActivityTree(
     null,
     projectedSnapshotFromRuntimeEvents(eventStoreSnapshot),
   );
   const runSummary = buildRunArtifactSummary(eventStoreSnapshot);
   const { bucket, effects } = mergeRunPromotedArtifacts({
-    bucket: runSummary.bucket,
+    bucket: cloneArtifactBucket(runSummary.bucket),
     effects: runSummary.effects,
     projectedState,
     runSettled: runSummary.runSettled,
     runSettledEventId: runSummary.runSettledEventId,
   });
-  return {
+  const nextState = {
     ...projectedState,
     runArtifactSummary: bucket,
     effects: [
       ...(Array.isArray(projectedState.effects) ? projectedState.effects : []),
       ...effects,
     ],
+  };
+  return attachReductionMeta(
+    nextState,
+    createReductionMeta(
+      eventStoreSnapshot,
+      eventIds,
+      runSummary,
+      projectedState,
+    ),
+  );
+};
+
+// Internal stream projector: owns its mutable working tree so the public
+// reduceActivityTree contract stays pure/detached for tests, adapters, and
+// non-stream callers.
+export const createIncrementalActivityTreeProjector = () => {
+  let state = null;
+
+  return {
+    reduce(eventStoreSnapshot = {}) {
+      const eventIds = Array.isArray(eventStoreSnapshot.orderedEventIds)
+        ? eventStoreSnapshot.orderedEventIds
+        : [];
+      if (canReduceIncrementally(state, eventStoreSnapshot, eventIds)) {
+        state = reduceActivityTreeIncrementally(
+          state,
+          eventStoreSnapshot,
+          eventIds,
+        );
+      } else {
+        state = reduceActivityTree(null, eventStoreSnapshot);
+      }
+      return state;
+    },
   };
 };

@@ -36,7 +36,9 @@ describe("use_chat_stream runtime event batching", () => {
       /const flushRuntimeEventBatch[\s\S]*?return dispatchRuntimeEventEffects\(effects\);/,
     );
     expect(flushBatch).not.toBeNull();
-    expect(flushBatch[0]).toMatch(/runtimeEventStore\.appendMany\(events\)/);
+    expect(flushBatch[0]).toMatch(
+      /runtimeEventStore\.appendManyForReduction\(events\)/,
+    );
     expect(flushBatch[0]).toMatch(/flushRuntimeEventEffects\(\)/);
   });
 

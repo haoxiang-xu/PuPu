@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   useSystemTheme,
   useWindowSize,
   useWebBrowser,
   useDeviceType,
+  detectWebBrowser,
+  detectDeviceType,
 } from "../../BUILTIN_COMPONENTs/mini_react/mini_use";
 
 /* { Components } ------------------------------------------------------------------------------------------------------------ */
@@ -59,19 +61,29 @@ const loadSettingsStorage = () => {
   return null;
 };
 
-const saveSettingsStorage = (path, data) => {
+const saveSettingsStorage = (updatesByPath) => {
   try {
     const root = loadSettingsStorage() || {};
-    const section = root[path] || {};
-    root[path] = { ...section, ...data };
+    let changed = false;
+    Object.entries(updatesByPath).forEach(([path, data]) => {
+      const section = root[path] || {};
+      const sectionChanged = Object.entries(data).some(
+        ([key, value]) => section[key] !== value,
+      );
+      if (!sectionChanged) return;
+      root[path] = { ...section, ...data };
+      changed = true;
+    });
+    if (!changed) return;
     localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(root));
   } catch {}
 };
 
-const loadInitialFragment = () => {
+const loadInitialFragment = (persistedSettings) => {
   try {
-    const persisted = loadSettingsStorage();
-    return persisted?.ui?.side_menu_open === true ? "side_menu" : "main";
+    return persistedSettings?.ui?.side_menu_open === true
+      ? "side_menu"
+      : "main";
   } catch {}
   return "main";
 };
@@ -204,12 +216,13 @@ const migrateSettingsStorage = () => {
   } catch {}
 };
 migrateSettingsStorage();
+const initialSettingsStorage = loadSettingsStorage();
 
 /* apply persisted locale font as CSS vars synchronously to avoid initial font flash */
 const applyInitialLocaleFont = () => {
   if (typeof document === "undefined") return;
   try {
-    const persisted = loadSettingsStorage();
+    const persisted = initialSettingsStorage;
     const locale = persisted?.appearance?.locale || "en";
     const localeFont = LOCALE_FONT[locale] || LOCALE_FONT.en;
     document.documentElement.style.setProperty(
@@ -231,7 +244,7 @@ applyInitialLocaleFont();
 const applyInitialSemanticVars = () => {
   if (typeof document === "undefined") return;
   try {
-    const persisted = loadSettingsStorage();
+    const persisted = initialSettingsStorage;
     const mode = resolveInitialThemeMode(
       persisted?.appearance?.theme_mode,
       "light_mode",
@@ -252,16 +265,44 @@ const applyInitialSemanticVars = () => {
 applyInitialSemanticVars();
 /* { Helpers } ----------------------------------------------------------------------------------------------------------- */
 
+const readLegacyEnvironmentSnapshot = () => {
+  return Object.freeze({
+    window_size: Object.freeze({
+      width: typeof window !== "undefined" ? window.innerWidth || 0 : 0,
+      height: typeof window !== "undefined" ? window.innerHeight || 0 : 0,
+    }),
+    env_browser: detectWebBrowser(),
+    device_type: detectDeviceType(),
+  });
+};
+
+const EnvironmentProvider = ({ children }) => {
+  const window_size = useWindowSize();
+  const env_browser = useWebBrowser();
+  const device_type = useDeviceType();
+  const environmentValue = useMemo(
+    () => ({ window_size, env_browser, device_type }),
+    [window_size, env_browser, device_type],
+  );
+
+  return (
+    <EnvironmentContext.Provider value={environmentValue}>
+      {children}
+    </EnvironmentContext.Provider>
+  );
+};
+
 const ConfigContainer = ({ children }) => {
   /* { STYLE } =========================================================================================================== */
   /* { global theme } ---------------------------------------------------------------------------------------------------- */
   const system_theme = useSystemTheme();
 
   /* load persisted appearance on first render */
-  const _persisted = loadSettingsStorage();
+  const [_persisted] = useState(() => loadSettingsStorage());
   const _persistedThemeMode = _persisted?.appearance?.theme_mode;
   const _persistedLocale = _persisted?.appearance?.locale;
-  const _initialFeatureFlags = readFeatureFlags();
+  const [_initialFeatureFlags] = useState(() => readFeatureFlags());
+  const [legacyEnvironmentSnapshot] = useState(readLegacyEnvironmentSnapshot);
   const initialThemeMode = resolveInitialThemeMode(
     _persistedThemeMode,
     system_theme,
@@ -351,16 +392,6 @@ const ConfigContainer = ({ children }) => {
       setOnThemeMode(system_theme);
     }
   }, [syncWithSystemTheme, system_theme]);
-  /* persist appearance preference to localStorage */
-  useEffect(() => {
-    saveSettingsStorage("appearance", {
-      theme_mode: syncWithSystemTheme ? "sync_with_browser" : onThemeMode,
-    });
-  }, [onThemeMode, syncWithSystemTheme]);
-  useEffect(() => {
-    saveSettingsStorage("appearance", { locale });
-  }, [locale]);
-
   useEffect(() => {
     if (!isDevSettingsAvailable()) {
       return;
@@ -380,19 +411,26 @@ const ConfigContainer = ({ children }) => {
   /* { global theme } ---------------------------------------------------------------------------------------------------- */
   /* { STYLE } =========================================================================================================== */
 
-  /* { ENVIRONMENT } ===================================================================================================== */
-  const window_size = useWindowSize();
-  const env_browser = useWebBrowser();
-  const device_type = useDeviceType();
-  /* { ENVIRONMENT } ===================================================================================================== */
-
-  const [onFragment, setOnFragment] = useState(() => loadInitialFragment());
+  const [onFragment, setOnFragment] = useState(() =>
+    loadInitialFragment(_persisted),
+  );
+  const settingsPersistenceReadyRef = useRef(false);
 
   useEffect(() => {
-    saveSettingsStorage("ui", {
-      side_menu_open: onFragment === "side_menu",
+    if (!settingsPersistenceReadyRef.current) {
+      settingsPersistenceReadyRef.current = true;
+      return;
+    }
+    saveSettingsStorage({
+      appearance: {
+        theme_mode: syncWithSystemTheme ? "sync_with_browser" : onThemeMode,
+        locale,
+      },
+      ui: {
+        side_menu_open: onFragment === "side_menu",
+      },
     });
-  }, [onFragment]);
+  }, [locale, onFragment, onThemeMode, syncWithSystemTheme]);
 
   /* { Init Setup } ============================================ */
   const [showInitSetup, setShowInitSetup] = useState(() => !isSetupComplete());
@@ -418,32 +456,29 @@ const ConfigContainer = ({ children }) => {
     [locale],
   );
 
-  const environmentValue = useMemo(
-    () => ({ window_size, env_browser, device_type }),
-    [window_size, env_browser, device_type],
-  );
-
   const navigationValue = useMemo(
     () => ({ onFragment, setOnFragment }),
     [onFragment],
   );
 
   /* Legacy combined value — kept for backward compatibility.
-     New code should prefer the granular contexts. */
+     Environment fields are an immutable startup snapshot so resize does not
+     invalidate every ConfigContext consumer. Reactive environment users must
+     subscribe to EnvironmentContext. */
   const configValue = useMemo(
     () => ({
       ...themeValue,
       ...localeValue,
-      ...environmentValue,
+      ...legacyEnvironmentSnapshot,
       ...navigationValue,
     }),
-    [themeValue, localeValue, environmentValue, navigationValue],
+    [themeValue, localeValue, legacyEnvironmentSnapshot, navigationValue],
   );
 
   return (
     <ThemeContext.Provider value={themeValue}>
     <LocaleContext.Provider value={localeValue}>
-    <EnvironmentContext.Provider value={environmentValue}>
+    <EnvironmentProvider>
     <NavigationContext.Provider value={navigationValue}>
     <ConfigContext.Provider value={configValue}>
       <div
@@ -486,7 +521,7 @@ const ConfigContainer = ({ children }) => {
       {!isThemeBooting && <Scrollable />}
     </ConfigContext.Provider>
     </NavigationContext.Provider>
-    </EnvironmentContext.Provider>
+    </EnvironmentProvider>
     </LocaleContext.Provider>
     </ThemeContext.Provider>
   );

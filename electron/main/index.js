@@ -38,6 +38,12 @@ try {
 
 let appIsQuitting = false;
 
+// dev 模式禁用 HTTP 缓存:Electron 会跨 reload 缓存 dev server 的 bundle.js,
+// 表现为"代码已重编译、app 刷新后仍跑旧逻辑"(本项目已三次踩坑)。仅影响未打包运行。
+if (!app.isPackaged) {
+  app.commandLine.appendSwitch("disable-http-cache");
+}
+
 const gotSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!gotSingleInstanceLock) {

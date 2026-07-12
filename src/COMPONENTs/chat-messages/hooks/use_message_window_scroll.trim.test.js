@@ -57,6 +57,9 @@ const baseProps = (over = {}) => ({
 // (visibleStart === 0). Each iteration first parks scrollTop high (establishes a
 // downward lastScrollTop) then jumps to 0 (an upward scroll into the top threshold).
 const expandToTop = (result, host) => {
+  act(() => {
+    result.current.handleWheel({ deltaY: -1 });
+  });
   for (let i = 0; i < 80; i++) {
     if (result.current.safeVisibleStart === 0) break;
     act(() => {
@@ -72,8 +75,7 @@ const expandToTop = (result, host) => {
 
 const goToBottom = (result, host) => {
   act(() => {
-    host.scrollTop = host.__scrollHeight - host.clientHeight;
-    result.current.handleScroll();
+    result.current.handleBackToBottom();
   });
 };
 
@@ -98,16 +100,18 @@ describe("window trim (max_mounted_count)", () => {
     expect(result.current.safeVisibleStart).toBe(88); // 100 - 12
 
     expandToTop(result, host);
-    expect(result.current.safeVisibleStart).toBe(0); // fully mounted (100)
+    expect(result.current.safeVisibleStart).toBe(0);
+    expect(result.current.visibleMessages.length).toBe(12);
 
     goToBottom(result, host);
     act(() => {
       jest.advanceTimersByTime(200); // trailing trim debounce
     });
 
-    // 100 - 40 = 60
-    expect(result.current.safeVisibleStart).toBe(60);
-    expect(result.current.visibleMessages.length).toBe(40);
+    // Explicit back-to-bottom returns to the tighter initial window (12),
+    // which is still within the max_mounted_count=40 budget.
+    expect(result.current.safeVisibleStart).toBe(88);
+    expect(result.current.visibleMessages.length).toBe(12);
   });
 
   test("不贴底(用户在中部阅读)绝不收缩", () => {
@@ -129,7 +133,7 @@ describe("window trim (max_mounted_count)", () => {
     });
 
     expect(result.current.safeVisibleStart).toBe(0); // 绝不收缩
-    expect(result.current.visibleMessages.length).toBe(100);
+    expect(result.current.visibleMessages.length).toBe(12);
   });
 
   test("收缩下限受 max_mounted_count 约束,不会把窗口缩到比 initial_visible_count 小", () => {
@@ -161,9 +165,10 @@ describe("window trim (max_mounted_count)", () => {
       { initialProps: { messages: makeMessages(100), is_streaming: false } },
     );
 
-    // 非流式下把窗口撑满(挂载 100)
+    // 非流式下翻到最早历史,DOM 仍受窗口上限约束
     expandToTop(result, host);
     expect(result.current.safeVisibleStart).toBe(0);
+    expect(result.current.visibleMessages.length).toBe(12);
 
     // 用户滚回底部 → 恢复吸底跟随
     goToBottom(result, host);
@@ -176,8 +181,8 @@ describe("window trim (max_mounted_count)", () => {
     act(() => {
       jest.advanceTimersByTime(64); // streaming bottom-follow fires
     });
-    expect(result.current.visibleMessages.length).toBe(40);
-    expect(result.current.safeVisibleStart).toBe(60);
+    expect(result.current.visibleMessages.length).toBe(12);
+    expect(result.current.safeVisibleStart).toBe(88);
 
     // 再 append 一条并跟随:挂载数仍被上限约束,不单调增长
     rerender({ messages: makeMessages(101), is_streaming: true });
@@ -186,5 +191,101 @@ describe("window trim (max_mounted_count)", () => {
       jest.advanceTimersByTime(64);
     });
     expect(result.current.visibleMessages.length).toBeLessThanOrEqual(40);
+  });
+
+  test("到窗口底部会对称加载较新的消息,挂载数仍不超过上限", () => {
+    const host = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(baseProps(), host),
+    );
+
+    expandToTop(result, host);
+    expect(result.current.safeVisibleStart).toBe(0);
+
+    act(() => {
+      host.scrollTop = host.__scrollHeight - host.clientHeight;
+      result.current.handleScroll();
+    });
+
+    expect(result.current.safeVisibleStart).toBe(6);
+    expect(result.current.visibleMessages.length).toBe(12);
+  });
+
+  test("窗口短于视口时在首屏 idle 后一次扩容,惯性滚轮不会连续翻页", () => {
+    const host = makeScrollHost({ scrollHeight: 300, clientHeight: 400 });
+    const { result, rerender } = renderHook(
+      ({ chatId }) =>
+        useScrollWithHost(baseProps({ chat_id: chatId }), host),
+      { initialProps: { chatId: "short-a" } },
+    );
+
+    rerender({ chatId: "short-b" });
+    expect(result.current.visibleMessages.length).toBe(3);
+    act(() => {
+      jest.advanceTimersByTime(0);
+    });
+    expect(result.current.visibleMessages.length).toBeGreaterThan(12);
+    expect(result.current.visibleMessages.length).toBeLessThanOrEqual(40);
+    expect(result.current.safeVisibleStart).toBe(
+      100 - result.current.visibleMessages.length,
+    );
+
+    const startBeforeMomentum = result.current.safeVisibleStart;
+    for (let index = 0; index < 12; index += 1) {
+      act(() => {
+        result.current.handleWheel({ deltaY: 120 });
+      });
+    }
+    expect(result.current.safeVisibleStart).toBe(startBeforeMomentum);
+  });
+
+  test("每个目标窗口从 12 条重新测量:短窗可扩到 40,重窗会收回 12", () => {
+    const host = makeScrollHost({ scrollHeight: 300, clientHeight: 400 });
+    const { result, rerender } = renderHook(
+      ({ chatId }) =>
+        useScrollWithHost(baseProps({ chat_id: chatId }), host),
+      { initialProps: { chatId: "measure-a" } },
+    );
+    rerender({ chatId: "measure-b" });
+    expect(result.current.visibleMessages).toHaveLength(3);
+    act(() => {
+      jest.advanceTimersByTime(0);
+    });
+
+    expect(result.current.visibleMessages).toHaveLength(40);
+
+    // Jump from the lightweight tail to a heavy historical target. The old
+    // adaptive 40 must not leak into this target window.
+    host.scrollHeight = 4000;
+    act(() => {
+      result.current.messageNodeRefs.current.set(20, {
+        offsetTop: 1000,
+        offsetHeight: 120,
+      });
+      result.current.scrollToMessageIndex(20, "auto");
+    });
+    expect(result.current.visibleMessages).toHaveLength(12);
+    expect(result.current.safeVisibleStart).toBe(14);
+
+    // A different lightweight target starts from 12, then grows before paint.
+    host.scrollHeight = 300;
+    act(() => {
+      result.current.messageNodeRefs.current.set(0, {
+        offsetTop: 100,
+        offsetHeight: 40,
+      });
+      result.current.scrollToMessageIndex(0, "auto");
+    });
+    expect(result.current.visibleMessages).toHaveLength(40);
+    expect(result.current.safeVisibleStart).toBe(0);
+
+    // Moving back to a heavy target shrinks once; it must not retain 40 or
+    // oscillate back upward while the target remains scrollable.
+    host.scrollHeight = 4000;
+    act(() => {
+      result.current.handleBackToBottom();
+    });
+    expect(result.current.visibleMessages).toHaveLength(12);
+    expect(result.current.safeVisibleStart).toBe(88);
   });
 });

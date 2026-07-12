@@ -49,7 +49,6 @@ const PALETTE = {
   dark: {
     uOn: "rgba(255,255,255,0.62)",
     tickDim: "rgba(255,255,255,0.12)", // 视口外:统一淡色,不分角色
-    pillBg: "rgba(255,255,255,0.12)", pillFg: "rgba(255,255,255,0.85)",
     count: "rgba(255,255,255,0.40)",
     /* 快照卡走 palette/attach 家族语言(command_palette_panel/command_menu 同源 token) */
     snapBg: "rgba(28,28,28,0.85)", snapLine: "rgba(255,255,255,0.10)",
@@ -62,7 +61,6 @@ const PALETTE = {
   light: {
     uOn: "rgba(0,0,0,0.55)",
     tickDim: "rgba(0,0,0,0.12)",
-    pillBg: "rgba(0,0,0,0.10)", pillFg: "rgba(0,0,0,0.70)",
     count: "rgba(0,0,0,0.40)",
     snapBg: "rgba(252,252,252,0.9)", snapLine: "rgba(0,0,0,0.09)",
     snapFg: "rgba(0,0,0,0.86)", snapMuted: "rgba(0,0,0,0.44)",
@@ -73,15 +71,17 @@ const PALETTE = {
   },
 };
 
-// PuPu 内置图标(icon_manifest.js)。fill-based,viewBox 24。
-const CH_UP =
-  '<svg width="12" height="12" style="display:block" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9999 10.8284L7.0502 15.7782L5.63599 14.364L11.9999 8L18.3639 14.364L16.9497 15.7782L11.9999 10.8284Z"/></svg>';
-const CH_DOWN =
-  '<svg width="12" height="12" style="display:block" viewBox="0 0 24 24" fill="currentColor"><path d="M11.9999 13.1714L16.9497 8.22168L18.3639 9.63589L11.9999 15.9999L5.63599 9.63589L7.0502 8.22168L11.9999 13.1714Z"/></svg>';
-const CH_UP2 =
-  '<svg width="12" height="12" style="display:block" viewBox="0 0 24 24" fill="currentColor"><path d="M12 13.9142L16.7929 18.7071L18.2071 17.2929L12 11.0858L5.79289 17.2929L7.20711 18.7071L12 13.9142ZM6 7L18 7V9L6 9L6 7Z"/></svg>';
-const CH_DOWN2 =
-  '<svg width="12" height="12" style="display:block" viewBox="0 0 24 24" fill="currentColor"><path d="M12 10.0858L7.20711 5.29291L5.79289 6.70712L12 12.9142L18.2071 6.70712L16.7929 5.29291L12 10.0858ZM18 17L6 17L6 15L18 15V17Z"/></svg>';
+// 导航钮图标(E5 定稿):1.8px 细线,与 2.5px 刻度同"线"气质;bar+箭头 = 远跳。
+const IC_STROKE =
+  'fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"';
+const IC_TOP =
+  `<svg width="13" height="13" style="display:block" viewBox="0 0 24 24" ${IC_STROKE}><path d="M6 6h12M12 19V10M8.5 13.5 12 10l3.5 3.5"/></svg>`;
+const IC_PREV =
+  `<svg width="13" height="13" style="display:block" viewBox="0 0 24 24" ${IC_STROKE}><path d="M8 14.5 12 10.5l4 4"/></svg>`;
+const IC_NEXT =
+  `<svg width="13" height="13" style="display:block" viewBox="0 0 24 24" ${IC_STROKE}><path d="M8 10.5 12 14.5l4-4"/></svg>`;
+const IC_END =
+  `<svg width="13" height="13" style="display:block" viewBox="0 0 24 24" ${IC_STROKE}><path d="M6 18h12M12 5v9M8.5 10.5 12 14l3.5-3.5"/></svg>`;
 
 // 注入一次:滚动条隐藏(chat_messages 依赖)、pill hover、live 呼吸、弹入、落点回声、reduced-motion
 let styleInjected = false;
@@ -91,10 +91,21 @@ const ensureStyle = () => {
   el.textContent =
     ".chat-scroll-host{scrollbar-width:none;-ms-overflow-style:none;}" +
     ".chat-scroll-host::-webkit-scrollbar{width:0;height:0;display:none;}" +
-    "[data-mm-pill]{background:transparent !important;transition:opacity .22s " + EASE + ",background .18s " + EASE + ",transform .18s " + EASE + ";}" +
-    "[data-mm-pill]:hover{transform:translateX(-50%) scale(1.12) !important;}" +
-    '[data-mm-pill][data-dark="1"]:hover{background:rgba(255,255,255,0.12) !important;}' +
-    '[data-mm-pill][data-dark="0"]:hover{background:rgba(0,0,0,0.10) !important;}' +
+    // 导航钮(E5):无底座,右齐平;静息淡显 → hover 亮起,图标向左递 2px(与刻度伸长同向)
+    "[data-mm-pill]{transition:opacity .22s " + EASE + ",color .15s ease;}" +
+    '[data-mm-pill][data-dark="1"]{color:rgba(255,255,255,0.34);}' +
+    '[data-mm-pill][data-dark="0"]{color:rgba(0,0,0,0.30);}' +
+    '[data-mm-pill][data-dark="1"]:hover{color:rgba(255,255,255,0.95);}' +
+    '[data-mm-pill][data-dark="0"]:hover{color:rgba(0,0,0,0.85);}' +
+    "[data-mm-pill] svg{transition:transform .15s ease;}" +
+    "[data-mm-pill]:hover svg{transform:translateX(-2px);}" +
+    // 注解标签:计数同族排印(等宽/大写/.09em);hover 驻留 300ms 才出现,扫过不闪、离开即收
+    "[data-mm-lbl]{position:absolute;right:30px;top:50%;transform:translate(5px,-50%);" +
+    "font:600 8.5px/1 ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.09em;" +
+    "opacity:0;transition:opacity .18s ease,transform .18s ease;pointer-events:none;white-space:nowrap;}" +
+    '[data-mm-pill][data-dark="1"] [data-mm-lbl]{color:rgba(255,255,255,0.52);}' +
+    '[data-mm-pill][data-dark="0"] [data-mm-lbl]{color:rgba(0,0,0,0.50);}' +
+    "[data-mm-pill]:hover [data-mm-lbl]{opacity:1;transform:translate(0,-50%);transition-delay:.3s;}" +
     // live 刻度呼吸光晕 —— 全设计唯一允许的光晕(spec §6/§8)
     "[data-mm-tick].pupu-mm-live::after{content:'';position:absolute;inset:-3px -4px;border-radius:100px;background:var(--pupu-mm-live-halo);animation:pupuMmBreathe 1.6s ease-in-out infinite;z-index:-1;}" +
     "@keyframes pupuMmBreathe{0%,100%{opacity:.25;transform:scale(.9);}50%{opacity:1;transform:scale(1.25);}}" +
@@ -106,41 +117,38 @@ const ensureStyle = () => {
     ".pupu-mm-flash::before{content:'';position:absolute;left:4px;top:4px;width:3px;height:20px;border-radius:100px;background:var(--pupu-mm-flash);animation:pupuMmFlashBar 1.8s cubic-bezier(0.22,1,0.36,1) 1;pointer-events:none;}" +
     '.pupu-mm-flash[data-mm-flash-side="right"]::before{left:auto;right:-12px;top:8%;height:84%;}' +
     "@keyframes pupuMmFlashBar{0%{transform:scaleY(0);opacity:0;}12%{transform:scaleY(1);opacity:1;}70%{transform:scaleY(1);opacity:1;}100%{transform:scaleY(1);opacity:0;}}" +
-    "@media (prefers-reduced-motion: reduce){[data-mm-tick].pupu-mm-live::after,[data-mm-tick].pupu-mm-pop{animation:none !important;}.pupu-mm-flash::before{animation:none !important;content:none;}}";
+    "@media (prefers-reduced-motion: reduce){[data-mm-tick].pupu-mm-live::after,[data-mm-tick].pupu-mm-pop{animation:none !important;}.pupu-mm-flash::before{animation:none !important;content:none;}[data-mm-pill] svg,[data-mm-lbl]{transition:none !important;}}";
   document.head.appendChild(el);
   styleInjected = true;
 };
 
-// 导航 pill(样式/显隐逻辑与旧版一致,四颗全保留)
-const NavPill = ({ nodeRef, edge, offset, icon, C, isDark, onClick }) => (
+// 导航 pill(E5 · 注解标签):右齐平贴轨(与刻度共享右缘)、无底座细线图标,
+// hover 亮起 + 图标左递,驻留 300ms 滑出等宽小标签。显隐逻辑与旧版一致,四颗全保留。
+const NavPill = ({ nodeRef, edge, offset, icon, label, isDark, onClick }) => (
   <div
     ref={nodeRef}
     data-mm-pill
     data-dark={isDark ? "1" : "0"}
+    role="button"
+    aria-label={label}
     onClick={onClick}
     style={{
       position: "absolute",
-      left: "50%",
+      right: 8, // 与轨道(right:8)右缘对齐,不再居中悬浮
       [edge]: offset,
-      width: 16,
-      height: 24,
-      transform: "translateX(-50%) scale(1)",
-      borderRadius: 100,
-      color: C.pillFg,
+      width: TRACK_W,
+      height: 18,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "flex-end",
       cursor: "pointer",
       opacity: 0,
       pointerEvents: "none",
     }}
   >
+    <span data-mm-lbl>{label}</span>
     <span
-      style={{
-        position: "absolute",
-        top: "50%",
-        left: "50%",
-        width: 12,
-        height: 12,
-        transform: "translate(-50%, -50%)",
-      }}
+      style={{ width: 13, height: 13, display: "block" }}
       dangerouslySetInnerHTML={{ __html: icon }}
     />
   </div>
@@ -152,6 +160,8 @@ const MessageMinimap = ({
   messages = [],
   safeVisibleStart = 0,
   scrollToMessageIndex,
+  scrollViewportByPage,
+  onBackToBottom,
   bottomViewportInset = 0,
   isDark,
   isStreaming = false,
@@ -209,8 +219,12 @@ const MessageMinimap = ({
   const crawlDirRef = useRef(0);
   const crawlClientYRef = useRef(0);
   const paintApiRef = useRef(null);
-  const flashTimersRef = useRef({ raf: null, timeout: null }); // 落点回声的 rAF 重试/淡出计时,卸载时清理
-
+  const flashTimersRef = useRef({
+    generation: 0,
+    raf: null,
+    timeout: null,
+    target: null,
+  }); // 落点回声只允许最新一次 jump 持有重试/淡出任务
   // 最新数据走 ref,让大 effect 依赖保持最小。用 useLayoutEffect(而非 useEffect)
   // 同步,确保同一 commit 内、依赖变化触发下方大 effect 重跑时,latestRef 已是新值
   // ——否则大 effect 的 cleanup+重设置在 passive effect 之前执行,会用旧值 paintNow()
@@ -369,7 +383,7 @@ const MessageMinimap = ({
       const cBot = cBotRef.current;
       if (cTop && cBot) {
         if (isWindowed(count, u)) {
-          const hid = hiddenCounts({ winBase: winBase(), count, usable: u });
+          const hid = hiddenCounts({ winBase: Math.round(winBase()), count, usable: u });
           cTop.textContent = hid.above > 0 ? `↑ ${capCount(hid.above)}` : "";
           cBot.textContent = hid.below > 0 ? `↓ ${capCount(hid.below)}` : "";
           cTop.style.opacity = hid.above > 0 ? "1" : "0";
@@ -467,12 +481,36 @@ const MessageMinimap = ({
       snap.style.transform = "translateX(6px)";
     };
 
+    const cancelFlash = () => {
+      const work = flashTimersRef.current;
+      work.generation += 1;
+      if (
+        work.raf != null &&
+        typeof window.cancelAnimationFrame === "function"
+      ) {
+        window.cancelAnimationFrame(work.raf);
+      }
+      if (work.timeout != null) {
+        window.clearTimeout(work.timeout);
+      }
+      if (work.target) {
+        work.target.classList.remove("pupu-mm-flash");
+      }
+      work.raf = null;
+      work.timeout = null;
+      work.target = null;
+    };
+
     // 落点回声:节点可能因扩窗尚未挂载,rAF 重试至多 ~1.5s
     const flashMessage = (idx) => {
       if (REDUCED) return;
+      cancelFlash();
+      const generation = flashTimersRef.current.generation;
       let tries = 0;
       const attempt = () => {
-        flashTimersRef.current.raf = null;
+        const work = flashTimersRef.current;
+        if (work.generation !== generation) return;
+        work.raf = null;
         const node = messageNodeRefs.current.get(idx);
         if (node) {
           // 侧标线:user 打在气泡本体右侧,assistant 打在整行左侧(padding 带内,
@@ -490,14 +528,18 @@ const MessageMinimap = ({
           target.classList.remove("pupu-mm-flash");
           void target.offsetWidth; // 重启动画
           target.classList.add("pupu-mm-flash");
-          flashTimersRef.current.timeout = window.setTimeout(() => {
+          work.target = target;
+          work.timeout = window.setTimeout(() => {
+            const latest = flashTimersRef.current;
+            if (latest.generation !== generation) return;
             target.classList.remove("pupu-mm-flash");
-            flashTimersRef.current.timeout = null;
+            latest.timeout = null;
+            latest.target = null;
           }, 1900);
           return;
         }
         if (tries++ < 90 && typeof window.requestAnimationFrame === "function") {
-          flashTimersRef.current.raf = window.requestAnimationFrame(attempt);
+          work.raf = window.requestAnimationFrame(attempt);
         }
       };
       attempt();
@@ -712,13 +754,7 @@ const MessageMinimap = ({
       if (ro) ro.disconnect();
       if (streamTimer != null) clearInterval(streamTimer);
       stopCrawl();
-      if (flashTimersRef.current.raf != null && typeof window.cancelAnimationFrame === "function") {
-        window.cancelAnimationFrame(flashTimersRef.current.raf);
-      }
-      if (flashTimersRef.current.timeout != null) {
-        window.clearTimeout(flashTimersRef.current.timeout);
-      }
-      flashTimersRef.current = { raf: null, timeout: null };
+      cancelFlash();
       paintApiRef.current = null;
     };
     // messages/widths 走 latestRef(顶部小 effect 同步并触发 paint),此处依赖保持最小:
@@ -752,7 +788,16 @@ const MessageMinimap = ({
   const jumpRelative = (delta) => {
     const cur = viewFirstRef.current >= 0 ? viewFirstRef.current : safeVisibleStart;
     const next = Math.max(0, Math.min(messages.length - 1, cur + delta));
-    if (next !== cur) scrollToMessageIndex(next, "smooth");
+    if (next !== cur) {
+      scrollToMessageIndex(next, "smooth");
+      return;
+    }
+    // 死区退化:±1 已到消息边界但视口未到内容边界(深读超屏首/末消息时 pill
+    // 仍可见可点,此前静默 no-op = "点了没反应")→ 退化为视口页步进,
+    // 与位置针旁的超屏进度 % 指示天然配套;到真实边界后 pill 显隐自然收口。
+    if (typeof scrollViewportByPage === "function") {
+      scrollViewportByPage(delta);
+    }
   };
 
   return (
@@ -871,21 +916,25 @@ const MessageMinimap = ({
         }}
       />
 
-      <NavPill nodeRef={topPillRef} edge="top" offset={8} icon={CH_UP2} C={C} isDark={isDark}
+      <NavPill nodeRef={topPillRef} edge="top" offset={8} icon={IC_TOP} label="TOP" isDark={isDark}
         onClick={() => {
           // 远距离到顶用瞬时落位:长距离 smooth 会被触控板惯性滚轮中断在半路
           // ("底部按 to-top 有时失效"的另一半根因);近距离保留 smooth 的顺滑。
           const far = (viewFirstRef.current < 0 ? safeVisibleStart : viewFirstRef.current) > 8;
           scrollToMessageIndex(0, far ? "auto" : "smooth");
         }} />
-      <NavPill nodeRef={upOnePillRef} edge="top" offset={38} icon={CH_UP} C={C} isDark={isDark}
+      <NavPill nodeRef={upOnePillRef} edge="top" offset={30} icon={IC_PREV} label="PREV" isDark={isDark}
         onClick={() => jumpRelative(-1)} />
-      <NavPill nodeRef={downOnePillRef} edge="bottom" offset={38} icon={CH_DOWN} C={C} isDark={isDark}
+      <NavPill nodeRef={downOnePillRef} edge="bottom" offset={30} icon={IC_NEXT} label="NEXT" isDark={isDark}
         onClick={() => jumpRelative(1)} />
-      <NavPill nodeRef={botPillRef} edge="bottom" offset={8} icon={CH_DOWN2} C={C} isDark={isDark}
+      <NavPill nodeRef={botPillRef} edge="bottom" offset={8} icon={IC_END} label="END" isDark={isDark}
         onClick={() => {
+          if (typeof onBackToBottom === "function") {
+            onBackToBottom();
+            return;
+          }
           const el = messagesRef.current;
-          if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+          if (el) el.scrollTo({ top: el.scrollHeight, behavior: "auto" });
         }} />
     </div>
   );

@@ -1,4 +1,5 @@
 import {
+  MAX_RUNTIME_EVENT_DIAGNOSTICS,
   RUNTIME_EVENT_TYPES,
   createRuntimeEventStore,
   isRuntimeEvent,
@@ -69,5 +70,59 @@ describe("runtime event store", () => {
     expect(RUNTIME_EVENT_TYPES.has("interaction.requested")).toBe(true);
     expect(isRuntimeEvent(event({ type: "artifact.created" }))).toBe(true);
     expect(isRuntimeEvent({ ...event(), schema_version: "legacy" })).toBe(false);
+  });
+
+  test("public snapshots stay immutable while the reduction view advances", () => {
+    const store = createRuntimeEventStore();
+    store.append(event({ id: "evt-1", seq: 1 }));
+    const snapshot = store.getSnapshot();
+
+    store.append(event({ id: "evt-2", seq: 2 }));
+
+    expect(snapshot.orderedEventIds).toEqual(["evt-1"]);
+    expect(store.getReductionSnapshot().orderedEventIds).toEqual([
+      "evt-1",
+      "evt-2",
+    ]);
+  });
+
+  test("reduction mode diagnoses a cross-flush late event instead of reordering dispatched history", () => {
+    const store = createRuntimeEventStore();
+    store.appendForReduction(event({ id: "evt-2", seq: 2 }));
+    store.getReductionSnapshot(); // seals the dispatched prefix
+
+    store.appendForReduction(event({ id: "evt-1", seq: 1 }));
+    const snapshot = store.getReductionSnapshot();
+
+    expect(snapshot.orderedEventIds).toEqual(["evt-2"]);
+    expect(snapshot.diagnostics.droppedEvents).toEqual([
+      expect.objectContaining({ reason: "out_of_order_after_dispatch" }),
+    ]);
+  });
+
+  test("reduction mode sorts out-of-order events inside one undispatched batch", () => {
+    const store = createRuntimeEventStore();
+    store.appendManyForReduction([
+      event({ id: "evt-3", seq: 3 }),
+      event({ id: "evt-1", seq: 1 }),
+      event({ id: "evt-2", seq: 2 }),
+    ]);
+
+    expect(store.getReductionSnapshot().orderedEventIds).toEqual([
+      "evt-1",
+      "evt-2",
+      "evt-3",
+    ]);
+  });
+
+  test("caps each diagnostic bucket", () => {
+    const store = createRuntimeEventStore();
+    for (let index = 0; index < MAX_RUNTIME_EVENT_DIAGNOSTICS + 20; index += 1) {
+      store.append({ schema_version: "legacy", event_id: `bad-${index}` });
+    }
+
+    const dropped = store.getSnapshot().diagnostics.droppedEvents;
+    expect(dropped).toHaveLength(MAX_RUNTIME_EVENT_DIAGNOSTICS);
+    expect(dropped[0].event.event_id).toBe("bad-20");
   });
 });

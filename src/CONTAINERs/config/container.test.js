@@ -1,15 +1,25 @@
 import { useContext } from "react";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import ConfigContainer from "./container";
-import { ConfigContext } from "./context";
+import { ConfigContext, EnvironmentContext } from "./context";
 import { themeBridge } from "../../SERVICEs/bridges/theme_bridge";
 
-jest.mock("../../BUILTIN_COMPONENTs/mini_react/mini_use", () => ({
-  useSystemTheme: () => "light_mode",
-  useWindowSize: () => ({ width: 1440, height: 900 }),
-  useWebBrowser: () => "Chrome",
-  useDeviceType: () => "desktop",
-}));
+let mockSetWindowSize;
+jest.mock("../../BUILTIN_COMPONENTs/mini_react/mini_use", () => {
+  const React = require("react");
+  return {
+    useSystemTheme: () => "light_mode",
+    useWindowSize: () => {
+      const [size, setSize] = React.useState({ width: 1440, height: 900 });
+      mockSetWindowSize = setSize;
+      return size;
+    },
+    useWebBrowser: () => "Chrome",
+    useDeviceType: () => "desktop",
+    detectWebBrowser: () => "Chrome",
+    detectDeviceType: () => "desktop",
+  };
+});
 
 jest.mock("../../BUILTIN_COMPONENTs/class/scrollable", () => () => null);
 jest.mock("../../BUILTIN_COMPONENTs/electron/title_bar", () => () => null);
@@ -56,10 +66,59 @@ const HighlightProbe = () => {
   return <div data-testid="highlight-color">{theme?.highlightColor}</div>;
 };
 
+let legacyEnvironmentRenderCount = 0;
+let latestLegacyConfig = null;
+
+const LegacyEnvironmentProbe = () => {
+  const config = useContext(ConfigContext);
+  legacyEnvironmentRenderCount += 1;
+  latestLegacyConfig = config;
+  return <div data-testid="legacy-window-width">{config.window_size.width}</div>;
+};
+
+const GranularEnvironmentProbe = () => {
+  const environment = useContext(EnvironmentContext);
+  return (
+    <div data-testid="granular-window-width">
+      {environment.window_size.width}
+    </div>
+  );
+};
+
 describe("ConfigContainer side menu persistence", () => {
   beforeEach(() => {
     window.localStorage.clear();
     document.documentElement.removeAttribute("style");
+    legacyEnvironmentRenderCount = 0;
+    latestLegacyConfig = null;
+  });
+
+  test("isolates resize renders and keeps the legacy startup snapshot stable", async () => {
+    render(
+      <ConfigContainer>
+        <LegacyEnvironmentProbe />
+        <GranularEnvironmentProbe />
+      </ConfigContainer>,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("legacy-window-width")).toHaveTextContent(
+        String(window.innerWidth),
+      );
+      expect(screen.getByTestId("granular-window-width")).toHaveTextContent("1440");
+    });
+    const legacyRendersBeforeResize = legacyEnvironmentRenderCount;
+    const legacyWindowSize = latestLegacyConfig.window_size;
+
+    act(() => {
+      window.innerWidth = 1200;
+      window.innerHeight = 800;
+      mockSetWindowSize({ width: 1200, height: 800 });
+    });
+
+    expect(screen.getByTestId("granular-window-width")).toHaveTextContent("1200");
+    expect(legacyEnvironmentRenderCount).toBe(legacyRendersBeforeResize);
+    expect(latestLegacyConfig.window_size).toBe(legacyWindowSize);
   });
 
   test("hydrates side menu state from settings.ui.side_menu_open", () => {
@@ -81,7 +140,28 @@ describe("ConfigContainer side menu persistence", () => {
     expect(screen.getByTestId("fragment")).toHaveTextContent("side_menu");
   });
 
+  test("does not rewrite unchanged settings during initial effects", () => {
+    window.localStorage.setItem(
+      "settings",
+      JSON.stringify({
+        appearance: { theme_mode: "light_mode", locale: "en" },
+        ui: { side_menu_open: false },
+      }),
+    );
+    const setItem = jest.spyOn(Storage.prototype, "setItem");
+
+    render(
+      <ConfigContainer>
+        <FragmentProbe />
+      </ConfigContainer>,
+    );
+
+    expect(setItem).not.toHaveBeenCalled();
+    setItem.mockRestore();
+  });
+
   test("persists side menu state into settings.ui.side_menu_open", async () => {
+    const setItem = jest.spyOn(Storage.prototype, "setItem");
     render(
       <ConfigContainer>
         <FragmentProbe />
@@ -94,6 +174,7 @@ describe("ConfigContainer side menu persistence", () => {
       const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
       expect(root?.ui?.side_menu_open).toBe(true);
     });
+    expect(setItem).toHaveBeenCalledTimes(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Toggle" }));
 
@@ -101,6 +182,8 @@ describe("ConfigContainer side menu persistence", () => {
       const root = JSON.parse(window.localStorage.getItem("settings") || "{}");
       expect(root?.ui?.side_menu_open).toBe(false);
     });
+    expect(setItem).toHaveBeenCalledTimes(2);
+    setItem.mockRestore();
   });
 
   test("provides the semantic highlight color when theme customization is enabled", async () => {

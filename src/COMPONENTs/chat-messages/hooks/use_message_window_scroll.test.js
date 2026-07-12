@@ -1,5 +1,5 @@
-import { useLayoutEffect } from "react";
-import { act, renderHook } from "@testing-library/react";
+import { Suspense, startTransition, useLayoutEffect } from "react";
+import { act, render, renderHook } from "@testing-library/react";
 import useMessageWindowScroll, {
   computeLandingTop,
 } from "./use_message_window_scroll";
@@ -54,14 +54,27 @@ describe("boot visible window", () => {
   const originalIdle = window.requestIdleCallback;
   const originalCancel = window.cancelIdleCallback;
   let idleQueue;
+  let nextIdleId;
+  const drainIdle = () => {
+    const queued = idleQueue.splice(0);
+    queued.forEach((entry) => {
+      if (!entry.cancelled) entry.callback();
+    });
+  };
 
   beforeEach(() => {
     idleQueue = [];
+    nextIdleId = 1;
     window.requestIdleCallback = (cb) => {
-      idleQueue.push(cb);
-      return idleQueue.length;
+      const entry = { id: nextIdleId, callback: cb, cancelled: false };
+      nextIdleId += 1;
+      idleQueue.push(entry);
+      return entry.id;
     };
-    window.cancelIdleCallback = () => {};
+    window.cancelIdleCallback = (id) => {
+      const entry = idleQueue.find((item) => item.id === id);
+      if (entry) entry.cancelled = true;
+    };
   });
 
   afterEach(() => {
@@ -90,7 +103,7 @@ describe("boot visible window", () => {
     expect(result.current.visibleMessages.length).toBe(3);
 
     act(() => {
-      idleQueue.forEach((cb) => cb());
+      drainIdle();
     });
 
     expect(result.current.visibleMessages.length).toBe(12);
@@ -120,12 +133,16 @@ describe("boot visible window", () => {
 
     // 切会话 → boot 3 条,expand 排入 idle 队列
     rerender({ chat_id: "b" });
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
+      top: 2000,
+      behavior: "auto",
+    });
     scrollHost.host.scrollTo.mockClear();
 
     // idle 触发 expandToFinal:应在 setVisibleStartIndex 前设 prependCompensation,
     // 让 layoutEffect 补偿路径在 paint 前用 "auto" 钉底,而不是留给 post-paint smooth。
     act(() => {
-      idleQueue.forEach((cb) => cb());
+      drainIdle();
     });
 
     const calls = scrollHost.host.scrollTo.mock.calls.map(([opts]) => opts);
@@ -150,6 +167,100 @@ describe("boot visible window", () => {
 
     rerender({ chat_id: "b" });
     expect(result.current.visibleMessages.length).toBe(12);
+  });
+
+  test("a shorter chat never renders the previous chat window on its first render", () => {
+    const { result, rerender } = renderHook(
+      ({ chat_id, messages }) =>
+        useMessageWindowScroll({
+          chat_id,
+          messages,
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        }),
+      { initialProps: { chat_id: "long", messages: makeMessages(200) } },
+    );
+
+    rerender({ chat_id: "short", messages: makeMessages(3) });
+
+    expect(result.current.safeVisibleStart).toBe(0);
+    expect(result.current.visibleMessages.map((message) => message.id)).toEqual([
+      "m-0",
+      "m-1",
+      "m-2",
+    ]);
+  });
+
+  test("same-chat length changes do not cancel the pending boot expansion", () => {
+    const { result, rerender } = renderHook(
+      ({ chat_id, messages }) =>
+        useMessageWindowScroll({
+          chat_id,
+          messages,
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        }),
+      { initialProps: { chat_id: "a", messages: makeMessages(20) } },
+    );
+
+    rerender({ chat_id: "b", messages: makeMessages(20) });
+    expect(result.current.visibleMessages).toHaveLength(3);
+
+    rerender({ chat_id: "b", messages: makeMessages(21) });
+    act(() => {
+      drainIdle();
+    });
+
+    expect(result.current.visibleMessages).toHaveLength(12);
+    expect(result.current.safeVisibleStart).toBe(9);
+    expect(result.current.visibleMessages[11].id).toBe("m-20");
+  });
+
+  test("idle boot reaches baseline, then a short target expands once without intermediate batches", () => {
+    const scrollHost = makeScrollHost();
+    scrollHost.setScrollHeight(300);
+    scrollHost.host.clientHeight = 400;
+    const messages = makeMessages(100);
+    const renderedWindowLengths = [];
+    const { result, rerender } = renderHook(
+      ({ chat_id }) => {
+        const scroll = useScrollWithHost(
+          {
+            chat_id,
+            messages,
+            is_streaming: false,
+            initial_visible_count: 12,
+            load_batch_size: 6,
+            top_load_threshold: 80,
+            boot_visible_count: 3,
+            max_mounted_count: 40,
+          },
+          scrollHost.host,
+        );
+        renderedWindowLengths.push(scroll.visibleMessages.length);
+        return scroll;
+      },
+      { initialProps: { chat_id: "a" } },
+    );
+
+    renderedWindowLengths.length = 0;
+    rerender({ chat_id: "b" });
+    expect(result.current.visibleMessages).toHaveLength(3);
+
+    act(() => {
+      drainIdle();
+    });
+    expect(result.current.visibleMessages).toHaveLength(40);
+    expect(renderedWindowLengths).toContain(12);
+    expect(
+      renderedWindowLengths.filter((count) => count > 12 && count < 40),
+    ).toEqual([]);
   });
 });
 
@@ -624,6 +735,11 @@ describe("useMessageWindowScroll", () => {
 
     expect(resizeObservers).toHaveLength(1);
 
+    // Three stable polls stop the 50ms polling loop, but keep the observer
+    // armed for a genuinely late layout shift.
+    act(() => {
+      jest.advanceTimersByTime(150);
+    });
     act(() => {
       targetNode.offsetTop = 1160;
       resizeObservers[0].trigger();
@@ -634,8 +750,202 @@ describe("useMessageWindowScroll", () => {
       behavior: "auto",
     });
 
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+    expect(resizeObservers[0].disconnect).toHaveBeenCalled();
+
     global.ResizeObserver = OriginalResizeObserver;
     window.ResizeObserver = OriginalResizeObserver;
+  });
+
+  it("a real pointer interaction clears the landing observer immediately", () => {
+    const OriginalResizeObserver = global.ResizeObserver;
+    const resizeObservers = [];
+    global.ResizeObserver = class ResizeObserver {
+      constructor(callback) {
+        this.callback = callback;
+        this.observe = jest.fn();
+        this.disconnect = jest.fn();
+        resizeObservers.push(this);
+      }
+    };
+    window.ResizeObserver = global.ResizeObserver;
+
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(
+        {
+          chat_id: "chat-pointer-cancels-landing",
+          messages: makeMessages(40),
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      ),
+    );
+
+    act(() => {
+      result.current.messageNodeRefs.current.set(38, { offsetTop: 1000 });
+      result.current.scrollToMessageIndex(38, "auto");
+    });
+    expect(resizeObservers).toHaveLength(1);
+
+    act(() => {
+      result.current.handlePointerInteraction();
+    });
+    expect(resizeObservers[0].disconnect).toHaveBeenCalledTimes(1);
+
+    global.ResizeObserver = OriginalResizeObserver;
+    window.ResizeObserver = OriginalResizeObserver;
+  });
+
+  it("back-to-bottom disconnects landing correction and ignores late target growth", () => {
+    const OriginalResizeObserver = global.ResizeObserver;
+    const resizeObservers = [];
+    global.ResizeObserver = class ResizeObserver {
+      constructor(callback) {
+        this.callback = callback;
+        this.observe = jest.fn();
+        this.disconnect = jest.fn();
+        resizeObservers.push(this);
+      }
+      trigger() {
+        this.callback([]);
+      }
+    };
+    window.ResizeObserver = global.ResizeObserver;
+
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(
+        {
+          chat_id: "chat-bottom-cancels-landing",
+          messages: makeMessages(40),
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      ),
+    );
+
+    const targetNode = { offsetTop: 1000 };
+    act(() => {
+      result.current.messageNodeRefs.current.set(38, targetNode);
+      result.current.scrollToMessageIndex(38, "auto");
+    });
+    expect(resizeObservers).toHaveLength(1);
+
+    act(() => {
+      result.current.handleBackToBottom();
+    });
+    expect(resizeObservers[0].disconnect).toHaveBeenCalledTimes(1);
+
+    scrollHost.host.scrollTo.mockClear();
+    act(() => {
+      targetNode.offsetTop = 1400;
+      resizeObservers[0].trigger();
+      jest.advanceTimersByTime(2000);
+    });
+    expect(scrollHost.host.scrollTo).not.toHaveBeenCalled();
+
+    global.ResizeObserver = OriginalResizeObserver;
+    window.ResizeObserver = OriginalResizeObserver;
+  });
+
+  it("back-to-bottom supersedes a cross-window jump before its commit", () => {
+    const scrollHost = makeScrollHost();
+    const { result } = renderHook(() =>
+      useScrollWithHost(
+        {
+          chat_id: "chat-bottom-cancels-pending-jump",
+          messages: makeMessages(40),
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      ),
+    );
+
+    act(() => {
+      result.current.scrollToMessageIndex(2, "auto");
+      result.current.handleBackToBottom();
+    });
+
+    expect(result.current.safeVisibleStart).toBe(28);
+    expect(result.current.visibleMessages).toHaveLength(12);
+    expect(result.current.visibleMessages.at(-1).id).toBe("m-39");
+  });
+
+  it("an aborted render cannot leak its message length into committed scroll handlers", () => {
+    const scrollHost = makeScrollHost();
+    const neverResolves = new Promise(() => {});
+    let committedScroll = null;
+
+    const Probe = ({ messages, suspend }) => {
+      const scroll = useScrollWithHost(
+        {
+          chat_id: "chat-committed-ref",
+          messages,
+          is_streaming: false,
+          initial_visible_count: 12,
+          load_batch_size: 6,
+          top_load_threshold: 80,
+          boot_visible_count: 3,
+        },
+        scrollHost.host,
+      );
+      useLayoutEffect(() => {
+        committedScroll = scroll;
+      });
+      if (suspend) {
+        throw neverResolves;
+      }
+      return null;
+    };
+
+    const renderProbe = (messages, suspend = false) => (
+      <Suspense fallback={null}>
+        <Probe messages={messages} suspend={suspend} />
+      </Suspense>
+    );
+    const { rerender } = render(renderProbe(makeMessages(20)));
+    expect(committedScroll.safeVisibleStart).toBe(8);
+
+    // Consume the mount-time programmatic scroll echo so the next scroll is a
+    // genuine user event capable of paging toward newer rows.
+    act(() => {
+      committedScroll.handlePointerInteraction();
+      committedScroll.handleScroll();
+    });
+
+    act(() => {
+      startTransition(() => {
+        rerender(renderProbe(makeMessages(100), true));
+      });
+    });
+
+    scrollHost.host.scrollTop = 2000;
+    act(() => {
+      committedScroll.handleScroll();
+    });
+
+    // Abort the suspended render and return to the last committed props. If
+    // the 100-message render had mutated messagesLengthRef during render, the
+    // old handler would have paged 8→14 and that state would now commit.
+    act(() => {
+      rerender(renderProbe(makeMessages(20)));
+    });
+    expect(committedScroll.safeVisibleStart).toBe(8);
   });
 
   it("a genuine user scroll cancels an in-flight landing correction (no re-land teleport)", () => {
@@ -767,6 +1077,29 @@ describe("streaming keep-at-bottom stability (ChatGPT-style)", () => {
       jest.advanceTimersByTime(64);
     });
     expect(scrollHost.host.scrollTop).toBe(300);
+  });
+
+  it("wheel-up intent wins over a same-frame tail append", () => {
+    const scrollHost = makeScrollHost();
+    const { result, rerender } = renderHook(
+      ({ messages }) =>
+        useScrollWithHost(
+          streamingProps(scrollHost.host, { messages }),
+          scrollHost.host,
+        ),
+      { initialProps: { messages: makeMessages(20) } },
+    );
+
+    expect(result.current.safeVisibleStart).toBe(8);
+    act(() => {
+      result.current.handleWheel({ deltaY: -20 });
+    });
+
+    // The browser has not emitted its native scroll event yet. Even so, the
+    // explicit wheel intent must prevent render-time tail following.
+    rerender({ messages: makeMessages(21) });
+    expect(result.current.safeVisibleStart).toBe(8);
+    expect(result.current.visibleMessages.at(-1).id).toBe("m-19");
   });
 
   it("a programmatic bottom-pin scroll event does not clear user intent or reopen follow", () => {
@@ -963,31 +1296,9 @@ describe("scrollToMessageIndex settle option and sync-completion contract", () =
   });
 });
 
-describe("chunked window expansion (skip-to-top / far jumps)", () => {
-  const originalIdle = window.requestIdleCallback;
-  const originalCancel = window.cancelIdleCallback;
-  let idleQueue;
-  const drainIdle = () => {
-    const q = idleQueue.splice(0);
-    q.forEach((cb) => cb());
-  };
-
-  beforeEach(() => {
-    idleQueue = [];
-    window.requestIdleCallback = (cb) => {
-      idleQueue.push(cb);
-      return idleQueue.length;
-    };
-    window.cancelIdleCallback = () => {};
-  });
-
-  afterEach(() => {
-    window.requestIdleCallback = originalIdle;
-    window.cancelIdleCallback = originalCancel;
-  });
-
-  const chunkProps = (host, over = {}) => ({
-    chat_id: "chunk",
+describe("bounded far-window navigation", () => {
+  const windowProps = (over = {}) => ({
+    chat_id: "bounded-window",
     messages: makeMessages(200),
     is_streaming: false,
     initial_visible_count: 12,
@@ -997,117 +1308,39 @@ describe("chunked window expansion (skip-to-top / far jumps)", () => {
     ...over,
   });
 
-  it("a large-gap skip-to-top expands in chunks (~40/step), not a single visibleStart=0 frame", () => {
+  it("skip-to-top swaps directly to one bounded target window", () => {
     const scrollHost = makeScrollHost();
     const { result } = renderHook(() =>
-      useScrollWithHost(chunkProps(scrollHost.host), scrollHost.host),
+      useScrollWithHost(windowProps(), scrollHost.host),
     );
-    // 初始窗口 start = 200 - 12 = 188
     expect(result.current.safeVisibleStart).toBe(188);
-
-    act(() => {
-      result.current.handleSkipToTop();
-    });
-    // 分批:首步排入 idle,尚未一步改窗口
-    expect(result.current.safeVisibleStart).toBe(188);
-
-    act(() => {
-      drainIdle();
-    });
-    // 每步约 40 条:188 → 148,绝不一步到 0
-    expect(result.current.safeVisibleStart).toBe(148);
-
-    act(() => {
-      drainIdle();
-    });
-    expect(result.current.safeVisibleStart).toBe(108);
-  });
-
-  it("each chunk step goes through prepend compensation (auto bottom-pin); final step lands at top", () => {
-    const scrollHost = makeScrollHost();
-    const { result } = renderHook(() =>
-      useScrollWithHost(chunkProps(scrollHost.host, { messages: makeMessages(120) }), scrollHost.host),
-    );
-    // start = 120 - 12 = 108
-    act(() => {
-      result.current.handleSkipToTop();
-    });
-    scrollHost.host.scrollTo.mockClear();
-
-    act(() => {
-      drainIdle(); // 108 → 68(中途)
-    });
-    const calls = scrollHost.host.scrollTo.mock.calls.map(([o]) => o);
-    // 补偿:isAtBottom(默认 true)→ 每步 layoutEffect 走 scrollToBottom("auto") 钉底,
-    // 证明该步确实设了 prependCompensation 并被消费(而非裸 setVisibleStart 无补偿)。
-    expect(calls.some((o) => o && o.behavior === "auto")).toBe(true);
-
-    act(() => {
-      drainIdle(); // 68 → 28
-    });
-    act(() => {
-      drainIdle(); // 28 → 0(final)
-    });
-    expect(result.current.safeVisibleStart).toBe(0);
-  });
-
-  it("a user wheel scroll mid-expansion cancels the in-progress chunked expand", () => {
-    const scrollHost = makeScrollHost();
-    const { result } = renderHook(() =>
-      useScrollWithHost(chunkProps(scrollHost.host), scrollHost.host),
-    );
-    act(() => {
-      result.current.handleSkipToTop();
-    });
-    act(() => {
-      drainIdle(); // 188 → 148
-    });
-    expect(result.current.safeVisibleStart).toBe(148);
-
-    // 用户中途主动滚动 → 取消
-    act(() => {
-      result.current.handleWheel({ deltaY: -20 });
-    });
-
-    // 后续 idle 拍不再推进窗口
-    act(() => {
-      drainIdle();
-      drainIdle();
-    });
-    expect(result.current.safeVisibleStart).toBe(148);
-  });
-
-  it("a small-gap skip-to-top keeps one-step behavior (immediate visibleStart=0, no idle)", () => {
-    const scrollHost = makeScrollHost();
-    const { result } = renderHook(() =>
-      useScrollWithHost(chunkProps(scrollHost.host, { messages: makeMessages(20) }), scrollHost.host),
-    );
-    // start = 20 - 12 = 8;gap 8 <= 3×6=18 → 一步
-    expect(result.current.safeVisibleStart).toBe(8);
+    expect(result.current.visibleMessages).toHaveLength(12);
+    expect(result.current.visibleMessages[0].id).toBe("m-188");
 
     act(() => {
       result.current.handleSkipToTop();
     });
     expect(result.current.safeVisibleStart).toBe(0);
-    expect(idleQueue.length).toBe(0);
+    expect(result.current.visibleMessages).toHaveLength(12);
+    expect(result.current.visibleMessages[0].id).toBe("m-0");
   });
 
-  it("scrollToMessageIndex to a far-above target also expands in chunks (deferred path)", () => {
+  it("a far minimap target swaps once and lands without intermediate windows", () => {
     const scrollHost = makeScrollHost();
     const { result } = renderHook(() =>
-      useScrollWithHost(chunkProps(scrollHost.host), scrollHost.host),
+      useScrollWithHost(windowProps(), scrollHost.host),
     );
-    // start = 188;跳到 index 2(远在窗口上方)
+    const targetNode = { offsetTop: 12000, offsetHeight: 80 };
     act(() => {
-      result.current.scrollToMessageIndex(2, "auto");
+      result.current.messageNodeRefs.current.set(100, targetNode);
+      result.current.scrollToMessageIndex(100, "auto");
     });
-    // nextStart = max(0, 2-6) = 0;gap 188 远超阈值 → 分批,不一步到 0
-    expect(result.current.safeVisibleStart).toBe(188);
-
-    act(() => {
-      drainIdle();
+    expect(result.current.safeVisibleStart).toBe(94);
+    expect(result.current.visibleMessages).toHaveLength(12);
+    expect(scrollHost.host.scrollTo).toHaveBeenCalledWith({
+      top: 11988,
+      behavior: "auto",
     });
-    expect(result.current.safeVisibleStart).toBe(148);
   });
 });
 

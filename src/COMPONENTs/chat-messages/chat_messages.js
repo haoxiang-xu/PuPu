@@ -29,7 +29,7 @@ const ChatMessages = ({
   topLoadThreshold = 80,
   bootVisibleCount = 3,
   bottomViewportInset = 0,
-  maxMountedCount = 12,
+  maxMountedCount = 40,
 }) => {
   const { onThemeMode } = useContext(ConfigContext);
   const isDark = onThemeMode === "dark_mode";
@@ -45,10 +45,13 @@ const ChatMessages = ({
     safeVisibleStart,
     visibleMessages,
     handleScroll,
+    handlePointerInteraction,
     handleUserScrollIntent,
     handleWheel,
     notifyStreamingContentCommitted,
+    handleBackToBottom,
     scrollToMessageIndex,
+    scrollViewportByPage,
   } = useMessageWindowScroll({
     chat_id: chatId,
     messages,
@@ -90,11 +93,7 @@ const ChatMessages = ({
         onScroll={handleScroll}
         onWheel={handleWheel}
         onTouchMove={handleUserScrollIntent}
-        onPointerDown={(event) => {
-          if (event.target === event.currentTarget) {
-            handleUserScrollIntent();
-          }
-        }}
+        onPointerDown={handlePointerInteraction}
         style={{
           height: "100%",
           overflowY: "auto",
@@ -209,6 +208,8 @@ const ChatMessages = ({
         messages={messages}
         safeVisibleStart={safeVisibleStart}
         scrollToMessageIndex={scrollToMessageIndex}
+        scrollViewportByPage={scrollViewportByPage}
+        onBackToBottom={handleBackToBottom}
         bottomViewportInset={safeBottomViewportInset}
         isDark={isDark}
         isStreaming={isStreaming}

@@ -46,6 +46,7 @@ const baseProps = (over = {}) => ({
   messages: [msg("a", "user"), msg("b", "assistant")],
   safeVisibleStart: 0,
   scrollToMessageIndex: jest.fn(() => true),
+  onBackToBottom: jest.fn(),
   bottomViewportInset: 0,
   isDark: true,
   ...over,
@@ -66,6 +67,17 @@ test("每条消息一根刻度(n ≤ 容量),带 role 标记", () => {
 test("无消息时不渲染", () => {
   const { container } = render(<MessageMinimap {...baseProps({ messages: [] })} />);
   expect(container.querySelector("[data-mm-track]")).toBeNull();
+});
+
+test("底部导航调用全局回到底部,不只滚当前窗口", () => {
+  const props = baseProps();
+  const { container } = render(<MessageMinimap {...props} />);
+  const pills = container.querySelectorAll("[data-mm-pill]");
+
+  fireEvent.click(pills[pills.length - 1]);
+
+  expect(props.onBackToBottom).toHaveBeenCalledTimes(1);
+  expect(props.scrollToMessageIndex).not.toHaveBeenCalled();
 });
 
 test("窗口封顶:25 条消息只渲染容量(10)根刻度,端点计数出现", () => {
@@ -116,6 +128,89 @@ test("键盘 ↓ → 跳到下一条(smooth 居中)", () => {
     "smooth",
     expect.objectContaining({ align: "center" }),
   );
+});
+
+test("快速连续 jump 取消旧 flash 重试,过期 rAF 不能复活", () => {
+  const originalRaf = window.requestAnimationFrame;
+  const originalCancelRaf = window.cancelAnimationFrame;
+  const callbacks = new Map();
+  let nextRafId = 100;
+  const rafMock = jest.fn((callback) => {
+    const id = nextRafId++;
+    callbacks.set(id, callback);
+    return id;
+  });
+  const cancelRafMock = jest.fn((id) => callbacks.delete(id));
+  window.requestAnimationFrame = rafMock;
+  window.cancelAnimationFrame = cancelRafMock;
+
+  try {
+    const props = baseProps({
+      messages: [msg("a", "user"), msg("b", "assistant"), msg("c", "user")],
+    });
+    const { container, unmount } = render(<MessageMinimap {...props} />);
+    const track = container.querySelector("[data-mm-track]");
+    callbacks.clear();
+    rafMock.mockClear();
+    cancelRafMock.mockClear();
+
+    fireEvent.keyDown(track, { key: "ArrowDown" });
+    const firstRafId = rafMock.mock.results[0].value;
+    const staleFirstAttempt = callbacks.get(firstRafId);
+
+    fireEvent.keyDown(track, { key: "ArrowDown" });
+    const secondRafId = rafMock.mock.results[1].value;
+    const staleSecondAttempt = callbacks.get(secondRafId);
+    expect(cancelRafMock).toHaveBeenCalledWith(firstRafId);
+
+    const scheduledAfterSecondJump = rafMock.mock.calls.length;
+    act(() => staleFirstAttempt(performance.now()));
+    expect(rafMock).toHaveBeenCalledTimes(scheduledAfterSecondJump);
+
+    unmount();
+    expect(cancelRafMock).toHaveBeenCalledWith(secondRafId);
+    act(() => staleSecondAttempt(performance.now()));
+    expect(rafMock).toHaveBeenCalledTimes(scheduledAfterSecondJump);
+  } finally {
+    window.requestAnimationFrame = originalRaf;
+    window.cancelAnimationFrame = originalCancelRaf;
+  }
+});
+
+test("快速连续 flash 清除旧目标,卸载清除最新 timeout 与标记", () => {
+  jest.useFakeTimers();
+  const clearTimeoutSpy = jest.spyOn(window, "clearTimeout");
+  try {
+    const firstTarget = makeMessageNode(100, 100);
+    const latestTarget = makeMessageNode(200, 100);
+    const nodeRefs = { current: new Map() };
+    const props = baseProps({
+      messages: [msg("a", "user"), msg("b", "assistant"), msg("c", "user")],
+      messageNodeRefs: nodeRefs,
+    });
+    const { container, unmount } = render(<MessageMinimap {...props} />);
+    const track = container.querySelector("[data-mm-track]");
+    // 初始 paint 保持无可见锚点(cur 回退到 safeVisibleStart=0),随后再模拟
+    // 两个目标节点随扩窗挂载,使两次 ArrowDown 稳定落到 1、2。
+    nodeRefs.current.set(1, firstTarget);
+    nodeRefs.current.set(2, latestTarget);
+
+    fireEvent.keyDown(track, { key: "ArrowDown" });
+    expect(firstTarget.classList.contains("pupu-mm-flash")).toBe(true);
+
+    fireEvent.keyDown(track, { key: "ArrowDown" });
+    expect(firstTarget.classList.contains("pupu-mm-flash")).toBe(false);
+    expect(latestTarget.classList.contains("pupu-mm-flash")).toBe(true);
+    expect(clearTimeoutSpy).toHaveBeenCalled();
+
+    clearTimeoutSpy.mockClear();
+    unmount();
+    expect(clearTimeoutSpy).toHaveBeenCalledTimes(1);
+    expect(latestTarget.classList.contains("pupu-mm-flash")).toBe(false);
+  } finally {
+    clearTimeoutSpy.mockRestore();
+    jest.useRealTimers();
+  }
 });
 
 test("流式:末条刻度带 live 类;结束后移除", () => {

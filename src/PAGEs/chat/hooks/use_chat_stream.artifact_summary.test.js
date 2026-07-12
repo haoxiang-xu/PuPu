@@ -53,4 +53,13 @@ describe("use_chat_stream artifact_summary plumbing", () => {
     expect(branch[0]).toMatch(/assistantMessageId/);
     expect(branch[0]).toMatch(/runArtifactSummary/);
   });
+
+  test("removes a run summary when canonical promoted artifacts disappear", () => {
+    const branch = source.match(
+      /const patchArtifactSummary[\s\S]{0,2200}/,
+    );
+    expect(branch).not.toBeNull();
+    expect(branch[0]).toMatch(/!bucket\s*&&\s*isRunSummary/);
+    expect(branch[0]).toMatch(/runArtifactSummary:\s*null/);
+  });
 });

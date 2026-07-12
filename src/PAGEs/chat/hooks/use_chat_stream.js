@@ -13,7 +13,10 @@ import {
 import { createAttachmentPrompt } from "../utils/chat_attachment_utils";
 import { FINALITY } from "../utils/message_finality";
 import { createRuntimeEventStore } from "../../../SERVICEs/runtime_events/event_store";
-import { reduceActivityTree } from "../../../SERVICEs/runtime_events/activity_tree";
+import {
+  createIncrementalActivityTreeProjector,
+  reduceActivityTree,
+} from "../../../SERVICEs/runtime_events/activity_tree";
 import { adaptActivityTreeToTraceChain } from "../../../SERVICEs/runtime_events/trace_chain_adapter";
 import { summarizeRequestMessagesForLog } from "../../../SERVICEs/runtime_events/request_message_log_summary";
 import { isRuntimeEventStreamEnabled } from "../../../SERVICEs/runtime_events/runtime_event_stream_gate";
@@ -1979,15 +1982,20 @@ export const useChatStream = ({
         const startRuntimeEventStream = ({
           createStore,
           reduceTree,
+          createProjector,
           adaptTree,
           startStream,
           batchRuntimeEvents = false,
           batchFlushMs = 0,
         }) => {
         const runtimeEventStore = createStore();
-        let runtimeEventActivityTree = reduceTree(
-          null,
-          runtimeEventStore.getSnapshot(),
+        const runtimeEventProjector = createProjector?.();
+        const reduceRuntimeEventSnapshot = (snapshot) =>
+          runtimeEventProjector
+            ? runtimeEventProjector.reduce(snapshot)
+            : reduceTree(null, snapshot);
+        let runtimeEventActivityTree = reduceRuntimeEventSnapshot(
+          runtimeEventStore.getReductionSnapshot(),
         );
         const processedRuntimeEventEffectKeys = new Set();
         let runtimeEventStreamFailed = false;
@@ -2022,9 +2030,8 @@ export const useChatStream = ({
           );
         };
         const flushRuntimeEventEffects = () => {
-          runtimeEventActivityTree = reduceTree(
-            runtimeEventActivityTree,
-            runtimeEventStore.getSnapshot(),
+          runtimeEventActivityTree = reduceRuntimeEventSnapshot(
+            runtimeEventStore.getReductionSnapshot(),
           );
           const nextEffects = runtimeEventActivityTree.effects.filter((effect) => {
             const effectKey = runtimeEventEffectKey(effect);
@@ -2048,6 +2055,20 @@ export const useChatStream = ({
           const bucket = isRunSummary
             ? runtimeEventActivityTree?.runArtifactSummary
             : runtimeEventActivityTree?.artifactSummariesByTurnId?.[effect.turnId];
+          if (!bucket && isRunSummary) {
+            const patchTime = Date.now();
+            const nextStreamMessages = streamMessages.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    updatedAt: patchTime,
+                    runArtifactSummary: null,
+                  }
+                : message,
+            );
+            syncStreamMessages(nextStreamMessages);
+            return;
+          }
           if (!bucket || bucket.status !== "completed") return;
           const patchTime = Date.now();
           const nextStreamMessages = streamMessages.map((message) => {
@@ -2110,7 +2131,7 @@ export const useChatStream = ({
         };
 
         const flushRuntimeEventBatch = (events) => {
-          runtimeEventStore.appendMany(events);
+          runtimeEventStore.appendManyForReduction(events);
           const effects = flushRuntimeEventEffects();
           return dispatchRuntimeEventEffects(effects);
         };
@@ -2128,7 +2149,7 @@ export const useChatStream = ({
               runtimeEventBatcher.enqueue(runtimeEvent);
               return;
             }
-            runtimeEventStore.append(runtimeEvent);
+            runtimeEventStore.appendForReduction(runtimeEvent);
             const effects = flushRuntimeEventEffects();
             dispatchRuntimeEventEffects(effects);
           },
@@ -2177,6 +2198,7 @@ export const useChatStream = ({
           return startRuntimeEventStream({
             createStore: createRuntimeEventStore,
             reduceTree: reduceActivityTree,
+            createProjector: createIncrementalActivityTreeProjector,
             adaptTree: adaptActivityTreeToTraceChain,
             startStream: api.unchain.startStreamV4,
             batchRuntimeEvents: true,
