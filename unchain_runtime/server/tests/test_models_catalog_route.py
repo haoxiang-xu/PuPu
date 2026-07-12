@@ -757,6 +757,30 @@ class ModelsCatalogRouteTests(unittest.TestCase):
         self.assertEqual(payload["error"]["code"], "invalid_request")
         self.assertEqual(payload["error"]["message"], "messages must be an array")
 
+    def test_replace_memory_session_returns_revision_conflict_as_409(self) -> None:
+        class RevisionConflict(RuntimeError):
+            code = "session_revision_conflict"
+            expected_revision = 4
+            actual_revision = 5
+
+        fake_memory_factory = types.SimpleNamespace(
+            replace_short_term_session_memory=mock.Mock(
+                side_effect=RevisionConflict("stale session writer")
+            )
+        )
+
+        with mock.patch.dict(sys.modules, {"memory_factory": fake_memory_factory}):
+            response = self.client.post(
+                "/memory/session/replace",
+                json={"session_id": "chat-1", "messages": []},
+            )
+
+        self.assertEqual(response.status_code, 409)
+        payload = response.get_json()["error"]
+        self.assertEqual(payload["code"], "session_revision_conflict")
+        self.assertEqual(payload["expected_revision"], 4)
+        self.assertEqual(payload["actual_revision"], 5)
+
 
 if __name__ == "__main__":
     unittest.main()

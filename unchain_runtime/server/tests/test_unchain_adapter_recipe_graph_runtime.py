@@ -55,6 +55,214 @@ class FakeAgent:
 
 
 class RecipeGraphRuntimeTests(unittest.TestCase):
+    def test_stream_recipe_graph_rejects_memory_owned_full_history_before_agent_run(self):
+        import unchain_adapter as ua
+        from unchain.memory import InMemorySessionStore, MemoryManager
+
+        recipe = parse_recipe_json(_recipe_dict())
+        store = InMemorySessionStore()
+        store.save(
+            "s",
+            {
+                "messages": [
+                    {"role": "user", "content": "old user"},
+                    {"role": "assistant", "content": "old assistant"},
+                ]
+            },
+        )
+        memory_manager = MemoryManager(store=store)
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent") as build_agent, \
+             mock.patch.object(
+                 ua,
+                 "_resolve_memory_runtime",
+                 return_value=(
+                     {"requested": True, "available": True, "reason": ""},
+                     memory_manager,
+                 ),
+             ), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]):
+            with self.assertRaisesRegex(RuntimeError, "session history ownership conflict"):
+                list(
+                    ua._stream_recipe_graph_events(
+                        recipe=recipe,
+                        message="new user",
+                        history=[
+                            {"role": "user", "content": "old user"},
+                            {"role": "assistant", "content": "old assistant"},
+                        ],
+                        attachments=[],
+                        options={"modelId": "ollama:test", "memory_enabled": True},
+                        session_id="s",
+                    )
+                )
+
+        build_agent.assert_not_called()
+
+    def test_stream_recipe_graph_rethrows_checkpoint_resume_required_before_agent_run(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+
+        class CheckpointResumeRequired(RuntimeError):
+            code = "execution_checkpoint_resume_required"
+
+        class CheckpointMemoryManager:
+            def __init__(self):
+                self.prepare_calls = 0
+                self.commit_calls = 0
+
+            def prepare_messages(self, **_kwargs):
+                self.prepare_calls += 1
+                raise CheckpointResumeRequired("checkpoint must be resumed")
+
+            def commit_messages(self, **_kwargs):
+                self.commit_calls += 1
+
+        memory_manager = CheckpointMemoryManager()
+        events = []
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent") as build_agent, \
+             mock.patch.object(
+                 ua,
+                 "_resolve_memory_runtime",
+                 return_value=(
+                     {"requested": True, "available": True, "reason": ""},
+                     memory_manager,
+                 ),
+             ), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]):
+            with self.assertRaisesRegex(RuntimeError, "checkpoint must be resumed"):
+                for event in ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="new user",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test", "memory_enabled": True},
+                    session_id="s",
+                ):
+                    events.append(event)
+
+        self.assertEqual(events, [])
+        self.assertEqual(memory_manager.prepare_calls, 1)
+        self.assertEqual(memory_manager.commit_calls, 0)
+        build_agent.assert_not_called()
+
+    def test_stream_recipe_graph_keeps_fallback_for_non_ownership_memory_failure(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+        built = []
+
+        class BrokenMemoryManager:
+            def __init__(self):
+                self.commit_calls = 0
+
+            def prepare_messages(self, **_kwargs):
+                raise RuntimeError("vector backend unavailable")
+
+            def commit_messages(self, **_kwargs):
+                self.commit_calls += 1
+                return None
+
+        broken_memory = BrokenMemoryManager()
+
+        def fake_build(**kwargs):
+            agent = FakeAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+            built.append(agent)
+            return agent
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(
+                 ua,
+                 "_resolve_memory_runtime",
+                 return_value=(
+                     {"requested": True, "available": True, "reason": ""},
+                     broken_memory,
+                 ),
+             ), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            events = list(
+                ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="new user",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test", "memory_enabled": True},
+                    session_id="s",
+                )
+            )
+
+        self.assertEqual(len(built), 2)
+        self.assertTrue(
+            any(
+                event.get("type") == "memory_prepare"
+                and event.get("applied") is False
+                and "vector backend unavailable" in str(event.get("fallback_reason") or "")
+                for event in events
+            )
+        )
+        self.assertEqual(broken_memory.commit_calls, 0)
+
+    def test_stream_recipe_graph_forwards_prepare_revision_to_commit(self):
+        import unchain_adapter as ua
+
+        recipe = parse_recipe_json(_recipe_dict())
+
+        class RevisionMemoryManager:
+            def __init__(self):
+                self._last_prepare_info = {"session_revision": 7}
+                self._last_commit_info = {}
+                self.expected_revision = None
+
+            @property
+            def last_prepare_info(self):
+                return dict(self._last_prepare_info)
+
+            @property
+            def last_commit_info(self):
+                return dict(self._last_commit_info)
+
+            def prepare_messages(self, **kwargs):
+                return list(kwargs["incoming"])
+
+            def commit_messages(self, *, expected_revision=None, **_kwargs):
+                self.expected_revision = expected_revision
+
+        manager = RevisionMemoryManager()
+
+        def fake_build(**kwargs):
+            return FakeAgent(kwargs["recipe"].agent.prompt, kwargs["toolkits"])
+
+        with mock.patch.object(ua, "_UnchainAgent", object), \
+             mock.patch.object(ua, "_build_developer_agent", side_effect=fake_build), \
+             mock.patch.object(
+                 ua,
+                 "_resolve_memory_runtime",
+                 return_value=(
+                     {"requested": True, "available": True, "reason": ""},
+                     manager,
+                 ),
+             ), \
+             mock.patch.object(ua, "_build_requested_toolkits", return_value=[]), \
+             mock.patch.object(ua, "_build_bundle_from_result", return_value={}):
+            list(
+                ua._stream_recipe_graph_events(
+                    recipe=recipe,
+                    message="new user",
+                    history=[],
+                    attachments=[],
+                    options={"modelId": "ollama:test", "memory_enabled": True},
+                    session_id="s",
+                )
+            )
+
+        self.assertEqual(manager.expected_revision, 7)
+
     def test_stream_recipe_graph_runs_agents_in_order_and_only_final_is_final_message(self):
         import unchain_adapter as ua
 

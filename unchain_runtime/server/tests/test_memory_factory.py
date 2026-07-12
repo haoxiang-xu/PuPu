@@ -674,6 +674,91 @@ class MemoryFactoryTests(unittest.TestCase):
         )
         self.assertEqual(delete_calls["collections"], [])
 
+    def test_prepare_vector_collection_tag_adopts_matching_cas_winner(self) -> None:
+        class RevisionConflict(RuntimeError):
+            code = "session_revision_conflict"
+
+        initial_snapshot = types.SimpleNamespace(
+            state={
+                "messages": [{"role": "user", "content": "hello"}],
+                "vector_embedding_signature": "old:model:10",
+                "vector_collection_tag": "oldtag",
+            },
+            revision=4,
+        )
+        winner_snapshot = types.SimpleNamespace(
+            state={
+                "messages": [{"role": "user", "content": "hello"}],
+                "vector_embedding_signature": "new:model:20",
+                "vector_collection_tag": "winnertag",
+            },
+            revision=5,
+        )
+
+        with mock.patch.object(
+            memory_factory,
+            "_load_session_snapshot_compat",
+            side_effect=[initial_snapshot, winner_snapshot],
+        ) as load_snapshot, mock.patch.object(
+            memory_factory,
+            "_save_session_snapshot_compat",
+            side_effect=RevisionConflict("lost CAS race"),
+        ), mock.patch.object(
+            memory_factory,
+            "_delete_collection_best_effort",
+        ) as delete_collection:
+            tag = memory_factory._prepare_vector_collection_tag(
+                store=object(),
+                client=object(),
+                session_id="chat-1",
+                embedding_signature="new:model:20",
+            )
+
+        self.assertEqual(tag, "winnertag")
+        self.assertEqual(load_snapshot.call_count, 2)
+        delete_collection.assert_not_called()
+
+    def test_prepare_vector_collection_tag_rejects_different_cas_winner(self) -> None:
+        class RevisionConflict(RuntimeError):
+            code = "session_revision_conflict"
+
+        initial_snapshot = types.SimpleNamespace(
+            state={
+                "vector_embedding_signature": "old:model:10",
+                "vector_collection_tag": "oldtag",
+            },
+            revision=4,
+        )
+        winner_snapshot = types.SimpleNamespace(
+            state={
+                "vector_embedding_signature": "other:model:30",
+                "vector_collection_tag": "othertag",
+            },
+            revision=5,
+        )
+
+        with mock.patch.object(
+            memory_factory,
+            "_load_session_snapshot_compat",
+            side_effect=[initial_snapshot, winner_snapshot],
+        ), mock.patch.object(
+            memory_factory,
+            "_save_session_snapshot_compat",
+            side_effect=RevisionConflict("lost CAS race"),
+        ), mock.patch.object(
+            memory_factory,
+            "_delete_collection_best_effort",
+        ) as delete_collection:
+            with self.assertRaisesRegex(RevisionConflict, "lost CAS race"):
+                memory_factory._prepare_vector_collection_tag(
+                    store=object(),
+                    client=object(),
+                    session_id="chat-1",
+                    embedding_signature="new:model:20",
+                )
+
+        delete_collection.assert_not_called()
+
     def test_replace_short_term_session_memory_rebuilds_vectors(self) -> None:
         previous_state = {
             "chat-1": {
@@ -936,6 +1021,39 @@ class MemoryFactoryTests(unittest.TestCase):
         )
         self.assertEqual(delete_calls["collections"], [])
 
+    def test_replace_short_term_session_memory_clears_checkpoint_with_cas(self) -> None:
+        from unchain.memory import JsonFileSessionStore
+
+        with tempfile.TemporaryDirectory() as data_dir, \
+            mock.patch.dict(os.environ, {"UNCHAIN_DATA_DIR": data_dir}, clear=False), \
+            mock.patch.object(memory_factory, "_QDRANT_AVAILABLE", False):
+            store = JsonFileSessionStore(
+                base_dir=memory_factory._sessions_dir(data_dir)
+            )
+            store.save(
+                "chat-1",
+                {
+                    "messages": [{"role": "user", "content": "old"}],
+                    "execution_checkpoint": {"checkpoint_id": "stale"},
+                },
+            )
+
+            result = memory_factory.replace_short_term_session_memory(
+                session_id="chat-1",
+                messages=[{"role": "user", "content": "replacement"}],
+                options={},
+            )
+            persisted = store.load_with_revision("chat-1")
+
+        self.assertTrue(result["execution_checkpoint_cleared"])
+        self.assertEqual(result["session_revision"], 2)
+        self.assertEqual(persisted.revision, 2)
+        self.assertNotIn("execution_checkpoint", persisted.state)
+        self.assertEqual(
+            persisted.state["messages"],
+            [{"role": "user", "content": "replacement"}],
+        )
+
     def test_merge_messages_with_overlap_appends_only_new_tail(self) -> None:
         existing_messages = [
             {"role": "system", "content": "rules-v1"},
@@ -1113,6 +1231,61 @@ class MemoryFactoryTests(unittest.TestCase):
             },
         )
 
+    def test_patch_memory_commit_forwards_session_revision_and_summary(self) -> None:
+        from unchain.memory import InMemorySessionStore
+
+        class FakeManager:
+            def __init__(self):
+                self.store = InMemorySessionStore()
+                self.store.save(
+                    "chat-test",
+                    {"messages": [{"role": "user", "content": "old"}]},
+                )
+                self.committed_payload = None
+
+            def commit_messages(
+                self,
+                *,
+                session_id: str,
+                full_conversation,
+                expected_revision=None,
+                summary_text=None,
+                clear_execution_checkpoint_id=None,
+            ):
+                self.committed_payload = {
+                    "session_id": session_id,
+                    "full_conversation": full_conversation,
+                    "expected_revision": expected_revision,
+                    "summary_text": summary_text,
+                    "clear_execution_checkpoint_id": clear_execution_checkpoint_id,
+                }
+                return "committed"
+
+        manager = FakeManager()
+        memory_factory._patch_memory_commit_with_overlap(manager)
+
+        result = manager.commit_messages(
+            session_id="chat-test",
+            full_conversation=[{"role": "assistant", "content": "new"}],
+            summary_text="summary",
+            clear_execution_checkpoint_id="checkpoint-1",
+        )
+
+        self.assertEqual(result, "committed")
+        self.assertEqual(manager.committed_payload["expected_revision"], 1)
+        self.assertEqual(manager.committed_payload["summary_text"], "summary")
+        self.assertEqual(
+            manager.committed_payload["clear_execution_checkpoint_id"],
+            "checkpoint-1",
+        )
+        self.assertEqual(
+            manager.committed_payload["full_conversation"],
+            [
+                {"role": "user", "content": "old"},
+                {"role": "assistant", "content": "new"},
+            ],
+        )
+
     def test_patch_memory_prepare_with_diagnostics_sets_no_match_status(self) -> None:
         class FakeManager:
             def __init__(self):
@@ -1178,7 +1351,7 @@ class MemoryFactoryTests(unittest.TestCase):
         self.assertEqual(prepared, [{"role": "assistant", "content": "ok"}])
         self.assertEqual(manager._last_prepare_info["vector_recall_status"], "search_failed")
 
-    def test_patch_memory_prepare_with_diagnostics_sanitizes_and_cleans_store(self) -> None:
+    def test_patch_memory_prepare_with_diagnostics_sanitizes_without_prewrite(self) -> None:
         class FakeStore:
             def __init__(self, state):
                 self.state = copy.deepcopy(state)
@@ -1218,6 +1391,19 @@ class MemoryFactoryTests(unittest.TestCase):
                             },
                         ],
                         "session_meta": "keep",
+                        "execution_checkpoint": {
+                            "checkpoint_id": "checkpoint-1",
+                            "replay_frame": {
+                                "format": "openai.responses.v1",
+                                "complete": True,
+                                "items": [
+                                    {
+                                        "type": "reasoning",
+                                        "encrypted_content": "opaque",
+                                    }
+                                ],
+                            },
+                        },
                     }
                 )
                 self.received_incoming = None
@@ -1305,13 +1491,20 @@ class MemoryFactoryTests(unittest.TestCase):
                 {"role": "assistant", "content": [{"type": "text", "text": "reply"}]},
             ],
         )
-        self.assertGreaterEqual(len(manager.store.saved_states), 1)
+        self.assertEqual(manager.store.saved_states, [])
+        self.assertEqual(manager.store.state["session_meta"], "keep")
+        self.assertTrue(
+            any(
+                message.get("role") == "tool"
+                for message in manager.store.state["messages"]
+                if isinstance(message, dict)
+            )
+        )
         self.assertEqual(
-            manager.store.state,
-            {
-                "messages": [{"role": "user", "content": "old"}],
-                "session_meta": "keep",
-            },
+            manager.store.state["execution_checkpoint"]["replay_frame"]["items"][0][
+                "encrypted_content"
+            ],
+            "opaque",
         )
 
     def test_patch_memory_prepare_with_diagnostics_ignores_log_encoding_failures(self) -> None:

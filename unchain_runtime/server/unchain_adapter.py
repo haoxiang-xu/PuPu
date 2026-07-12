@@ -91,6 +91,14 @@ except ImportError:
     _ToolHistoryCompactionOptimizerConfig = None  # type: ignore
     _ToolPairSafetyOptimizer = None  # type: ignore
 
+try:
+    from unchain.memory import (
+        SessionHistoryOwnershipError as _SessionHistoryOwnershipError,
+    )
+except ImportError:  # pragma: no cover - compatibility with older unchain builds
+    class _SessionHistoryOwnershipError(ValueError):
+        pass
+
 from interaction_channels import (
     register_interject_channels,
     release_interject_channels,
@@ -4703,6 +4711,8 @@ def _stream_recipe_graph_events(
     def run_workflow() -> None:
         try:
             memory_namespace = str(options.get("memory_namespace") or "").strip()
+            memory_session_revision: int | None = None
+            memory_commit_allowed = False
             runtime_messages = base_messages
             if memory_manager is not None:
                 try:
@@ -4720,6 +4730,12 @@ def _stream_recipe_graph_events(
                         supports_tools=True,
                     )
                     prepare_info = getattr(memory_manager, "last_prepare_info", {}) or {}
+                    prepared_revision = prepare_info.get("session_revision")
+                    if isinstance(prepared_revision, int) and not isinstance(
+                        prepared_revision, bool
+                    ):
+                        memory_session_revision = prepared_revision
+                    memory_commit_allowed = True
                     emit({
                         "type": "memory_prepare",
                         "run_id": workflow_run_id,
@@ -4729,6 +4745,14 @@ def _stream_recipe_graph_events(
                         **copy.deepcopy(prepare_info),
                     })
                 except Exception as exc:
+                    error_code = str(getattr(exc, "code", "") or "")
+                    if (
+                        isinstance(exc, _SessionHistoryOwnershipError)
+                        or error_code.startswith("execution_checkpoint_")
+                        or error_code
+                        in {"session_revision_conflict", "session_store_corruption"}
+                    ):
+                        raise
                     emit({
                         "type": "memory_prepare",
                         "run_id": workflow_run_id,
@@ -4923,18 +4947,27 @@ def _stream_recipe_graph_events(
                 output_holder["final_text"] = final_text
 
             final_text = str(output_holder.get("final_text") or "")
-            if memory_manager is not None and final_text:
+            if memory_manager is not None and final_text and memory_commit_allowed:
                 try:
                     commit_messages = [
                         *base_messages,
                         {"role": "assistant", "content": final_text},
                     ]
-                    memory_manager.commit_messages(
-                        session_id=session_id,
-                        full_conversation=commit_messages,
-                        memory_namespace=memory_namespace or None,
-                        model=selected_config["model"],
-                    )
+                    commit_kwargs = {
+                        "session_id": session_id,
+                        "full_conversation": commit_messages,
+                        "memory_namespace": memory_namespace or None,
+                        "model": selected_config["model"],
+                    }
+                    try:
+                        commit_parameters = inspect.signature(
+                            memory_manager.commit_messages
+                        ).parameters
+                    except Exception:
+                        commit_parameters = {}
+                    if "expected_revision" in commit_parameters:
+                        commit_kwargs["expected_revision"] = memory_session_revision
+                    memory_manager.commit_messages(**commit_kwargs)
                     commit_info = getattr(memory_manager, "last_commit_info", {}) or {}
                     emit({
                         "type": "memory_commit",
