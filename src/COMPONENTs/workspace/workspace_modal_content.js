@@ -15,17 +15,17 @@ export const WorkspaceModalContent = ({ onClose }) => {
         style={{
           display: "flex",
           alignItems: "center",
-          padding: "20px 28px 12px",
+          padding: "30px 34px 0",
           flexShrink: 0,
         }}
       >
         <div
           style={{
-            fontSize: 22,
+            fontSize: 20,
             fontWeight: 600,
             fontFamily: theme?.font?.titleFontFamily || "NunitoSans, sans-serif",
             color: isDark ? "#fff" : "#222",
-            letterSpacing: "-0.01em",
+            letterSpacing: "-0.3px",
           }}
         >
           {t("workspace.title")}
@@ -61,7 +61,7 @@ export const WorkspaceModalContent = ({ onClose }) => {
         style={{
           flex: 1,
           overflowY: "auto",
-          padding: "0 28px 28px",
+          padding: "6px 34px 30px",
         }}
       >
         <WorkspaceEditor isDark={isDark} />

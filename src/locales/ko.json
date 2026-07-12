@@ -194,7 +194,10 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ 워크스페이스 추가",
     "workspace_select_desc": "명명된 워크스페이스는 채팅 입력 툴바에서 채팅별로 선택할 수 있습니다.",
-    "applied_desc": "워크스페이스 툴킷이 활성화되면 모든 Unchain 요청에 적용됩니다."
+    "applied_desc": "워크스페이스 툴킷이 활성화되면 모든 Unchain 요청에 적용됩니다.",
+    "esc_to_cancel": "esc 취소",
+    "delete_confirm_inline": "“{name}” 삭제할까요?",
+    "delete_confirm_note": "디스크의 폴더는 삭제되지 않습니다"
   },
   "dev": {
     "chrome_terminal": "Chrome 터미널",

@@ -1,6 +1,5 @@
-import { useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import Button from "../../BUILTIN_COMPONENTs/input/button";
-import { Input } from "../../BUILTIN_COMPONENTs/input/input";
 import {
   readWorkspaces,
   writeWorkspaces,
@@ -14,314 +13,431 @@ import { useTranslation } from "../../BUILTIN_COMPONENTs/mini_react/use_translat
 import { ConfigContext } from "../../CONTAINERs/config/context";
 import { themeHighlightColor } from "../../CONTAINERs/config/theme_highlight";
 
+/* Mono Editorial layout — no containers, underline fields, inline editing,
+   keyboard-first (↩ save · esc cancel). Spec:
+   docs/superpowers/specs/2026-07-11-workspace-mono-editorial-design.md */
+
+const MONO_FONT = 'ui-monospace, "SF Mono", Menlo, Consolas, monospace';
+
+/* Row-number palette keyed by name hash. The chat-input workspace switcher
+   is expected to reuse the same mapping for cross-surface recognition. */
+const NUMBER_PALETTE = ["#8b5cf6", "#60a5fa", "#34d399", "#f59e0b"];
+const workspaceHue = (seed) => {
+  const str = String(seed || "");
+  let sum = 0;
+  for (let i = 0; i < str.length; i++) sum += str.charCodeAt(i);
+  return NUMBER_PALETTE[sum % NUMBER_PALETTE.length];
+};
+
 /* ── Theme colours ───────────────────────────────────────────────────────── */
 
 const useThemeColors = (isDark, theme) =>
   useMemo(
     () => ({
-      text: isDark ? "rgba(255,255,255,0.88)" : "rgba(0,0,0,0.82)",
-      muted: isDark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.35)",
-      error: isDark ? "#ff7f7f" : "#c62828",
+      text: isDark ? "rgba(255,255,255,0.89)" : "rgba(0,0,0,0.85)",
+      muted: isDark ? "rgba(255,255,255,0.46)" : "rgba(0,0,0,0.48)",
+      faint: isDark ? "rgba(255,255,255,0.30)" : "rgba(0,0,0,0.32)",
+      line: isDark ? "rgba(255,255,255,0.075)" : "rgba(0,0,0,0.075)",
+      hoverFill: isDark ? "rgba(255,255,255,0.055)" : "rgba(0,0,0,0.04)",
+      danger: isDark ? "#f87171" : "#dc2626",
+      dangerFill: isDark ? "rgba(248,113,113,0.10)" : "rgba(220,38,38,0.07)",
       success: isDark ? "#86efac" : "#2e7d32",
-      border: isDark ? "rgba(255,255,255,0.07)" : "rgba(0,0,0,0.06)",
-      hoverBg: isDark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)",
       accent: themeHighlightColor(theme),
     }),
     [isDark, theme],
   );
 
-/* ── Sub-heading ─────────────────────────────────────────────────────────── */
+/* ── Building blocks ─────────────────────────────────────────────────────── */
 
-const SubHeading = ({ children, isDark, style }) => {
-  const { theme } = useContext(ConfigContext);
-  return (
+const SectionLabel = ({ children, dirty, colors, fontFamily, style }) => (
   <div
     style={{
-      fontSize: 11,
-      fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-      textTransform: "uppercase",
+      display: "flex",
+      alignItems: "center",
+      gap: 7,
+      fontSize: 10.5,
+      fontFamily,
       letterSpacing: "1.6px",
+      textTransform: "uppercase",
       fontWeight: 500,
-      color: isDark ? "rgba(255,255,255,0.32)" : "rgba(0,0,0,0.32)",
-      padding: "16px 0 8px",
+      color: colors.faint,
+      marginBottom: 12,
       userSelect: "none",
       ...style,
     }}
   >
     {children}
+    {dirty && (
+      <span
+        data-testid="dirty-dot"
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: "50%",
+          backgroundColor: colors.accent,
+          flexShrink: 0,
+        }}
+      />
+    )}
   </div>
+);
+
+/* Underline field: hairline at rest, accent on focus, danger on error.
+   The 1.5px state line is drawn with boxShadow so the layout never shifts. */
+const UnderlineInput = ({
+  value,
+  onChange,
+  onKeyDown,
+  placeholder,
+  mono,
+  fontSize,
+  fontWeight,
+  error,
+  autoFocus,
+  ariaLabel,
+  colors,
+  fontFamily,
+}) => {
+  const [focused, setFocused] = useState(false);
+  const stateLine = error ? colors.danger : focused ? colors.accent : null;
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={onChange}
+      onKeyDown={onKeyDown}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      aria-label={ariaLabel}
+      style={{
+        width: "100%",
+        boxSizing: "border-box",
+        padding: "0 0 10px",
+        fontSize,
+        fontWeight: fontWeight || 400,
+        fontFamily: mono ? MONO_FONT : fontFamily,
+        color: colors.text,
+        background: "transparent",
+        border: "none",
+        outline: "none",
+        borderRadius: 0,
+        borderBottom: `1px solid ${colors.line}`,
+        boxShadow: stateLine ? `0 1.5px 0 ${stateLine}` : "none",
+        transition: "box-shadow 120ms",
+      }}
+    />
   );
 };
 
-/* ── Thin vertical divider ───────────────────────────────────────────────── */
-
-const Divider = ({ isDark }) => (
-  <div
+const TextLink = ({
+  label,
+  onClick,
+  disabled,
+  tone = "muted",
+  weight = 400,
+  colors,
+  fontFamily,
+}) => (
+  <Button
+    label={label}
+    onClick={onClick}
+    disabled={disabled}
     style={{
-      width: 1,
-      height: 14,
-      backgroundColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(0,0,0,0.10)",
-      marginLeft: 2,
-      marginRight: 2,
-      flexShrink: 0,
+      fontSize: 12,
+      fontFamily,
+      fontWeight: weight,
+      paddingVertical: 2,
+      paddingHorizontal: 2,
+      borderRadius: 4,
+      color:
+        tone === "accent"
+          ? colors.accent
+          : tone === "danger"
+            ? colors.danger
+            : tone === "faint"
+              ? colors.faint
+              : colors.muted,
+      root: { background: "transparent" },
+      hoverBackgroundColor: "transparent",
+      state: {
+        disabled: {
+          root: { opacity: 0.4, cursor: "not-allowed" },
+          background: {},
+        },
+      },
     }}
   />
 );
 
+const Hint = ({ children, colors, fontFamily }) => (
+  <span
+    style={{
+      fontSize: 12,
+      fontFamily,
+      color: colors.faint,
+      userSelect: "none",
+      whiteSpace: "nowrap",
+    }}
+  >
+    {children}
+  </span>
+);
+
+const ErrorLine = ({ children, colors }) => (
+  <div
+    style={{
+      fontSize: 11,
+      fontFamily: MONO_FONT,
+      color: colors.danger,
+      marginTop: 9,
+      lineHeight: 1.5,
+    }}
+  >
+    ✗ {children}
+  </div>
+);
+
+const Caption = ({ children, colors, fontFamily, style }) => (
+  <div
+    style={{
+      fontSize: 11,
+      fontFamily,
+      color: colors.faint,
+      lineHeight: 1.5,
+      ...style,
+    }}
+  >
+    {children}
+  </div>
+);
+
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   DefaultWorkspaceSection
+   DefaultRootSection — the path IS the field
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
-const DefaultWorkspaceSection = ({ isDark }) => {
+const DefaultRootSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
-  const c = useThemeColors(isDark, theme);
+  const colors = useThemeColors(isDark, theme);
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const { t } = useTranslation();
-  const [workspaceRoot, setWorkspaceRoot] = useState(() => readWorkspaceRoot());
-  const [savedWorkspaceRoot, setSavedWorkspaceRoot] = useState(() =>
-    readWorkspaceRoot(),
-  );
+
+  const [value, setValue] = useState(() => readWorkspaceRoot());
+  const [saved, setSaved] = useState(() => readWorkspaceRoot());
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const [isBrowsing, setIsBrowsing] = useState(false);
-  const [isOpeningFolder, setIsOpeningFolder] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const browseSupported = runtimeBridge.isWorkspacePickerAvailable();
   const openFolderSupported = runtimeBridge.isOpenRuntimeFolderAvailable();
-
-  const isDirty = useMemo(
-    () => workspaceRoot.trim() !== savedWorkspaceRoot.trim(),
-    [workspaceRoot, savedWorkspaceRoot],
-  );
-
-  const busy = isSaving || isBrowsing || isOpeningFolder;
+  const isDirty = value.trim() !== saved.trim();
 
   const handleSave = useCallback(async () => {
-    const candidate = workspaceRoot.trim();
-    setIsSaving(true);
+    const candidate = value.trim();
+    setBusy(true);
     setError("");
     setInfo("");
-
     const validation = await validateWorkspaceRoot(candidate);
     if (!validation.valid) {
       setError(validation.reason || "Invalid workspace root.");
-      setIsSaving(false);
+      setBusy(false);
       return;
     }
-
     const nextPath = validation.resolvedPath || candidate;
     writeWorkspaceRoot(nextPath);
-    setWorkspaceRoot(nextPath);
-    setSavedWorkspaceRoot(nextPath);
+    setValue(nextPath);
+    setSaved(nextPath);
     setInfo(nextPath ? "Saved." : "Cleared.");
-    setIsSaving(false);
-  }, [workspaceRoot]);
+    setBusy(false);
+  }, [value]);
+
+  const handleRevert = useCallback(() => {
+    setValue(saved);
+    setError("");
+    setInfo("");
+  }, [saved]);
 
   const handleClear = useCallback(() => {
     writeWorkspaceRoot("");
-    setWorkspaceRoot("");
-    setSavedWorkspaceRoot("");
+    setValue("");
+    setSaved("");
     setError("");
     setInfo("Cleared.");
   }, []);
 
   const handleBrowse = useCallback(async () => {
-    if (!browseSupported) {
-      setError("Directory picker is only available in Electron.");
-      return;
-    }
-    setIsBrowsing(true);
+    if (!browseSupported) return;
+    setBusy(true);
     setError("");
     setInfo("");
     try {
       const response = await runtimeBridge.pickWorkspaceRoot(
-        workspaceRoot.trim() || savedWorkspaceRoot.trim(),
+        value.trim() || saved.trim(),
       );
       if (
         !response?.canceled &&
         typeof response?.path === "string" &&
         response.path.trim()
       ) {
-        setWorkspaceRoot(response.path.trim());
+        setValue(response.path.trim());
       }
     } catch (err) {
       setError(err?.message || "Failed to open directory picker.");
     } finally {
-      setIsBrowsing(false);
+      setBusy(false);
     }
-  }, [browseSupported, workspaceRoot, savedWorkspaceRoot]);
+  }, [browseSupported, value, saved]);
 
   const handleOpenFolder = useCallback(async () => {
-    const folderPath = savedWorkspaceRoot.trim();
-    setIsOpeningFolder(true);
+    setBusy(true);
     setError("");
     setInfo("");
     try {
-      const response = await runtimeBridge.openRuntimeFolder(folderPath);
+      const response = await runtimeBridge.openRuntimeFolder(saved.trim());
       if (!response?.ok) {
         setError(response?.error || "Failed to open folder.");
       }
     } catch (err) {
       setError(err?.message || "Failed to open folder.");
     } finally {
-      setIsOpeningFolder(false);
+      setBusy(false);
     }
-  }, [savedWorkspaceRoot]);
+  }, [saved]);
+
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter") {
+      if (isDirty && !busy) {
+        event.preventDefault();
+        handleSave();
+      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      handleRevert();
+    }
+  };
+
+  const linkProps = { colors, fontFamily };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      <SubHeading isDark={isDark}>{t("workspace.default_workspace")}</SubHeading>
+    <div style={{ marginTop: 22 }}>
+      <SectionLabel
+        dirty={isDirty || Boolean(error)}
+        colors={colors}
+        fontFamily={fontFamily}
+      >
+        {t("workspace.default_workspace")}
+      </SectionLabel>
+
+      <UnderlineInput
+        value={value}
+        onChange={(e) => {
+          setValue(e.target.value);
+          setError("");
+          setInfo("");
+        }}
+        onKeyDown={handleKeyDown}
+        placeholder={t("workspace.enter_path")}
+        mono
+        fontSize={15}
+        error={Boolean(error)}
+        ariaLabel="default-workspace-root"
+        colors={colors}
+        fontFamily={fontFamily}
+      />
+
+      {error && <ErrorLine colors={colors}>{error}</ErrorLine>}
 
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          border: isDark
-            ? "1px solid rgba(255,255,255,0.08)"
-            : "1px solid rgba(0,0,0,0.12)",
-          borderRadius: 7,
-          overflow: "hidden",
+          alignItems: "center",
+          gap: 18,
+          marginTop: error ? 9 : 12,
+          minHeight: 20,
         }}
       >
-        <input
-          type="text"
-          value={workspaceRoot}
-          onChange={(e) => {
-            setWorkspaceRoot(e.target.value);
-            setError("");
-            setInfo("");
-          }}
-          placeholder={t("workspace.enter_path")}
-          style={{
-            width: "100%",
-            boxSizing: "border-box",
-            padding: "10px 12px",
-            fontSize: 14,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            color: isDark ? "#ccc" : "#222",
-            background: "transparent",
-            border: "none",
-            outline: "none",
-          }}
-        />
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "flex-end",
-            gap: 4,
-            flexWrap: "wrap",
-            padding: "4px 8px 8px",
-          }}
-        >
-          <Button
-            label={isSaving ? t("workspace.saving") : t("common.save")}
-            onClick={handleSave}
-            disabled={busy || !isDirty}
-            style={{
-              paddingVertical: 4,
-              paddingHorizontal: 10,
-              borderRadius: 6,
-              fontSize: 12,
-              opacity: isDirty ? 1 : 0.35,
-              hoverBackgroundColor: c.hoverBg,
-            }}
-          />
-          {browseSupported && (
-            <Button
-              label={isBrowsing ? "..." : t("workspace.browse")}
-              onClick={handleBrowse}
-              disabled={busy}
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 10,
-                borderRadius: 6,
-                fontSize: 12,
-                opacity: 0.6,
-                hoverBackgroundColor: c.hoverBg,
-              }}
+        {isDirty ? (
+          <>
+            <TextLink
+              label={`${t("common.save")} ↩`}
+              tone="accent"
+              weight={500}
+              onClick={handleSave}
+              disabled={busy || Boolean(error)}
+              {...linkProps}
             />
-          )}
-          {savedWorkspaceRoot.trim() && (
-            <Button
-              label={t("model_providers.clear")}
-              onClick={handleClear}
-              disabled={busy}
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 10,
-                borderRadius: 6,
-                opacity: 0.5,
-                fontSize: 12,
-                hoverBackgroundColor: isDark
-                  ? "rgba(239,83,80,0.15)"
-                  : "rgba(239,83,80,0.1)",
-              }}
-            />
-          )}
-          {openFolderSupported && savedWorkspaceRoot.trim() && (
-            <Button
-              label={isOpeningFolder ? "..." : t("workspace.open_in_explorer")}
-              onClick={handleOpenFolder}
-              disabled={busy}
-              style={{
-                paddingVertical: 4,
-                paddingHorizontal: 10,
-                borderRadius: 6,
-                opacity: 0.5,
-                fontSize: 12,
-                hoverBackgroundColor: c.hoverBg,
-              }}
-            />
-          )}
-        </div>
+            <Hint {...linkProps}>{t("workspace.esc_to_cancel")}</Hint>
+            {browseSupported && (
+              <TextLink
+                label={t("workspace.browse")}
+                onClick={handleBrowse}
+                disabled={busy}
+                {...linkProps}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {browseSupported && (
+              <TextLink
+                label={t("workspace.browse")}
+                onClick={handleBrowse}
+                disabled={busy}
+                {...linkProps}
+              />
+            )}
+            {openFolderSupported && saved.trim() && (
+              <TextLink
+                label={t("workspace.open_in_explorer")}
+                onClick={handleOpenFolder}
+                disabled={busy}
+                {...linkProps}
+              />
+            )}
+            {saved.trim() && (
+              <TextLink
+                label={t("model_providers.clear")}
+                tone="faint"
+                onClick={handleClear}
+                disabled={busy}
+                {...linkProps}
+              />
+            )}
+            {info && (
+              <span
+                style={{
+                  fontSize: 11,
+                  fontFamily: MONO_FONT,
+                  color: colors.success,
+                }}
+              >
+                {info}
+              </span>
+            )}
+          </>
+        )}
       </div>
 
-      {error && (
-        <div
-          style={{
-            fontSize: 12,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            color: c.error,
-          }}
-        >
-          {error}
-        </div>
-      )}
-      {!error && info && (
-        <div
-          style={{
-            fontSize: 12,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            color: c.success,
-          }}
-        >
-          {info}
-        </div>
-      )}
-
-      <div
-        style={{
-          fontSize: 11,
-          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-          color: c.muted,
-          lineHeight: 1.5,
-        }}
-      >
+      <Caption colors={colors} fontFamily={fontFamily} style={{ marginTop: 14 }}>
         {t("workspace.applied_desc")}
-      </div>
+      </Caption>
     </div>
   );
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   WorkspacesSection — flat list with inline actions
+   WorkspacesSection — numbered rows, inline edit, inline delete confirm
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
+
+const rowNumber = (index) => String(index + 1).padStart(2, "0");
 
 const WorkspacesSection = ({ isDark }) => {
   const { theme } = useContext(ConfigContext);
-  const c = useThemeColors(isDark, theme);
+  const colors = useThemeColors(isDark, theme);
+  const fontFamily = theme?.font?.fontFamily || "Jost, sans-serif";
   const { t } = useTranslation();
+
   const [items, setItems] = useState(() => readWorkspaces());
   const [editingId, setEditingId] = useState(null);
   const [editDraft, setEditDraft] = useState({ name: "", path: "" });
@@ -329,10 +445,18 @@ const WorkspacesSection = ({ isDark }) => {
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState("");
   const [hoveredId, setHoveredId] = useState(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const confirmRef = useRef(null);
+
+  useEffect(() => {
+    if (confirmDeleteId) confirmRef.current?.focus();
+  }, [confirmDeleteId]);
 
   const browseSupported = runtimeBridge.isWorkspacePickerAvailable();
+  const linkProps = { colors, fontFamily };
 
   const startEditing = useCallback((item) => {
+    setConfirmDeleteId(null);
     setEditingId(item.id);
     setEditDraft({ name: item.name || "", path: item.path || "" });
     setEditError("");
@@ -354,8 +478,8 @@ const WorkspacesSection = ({ isDark }) => {
 
   const addItem = useCallback(() => {
     const id = makeWorkspaceId();
-    const newItem = { id, name: "", path: "" };
-    setItems((prev) => [...prev, newItem]);
+    setConfirmDeleteId(null);
+    setItems((prev) => [...prev, { id, name: "", path: "" }]);
     setUnsavedIds((prev) => new Set([...prev, id]));
     setEditingId(id);
     setEditDraft({ name: "", path: "" });
@@ -394,20 +518,20 @@ const WorkspacesSection = ({ isDark }) => {
       resolvedPath = validation.resolvedPath || rawPath;
     }
 
-    const saved = {
+    const savedItem = {
       id: editingId,
       name: editDraft.name.trim(),
       path: resolvedPath,
     };
 
-    setItems((prev) => prev.map((w) => (w.id === editingId ? saved : w)));
+    setItems((prev) => prev.map((w) => (w.id === editingId ? savedItem : w)));
     setUnsavedIds((prev) => {
       const next = new Set(prev);
       next.delete(editingId);
       return next;
     });
 
-    const next = items.map((w) => (w.id === editingId ? saved : w));
+    const next = items.map((w) => (w.id === editingId ? savedItem : w));
     writeWorkspaces(next.filter((w) => w.path || w.name));
 
     setEditingId(null);
@@ -420,6 +544,7 @@ const WorkspacesSection = ({ isDark }) => {
       const next = items.filter((w) => w.id !== id);
       setItems(next);
       writeWorkspaces(next.filter((w) => w.path || w.name));
+      setConfirmDeleteId(null);
       if (editingId === id) {
         setEditingId(null);
         setEditDraft({ name: "", path: "" });
@@ -434,271 +559,368 @@ const WorkspacesSection = ({ isDark }) => {
     [items, editingId],
   );
 
-  return (
-    <div>
-      <SubHeading isDark={isDark}>{t("workspace.title")}</SubHeading>
+  const editKeyDown = (event) => {
+    if (event.key === "Enter") {
+      if (!isSaving) {
+        event.preventDefault();
+        handleSaveItem();
+      }
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancelEditing();
+    }
+  };
 
-      {items.length === 0 && editingId === null && (
+  const dimOthers = editingId !== null;
+
+  /* ── Row renderers ── */
+
+  const renderEditRow = (item, index) => (
+    <div
+      key={item.id}
+      style={{
+        display: "flex",
+        gap: 14,
+        padding: "12px 8px 14px",
+        margin: "0 -8px",
+      }}
+    >
+      <span
+        style={{
+          width: 26,
+          flexShrink: 0,
+          paddingTop: 3,
+          fontSize: 11,
+          fontFamily: MONO_FONT,
+          color: unsavedIds.has(item.id)
+            ? colors.faint
+            : workspaceHue(item.name || item.path),
+        }}
+      >
+        {rowNumber(index)}
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <UnderlineInput
+          value={editDraft.name}
+          onChange={(e) => setEditDraft((d) => ({ ...d, name: e.target.value }))}
+          onKeyDown={editKeyDown}
+          placeholder={t("workspace.name_optional")}
+          fontSize={13}
+          fontWeight={500}
+          autoFocus
+          ariaLabel="workspace-name"
+          colors={colors}
+          fontFamily={fontFamily}
+        />
+        <div style={{ marginTop: 9 }}>
+          <UnderlineInput
+            value={editDraft.path}
+            onChange={(e) =>
+              setEditDraft((d) => ({ ...d, path: e.target.value }))
+            }
+            onKeyDown={editKeyDown}
+            placeholder={t("workspace.path_placeholder")}
+            mono
+            fontSize={12}
+            error={Boolean(editError)}
+            ariaLabel="workspace-path"
+            colors={colors}
+            fontFamily={fontFamily}
+          />
+        </div>
+        {editError && <ErrorLine colors={colors}>{editError}</ErrorLine>}
         <div
           style={{
-            fontSize: 12,
-            color: c.muted,
-            fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-            padding: "4px 0 8px",
+            display: "flex",
+            alignItems: "center",
+            gap: 18,
+            marginTop: 11,
           }}
         >
-          {t("workspace.no_workspaces")}
+          <TextLink
+            label={`${t("common.save")} ↩`}
+            tone="accent"
+            weight={500}
+            onClick={handleSaveItem}
+            disabled={isSaving}
+            {...linkProps}
+          />
+          <Hint {...linkProps}>{t("workspace.esc_to_cancel")}</Hint>
+          {browseSupported && (
+            <TextLink
+              label={t("workspace.browse")}
+              onClick={handleBrowse}
+              disabled={isSaving}
+              {...linkProps}
+            />
+          )}
+          <span style={{ flex: 1 }} />
+          <Hint {...linkProps}>tab ⇥</Hint>
         </div>
-      )}
+      </div>
+    </div>
+  );
 
-      {items.map((item) => {
-        const isEditing = editingId === item.id;
+  const renderConfirmRow = (item, index) => {
+    const displayName = item.name?.trim() || item.path?.trim() || "Unnamed";
+    return (
+      <div
+        key={item.id}
+        data-testid="delete-confirm-row"
+        ref={confirmRef}
+        tabIndex={-1}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            deleteItem(item.id);
+          } else if (event.key === "Escape") {
+            event.preventDefault();
+            setConfirmDeleteId(null);
+          }
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          height: 54,
+          padding: "0 8px",
+          margin: "0 -8px",
+          borderRadius: 10,
+          backgroundColor: colors.dangerFill,
+          outline: "none",
+        }}
+      >
+        <span
+          style={{
+            width: 26,
+            flexShrink: 0,
+            fontSize: 11,
+            fontFamily: MONO_FONT,
+            color: colors.danger,
+          }}
+        >
+          {rowNumber(index)}
+        </span>
+        <div
+          style={{
+            flex: 1,
+            minWidth: 0,
+            fontSize: 12.5,
+            fontFamily,
+            color: colors.text,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {t("workspace.delete_confirm_inline", { name: displayName })}
+          <span style={{ color: colors.muted }}>
+            {" — "}
+            {t("workspace.delete_confirm_note")}
+          </span>
+        </div>
+        <TextLink
+          label={`${t("common.delete")} ↩`}
+          tone="danger"
+          weight={500}
+          onClick={() => deleteItem(item.id)}
+          {...linkProps}
+        />
+        <Hint {...linkProps}>esc</Hint>
+      </div>
+    );
+  };
 
-        if (isEditing) {
-          return (
-            <div
-              key={item.id}
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                padding: "10px 0",
-                borderBottom: `1px solid ${c.border}`,
-              }}
-            >
-              <Input
-                value={editDraft.name}
-                placeholder={t("workspace.name_optional")}
-                set_value={(v) => setEditDraft((d) => ({ ...d, name: v }))}
-                style={{ flex: 1, fontSize: 13, height: 34 }}
-              />
-              <Input
-                value={editDraft.path}
-                placeholder={t("workspace.path_placeholder")}
-                set_value={(v) => setEditDraft((d) => ({ ...d, path: v }))}
-                postfix_component={
-                  browseSupported ? (
-                    <Button
-                      label={t("workspace.browse")}
-                      onClick={handleBrowse}
-                      disabled={isSaving}
-                      style={{
-                        paddingVertical: 2,
-                        paddingHorizontal: 8,
-                        borderRadius: 4,
-                        fontSize: 12,
-                        opacity: 0.5,
-                        hoverBackgroundColor: c.hoverBg,
-                      }}
-                    />
-                  ) : null
-                }
-                style={{ flex: 1, fontSize: 13, height: 34 }}
-              />
-              {editError && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                    color: c.error,
-                  }}
-                >
-                  {editError}
-                </div>
-              )}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "flex-end",
-                  gap: 6,
-                  paddingTop: 2,
-                }}
-              >
-                <Button
-                  label={t("common.cancel")}
-                  onClick={cancelEditing}
-                  disabled={isSaving}
-                  style={{
-                    paddingVertical: 4,
-                    paddingHorizontal: 12,
-                    borderRadius: 6,
-                    opacity: 0.5,
-                    fontSize: 12,
-                    hoverBackgroundColor: c.hoverBg,
-                  }}
-                />
-                <Button
-                  label={isSaving ? t("workspace.saving") : t("common.save")}
-                  onClick={handleSaveItem}
-                  disabled={isSaving}
-                  style={{
-                    paddingVertical: 4,
-                    paddingHorizontal: 12,
-                    borderRadius: 6,
-                    fontSize: 12,
-                    hoverBackgroundColor: c.hoverBg,
-                  }}
-                />
-              </div>
-            </div>
-          );
-        }
-
-        const displayName = item.name?.trim() || item.path?.trim() || "Unnamed";
-        const displayPath = item.name?.trim() ? item.path?.trim() : null;
-
-        return (
+  const renderRow = (item, index) => {
+    const displayName = item.name?.trim() || item.path?.trim() || "Unnamed";
+    const hovered = hoveredId === item.id && !dimOthers;
+    return (
+      <div
+        key={item.id}
+        onMouseEnter={() => setHoveredId(item.id)}
+        onMouseLeave={() => setHoveredId(null)}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 14,
+          height: 54,
+          padding: "0 8px",
+          margin: "0 -8px",
+          borderRadius: 10,
+          backgroundColor: hovered ? colors.hoverFill : "transparent",
+          opacity: dimOthers ? 0.4 : 1,
+          transition: "background-color 120ms, opacity 120ms",
+        }}
+      >
+        <span
+          style={{
+            width: 26,
+            flexShrink: 0,
+            fontSize: 11,
+            fontFamily: MONO_FONT,
+            color: workspaceHue(displayName),
+          }}
+        >
+          {rowNumber(index)}
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div
-            key={item.id}
-            onMouseEnter={() => setHoveredId(item.id)}
-            onMouseLeave={() => setHoveredId(null)}
             style={{
-              display: "flex",
-              alignItems: "center",
-              padding: "10px 2px",
-              borderBottom: `1px solid ${c.border}`,
+              fontSize: 13,
+              fontFamily,
+              fontWeight: 500,
+              color: colors.text,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div
-                style={{
-                  fontSize: 13,
-                  fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-                  fontWeight: 500,
-                  color: c.text,
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  whiteSpace: "nowrap",
-                }}
-              >
-                {displayName}
-              </div>
-              {displayPath && (
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontFamily: "Menlo, Monaco, Consolas, monospace",
-                    color: c.muted,
-                    marginTop: 2,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {displayPath}
-                </div>
-              )}
-            </div>
-
+            {displayName}
+          </div>
+          {item.name?.trim() && item.path?.trim() && (
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 2,
-                flexShrink: 0,
-                opacity: hoveredId === item.id ? 1 : 0,
-                transition: "opacity 0.12s ease",
+                fontSize: 11,
+                fontFamily: MONO_FONT,
+                color: colors.muted,
+                marginTop: 2,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
               }}
             >
-              <Button
-                prefix_icon="folder_open"
-                onClick={() => {
-                  if (item.path?.trim()) {
-                    runtimeBridge.openRuntimeFolder(item.path.trim());
-                  }
-                }}
-                disabled={editingId !== null || !item.path?.trim()}
-                style={{
-                  paddingVertical: 2,
-                  paddingHorizontal: 4,
-                  borderRadius: 4,
-                  opacity: 0.45,
-                  content: { icon: { width: 14, height: 14 } },
-                  hoverBackgroundColor: c.hoverBg,
-                }}
-              />
-              <Divider isDark={isDark} />
-              <Button
-                prefix_icon="edit_pen"
-                onClick={() => startEditing(item)}
-                disabled={editingId !== null}
-                style={{
-                  paddingVertical: 2,
-                  paddingHorizontal: 4,
-                  borderRadius: 4,
-                  opacity: 0.5,
-                  content: { icon: { width: 14, height: 14 } },
-                  hoverBackgroundColor: c.hoverBg,
-                }}
-              />
-              <Divider isDark={isDark} />
-              <Button
-                prefix_icon="delete"
-                onClick={() => deleteItem(item.id)}
-                disabled={editingId !== null}
-                style={{
-                  paddingVertical: 2,
-                  paddingHorizontal: 4,
-                  borderRadius: 4,
-                  opacity: 0.4,
-                  content: { icon: { width: 14, height: 14 } },
-                  hoverBackgroundColor: isDark
-                    ? "rgba(239,83,80,0.15)"
-                    : "rgba(239,83,80,0.1)",
-                }}
-              />
+              {item.path.trim()}
             </div>
-          </div>
-        );
-      })}
+          )}
+        </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            flexShrink: 0,
+            opacity: hovered ? 1 : 0,
+            pointerEvents: hovered ? "auto" : "none",
+            transition: "opacity 120ms",
+          }}
+        >
+          <Button
+            prefix_icon="folder_open"
+            onClick={() => {
+              if (item.path?.trim()) {
+                runtimeBridge.openRuntimeFolder(item.path.trim());
+              }
+            }}
+            disabled={dimOthers || !item.path?.trim()}
+            style={{
+              paddingVertical: 3,
+              paddingHorizontal: 3,
+              borderRadius: 5,
+              color: colors.muted,
+              content: { icon: { width: 14, height: 14 } },
+              hoverBackgroundColor: colors.hoverFill,
+            }}
+          />
+          <Button
+            prefix_icon="edit_pen"
+            onClick={() => startEditing(item)}
+            disabled={dimOthers}
+            style={{
+              paddingVertical: 3,
+              paddingHorizontal: 3,
+              borderRadius: 5,
+              color: colors.muted,
+              content: { icon: { width: 14, height: 14 } },
+              hoverBackgroundColor: colors.hoverFill,
+            }}
+          />
+          <Button
+            prefix_icon="delete"
+            onClick={() => setConfirmDeleteId(item.id)}
+            disabled={dimOthers}
+            style={{
+              paddingVertical: 3,
+              paddingHorizontal: 3,
+              borderRadius: 5,
+              color: colors.muted,
+              content: { icon: { width: 14, height: 14 } },
+              hoverBackgroundColor: isDark
+                ? "rgba(248,113,113,0.14)"
+                : "rgba(220,38,38,0.10)",
+            }}
+          />
+        </div>
+      </div>
+    );
+  };
 
-      {/* Add workspace — minimal */}
+  return (
+    <div>
       <div
         style={{
           display: "flex",
-          justifyContent: "center",
-          marginTop: 12,
-          marginBottom: 4,
+          alignItems: "baseline",
+          margin: "34px 0 8px",
         }}
       >
-        <Button
+        <SectionLabel
+          colors={colors}
+          fontFamily={fontFamily}
+          style={{ marginBottom: 0, flex: 1 }}
+        >
+          {t("workspace.title")}
+        </SectionLabel>
+        <span
+          style={{ fontSize: 11, fontFamily: MONO_FONT, color: colors.faint }}
+        >
+          {items.length}
+        </span>
+      </div>
+
+      {items.length === 0 && editingId === null ? (
+        <Caption
+          colors={colors}
+          fontFamily={fontFamily}
+          style={{ padding: "6px 0 2px", fontSize: 12 }}
+        >
+          {t("workspace.no_workspaces")}
+        </Caption>
+      ) : (
+        <div style={{ borderTop: `1px solid ${colors.line}` }}>
+          {items.map((item, index) => {
+            if (editingId === item.id) return renderEditRow(item, index);
+            if (confirmDeleteId === item.id)
+              return renderConfirmRow(item, index);
+            return renderRow(item, index);
+          })}
+        </div>
+      )}
+
+      <div style={{ marginTop: 14, opacity: dimOthers ? 0.4 : 1 }}>
+        <TextLink
           label={t("workspace.add_workspace")}
+          tone="accent"
+          weight={500}
           onClick={addItem}
-          disabled={editingId !== null}
-          style={{
-            paddingVertical: 6,
-            paddingHorizontal: 14,
-            borderRadius: 6,
-            fontSize: 12,
-            opacity: editingId !== null ? 0.3 : 0.6,
-            hoverBackgroundColor: c.hoverBg,
-          }}
+          disabled={dimOthers}
+          {...linkProps}
         />
       </div>
 
-      <div
-        style={{
-          fontSize: 11,
-          fontFamily: theme?.font?.fontFamily || "Jost, sans-serif",
-          color: c.muted,
-          lineHeight: 1.5,
-          padding: "4px 0 0",
-        }}
-      >
+      <Caption colors={colors} fontFamily={fontFamily} style={{ marginTop: 10 }}>
         {t("workspace.workspace_select_desc")}
-      </div>
+      </Caption>
     </div>
   );
 };
 
 /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-   WorkspaceEditor — reusable composite (DefaultWorkspace + Workspaces list)
+   WorkspaceEditor — reusable composite (DefaultRoot + Workspaces list)
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
 const WorkspaceEditor = ({ isDark }) => (
   <div style={{ display: "flex", flexDirection: "column" }}>
-    <DefaultWorkspaceSection isDark={isDark} />
-    <div style={{ height: 8 }} />
+    <DefaultRootSection isDark={isDark} />
     <WorkspacesSection isDark={isDark} />
   </div>
 );

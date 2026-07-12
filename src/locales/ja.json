@@ -194,7 +194,10 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ ワークスペースを追加",
     "workspace_select_desc": "名前付きワークスペースはチャット入力ツールバーからチャットごとに選択できます。",
-    "applied_desc": "ワークスペースツールキットが有効な場合、すべての Unchain リクエストに適用されます。"
+    "applied_desc": "ワークスペースツールキットが有効な場合、すべての Unchain リクエストに適用されます。",
+    "esc_to_cancel": "esc でキャンセル",
+    "delete_confirm_inline": "“{name}” を削除しますか？",
+    "delete_confirm_note": "ディスク上のフォルダには影響しません"
   },
   "dev": {
     "chrome_terminal": "Chrome ターミナル",

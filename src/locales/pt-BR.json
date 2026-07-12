@@ -194,7 +194,10 @@
     "path_placeholder": "/caminho/para/workspace",
     "add_workspace": "+ Adicionar workspace",
     "workspace_select_desc": "Workspaces nomeados podem ser selecionados por chat na barra de ferramentas de entrada.",
-    "applied_desc": "Aplicado a cada solicitação Unchain quando o toolkit de workspace está ativado."
+    "applied_desc": "Aplicado a cada solicitação Unchain quando o toolkit de workspace está ativado.",
+    "esc_to_cancel": "esc para cancelar",
+    "delete_confirm_inline": "Excluir “{name}”?",
+    "delete_confirm_note": "a pasta no disco não é alterada"
   },
   "dev": {
     "chrome_terminal": "Terminal do Chrome",

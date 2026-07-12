@@ -220,7 +220,10 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ Add Workspace",
     "workspace_select_desc": "Named workspaces can be selected per-chat from the chat input toolbar.",
-    "applied_desc": "Applied to every Unchain request when workspace toolkit is enabled."
+    "applied_desc": "Applied to every Unchain request when workspace toolkit is enabled.",
+    "esc_to_cancel": "esc to cancel",
+    "delete_confirm_inline": "Delete “{name}”?",
+    "delete_confirm_note": "the folder on disk is not touched"
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",

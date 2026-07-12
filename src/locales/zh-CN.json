@@ -220,7 +220,10 @@
     "path_placeholder": "/path/to/workspace",
     "add_workspace": "+ 添加工作区",
     "workspace_select_desc": "命名的工作区可以在聊天输入工具栏中按聊天选择。",
-    "applied_desc": "启用工作区工具包时，应用于每个 Unchain 请求。"
+    "applied_desc": "启用工作区工具包时，应用于每个 Unchain 请求。",
+    "esc_to_cancel": "esc 取消",
+    "delete_confirm_inline": "删除“{name}”？",
+    "delete_confirm_note": "不会动到磁盘上的文件夹"
   },
   "dev": {
     "chrome_terminal": "Chrome 终端",

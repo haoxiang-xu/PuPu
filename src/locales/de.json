@@ -194,7 +194,10 @@
     "path_placeholder": "/pfad/zum/arbeitsbereich",
     "add_workspace": "+ Arbeitsbereich hinzufügen",
     "workspace_select_desc": "Benannte Arbeitsbereiche können pro Chat aus der Chat-Eingabeleiste ausgewählt werden.",
-    "applied_desc": "Wird auf jede Unchain-Anfrage angewendet, wenn das Arbeitsbereich-Toolkit aktiviert ist."
+    "applied_desc": "Wird auf jede Unchain-Anfrage angewendet, wenn das Arbeitsbereich-Toolkit aktiviert ist.",
+    "esc_to_cancel": "esc zum Abbrechen",
+    "delete_confirm_inline": "„{name}“ löschen?",
+    "delete_confirm_note": "Der Ordner auf der Festplatte bleibt unberührt"
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",

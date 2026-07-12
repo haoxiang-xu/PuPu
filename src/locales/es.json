@@ -194,7 +194,10 @@
     "path_placeholder": "/ruta/al/espacio/de/trabajo",
     "add_workspace": "+ Añadir espacio de trabajo",
     "workspace_select_desc": "Los espacios de trabajo con nombre se pueden seleccionar por chat desde la barra de herramientas de entrada.",
-    "applied_desc": "Se aplica a cada solicitud de Unchain cuando el toolkit de espacio de trabajo está activado."
+    "applied_desc": "Se aplica a cada solicitud de Unchain cuando el toolkit de espacio de trabajo está activado.",
+    "esc_to_cancel": "esc para cancelar",
+    "delete_confirm_inline": "¿Eliminar “{name}”?",
+    "delete_confirm_note": "la carpeta en el disco no se modifica"
   },
   "dev": {
     "chrome_terminal": "Terminal de Chrome",
