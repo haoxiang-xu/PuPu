@@ -420,7 +420,7 @@ const AttachPanel = forwardRef(({
     backgroundColor: selectBg,
     borderRadius: floating ? 999 : 16,
     /* Apple continuous-capsule caps (≈ SwiftUI Capsule .continuous) */
-    cornerShape: "superellipse(1.4)",
+    cornerShape: "superellipse(1.7)",
     outline: "none",
     padding: "0 10px",
   };
@@ -514,7 +514,7 @@ const AttachPanel = forwardRef(({
           /* continuous-capsule caps matching the model pill inside
              (≈ SwiftUI Capsule .continuous) */
           borderRadius: 22,
-          cornerShape: "superellipse(1.4)",
+          cornerShape: "superellipse(1.7)",
           backgroundColor: panelBg,
           ...(floating
             ? {
