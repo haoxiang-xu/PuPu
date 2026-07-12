@@ -345,7 +345,7 @@ const Button = ({
             deepMerge(contentStyle?.root || {}, contentStyle?.prefixIconWrap || {})
           )}
         >
-          <Icon src={prefix_icon} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
+          <Icon src={prefix_icon} color={contentStyle?.icon?.color} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
         </span>
       )}
       {prefix && (
@@ -385,7 +385,7 @@ const Button = ({
             deepMerge(contentStyle?.root || {}, contentStyle?.postfixIconWrap || {})
           )}
         >
-          <Icon src={postfix_icon} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
+          <Icon src={postfix_icon} color={contentStyle?.icon?.color} style={deepMerge(computedIconStyle, contentStyle?.icon || {})} />
         </span>
       )}
       {children && (

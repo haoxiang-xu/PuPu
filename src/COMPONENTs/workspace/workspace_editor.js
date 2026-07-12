@@ -145,40 +145,43 @@ const TextLink = ({
   postfixIcon,
   colors,
   fontFamily,
-}) => (
-  <Button
-    label={label}
-    postfix_icon={postfixIcon}
-    onClick={onClick}
-    disabled={disabled}
-    style={{
-      gap: 5,
-      content: { icon: { width: 12, height: 12 } },
-      fontSize: 12,
-      fontFamily,
-      fontWeight: weight,
-      paddingVertical: 3,
-      paddingHorizontal: 8,
-      borderRadius: 6,
-      color:
-        tone === "accent"
-          ? colors.accent
-          : tone === "success"
-            ? colors.success
-            : tone === "danger"
-              ? colors.danger
-              : tone === "faint"
-                ? colors.faint
-                : colors.muted,
-      hoverBackgroundColor:
-        tone === "danger"
-          ? colors.dangerFill
-          : tone === "success"
-            ? colors.successFill
-            : colors.hoverFill,
-    }}
-  />
-);
+}) => {
+  const toneColor =
+    tone === "accent"
+      ? colors.accent
+      : tone === "success"
+        ? colors.success
+        : tone === "danger"
+          ? colors.danger
+          : tone === "faint"
+            ? colors.faint
+            : colors.muted;
+  return (
+    <Button
+      label={label}
+      postfix_icon={postfixIcon}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        gap: 5,
+        content: { icon: { width: 12, height: 12, color: toneColor } },
+        fontSize: 12,
+        fontFamily,
+        fontWeight: weight,
+        paddingVertical: 3,
+        paddingHorizontal: 8,
+        borderRadius: 6,
+        color: toneColor,
+        hoverBackgroundColor:
+          tone === "danger"
+            ? colors.dangerFill
+            : tone === "success"
+              ? colors.successFill
+              : colors.hoverFill,
+      }}
+    />
+  );
+};
 
 const Hint = ({ children, colors, fontFamily }) => (
   <span
@@ -867,7 +870,7 @@ const WorkspacesSection = ({ isDark }) => {
               paddingHorizontal: 3,
               borderRadius: 5,
               color: colors.muted,
-              content: { icon: { width: 14, height: 14 } },
+              content: { icon: { width: 14, height: 14, color: colors.muted } },
               hoverBackgroundColor: colors.hoverFill,
             }}
           />
@@ -880,7 +883,7 @@ const WorkspacesSection = ({ isDark }) => {
               paddingHorizontal: 3,
               borderRadius: 5,
               color: colors.muted,
-              content: { icon: { width: 14, height: 14 } },
+              content: { icon: { width: 14, height: 14, color: colors.muted } },
               hoverBackgroundColor: colors.hoverFill,
             }}
           />
@@ -893,7 +896,7 @@ const WorkspacesSection = ({ isDark }) => {
               paddingHorizontal: 3,
               borderRadius: 5,
               color: colors.muted,
-              content: { icon: { width: 14, height: 14 } },
+              content: { icon: { width: 14, height: 14, color: colors.muted } },
               hoverBackgroundColor: isDark
                 ? "rgba(248,113,113,0.14)"
                 : "rgba(220,38,38,0.10)",
