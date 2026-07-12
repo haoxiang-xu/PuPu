@@ -131,6 +131,8 @@ const UnderlineInput = ({
   );
 };
 
+/* Quiet action button — default builtin Button chrome (hover fill, press
+   animation) kept intact; only sized down and tinted for the mono layout. */
 const TextLink = ({
   label,
   onClick,
@@ -148,9 +150,9 @@ const TextLink = ({
       fontSize: 12,
       fontFamily,
       fontWeight: weight,
-      paddingVertical: 2,
-      paddingHorizontal: 2,
-      borderRadius: 4,
+      paddingVertical: 3,
+      paddingHorizontal: 8,
+      borderRadius: 6,
       color:
         tone === "accent"
           ? colors.accent
@@ -159,14 +161,8 @@ const TextLink = ({
             : tone === "faint"
               ? colors.faint
               : colors.muted,
-      root: { background: "transparent" },
-      hoverBackgroundColor: "transparent",
-      state: {
-        disabled: {
-          root: { opacity: 0.4, cursor: "not-allowed" },
-          background: {},
-        },
-      },
+      hoverBackgroundColor:
+        tone === "danger" ? colors.dangerFill : colors.hoverFill,
     }}
   />
 );
@@ -352,8 +348,9 @@ const DefaultRootSection = ({ isDark }) => {
         style={{
           display: "flex",
           alignItems: "center",
-          gap: 18,
-          marginTop: error ? 9 : 12,
+          gap: 10,
+          marginLeft: -8,
+          marginTop: error ? 7 : 10,
           minHeight: 20,
         }}
       >
@@ -633,8 +630,9 @@ const WorkspacesSection = ({ isDark }) => {
           style={{
             display: "flex",
             alignItems: "center",
-            gap: 18,
-            marginTop: 11,
+            gap: 10,
+            marginLeft: -8,
+            marginTop: 9,
           }}
         >
           <TextLink
@@ -896,7 +894,9 @@ const WorkspacesSection = ({ isDark }) => {
         </div>
       )}
 
-      <div style={{ marginTop: 14, opacity: dimOthers ? 0.4 : 1 }}>
+      <div
+        style={{ marginTop: 12, marginLeft: -8, opacity: dimOthers ? 0.4 : 1 }}
+      >
         <TextLink
           label={t("workspace.add_workspace")}
           tone="accent"
