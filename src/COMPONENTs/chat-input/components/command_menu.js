@@ -56,6 +56,7 @@ const CommandMenu = ({
         WebkitBackdropFilter: "blur(18px) saturate(1.4)",
         border,
         borderRadius: 10,
+        cornerShape: "squircle",
         boxShadow: shadow,
         padding: 3,
       };

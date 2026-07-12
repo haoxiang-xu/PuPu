@@ -510,6 +510,7 @@ const AttachPanel = forwardRef(({
           gap: 6,
           padding: 4,
           borderRadius: 22,
+          cornerShape: "squircle",
           backgroundColor: panelBg,
           ...(floating
             ? {

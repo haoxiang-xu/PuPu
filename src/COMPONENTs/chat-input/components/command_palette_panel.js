@@ -17,7 +17,6 @@ import CommandMenu from "./command_menu";
  */
 
 const FALLBACK_H = 40; // pill row height fallback before measurement
-const PAD = 6; // panel inner padding around the list (concentric inset)
 const PANEL_RADIUS = 22; // matches the attach pill container
 const ROW_STRIDE = 29; // CommandMenu bare row 28 + 1 gap
 const MAX_ROWS = 6;
@@ -112,6 +111,7 @@ const CommandPalettePanel = ({
           justifyContent: "flex-end",
           overflow: "hidden",
           borderRadius: PANEL_RADIUS,
+          cornerShape: "squircle",
           backgroundColor: on ? panelBg : "transparent",
           border: on ? panelBorder : "1px solid transparent",
           ...(on
