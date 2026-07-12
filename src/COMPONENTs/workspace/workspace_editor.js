@@ -183,12 +183,16 @@ const TextLink = ({
   );
 };
 
+/* Non-interactive keyboard hint — mirrors TextLink's vertical metrics
+   (3px padding, tight line-height) so it optically aligns with buttons. */
 const Hint = ({ children, colors, fontFamily }) => (
   <span
     style={{
       display: "inline-flex",
       alignItems: "center",
       gap: 4,
+      padding: "3px 0",
+      lineHeight: 1.2,
       fontSize: 12,
       fontFamily,
       color: colors.faint,
@@ -389,7 +393,12 @@ const DefaultRootSection = ({ isDark }) => {
               disabled={busy || Boolean(error)}
               {...linkProps}
             />
-            <Hint {...linkProps}>{t("workspace.esc_to_cancel")}</Hint>
+            <TextLink
+              label={t("workspace.esc_to_cancel")}
+              tone="faint"
+              onClick={handleRevert}
+              {...linkProps}
+            />
             {browseSupported && (
               <TextLink
                 label={t("workspace.browse")}
@@ -680,7 +689,13 @@ const WorkspacesSection = ({ isDark }) => {
             disabled={isSaving}
             {...linkProps}
           />
-          <Hint {...linkProps}>{t("workspace.esc_to_cancel")}</Hint>
+          <TextLink
+            label={t("workspace.esc_to_cancel")}
+            tone="faint"
+            onClick={cancelEditing}
+            disabled={isSaving}
+            {...linkProps}
+          />
           {browseSupported && (
             <TextLink
               label={t("workspace.browse")}
@@ -776,7 +791,12 @@ const WorkspacesSection = ({ isDark }) => {
           onClick={() => deleteItem(item.id)}
           {...linkProps}
         />
-        <Hint {...linkProps}>esc</Hint>
+        <TextLink
+          label="esc"
+          tone="faint"
+          onClick={() => setConfirmDeleteId(null)}
+          {...linkProps}
+        />
       </div>
     );
   };
