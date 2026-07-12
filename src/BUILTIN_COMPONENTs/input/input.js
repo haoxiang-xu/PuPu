@@ -425,7 +425,6 @@ const SinkingInput = ({
 
         backgroundColor: theme?.input.backgroundColor || "white",
         borderRadius: style?.borderRadius || theme?.input.borderRadius || 4,
-        cornerShape: "squircle",
         boxShadow: style?.boxShadow || theme?.input.boxShadow || "none",
         outline:
           style?.outline ||
@@ -757,7 +756,6 @@ const FloatingInput = ({
           backgroundColor: bg,
           border,
           borderRadius,
-          cornerShape: "squircle",
           boxShadow: hovered || focused ? shadowHover : shadow,
           transition: "box-shadow 0.3s ease",
           padding: `${default_top_bottom_padding}px ${padding}px`,
@@ -997,7 +995,6 @@ const Input = ({
         border: showBg ? "1px solid transparent" : faintBorder,
         outline: "none",
         borderRadius,
-        cornerShape: "squircle",
         padding: `${paddingV}px ${paddingH}px`,
         cursor: disabled ? "not-allowed" : "text",
         opacity: disabled ? 0.4 : 1,
@@ -1015,7 +1012,6 @@ const Input = ({
           position: "absolute",
           inset: 0,
           borderRadius,
-          cornerShape: "squircle",
           backgroundColor: focused ? activeBg : hoverBg,
           transform: showBg ? "scale(1)" : "scale(0.5, 0)",
           opacity: showBg ? 1 : 0,
