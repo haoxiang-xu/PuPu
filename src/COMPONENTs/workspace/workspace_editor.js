@@ -43,7 +43,8 @@ const useThemeColors = (isDark, theme) =>
       hoverFill: isDark ? "rgba(255,255,255,0.055)" : "rgba(0,0,0,0.04)",
       danger: isDark ? "#f87171" : "#dc2626",
       dangerFill: isDark ? "rgba(248,113,113,0.10)" : "rgba(220,38,38,0.07)",
-      success: isDark ? "#86efac" : "#2e7d32",
+      success: isDark ? "#4ade80" : "#16a34a",
+      successFill: isDark ? "rgba(74,222,128,0.10)" : "rgba(22,163,74,0.08)",
       accent: themeHighlightColor(theme),
     }),
     [isDark, theme],
@@ -162,13 +163,19 @@ const TextLink = ({
       color:
         tone === "accent"
           ? colors.accent
-          : tone === "danger"
-            ? colors.danger
-            : tone === "faint"
-              ? colors.faint
-              : colors.muted,
+          : tone === "success"
+            ? colors.success
+            : tone === "danger"
+              ? colors.danger
+              : tone === "faint"
+                ? colors.faint
+                : colors.muted,
       hoverBackgroundColor:
-        tone === "danger" ? colors.dangerFill : colors.hoverFill,
+        tone === "danger"
+          ? colors.dangerFill
+          : tone === "success"
+            ? colors.successFill
+            : colors.hoverFill,
     }}
   />
 );
@@ -373,7 +380,7 @@ const DefaultRootSection = ({ isDark }) => {
             <TextLink
               label={t("common.save")}
               postfixIcon="enter_key"
-              tone="accent"
+              tone="success"
               weight={500}
               onClick={handleSave}
               disabled={busy || Boolean(error)}
@@ -664,7 +671,7 @@ const WorkspacesSection = ({ isDark }) => {
           <TextLink
             label={t("common.save")}
             postfixIcon="enter_key"
-            tone="accent"
+            tone="success"
             weight={500}
             onClick={handleSaveItem}
             disabled={isSaving}
