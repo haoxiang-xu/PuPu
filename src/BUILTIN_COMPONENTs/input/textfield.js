@@ -234,6 +234,7 @@ const FloatingTextField = ({
             : {}),
           border,
           borderRadius,
+          ...(style?.cornerShape ? { cornerShape: style.cornerShape } : {}),
           boxShadow: hovered || focused ? shadowFocus : shadow,
           transition:
             "box-shadow 0.3s ease, height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -597,6 +598,7 @@ const TextField = ({
           backgroundColor: "transparent",
           border: showBg ? "1px solid transparent" : faintBorder,
           borderRadius,
+          ...(style?.cornerShape ? { cornerShape: style.cornerShape } : {}),
           transition:
             "border 0.2s ease, height 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
           height: contentHeight,
@@ -610,6 +612,7 @@ const TextField = ({
             position: "absolute",
             inset: 0,
             borderRadius,
+            ...(style?.cornerShape ? { cornerShape: style.cornerShape } : {}),
             backgroundColor: focused ? activeBg : hoverBg,
             transform: showBg ? "scale(1)" : "scale(0.5, 0)",
             opacity: showBg ? 1 : 0,
