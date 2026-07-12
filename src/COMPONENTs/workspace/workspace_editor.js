@@ -247,6 +247,12 @@ const DefaultRootSection = ({ isDark }) => {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmingClear, setConfirmingClear] = useState(false);
+  const clearConfirmRef = useRef(null);
+
+  useEffect(() => {
+    if (confirmingClear) clearConfirmRef.current?.focus();
+  }, [confirmingClear]);
 
   const browseSupported = runtimeBridge.isWorkspacePickerAvailable();
   const openFolderSupported = runtimeBridge.isOpenRuntimeFolderAvailable();
@@ -283,6 +289,7 @@ const DefaultRootSection = ({ isDark }) => {
     setSaved("");
     setError("");
     setInfo("Cleared.");
+    setConfirmingClear(false);
   }, []);
 
   const handleBrowse = useCallback(async () => {
@@ -359,6 +366,7 @@ const DefaultRootSection = ({ isDark }) => {
           setValue(e.target.value);
           setError("");
           setInfo("");
+          setConfirmingClear(false);
         }}
         onKeyDown={handleKeyDown}
         placeholder={t("workspace.enter_path")}
@@ -372,6 +380,67 @@ const DefaultRootSection = ({ isDark }) => {
 
       {error && <ErrorLine colors={colors}>{error}</ErrorLine>}
 
+      {confirmingClear ? (
+        <div
+          ref={clearConfirmRef}
+          data-testid="clear-confirm-row"
+          tabIndex={-1}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              handleClear();
+            } else if (event.key === "Escape") {
+              /* Dismiss the confirm only — keep esc away from the modal. */
+              event.preventDefault();
+              event.stopPropagation();
+              setConfirmingClear(false);
+            }
+          }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "6px 10px",
+            margin: "10px -10px 0",
+            borderRadius: 10,
+            backgroundColor: colors.dangerFill,
+            outline: "none",
+          }}
+        >
+          <span
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 12.5,
+              fontFamily,
+              color: colors.text,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t("workspace.clear_confirm_inline")}
+            <span style={{ color: colors.muted }}>
+              {" — "}
+              {t("workspace.clear_confirm_note")}
+            </span>
+          </span>
+          <TextLink
+            label={t("model_providers.clear")}
+            postfixIcon="enter_key"
+            tone="danger"
+            weight={500}
+            onClick={handleClear}
+            {...linkProps}
+          />
+          <TextLink
+            label="esc"
+            tone="faint"
+            onClick={() => setConfirmingClear(false)}
+            {...linkProps}
+          />
+        </div>
+      ) : (
       <div
         style={{
           display: "flex",
@@ -430,7 +499,7 @@ const DefaultRootSection = ({ isDark }) => {
               <TextLink
                 label={t("model_providers.clear")}
                 tone="faint"
-                onClick={handleClear}
+                onClick={() => setConfirmingClear(true)}
                 disabled={busy}
                 {...linkProps}
               />
@@ -449,6 +518,7 @@ const DefaultRootSection = ({ isDark }) => {
           </>
         )}
       </div>
+      )}
 
       <Caption colors={colors} fontFamily={fontFamily} style={{ marginTop: 14 }}>
         {t("workspace.applied_desc")}

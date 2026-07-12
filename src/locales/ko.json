@@ -197,7 +197,9 @@
     "applied_desc": "워크스페이스 툴킷이 활성화되면 모든 Unchain 요청에 적용됩니다.",
     "esc_to_cancel": "esc 취소",
     "delete_confirm_inline": "“{name}” 삭제할까요?",
-    "delete_confirm_note": "디스크의 폴더는 삭제되지 않습니다"
+    "delete_confirm_note": "디스크의 폴더는 삭제되지 않습니다",
+    "clear_confirm_inline": "기본 워크스페이스를 지울까요?",
+    "clear_confirm_note": "새 채팅에는 기본 파일 루트가 적용되지 않습니다"
   },
   "dev": {
     "chrome_terminal": "Chrome 터미널",

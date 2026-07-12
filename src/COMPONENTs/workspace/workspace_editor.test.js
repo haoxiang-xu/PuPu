@@ -143,6 +143,29 @@ describe("escape containment (modal must not close mid-edit)", () => {
   });
 });
 
+describe("default root clear confirm", () => {
+  test("clear asks for inline confirmation before wiping the root", () => {
+    renderEditor();
+    fireEvent.click(screen.getByTestId("btn-model_providers.clear"));
+    expect(writeWorkspaceRoot).not.toHaveBeenCalled();
+    expect(screen.getByTestId("clear-confirm-row")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getAllByTestId("btn-model_providers.clear").pop(),
+    );
+    expect(writeWorkspaceRoot).toHaveBeenCalledWith("");
+  });
+
+  test("escape dismisses the clear confirm without wiping", () => {
+    renderEditor();
+    fireEvent.click(screen.getByTestId("btn-model_providers.clear"));
+    fireEvent.keyDown(screen.getByTestId("clear-confirm-row"), {
+      key: "Escape",
+    });
+    expect(screen.queryByTestId("clear-confirm-row")).not.toBeInTheDocument();
+    expect(writeWorkspaceRoot).not.toHaveBeenCalled();
+  });
+});
+
 describe("default root keyboard flow", () => {
   test("enter validates and saves the edited path", async () => {
     renderEditor();

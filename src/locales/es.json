@@ -197,7 +197,9 @@
     "applied_desc": "Se aplica a cada solicitud de Unchain cuando el toolkit de espacio de trabajo está activado.",
     "esc_to_cancel": "esc para cancelar",
     "delete_confirm_inline": "¿Eliminar “{name}”?",
-    "delete_confirm_note": "la carpeta en el disco no se modifica"
+    "delete_confirm_note": "la carpeta en el disco no se modifica",
+    "clear_confirm_inline": "¿Borrar el espacio de trabajo predeterminado?",
+    "clear_confirm_note": "los nuevos chats ya no tendrán una raíz de archivos predeterminada"
   },
   "dev": {
     "chrome_terminal": "Terminal de Chrome",

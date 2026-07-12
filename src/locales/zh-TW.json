@@ -197,7 +197,9 @@
     "applied_desc": "啟用工作區工具包時，套用於每個 Unchain 請求。",
     "esc_to_cancel": "esc 取消",
     "delete_confirm_inline": "刪除「{name}」？",
-    "delete_confirm_note": "不會動到磁碟上的資料夾"
+    "delete_confirm_note": "不會動到磁碟上的資料夾",
+    "clear_confirm_inline": "清除預設工作區？",
+    "clear_confirm_note": "新會話將不再有預設檔案根目錄"
   },
   "dev": {
     "chrome_terminal": "Chrome 終端機",

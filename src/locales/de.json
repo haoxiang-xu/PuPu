@@ -197,7 +197,9 @@
     "applied_desc": "Wird auf jede Unchain-Anfrage angewendet, wenn das Arbeitsbereich-Toolkit aktiviert ist.",
     "esc_to_cancel": "esc zum Abbrechen",
     "delete_confirm_inline": "„{name}“ löschen?",
-    "delete_confirm_note": "Der Ordner auf der Festplatte bleibt unberührt"
+    "delete_confirm_note": "Der Ordner auf der Festplatte bleibt unberührt",
+    "clear_confirm_inline": "Standard-Arbeitsbereich leeren?",
+    "clear_confirm_note": "Neue Chats erhalten keinen Standard-Dateipfad mehr"
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",

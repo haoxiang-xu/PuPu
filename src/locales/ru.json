@@ -197,7 +197,9 @@
     "applied_desc": "Применяется к каждому запросу Unchain, когда включён инструментарий воркспейса.",
     "esc_to_cancel": "esc — отмена",
     "delete_confirm_inline": "Удалить «{name}»?",
-    "delete_confirm_note": "папка на диске не будет затронута"
+    "delete_confirm_note": "папка на диске не будет затронута",
+    "clear_confirm_inline": "Очистить рабочее пространство по умолчанию?",
+    "clear_confirm_note": "новые чаты больше не получат корневую папку по умолчанию"
   },
   "dev": {
     "chrome_terminal": "Терминал Chrome",

@@ -223,7 +223,9 @@
     "applied_desc": "Applied to every Unchain request when workspace toolkit is enabled.",
     "esc_to_cancel": "esc to cancel",
     "delete_confirm_inline": "Delete “{name}”?",
-    "delete_confirm_note": "the folder on disk is not touched"
+    "delete_confirm_note": "the folder on disk is not touched",
+    "clear_confirm_inline": "Clear the default workspace?",
+    "clear_confirm_note": "new chats will no longer get a default file root"
   },
   "dev": {
     "chrome_terminal": "Chrome Terminal",

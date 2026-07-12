@@ -223,7 +223,9 @@
     "applied_desc": "启用工作区工具包时，应用于每个 Unchain 请求。",
     "esc_to_cancel": "esc 取消",
     "delete_confirm_inline": "删除“{name}”？",
-    "delete_confirm_note": "不会动到磁盘上的文件夹"
+    "delete_confirm_note": "不会动到磁盘上的文件夹",
+    "clear_confirm_inline": "清除默认工作区？",
+    "clear_confirm_note": "新会话将不再有默认文件根目录"
   },
   "dev": {
     "chrome_terminal": "Chrome 终端",

@@ -197,7 +197,9 @@
     "applied_desc": "ワークスペースツールキットが有効な場合、すべての Unchain リクエストに適用されます。",
     "esc_to_cancel": "esc でキャンセル",
     "delete_confirm_inline": "“{name}” を削除しますか？",
-    "delete_confirm_note": "ディスク上のフォルダには影響しません"
+    "delete_confirm_note": "ディスク上のフォルダには影響しません",
+    "clear_confirm_inline": "デフォルトワークスペースをクリアしますか？",
+    "clear_confirm_note": "新しいチャットにはデフォルトのファイルルートが設定されなくなります"
   },
   "dev": {
     "chrome_terminal": "Chrome ターミナル",

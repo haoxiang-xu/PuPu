@@ -197,7 +197,9 @@
     "applied_desc": "Aplicado a cada solicitação Unchain quando o toolkit de workspace está ativado.",
     "esc_to_cancel": "esc para cancelar",
     "delete_confirm_inline": "Excluir “{name}”?",
-    "delete_confirm_note": "a pasta no disco não é alterada"
+    "delete_confirm_note": "a pasta no disco não é alterada",
+    "clear_confirm_inline": "Limpar o workspace padrão?",
+    "clear_confirm_note": "novos chats não terão mais uma raiz de arquivos padrão"
   },
   "dev": {
     "chrome_terminal": "Terminal do Chrome",

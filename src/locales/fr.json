@@ -197,7 +197,9 @@
     "applied_desc": "Appliqué à chaque requête Unchain lorsque le toolkit d'espace de travail est activé.",
     "esc_to_cancel": "esc pour annuler",
     "delete_confirm_inline": "Supprimer « {name} » ?",
-    "delete_confirm_note": "le dossier sur le disque n'est pas touché"
+    "delete_confirm_note": "le dossier sur le disque n'est pas touché",
+    "clear_confirm_inline": "Effacer l'espace de travail par défaut ?",
+    "clear_confirm_note": "les nouvelles discussions n'auront plus de racine de fichiers par défaut"
   },
   "dev": {
     "chrome_terminal": "Terminal Chrome",
