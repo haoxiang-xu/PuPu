@@ -419,6 +419,8 @@ const AttachPanel = forwardRef(({
     color,
     backgroundColor: selectBg,
     borderRadius: floating ? 999 : 16,
+    /* Apple continuous-capsule caps (≈ SwiftUI Capsule .continuous) */
+    cornerShape: "superellipse(1.4)",
     outline: "none",
     padding: "0 10px",
   };
@@ -509,9 +511,10 @@ const AttachPanel = forwardRef(({
           alignItems: "center",
           gap: 6,
           padding: 4,
-          /* full capsule (radius >= half height, 40px tall) — circular caps
-             on purpose; squircle squares them off against the round pills */
+          /* continuous-capsule caps matching the model pill inside
+             (≈ SwiftUI Capsule .continuous) */
           borderRadius: 22,
+          cornerShape: "superellipse(1.4)",
           backgroundColor: panelBg,
           ...(floating
             ? {
