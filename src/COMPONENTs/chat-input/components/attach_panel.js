@@ -509,8 +509,9 @@ const AttachPanel = forwardRef(({
           alignItems: "center",
           gap: 6,
           padding: 4,
+          /* full capsule (radius >= half height, 40px tall) — circular caps
+             on purpose; squircle squares them off against the round pills */
           borderRadius: 22,
-          cornerShape: "squircle",
           backgroundColor: panelBg,
           ...(floating
             ? {
